@@ -86,5 +86,7 @@ def main():
 
         except (ProgrammingError, OperationalError) as e:
             print(f'Error: {e}')
+
+            
 if __name__ == "__main__":
     main()
