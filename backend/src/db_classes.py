@@ -26,3 +26,11 @@ class DxheatRaw(Base):
     continent_dx = Column(Text)
     continent_spotter = Column(Text)
     dx_locator = Column(Text)
+
+    def __repr__(self):
+        return (f"<DxheatRaw(number={self.number}, spotter={self.spotter}, frequency={self.frequency}, "
+                    f"dx_call={self.dx_call}, time={self.time}, date={self.date}, beacon={self.beacon}, "
+                    f"mm={self.mm}, am={self.am}, valid={self.valid}, lotw={self.lotw}, lotw_date={self.lotw_date}, "
+                    f"esql={self.esql}, dx_homecall={self.dx_homecall}, comment={self.comment}, "
+                    f"flag={self.flag}, band={self.band}, mode={self.mode}, continent_dx={self.continent_dx}, "
+                    f"continent_spotter={self.continent_spotter}, dx_locator={self.dx_locator})>")
