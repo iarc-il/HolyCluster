@@ -8,10 +8,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import ProgrammingError, OperationalError
 
 from spots_collector import get_dxheat_spots, prepare_dxheat_record
-from settings import (
-    PSQL_USERNAME,
-    PSQL_PASSWORD,
-)
+import settings
+
 
 # 2 directories up
 grandparent_folder = Path(__file__).parents[1]
@@ -47,21 +45,8 @@ async def collect_dxheat_spots(debug=False):
     return spot_records
 
 
-def db_details():
-    user = PSQL_USERNAME
-    password = PSQL_PASSWORD
-    host = 'localhost'
-    port = '5432'
-    database = 'holly_cluster'
-
-    return user, password, host, port, database
-
-
 async def main(debug=False):
-    # get databse details
-    user, password, host, port, database = db_details()
-    # Create an engine connected to the default database
-    engine = create_engine(f'postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}', echo=True)
+    engine = create_engine(settings.DB_URL, echo=True)
 
     # Create a configured "Session" class
     Session = sessionmaker(bind=engine)
@@ -82,9 +67,9 @@ async def main(debug=False):
             # TBD
 
         except (ProgrammingError, OperationalError) as e:
-            print(f'Error: {e}')
+            print(f"Error: {e}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     debug = True
     asyncio.run(main(debug=debug))
