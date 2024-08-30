@@ -5,22 +5,22 @@ from loguru import logger
 import asyncio
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
-from sqlalchemy.exc import SQLAlchemyError, ProgrammingError, OperationalError
+from sqlalchemy.exc import ProgrammingError, OperationalError
 
+from spots_collector import get_dxheat_spots, prepare_dxheat_record
 from settings import (
     PSQL_USERNAME,
     PSQL_PASSWORD,
 )
 
-grandparent_folder = Path(__file__).parents[1] # 2 directories up
+# 2 directories up
+grandparent_folder = Path(__file__).parents[1]
 sys.path.append(f"{grandparent_folder}")
-from src.spots_collector import get_dxheat_spots, prepare_dxheat_record
-
 
 
 async def collect_dxheat_spots(debug=False):
-    bands = [20,40]
-    start =time()
+    bands = [20, 40]
+    start = time()
     tasks = []
     for band in bands:
         task = asyncio.create_task(get_dxheat_spots(band=band, limit=5))
@@ -28,9 +28,9 @@ async def collect_dxheat_spots(debug=False):
     all_spots = await asyncio.gather(*tasks)
     if debug:
         logger.debug(f"all_spots=\n{all_spots}")
-    end =time()
+    end = time()
     if debug:
-        logger.debug(f"Elasped time: {end - start :.2f} seconds")
+        logger.debug(f"Elasped time: {end - start:.2f} seconds")
 
     spot_records = []
     for spots_in_band in all_spots:
@@ -49,7 +49,7 @@ async def collect_dxheat_spots(debug=False):
 
 def db_details():
     user = PSQL_USERNAME
-    password =PSQL_PASSWORD
+    password = PSQL_PASSWORD
     host = 'localhost'
     port = '5432'
     database = 'holly_cluster'
@@ -85,7 +85,6 @@ async def main(debug=False):
             print(f'Error: {e}')
 
 
-
 if __name__ == '__main__':
-    debug=True
+    debug = True
     asyncio.run(main(debug=debug))
