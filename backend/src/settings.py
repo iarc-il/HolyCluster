@@ -13,3 +13,7 @@ PORT = "5432"
 DATABASE = "postgres"
 
 DB_URL = f"postgresql+psycopg2://{PSQL_USERNAME}:{PSQL_PASSWORD}@{HOST}:{PORT}/{DATABASE}"
+
+
+# Parameters for the API
+UI_DIR = env.str("UI_DIR")
