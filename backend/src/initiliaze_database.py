@@ -47,19 +47,19 @@ def create_tables(engine, tables):
 
 def main():
     # Create an engine connected to the default database
-    engine = create_engine(settings.DB_URL, echo=True)
-
-    new_db_name = "holly_cluster"
+    engine = create_engine(settings.GENERAL_DB_URL, echo=True)
 
     # Connect to the database and drop the target database if it exists, then create new database, then create tables
     with engine.connect() as connection:
         connection.execution_options(isolation_level="AUTOCOMMIT")  # Set isolation level to autocommit
         try:
-            drop_database_if_exists(connection=connection, db_name=new_db_name)
-            create_new_database(connection=connection, db_name=new_db_name)
+            drop_database_if_exists(connection=connection, db_name=settings.DATABASE)
+            create_new_database(connection=connection, db_name=settings.DATABASE)
 
         except (ProgrammingError, OperationalError) as e:
             print(f'Error: {e}')
+
+    engine = create_engine(settings.DB_URL, echo=True)
 
     tables = ['dxheat_raw']
     with engine.connect() as connection:

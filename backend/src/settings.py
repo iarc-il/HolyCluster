@@ -10,9 +10,10 @@ HOST = "localhost"
 PORT = "5432"
 
 # Connect to the default 'postgres' database
-DATABASE = "postgres"
+DATABASE = "holy_cluster"
 
-DB_URL = f"postgresql+psycopg2://{PSQL_USERNAME}:{PSQL_PASSWORD}@{HOST}:{PORT}/{DATABASE}"
+GENERAL_DB_URL = f"postgresql+psycopg2://{PSQL_USERNAME}:{PSQL_PASSWORD}@{HOST}:{PORT}"
+DB_URL = f"{GENERAL_DB_URL}/{DATABASE}"
 
 
 # Parameters for the API
