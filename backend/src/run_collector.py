@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from sqlalchemy.exc import ProgrammingError, OperationalError
 
+from db_classes import DxheatRaw
 from spots_collector import get_dxheat_spots, prepare_dxheat_record
 import settings
 
@@ -61,7 +62,9 @@ async def main(debug=False):
             # DX Heat
             spot_records = await collect_dxheat_spots(debug=debug)
             for record in spot_records:
-                session.add(record)
+                existing_spot = session.query(DxheatRaw).filter_by(number=record.number).first()
+                if existing_spot is None:
+                    session.add(record)
             session.commit()
 
             # DX Lite
