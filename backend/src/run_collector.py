@@ -17,13 +17,14 @@ sys.path.append(f"{grandparent_folder}")
 
 
 async def collect_dxheat_spots(debug=False):
-    bands = [20, 40]
+    bands = [160, 80, 40, 30, 20, 17, 15, 12, 10, 6]
     start = time()
     tasks = []
     for band in bands:
-        task = asyncio.create_task(get_dxheat_spots(band=band, limit=5))
+        task = asyncio.create_task(get_dxheat_spots(band=band, limit=300))
         tasks.append(task)
     all_spots = await asyncio.gather(*tasks)
+
     if debug:
         logger.debug(f"all_spots=\n{all_spots}")
     end = time()
