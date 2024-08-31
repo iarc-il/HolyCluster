@@ -38,7 +38,8 @@ def cleanup_spot(spot):
         date.day,
         time.hour,
         time.minute,
-        time.second
+        time.second,
+        tzinfo=datetime.timezone.utc,
     )
 
     if spot.mode.upper() in ("SSB", "USB", "LSB"):
