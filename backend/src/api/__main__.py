@@ -66,6 +66,14 @@ def spots():
         ]
 
 
+@app.websocket("/radio")
+async def websocket_endpoint(websocket: fastapi.WebSocket):
+    """Dummy websockets endpoint to indicate to the client that radio connection is not available."""
+    await websocket.accept()
+    await websocket.send_json({"status": 0})
+    websocket.close()
+
+
 app.mount("/", StaticFiles(directory=settings.UI_DIR, html=True), name="static")
 
 
