@@ -41,11 +41,16 @@ def cleanup_spot(spot):
         time.second
     )
 
+    if spot.mode.upper() in ("SSB", "USB", "LSB"):
+        mode = "SSB"
+    else:
+        mode = spot.mode
+
     return {
         "spotter": spot.spotter,
         "freq": int(float(spot.frequency)),
         "band": int(float(spot.band)),
-        "mode": spot.mode,
+        "mode": mode,
         "dx_call": spot.dx_call,
         "dx_locator": spot.dx_locator,
         "time": int(combined_datetime.timestamp()),
