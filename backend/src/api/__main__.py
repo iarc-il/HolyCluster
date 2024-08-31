@@ -65,10 +65,12 @@ def cleanup_spot(spot):
 def spots():
     with Session(engine) as session:
         spots = session.exec(select(DX)).all()
-        return [
+        spots = [
             cleanup_spot(spot)
             for spot in spots
         ]
+        spots = sorted(spots, key=lambda spot: spot["time"])
+        return spots
 
 
 @app.websocket("/radio")
