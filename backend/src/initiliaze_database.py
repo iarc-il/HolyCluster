@@ -47,7 +47,7 @@ def create_tables(engine, tables):
 
 def main():
     # Create an engine connected to the default database
-    engine = create_engine(settings.GENERAL_DB_URL, echo=True)
+    engine = create_engine(f"{settings.GENERAL_DB_URL}/postgres", echo=True)
 
     # Connect to the database and drop the target database if it exists, then create new database, then create tables
     with engine.connect() as connection:
