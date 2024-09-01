@@ -21,7 +21,7 @@ class DxheatRaw(Base):
     esql = Column(Boolean)
     dx_homecall = Column(Text)
     comment = Column(Text)
-    flag = Column(Text)
+    flag = Column(Text, nullable=True)
     band = Column(Text)
     mode = Column(Text)  # Added mode column
     continent_dx = Column(Text)
