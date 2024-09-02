@@ -83,7 +83,7 @@ def spots():
             cleanup_spot(spot)
             for spot in spots
         ]
-        spots = sorted(spots, key=lambda spot: spot["time"])
+        spots = sorted(spots, key=lambda spot: spot["time"], reverse=True)
         return spots
 
 
