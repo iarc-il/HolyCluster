@@ -1,4 +1,5 @@
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import fastapi
 import uvicorn
 
@@ -27,6 +28,24 @@ class DX(SQLModel, table=True):
 
 engine = create_engine(settings.DB_URL)
 app = fastapi.FastAPI()
+
+
+origins = [
+    "http://holycluster.iarc.org",
+    "https://holycluster.iarc.org",
+    "http://localhost",
+    "http://localhost:8080",
+    "http://localhost:8000",
+    "http://localhost:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 
 def cleanup_spot(spot):
@@ -79,7 +98,7 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
     """Dummy websockets endpoint to indicate to the client that radio connection is not available."""
     await websocket.accept()
     await websocket.send_json({"status": 0})
-    websocket.close()
+    await websocket.close()
 
 
 app.mount("/", StaticFiles(directory=settings.UI_DIR, html=True), name="static")
