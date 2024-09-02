@@ -34,19 +34,9 @@ if settings.SSL_AVAILABLE:
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ssl_context.load_cert_chain(settings.SSL_CERTFILE, keyfile=settings.SSL_KEYFILE)
 
-origins = [
-    "http://holycluster.iarc.org",
-    "https://holycluster.iarc.org",
-    "http://localhost",
-    "http://localhost:8080",
-    "http://localhost:8000",
-    "http://localhost:5173",
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
