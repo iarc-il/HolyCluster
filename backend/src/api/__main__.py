@@ -29,6 +29,10 @@ class DX(SQLModel, table=True):
 engine = create_engine(settings.DB_URL)
 app = fastapi.FastAPI()
 
+if settings.SSL_AVAILABLE:
+    import ssl
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ssl_context.load_cert_chain(settings.SSL_CERTFILE, keyfile=settings.SSL_KEYFILE)
 
 origins = [
     "http://holycluster.iarc.org",
@@ -105,4 +109,14 @@ app.mount("/", StaticFiles(directory=settings.UI_DIR, html=True), name="static")
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=80)
+    if settings.SSL_AVAILABLE:
+        port = 443
+        ssl_kwargs = {
+            "ssl_keyfile": settings.SSL_KEYFILE,
+            "ssl_certfile": settings.SSL_CERTFILE
+        }
+    else:
+        port = 80
+        ssl_kwargs = {}
+
+    uvicorn.run(app, host="0.0.0.0", port=port, **ssl_kwargs)

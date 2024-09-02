@@ -17,4 +17,8 @@ DB_URL = f"{GENERAL_DB_URL}/{DATABASE}"
 
 
 # Parameters for the API
+SSL_KEYFILE = env.str("SSL_KEYFILE", None)
+SSL_CERTFILE = env.str("SSL_CERTFILE", None)
+SSL_AVAILABLE = SSL_KEYFILE is not None and SSL_CERTFILE is not None
+
 UI_DIR = env.str("UI_DIR")
