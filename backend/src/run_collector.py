@@ -5,32 +5,32 @@ from loguru import logger
 import asyncio
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
-from sqlalchemy.exc import SQLAlchemyError, ProgrammingError, OperationalError
+from sqlalchemy.exc import ProgrammingError, OperationalError
 
-from settings import (
-    PSQL_USERNAME,
-    PSQL_PASSWORD,
-)
+from db_classes import DxheatRaw
+from spots_collector import get_dxheat_spots, prepare_dxheat_record
+import settings
 
-grandparent_folder = Path(__file__).parents[1] # 2 directories up
+
+# 2 directories up
+grandparent_folder = Path(__file__).parents[1]
 sys.path.append(f"{grandparent_folder}")
-from src.spots_collector import get_dxheat_spots, prepare_dxheat_record
-
 
 
 async def collect_dxheat_spots(debug=False):
-    bands = [20,40]
-    start =time()
+    bands = [160, 80, 40, 30, 20, 17, 15, 12, 10, 6]
+    start = time()
     tasks = []
     for band in bands:
-        task = asyncio.create_task(get_dxheat_spots(band=band, limit=5))
+        task = asyncio.create_task(get_dxheat_spots(band=band, limit=300))
         tasks.append(task)
     all_spots = await asyncio.gather(*tasks)
+
     if debug:
         logger.debug(f"all_spots=\n{all_spots}")
-    end =time()
+    end = time()
     if debug:
-        logger.debug(f"Elasped time: {end - start :.2f} seconds")
+        logger.debug(f"Elasped time: {end - start:.2f} seconds")
 
     spot_records = []
     for spots_in_band in all_spots:
@@ -47,21 +47,8 @@ async def collect_dxheat_spots(debug=False):
     return spot_records
 
 
-def db_details():
-    user = PSQL_USERNAME
-    password =PSQL_PASSWORD
-    host = 'localhost'
-    port = '5432'
-    database = 'holly_cluster'
-
-    return user, password, host, port, database
-
-
 async def main(debug=False):
-    # get databse details
-    user, password, host, port, database = db_details()
-    # Create an engine connected to the default database
-    engine = create_engine(f'postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}', echo=True)
+    engine = create_engine(settings.DB_URL, echo=True)
 
     # Create a configured "Session" class
     Session = sessionmaker(bind=engine)
@@ -75,17 +62,18 @@ async def main(debug=False):
             # DX Heat
             spot_records = await collect_dxheat_spots(debug=debug)
             for record in spot_records:
-                session.add(record)
+                existing_spot = session.query(DxheatRaw).filter_by(number=record.number).first()
+                if existing_spot is None:
+                    session.add(record)
             session.commit()
 
             # DX Lite
             # TBD
 
         except (ProgrammingError, OperationalError) as e:
-            print(f'Error: {e}')
+            print(f"Error: {e}")
 
 
-
-if __name__ == '__main__':
-    debug=True
+if __name__ == "__main__":
+    debug = True
     asyncio.run(main(debug=debug))
