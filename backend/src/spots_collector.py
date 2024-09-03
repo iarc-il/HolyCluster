@@ -3,14 +3,13 @@ from datetime import datetime
 from loguru import logger
 import httpx
 
-from src.db_classes import DxheatRaw
+from db_classes import DxheatRaw
 
 
 async def get_dxheat_spots(band, limit=30, debug=False):
-
     assert isinstance(band, int)
     assert isinstance(limit, int)
-    limit = min(50,limit)
+    limit = min(50, limit)
 
     url = f"https://dxheat.com/source/spots/?a={limit}&b={band}&cdx=EU&cdx=NA&cdx=SA&cdx=AS&cdx=AF&cdx=OC&cdx=AN&cde=EU&cde=NA&cde=SA&cde=AS&cde=AF&cde=OC&cde=AN&m=CW&m=PHONE&valid=1&spam=0"
     async with httpx.AsyncClient() as client:
@@ -32,6 +31,7 @@ async def get_dxheat_spots(band, limit=30, debug=False):
     else:
         return []
 
+
 def prepare_dxheat_record(spot, debug=False):
     record = DxheatRaw(
         number=spot['Nr'],
@@ -49,7 +49,7 @@ def prepare_dxheat_record(spot, debug=False):
         esql=spot['EQSL'] if 'EQSL' in spot else None,
         dx_homecall=spot['DXHomecall'],
         comment=spot['Comment'],
-        flag=spot['Flag'],
+        flag=spot.get('Flag'),
         band=str(spot['Band']),
         mode=spot['Mode'],
         continent_dx=spot['Continent_dx'],
@@ -58,4 +58,3 @@ def prepare_dxheat_record(spot, debug=False):
     )
 
     return record
-
