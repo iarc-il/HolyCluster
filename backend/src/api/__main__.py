@@ -91,7 +91,7 @@ def spots():
 async def websocket_endpoint(websocket: fastapi.WebSocket):
     """Dummy websockets endpoint to indicate to the client that radio connection is not available."""
     await websocket.accept()
-    await websocket.send_json({"status": 0})
+    await websocket.send_json({"status": "unavailable"})
     await websocket.close()
 
 
