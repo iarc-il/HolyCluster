@@ -24,7 +24,7 @@ class DxheatRaw(Base):
     flag = Column(Text, nullable=True)
     band = Column(Text)
     mode = Column(Text)  # Added mode column
-    continent_dx = Column(Text)
+    continent_dx = Column(Text, nullable=True)
     continent_spotter = Column(Text)
     dx_locator = Column(Text)
 

@@ -52,7 +52,7 @@ def prepare_dxheat_record(spot, debug=False):
         flag=spot.get('Flag'),
         band=str(spot['Band']),
         mode=spot['Mode'],
-        continent_dx=spot['Continent_dx'],
+        continent_dx=spot.get('Continent_dx'),
         continent_spotter=spot['Continent_spotter'],
         dx_locator=spot['DXLocator']
     )
