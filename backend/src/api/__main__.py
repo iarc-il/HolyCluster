@@ -61,6 +61,7 @@ def cleanup_spot(spot):
         mode = spot.mode
 
     return {
+        "id": spot.number,
         "spotter": spot.spotter,
         "freq": int(float(spot.frequency)),
         "band": int(float(spot.band)),
