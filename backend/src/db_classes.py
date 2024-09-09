@@ -38,16 +38,16 @@ class DxheatRaw(Base):
 
 class HollySpot(Base):
     __tablename__ = 'holly_spots'
-    date = Column(Date)
-    time = Column(Time)
+    date = Column(Date, primary_key=True)
+    time = Column(Time, primary_key=True)
     mode = Column(Text)
     band = Column(Text)
     frequency = Column(Text)
-    spotter_callsign = Column(Text)
+    spotter_callsign = Column(Text, primary_key=True)
     spotter_locator = Column(Text)
     spotter_lat = Column(Text)
     spotter_lon = Column(Text)
-    dx_callsign = Column(Text)
+    dx_callsign = Column(Text, primary_key=True)
     dx_locator = Column(Text)
     dx_lat = Column(Text)
     dx_lon = Column(Text)
