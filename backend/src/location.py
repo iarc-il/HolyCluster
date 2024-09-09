@@ -24,3 +24,7 @@ def resolve_locator(callsign:str, callsigns_to_locators:List) -> str:
         if re.match(regex+".*", callsign):
             return locator
     return None
+
+
+def get_locator_from_qrz(callsign:str) -> str:
+    ...
