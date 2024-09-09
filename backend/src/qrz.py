@@ -1,9 +1,25 @@
-import requests
-import xml.etree.ElementTree as ET
 import configparser
+import httpx
+import xml.etree.ElementTree as ET
 
 
-class qrz:
+
+def get_qrz_session_key(username, password, api_key):
+    url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
+    with httpx.Client() as client:
+        response = client.get(url)
+    
+    if response.status_code == 200:
+        root = ET.fromstring(response.text)
+        ns = {'qrz': 'http://xmldata.qrz.com'}
+        session_key = root.find('.//qrz:Key', ns).text
+        return session_key
+    else:
+        print("Error:", response.status_code)
+        return None
+        
+
+class QRZ:
     def __init__(self, config_file_path):
         # Create a configparser object
         config = configparser.ConfigParser()
@@ -19,7 +35,8 @@ class qrz:
 
     def get_session_key(self, username, password, api_key):
         url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
-        response = requests.get(url)
+        with httpx.Client() as client:
+            response = client.get(url)
         
         if response.status_code == 200:
             root = ET.fromstring(response.text)
@@ -33,7 +50,8 @@ class qrz:
     def get_callsign_info(self, callsign):
         if self.session_key:
             url = f"https://xmldata.qrz.com/xml/current/?s={self.session_key};callsign={callsign}"
-            response = requests.get(url)
+            with httpx.Client() as client:
+                response = client.get(url)
             
             if response.status_code == 200:
                 try:
