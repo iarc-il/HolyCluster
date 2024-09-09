@@ -7,9 +7,10 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from sqlalchemy.exc import ProgrammingError, OperationalError
 
-from db_classes import DxheatRaw
-from spots_collector import get_dxheat_spots, prepare_dxheat_record, prepare_record_for_aggregation
 import settings
+from db_classes import DxheatRaw
+from spots_collector import get_dxheat_spots, prepare_dxheat_record, prepare_holy_spot
+from qrz import get_qrz_session_key
 
 
 # 2 directories up
@@ -49,7 +50,9 @@ async def collect_dxheat_spots(debug=False):
 
 async def main(debug=False):
     engine = create_engine(settings.DB_URL, echo=True)
-    aggregated_records = []
+    holy_spot_records = []
+
+    qrz_session_key = get_qrz_session_key(username=settings.QRZ_USER, password=settings.QRZ_PASSOWRD, api_key=settings.QRZ_API_KEY)
 
     # Create a configured "Session" class
     Session = sessionmaker(bind=engine)
@@ -67,7 +70,7 @@ async def main(debug=False):
                 if existing_spot is None:
                     session.add(record)
                     if  record.valid:
-                        agg_record = prepare_record_for_aggregation(
+                        holy_spot_record = prepare_holy_spot(
                             date=record.date,
                             time=record.time,
                             mode=record.mode,
@@ -76,9 +79,10 @@ async def main(debug=False):
                             spotter_callsign=record.dx_call,
                             dx_callsign=record.dx_homecall,
                             dx_locator=record.dx_locator,
+                            qrz_session_key=qrz_session_key,
                             debug=debug
                         )
-                        aggregated_records.append(agg_record)
+                        holy_spot_records.append(holy_spot_record)
 
 
             session.commit()
