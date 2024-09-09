@@ -3,7 +3,8 @@ from datetime import datetime
 from loguru import logger
 import httpx
 
-from db_classes import DxheatRaw
+from db_classes import DxheatRaw, HollySpot
+from location import get_locator_from_qrz, resolve_locator, get_coordinates
 
 
 async def get_dxheat_spots(band, limit=30, debug=False):
@@ -55,6 +56,47 @@ def prepare_dxheat_record(spot, debug=False):
         continent_dx=spot.get('Continent_dx'),
         continent_spotter=spot['Continent_spotter'],
         dx_locator=spot['DXLocator']
+    )
+
+    return record
+
+
+def prepare_holy_spot(
+    date,
+    time,
+    mode: str,
+    band: str,
+    frequency: str,
+    spotter_callsign: str,
+    dx_callsign: str,
+    dx_locator: str,
+    debug: bool = False
+):
+    
+    spotter_locator = get_locator_from_qrz(spotter_callsign)
+    if not spotter_locator:
+        spotter_locator = resolve_locator(spotter_callsign)
+    spotter_lat, spotter_lon = get_coordinates(spotter_locator)
+    if not dx_locator:
+        dx_locator = get_locator_from_qrz(dx_callsign)
+        if not dx_locator:
+            dx_locator = resolve_locator(dx_callsign)
+    dx_lat, dx_lon = get_coordinates(dx_locator)
+
+    record = HollySpot(
+        date=date,  
+        time=time,  
+        mode=mode,  
+        band=band,
+        frequency=frequency,
+        spotter_callsign=spotter_callsign,
+        spotter_locator=spotter_locator,
+        spotter_lat=spotter_lat,
+        spotter_lon=spotter_lon,
+        dx_callsign=dx_callsign,
+        dx_locator=dx_locator,
+        dx_lat=dx_lat,
+        dx_lon=dx_lon
     )
 
     return record
