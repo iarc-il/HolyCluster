@@ -70,6 +70,7 @@ def prepare_holy_spot(
     spotter_callsign: str,
     dx_callsign: str,
     dx_locator: str,
+    qrz_session_key: str,
     debug: bool = False
 ):
     
