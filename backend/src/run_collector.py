@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import ProgrammingError, OperationalError
 
 from db_classes import DxheatRaw
-from spots_collector import get_dxheat_spots, prepare_dxheat_record
+from spots_collector import get_dxheat_spots, prepare_dxheat_record, prepare_record_for_aggregation
 import settings
 
 
@@ -49,6 +49,7 @@ async def collect_dxheat_spots(debug=False):
 
 async def main(debug=False):
     engine = create_engine(settings.DB_URL, echo=True)
+    aggregated_records = []
 
     # Create a configured "Session" class
     Session = sessionmaker(bind=engine)
@@ -65,6 +66,21 @@ async def main(debug=False):
                 existing_spot = session.query(DxheatRaw).filter_by(number=record.number).first()
                 if existing_spot is None:
                     session.add(record)
+                    if  record.valid:
+                        agg_record = prepare_record_for_aggregation(
+                            date=record.date,
+                            time=record.time,
+                            mode=record.mode,
+                            band=record.band,
+                            frequency=record.frequency,
+                            spotter_callsign=record.dx_call,
+                            dx_callsign=record.dx_homecall,
+                            dx_locator=record.dx_locator,
+                            debug=debug
+                        )
+                        aggregated_records.append(agg_record)
+
+
             session.commit()
 
             # DX Lite
