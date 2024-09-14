@@ -19,9 +19,9 @@ def read_csv_to_list_of_tuples(filename: str):
         return [tuple(row) for row in csv_reader]
 
 
-def resolve_locator(callsign:str, callsigns_to_locators:List) -> str:
+def resolve_locator(callsign:str, prefixes_to_locators:List) -> str:
     callsign=callsign.upper()
-    for regex, locator in callsigns_to_locators:
+    for regex, locator in prefixes_to_locators:
         if re.match(regex+".*", callsign):
             return locator
     return None
