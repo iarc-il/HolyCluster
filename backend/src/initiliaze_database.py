@@ -65,7 +65,7 @@ def main():
 
     engine = create_engine(settings.DB_URL, echo=True)
 
-    tables = ['dxheat_raw', 'holy_spots']
+    tables = ['dxheat_raw', 'holy_spots', 'geo_cache']
     with engine.connect() as connection:
         connection.execution_options(isolation_level="AUTOCOMMIT")  # Set isolation level to autocommit
         try:
