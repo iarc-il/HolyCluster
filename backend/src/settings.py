@@ -6,6 +6,10 @@ env.read_env()
 PSQL_USERNAME = env.str("PSQL_USERNAME")
 PSQL_PASSWORD = env.str("PSQL_PASSWORD")
 
+QRZ_USER = env.str("QRZ_USER")
+QRZ_PASSOWRD = env.str("QRZ_PASSWORD")
+QRZ_API_KEY = env.str("QRZ_API_KEY")
+
 HOST = "localhost"
 PORT = "5432"
 
