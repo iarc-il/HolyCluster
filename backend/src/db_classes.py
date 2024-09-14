@@ -4,6 +4,28 @@ from sqlalchemy.orm import declarative_base
 Base = declarative_base()
 
 
+class GeoCache(Base):
+     __tablename__ = 'geo_cache'
+     callsign = Column(Text, primary_key=True)
+     locator = Column(Text)
+     lat = Column(Text)
+     lon = Column(Text)
+
+
+class CallsignToLocator():
+    def __init__(self):
+        self.dictionary = {}
+
+    def add_callsign(self, callsign:str, locator:str, lat:str, lon:str):
+         self.dictionary.update({callsign: {"locator": locator, "lat": lat, "lon": lon}})
+
+    def find_callsign(self, callsign:str):
+         if callsign in self.dictionary:
+            return self.dictionary[callsign]
+         else:
+              return None
+
+
 class DxheatRaw(Base):
     __tablename__ = 'dxheat_raw'
     number = Column(Integer, primary_key=True)
@@ -103,3 +125,5 @@ class HollySpot(Base):
             'dx_lat': self.dx_lat,
             'dx_lon': self.dx_lon
         }
+    
+    
