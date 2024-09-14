@@ -1,13 +1,15 @@
+import asyncio
 import json
 from datetime import datetime
 from loguru import logger
 import httpx
 
 from db_classes import DxheatRaw, HollySpot
-from location import get_locator_from_qrz, resolve_locator, get_coordinates
+from location import resolve_locator, locator_to_coordinates
+from qrz import get_locator_from_qrz
 
 
-async def get_dxheat_spots(band, limit=30, debug=False):
+async def get_dxheat_spots(band:int, limit:int=30, debug:bool=False) -> list|None:
     assert isinstance(band, int)
     assert isinstance(limit, int)
     limit = min(50, limit)
@@ -61,7 +63,7 @@ def prepare_dxheat_record(spot, debug=False):
     return record
 
 
-def prepare_holy_spot(
+async def prepare_holy_spot(
     date,
     time,
     mode: str,
@@ -71,18 +73,30 @@ def prepare_holy_spot(
     dx_callsign: str,
     dx_locator: str,
     qrz_session_key: str,
+    callsigns_to_locators: list,
     debug: bool = False
 ):
     
-    spotter_locator = get_locator_from_qrz(spotter_callsign)
+    spotter_locator = await get_locator_from_qrz(
+        qrz_session_key=qrz_session_key, 
+        callsign=spotter_callsign, 
+        debug=debug
+    )
+    spotter_locator=spotter_locator["locator"]
     if not spotter_locator:
-        spotter_locator = resolve_locator(spotter_callsign)
-    spotter_lat, spotter_lon = get_coordinates(spotter_locator)
+        spotter_locator = resolve_locator(callsign=spotter_callsign, callsigns_to_locators=callsigns_to_locators)
+    spotter_lat, spotter_lon = locator_to_coordinates(spotter_locator)
+
     if not dx_locator:
-        dx_locator = get_locator_from_qrz(dx_callsign)
+        dx_locator = get_locator_from_qrz(
+            qrz_session_key=qrz_session_key, 
+            callsign=dx_callsign, 
+            debug=debug
+        )
+        dx_locator = dx_locator["locator"]
         if not dx_locator:
-            dx_locator = resolve_locator(dx_callsign)
-    dx_lat, dx_lon = get_coordinates(dx_locator)
+            dx_locator = resolve_locator(callsign=dx_callsign, callsigns_to_locators=callsigns_to_locators)
+    dx_lat, dx_lon = locator_to_coordinates(dx_locator)
 
     record = HollySpot(
         date=date,  
@@ -99,5 +113,4 @@ def prepare_holy_spot(
         dx_lat=dx_lat,
         dx_lon=dx_lon
     )
-
     return record

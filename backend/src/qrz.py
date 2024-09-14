@@ -1,4 +1,5 @@
 import configparser
+import asyncio
 import httpx
 import xml.etree.ElementTree as ET
 from loguru import logger
@@ -20,33 +21,40 @@ def get_qrz_session_key(username, password, api_key):
         return None
 
 
-def get_qrz_callsign_info(qrz_session_key:str, callsign: str, debug:bool=False):
-        if qrz_session_key:
-            url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
-            with httpx.Client() as client:
-                response = client.get(url)
-            if debug:
-                logger.debug(f"{response=}")
+async def get_locator_from_qrz(qrz_session_key:str, callsign: str, debug:bool=False) -> dict:
+        if debug:
+            logger.debug(f"{callsign=}")
+        suffix_list = ["/M", "/P"]
+        for suffix in suffix_list:
+            if callsign.upper().endswith(suffix):
+                callsign = callsign[:-len(suffix)]
+        if not qrz_session_key:            
+            return {"locator": None, "error": "No qrz_session_key"}
+
+        url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+        if debug:
+            logger.debug(f"{response=}")
+        
+        if response.status_code != 200:
+            print("Error:", response.status_code)
+            return {"locator": None, "error": f"qrz response code {response.status_code}"}
+
+        if debug:
+            logger.debug(f"{response.text=}")
+        try:
+            ns = {'qrz': 'http://xmldata.qrz.com'}
+            root = ET.fromstring(response.text)
+            xml_error = root.find('.//qrz:Error',ns)
+            if xml_error is not None:
+                error = root.find('.//qrz:Error', ns).text
+                logger.error(f"qrz.com: {error}")
+                return {"locator": None, "error": error}
             
-            if response.status_code == 200:
-                if debug:
-                    logger.debug(f"{response.text=}")
-                try:
-                    ns = {'qrz': 'http://xmldata.qrz.com'}
-                    root = ET.fromstring(response.text)
-                    call = root.find('.//qrz:call', ns).text
-                    lat = root.find('.//qrz:lat', ns).text
-                    lon = root.find('.//qrz:lon', ns).text
-                    grid = root.find('.//qrz:grid', ns).text                
-                    return { "call":call, "lat":lat, "lon":lon, "grid":grid }
-                except:
-                    return { "call":callsign, "lat":"", "lon":"", "grid":"" }
-
-            else:
-                print("Error:", response.status_code)
-                return { "call":callsign, "lat":"", "lon":"", "grid":"" }
-        else:
-            return { "call":callsign, "lat":"", "lon":"", "grid":"" }
-
-# def get_callsign_grid(self, callsign):
-#     return self.get_callsign_info(callsign)["grid"]
+            locator = root.find('.//qrz:grid', ns).text                
+            return {"locator": locator}
+        
+        except Exception as e:
+            return {"locator": None, "error": f"Exception: {e}"}
+        

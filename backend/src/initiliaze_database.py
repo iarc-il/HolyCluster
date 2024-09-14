@@ -7,6 +7,10 @@ from db_classes import Base
 import settings
 
 
+from settings import (
+    GENERAL_DB_URL,
+)
+
 def check_database_exists(connection, db_name):
     result = connection.execute(text(f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"))
     return result.scalar() is not None
