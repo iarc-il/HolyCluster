@@ -8,8 +8,8 @@ from src.location import read_csv_to_list_of_tuples, resolve_locator
 
 filename = f"{grandparent_folder}/src/callsign_to_locator.csv"
 logger.debug(filename)
-callsigns_to_locators = read_csv_to_list_of_tuples(filename=filename)
-#logger.debug(f"{callsigns_to_locators=}")
+prefixes_to_locators = read_csv_to_list_of_tuples(filename=filename)
+#logger.debug(f"{prefixes_to_locators=}")
 
 random_call_signs = [
     "W1ABC", "VE2DEF", "G3GHI", "JA4JKL", "VK5MNO",
@@ -34,5 +34,5 @@ random_call_signs = [
     "ZL0ZAB", "CE1CDE", "5B2FGH", "HB3IJK", "OZ5LMN"
 ]
 for callsign in random_call_signs:
-    locator = resolve_locator(callsign=callsign, callsigns_to_locators=callsigns_to_locators)
+    locator = resolve_locator(callsign=callsign, prefixes_to_locators=prefixes_to_locators)
     logger.debug(f"{callsign=}   {locator=}")

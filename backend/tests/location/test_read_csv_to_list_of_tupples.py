@@ -9,5 +9,5 @@ from src.location import read_csv_to_list_of_tuples
 
 filename = f"{grandparent_folder}/src/callsign_to_locatore.csv"
 logger.debug(filename)
-callsigns_to_locators = read_csv_to_list_of_tuples(filename=filename)
-logger.debug(f"{callsigns_to_locators=}")
+prefixes_to_locators = read_csv_to_list_of_tuples(filename=filename)
+logger.debug(f"{prefixes_to_locators=}")

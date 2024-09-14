@@ -1,5 +1,6 @@
 import configparser
 import asyncio
+import time
 import httpx
 import xml.etree.ElementTree as ET
 from loguru import logger
@@ -21,16 +22,16 @@ def get_qrz_session_key(username, password, api_key):
         return None
 
 
-async def get_locator_from_qrz(qrz_session_key:str, callsign: str, debug:bool=False) -> dict:
+async def get_locator_from_qrz(qrz_session_key:str, callsign: str, delay:float=0, debug:bool=False) -> dict:
         if debug:
-            logger.debug(f"{callsign=}")
+            logger.debug(f"{callsign=}   {delay=}")
         suffix_list = ["/M", "/P"]
         for suffix in suffix_list:
             if callsign.upper().endswith(suffix):
                 callsign = callsign[:-len(suffix)]
         if not qrz_session_key:            
             return {"locator": None, "error": "No qrz_session_key"}
-
+        await asyncio.sleep(delay)
         url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
         async with httpx.AsyncClient() as client:
             response = await client.get(url)

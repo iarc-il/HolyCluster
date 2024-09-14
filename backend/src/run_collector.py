@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import ProgrammingError, OperationalError
 
 import settings
-from db_classes import DxheatRaw, HollySpot
+from db_classes import DxheatRaw, HollySpot, GeoCache, CallsignToLocator
 from spots_collector import get_dxheat_spots, prepare_dxheat_record, prepare_holy_spot
 from qrz import get_qrz_session_key
 from location import read_csv_to_list_of_tuples
@@ -27,11 +27,12 @@ sys.path.append(f"{grandparent_folder}")
 
 async def prepare_holy_spots_records(holy_spots_list: list, 
                                      qrz_session_key: str, 
-                                     callsigns_to_locators: list, 
+                                     prefixes_to_locators: list,
+                                     callsign_to_locator_cache: CallsignToLocator,
                                      debug: bool=False) -> list:
         start = time()
         tasks = []
-        for spot in holy_spots_list:
+        for index, spot in enumerate(holy_spots_list):
             
             task = asyncio.create_task(prepare_holy_spot(
                 date=spot.date,
@@ -43,7 +44,9 @@ async def prepare_holy_spots_records(holy_spots_list: list,
                 dx_callsign=spot.dx_call,
                 dx_locator=spot.dx_locator,
                 qrz_session_key=qrz_session_key,
-                callsigns_to_locators=callsigns_to_locators,
+                prefixes_to_locators=prefixes_to_locators,
+                callsign_to_locator_cache=callsign_to_locator_cache,
+                delay=index/50,
                 debug=debug
             ))
             tasks.append(task)
@@ -60,7 +63,7 @@ async def collect_dxheat_spots(debug=False):
     start = time()
     tasks = []
     for band in bands:
-        task = asyncio.create_task(get_dxheat_spots(band=band, limit=5))
+        task = asyncio.create_task(get_dxheat_spots(band=band, limit=30))
         tasks.append(task)
     all_spots = await asyncio.gather(*tasks)
 
@@ -88,16 +91,16 @@ async def collect_dxheat_spots(debug=False):
 async def main(debug=False):
     engine = create_engine(settings.DB_URL, echo=True)
     holy_spots_list = []
-    holy_spot_records = []
+    callsign_to_locator_cache = CallsignToLocator()
 
     qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)    
     # Create a configured "Session" class
     Session = sessionmaker(bind=engine)
 
-    callsign_to_locator_filename = f"{grandparent_folder}/src/callsign_to_locator.csv"
+    callsign_to_locator_filename = f"{grandparent_folder}/src/prefixes_to_locators.csv"
     if debug:
         logger.debug(f"{callsign_to_locator_filename=}")
-    callsigns_to_locators = read_csv_to_list_of_tuples(filename=callsign_to_locator_filename)
+    prefixes_to_locators = read_csv_to_list_of_tuples(filename=callsign_to_locator_filename)
 
     # Create a Session
     session = Session()
@@ -119,24 +122,11 @@ async def main(debug=False):
 
                 if  record.valid:
                     holy_spots_list.append(record)
-                #     holy_spot_record = prepare_holy_spot(
-                #         date=record.date,
-                #         time=record.time,
-                #         mode=record.mode,
-                #         band=record.band,
-                #         frequency=record.frequency,
-                #         spotter_callsign=record.dx_call,
-                #         dx_callsign=record.dx_homecall,
-                #         dx_locator=record.dx_locator,
-                #         qrz_session_key=qrz_session_key,
-                #         callsigns_to_locators=callsigns_to_locators,
-                #         debug=debug
-                #     )
-                #     holy_spot_records.append(holy_spot_record)
 
             holy_spots_records = await prepare_holy_spots_records(holy_spots_list=holy_spots_list, 
                                                                   qrz_session_key=qrz_session_key,
-                                                                  callsigns_to_locators=callsigns_to_locators,
+                                                                  prefixes_to_locators=prefixes_to_locators,
+                                                                  callsign_to_locator_cache=callsign_to_locator_cache,
                                                                   debug=debug)
 
             for record in holy_spots_records:
