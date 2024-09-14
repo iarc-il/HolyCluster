@@ -46,7 +46,7 @@ async def prepare_holy_spots_records(holy_spots_list: list,
                 qrz_session_key=qrz_session_key,
                 prefixes_to_locators=prefixes_to_locators,
                 callsign_to_locator_cache=callsign_to_locator_cache,
-                delay=index/50,
+                delay=index/20,
                 debug=debug
             ))
             tasks.append(task)
