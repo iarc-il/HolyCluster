@@ -1,12 +1,15 @@
+import asyncio
 import json
 from datetime import datetime
 from loguru import logger
 import httpx
 
-from db_classes import DxheatRaw
+from db_classes import DxheatRaw, HollySpot, CallsignToLocator
+from location import resolve_locator, locator_to_coordinates
+from qrz import get_locator_from_qrz
 
 
-async def get_dxheat_spots(band, limit=30, debug=False):
+async def get_dxheat_spots(band:int, limit:int=30, debug:bool=False) -> list|None:
     assert isinstance(band, int)
     assert isinstance(limit, int)
     limit = min(50, limit)
@@ -57,4 +60,60 @@ def prepare_dxheat_record(spot, debug=False):
         dx_locator=spot['DXLocator']
     )
 
+    return record
+
+
+async def prepare_holy_spot(
+    date,
+    time,
+    mode: str,
+    band: str,
+    frequency: str,
+    spotter_callsign: str,
+    dx_callsign: str,
+    dx_locator: str,
+    qrz_session_key: str,
+    prefixes_to_locators: list,
+    callsign_to_locator_cache: CallsignToLocator,
+    delay: float = 0,
+    debug: bool = False
+):
+    
+    spotter_locator = await get_locator_from_qrz(
+        qrz_session_key=qrz_session_key, 
+        callsign=spotter_callsign,
+        delay=delay, 
+        debug=debug
+    )
+    spotter_locator=spotter_locator["locator"]
+    if not spotter_locator:
+        spotter_locator = resolve_locator(callsign=spotter_callsign, prefixes_to_locators=prefixes_to_locators)
+    spotter_lat, spotter_lon = locator_to_coordinates(spotter_locator)
+
+    if not dx_locator:
+        dx_locator = get_locator_from_qrz(
+            qrz_session_key=qrz_session_key, 
+            callsign=dx_callsign, 
+            debug=debug
+        )
+        dx_locator = dx_locator["locator"]
+        if not dx_locator:
+            dx_locator = resolve_locator(callsign=dx_callsign, prefixes_to_locators=prefixes_to_locators)
+    dx_lat, dx_lon = locator_to_coordinates(dx_locator)
+
+    record = HollySpot(
+        date=date,  
+        time=time,  
+        mode=mode,  
+        band=band,
+        frequency=frequency,
+        spotter_callsign=spotter_callsign,
+        spotter_locator=spotter_locator,
+        spotter_lat=spotter_lat,
+        spotter_lon=spotter_lon,
+        dx_callsign=dx_callsign,
+        dx_locator=dx_locator,
+        dx_lat=dx_lat,
+        dx_lon=dx_lon
+    )
     return record
