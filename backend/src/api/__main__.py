@@ -12,16 +12,19 @@ import settings
 
 
 class DX(SQLModel, table=True):
-    __tablename__ = 'dxheat_raw'
+    __tablename__ = 'holy_spots'
 
-    number: Optional[int] = Field(default=None, primary_key=True)
-    spotter: str
+    id: Optional[int] = Field(default=None, primary_key=True)
+    dx_callsign: str
+    dx_locator: str
+    dx_lat: str
+    dx_lon: str
+    spotter_callsign: str
+    spotter_lat: str
+    spotter_lon: str
     frequency: str
     band: str
     mode: str
-    dx_call: str
-    dx_locator: str
-    continent_dx: str
     time: datetime.time
     date: datetime.date
 
@@ -58,21 +61,19 @@ def cleanup_spot(spot):
     if spot.mode.upper() in ("SSB", "USB", "LSB"):
         mode = "SSB"
     else:
-        mode = spot.mode
+        mode = spot.mode.upper()
 
     return {
-        "id": spot.number,
-        "spotter": spot.spotter,
+        "id": spot.id,
+        "spotter_callsign": spot.spotter_callsign,
+        "spotter_loc": [float(spot.spotter_lon), float(spot.spotter_lat)],
+        "dx_callsign": spot.dx_callsign,
+        "dx_loc": [float(spot.dx_lon), float(spot.dx_lat)],
+        "dx_locator": spot.dx_locator,
         "freq": int(float(spot.frequency)),
         "band": int(float(spot.band)),
         "mode": mode,
-        "dx_call": spot.dx_call,
-        "dx_locator": spot.dx_locator,
         "time": int(combined_datetime.timestamp()),
-
-        # Coordinates are not yet in the database
-        "spotter_loc": [0, 0],
-        "dx_loc": [0, 0],
     }
 
 
