@@ -8,7 +8,7 @@ from sqlmodel import Field, SQLModel, create_engine, Session, select
 from typing import Optional
 import datetime
 
-import settings
+from . import settings
 
 
 class DX(SQLModel, table=True):
