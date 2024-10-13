@@ -6,7 +6,7 @@ grandparent_folder = Path(__file__).parents[2] # 2 directories up
 sys.path.append(f"{grandparent_folder}")
 from src.location import read_csv_to_list_of_tuples, resolve_locator
 
-filename = f"{grandparent_folder}/src/callsign_to_locator.csv"
+filename = f"{grandparent_folder}/src/prefixes_to_locators.csv"
 logger.debug(filename)
 prefixes_to_locators = read_csv_to_list_of_tuples(filename=filename)
 #logger.debug(f"{prefixes_to_locators=}")
@@ -35,4 +35,4 @@ random_call_signs = [
 ]
 for callsign in random_call_signs:
     locator = resolve_locator(callsign=callsign, prefixes_to_locators=prefixes_to_locators)
-    logger.debug(f"{callsign=}   {locator=}")
+    logger.debug(f"{callsign=:7}   {locator=}")
