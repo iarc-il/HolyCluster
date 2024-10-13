@@ -7,6 +7,6 @@ The server side implementation of HolyCluster
 
 # Create database
 initiliaze_database.py: 
-1. Delete exisitng "holly_cluster" database
-2. Create "holly_cluster" database
+1. Delete exisitng "holy_cluster" database
+2. Create "holy_cluster" database
 3. Create tables

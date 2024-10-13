@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import ProgrammingError, OperationalError
 
 import settings
-from db_classes import DxheatRaw, HollySpot, GeoCache, CallsignToLocator
+from db_classes import DxheatRaw, HolySpot, GeoCache, CallsignToLocator
 from spots_collector import get_dxheat_spots, prepare_dxheat_record, prepare_holy_spot
 from qrz import get_qrz_session_key
 from location import read_csv_to_list_of_tuples
@@ -77,13 +77,13 @@ async def collect_dxheat_spots(debug=False):
     for spots_in_band in all_spots:
         if debug:
             logger.debug(f"list=\n{spots_in_band}")
-            for spot in spots_in_band:
-                if debug:
-                    logger.debug(f"spot={spot}")
-                record = prepare_dxheat_record(spot)
-                spot_records.append(record)
-                if debug:
-                    logger.debug(f"record={record}")
+        for spot in spots_in_band:
+            if debug:
+                logger.debug(f"spot={spot}")
+            record = prepare_dxheat_record(spot)
+            spot_records.append(record)
+            if debug:
+                logger.debug(f"record={record}")
 
     return spot_records
 
@@ -133,7 +133,7 @@ async def main(debug=False):
                 if debug:
                     logger.debug(f"{record=}")
                 d = record.to_dict()
-                stmt = insert(HollySpot).values(**d)
+                stmt = insert(HolySpot).values(**d)
                 # Define the conflict resolution (do nothing on conflict)
                 stmt = stmt.on_conflict_do_nothing(
                     index_elements=['date', 'time', 'spotter_callsign', 'dx_callsign']
@@ -151,5 +151,5 @@ async def main(debug=False):
 
 
 if __name__ == "__main__":
-    debug = True
+    debug = False
     asyncio.run(main(debug=debug))

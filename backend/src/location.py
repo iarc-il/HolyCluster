@@ -1,6 +1,7 @@
 import re
 import csv
 from typing import List
+from loguru import logger
 # from qrz import get_locator_from_qrz
 
 
@@ -21,10 +22,19 @@ def read_csv_to_list_of_tuples(filename: str):
 
 def resolve_locator(callsign:str, prefixes_to_locators:List) -> str:
     callsign=callsign.upper()
-    for regex, locator in prefixes_to_locators:
+    for regex, locator, _ in prefixes_to_locators:
         if re.match(regex+".*", callsign):
             return locator
     return None
+
+def resolve_country(callsign:str, prefixes_to_locators:List) -> str:
+    callsign=callsign.upper()
+    for regex, _, country in prefixes_to_locators:
+        if re.match(regex+".*", callsign):
+            return country
+    return None
+
+
 
 
 def locator_to_coordinates(locator: str) -> dict:
