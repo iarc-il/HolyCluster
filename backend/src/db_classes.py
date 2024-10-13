@@ -100,6 +100,7 @@ class HollySpot(Base):
     dx_locator = Column(Text)
     dx_lat = Column(Text)
     dx_lon = Column(Text)
+    country = Column(Text)
     __table_args__ = (
         UniqueConstraint('date', 'time', 'spotter_callsign', 'dx_callsign', name='uix_1'),
     )
