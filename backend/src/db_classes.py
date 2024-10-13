@@ -96,11 +96,12 @@ class HolySpot(Base):
     spotter_locator = Column(Text)
     spotter_lat = Column(Text)
     spotter_lon = Column(Text)
+    spotter_country = Column(Text)
     dx_callsign = Column(Text)
     dx_locator = Column(Text)
     dx_lat = Column(Text)
     dx_lon = Column(Text)
-    country = Column(Text)
+    dx_country = Column(Text)
     __table_args__ = (
         UniqueConstraint('date', 'time', 'spotter_callsign', 'dx_callsign', name='uix_1'),
     )
@@ -108,8 +109,8 @@ class HolySpot(Base):
     def __repr__(self):
         return(f"<HolySpot(date={self.date}, time={self.time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
                f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
-               f"spotter_lat={self.spotter_lat},  spotter_lon={self.spotter_lon}, dx_callsign={self.dx_callsign}, "
-               f"dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon})>")
+               f"spotter_lat={self.spotter_lat},  spotter_lon={self.spotter_lon}, spotter_country={self.spotter_country}, dx_callsign={self.dx_callsign}, "
+               f"dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country})>")
 
     def to_dict(self):
         return {
@@ -122,10 +123,12 @@ class HolySpot(Base):
             'spotter_locator': self.spotter_locator,
             'spotter_lat': self.spotter_lat,
             'spotter_lon': self.spotter_lon,
+            'spotter_country': self.spotter_country,
             'dx_callsign': self.dx_callsign,
             'dx_locator': self.dx_locator,
             'dx_lat': self.dx_lat,
-            'dx_lon': self.dx_lon
+            'dx_lon': self.dx_lon,
+            'dx_country': self.dx_country
         }
     
     
