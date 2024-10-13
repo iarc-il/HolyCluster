@@ -4,9 +4,14 @@ from datetime import datetime
 from loguru import logger
 import httpx
 
-from db_classes import DxheatRaw, HollySpot, CallsignToLocator
+from db_classes import DxheatRaw, HolySpot, CallsignToLocator
 from location import resolve_locator, locator_to_coordinates
 from qrz import get_locator_from_qrz
+
+from settings import (
+    FT8_HF_FREQUENCIES,
+    FT4_HF_FREQUENCIES
+)
 
 
 async def get_dxheat_spots(band:int, limit:int=30, debug:bool=False) -> list|None:
@@ -14,7 +19,7 @@ async def get_dxheat_spots(band:int, limit:int=30, debug:bool=False) -> list|Non
     assert isinstance(limit, int)
     limit = min(50, limit)
 
-    url = f"https://dxheat.com/source/spots/?a={limit}&b={band}&cdx=EU&cdx=NA&cdx=SA&cdx=AS&cdx=AF&cdx=OC&cdx=AN&cde=EU&cde=NA&cde=SA&cde=AS&cde=AF&cde=OC&cde=AN&m=CW&m=PHONE&valid=1&spam=0"
+    url = f"https://dxheat.com/source/spots/?a={limit}&b={band}&cdx=EU&cdx=NA&cdx=SA&cdx=AS&cdx=AF&cdx=OC&cdx=AN&cde=EU&cde=NA&cde=SA&cde=AS&cde=AF&cde=OC&cde=AN&m=CW&m=PHONE&m=DIGI&valid=1&spam=0"
     async with httpx.AsyncClient() as client:
         response = await client.get(url)
     if debug:
@@ -100,8 +105,12 @@ async def prepare_holy_spot(
         if not dx_locator:
             dx_locator = resolve_locator(callsign=dx_callsign, prefixes_to_locators=prefixes_to_locators)
     dx_lat, dx_lon = locator_to_coordinates(dx_locator)
+    if frequency in FT8_HF_FREQUENCIES:
+        mode = "FT8"
+    elif frequency in FT4_HF_FREQUENCIES:
+        mode = "FT4"
 
-    record = HollySpot(
+    record = HolySpot(
         date=date,  
         time=time,  
         mode=mode,  

@@ -84,7 +84,7 @@ class DxheatRaw(Base):
             }
         
 
-class HollySpot(Base):
+class HolySpot(Base):
     __tablename__ = 'holy_spots'
     id = Column(Integer, primary_key=True)
     date = Column(Date)
@@ -106,7 +106,7 @@ class HollySpot(Base):
     )
 
     def __repr__(self):
-        return(f"<HollySpot(date={self.date}, time={self.time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
+        return(f"<HolySpot(date={self.date}, time={self.time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
                f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
                f"spotter_lat={self.spotter_lat},  spotter_lon={self.spotter_lon}, dx_callsign={self.dx_callsign}, "
                f"dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon})>")
