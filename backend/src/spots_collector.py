@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from datetime import datetime
 from loguru import logger
 import httpx
@@ -77,6 +78,7 @@ async def prepare_holy_spot(
     spotter_callsign: str,
     dx_callsign: str,
     dx_locator: str,
+    comment: str,
     qrz_session_key: str,
     prefixes_to_locators: list,
     callsign_to_locator_cache: CallsignToLocator,
@@ -109,9 +111,10 @@ async def prepare_holy_spot(
             dx_locator = resolve_locator(callsign=dx_callsign, prefixes_to_locators=prefixes_to_locators)
         
     dx_lat, dx_lon = locator_to_coordinates(dx_locator)
-    if frequency in FT8_HF_FREQUENCIES:
+    if frequency in FT8_HF_FREQUENCIES or re.match("FT8", comment.upper()):
         mode = "FT8"
-    elif frequency in FT4_HF_FREQUENCIES:
+    
+    elif frequency in FT4_HF_FREQUENCIES or re.match("FT4", comment.upper()):
         mode = "FT4"
 
     record = HolySpot(
