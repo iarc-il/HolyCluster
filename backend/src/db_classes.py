@@ -10,6 +10,35 @@ class GeoCache(Base):
      locator = Column(Text)
      lat = Column(Text)
      lon = Column(Text)
+     country = Column(Text)
+
+     def __repr__(self):
+        return(f"<GeoCache(callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, country={self.country}>")
+
+     
+     def to_dict(self):
+        return {
+            'callsign': self.callsign,
+            'locator': self.locator,
+            'lat': self.lat,
+            'lon': self.lon,
+            'country': self.country
+        }
+
+
+class Callsign():
+     def __init__(
+             self,
+             callsign: str,
+             locator: str,
+             lat: str,
+             lon: str,
+             country: str):
+        self.callsign = callsign
+        self.locator = locator
+        self.lat = lat
+        self.lon = lon
+        self.country = country
 
 
 class CallsignToLocator():
@@ -108,7 +137,7 @@ class HolySpot(Base):
     )
 
     def __repr__(self):
-        return(f"<HolySpot(id={self.id}, HolySpot(date={self.date}, time={self.time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
+        return(f"<HolySpot(id={self.id}, date={self.date}, time={self.time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
                f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
                f"spotter_lat={self.spotter_lat},  spotter_lon={self.spotter_lon}, spotter_country={self.spotter_country}, dx_callsign={self.dx_callsign}, "
                f"dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country}, comment={self.comment},>")
