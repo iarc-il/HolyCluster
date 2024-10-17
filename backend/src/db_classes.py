@@ -11,9 +11,12 @@ class GeoCache(Base):
      lat = Column(Text)
      lon = Column(Text)
      country = Column(Text)
+     date = Column(Date)
+     time = Column(Time)
+
 
      def __repr__(self):
-        return(f"<GeoCache(callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, country={self.country}>")
+        return(f"<GeoCache(callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, country={self.country}, date={self.date}, time={self.time}>")
 
      
      def to_dict(self):
@@ -22,37 +25,10 @@ class GeoCache(Base):
             'locator': self.locator,
             'lat': self.lat,
             'lon': self.lon,
-            'country': self.country
+            'country': self.country,
+            'date': self.date,
+             'time': self.time,
         }
-
-
-class Callsign():
-     def __init__(
-             self,
-             callsign: str,
-             locator: str,
-             lat: str,
-             lon: str,
-             country: str):
-        self.callsign = callsign
-        self.locator = locator
-        self.lat = lat
-        self.lon = lon
-        self.country = country
-
-
-class CallsignToLocator():
-    def __init__(self):
-        self.dictionary = {}
-
-    def add_callsign(self, callsign:str, locator:str, lat:str, lon:str):
-         self.dictionary.update({callsign: {"locator": locator, "lat": lat, "lon": lon}})
-
-    def find_callsign(self, callsign:str):
-         if callsign in self.dictionary:
-            return self.dictionary[callsign]
-         else:
-              return None
 
 
 class DxheatRaw(Base):
