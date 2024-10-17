@@ -5,7 +5,7 @@ from datetime import datetime
 from loguru import logger
 import httpx
 
-from db_classes import DxheatRaw, HolySpot, CallsignToLocator
+from db_classes import DxheatRaw, HolySpot, CallsignToLocator, GeoCache
 from location import resolve_locator, resolve_country, locator_to_coordinates
 from qrz import get_locator_from_qrz
 
@@ -117,7 +117,7 @@ async def prepare_holy_spot(
     elif frequency in FT4_HF_FREQUENCIES or re.match("FT4", comment.upper()):
         mode = "FT4"
 
-    record = HolySpot(
+    holy_spot_record = HolySpot(
         date=date,  
         time=time,  
         mode=mode,  
@@ -136,4 +136,18 @@ async def prepare_holy_spot(
         comment=comment
 
     )
-    return record
+    geo_cache_spotter_record = GeoCache(
+        callsign=spotter_callsign,
+        locator=spotter_locator,
+        lat=spotter_lat,
+        lon=spotter_lon,
+        country=spotter_country
+        )
+    geo_cache_dx_record = GeoCache(
+        callsign=dx_callsign,
+        locator=dx_locator,
+        lat=dx_lat,
+        lon=dx_lon,
+        country=dx_country
+    )
+    return holy_spot_record, geo_cache_spotter_record, geo_cache_dx_record

@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import ProgrammingError, OperationalError
 
 import settings
-from db_classes import DxheatRaw, HolySpot, GeoCache, CallsignToLocator
+from db_classes import DxheatRaw, HolySpot, GeoCache, CallsignToLocator, Callsign
 from spots_collector import get_dxheat_spots, prepare_dxheat_record, prepare_holy_spot
 from qrz import get_qrz_session_key
 from location import read_csv_to_list_of_tuples
@@ -51,13 +51,18 @@ async def prepare_holy_spots_records(holy_spots_list: list,
                 debug=debug
             ))
             tasks.append(task)
-        holy_spots_records = await asyncio.gather(*tasks)
-
+        all_records = await asyncio.gather(*tasks)
+        # logger.debug(f"{all_records=}")
+        holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records = zip(*all_records)
+        if debug:
+            logger.debug(f"{holy_spots_records=}")
+            logger.debug(f"{geo_cache_spotter_records=}")
+            logger.debug(f"{geo_cache_dx_records=}")
         end = time()
         if debug:
             logger.debug(f"Elasped time: {end - start:.2f} seconds")
         
-        return holy_spots_records
+        return holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records
 
 async def collect_dxheat_spots(debug=False):
     bands = [160, 80, 40, 30, 20, 17, 15, 12, 10, 6]
@@ -124,7 +129,7 @@ async def main(debug=False):
                 if  record.valid:
                     holy_spots_list.append(record)
 
-            holy_spots_records = await prepare_holy_spots_records(holy_spots_list=holy_spots_list, 
+            holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records = await prepare_holy_spots_records(holy_spots_list=holy_spots_list, 
                                                                   qrz_session_key=qrz_session_key,
                                                                   prefixes_to_locators=prefixes_to_locators,
                                                                   callsign_to_locator_cache=callsign_to_locator_cache,
@@ -133,15 +138,27 @@ async def main(debug=False):
             for record in holy_spots_records:
                 if debug:
                     logger.debug(f"{record=}")
-                d = record.to_dict()
-                stmt = insert(HolySpot).values(**d)
+                holy_spot_record_dict = record.to_dict()
+                stmt = insert(HolySpot).values(**holy_spot_record_dict)
                 # Removing duplication by: Define the conflict resolution (do nothing on conflict)
                 stmt = stmt.on_conflict_do_nothing(
                     index_elements=['date', 'time', 'spotter_callsign', 'dx_callsign']
                 )                
                 # Execute the statement
                 session.execute(stmt)
+            session.commit()
 
+            for record in geo_cache_spotter_records + geo_cache_dx_records:
+                if debug:
+                    logger.debug(f"{record=}")
+                geo_cache_record_dict = record.to_dict()
+                stmt = insert(GeoCache).values(**geo_cache_record_dict)
+                # Removing duplication by: Define the conflict resolution (do nothing on conflict)
+                stmt = stmt.on_conflict_do_nothing(
+                    index_elements=['callsign']
+                )                
+                # Execute the statement
+                session.execute(stmt)
             session.commit()
 
             # DX Lite
@@ -152,5 +169,5 @@ async def main(debug=False):
 
 
 if __name__ == "__main__":
-    debug = False
+    debug = True
     asyncio.run(main(debug=debug))
