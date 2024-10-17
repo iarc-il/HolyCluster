@@ -132,6 +132,8 @@ async def prepare_holy_spot(
         dx_locator=dx_locator,
         dx_lat=dx_lat,
         dx_lon=dx_lon,
-        dx_country=dx_country
+        dx_country=dx_country,
+        comment=comment
+
     )
     return record
