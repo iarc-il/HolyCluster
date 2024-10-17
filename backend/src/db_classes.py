@@ -10,20 +10,25 @@ class GeoCache(Base):
      locator = Column(Text)
      lat = Column(Text)
      lon = Column(Text)
+     country = Column(Text)
+     date = Column(Date)
+     time = Column(Time)
 
 
-class CallsignToLocator():
-    def __init__(self):
-        self.dictionary = {}
+     def __repr__(self):
+        return(f"<GeoCache(callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, country={self.country}, date={self.date}, time={self.time}>")
 
-    def add_callsign(self, callsign:str, locator:str, lat:str, lon:str):
-         self.dictionary.update({callsign: {"locator": locator, "lat": lat, "lon": lon}})
-
-    def find_callsign(self, callsign:str):
-         if callsign in self.dictionary:
-            return self.dictionary[callsign]
-         else:
-              return None
+     
+     def to_dict(self):
+        return {
+            'callsign': self.callsign,
+            'locator': self.locator,
+            'lat': self.lat,
+            'lon': self.lon,
+            'country': self.country,
+            'date': self.date,
+             'time': self.time,
+        }
 
 
 class DxheatRaw(Base):
@@ -102,18 +107,20 @@ class HolySpot(Base):
     dx_lat = Column(Text)
     dx_lon = Column(Text)
     dx_country = Column(Text)
+    comment = Column(Text)
     __table_args__ = (
         UniqueConstraint('date', 'time', 'spotter_callsign', 'dx_callsign', name='uix_1'),
     )
 
     def __repr__(self):
-        return(f"<HolySpot(date={self.date}, time={self.time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
+        return(f"<HolySpot(id={self.id}, date={self.date}, time={self.time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
                f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
                f"spotter_lat={self.spotter_lat},  spotter_lon={self.spotter_lon}, spotter_country={self.spotter_country}, dx_callsign={self.dx_callsign}, "
-               f"dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country})>")
+               f"dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country}, comment={self.comment},>")
 
     def to_dict(self):
         return {
+            # 'id': self.id,
             'date': self.date,
             'time': self.time,
             'mode': self.mode,
@@ -128,7 +135,8 @@ class HolySpot(Base):
             'dx_locator': self.dx_locator,
             'dx_lat': self.dx_lat,
             'dx_lon': self.dx_lon,
-            'dx_country': self.dx_country
+            'dx_country': self.dx_country,
+            'comment': self.comment
         }
     
     
