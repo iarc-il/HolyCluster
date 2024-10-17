@@ -135,7 +135,7 @@ async def main(debug=False):
                     logger.debug(f"{record=}")
                 d = record.to_dict()
                 stmt = insert(HolySpot).values(**d)
-                # Define the conflict resolution (do nothing on conflict)
+                # Removing duplication by: Define the conflict resolution (do nothing on conflict)
                 stmt = stmt.on_conflict_do_nothing(
                     index_elements=['date', 'time', 'spotter_callsign', 'dx_callsign']
                 )                
