@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import ProgrammingError, OperationalError
 
 import settings
-from db_classes import DxheatRaw, HolySpot, GeoCache
+from db_classes import DxheatRaw, HolySpot, GeoCache, SpotWithIssue
 from spots_collector import get_dxheat_spots, prepare_dxheat_record, prepare_holy_spot
 from qrz import get_qrz_session_key
 from location import read_csv_to_list_of_tuples
@@ -103,8 +103,15 @@ async def collect_dxheat_spots(debug=False):
     return spot_records
 
 
+def add_spot_to_spots_with_issues_file(spot:dict):
+    spots_with_issues = f"{grandparent_folder}/src/spots_with_issues.txt"
+    with open(spots_with_issues, 'a') as f:
+        f.write('-' * 50 + '\n')
+        for key, value in spot.items():
+            f.write(f'{key}: {value}\n')
+
 async def main(debug=False):
-    engine = create_engine(settings.DB_URL, echo=True)
+    engine = create_engine(settings.DB_URL, echo=False)
     holy_spots_list = []
 
     qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)    
@@ -160,13 +167,18 @@ async def main(debug=False):
                 if debug:
                     logger.debug(f"{record=}")
                 holy_spot_record_dict = record.to_dict()
-                stmt = insert(HolySpot).values(**holy_spot_record_dict)
+                if holy_spot_record_dict['spotter_locator'] and holy_spot_record_dict['dx_locator']:
+                    stmt = insert(HolySpot).values(**holy_spot_record_dict)
+                else:
+                    stmt = insert(SpotWithIssue).values(**holy_spot_record_dict)
+                    logger.error(f"Issues with spot:\n{holy_spot_record_dict}")
                 # Removing duplication by: Define the conflict resolution (do nothing on conflict)
                 stmt = stmt.on_conflict_do_nothing(
                     index_elements=['date', 'time', 'spotter_callsign', 'dx_callsign']
                 )                
                 # Execute the statement
                 session.execute(stmt)
+
             session.commit()
 
             for record in geo_cache_spotter_records + geo_cache_dx_records:
@@ -190,7 +202,7 @@ async def main(debug=False):
 
 
 if __name__ == "__main__":
-    debug = True
+    debug = False
     start = time()
     asyncio.run(main(debug=debug))
     end = time()
