@@ -50,6 +50,12 @@ class SpotsWithIssues(SQLModel, table=True):
     comment: str
 
 
+class GeoCache(SQLModel, table=True):
+    __tablename__ = "geo_cache"
+    callsign: str = Field(primary_key=True)
+    locator: str
+
+
 engine = create_engine(settings.DB_URL)
 app = fastapi.FastAPI()
 
@@ -109,6 +115,24 @@ def spots():
         ]
         spots = sorted(spots, key=lambda spot: spot["time"], reverse=True)
         return spots
+
+
+@app.get("/geocache/all")
+def geocache_all():
+    with Session(engine) as session:
+        geodata = session.exec(select(GeoCache)).all()
+        return [data.model_dump() for data in geodata]
+
+
+@app.get("/geocache/{callsign}")
+def geocache(callsign: str):
+    with Session(engine) as session:
+        query = select(GeoCache).where(GeoCache.callsign == callsign.upper())
+        geodata = session.exec(query).one_or_none()
+        if geodata is not None:
+            return geodata.model_dump()
+        else:
+            return {}
 
 
 @app.get("/spots_with_issues")
