@@ -30,6 +30,26 @@ class DX(SQLModel, table=True):
     date: datetime.date
 
 
+class SpotsWithIssues(SQLModel, table=True):
+    __tablename__ = "spots_with_issues"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    time: datetime.time
+    date: datetime.date
+    band: str
+    frequency: str
+    spotter_callsign: str
+    spotter_locator: str
+    spotter_lat: str
+    spotter_lon: str
+    spotter_country: str
+    dx_callsign: str
+    dx_locator: str
+    dx_lat: str
+    dx_lon: str
+    dx_country: str
+    comment: str
+
+
 engine = create_engine(settings.DB_URL)
 app = fastapi.FastAPI()
 
@@ -88,6 +108,14 @@ def spots():
             for spot in spots
         ]
         spots = sorted(spots, key=lambda spot: spot["time"], reverse=True)
+        return spots
+
+
+@app.get("/spots_with_issues")
+def spots_with_issues():
+    with Session(engine) as session:
+        spots = session.exec(select(SpotsWithIssues)).all()
+        spots = [spot.model_dump() for spot in spots]
         return spots
 
 
