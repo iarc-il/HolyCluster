@@ -114,7 +114,7 @@ def spots():
             for spot in spots
         ]
         spots = sorted(spots, key=lambda spot: spot["time"], reverse=True)
-        return spots
+        return spots[:1000]
 
 
 @app.get("/geocache/all")
