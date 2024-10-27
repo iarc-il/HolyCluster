@@ -51,7 +51,7 @@ def create_tables(engine, tables):
 
 def main():
     # Create an engine connected to the default database
-    engine = create_engine(f"{settings.GENERAL_DB_URL}/postgres", echo=True)
+    engine = create_engine(f"{GENERAL_DB_URL}/postgres", echo=True)
 
     # Connect to the database and drop the target database if it exists, then create new database, then create tables
     with engine.connect() as connection:
@@ -65,7 +65,7 @@ def main():
 
     engine = create_engine(settings.DB_URL, echo=True)
 
-    tables = ['dxheat_raw', 'holy_spots', 'geo_cache']
+    tables = ['dxheat_raw', 'holy_spots', 'geo_cache', 'spots_with_issues']
     with engine.connect() as connection:
         connection.execution_options(isolation_level="AUTOCOMMIT")  # Set isolation level to autocommit
         try:
