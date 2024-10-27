@@ -137,7 +137,7 @@
 "FW","AH16","Wallis and Futuna Islands"
 "FY","Gj22","French Guiana"
 "(F|F[0-9]|F[B,D,E,F,U,V]|T[H,M,Q,V,W,X]|H[W,X,Y])","IN77","France"
-"(G[0-9,A,B,F,X]|M|2E)","IO70","England"
+"(G[0-9,A,B,F,G,X]|M|2E)","IO70","England"
 "(2D|G[D,T]|M[D,T])","IO74","Isle of Man"
 "G[I,N]","IO54","Northern Ireland"
 "G[J,H]","IN89","Jersey"
