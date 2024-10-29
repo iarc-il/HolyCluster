@@ -92,7 +92,7 @@
 "D[2-3]","JH52","Angola"
 "D4","HK74","Cape Verde"
 "D6","LH17","Comoros"
-"D[A-R]","JN37","Germany"
+"D[A-R]|Y3","JN37","Germany"
 "D[U-Z]|4[F,I]","OJ88","Philippines"
 "E3","KK84","Eritrea"
 "E4","KM71","Palestine"
