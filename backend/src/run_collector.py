@@ -203,7 +203,7 @@ async def main(debug=False):
 
 
 if __name__ == "__main__":
-    debug = True
+    debug = False
     start = time()
     asyncio.run(main(debug=debug))
     end = time()
