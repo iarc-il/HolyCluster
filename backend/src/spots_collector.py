@@ -6,7 +6,7 @@ from loguru import logger
 import httpx
 
 from db_classes import DxheatRaw, HolySpot, GeoCache
-from location import resolve_locator, resolve_country, locator_to_coordinates
+from location import resolve_locator, resolve_country_and_continent, locator_to_coordinates
 from qrz import get_locator_from_qrz
 
 from settings import (
@@ -91,6 +91,7 @@ async def prepare_holy_spot(
         spotter_lat = geo_cache[spotter_callsign]["lat"]
         spotter_lon = geo_cache[spotter_callsign]["lon"]
         spotter_country = geo_cache[spotter_callsign]["country"]
+        spotter_continent = geo_cache[spotter_callsign]["continent"]
     else:
         spotter_locator = await get_locator_from_qrz(
             qrz_session_key=qrz_session_key, 
@@ -99,7 +100,7 @@ async def prepare_holy_spot(
             debug=debug
         )
         spotter_locator=spotter_locator["locator"]
-        spotter_country = resolve_country(callsign=spotter_callsign, prefixes_to_locators=prefixes_to_locators)
+        spotter_country, spotter_continent = resolve_country_and_continent(callsign=spotter_callsign, prefixes_to_locators=prefixes_to_locators)
         if not spotter_locator:
             spotter_locator = resolve_locator(callsign=spotter_callsign, prefixes_to_locators=prefixes_to_locators)
             
@@ -110,8 +111,9 @@ async def prepare_holy_spot(
         dx_lat = geo_cache[dx_callsign]["lat"]
         dx_lon = geo_cache[dx_callsign]["lon"]
         dx_country = geo_cache[dx_callsign]["country"]
+        dx_continent = geo_cache[dx_callsign]["continent"]
     else:
-        dx_country = resolve_country(callsign=dx_callsign, prefixes_to_locators=prefixes_to_locators)
+        dx_country, dx_continent = resolve_country_and_continent(callsign=dx_callsign, prefixes_to_locators=prefixes_to_locators)
         if not dx_locator:
             dx_locator = get_locator_from_qrz(
                 qrz_session_key=qrz_session_key, 
@@ -142,11 +144,13 @@ async def prepare_holy_spot(
         spotter_lat=spotter_lat,
         spotter_lon=spotter_lon,
         spotter_country=spotter_country,
+        spotter_continent=spotter_continent,
         dx_callsign=dx_callsign,
         dx_locator=dx_locator,
         dx_lat=dx_lat,
         dx_lon=dx_lon,
         dx_country=dx_country,
+        dx_continent=dx_continent,
         comment=comment
 
     )
@@ -156,6 +160,7 @@ async def prepare_holy_spot(
         lat=spotter_lat,
         lon=spotter_lon,
         country=spotter_country,
+        continent=spotter_continent,
         date=date,  
         time=time,  
         )
@@ -165,6 +170,7 @@ async def prepare_holy_spot(
         lat=dx_lat,
         lon=dx_lon,
         country=dx_country,
+        continent=dx_continent,
         date=date,  
         time=time,
     )

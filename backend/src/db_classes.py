@@ -11,13 +11,12 @@ class GeoCache(Base):
      lat = Column(Text)
      lon = Column(Text)
      country = Column(Text)
+     continent = Column(Text)
      date = Column(Date)
      time = Column(Time)
 
-
      def __repr__(self):
-        return(f"<GeoCache(callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, country={self.country}, date={self.date}, time={self.time}>")
-
+        return(f"<GeoCache(callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, country={self.country}, continent={self.continent}, date={self.date}, time={self.time}>")
      
      def to_dict(self):
         return {
@@ -26,6 +25,7 @@ class GeoCache(Base):
             'lat': self.lat,
             'lon': self.lon,
             'country': self.country,
+            'continent': self.continent,
             'date': self.date,
              'time': self.time,
         }
@@ -102,11 +102,13 @@ class HolySpot(Base):
     spotter_lat = Column(Text)
     spotter_lon = Column(Text)
     spotter_country = Column(Text)
+    spotter_continent = Column(Text)
     dx_callsign = Column(Text)
     dx_locator = Column(Text)
     dx_lat = Column(Text)
     dx_lon = Column(Text)
     dx_country = Column(Text)
+    dx_continent = Column(Text)
     comment = Column(Text)
     __table_args__ = (
         UniqueConstraint('date', 'time', 'spotter_callsign', 'dx_callsign', name='uix_1'),
@@ -115,8 +117,8 @@ class HolySpot(Base):
     def __repr__(self):
         return(f"<HolySpot(id={self.id}, date={self.date}, time={self.time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
                f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
-               f"spotter_lat={self.spotter_lat},  spotter_lon={self.spotter_lon}, spotter_country={self.spotter_country}, dx_callsign={self.dx_callsign}, "
-               f"dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country}, comment={self.comment},>")
+               f"spotter_lat={self.spotter_lat}, spotter_lon={self.spotter_lon}, spotter_country={self.spotter_country}, spotter_continent={self.spotter_continent},  "
+               f"dx_callsign={self.dx_callsign}, dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country}, dx_continent={self.dx_continent}, comment={self.comment},>")
 
     def to_dict(self):
         return {
@@ -131,11 +133,13 @@ class HolySpot(Base):
             'spotter_lat': self.spotter_lat,
             'spotter_lon': self.spotter_lon,
             'spotter_country': self.spotter_country,
+            'spotter_continent': self.spotter_continent,
             'dx_callsign': self.dx_callsign,
             'dx_locator': self.dx_locator,
             'dx_lat': self.dx_lat,
             'dx_lon': self.dx_lon,
             'dx_country': self.dx_country,
+            'dx_continent': self.dx_continent,
             'comment': self.comment
         }
     
@@ -153,11 +157,13 @@ class SpotWithIssue(Base):
     spotter_lat = Column(Text)
     spotter_lon = Column(Text)
     spotter_country = Column(Text)
+    spotter_continent = Column(Text)
     dx_callsign = Column(Text)
     dx_locator = Column(Text)
     dx_lat = Column(Text)
     dx_lon = Column(Text)
     dx_country = Column(Text)
+    dx_continent = Column(Text)
     comment = Column(Text)
     __table_args__ = (
         UniqueConstraint('date', 'time', 'spotter_callsign', 'dx_callsign', name='uix_2'),
@@ -166,8 +172,8 @@ class SpotWithIssue(Base):
     def __repr__(self):
         return(f"<SpotsWithIssues(id={self.id}, date={self.date}, time={self.time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
                f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
-               f"spotter_lat={self.spotter_lat},  spotter_lon={self.spotter_lon}, spotter_country={self.spotter_country}, dx_callsign={self.dx_callsign}, "
-               f"dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country}, comment={self.comment},>")
+               f"spotter_lat={self.spotter_lat}, spotter_lon={self.spotter_lon}, spotter_country={self.spotter_country}, , spotter_continent={self.spotter_continent}, "
+               f"dx_callsign={self.dx_callsign}, dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country}, dx_continent={self.dx_continent}, comment={self.comment},>")
 
     def to_dict(self):
         return {
@@ -182,10 +188,12 @@ class SpotWithIssue(Base):
             'spotter_lat': self.spotter_lat,
             'spotter_lon': self.spotter_lon,
             'spotter_country': self.spotter_country,
+            'spotter_continent': self.spotter_continent,
             'dx_callsign': self.dx_callsign,
             'dx_locator': self.dx_locator,
             'dx_lat': self.dx_lat,
             'dx_lon': self.dx_lon,
             'dx_country': self.dx_country,
+            'dx_continent': self.dx_continent,
             'comment': self.comment
         }
