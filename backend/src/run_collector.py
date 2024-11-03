@@ -135,7 +135,8 @@ async def main(debug=False):
                     'locator': row.locator, 
                     'lat': row.lat, 
                     'lon': row.lon, 
-                    'country': row.country
+                    'country': row.country,
+                    'continent': row.continent,
                 } 
                 for row in session.query(GeoCache).all()
             }
@@ -202,7 +203,7 @@ async def main(debug=False):
 
 
 if __name__ == "__main__":
-    debug = False
+    debug = True
     start = time()
     asyncio.run(main(debug=debug))
     end = time()

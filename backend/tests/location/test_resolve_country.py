@@ -4,7 +4,7 @@ from loguru import logger
 
 grandparent_folder = Path(__file__).parents[2] # 2 directories up
 sys.path.append(f"{grandparent_folder}")
-from src.location import read_csv_to_list_of_tuples, resolve_country
+from src.location import read_csv_to_list_of_tuples, resolve_country_and_continent
 
 filename = f"{grandparent_folder}/src/prefixes_to_locators.csv"
 logger.debug(filename)
@@ -34,5 +34,5 @@ random_call_signs = [
     "ZL0ZAB", "CE1CDE", "5B2FGH", "HB3IJK", "OZ5LMN"
 ]
 for callsign in random_call_signs:
-    country = resolve_country(callsign=callsign, prefixes_to_locators=prefixes_to_locators)
-    logger.debug(f"{callsign=:7}   {country=}")
+    country, continent = resolve_country_and_continent(callsign=callsign, prefixes_to_locators=prefixes_to_locators)
+    logger.debug(f"{callsign=:7}   {country=} {continent=}")
