@@ -1,4 +1,4 @@
-from sqlalchemy import UniqueConstraint, Column, Integer, Text, Boolean, Time, Date
+from sqlalchemy import UniqueConstraint, Column, Integer, Text, Boolean, Time, Date, DateTime
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -15,9 +15,11 @@ class GeoCache(Base):
      continent = Column(Text)
      date = Column(Date)
      time = Column(Time)
+     date_time = Column(DateTime)
 
      def __repr__(self):
-        return(f"<GeoCache(id={self.id}, callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, country={self.country}, continent={self.continent}, date={self.date}, time={self.time}>")
+        return(f"<GeoCache(id={self.id}, callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, "
+               f"country={self.country}, continent={self.continent}, date={self.date}, time={self.time}, date_time={self.date_time}>")
      
      def to_dict(self):
         return {
@@ -29,7 +31,8 @@ class GeoCache(Base):
             'country': self.country,
             'continent': self.continent,
             'date': self.date,
-             'time': self.time,
+            'time': self.time,
+            'date_time': self.date_time,
         }
 
 
@@ -42,6 +45,7 @@ class DxheatRaw(Base):
     dx_call = Column(Text)
     time = Column(Time)
     date = Column(Date)
+    date_time = Column(DateTime)
     beacon = Column(Boolean)
     mm = Column(Boolean)
     am = Column(Boolean)
@@ -63,7 +67,7 @@ class DxheatRaw(Base):
 
     def __repr__(self):
         return (f"<DxheatRaw(id={self.id}, number={self.number}, spotter={self.spotter}, frequency={self.frequency}, "
-                f"dx_call={self.dx_call}, time={self.time}, date={self.date}, beacon={self.beacon}, "
+                f"dx_call={self.dx_call}, time={self.time}, date={self.date}, date_time={self.date_time}, beacon={self.beacon}, "
                 f"mm={self.mm}, am={self.am}, valid={self.valid}, lotw={self.lotw}, lotw_date={self.lotw_date}, "
                 f"esql={self.esql}, dx_homecall={self.dx_homecall}, comment={self.comment}, "
                 f"flag={self.flag}, band={self.band}, mode={self.mode}, continent_dx={self.continent_dx}, "
@@ -78,6 +82,7 @@ class DxheatRaw(Base):
                 'dx_call': self.dx_call,
                 'time': self.time,
                 'date': self.date,
+                'date_time': self.date_time,
                 'beacon': self.beacon,
                 'mm': self.mm,
                 'am': self.am,
@@ -101,6 +106,7 @@ class HolySpot(Base):
     id = Column(Integer, primary_key=True)
     date = Column(Date)
     time = Column(Time)
+    date_time = Column(DateTime)
     mode = Column(Text)
     band = Column(Text)
     frequency = Column(Text)
@@ -122,7 +128,7 @@ class HolySpot(Base):
     )
 
     def __repr__(self):
-        return(f"<HolySpot(id={self.id}, date={self.date}, time={self.time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
+        return(f"<HolySpot(id={self.id}, date={self.date}, time={self.time}, date_time={self.date_time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
                f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
                f"spotter_lat={self.spotter_lat}, spotter_lon={self.spotter_lon}, spotter_country={self.spotter_country}, spotter_continent={self.spotter_continent},  "
                f"dx_callsign={self.dx_callsign}, dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country}, dx_continent={self.dx_continent}, comment={self.comment},>")
@@ -132,6 +138,7 @@ class HolySpot(Base):
             # 'id': self.id,
             'date': self.date,
             'time': self.time,
+            'date_time': self.date_time,
             'mode': self.mode,
             'band': self.band,
             'frequency': self.frequency,
@@ -156,6 +163,7 @@ class SpotWithIssue(Base):
     id = Column(Integer, primary_key=True)
     date = Column(Date)
     time = Column(Time)
+    date_time = Column(DateTime)
     mode = Column(Text)
     band = Column(Text)
     frequency = Column(Text)
@@ -177,7 +185,7 @@ class SpotWithIssue(Base):
     )
 
     def __repr__(self):
-        return(f"<SpotsWithIssues(id={self.id}, date={self.date}, time={self.time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
+        return(f"<SpotsWithIssues(id={self.id}, date={self.date}, time={self.time}, date_time={self.date_time}, mode={self.mode}, band={self.band}, frequency={self.frequency}, "
                f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
                f"spotter_lat={self.spotter_lat}, spotter_lon={self.spotter_lon}, spotter_country={self.spotter_country}, , spotter_continent={self.spotter_continent}, "
                f"dx_callsign={self.dx_callsign}, dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country}, dx_continent={self.dx_continent}, comment={self.comment},>")
@@ -187,6 +195,7 @@ class SpotWithIssue(Base):
             # 'id': self.id,
             'date': self.date,
             'time': self.time,
+            'date_time': self.date_time,
             'mode': self.mode,
             'band': self.band,
             'frequency': self.frequency,

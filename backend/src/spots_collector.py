@@ -1,7 +1,7 @@
-import asyncio
+from datetime import datetime
+# import asyncio
 import json
 import re
-from datetime import datetime
 from loguru import logger
 import httpx
 
@@ -42,13 +42,16 @@ async def get_dxheat_spots(band:int, limit:int=30, debug:bool=False) -> list|Non
 
 
 def prepare_dxheat_record(spot, debug=False):
+    time = datetime.strptime(spot['Time'], '%H:%M').time()
+    date = datetime.strptime(spot['Date'], '%d/%m/%y').date() 
     record = DxheatRaw(
         number=spot['Nr'],
         spotter=spot['Spotter'],
         frequency=spot['Frequency'],
         dx_call=spot['DXCall'],
-        time=datetime.strptime(spot['Time'], '%H:%M').time(),
-        date=datetime.strptime(spot['Date'], '%d/%m/%y').date(),
+        time=time,
+        date=date,
+        date_time=datetime.combine(date, time),
         beacon=spot['Beacon'],
         mm=spot['MM'],
         am=spot['AM'],
@@ -136,6 +139,7 @@ async def prepare_holy_spot(
     holy_spot_record = HolySpot(
         date=date,  
         time=time,  
+        date_time=datetime.combine(date, time),
         mode=mode,  
         band=band,
         frequency=frequency,
@@ -163,6 +167,7 @@ async def prepare_holy_spot(
         continent=spotter_continent,
         date=date,  
         time=time,  
+        date_time=datetime.combine(date, time),
         )
     geo_cache_dx_record = GeoCache(
         callsign=dx_callsign,
@@ -173,5 +178,6 @@ async def prepare_holy_spot(
         continent=dx_continent,
         date=date,  
         time=time,
+        date_time=datetime.combine(date, time),
     )
     return holy_spot_record, geo_cache_spotter_record, geo_cache_dx_record
