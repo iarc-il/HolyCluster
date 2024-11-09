@@ -20,9 +20,11 @@ class DX(SQLModel, table=True):
     dx_lat: str
     dx_lon: str
     dx_country: str
+    dx_continent: str
     spotter_callsign: str
     spotter_lat: str
     spotter_lon: str
+    spotter_continent: str
     frequency: str
     band: str
     mode: str
@@ -94,10 +96,12 @@ def cleanup_spot(spot):
         "id": spot.id,
         "spotter_callsign": spot.spotter_callsign,
         "spotter_loc": [float(spot.spotter_lon), float(spot.spotter_lat)],
+        "spotter_continent": spot.spotter_continent,
         "dx_callsign": spot.dx_callsign,
         "dx_loc": [float(spot.dx_lon), float(spot.dx_lat)],
         "dx_locator": spot.dx_locator,
         "dx_country": spot.dx_country,
+        "dx_continent": spot.dx_continent,
         "freq": int(float(spot.frequency)),
         "band": int(float(spot.band)),
         "mode": mode,
