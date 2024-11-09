@@ -6,7 +6,8 @@ Base = declarative_base()
 
 class GeoCache(Base):
      __tablename__ = 'geo_cache'
-     callsign = Column(Text, primary_key=True)
+     id = Column(Integer, primary_key=True)
+     callsign = Column(Text)
      locator = Column(Text)
      lat = Column(Text)
      lon = Column(Text)
@@ -16,10 +17,11 @@ class GeoCache(Base):
      time = Column(Time)
 
      def __repr__(self):
-        return(f"<GeoCache(callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, country={self.country}, continent={self.continent}, date={self.date}, time={self.time}>")
+        return(f"<GeoCache(id={self.id}, callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, country={self.country}, continent={self.continent}, date={self.date}, time={self.time}>")
      
      def to_dict(self):
         return {
+            # 'id': self.id,
             'callsign': self.callsign,
             'locator': self.locator,
             'lat': self.lat,
@@ -33,7 +35,8 @@ class GeoCache(Base):
 
 class DxheatRaw(Base):
     __tablename__ = 'dxheat_raw'
-    number = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True) 
+    number = Column(Integer)
     spotter = Column(Text)
     frequency = Column(Text)
     dx_call = Column(Text)
@@ -50,13 +53,16 @@ class DxheatRaw(Base):
     comment = Column(Text)
     flag = Column(Text, nullable=True)
     band = Column(Text)
-    mode = Column(Text)  # Added mode column
+    mode = Column(Text)  
     continent_dx = Column(Text, nullable=True)
     continent_spotter = Column(Text)
     dx_locator = Column(Text)
+    __table_args__ = (
+        UniqueConstraint('date', 'time', 'spotter', 'dx_call', name='uix_3'),
+    )
 
     def __repr__(self):
-        return (f"<DxheatRaw(number={self.number}, spotter={self.spotter}, frequency={self.frequency}, "
+        return (f"<DxheatRaw(id={self.id}, number={self.number}, spotter={self.spotter}, frequency={self.frequency}, "
                 f"dx_call={self.dx_call}, time={self.time}, date={self.date}, beacon={self.beacon}, "
                 f"mm={self.mm}, am={self.am}, valid={self.valid}, lotw={self.lotw}, lotw_date={self.lotw_date}, "
                 f"esql={self.esql}, dx_homecall={self.dx_homecall}, comment={self.comment}, "
@@ -65,6 +71,7 @@ class DxheatRaw(Base):
         
     def to_dict(self):
             return {
+                # 'id': self.id,
                 'number': self.number,
                 'spotter': self.spotter,
                 'frequency': self.frequency,

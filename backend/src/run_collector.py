@@ -143,14 +143,15 @@ async def main(debug=False):
             if debug:
                 logger.debug(f"{json.dumps(geo_cache, indent=4, sort_keys=False)}")
 
-            # DX Heat
+            #  dxheat_raw
             spot_records = await collect_dxheat_spots(debug=debug)
             for record in spot_records:
-                d = record.to_dict()
-                stmt = insert(DxheatRaw).values(**d)
+                dxheat_record_to_dict = record.to_dict()
+                stmt = insert(DxheatRaw).values(**dxheat_record_to_dict)
                 # Define the conflict resolution (do nothing on conflict)
                 stmt = stmt.on_conflict_do_nothing(
-                    index_elements=['number'],  # The unique column causing the conflict
+                    index_elements=['date', 'time', 'spotter', 'dx_call']
+                    # index_elements=['id'],  # The unique column causing the conflict
                 )                
                 # Execute the statement
                 session.execute(stmt)
@@ -163,7 +164,7 @@ async def main(debug=False):
                                                                   prefixes_to_locators=prefixes_to_locators,
                                                                   geo_cache=geo_cache,
                                                                   debug=debug)
-
+            # holy_spot
             for record in holy_spots_records:
                 if debug:
                     logger.debug(f"{record=}")
@@ -182,6 +183,7 @@ async def main(debug=False):
 
             session.commit()
 
+            # geo_cache
             for record in geo_cache_spotter_records + geo_cache_dx_records:
                 if debug:
                     logger.debug(f"{record=}")
@@ -189,7 +191,7 @@ async def main(debug=False):
                 stmt = insert(GeoCache).values(**geo_cache_record_dict)
                 # Removing duplication by: Define the conflict resolution (do nothing on conflict)
                 stmt = stmt.on_conflict_do_nothing(
-                    index_elements=['callsign']
+                    index_elements=['id']
                 )                
                 # Execute the statement
                 session.execute(stmt)
