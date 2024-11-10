@@ -118,7 +118,7 @@ async def main(debug=False):
     # Create a configured "Session" class
     Session = sessionmaker(bind=engine)
 
-    callsign_to_locator_filename = f"{grandparent_folder}/src/prefixes_to_locators.csv"
+    callsign_to_locator_filename = f"{grandparent_folder}/src/prefixes_list.csv"
     if debug:
         logger.debug(f"{callsign_to_locator_filename=}")
     prefixes_to_locators = read_csv_to_list_of_tuples(filename=callsign_to_locator_filename)
