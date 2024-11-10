@@ -21,12 +21,12 @@ def main(debug: bool = False):
     # session = Session()
 
     # Specify the number of hours
-    hours = 2  # for example, hours=24 delete records older than 24 hours
+    hours = 4  # for example, hours=24 delete records older than 24 hours
     cutoff_datetime = datetime.now(timezone.utc) - timedelta(hours=hours)
     if debug:
         logger.debug(f"Delete records older than {hours} hours")
-        logger.debug(f"now (UTC)             ={datetime.now(timezone.utc)}")
-        logger.debug(f"cutoff_datetime (UTC) ={cutoff_datetime}")
+        logger.debug(f"now (UTC)             = {datetime.now(timezone.utc)}")
+        logger.debug(f"cutoff_datetime (UTC) = {cutoff_datetime}")
 
     with Session() as session:
         try:
@@ -43,14 +43,15 @@ def main(debug: bool = False):
 
                 # Perform deletion
                 records = session.query(model).filter(model.date_time < cutoff_datetime).all()
+                logger.debug(f"records to delete: {len(records)}")
                 for record in records:
-                    logger.debug(f"Record date_time: {record.date_time}, Cutoff: {cutoff_datetime}")
+                    logger.debug(f"Record date_time: {record.date_time.replace(tzinfo=timezone.utc)}, Cutoff: {cutoff_datetime.replace(tzinfo=timezone.utc)}")
 
-                # deleted_count = session.query(model).filter(
-                #         model.date_time < cutoff_datetime
-                # ).delete(synchronize_session="fetch")
-                # if debug:
-                #     logger.debug(f"Deleted {deleted_count} records from {table_name}")
+                deleted_count = session.query(model).filter(
+                        model.date_time < cutoff_datetime
+                ).delete(synchronize_session="fetch")
+                if debug:
+                    logger.debug(f"Deleted {deleted_count} records from {table_name}")
                 # Commit the changes
                 session.commit()
 

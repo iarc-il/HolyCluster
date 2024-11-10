@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 # import asyncio
 import json
 import re
@@ -51,7 +51,7 @@ def prepare_dxheat_record(spot, debug=False):
         dx_call=spot['DXCall'],
         time=time,
         date=date,
-        date_time=datetime.combine(date, time),
+        date_time=datetime.combine(date, time, tzinfo=timezone.utc),
         beacon=spot['Beacon'],
         mm=spot['MM'],
         am=spot['AM'],
@@ -139,7 +139,7 @@ async def prepare_holy_spot(
     holy_spot_record = HolySpot(
         date=date,  
         time=time,  
-        date_time=datetime.combine(date, time),
+        date_time=datetime.combine(date, time, tzinfo=timezone.utc),
         mode=mode,  
         band=band,
         frequency=frequency,
@@ -167,7 +167,7 @@ async def prepare_holy_spot(
         continent=spotter_continent,
         date=date,  
         time=time,  
-        date_time=datetime.combine(date, time),
+        date_time=datetime.combine(date, time, tzinfo=timezone.utc),
         )
     geo_cache_dx_record = GeoCache(
         callsign=dx_callsign,
@@ -178,6 +178,6 @@ async def prepare_holy_spot(
         continent=dx_continent,
         date=date,  
         time=time,
-        date_time=datetime.combine(date, time),
+        date_time=datetime.combine(date, time, tzinfo=timezone.utc),
     )
     return holy_spot_record, geo_cache_spotter_record, geo_cache_dx_record
