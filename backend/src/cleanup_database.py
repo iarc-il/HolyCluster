@@ -66,5 +66,5 @@ def main(debug: bool = False):
 
 
 if __name__ == "__main__":
-    debug = True
+    debug = False
     main(debug=debug)
