@@ -28,8 +28,7 @@ class DX(SQLModel, table=True):
     frequency: str
     band: str
     mode: str
-    time: datetime.time
-    date: datetime.date
+    date_time: datetime.datetime
 
 
 class SpotsWithIssues(SQLModel, table=True):
@@ -75,18 +74,6 @@ app.add_middleware(
 
 
 def cleanup_spot(spot):
-    date = spot.date
-    time = spot.time
-    combined_datetime = datetime.datetime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-        time.second,
-        tzinfo=datetime.timezone.utc,
-    )
-
     if spot.mode.upper() in ("SSB", "USB", "LSB"):
         mode = "SSB"
     else:
@@ -105,7 +92,7 @@ def cleanup_spot(spot):
         "freq": int(float(spot.frequency)),
         "band": int(float(spot.band)),
         "mode": mode,
-        "time": int(combined_datetime.timestamp()),
+        "time": int(spot.date_time.timestamp()),
     }
 
 
