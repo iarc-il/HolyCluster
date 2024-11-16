@@ -19,14 +19,42 @@ class DX(SQLModel, table=True):
     dx_locator: str
     dx_lat: str
     dx_lon: str
+    dx_country: str
+    dx_continent: str
     spotter_callsign: str
     spotter_lat: str
     spotter_lon: str
+    spotter_continent: str
     frequency: str
     band: str
     mode: str
+    date_time: datetime.datetime
+
+
+class SpotsWithIssues(SQLModel, table=True):
+    __tablename__ = "spots_with_issues"
+    id: Optional[int] = Field(default=None, primary_key=True)
     time: datetime.time
     date: datetime.date
+    band: str
+    frequency: str
+    spotter_callsign: str
+    spotter_locator: str
+    spotter_lat: str
+    spotter_lon: str
+    spotter_country: str
+    dx_callsign: str
+    dx_locator: str
+    dx_lat: str
+    dx_lon: str
+    dx_country: str
+    comment: str
+
+
+class GeoCache(SQLModel, table=True):
+    __tablename__ = "geo_cache"
+    callsign: str = Field(primary_key=True)
+    locator: str
 
 
 engine = create_engine(settings.DB_URL)
@@ -46,18 +74,6 @@ app.add_middleware(
 
 
 def cleanup_spot(spot):
-    date = spot.date
-    time = spot.time
-    combined_datetime = datetime.datetime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-        time.second,
-        tzinfo=datetime.timezone.utc,
-    )
-
     if spot.mode.upper() in ("SSB", "USB", "LSB"):
         mode = "SSB"
     else:
@@ -67,13 +83,16 @@ def cleanup_spot(spot):
         "id": spot.id,
         "spotter_callsign": spot.spotter_callsign,
         "spotter_loc": [float(spot.spotter_lon), float(spot.spotter_lat)],
+        "spotter_continent": spot.spotter_continent,
         "dx_callsign": spot.dx_callsign,
         "dx_loc": [float(spot.dx_lon), float(spot.dx_lat)],
         "dx_locator": spot.dx_locator,
+        "dx_country": spot.dx_country,
+        "dx_continent": spot.dx_continent,
         "freq": int(float(spot.frequency)),
         "band": int(float(spot.band)),
         "mode": mode,
-        "time": int(combined_datetime.timestamp()),
+        "time": int(spot.date_time.timestamp()),
     }
 
 
@@ -86,6 +105,32 @@ def spots():
             for spot in spots
         ]
         spots = sorted(spots, key=lambda spot: spot["time"], reverse=True)
+        return spots[:1000]
+
+
+@app.get("/geocache/all")
+def geocache_all():
+    with Session(engine) as session:
+        geodata = session.exec(select(GeoCache)).all()
+        return [data.model_dump() for data in geodata]
+
+
+@app.get("/geocache/{callsign}")
+def geocache(callsign: str):
+    with Session(engine) as session:
+        query = select(GeoCache).where(GeoCache.callsign == callsign.upper())
+        geodata = session.exec(query).one_or_none()
+        if geodata is not None:
+            return geodata.model_dump()
+        else:
+            return {}
+
+
+@app.get("/spots_with_issues")
+def spots_with_issues():
+    with Session(engine) as session:
+        spots = session.exec(select(SpotsWithIssues)).all()
+        spots = [spot.model_dump() for spot in spots]
         return spots
 
 
