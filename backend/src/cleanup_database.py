@@ -6,9 +6,10 @@ from sqlalchemy.exc import SQLAlchemyError, ProgrammingError, OperationalError
 from sqlalchemy.orm import sessionmaker
 
 from db_classes import HolySpot, DxheatRaw, GeoCache 
-
+from misc import string_to_boolean
 
 from settings import (
+    DEBUG,
     DB_URL,
 )
 
@@ -21,7 +22,7 @@ def main(debug: bool = False):
     # session = Session()
 
     # Specify the number of hours
-    hours = 4  # for example, hours=24 delete records older than 24 hours
+    hours = 24  # for example, hours=24 delete records older than 24 hours
     cutoff_datetime = datetime.now(timezone.utc) - timedelta(hours=hours)
     if debug:
         logger.debug(f"Delete records older than {hours} hours")
@@ -67,4 +68,4 @@ def main(debug: bool = False):
 
 if __name__ == "__main__":
     debug = False
-    main(debug=debug)
+    main(debug=string_to_boolean(DEBUG))
