@@ -29,6 +29,12 @@ grandparent_folder = Path(__file__).parents[1]
 sys.path.append(f"{grandparent_folder}")
 
 
+def string_to_boolean(value: str) -> bool:
+    if value.strip().lower() == "true":
+        return True
+    elif value.strip().lower() == "false":
+        return False
+
 async def prepare_holy_spots_records(holy_spots_list: list, 
                                      qrz_session_key: str, 
                                     #  prefixes_to_locators: list,
@@ -204,6 +210,12 @@ async def main(debug=False):
 
 if __name__ == "__main__":
     start = time()
+    logger.info(f"DEBUG={DEBUG}")
+    if string_to_boolean(DEBUG):
+        logger.info("DEBUG is True")
+    else:
+        logger.info("DEBUG is False")
+    exit()
     asyncio.run(main(debug=DEBUG))
     end = time()
     if DEBUG:
