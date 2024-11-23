@@ -16,6 +16,7 @@ from qrz import get_qrz_session_key
 # from location import read_csv_to_list_of_tuples
 
 from settings import (
+    DEBUG,
     QRZ_USER,
     QRZ_PASSOWRD,
     QRZ_API_KEY,
@@ -202,9 +203,8 @@ async def main(debug=False):
 
 
 if __name__ == "__main__":
-    debug = True
     start = time()
-    asyncio.run(main(debug=debug))
+    asyncio.run(main(debug=DEBUG))
     end = time()
-    if debug:
+    if DEBUG:
         logger.debug(f"Elasped time: {end - start:.2f} seconds")
