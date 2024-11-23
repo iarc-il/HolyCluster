@@ -29,6 +29,7 @@ class DX(SQLModel, table=True):
     band: str
     mode: str
     date_time: datetime.datetime
+    comment: str
 
 
 class SpotsWithIssues(SQLModel, table=True):
@@ -93,6 +94,7 @@ def cleanup_spot(spot):
         "band": int(float(spot.band)),
         "mode": mode,
         "time": int(spot.date_time.timestamp()),
+        "comment": spot.comment,
     }
 
 
