@@ -83,7 +83,7 @@ async def prepare_holy_spot(
     dx_locator: str,
     comment: str,
     qrz_session_key: str,
-    prefixes_to_locators: list,
+    # prefixes_to_locators: list,
     geo_cache: dict,
     delay: float = 0,
     debug: bool = False
@@ -103,9 +103,15 @@ async def prepare_holy_spot(
             debug=debug
         )
         spotter_locator=spotter_locator["locator"]
-        spotter_country, spotter_continent = resolve_country_and_continent(callsign=spotter_callsign, prefixes_to_locators=prefixes_to_locators)
+        spotter_country, spotter_continent = resolve_country_and_continent(
+            callsign=spotter_callsign, 
+            # prefixes_to_locators=prefixes_to_locators
+            )
         if not spotter_locator:
-            spotter_locator = resolve_locator(callsign=spotter_callsign, prefixes_to_locators=prefixes_to_locators)
+            spotter_locator = resolve_locator(
+                callsign=spotter_callsign, 
+                # prefixes_to_locators=prefixes_to_locators
+            )
             
         spotter_lat, spotter_lon = locator_to_coordinates(spotter_locator)
 
@@ -116,7 +122,10 @@ async def prepare_holy_spot(
         dx_country = geo_cache[dx_callsign]["country"]
         dx_continent = geo_cache[dx_callsign]["continent"]
     else:
-        dx_country, dx_continent = resolve_country_and_continent(callsign=dx_callsign, prefixes_to_locators=prefixes_to_locators)
+        dx_country, dx_continent = resolve_country_and_continent(
+            callsign=dx_callsign, 
+            # prefixes_to_locators=prefixes_to_locators
+        )
         if not dx_locator:
             dx_locator = get_locator_from_qrz(
                 qrz_session_key=qrz_session_key, 
@@ -126,7 +135,10 @@ async def prepare_holy_spot(
             dx_locator = dx_locator["locator"]
             
             if not dx_locator:
-                dx_locator = resolve_locator(callsign=dx_callsign, prefixes_to_locators=prefixes_to_locators)
+                dx_locator = resolve_locator(
+                    callsign=dx_callsign, 
+                    # prefixes_to_locators=prefixes_to_locators
+                    )
             
         dx_lat, dx_lon = locator_to_coordinates(dx_locator)
 
