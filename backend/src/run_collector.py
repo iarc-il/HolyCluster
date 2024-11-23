@@ -210,12 +210,12 @@ async def main(debug=False):
 
 if __name__ == "__main__":
     start = time()
-    logger.info(f"DEBUG={DEBUG}")
+    # logger.info(f"DEBUG={DEBUG}")
     if string_to_boolean(DEBUG):
         logger.info("DEBUG is True")
     else:
         logger.info("DEBUG is False")
-    asyncio.run(main(debug=DEBUG))
+    asyncio.run(main(debug=string_to_boolean(DEBUG)))
     end = time()
     if DEBUG:
         logger.debug(f"Elasped time: {end - start:.2f} seconds")
