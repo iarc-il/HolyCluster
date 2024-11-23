@@ -215,7 +215,6 @@ if __name__ == "__main__":
         logger.info("DEBUG is True")
     else:
         logger.info("DEBUG is False")
-    exit()
     asyncio.run(main(debug=DEBUG))
     end = time()
     if DEBUG:
