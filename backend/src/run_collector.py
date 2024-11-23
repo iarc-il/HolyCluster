@@ -13,7 +13,7 @@ import settings
 from db_classes import DxheatRaw, HolySpot, GeoCache, SpotWithIssue
 from spots_collector import get_dxheat_spots, prepare_dxheat_record, prepare_holy_spot
 from qrz import get_qrz_session_key
-# from location import read_csv_to_list_of_tuples
+from misc import string_to_boolean
 
 from settings import (
     DEBUG,
@@ -27,13 +27,6 @@ geo_cache:dict = {}
 # 2 directories up
 grandparent_folder = Path(__file__).parents[1]
 sys.path.append(f"{grandparent_folder}")
-
-
-def string_to_boolean(value: str) -> bool:
-    if value.strip().lower() == "true":
-        return True
-    elif value.strip().lower() == "false":
-        return False
 
 async def prepare_holy_spots_records(holy_spots_list: list, 
                                      qrz_session_key: str, 
