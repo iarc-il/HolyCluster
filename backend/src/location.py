@@ -1,9 +1,19 @@
 import re
 import csv
 from typing import List
+from pathlib import Path
 from loguru import logger
 # from qrz import get_locator_from_qrz
 
+def read_csv_to_list_of_tuples(filename: str):
+    with open(filename, 'r') as file:
+        csv_reader = csv.reader(file)
+        return [tuple(row) for row in csv_reader]
+grandparent_folder = Path(__file__).parents[1]
+callsign_to_locator_filename = f"{grandparent_folder}/src/prefixes_list.csv"
+# if debug:
+#     logger.debug(f"{callsign_to_locator_filename=}")
+PREFIXES_TO_LOCATORS = read_csv_to_list_of_tuples(filename=callsign_to_locator_filename)
 
 
 class Position:
@@ -14,15 +24,15 @@ class Position:
         return f"{self.lat},{self.lon}"
 
 
-def read_csv_to_list_of_tuples(filename: str):
-    with open(filename, 'r') as file:
-        csv_reader = csv.reader(file)
-        return [tuple(row) for row in csv_reader]
 
 
-def resolve_locator(callsign:str, prefixes_to_locators:List) -> str:
+
+def resolve_locator(
+        callsign:str, 
+        # prefixes_to_locators:List
+    ) -> str:
     callsign=callsign.upper()
-    for regex, locator, country, continent in prefixes_to_locators:
+    for regex, locator, country, continent in PREFIXES_TO_LOCATORS:
         if re.match(regex+".*", callsign):
             return locator
     return None
@@ -35,9 +45,12 @@ def resolve_locator(callsign:str, prefixes_to_locators:List) -> str:
 #     return None
 
 
-def resolve_country_and_continent(callsign:str, prefixes_to_locators:List):
+def resolve_country_and_continent(
+        callsign:str, 
+        # prefixes_to_locators:List
+    ):
     callsign=callsign.upper()
-    for regex, locator, country, continent in prefixes_to_locators:
+    for regex, locator, country, continent in PREFIXES_TO_LOCATORS:
         if re.match(regex+".*", callsign):
             return country, continent
     return None, None

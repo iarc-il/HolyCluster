@@ -121,6 +121,7 @@ class HolySpot(Base):
     dx_lat = Column(Text)
     dx_lon = Column(Text)
     dx_country = Column(Text)
+    dxcc_number = Column(Integer)
     dx_continent = Column(Text)
     comment = Column(Text)
     __table_args__ = (
@@ -153,6 +154,7 @@ class HolySpot(Base):
             'dx_lat': self.dx_lat,
             'dx_lon': self.dx_lon,
             'dx_country': self.dx_country,
+            'dxcc_number': self.dxcc_number,
             'dx_continent': self.dx_continent,
             'comment': self.comment
         }
@@ -178,6 +180,7 @@ class SpotWithIssue(Base):
     dx_lat = Column(Text)
     dx_lon = Column(Text)
     dx_country = Column(Text)
+    dxcc_number = Column(Integer)
     dx_continent = Column(Text)
     comment = Column(Text)
     __table_args__ = (
@@ -210,6 +213,7 @@ class SpotWithIssue(Base):
             'dx_lat': self.dx_lat,
             'dx_lon': self.dx_lon,
             'dx_country': self.dx_country,
+            'dxcc_number': self.dxcc_number,
             'dx_continent': self.dx_continent,
             'comment': self.comment
         }

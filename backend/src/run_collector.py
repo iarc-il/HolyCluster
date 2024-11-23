@@ -13,9 +13,10 @@ import settings
 from db_classes import DxheatRaw, HolySpot, GeoCache, SpotWithIssue
 from spots_collector import get_dxheat_spots, prepare_dxheat_record, prepare_holy_spot
 from qrz import get_qrz_session_key
-from location import read_csv_to_list_of_tuples
+# from location import read_csv_to_list_of_tuples
 
 from settings import (
+    DEBUG,
     QRZ_USER,
     QRZ_PASSOWRD,
     QRZ_API_KEY,
@@ -30,7 +31,7 @@ sys.path.append(f"{grandparent_folder}")
 
 async def prepare_holy_spots_records(holy_spots_list: list, 
                                      qrz_session_key: str, 
-                                     prefixes_to_locators: list,
+                                    #  prefixes_to_locators: list,
                                      geo_cache: dict,
                                      debug: bool=False) -> list:
         start = time()
@@ -54,7 +55,7 @@ async def prepare_holy_spots_records(holy_spots_list: list,
                 dx_locator=spot.dx_locator,
                 comment=spot.comment,
                 qrz_session_key=qrz_session_key,
-                prefixes_to_locators=prefixes_to_locators,
+                # prefixes_to_locators=prefixes_to_locators,
                 geo_cache=geo_cache,
                 delay=delay,
                 debug=debug
@@ -111,19 +112,16 @@ def add_spot_to_spots_with_issues_file(spot:dict):
             f.write(f'{key}: {value}\n')
 
 async def main(debug=False):
-    engine = create_engine(settings.DB_URL, echo=False)
     holy_spots_list = []
-
     qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)    
-    # Create a configured "Session" class
+    
+    # callsign_to_locator_filename = f"{grandparent_folder}/src/prefixes_list.csv"
+    # if debug:
+    #     logger.debug(f"{callsign_to_locator_filename=}")
+    # prefixes_to_locators = read_csv_to_list_of_tuples(filename=callsign_to_locator_filename)
+
+    engine = create_engine(settings.DB_URL, echo=False)
     Session = sessionmaker(bind=engine)
-
-    callsign_to_locator_filename = f"{grandparent_folder}/src/prefixes_to_locators.csv"
-    if debug:
-        logger.debug(f"{callsign_to_locator_filename=}")
-    prefixes_to_locators = read_csv_to_list_of_tuples(filename=callsign_to_locator_filename)
-
-    # Create a Session
     session = Session()
 
     with engine.connect() as connection:
@@ -161,7 +159,7 @@ async def main(debug=False):
 
             holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records = await prepare_holy_spots_records(holy_spots_list=holy_spots_list, 
                                                                   qrz_session_key=qrz_session_key,
-                                                                  prefixes_to_locators=prefixes_to_locators,
+                                                                #   prefixes_to_locators=prefixes_to_locators,
                                                                   geo_cache=geo_cache,
                                                                   debug=debug)
             # holy_spot
@@ -205,9 +203,8 @@ async def main(debug=False):
 
 
 if __name__ == "__main__":
-    debug = False
     start = time()
-    asyncio.run(main(debug=debug))
+    asyncio.run(main(debug=DEBUG))
     end = time()
-    if debug:
+    if DEBUG:
         logger.debug(f"Elasped time: {end - start:.2f} seconds")
