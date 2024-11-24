@@ -74,7 +74,7 @@ async def prepare_holy_spots_records(holy_spots_list: list,
         return holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records
 
 async def collect_dxheat_spots(debug=False):
-    bands = [160, 80, 40, 30, 20, 17, 15, 12, 10, 6]
+    bands = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6, 4]
     start = time()
     tasks = []
     for band in bands:
