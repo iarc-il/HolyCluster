@@ -127,6 +127,7 @@ async def main(debug=False):
         connection.execution_options(isolation_level="AUTOCOMMIT")  # Set isolation level to autocommit
         try:
             # Reading GeoCache
+            logger.info("Reading geo_cache from database")
             geo_cache = { 
                 row.callsign: {
                     'locator': row.locator, 
@@ -137,10 +138,12 @@ async def main(debug=False):
                 } 
                 for row in session.query(GeoCache).all()
             }
+            logger.info(f"geo_cache records: {len(geo_cache)}")
             if debug:
                 logger.debug(f"{json.dumps(geo_cache, indent=4, sort_keys=False)}")
 
             #  dxheat_raw
+            logger.info("Collectign spots from DXHeat")
             spot_records = await collect_dxheat_spots(debug=debug)
             for record in spot_records:
                 dxheat_record_to_dict = record.to_dict()
@@ -155,20 +158,28 @@ async def main(debug=False):
 
                 if  record.valid:
                     holy_spots_list.append(record)
-
+            logger.info(f"DXHeat records: {len(spot_records)}")
+            
+            # holy_spot
+            logger.info("Preparing Holy Spots")
             holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records = await prepare_holy_spots_records(holy_spots_list=holy_spots_list, 
                                                                   qrz_session_key=qrz_session_key,
                                                                 #   prefixes_to_locators=prefixes_to_locators,
                                                                   geo_cache=geo_cache,
                                                                   debug=debug)
-            # holy_spot
+            logger.info(f"Holy Spots records: {len(holy_spots_records)}")
+            logger.info("Adding Holy Spots to database")
+            good_records: int = 0
+            records_with_issues: int = 0
             for record in holy_spots_records:
                 if debug:
                     logger.debug(f"{record=}")
                 holy_spot_record_dict = record.to_dict()
                 if holy_spot_record_dict['spotter_locator'] and holy_spot_record_dict['dx_locator']:
+                    good_records += 1
                     stmt = insert(HolySpot).values(**holy_spot_record_dict)
                 else:
+                    records_with_issues += 1
                     stmt = insert(SpotWithIssue).values(**holy_spot_record_dict)
                     logger.error(f"Issues with spot:\n{holy_spot_record_dict}")
                 # Removing duplication by: Define the conflict resolution (do nothing on conflict)
@@ -177,10 +188,12 @@ async def main(debug=False):
                 )                
                 # Execute the statement
                 session.execute(stmt)
+            logger.info(f"Good records: {good_records}, records with issues: {records_with_issues}")
 
             session.commit()
 
             # geo_cache
+            logger.info("Updating geo_cache")
             for record in geo_cache_spotter_records + geo_cache_dx_records:
                 if debug:
                     logger.debug(f"{record=}")
