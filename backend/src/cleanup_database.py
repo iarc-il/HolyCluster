@@ -31,9 +31,9 @@ def main(debug: bool = False):
     with Session() as session:
         try:
             table_models = {
-                # 'dxheat_raw': DxheatRaw,
+                'dxheat_raw': DxheatRaw,
                 'holy_spots': HolySpot,
-                # 'geo_cache': GeoCache
+                'geo_cache': GeoCache
             }
 
             for table_name, model in table_models.items():
