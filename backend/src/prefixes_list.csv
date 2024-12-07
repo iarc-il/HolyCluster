@@ -22,7 +22,7 @@
 "4U[0-9]ITU","JN36","ITU HQ","EU"
 "4U[0-9]|4U[0-9]UN","FN30","United Nations HQ","NA"
 "4W6","PI20","Timor-Leste","AS"
-"4[X-Z]","KM72","Israel","AS"
+"4[X,Z]","KM72","Israel","AS"
 "5A","JL45","Libya","AF"
 "5B|H2|C4","KM64","Cyprus","AS"
 "5[H-I]","KH78","Tanzania","AF"
