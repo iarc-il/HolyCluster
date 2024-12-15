@@ -6,7 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError, ProgrammingError, OperationalError
 from sqlalchemy.orm import sessionmaker
 
 from db_classes import HolySpot, DxheatRaw, GeoCache 
-from misc import string_to_boolean
+from misc import string_to_boolean, open_log_file
 
 from settings import (
     DEBUG,
@@ -15,6 +15,7 @@ from settings import (
 
 
 def main(debug: bool = False):
+    open_log_file("logs/cleanup_database")
     engine = create_engine(DB_URL, echo=False)
     # Create a configured "Session" class
     Session = sessionmaker(bind=engine)
