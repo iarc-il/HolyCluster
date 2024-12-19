@@ -6,8 +6,7 @@ Base = declarative_base()
 
 class GeoCache(Base):
      __tablename__ = 'geo_cache'
-     id = Column(Integer, primary_key=True)
-     callsign = Column(Text)
+     callsign = Column(Text, primary_key=True)
      locator = Column(Text)
      lat = Column(Text)
      lon = Column(Text)
@@ -18,12 +17,11 @@ class GeoCache(Base):
      date_time = Column(DateTime)
 
      def __repr__(self):
-        return(f"<GeoCache(id={self.id}, callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, "
+        return(f"<GeoCache(callsign={self.callsign}, locator={self.locator}, lat={self.lat}, lon={self.lon}, "
                f"country={self.country}, continent={self.continent}, date={self.date}, time={self.time}, date_time={self.date_time}>")
      
      def to_dict(self):
         return {
-            # 'id': self.id,
             'callsign': self.callsign,
             'locator': self.locator,
             'lat': self.lat,
