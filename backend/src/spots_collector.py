@@ -43,7 +43,9 @@ async def get_dxheat_spots(band:int, limit:int=30, debug:bool=False) -> list|Non
 
 def prepare_dxheat_record(spot, debug=False):
     time = datetime.strptime(spot['Time'], '%H:%M').time()
-    date = datetime.strptime(spot['Date'], '%d/%m/%y').date() 
+    date = datetime.strptime(spot['Date'], '%d/%m/%y').date()
+    if "Mode" not in spot:
+      spot["Mode"] = "SSB"
     record = DxheatRaw(
         number=spot['Nr'],
         spotter=spot['Spotter'],
