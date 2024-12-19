@@ -83,18 +83,18 @@ async def prepare_holy_spot(
     dx_locator: str,
     comment: str,
     qrz_session_key: str,
-    # prefixes_to_locators: list,
-    geo_cache: dict,
+    geo_cache_spotter: dict,
+    geo_cache_dx: dict,
     delay: float = 0,
     debug: bool = False
 ):
 
-    if spotter_callsign in geo_cache:
-        spotter_locator = geo_cache[spotter_callsign]["locator"]
-        spotter_lat = geo_cache[spotter_callsign]["lat"]
-        spotter_lon = geo_cache[spotter_callsign]["lon"]
-        spotter_country = geo_cache[spotter_callsign]["country"]
-        spotter_continent = geo_cache[spotter_callsign]["continent"]
+    if  geo_cache_spotter:
+        spotter_locator = geo_cache_spotter["locator"]
+        spotter_lat = geo_cache_spotter["lat"]
+        spotter_lon = geo_cache_spotter["lon"]
+        spotter_country = geo_cache_spotter["country"]
+        spotter_continent = geo_cache_spotter["continent"]
     else:
         spotter_locator = await get_locator_from_qrz(
             qrz_session_key=qrz_session_key, 
@@ -115,12 +115,12 @@ async def prepare_holy_spot(
             
         spotter_lat, spotter_lon = locator_to_coordinates(spotter_locator)
 
-    if dx_callsign in geo_cache:
-        dx_locator = geo_cache[dx_callsign]["locator"]
-        dx_lat = geo_cache[dx_callsign]["lat"]
-        dx_lon = geo_cache[dx_callsign]["lon"]
-        dx_country = geo_cache[dx_callsign]["country"]
-        dx_continent = geo_cache[dx_callsign]["continent"]
+    if geo_cache_dx:
+        dx_locator = geo_cache_dx["locator"]
+        dx_lat = geo_cache_dx["lat"]
+        dx_lon = geo_cache_dx["lon"]
+        dx_country = geo_cache_dx["country"]
+        dx_continent = geo_cache_dx["continent"]
     else:
         dx_country, dx_continent = resolve_country_and_continent(
             callsign=dx_callsign, 

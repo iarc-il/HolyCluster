@@ -31,14 +31,16 @@ def main(debug: bool = False):
 
     with Session() as session:
         try:
-            table_models = {
-                'dxheat_raw': DxheatRaw,
-                'holy_spots': HolySpot,
-                'geo_cache': GeoCache
-            }
-
-            for table_name, model in table_models.items():
-                record_count = session.query(func.count(model.id)).scalar()
+            tables = [
+                ["dxheat_raw", DxheatRaw, "id"],
+                ["holy_spot", HolySpot, "id"],
+                ["geo_cache", GeoCache, "callsign"]
+            ]
+            for  item in tables:
+                table_name = item[0]
+                model = item[1]
+                pk = item[2]
+                record_count = select(func.count()).select_from(table_name)
                 logger.info(f"Before cleanup: Table: {table_name:12}   records: {record_count}")
 
                 # Perform deletion
@@ -56,7 +58,7 @@ def main(debug: bool = False):
                 # Commit the changes
                 session.commit()
 
-                record_count = session.query(func.count(model.id)).scalar()
+                record_count = session.query(func.count(pk)).scalar()
                 logger.info(f"After  cleanup: Table: {table_name:12}   records: {record_count}")
 
         except (ProgrammingError, OperationalError) as e:
