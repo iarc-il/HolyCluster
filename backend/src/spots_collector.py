@@ -46,6 +46,7 @@ def prepare_dxheat_record(spot, debug=False):
     date = datetime.strptime(spot['Date'], '%d/%m/%y').date()
     if "Mode" not in spot:
       spot["Mode"] = "SSB"
+      spot["Comment"] += " Missing Mode" 
     record = DxheatRaw(
         number=spot['Nr'],
         spotter=spot['Spotter'],
