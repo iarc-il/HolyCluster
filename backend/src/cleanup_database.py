@@ -40,7 +40,7 @@ def main(debug: bool = False):
                 table_name = item[0]
                 model = item[1]
                 pk = item[2]
-                record_count = select(func.count()).select_from(table_name)
+                record_count = session.query(func.count(getattr(model, pk))).scalar()
                 logger.info(f"Before cleanup: Table: {table_name:12}   records: {record_count}")
 
                 # Perform deletion
@@ -58,7 +58,7 @@ def main(debug: bool = False):
                 # Commit the changes
                 session.commit()
 
-                record_count = session.query(func.count(pk)).scalar()
+                record_count = session.query(func.count(getattr(model, pk))).scalar()
                 logger.info(f"After  cleanup: Table: {table_name:12}   records: {record_count}")
 
         except (ProgrammingError, OperationalError) as e:
