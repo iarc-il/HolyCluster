@@ -148,10 +148,10 @@ async def prepare_holy_spot(
             
         dx_lat, dx_lon = locator_to_coordinates(dx_locator)
 
-    if frequency in FT8_HF_FREQUENCIES or re.match("FT8", comment.upper()):
+    if frequency in FT8_HF_FREQUENCIES or re.search("FT8", comment.upper()):
         mode = "FT8"
     
-    elif frequency in FT4_HF_FREQUENCIES or re.match("FT4", comment.upper()):
+    elif frequency in FT4_HF_FREQUENCIES or re.search("FT4", comment.upper()):
         mode = "FT4"
 
     holy_spot_record = HolySpot(
