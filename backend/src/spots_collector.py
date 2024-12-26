@@ -44,9 +44,10 @@ async def get_dxheat_spots(band:int, limit:int=30, debug:bool=False) -> list|Non
 def prepare_dxheat_record(spot, debug=False):
     time = datetime.strptime(spot['Time'], '%H:%M').time()
     date = datetime.strptime(spot['Date'], '%d/%m/%y').date()
+    missing_mode = False
     if "Mode" not in spot:
       spot["Mode"] = "SSB"
-      spot["Comment"] += " Missing Mode" 
+      missing_mode = True
     record = DxheatRaw(
         number=spot['Nr'],
         spotter=spot['Spotter'],
@@ -67,6 +68,7 @@ def prepare_dxheat_record(spot, debug=False):
         flag=spot.get('Flag'),
         band=str(spot['Band']),
         mode=spot['Mode'],
+        missing_mode=missing_mode,
         continent_dx=spot.get('Continent_dx'),
         continent_spotter=spot['Continent_spotter'],
         dx_locator=spot['DXLocator']
@@ -79,6 +81,7 @@ async def prepare_holy_spot(
     date,
     time,
     mode: str,
+    missing_mode: bool,
     band: str,
     frequency: str,
     spotter_callsign: str,
@@ -155,7 +158,8 @@ async def prepare_holy_spot(
         date=date,  
         time=time,  
         date_time=datetime.combine(date, time, tzinfo=timezone.utc),
-        mode=mode,  
+        mode=mode,
+        missing_mode=missing_mode,
         band=band,
         frequency=frequency,
         spotter_callsign=spotter_callsign,
