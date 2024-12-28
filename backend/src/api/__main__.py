@@ -4,6 +4,7 @@ import fastapi
 import uvicorn
 
 from sqlmodel import Field, SQLModel, create_engine, Session, select
+from sqlalchemy import desc
 
 from typing import Optional
 import datetime
@@ -104,12 +105,12 @@ def spots(since: Optional[int] = None):
         query = select(DX)
         if since is not None:
             query = query.where(DX.date_time > datetime.datetime.fromtimestamp(since))
-        spots = session.exec(query.limit(500)).all()
+        query = query.order_by(desc(DX.date_time)).limit(500)
+        spots = session.exec(query).all()
         spots = [
             cleanup_spot(spot)
             for spot in spots
         ]
-        spots = sorted(spots, key=lambda spot: spot["time"], reverse=True)
         return spots
 
 
