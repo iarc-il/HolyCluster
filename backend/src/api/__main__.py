@@ -99,15 +99,18 @@ def cleanup_spot(spot):
 
 
 @app.get("/spots")
-def spots():
+def spots(since: Optional[int] = None):
     with Session(engine) as session:
-        spots = session.exec(select(DX)).all()
+        query = select(DX)
+        if since is not None:
+            query = query.where(DX.date_time > datetime.datetime.fromtimestamp(since))
+        spots = session.exec(query.limit(500)).all()
         spots = [
             cleanup_spot(spot)
             for spot in spots
         ]
         spots = sorted(spots, key=lambda spot: spot["time"], reverse=True)
-        return spots[:1000]
+        return spots
 
 
 @app.get("/geocache/all")
