@@ -19,7 +19,7 @@ async def get_dxheat_spots(band:int, limit:int=30, debug:bool=False) -> list|Non
     assert isinstance(band, int)
     assert isinstance(limit, int)
     limit = min(50, limit)
-
+    
     url = f"https://dxheat.com/source/spots/?a={limit}&b={band}&cdx=EU&cdx=NA&cdx=SA&cdx=AS&cdx=AF&cdx=OC&cdx=AN&cde=EU&cde=NA&cde=SA&cde=AS&cde=AF&cde=OC&cde=AN&m=CW&m=PHONE&m=DIGI&valid=1&spam=0"
     async with httpx.AsyncClient() as client:
         response = await client.get(url, timeout=15)

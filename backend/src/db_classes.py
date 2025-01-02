@@ -221,3 +221,33 @@ class SpotWithIssue(Base):
             'dx_continent': self.dx_continent,
             'comment': self.comment
         }
+
+class Propagation(Base):
+    __tablename__ = 'propagation'
+    id = Column(Integer, primary_key=True)
+    station = Column(Text)
+    date_time = Column(DateTime)
+    a = Column(Integer)
+    k = Column(Integer)
+    sfi = Column(Integer)
+    r = Column(Integer)
+    expk = Column(Integer)
+    aurora = Column(Boolean)
+
+     def __repr__(self):
+        return(f"<Propagation(id={self.id}, station={self.station}, date_time={self.date_time}, a={self.a}, "
+               f"k={self.k}, sfi={self.sfi}, expk={self.expk}, aurora={self.aurora}) 
+     
+     def to_dict(self):
+        return {
+            'id': self.id,
+            'station': self.station,
+            'date_time': self.date_time,
+            'a': self.a,
+            'k': self.k,
+            'sfi': self.sfi,
+            'r': self.r,
+            'aurora': self.aurora
+        }
+
+
