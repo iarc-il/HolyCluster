@@ -63,7 +63,7 @@ class GeoCache(SQLModel, table=True):
 
 async def propagation_data_collector(app):
     while True:
-        app.state.propagation = propagation.collect_propagation_data()
+        app.state.propagation = await propagation.collect_propagation_data()
         await asyncio.sleep(3600)
 
 
