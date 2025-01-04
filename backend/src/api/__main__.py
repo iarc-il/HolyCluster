@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 import asyncio
 import datetime
+import logging
+import time
 from typing import Optional
 
 from fastapi.staticfiles import StaticFiles
@@ -61,9 +63,15 @@ class GeoCache(SQLModel, table=True):
     locator: str
 
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+
 async def propagation_data_collector(app):
     while True:
         app.state.propagation = await propagation.collect_propagation_data()
+        app.state.propagation["time"] = int(time.time())
+        logger.info(f"Got propagation data: {app.state.propagation}")
         await asyncio.sleep(3600)
 
 
