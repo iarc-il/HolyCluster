@@ -77,6 +77,16 @@ def prepare_dxheat_record(spot, debug=False):
     return record
 
 
+def is_value_in_range(value, range):
+    try:
+        value = float(value)
+        for lower, upper in range:
+            if lower <= value <= upper:
+                return True
+    except ValueError:
+        return False
+    return False
+
 async def prepare_holy_spot(
     date,
     time,
@@ -148,10 +158,9 @@ async def prepare_holy_spot(
             
         dx_lat, dx_lon = locator_to_coordinates(dx_locator)
 
-    if frequency in FT8_HF_FREQUENCIES or re.search("FT8", comment.upper()):
-        mode = "FT8"
-    
-    elif frequency in FT4_HF_FREQUENCIES or re.search("FT4", comment.upper()):
+    if is_value_in_range(frequency, FT8_HF_FREQUENCIES) or re.search("FT8", comment.upper()):
+        mode = "FT8"    
+    elif is_value_in_range(frequency, FT4_HF_FREQUENCIES) or re.search("FT4", comment.upper()):
         mode = "FT4"
 
     holy_spot_record = HolySpot(

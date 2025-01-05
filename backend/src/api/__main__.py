@@ -1,3 +1,10 @@
+from contextlib import asynccontextmanager
+import asyncio
+import datetime
+import logging
+import time
+from typing import Optional
+
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import fastapi
@@ -6,10 +13,7 @@ import uvicorn
 from sqlmodel import Field, SQLModel, create_engine, Session, select
 from sqlalchemy import desc
 
-from typing import Optional
-import datetime
-
-from . import settings
+from . import propagation, settings
 
 
 class DX(SQLModel, table=True):
@@ -59,8 +63,26 @@ class GeoCache(SQLModel, table=True):
     locator: str
 
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+
+async def propagation_data_collector(app):
+    while True:
+        app.state.propagation = await propagation.collect_propagation_data()
+        app.state.propagation["time"] = int(time.time())
+        logger.info(f"Got propagation data: {app.state.propagation}")
+        await asyncio.sleep(3600)
+
+
+@asynccontextmanager
+async def lifespan(app: fastapi.FastAPI):
+    asyncio.create_task(propagation_data_collector(app))
+    yield
+
+
 engine = create_engine(settings.DB_URL)
-app = fastapi.FastAPI()
+app = fastapi.FastAPI(lifespan=lifespan)
 
 if settings.SSL_AVAILABLE:
     import ssl
@@ -138,6 +160,11 @@ def spots_with_issues():
         spots = session.exec(select(SpotsWithIssues)).all()
         spots = [spot.model_dump() for spot in spots]
         return spots
+
+
+@app.get("/propagation")
+def propagation_data():
+    return app.state.propagation
 
 
 @app.websocket("/radio")
