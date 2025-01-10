@@ -69,13 +69,15 @@ logging.basicConfig(level=logging.INFO)
 
 async def propagation_data_collector(app):
     while True:
+        sleep = 3600
         try:
             app.state.propagation = await propagation.collect_propagation_data()
             app.state.propagation["time"] = int(time.time())
             logger.info(f"Got propagation data: {app.state.propagation}")
         except Exception as e:
-            logger.error(f"Task failed: {str(e)}")
-        await asyncio.sleep(3600)
+            sleep = 10
+            logger.error(f"Failed to fetch spots: {str(e)}")
+        await asyncio.sleep(sleep)
 
 
 @asynccontextmanager
