@@ -69,15 +69,18 @@ logging.basicConfig(level=logging.INFO)
 
 async def propagation_data_collector(app):
     while True:
-        app.state.propagation = await propagation.collect_propagation_data()
-        app.state.propagation["time"] = int(time.time())
-        logger.info(f"Got propagation data: {app.state.propagation}")
+        try:
+            app.state.propagation = await propagation.collect_propagation_data()
+            app.state.propagation["time"] = int(time.time())
+            logger.info(f"Got propagation data: {app.state.propagation}")
+        except Exception as e:
+            logger.error(f"Task failed: {str(e)}")
         await asyncio.sleep(3600)
 
 
 @asynccontextmanager
 async def lifespan(app: fastapi.FastAPI):
-    asyncio.create_task(propagation_data_collector(app))
+    asyncio.get_running_loop().create_task(propagation_data_collector(app))
     yield
 
 
