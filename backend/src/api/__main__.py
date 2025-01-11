@@ -212,14 +212,6 @@ class CommandError(Exception):
         return f"Invalid command: {self.command}"
 
 
-class SpotNotSubmitted(Exception):
-    def __init__(self, response):
-        self.response = response
-
-    def __str__(self):
-        return f"Invalid repsonse: {self.response}"
-
-
 @app.websocket("/submit_spot")
 async def submit_spot(websocket: fastapi.WebSocket):
     """Dummy websockets endpoint to indicate to the client that radio connection is not available."""
@@ -246,13 +238,11 @@ async def submit_spot(websocket: fastapi.WebSocket):
         response = (await reader.read(1024)).decode()
         if "command error" in response:
             raise CommandError(spot_command)
-        elif f"DX de {data['spotter_callsign']}" not in response:
-            raise SpotNotSubmitted(response)
 
         writer.close()
         await writer.wait_closed()
 
-        await websocket.send_json({"result": "success", "output": response.decode()})
+        await websocket.send_json({"result": "success", "output": response})
         logger.info(f"Spot submitted sucessfully: {data}")
     except Exception as e:
         logger.exception(f"Failed to submit spot: {data}")
