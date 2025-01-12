@@ -7,7 +7,6 @@ from typing import Optional
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.websockets import WebSocketDisconnect
 import fastapi
 import uvicorn
 
