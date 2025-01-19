@@ -216,6 +216,10 @@ async def main(debug=False):
                     records_with_issues += 1
                     stmt = insert(SpotWithIssue).values(**holy_spot_record_dict)
                     logger.error(f"Issues with spot:\n{holy_spot_record_dict}")
+                if holy_spot_record_dict['dx_country']:
+                    records_with_issues += 1
+                    stmt = insert(SpotWithIssue).values(**holy_spot_record_dict)
+                    logger.error(f"Issues with spot:\n{holy_spot_record_dict}")
                 # Removing duplication by: Define the conflict resolution (do nothing on conflict)
                 stmt = stmt.on_conflict_do_nothing(
                     index_elements=['date', 'time', 'spotter_callsign', 'dx_callsign']

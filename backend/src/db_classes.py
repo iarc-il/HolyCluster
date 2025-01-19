@@ -221,3 +221,4 @@ class SpotWithIssue(Base):
             'dx_continent': self.dx_continent,
             'comment': self.comment
         }
+
