@@ -206,17 +206,32 @@ async def main(debug=False):
             good_records: int = 0
             records_with_issues: int = 0
             for record in holy_spots_records:
+                issue = False
+                issue_but_report = False
                 if debug:
                     logger.debug(f"{record=}")
                 holy_spot_record_dict = record.to_dict()
-                if holy_spot_record_dict['spotter_locator'] and holy_spot_record_dict['dx_locator']:
+                if not holy_spot_record_dict['spotter_locator']:
+                    holy_spot_record_dict['comment'] += " *** Missing spotter locator ***"
+                    issue = True
+                if not holy_spot_record_dict['dx_locator']:
+                    holy_spot_record_dict['comment'] += " *** Missing dx locator ***"
+                    issue = True
+                if holy_spot_record_dict['spotter_callsign']=='W3LPL':
+                    holy_spot_record_dict['comment'] += " *** Spotter is W3LPL ***"
+                    issue = True
+                if not holy_spot_record_dict['dx_country']:
+                    holy_spot_record_dict['comment'] += " *** Missing dx_country ***"
+                    issue_but_report = True
+
+                if not issue:
                     good_records += 1
                     stmt = insert(HolySpot).values(**holy_spot_record_dict)
                 else:
                     records_with_issues += 1
                     stmt = insert(SpotWithIssue).values(**holy_spot_record_dict)
                     logger.error(f"Issues with spot:\n{holy_spot_record_dict}")
-                if not holy_spot_record_dict['dx_country']:
+                if issue_but_report:
                     records_with_issues += 1
                     stmt = insert(SpotWithIssue).values(**holy_spot_record_dict)
                     logger.error(f"Issues with spot:\n{holy_spot_record_dict}")
