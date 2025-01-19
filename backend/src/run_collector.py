@@ -209,7 +209,7 @@ async def main(debug=False):
                 if debug:
                     logger.debug(f"{record=}")
                 holy_spot_record_dict = record.to_dict()
-                if holy_spot_record_dict['spotter_locator'] and holy_spot_record_dict['dx_locator']:
+                if holy_spot_record_dict['spotter_locator'] and holy_spot_record_dict['dx_locator'] and holy_spot_record_dict['dx_country']:
                     good_records += 1
                     stmt = insert(HolySpot).values(**holy_spot_record_dict)
                 else:
