@@ -216,7 +216,7 @@ async def main(debug=False):
                     records_with_issues += 1
                     stmt = insert(SpotWithIssue).values(**holy_spot_record_dict)
                     logger.error(f"Issues with spot:\n{holy_spot_record_dict}")
-                if holy_spot_record_dict['dx_country']:
+                if not holy_spot_record_dict['dx_country']:
                     records_with_issues += 1
                     stmt = insert(SpotWithIssue).values(**holy_spot_record_dict)
                     logger.error(f"Issues with spot:\n{holy_spot_record_dict}")
