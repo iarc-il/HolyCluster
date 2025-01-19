@@ -209,10 +209,14 @@ async def main(debug=False):
                 if debug:
                     logger.debug(f"{record=}")
                 holy_spot_record_dict = record.to_dict()
-                if holy_spot_record_dict['spotter_locator'] and holy_spot_record_dict['dx_locator'] and holy_spot_record_dict['dx_country']:
+                if holy_spot_record_dict['spotter_locator'] and holy_spot_record_dict['dx_locator']:
                     good_records += 1
                     stmt = insert(HolySpot).values(**holy_spot_record_dict)
                 else:
+                    records_with_issues += 1
+                    stmt = insert(SpotWithIssue).values(**holy_spot_record_dict)
+                    logger.error(f"Issues with spot:\n{holy_spot_record_dict}")
+                if holy_spot_record_dict['dx_country']:
                     records_with_issues += 1
                     stmt = insert(SpotWithIssue).values(**holy_spot_record_dict)
                     logger.error(f"Issues with spot:\n{holy_spot_record_dict}")
