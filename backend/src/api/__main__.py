@@ -69,15 +69,20 @@ logging.basicConfig(level=logging.INFO)
 
 async def propagation_data_collector(app):
     while True:
-        app.state.propagation = await propagation.collect_propagation_data()
-        app.state.propagation["time"] = int(time.time())
-        logger.info(f"Got propagation data: {app.state.propagation}")
-        await asyncio.sleep(3600)
+        sleep = 3600
+        try:
+            app.state.propagation = await propagation.collect_propagation_data()
+            app.state.propagation["time"] = int(time.time())
+            logger.info(f"Got propagation data: {app.state.propagation}")
+        except Exception as e:
+            sleep = 10
+            logger.error(f"Failed to fetch spots: {str(e)}")
+        await asyncio.sleep(sleep)
 
 
 @asynccontextmanager
 async def lifespan(app: fastapi.FastAPI):
-    asyncio.create_task(propagation_data_collector(app))
+    asyncio.get_running_loop().create_task(propagation_data_collector(app))
     yield
 
 
@@ -168,10 +173,85 @@ def propagation_data():
 
 
 @app.websocket("/radio")
-async def websocket_endpoint(websocket: fastapi.WebSocket):
+async def radio(websocket: fastapi.WebSocket):
     """Dummy websockets endpoint to indicate to the client that radio connection is not available."""
     await websocket.accept()
     await websocket.send_json({"status": "unavailable"})
+    await websocket.close()
+
+
+async def send_dx_spot(cluster_host, cluster_port, spotter_callsign, dx_callsign, frequency):
+    pass
+
+# Example usage:
+# asyncio.run(send_dx_spot("dxcluster.example.com", 7300, "YOURCALL", "DXCALL", "14000.0"))
+
+CLUSTER_HOST = "dxc.k0xm.net"
+CLUSTER_PORT = 7300
+
+
+class InvalidSpotter(Exception):
+    def __str__(self):
+        return "Invalid spotter"
+
+
+class LoginFailed(Exception):
+    def __init__(self, response):
+        self.response = response
+
+    def __str__(self):
+        return f"Invalid repsonse: {self.response}"
+
+
+class CommandError(Exception):
+    def __init__(self, command):
+        self.command = command
+
+    def __str__(self):
+        return f"Invalid command: {self.command}"
+
+
+@app.websocket("/submit_spot")
+async def submit_spot(websocket: fastapi.WebSocket):
+    """Dummy websockets endpoint to indicate to the client that radio connection is not available."""
+    await websocket.accept()
+    data = await websocket.receive_json()
+
+    response = ""
+    try:
+        if data["spotter_callsign"] == "":
+            raise InvalidSpotter()
+
+        reader, writer = await asyncio.open_connection(CLUSTER_HOST, CLUSTER_PORT)
+        writer.write(f"{data['spotter_callsign']}\n".encode())
+        response = (await reader.read(1024)).decode()
+        if "is not a valid callsign" in response:
+            raise InvalidSpotter()
+        elif "Hello" not in response:
+            raise LoginFailed()
+
+        comment = ""
+        spot_command = f"DX {float(data['freq'])} {data['dx_callsign']} {comment}\n"
+        writer.write(spot_command.encode())
+
+        response = (await reader.read(1024)).decode()
+        if "command error" in response:
+            raise CommandError(spot_command)
+
+        writer.close()
+        await writer.wait_closed()
+
+        await websocket.send_json({"result": "success", "output": response})
+        logger.info(f"Spot submitted sucessfully: {data}")
+    except Exception as e:
+        logger.exception(f"Failed to submit spot: {data}")
+        await websocket.send_json({
+            "result": "failure",
+            "type": e.__class__.__name__,
+            "received_data": data,
+            "error_data": str(e),
+        })
+
     await websocket.close()
 
 
