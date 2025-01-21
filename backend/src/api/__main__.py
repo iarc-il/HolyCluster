@@ -196,11 +196,13 @@ class InvalidSpotter(Exception):
 
 
 class LoginFailed(Exception):
-    def __init__(self, response):
-        self.response = response
-
     def __str__(self):
-        return f"Invalid repsonse: {self.response}"
+        return "Login failed"
+
+
+class SpotNotSubmitted(Exception):
+    def __str__(self):
+        return "Spot not submitted"
 
 
 class CommandError(Exception):
@@ -209,6 +211,34 @@ class CommandError(Exception):
 
     def __str__(self):
         return f"Invalid command: {self.command}"
+
+
+class OtherError(Exception):
+    def __str__(self):
+        return "Other error"
+
+
+class InvalidFrequency(Exception):
+    def __str__(self):
+        return "Invalid frequency"
+
+
+class InvalidDXCallsign(Exception):
+    def __str__(self):
+        return "Invalid dx callsign"
+
+
+async def expect_lines(reader, valid_line, invalid_lines, default_exception, max_lines=30):
+    for _ in range(max_lines):
+        line = await reader.readline()
+        line = line.decode()
+        print(line)
+        if valid_line in line:
+            return
+        for invalid_line, exception in invalid_lines.items():
+            if invalid_line in line:
+                raise exception
+    raise default_exception
 
 
 @app.websocket("/submit_spot")
@@ -224,20 +254,29 @@ async def submit_spot(websocket: fastapi.WebSocket):
 
         reader, writer = await asyncio.open_connection(CLUSTER_HOST, CLUSTER_PORT)
         writer.write(f"{data['spotter_callsign']}\n".encode())
-        response = (await reader.read(1024)).decode()
-        if "is not a valid callsign" in response:
-            raise InvalidSpotter()
-        elif "Hello" not in response:
-            raise LoginFailed()
+        await expect_lines(
+            reader,
+            "Hello",
+            {"is not a valid callsign": InvalidSpotter()},
+            LoginFailed(),
+        )
 
         comment = ""
         spot_command = f"DX {float(data['freq'])} {data['dx_callsign']} {comment}\n"
+        print("Writing:", spot_command)
         writer.write(spot_command.encode())
 
-        response = (await reader.read(1024)).decode()
-        if "command error" in response:
-            raise CommandError(spot_command)
-
+        await expect_lines(
+            reader,
+            f"DX de {data['spotter_callsign']}:      {float(data['freq'])}  {data['dx_callsign']}",
+            {
+                "command error": CommandError(spot_command),
+                "Error - DX": OtherError(),
+                "Error - invalid frequency": InvalidFrequency(),
+                "Error - Invalid Dx Call": InvalidDXCallsign(),
+            },
+            SpotNotSubmitted(),
+        )
         writer.close()
         await writer.wait_closed()
 
