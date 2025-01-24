@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 import asyncio
 import datetime
 import logging
+import re
 import time
 from typing import Optional
 
@@ -228,23 +229,36 @@ class InvalidDXCallsign(Exception):
         return "Invalid dx callsign"
 
 
-async def expect_lines(reader, valid_line, invalid_lines, default_exception, max_lines=30):
-    for _ in range(max_lines):
+async def expect_lines_inner(reader, valid_line, invalid_lines, default_exception):
+    while True:
         line = await reader.readline()
-        line = line.decode()
-        print(line)
-        if valid_line in line:
+        line = line.decode("utf-8", "ignore")
+
+        print(line.strip())
+        if isinstance(valid_line, re.Pattern):
+            if valid_line.search(line) is not None:
+                return
+        elif valid_line in line:
             return
+        else:
+            print(f"line: {repr(line)} is not {repr(valid_line)}")
         for invalid_line, exception in invalid_lines.items():
             if invalid_line in line:
                 raise exception
     raise default_exception
 
 
-@app.websocket("/submit_spot")
-async def submit_spot(websocket: fastapi.WebSocket):
-    """Dummy websockets endpoint to indicate to the client that radio connection is not available."""
-    await websocket.accept()
+async def expect_lines(reader, valid_line, invalid_lines, default_exception):
+    try:
+        await asyncio.wait_for(
+            expect_lines_inner(reader, valid_line, invalid_lines, default_exception),
+            timeout=10
+        )
+    except TimeoutError:
+        raise default_exception
+
+
+async def handle_one_spot(websocket):
     data = await websocket.receive_json()
 
     response = ""
@@ -261,14 +275,13 @@ async def submit_spot(websocket: fastapi.WebSocket):
             LoginFailed(),
         )
 
-        comment = ""
-        spot_command = f"DX {float(data['freq'])} {data['dx_callsign']} {comment}\n"
+        spot_command = f"DX {float(data['freq'])} {data['dx_callsign']} {data['comment']}\n"
         print("Writing:", spot_command)
         writer.write(spot_command.encode())
 
         await expect_lines(
             reader,
-            f"DX de {data['spotter_callsign']}:      {float(data['freq'])}  {data['dx_callsign']}",
+            re.compile(fr"DX de\s*{data['spotter_callsign']}:\s*{float(data['freq'])}\s*{data['dx_callsign']}"),
             {
                 "command error": CommandError(spot_command),
                 "Error - DX": OtherError(),
@@ -280,17 +293,23 @@ async def submit_spot(websocket: fastapi.WebSocket):
         writer.close()
         await writer.wait_closed()
 
-        await websocket.send_json({"result": "success", "output": response})
+        await websocket.send_json({"status": "success", "output": response})
         logger.info(f"Spot submitted sucessfully: {data}")
     except Exception as e:
         logger.exception(f"Failed to submit spot: {data}")
         await websocket.send_json({
-            "result": "failure",
+            "status": "failure",
             "type": e.__class__.__name__,
             "received_data": data,
             "error_data": str(e),
         })
 
+
+@app.websocket("/submit_spot")
+async def submit_spot(websocket: fastapi.WebSocket):
+    await websocket.accept()
+    while True:
+        await handle_one_spot(websocket)
     await websocket.close()
 
 
