@@ -77,7 +77,7 @@ async def propagation_data_collector(app):
             logger.info(f"Got propagation data: {app.state.propagation}")
         except Exception as e:
             sleep = 10
-            logger.error(f"Failed to fetch spots: {str(e)}")
+            logger.exception(f"Failed to fetch spots: {str(e)}")
         await asyncio.sleep(sleep)
 
 
@@ -261,10 +261,11 @@ async def expect_lines(reader, valid_line, invalid_lines, default_exception):
 async def handle_one_spot(websocket):
     data = await websocket.receive_json()
 
-    response = ""
     try:
         if data["spotter_callsign"] == "":
             raise InvalidSpotter()
+        if data["dx_callsign"] == "":
+            raise InvalidDXCallsign()
 
         reader, writer = await asyncio.open_connection(CLUSTER_HOST, CLUSTER_PORT)
         writer.write(f"{data['spotter_callsign']}\n".encode())
@@ -293,16 +294,16 @@ async def handle_one_spot(websocket):
         writer.close()
         await writer.wait_closed()
 
-        await websocket.send_json({"status": "success", "output": response})
+        await websocket.send_json({"status": "success"})
         logger.info(f"Spot submitted sucessfully: {data}")
     except Exception as e:
-        logger.exception(f"Failed to submit spot: {data}")
-        await websocket.send_json({
+        response = {
             "status": "failure",
             "type": e.__class__.__name__,
-            "received_data": data,
             "error_data": str(e),
-        })
+        }
+        logger.exception(f"Failed to submit spot: {data}, Response: {response}")
+        await websocket.send_json(response)
 
 
 @app.websocket("/submit_spot")
