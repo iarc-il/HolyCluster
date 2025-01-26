@@ -229,6 +229,11 @@ class InvalidDXCallsign(Exception):
         return "Invalid dx callsign"
 
 
+class ClusterConnectionFailed(Exception):
+    def __str__(self):
+        return "Failed to connect to the cluster"
+
+
 async def expect_lines_inner(reader, valid_line, invalid_lines, default_exception):
     while True:
         line = await reader.readline()
@@ -258,6 +263,19 @@ async def expect_lines(reader, valid_line, invalid_lines, default_exception):
         raise default_exception
 
 
+async def connect_to_server():
+    async def inner_connect():
+        return await asyncio.open_connection(CLUSTER_HOST, CLUSTER_PORT)
+
+    for i in range(5):
+        try:
+            return await asyncio.wait_for(inner_connect(), timeout=3)
+        except TimeoutError:
+            logger.error(f"Failed to connect to cluster at {CLUSTER_HOST}:{CLUSTER_PORT}, {i} retry")
+    else:
+        raise ClusterConnectionFailed()
+
+
 async def handle_one_spot(websocket):
     data = await websocket.receive_json()
 
@@ -267,7 +285,7 @@ async def handle_one_spot(websocket):
         if data["dx_callsign"] == "":
             raise InvalidDXCallsign()
 
-        reader, writer = await asyncio.open_connection(CLUSTER_HOST, CLUSTER_PORT)
+        reader, writer = await connect_to_server()
         writer.write(f"{data['spotter_callsign']}\n".encode())
         await expect_lines(
             reader,
