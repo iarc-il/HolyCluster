@@ -8,6 +8,7 @@ from typing import Optional
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import websockets
 import fastapi
 import uvicorn
 
@@ -257,7 +258,7 @@ async def expect_lines(reader, valid_line, invalid_lines, default_exception):
     try:
         await asyncio.wait_for(
             expect_lines_inner(reader, valid_line, invalid_lines, default_exception),
-            timeout=10
+            timeout=5
         )
     except TimeoutError:
         raise default_exception
@@ -328,8 +329,10 @@ async def handle_one_spot(websocket):
 async def submit_spot(websocket: fastapi.WebSocket):
     await websocket.accept()
     while True:
-        await handle_one_spot(websocket)
-    await websocket.close()
+        try:
+            await handle_one_spot(websocket)
+        except websockets.WebSocketDisconnect:
+            break
 
 
 app.mount("/", StaticFiles(directory=settings.UI_DIR, html=True), name="static")
