@@ -202,11 +202,6 @@ class LoginFailed(Exception):
         return "Login failed"
 
 
-class SpotNotSubmitted(Exception):
-    def __str__(self):
-        return "Spot not submitted"
-
-
 class CommandError(Exception):
     def __init__(self, command):
         self.command = command
@@ -235,7 +230,7 @@ class ClusterConnectionFailed(Exception):
         return "Failed to connect to the cluster"
 
 
-async def expect_lines_inner(reader, valid_line, invalid_lines, default_exception):
+async def expect_lines_inner(reader, valid_line, invalid_lines):
     while True:
         line = await reader.readline()
         line = line.decode("utf-8", "ignore")
@@ -251,17 +246,18 @@ async def expect_lines_inner(reader, valid_line, invalid_lines, default_exceptio
         for invalid_line, exception in invalid_lines.items():
             if invalid_line in line:
                 raise exception
-    raise default_exception
 
 
-async def expect_lines(reader, valid_line, invalid_lines, default_exception):
+async def expect_lines(reader, valid_line, invalid_lines, default_exception=None):
     try:
         await asyncio.wait_for(
-            expect_lines_inner(reader, valid_line, invalid_lines, default_exception),
+            expect_lines_inner(reader, valid_line, invalid_lines),
             timeout=5
         )
     except TimeoutError:
-        raise default_exception
+        logger.warning(f"Got timeout while waiting for: {valid_line}")
+        if default_exception is not None:
+            raise default_exception
 
 
 async def connect_to_server():
@@ -308,7 +304,6 @@ async def handle_one_spot(websocket):
                 "Error - invalid frequency": InvalidFrequency(),
                 "Error - Invalid Dx Call": InvalidDXCallsign(),
             },
-            SpotNotSubmitted(),
         )
         writer.close()
         await writer.wait_closed()
