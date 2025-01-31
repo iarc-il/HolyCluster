@@ -15,5 +15,5 @@ dependencies = [
     "aiohttp==3.10.5",
     "fastapi==0.115.5",
     "sqlmodel==0.0.19",
-    "uvicorn==0.30.6",
+    "uvicorn[standard]==0.30.6",
 ]
