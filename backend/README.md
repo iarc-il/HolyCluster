@@ -12,9 +12,9 @@ initiliaze_database.py:
 3. Create tables
 
 # Crontab
-0-59 * * * * /opt/HolyCluster-server/src/run_collector.sh
-1 0 * * * /opt/HolyCluster-server/src/cleanup_database.sh
+0-59 * * * * /opt/HolyCluster-server/src/run_collector.sh  
+1 0 * * * /opt/HolyCluster-server/src/cleanup_database.sh  
 
 # .sh files
-chmod +x /opt/HolyCluster-server/src/run_collector.sh
-chmod +x /opt/HolyCluster-server/src/cleanup_database.sh
+chmod +x /opt/HolyCluster-server/src/run_collector.sh  
+chmod +x /opt/HolyCluster-server/src/cleanup_database.sh  
