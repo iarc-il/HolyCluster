@@ -47,7 +47,8 @@ jobs:
       - name: Upload to Development Server
         if: github.ref == 'refs/heads/master'
         run: |
-          scp -r ui/dist ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:${{ secrets.DEPLOY_PATH_DEV }}
+          scp -r ui/dist ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:${{ secrets.DEPLOY_PATH_DEV }}_temp
+          ssh ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }} "sudo rm -rf ${{ secrets.DEPLOY_PATH_DEV }} && sudo mv ${{ secrets.DEPLOY_PATH_DEV }}_temp ${{ secrets.DEPLOY_PATH_DEV }}"
 
       - name: Upload to Production Server
         if: startsWith(github.ref, 'refs/tags/')
