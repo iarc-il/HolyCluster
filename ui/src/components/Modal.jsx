@@ -87,7 +87,7 @@ function Modal({
                             }}
                         >
                             {title != null ? (
-                                <div className="flex items-start items-center p-5 border-b border-solid border-gray-300 rounded-t gap-3">
+                                <div className="flex items-start items-center p-4 border-b border-solid border-gray-300 rounded-t gap-3">
                                     {title}
                                 </div>
                             ) : (

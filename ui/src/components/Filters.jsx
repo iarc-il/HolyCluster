@@ -73,7 +73,6 @@ function FilterLine({ filter, id }) {
             <Indicator text={spotter_or_dx_label} />
             <FilterModal
                 initial_data={filter}
-                allow_select_action={true}
                 button={<EditSymbol size="24"></EditSymbol>}
                 on_apply={new_filter => {
                     const new_filters = [...callsign_filters.filters];
@@ -106,7 +105,6 @@ function FilterSection({ title, filters, action }) {
                 <div className="">
                     <FilterModal
                         initial_data={empty_with_action}
-                        allow_select_action={false}
                         button={<Button>Add</Button>}
                         on_apply={new_filter => {
                             setCallsignFilters({
