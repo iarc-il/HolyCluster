@@ -139,7 +139,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                     <div>
                         {temp_data.type == "entity" ? (
                             <SearchSelect
-                                className="h-10"
+                                className="h-10 w-20"
                                 value={{ value: temp_data.value, label: temp_data.value }}
                                 onChange={option => {
                                     set_temp_data({
@@ -153,13 +153,13 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                                         backgroundColor: colors.theme.input_background,
                                         borderColor: colors.theme.borders,
                                         color: colors.theme.text,
-                                        width: "12rem",
+                                        width: "16rem",
                                     }),
                                     menu: (base_style, state) => ({
                                         ...base_style,
                                         backgroundColor: colors.theme.input_background,
                                         borderColor: colors.theme.borders,
-                                        width: "12rem",
+                                        width: "16rem",
                                     }),
                                     option: (base_style, { isFocused }) => ({
                                         ...base_style,
@@ -167,7 +167,6 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                                             ? colors.theme.disabled_text
                                             : colors.theme.input_background,
                                         color: colors.theme.text,
-                                        width: "12rem",
                                     }),
                                     input: (base_style, state) => ({
                                         ...base_style,
