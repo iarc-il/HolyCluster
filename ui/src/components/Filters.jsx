@@ -1,5 +1,6 @@
 import Input from "@/components/Input.jsx";
 import Button from "@/components/Button.jsx";
+import Toggle from "@/components/Toggle.jsx";
 import X from "@/components/X.jsx";
 import { empty_filter_data, default as FilterModal } from "@/components/FilterModal.jsx";
 
@@ -94,18 +95,31 @@ function FilterLine({ filter, id }) {
     );
 }
 
-function FilterSection({ title, filters, action }) {
+function FilterSection({ title, filters, action, toggle_field = null }) {
     const { callsign_filters, setCallsignFilters } = useFilters();
     let empty_with_action = { ...empty_filter_data, action: action };
 
     return (
         <div className="pt-2">
             <div className="flex justify-between pb-3">
-                <h3 className="text-2xl w-fit inline">{title}</h3>
-                <div className="">
+                <h3 className="text-lg w-fit inline">{title}</h3>
+                <div className="flex justify-end space-x-3">
+                    {toggle_field != null ? (
+                        <Toggle
+                            value={callsign_filters[toggle_field]}
+                            on_click={() => {
+                                setCallsignFilters({
+                                    ...callsign_filters,
+                                    [toggle_field]: !callsign_filters[toggle_field],
+                                });
+                            }}
+                        />
+                    ) : (
+                        ""
+                    )}
                     <FilterModal
                         initial_data={empty_with_action}
-                        button={<Button>Add</Button>}
+                        button={<Button className="h-7 flex items-center ">Add</Button>}
                         on_apply={new_filter => {
                             setCallsignFilters({
                                 ...callsign_filters,
@@ -144,8 +158,18 @@ function Filters({}) {
         <div className="p-2" style={{ color: colors.theme.text }}>
             <div className="divide-y divide-slate-300 space-y-6">
                 <FilterSection title="Alert" action="alert" filters={alerts} />
-                <FilterSection title="Show Only" action="show_only" filters={show_only} />
-                <FilterSection title="Hide" action="hide" filters={hide} />
+                <FilterSection
+                    title="Show Only"
+                    action="show_only"
+                    filters={show_only}
+                    toggle_field="is_show_only_filters_active"
+                />
+                <FilterSection
+                    title="Hide"
+                    action="hide"
+                    filters={hide}
+                    toggle_field="is_hide_filters_active"
+                />
             </div>
         </div>
     );

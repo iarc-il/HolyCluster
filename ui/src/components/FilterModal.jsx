@@ -75,7 +75,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
         <Modal
             title={
                 <>
-                    <h1 className="text-2xl">Filter</h1>
+                    <h1 className="text-2xl">Filter:</h1>
                     <div className="px-4">
                         <SelectionLine
                             states={[
