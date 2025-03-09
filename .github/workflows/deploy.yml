@@ -3,6 +3,8 @@ name: Build and Deploy React App
 on:
   push:
     branches:
+      - "master"
+    tags:
       - "*"
 
 jobs:
