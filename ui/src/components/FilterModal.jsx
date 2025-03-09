@@ -79,9 +79,9 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                     <div className="px-4">
                         <SelectionLine
                             states={[
+                                { label: "Alert", value: "alert" },
                                 { label: "Show Only", value: "show_only" },
                                 { label: "Hide", value: "hide" },
-                                { label: "Alert", value: "alert" },
                             ]}
                             field="action"
                             temp_data={temp_data}
