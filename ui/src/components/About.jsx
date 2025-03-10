@@ -7,7 +7,7 @@ import { useColors } from "../hooks/useColors";
 
 const RELEASES = [
     [
-        "09/03/2025",
+        "10/03/2025",
         ["New callsign filter interface supporting filtering by dx/spotter and dxcc entity"],
     ],
     [
