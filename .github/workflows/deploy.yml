@@ -55,4 +55,5 @@ jobs:
       - name: Upload to Production Server
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          scp -r ui/dist ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }}:${{ secrets.DEPLOY_PATH_PROD }}
+          scp -r ui/dist ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }}:${{ secrets.DEPLOY_PATH_PROD }}_temp
+          ssh ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }} "sudo rm -rf ${{ secrets.DEPLOY_PATH_PROD }} && sudo mv ${{ secrets.DEPLOY_PATH_PROD }}_temp ${{ secrets.DEPLOY_PATH_PROD }}"
