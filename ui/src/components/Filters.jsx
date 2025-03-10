@@ -82,7 +82,7 @@ function FilterLine({ filter, id }) {
                 }}
             />
             <X
-                className="cursor-pointer"
+                className="cursor-pointer min-w-[24px]"
                 size="24"
                 on_click={() => {
                     const new_filters = [...callsign_filters.filters];
