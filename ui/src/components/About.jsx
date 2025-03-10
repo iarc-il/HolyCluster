@@ -113,7 +113,7 @@ function About() {
             cancel_text="close"
             external_open={should_display_release_notes}
         >
-            <div className="text-left w-full sm:w-[50rem]" style={{ color: colors.theme.text }}>
+            <div className="text-left w-full" style={{ color: colors.theme.text }}>
                 <Tabs
                     tabs={[
                         {
