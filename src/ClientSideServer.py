@@ -88,29 +88,40 @@ app = fastapi.FastAPI(lifespan=lifespan)
 async def websocket_endpoint(websocket: fastapi.WebSocket):
     await websocket.accept()
     await websocket.send_json({"status": "connected"})
-    while True:
-        try:
-            data = await websocket.receive_json()
-            mode = data["mode"]
-            band = int(data["band"])
-            freq = data["freq"]
-            slot = "A"
+    try:
+        async def get_radio_details():
+            while True:
+                radio_data = app.state.radio_controller.get_data()
+                await websocket.send_json(radio_data)
+                await asyncio.sleep(5)
 
-            if mode.upper() == "SSB":
-                if band in (160, 80, 40):
-                    mode = "LSB"
-                else:
-                    mode = "USB"
+        async def set_radio():
+            while True:
+                data = await websocket.receive_json()
+                print("Data recieved:", data)
+                mode = data["mode"]
+                band = int(data["band"])
+                freq = data["freq"]
+                slot = "A"
 
-            logger.info(f"Setting mode: {mode}")
-            app.state.radio_controller.set_mode(mode)
+                if mode.upper() == "SSB":
+                    if band in (160, 80, 40):
+                        mode = "LSB"
+                    else:
+                        mode = "USB"
 
-            logger.info(f"Setting frequency: {freq} in slot {slot}")
-            app.state.radio_controller.set_frequency(slot, freq)
+                logger.info(f"Setting mode: {mode}")
+                app.state.radio_controller.set_mode(mode)
 
-            await websocket.send_json({"result": "success"})
-        except WebSocketDisconnect:
-            break
+                logger.info(f"Setting frequency: {freq} in slot {slot}")
+                app.state.radio_controller.set_frequency(slot, freq)
+
+                await websocket.send_json({"result": "success"})
+
+        await asyncio.gather(get_radio_details(), set_radio())
+
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected")
 
 
 async def proxy_to_main_server(path: str, response: fastapi.Response):

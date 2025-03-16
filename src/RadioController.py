@@ -15,6 +15,9 @@ class DummyRadioController:
     def set_frequency(self, slot, freq):
         pass
 
+    def get_data(self):
+        pass
+
 
 class OmnirigRadioController:
     def __init__(self):
@@ -51,3 +54,11 @@ class OmnirigRadioController:
         """
         freq_in_hz = int(freq) * 1000
         self.omni_client.setFrequency("A", freq_in_hz)
+
+    def get_data(self):
+        """Get the current frequency, mode, and status of the radio"""
+        freq = self.omni_client.getParam("Freq") // 1000
+        status = self.omni_client.getParam("StatusStr")
+
+        return {"freq": freq, "status": "connected", "status_str": status}
+
