@@ -45,7 +45,7 @@ export default function FrequencyBar({
     let sorted_spots = useMemo(() => {
         return spots
             .filter(spot => spot.band == band)
-            .slice(0, 48)
+            .slice(0, 30)
             .sort((a, b) => a.freq - b.freq);
     }, [spots, band]);
 
@@ -75,14 +75,14 @@ export default function FrequencyBar({
     }
 
     return (
-        <>
+        <div className={className}>
             <span className="w-full flex items-center justify-center h-[10%]">
                 <Select
                     value={selected_band}
                     onChange={event => {
                         set_selected_band(event.target.value);
                     }}
-                    className="my-2 text-lg p-1 min-w-[50%] text-center"
+                    className="text-lg p-2 min-w-[50%] text-center"
                 >
                     {radio_status === "connected" && <option value={-1}>Radio</option>}
                     {Object.keys(band_to_freq).map(band => {
@@ -96,7 +96,7 @@ export default function FrequencyBar({
             </span>
 
             <svg
-                className={`${className} w-full h-[90%] left-0 box-border`}
+                className={`w-full h-[90%] left-0 box-border`}
                 style={{ background: colors.theme.background }}
             >
                 <Ruler min_freq={min_freq} max_freq={max_freq} radio_freq={radio_freq} />
@@ -148,7 +148,7 @@ export default function FrequencyBar({
 					</span>);
 				})}
 			</div> */}
-        </>
+        </div>
     );
 }
 
