@@ -6,7 +6,6 @@ import SpotsTable from "@/components/SpotsTable.jsx";
 import Continents from "@/components/Continents.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import CallsignsView from "@/components/CallsignsView.jsx";
-import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Tabs from "@/components/Tabs.jsx";
 import { use_object_local_storage, is_matching_list } from "@/utils.js";
 import { bands, modes, continents } from "@/filters_data.js";
@@ -414,20 +413,6 @@ function MainContainer() {
         />
     );
 
-    const filters_component = <CallsignsView toggled_ui={toggled_ui} />;
-
-    const freq_bar = (
-        <FrequencyBar
-            spots={filtered_spots}
-            pinned_spot={pinned_spot}
-            set_pinned_spot={set_pinned_spot}
-            radio_status={radio_status}
-            radio_freq={radio_freq}
-            set_cat_to_spot={set_cat_to_spot}
-            className={"px-2 h-full"}
-        />
-    );
-
     return (
         <>
             <TopBar
@@ -475,25 +460,16 @@ function MainContainer() {
                         {table}
                     </>
                 )}
-                <div className="w-56 2xl:w-[30rem] h-full">
-                    <Tabs
-                        local_storage_name="filter_frequency_bar_tab"
-                        tabs={[
-                            {
-                                label: "Filters",
-                                content: filters_component,
-                                bg: "bg-blue-100",
-                                icon: "M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 7 7 0 0 1 .597-.933A7.03 7.03 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a7 7 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zM8.5 5v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7 7 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7 7 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a7 7 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7 7 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z",
-                            },
-                            {
-                                label: "Frequencies",
-                                bg: "bg-red-200",
-                                content: freq_bar,
-                                icon: "12 8a3 3 0 0 0-1 5.83 1 1 0 0 0 0 .17v6a1 1 0 0 0 2 0v-6a1 1 0 0 0 0-.17A3 3 0 0 0 12 8zm0 4a1 1 0 1 1 1-1 1 1 0 0 1-1 1z M16.64 6.24a1 1 0 0 0-1.28 1.52A4.28 4.28 0 0 1 17 11a4.28 4.28 0 0 1-1.64 3.24A1 1 0 0 0 16 16a1 1 0 0 0 .64-.24A6.2 6.2 0 0 0 19 11a6.2 6.2 0 0 0-2.36-4.76z M8.76 6.36a1 1 0 0 0-1.4-.12A6.2 6.2 0 0 0 5 11a6.2 6.2 0 0 0 2.36 4.76 1 1 0 0 0 1.4-.12 1 1 0 0 0-.12-1.4A4.28 4.28 0 0 1 7 11a4.28 4.28 0 0 1 1.64-3.24 1 1 0 0 0 .12-1.4z M19.14 4.23a1 1 0 1 0-1.28 1.54A6.87 6.87 0 0 1 20.5 11a6.87 6.87 0 0 1-2.64 5.23 1 1 0 0 0 1.28 1.54A8.84 8.84 0 0 0 22.5 11a8.84 8.84 0 0 0-3.36-6.77z",
-                            },
-                        ]}
-                    ></Tabs>
-                </div>
+
+                <CallsignsView
+                    toggled_ui={toggled_ui}
+                    spots={filtered_spots}
+                    pinned_spot={pinned_spot}
+                    set_pinned_spot={set_pinned_spot}
+                    radio_status={radio_status}
+                    radio_freq={radio_freq}
+                    set_cat_to_spot={set_cat_to_spot}
+                />
 
                 <Continents toggled_ui={toggled_ui} />
             </div>

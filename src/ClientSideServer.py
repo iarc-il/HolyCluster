@@ -98,7 +98,6 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
         async def set_radio():
             while True:
                 data = await websocket.receive_json()
-                print("Data recieved:", data)
                 mode = data["mode"]
                 band = int(data["band"])
                 freq = data["freq"]
@@ -116,7 +115,10 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
                 logger.info(f"Setting frequency: {freq} in slot {slot}")
                 app.state.radio_controller.set_frequency(slot, freq)
 
-                await websocket.send_json({"result": "success"})
+                radio_data = app.state.radio_controller.get_data()
+                radio_data["result"] = "success"
+
+                await websocket.send_json(radio_data)
 
         await asyncio.gather(get_radio_details(), set_radio())
 
