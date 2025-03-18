@@ -1,0 +1,59 @@
+name: Build and Deploy React App
+
+on:
+  push:
+    branches:
+      - "master"
+    tags:
+      - "*"
+
+jobs:
+  build-and-deploy:
+    name: Build, Lint, and Deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd ui
+          npm ci
+
+      - name: Run Biome formatting check
+        run: |
+          cd ui
+          npx biome check .
+
+      - name: Build React App
+        run: |
+          cd ui
+          npm run build
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_DEV }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_PROD }} >> ~/.ssh/known_hosts
+
+      - name: Upload to Development Server
+        if: github.ref == 'refs/heads/master'
+        run: |
+          scp -r ui/dist ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:${{ secrets.DEPLOY_PATH_DEV }}_temp
+          ssh ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }} "sudo rm -rf ${{ secrets.DEPLOY_PATH_DEV }} && sudo mv ${{ secrets.DEPLOY_PATH_DEV }}_temp ${{ secrets.DEPLOY_PATH_DEV }}"
+
+      - name: Upload to Production Server
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          scp -r ui/dist ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }}:${{ secrets.DEPLOY_PATH_PROD }}_temp
+          ssh ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }} "sudo rm -rf ${{ secrets.DEPLOY_PATH_PROD }} && sudo mv ${{ secrets.DEPLOY_PATH_PROD }}_temp ${{ secrets.DEPLOY_PATH_PROD }}"

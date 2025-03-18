@@ -1,9 +1,10 @@
 import Select from "@/components/Select.jsx";
 import { useMemo, useState } from "react";
 import { useColors } from "../hooks/useColors";
+import { useLocalStorage } from "@uidotdev/usehooks";
 
 const band_to_freq = {
-    4: [75500, 81750],
+    4: [70000, 70500],
     6: [50000, 54000],
     10: [28000, 29700],
     12: [24890, 24990],
@@ -27,7 +28,7 @@ export default function FrequencyBar({
     set_cat_to_spot,
 }) {
     const { colors } = useColors();
-    const [selected_band, set_selected_band] = useState(20); // Set to -1 to use the current band that the radio is on
+    const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20); // Set to -1 to use the current band that the radio is on
 
     function get_band_from_freq(freq) {
         for (let band of Object.keys(band_to_freq)) {

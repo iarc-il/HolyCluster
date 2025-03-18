@@ -1,17 +1,15 @@
 import Input from "@/components/Input.jsx";
 import Button from "@/components/Button.jsx";
+import Toggle from "@/components/Toggle.jsx";
 import X from "@/components/X.jsx";
-import FilterModal from "@/components/FilterModal.jsx";
+import { empty_filter_data, default as FilterModal } from "@/components/FilterModal.jsx";
 
 import { useColors } from "../hooks/useColors";
 import { useFilters } from "../hooks/useFilters";
 
 function Indicator({ text }) {
     return (
-        <div
-            className="flex border border-gray-700 items-center justify-center p-2 w-7 h-7 rounded-md mr-2 text-xs font-bold bg-green-600 text-white"
-            title="Prefix"
-        >
+        <div className="flex border border-gray-700 items-center justify-center p-2 w-7 h-7 rounded-md mr-2 text-xs font-bold bg-green-600 text-white">
             {text}
         </div>
     );
@@ -83,21 +81,53 @@ function FilterLine({ filter, id }) {
                     setCallsignFilters({ ...callsign_filters, filters: new_filters });
                 }}
             />
-            <X className="cursor-pointer" size="24" on_click={() => {
-                const new_filters = [...callsign_filters.filters];
-                new_filters.splice(id, 1);
-                setCallsignFilters({ ...callsign_filters, filters: new_filters });
-            }} />
+            <X
+                className="cursor-pointer min-w-[24px]"
+                size="24"
+                on_click={() => {
+                    const new_filters = [...callsign_filters.filters];
+                    new_filters.splice(id, 1);
+                    setCallsignFilters({ ...callsign_filters, filters: new_filters });
+                }}
+            />
             <br />
         </div>
     );
 }
 
-function FilterSection({ title, filters }) {
+function FilterSection({ title, filters, action, toggle_field = null }) {
+    const { callsign_filters, setCallsignFilters } = useFilters();
+    let empty_with_action = { ...empty_filter_data, action: action };
+
     return (
         <div className="pt-2">
-            <div className="pb-3">
-                <h3 className="text-2xl w-fit inline">{title}</h3>
+            <div className="flex justify-between pb-3">
+                <h3 className="text-lg w-fit inline">{title}</h3>
+                <div className="flex justify-end space-x-3">
+                    {toggle_field != null ? (
+                        <Toggle
+                            value={callsign_filters[toggle_field]}
+                            on_click={() => {
+                                setCallsignFilters({
+                                    ...callsign_filters,
+                                    [toggle_field]: !callsign_filters[toggle_field],
+                                });
+                            }}
+                        />
+                    ) : (
+                        ""
+                    )}
+                    <FilterModal
+                        initial_data={empty_with_action}
+                        button={<Button className="h-7 flex items-center ">Add</Button>}
+                        on_apply={new_filter => {
+                            setCallsignFilters({
+                                ...callsign_filters,
+                                filters: [...callsign_filters.filters, new_filter],
+                            });
+                        }}
+                    />
+                </div>
             </div>
             {filters.map(([id, filter]) => {
                 return (
@@ -116,7 +146,7 @@ function FilterSection({ title, filters }) {
 
 function Filters({}) {
     const { colors } = useColors();
-    const { callsign_filters, setCallsignFilters } = useFilters();
+    const { callsign_filters } = useFilters();
 
     const id_to_filter = callsign_filters.filters.map((filter, index) => [index, filter]);
 
@@ -125,22 +155,21 @@ function Filters({}) {
     let hide = id_to_filter.filter(([id, filter]) => filter.action == "hide");
 
     return (
-        <div className="relative p-2" style={{ color: colors.theme.text }}>
-            <div className="absolute right-0 p-1">
-                <FilterModal
-                    button={<Button>Add</Button>}
-                    on_apply={new_filter => {
-                        setCallsignFilters({
-                            ...callsign_filters,
-                            filters: [...callsign_filters.filters, new_filter],
-                        });
-                    }}
-                />
-            </div>
+        <div className="p-2" style={{ color: colors.theme.text }}>
             <div className="divide-y divide-slate-300 space-y-6">
-                <FilterSection title="Alert" filters={alerts} />
-                <FilterSection title="Show Only" filters={show_only} />
-                <FilterSection title="Hide" filters={hide} />
+                <FilterSection title="Alert" action="alert" filters={alerts} />
+                <FilterSection
+                    title="Show Only"
+                    action="show_only"
+                    filters={show_only}
+                    toggle_field="is_show_only_filters_active"
+                />
+                <FilterSection
+                    title="Hide"
+                    action="hide"
+                    filters={hide}
+                    toggle_field="is_hide_filters_active"
+                />
             </div>
         </div>
     );

@@ -10,13 +10,19 @@ export const mod = (n, m) => ((n % m) + m) % m;
 export function is_matching_list(list, spot) {
     return list.some(filter => {
         let matched_value;
-        if (filter.type == "entity") {
-            matched_value = spot.dx_country;
-        } else if (filter.spotter_or_dx == "spotter") {
-            matched_value = spot.spotter_callsign;
+        if (filter.spotter_or_dx == "spotter") {
+            if (filter.type == "entity") {
+                matched_value = spot.spotter_country;
+            } else {
+                matched_value = spot.spotter_callsign;
+            }
         } else if (filter.spotter_or_dx == "dx") {
-            matched_value = spot.dx_callsign;
-        };
+            if (filter.type == "entity") {
+                matched_value = spot.dx_country;
+            } else {
+                matched_value = spot.dx_callsign;
+            }
+        }
 
         let is_value_matching;
         if (filter.type == "prefix") {

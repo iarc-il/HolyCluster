@@ -7,6 +7,10 @@ import { useColors } from "../hooks/useColors";
 
 const RELEASES = [
     [
+        "10/03/2025",
+        ["New callsign filter interface supporting filtering by dx/spotter and dxcc entity"],
+    ],
+    [
         "25/01/2025",
         [
             "Dark mode (In settings menu)",
@@ -109,7 +113,7 @@ function About() {
             cancel_text="close"
             external_open={should_display_release_notes}
         >
-            <div className="text-left w-full sm:w-[50rem]" style={{ color: colors.theme.text }}>
+            <div className="text-left w-full" style={{ color: colors.theme.text }}>
                 <Tabs
                     tabs={[
                         {
