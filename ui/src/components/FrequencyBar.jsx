@@ -155,19 +155,23 @@ export default function FrequencyBar({
 function Ruler({ max_freq, min_freq, radio_freq }) {
     const { colors } = useColors();
 
+	const step_size = Math.floor((max_freq - min_freq) / 50);
+
     // An array of numbers between min_freq and max_freq in increments of 10
     const marking_array = useMemo(() => {
         const arr = [];
-        for (let i = Math.ceil(min_freq / 10) * 10; i <= max_freq; i += 10) {
+        for (let i = Math.ceil(min_freq / step_size) * step_size; i <= max_freq; i += step_size) {
             arr.push(i);
         }
         return arr;
     }, [min_freq, max_freq]);
 
+	console.log(step_size, marking_array)
+
     return (
         <>
             {marking_array.map(mark => {
-                return mark % 100 === 0 ? (
+                return mark % (step_size * 10) === 0 ? (
                     <g key={`ruler_${mark}`}>
                         <text
                             y={`${((mark - min_freq) / (max_freq - min_freq)) * 100}%`}
