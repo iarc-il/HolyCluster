@@ -21,6 +21,7 @@ export const FiltersProvider = ({ children }) => {
     };
 
     const initial_callsign_filters = {
+        is_alert_filters_active: true,
         is_show_only_filters_active: true,
         is_hide_filters_active: true,
         filters: [],
