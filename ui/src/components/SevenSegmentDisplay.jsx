@@ -1,11 +1,8 @@
 export default function SevenSegmentDisplay({ className, height, value, display_size, error }) {
-    console.log(value);
-
     if (!value) {
         error = true;
     } else {
         value = value.toString().padStart(display_size, "0");
-        console.log(value);
     }
 
     return (

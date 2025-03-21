@@ -1,4 +1,5 @@
 import Select from "@/components/Select.jsx";
+import Toggle from "@/components/Toggle.jsx";
 import { useMemo, useState } from "react";
 import { useColors } from "../hooks/useColors";
 import { useLocalStorage } from "@uidotdev/usehooks";
@@ -29,13 +30,14 @@ export default function FrequencyBar({
 }) {
     const { colors } = useColors();
     const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20); // Set to -1 to use the current band that the radio is on
+    const [cat_control, set_cat_control] = useLocalStorage("freq_bar_cat_control", 1);
 
     function get_band_from_freq(freq) {
         for (let band of Object.keys(band_to_freq)) {
             if (freq <= band_to_freq[band][1] && freq >= band_to_freq[band][0]) return band;
         }
 
-        return 20;
+        return selected_band;
     }
 
     let radio_band = get_band_from_freq(radio_freq);
@@ -70,8 +72,10 @@ export default function FrequencyBar({
 
             if (!(radio_status == "connected")) return;
 
-            set_cat_to_spot(spot);
-            set_selected_band(-1);
+            if (cat_control == 1) {
+                set_cat_to_spot(spot);
+                set_selected_band(-1);
+            }
         }
     }
 
@@ -79,14 +83,14 @@ export default function FrequencyBar({
 
     return (
         <div className={className}>
-            <span className={`w-full flex items-center justify-center h-[10%]`}>
+            <span className={`w-full flex flex-row items-center justify-between h-[10%]`}>
                 <Select
                     value={selected_band}
                     onChange={event => {
                         set_selected_band(event.target.value);
                     }}
                     text_color={selected_band == -1 ? colors.bands[radio_band] : undefined}
-                    className={`text-lg p-2 min-w-[50%] text-center`}
+                    className={`text-lg p-2 w-1/2 text-center`}
                 >
                     {radio_status === "connected" && (
                         <option style={{ color: colors.bands[radio_band] }} value={-1}>
@@ -102,6 +106,23 @@ export default function FrequencyBar({
                         );
                     })}
                 </Select>
+
+                {radio_status === "connected" && (
+                    <span className="flex flex-col items-center justify-center w-1/4 mx-3">
+                        <p className="h-1/4">CAT</p>
+                        <Toggle
+                            class_name={"h-1/4"}
+                            on_click={() => {
+                                if (cat_control == 1) {
+                                    set_cat_control(0);
+                                } else {
+                                    set_cat_control(1);
+                                }
+                            }}
+                            value={cat_control}
+                        />
+                    </span>
+                )}
             </span>
 
             <svg
