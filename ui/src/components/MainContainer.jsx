@@ -425,10 +425,8 @@ function MainContainer() {
                 toggled_ui={toggled_ui}
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
-                spots={filtered_spots}
-                pinned_spot={pinned_spot}
-                set_pinned_spot={set_pinned_spot}
                 radio_status={radio_status}
+                radio_freq={radio_freq}
             />
             <div className="flex relative h-[calc(100%-4rem)]">
                 <LeftColumn

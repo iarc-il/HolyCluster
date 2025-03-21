@@ -75,20 +75,28 @@ export default function FrequencyBar({
         }
     }
 
+    let spot_highlighted = false; // Used to only highlight most recent spot of same frequency as radio
+
     return (
         <div className={className}>
-            <span className="w-full flex items-center justify-center h-[10%]">
+            <span className={`w-full flex items-center justify-center h-[10%]`}>
                 <Select
                     value={selected_band}
                     onChange={event => {
                         set_selected_band(event.target.value);
                     }}
-                    className="text-lg p-2 min-w-[50%] text-center"
+                    text_color={selected_band == -1 ? colors.bands[radio_band] : undefined}
+                    className={`text-lg p-2 min-w-[50%] text-center`}
                 >
-                    {radio_status === "connected" && <option value={-1}>Radio</option>}
+                    {radio_status === "connected" && (
+                        <option style={{ color: colors.bands[radio_band] }} value={-1}>
+                            Radio
+                        </option>
+                    )}
+
                     {Object.keys(band_to_freq).map(band => {
                         return (
-                            <option key={band} value={band}>
+                            <option key={band} style={{ color: colors.theme.text }} value={band}>
                                 {band}m
                             </option>
                         );
@@ -103,6 +111,16 @@ export default function FrequencyBar({
                 <Ruler min_freq={min_freq} max_freq={max_freq} radio_freq={radio_freq} />
 
                 {sorted_spots.map((spot, i) => {
+                    const highlight_spot =
+                        (radio_status === "connected" &&
+                            radio_freq == spot.freq &&
+                            !spot_highlighted) ||
+                        (radio_status !== "connected" && spot.id == pinned_spot);
+
+                    if (highlight_spot) {
+                        spot_highlighted = true;
+                    }
+
                     return (
                         <g
                             className="group group-hover:stroke-blue-500 group-hover:fill-blue-500"
@@ -114,25 +132,49 @@ export default function FrequencyBar({
                                 y1={`${((spot.freq - min_freq) / (max_freq - min_freq)) * 100}%`}
                                 y2={`${(i * 100) / sorted_spots.length + 3}%`}
                                 strokeWidth="1"
-                                stroke={colors.theme.text}
+                                stroke={
+                                    highlight_spot ? colors.bands[spot.band] : colors.theme.text
+                                }
                                 className="group-hover:stroke-blue-500 group-hover:opacity-100 opacity-25"
                                 onClick={() => {
                                     dx_handle_click(spot.id, spot);
                                 }}
-                            ></line>
+                            />
                             <text
                                 x={"60%"}
                                 y={`${(i * 100) / sorted_spots.length + 3}%`}
                                 fontSize="12"
                                 fontWeight="bold"
                                 fill={colors.theme.text}
-                                className="hover:cursor-pointer group-hover:fill-blue-500"
+                                className="hover:cursor-pointer group-hover:fill-blue-500 border-2 border-black border-solid"
                                 onClick={() => {
                                     dx_handle_click(spot.id, spot);
                                 }}
+                                id={`text_callsign_${i}`}
                             >
                                 {spot.dx_callsign}
                             </text>
+
+                            {highlight_spot && (
+                                <rect
+                                    x={"59%"}
+                                    y={`${(i * 100) / sorted_spots.length + 3}%`}
+                                    height={20}
+                                    width={
+                                        document.getElementById(`text_callsign_${i}`)
+                                            ? document
+                                                  .getElementById(`text_callsign_${i}`)
+                                                  .getComputedTextLength() + 4
+                                            : 20
+                                    }
+                                    rx={5}
+                                    ry={5}
+                                    strokeWidth={1}
+                                    stroke={colors.bands[spot.band]}
+                                    fillOpacity="0"
+                                    className="-translate-y-[15px]"
+                                />
+                            )}
                         </g>
                     );
                 })}
@@ -156,7 +198,7 @@ export default function FrequencyBar({
 function Ruler({ max_freq, min_freq, radio_freq }) {
     const { colors } = useColors();
 
-	const step_size = Math.floor((max_freq - min_freq) / 50);
+    const step_size = Math.floor((max_freq - min_freq) / 50);
 
     // An array of numbers between min_freq and max_freq in increments of 10
     const marking_array = useMemo(() => {
@@ -166,8 +208,6 @@ function Ruler({ max_freq, min_freq, radio_freq }) {
         }
         return arr;
     }, [min_freq, max_freq]);
-
-	console.log(step_size, marking_array)
 
     return (
         <>
