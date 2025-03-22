@@ -50,7 +50,7 @@ function Tabs({ tabs, local_storage_name = null, external_tab = null }) {
                 ))}
             </div>
 
-            <div className="w-full h-full">{tabs[active_tab].content}</div>
+            <div className="w-full h-[calc(100%-42px)]">{tabs[active_tab].content}</div>
         </div>
     );
 }

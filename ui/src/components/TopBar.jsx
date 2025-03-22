@@ -5,6 +5,7 @@ import Spinner from "@/components/Spinner.jsx";
 import Settings from "@/components/Settings.jsx";
 import ColorPicker from "@/components/ColorPicker.jsx";
 import Select from "@/components/Select.jsx";
+import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
 import { useColors } from "../hooks/useColors";
 import { useFilters } from "../hooks/useFilters";
 
@@ -33,6 +34,8 @@ function TopBar({
     toggled_ui,
     set_toggled_ui,
     dev_mode,
+    radio_freq,
+    radio_status,
 }) {
     const { filters, setFilters } = useFilters();
     const box_container_style = "flex items-center h-full p-2 gap-3";
@@ -63,6 +66,19 @@ function TopBar({
             >
                 The Holy Cluster
             </h1>
+
+            {radio_status !== "unavailable" && radio_status !== "unknown" && (
+                <div className="mr-5 h-full hidden lg:block">
+                    <SevenSegmentDisplay
+                        className={"h-[25px]"}
+                        height={25}
+                        display_size={radio_freq ? (radio_freq * 1000).toString().length : 8}
+                        value={radio_freq ? radio_freq * 1000 : undefined}
+                        error={radio_status !== "connected"}
+                    />
+                </div>
+            )}
+
             <div className={box_container_style}>
                 <SubmitSpot settings={settings} />
                 <Clock />

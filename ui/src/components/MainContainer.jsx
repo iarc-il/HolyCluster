@@ -12,7 +12,7 @@ import { bands, modes, continents } from "@/filters_data.js";
 import { useFilters } from "../hooks/useFilters";
 import { get_flag } from "@/flags.js";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
@@ -23,11 +23,13 @@ function connect_to_radio() {
 
     const { sendJsonMessage, readyState, lastJsonMessage } = useWebSocket(websocket_url);
     const [radio_status, set_radio_status] = useState("unknown");
+    const [radio_freq, set_radio_freq] = useState(0);
 
     useEffect(() => {
         if (lastJsonMessage != null) {
             if ("status" in lastJsonMessage) {
                 set_radio_status(lastJsonMessage.status);
+                set_radio_freq(lastJsonMessage.freq);
             }
         }
     }, [lastJsonMessage]);
@@ -41,6 +43,7 @@ function connect_to_radio() {
     return {
         send_message_to_radio: send_message_to_radio,
         radio_status: radio_status,
+        radio_freq: radio_freq,
     };
 }
 
@@ -315,10 +318,14 @@ function MainContainer() {
         spots_per_band_count[band] = Math.min(spots_per_band_count[band], 99);
     }
 
-    let { send_message_to_radio, radio_status } = connect_to_radio();
+    let { send_message_to_radio, radio_status, radio_freq } = connect_to_radio();
 
     function set_cat_to_spot(spot) {
-        send_message_to_radio({ mode: spot.mode, freq: spot.freq, band: spot.band });
+        send_message_to_radio({
+            mode: spot.mode,
+            freq: spot.freq,
+            band: spot.band,
+        });
     }
 
     let [hovered_spot, set_hovered_spot] = useState({ source: null, id: null });
@@ -419,6 +426,8 @@ function MainContainer() {
                 toggled_ui={toggled_ui}
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
+                radio_status={radio_status}
+                radio_freq={radio_freq}
             />
             <div className="flex relative h-[calc(100%-4rem)]">
                 <LeftColumn
@@ -450,7 +459,17 @@ function MainContainer() {
                         {table}
                     </>
                 )}
-                <CallsignsView toggled_ui={toggled_ui} />
+
+                <CallsignsView
+                    toggled_ui={toggled_ui}
+                    spots={filtered_spots}
+                    pinned_spot={pinned_spot}
+                    set_pinned_spot={set_pinned_spot}
+                    radio_status={radio_status}
+                    radio_freq={radio_freq}
+                    set_cat_to_spot={set_cat_to_spot}
+                />
+
                 <Continents toggled_ui={toggled_ui} />
             </div>
         </>
