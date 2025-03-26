@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Maidenhead from "maidenhead";
 
 import Input from "@/components/Input.jsx";
@@ -6,6 +6,7 @@ import Select from "@/components/Select.jsx";
 import Modal from "@/components/Modal.jsx";
 import { useColors, themes_names } from "../hooks/useColors";
 import Toggle from "@/components/Toggle.jsx";
+import { useLocalStorage } from "@uidotdev/usehooks";
 
 function SettingsIcon({ size }) {
     const { colors } = useColors();
@@ -55,6 +56,17 @@ function Settings({ settings, set_settings, set_map_controls, set_radius_in_km, 
     const is_settings_valid = is_locator_valid && is_default_radius_valid;
     const { colors, setTheme } = useColors();
 
+    const [first_launch, set_first_launch] = useLocalStorage("first_launch", true);
+    const [should_open_settings, set_should_open_settings] = useState(false);
+
+    useEffect(() => {
+        set_first_launch(false);
+
+        if (first_launch == true && settings.locator === "JJ00AA") {
+            set_should_open_settings(true);
+        }
+    }, [first_launch]);
+
     function reset_temp_settings() {
         set_temp_settings(empty_temp_settings);
     }
@@ -70,6 +82,7 @@ function Settings({ settings, set_settings, set_map_controls, set_radius_in_km, 
             on_open={() => {
                 set_temp_settings(settings);
             }}
+            external_open={should_open_settings}
             on_apply={() => {
                 if (is_settings_valid) {
                     set_map_controls(map_controls => {
