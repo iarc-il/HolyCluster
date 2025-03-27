@@ -229,7 +229,8 @@ function MainContainer() {
     }, []);
 
     for (const spot of spots) {
-        spot.is_alerted = is_matching_list(alerts, spot);
+        spot.is_alerted =
+            is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active;
     }
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
