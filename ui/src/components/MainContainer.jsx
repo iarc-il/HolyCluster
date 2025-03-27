@@ -148,6 +148,8 @@ function MainContainer() {
         },
     });
 
+    const [cat_control, set_cat_control] = useLocalStorage("freq_bar_cat_control", true);
+
     const set_map_controls = change_func => {
         set_map_controls_inner(previous_state => {
             const state = structuredClone(previous_state);
@@ -321,6 +323,10 @@ function MainContainer() {
     let { send_message_to_radio, radio_status, radio_freq } = connect_to_radio();
 
     function set_cat_to_spot(spot) {
+        if (cat_control != true) {
+            return;
+        }
+
         send_message_to_radio({
             mode: spot.mode,
             freq: spot.freq,
@@ -468,6 +474,10 @@ function MainContainer() {
                     radio_status={radio_status}
                     radio_freq={radio_freq}
                     set_cat_to_spot={set_cat_to_spot}
+                    cat_control={cat_control}
+                    set_cat_control={set_cat_control}
+                    hovered_spot={hovered_spot}
+                    set_hovered_spot={set_hovered_spot}
                 />
 
                 <Continents toggled_ui={toggled_ui} />

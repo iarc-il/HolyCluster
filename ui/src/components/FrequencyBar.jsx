@@ -27,10 +27,13 @@ export default function FrequencyBar({
     radio_status,
     radio_freq,
     set_cat_to_spot,
+    cat_control,
+    set_cat_control,
+    hovered_spot,
+    set_hovered_spot,
 }) {
     const { colors } = useColors();
     const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20); // Set to -1 to use the current band that the radio is on
-    const [cat_control, set_cat_control] = useLocalStorage("freq_bar_cat_control", 1);
 
     function get_band_from_freq(freq) {
         for (let band of Object.keys(band_to_freq)) {
@@ -72,10 +75,8 @@ export default function FrequencyBar({
 
             if (!(radio_status == "connected")) return;
 
-            if (cat_control == 1) {
-                set_cat_to_spot(spot);
-                set_selected_band(-1);
-            }
+            set_cat_to_spot(spot);
+            set_selected_band(-1);
         }
     }
 
@@ -136,7 +137,8 @@ export default function FrequencyBar({
                         (radio_status === "connected" &&
                             radio_freq == spot.freq &&
                             !spot_highlighted) ||
-                        (radio_status !== "connected" && spot.id == pinned_spot);
+                        (radio_status !== "connected" && spot.id == pinned_spot) ||
+                        spot.id === hovered_spot.id;
 
                     if (highlight_spot) {
                         spot_highlighted = true;
@@ -146,6 +148,7 @@ export default function FrequencyBar({
                         <g
                             className="group group-hover:stroke-blue-500 group-hover:fill-blue-500"
                             key={`freq_bar_${spot.id}`}
+                            onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
                         >
                             <line
                                 x1={"30%"}
@@ -156,10 +159,13 @@ export default function FrequencyBar({
                                 stroke={
                                     highlight_spot ? colors.bands[spot.band] : colors.theme.text
                                 }
-                                className="group-hover:stroke-blue-500 group-hover:opacity-100 opacity-25"
+                                className="group-hover:opacity-100 opacity-25"
                                 onClick={() => {
                                     dx_handle_click(spot.id, spot);
                                 }}
+                                onMouseEnter={() =>
+                                    set_hovered_spot({ source: "bar", id: spot.id })
+                                }
                             />
                             <text
                                 x={"60%"}
@@ -171,6 +177,9 @@ export default function FrequencyBar({
                                 onClick={() => {
                                     dx_handle_click(spot.id, spot);
                                 }}
+                                onMouseEnter={() =>
+                                    set_hovered_spot({ source: "bar", id: spot.id })
+                                }
                                 id={`text_callsign_${i}`}
                             >
                                 {spot.dx_callsign}
@@ -193,25 +202,16 @@ export default function FrequencyBar({
                                     strokeWidth={1}
                                     stroke={colors.bands[spot.band]}
                                     fillOpacity="0"
-                                    className="-translate-y-[15px]"
+                                    className="-translate-y-[15px] hover:cursor-pointer"
+                                    onClick={() => {
+                                        dx_handle_click(spot.id, spot);
+                                    }}
                                 />
                             )}
                         </g>
                     );
                 })}
             </svg>
-
-            {/* <div className="grid grid-rows-2 grid-cols-2 w-full h-[10%]">
-				{(Object.keys(mode_to_color)).map((mode) => {
-					return (<span className="flex flex-row p-2">
-						<span
-							className="h-full w-1/2 mr-2"
-							style={{ backgroundColor: mode_to_color[mode] }}
-						></span>
-						<p className={`text-[${mode_to_color[mode]}]`}>{mode}</p>
-					</span>);
-				})}
-			</div> */}
         </div>
     );
 }
