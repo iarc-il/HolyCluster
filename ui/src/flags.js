@@ -49,7 +49,7 @@ const dxcc_to_country_flag = {
     Congo: "Republic of the Congo",
     "Macquarie Island": "Australia",
     "Saint Barthelemy": "France",
-    "Macao": "Macau",
+    Macao: "Macau",
     "Malpelo Island": "Colombia",
 };
 
