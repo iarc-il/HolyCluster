@@ -12,6 +12,10 @@ function CallsignsView({
     radio_status,
     radio_freq,
     set_cat_to_spot,
+    cat_control,
+    set_cat_control,
+    hovered_spot,
+    set_hovered_spot,
 }) {
     const { colors } = useColors();
 
@@ -25,6 +29,10 @@ function CallsignsView({
             radio_status={radio_status}
             radio_freq={radio_freq}
             set_cat_to_spot={set_cat_to_spot}
+            cat_control={cat_control}
+            set_cat_control={set_cat_control}
+            hovered_spot={hovered_spot}
+            set_hovered_spot={set_hovered_spot}
             className={"px-2 h-full"}
         />
     );
