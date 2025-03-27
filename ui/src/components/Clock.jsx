@@ -20,7 +20,7 @@ function clock() {
             className="hidden 2xs:flex items-center text-center font-bold text-xl min-w-18"
             style={{ color: colors.theme.text }}
         >
-            {`${pad(time.getUTCHours())}:${pad(time.getUTCMinutes())}z`}
+            {`${pad(time.getUTCHours())}:${pad(time.getUTCMinutes())} UTC`}
         </div>
     );
 }
