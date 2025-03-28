@@ -134,7 +134,7 @@ function SubmitSpot({ settings }) {
             <Modal
                 title={
                     <h3 className="text-3xl" style={{ color: colors.theme.text }}>
-                        Submit new spot
+                        Submit a new spot
                     </h3>
                 }
                 button={<SubmitIcon size="32"></SubmitIcon>}
