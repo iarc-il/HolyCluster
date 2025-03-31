@@ -371,6 +371,7 @@ function MainContainer() {
                 map_controls={map_controls}
                 set_map_controls={set_map_controls}
                 radio_status={radio_status}
+                cat_status={cat_control}
                 default_radius={settings.default_radius}
                 set_radius_in_km={set_radius_in_km}
                 settings={settings}
