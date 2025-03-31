@@ -29,6 +29,8 @@ function Modal({
 
     useEffect(() => {
         if (external_open) {
+            if (on_open != null) on_open();
+
             set_show_modal(true);
         }
     }, [external_open]);
