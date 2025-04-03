@@ -270,6 +270,7 @@ export default function FrequencyBar({
                     max_freq={max_freq}
                     radio_freq={radio_freq}
                     band={band}
+                    radio_status={radio_status}
                 />
 
                 {sorted_spots.map((spot, i) => {
@@ -418,7 +419,7 @@ export default function FrequencyBar({
     );
 }
 
-function Ruler({ max_freq, min_freq, radio_freq, band }) {
+function Ruler({ max_freq, min_freq, radio_freq, band, radio_status }) {
     const { colors } = useColors();
 
     const step_size =
@@ -500,20 +501,22 @@ function Ruler({ max_freq, min_freq, radio_freq, band }) {
                 </g>
             ))}
 
-            <svg
-                viewBox="0 0 50 90"
-                height="8%"
-                width="5%"
-                y={`${((radio_freq - min_freq) / (max_freq - min_freq)) * 100 - 4}%`}
-                x="25%"
-            >
-                <polygon
-                    points="0 0, 50 45, 0 90"
-                    fill="red"
-                    stroke={colors.theme.text}
-                    strokeWidth={5}
-                />
-            </svg>
+            {radio_status === "connected" && (
+                <svg
+                    viewBox="0 0 50 90"
+                    height="8%"
+                    width="5%"
+                    y={`${((radio_freq - min_freq) / (max_freq - min_freq)) * 100 - 4}%`}
+                    x="25%"
+                >
+                    <polygon
+                        points="0 0, 50 45, 0 90"
+                        fill="red"
+                        stroke={colors.theme.text}
+                        strokeWidth={5}
+                    />
+                </svg>
+            )}
         </>
     );
 }
