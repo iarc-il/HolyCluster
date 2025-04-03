@@ -110,7 +110,9 @@ export default function FrequencyBar({
 
                 {radio_status === "connected" && (
                     <span className="flex flex-col items-center justify-center w-1/4 mx-3">
-                        <p className="h-1/4" style={{ color: colors.theme.text }}>CAT</p>
+                        <p className="h-1/4" style={{ color: colors.theme.text }}>
+                            CAT
+                        </p>
                         <Toggle
                             class_name={"h-1/4"}
                             on_click={() => {
