@@ -110,7 +110,7 @@ export default function FrequencyBar({
 
                 {radio_status === "connected" && (
                     <span className="flex flex-col items-center justify-center w-1/4 mx-3">
-                        <p className="h-1/4">CAT</p>
+                        <p className="h-1/4" style={{ color: colors.theme.text }}>CAT</p>
                         <Toggle
                             class_name={"h-1/4"}
                             on_click={() => {
@@ -170,8 +170,7 @@ export default function FrequencyBar({
                             <text
                                 x={"60%"}
                                 y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                fontSize="12"
-                                fontWeight="bold"
+                                fontSize="14"
                                 fill={colors.theme.text}
                                 className="hover:cursor-pointer group-hover:fill-blue-500 border-2 border-black border-solid"
                                 onClick={() => {
@@ -238,8 +237,7 @@ function Ruler({ max_freq, min_freq, radio_freq }) {
                         <text
                             y={`${((mark - min_freq) / (max_freq - min_freq)) * 100}%`}
                             x1={0}
-                            fontSize="12"
-                            fontWeight="bold"
+                            fontSize="14"
                             fill={colors.theme.text}
                             className="translate-y-[4px]"
                         >

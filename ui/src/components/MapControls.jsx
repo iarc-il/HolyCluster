@@ -31,13 +31,9 @@ function MapControls({
         });
     }
 
-    console.log(radio_status, cat_status);
-
     if (radio_status === "connected" && cat_status == false) {
         radio_status = "cat_disabled";
     }
-
-    console.log(radio_status);
 
     const radio_status_to_color = {
         unknown: "#888888",
