@@ -421,7 +421,10 @@ export default function FrequencyBar({
 function Ruler({ max_freq, min_freq, radio_freq, band }) {
     const { colors } = useColors();
 
-    const step_size = Math.floor((band_plans[band].max - band_plans[band].min) / 50) === 0 ? 1 : Math.floor((band_plans[band].max - band_plans[band].min) / 50);
+    const step_size =
+        Math.floor((band_plans[band].max - band_plans[band].min) / 50) === 0
+            ? 1
+            : Math.floor((band_plans[band].max - band_plans[band].min) / 50);
 
     // An array of numbers between min_freq and max_freq in increments of 10
     const marking_array = useMemo(() => {
