@@ -417,7 +417,7 @@ export default function FrequencyBar({
                         >
                             {legend.name.toUpperCase()}
                         </p>
-                ))}
+                    ))}
             </div>
         </div>
     );
