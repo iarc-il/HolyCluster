@@ -409,7 +409,7 @@ export default function FrequencyBar({
                     <p
                         style={{ color: legend.color }}
                         key={`legend_${legend.name}`}
-                        className="text-[14px] inline px-2"
+                        className="text-[14px] inline px-2 bg-gray-100 rounded-full m-1"
                     >
                         {legend.name.toUpperCase()}
                     </p>

@@ -13,7 +13,7 @@ const RELEASES = [
             "Toggle alerts",
             "Zulu to UTC",
             "CAT control infrastructure",
-            "New tutorial video by VE9CF",
+            "New tutorial video by VE9CF (in the 'About' tab)",
         ],
     ],
     [
