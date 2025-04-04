@@ -335,6 +335,7 @@ export default function FrequencyBar({
                                         height={12}
                                         width={12}
                                         viewBox="0 0 100 100"
+                                        fill={colors.theme.text}
                                         className="-translate-y-[5px] group-hover:fill-blue-500"
                                     >
                                         <polygon points="50 15, 100 100, 0 100" />
@@ -409,7 +410,7 @@ export default function FrequencyBar({
                     <p
                         style={{ color: legend.color }}
                         key={`legend_${legend.name}`}
-                        className="text-[14px] inline px-2 bg-gray-100 rounded-full m-1 border border-gray-300"
+                        className="text-[14px] inline px-2 bg-gray-100 rounded-full m-1 border border-gray-300 font-medium"
                     >
                         {legend.name.toUpperCase()}
                     </p>
