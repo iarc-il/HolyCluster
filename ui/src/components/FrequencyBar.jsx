@@ -406,14 +406,17 @@ export default function FrequencyBar({
             </svg>
 
             <div className="h-[5%] w-full float-right">
-                {features.concat(ranges).reverse().map(legend => (
-                    <p
-                        style={{ color: legend.color }}
-                        key={`legend_${legend.name}`}
-                        className="text-[14px] inline px-2 bg-gray-100 rounded-full m-1 border border-gray-300 font-medium"
-                    >
-                        {legend.name.toUpperCase()}
-                    </p>
+                {features
+                    .concat(ranges)
+                    .reverse()
+                    .map(legend => (
+                        <p
+                            style={{ color: legend.color }}
+                            key={`legend_${legend.name}`}
+                            className="text-[14px] inline px-2 bg-gray-100 rounded-full m-1 border border-gray-300 font-medium"
+                        >
+                            {legend.name.toUpperCase()}
+                        </p>
                 ))}
             </div>
         </div>
