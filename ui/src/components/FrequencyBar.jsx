@@ -1,6 +1,6 @@
 import Select from "@/components/Select.jsx";
 import Toggle from "@/components/Toggle.jsx";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useColors } from "../hooks/useColors";
 import { useLocalStorage } from "@uidotdev/usehooks";
 
@@ -295,7 +295,7 @@ export default function FrequencyBar({
                                 x1={"30%"}
                                 x2={"54%"}
                                 y1={`${((spot.freq - min_freq) / (max_freq - min_freq)) * 100}%`}
-                                y2={`${(i * 100) / sorted_spots.length + 2}%`}
+                                y2={`${(i * 100) / sorted_spots.length + 2.5}%`}
                                 strokeWidth="1"
                                 stroke={
                                     highlight_spot ? colors.bands[spot.band] : colors.theme.text
@@ -316,49 +316,53 @@ export default function FrequencyBar({
                                 }}
                                 className="hover:cursor-pointer"
                             >
+                                <g style={{transform: "translateY(-10px)"}}>
                                 {spot.mode.toUpperCase() == "SSB" && (
                                     <rect
                                         x={"55%"}
-                                        y={`${(i * 100) / sorted_spots.length + 2.3}%`}
+                                        y={`${(i * 100) / sorted_spots.length + 3}%`}
                                         height={10}
                                         width={10}
                                         strokeWidth={1}
                                         fill={colors.theme.text}
-                                        className="-translate-y-[5px] group-hover:fill-blue-500"
+                                        className="group-hover:fill-blue-500"
                                     />
                                 )}
 
                                 {spot.mode.toUpperCase() == "CW" && (
                                     <svg
                                         x={"55%"}
-                                        y={`${(i * 100) / sorted_spots.length + 1.4}%`}
+                                        y={`${(i * 100) / sorted_spots.length + 3}%`}
                                         height={12}
                                         width={12}
                                         viewBox="0 0 100 100"
                                         fill={colors.theme.text}
-                                        className="-translate-y-[5px] group-hover:fill-blue-500"
+                                        className="group-hover:fill-blue-500"
                                     >
-                                        <polygon points="50 15, 100 100, 0 100" />
+                                        <polygon points="50 5, 100 90, 0 90" />
                                     </svg>
                                 )}
 
                                 {["FT8", "FT4", "DIGI"].includes(spot.mode.toUpperCase()) && (
                                     <svg
                                         x={"54%"}
-                                        y={`${(i * 100) / sorted_spots.length + 1.4}%`}
+                                        y={`${(i * 100) / sorted_spots.length + 3}%`}
                                         height={15}
                                         width={15}
                                         viewBox="0 0 280 360"
-                                        className="-translate-y-[5px] group-hover:fill-blue-500"
+                                        style={{transform: "translateY(5px)"}}
+                                        className="group-hover:fill-blue-500"
                                     >
                                         <polygon
                                             points="150,15 258,77 258,202 150,265 42,202 42,77"
                                             strokeWidth={1}
                                             className="group-hover:fill-blue-500"
+                                            style={{transform: "translateY(5px)"}}
                                             fill={colors.theme.text}
                                         />
                                     </svg>
                                 )}
+                                </g>
 
                                 <text
                                     x={"61%"}
@@ -375,6 +379,7 @@ export default function FrequencyBar({
                                 >
                                     {spot.dx_callsign}
                                 </text>
+                                
                             </g>
 
                             {highlight_spot && (
@@ -406,9 +411,8 @@ export default function FrequencyBar({
             </svg>
 
             <div className="h-[5%] w-full flex justify-center items-center">
-                {features
-                    .concat(ranges)
-                    .reverse()
+                {ranges
+                    .concat(features)
                     .map(legend => (
                         <p
                             style={{ color: legend.color }}
