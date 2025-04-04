@@ -316,52 +316,52 @@ export default function FrequencyBar({
                                 }}
                                 className="hover:cursor-pointer"
                             >
-                                <g style={{transform: "translateY(-10px)"}}>
-                                {spot.mode.toUpperCase() == "SSB" && (
-                                    <rect
-                                        x={"55%"}
-                                        y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                        height={10}
-                                        width={10}
-                                        strokeWidth={1}
-                                        fill={colors.theme.text}
-                                        className="group-hover:fill-blue-500"
-                                    />
-                                )}
-
-                                {spot.mode.toUpperCase() == "CW" && (
-                                    <svg
-                                        x={"55%"}
-                                        y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                        height={12}
-                                        width={12}
-                                        viewBox="0 0 100 100"
-                                        fill={colors.theme.text}
-                                        className="group-hover:fill-blue-500"
-                                    >
-                                        <polygon points="50 5, 100 90, 0 90" />
-                                    </svg>
-                                )}
-
-                                {["FT8", "FT4", "DIGI"].includes(spot.mode.toUpperCase()) && (
-                                    <svg
-                                        x={"54%"}
-                                        y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                        height={15}
-                                        width={15}
-                                        viewBox="0 0 280 360"
-                                        style={{transform: "translateY(5px)"}}
-                                        className="group-hover:fill-blue-500"
-                                    >
-                                        <polygon
-                                            points="150,15 258,77 258,202 150,265 42,202 42,77"
+                                <g style={{ transform: "translateY(-10px)" }}>
+                                    {spot.mode.toUpperCase() == "SSB" && (
+                                        <rect
+                                            x={"55%"}
+                                            y={`${(i * 100) / sorted_spots.length + 3}%`}
+                                            height={10}
+                                            width={10}
                                             strokeWidth={1}
-                                            className="group-hover:fill-blue-500"
-                                            style={{transform: "translateY(5px)"}}
                                             fill={colors.theme.text}
+                                            className="group-hover:fill-blue-500"
                                         />
-                                    </svg>
-                                )}
+                                    )}
+
+                                    {spot.mode.toUpperCase() == "CW" && (
+                                        <svg
+                                            x={"55%"}
+                                            y={`${(i * 100) / sorted_spots.length + 3}%`}
+                                            height={12}
+                                            width={12}
+                                            viewBox="0 0 100 100"
+                                            fill={colors.theme.text}
+                                            className="group-hover:fill-blue-500"
+                                        >
+                                            <polygon points="50 5, 100 90, 0 90" />
+                                        </svg>
+                                    )}
+
+                                    {["FT8", "FT4", "DIGI"].includes(spot.mode.toUpperCase()) && (
+                                        <svg
+                                            x={"54%"}
+                                            y={`${(i * 100) / sorted_spots.length + 3}%`}
+                                            height={15}
+                                            width={15}
+                                            viewBox="0 0 280 360"
+                                            style={{ transform: "translateY(5px)" }}
+                                            className="group-hover:fill-blue-500"
+                                        >
+                                            <polygon
+                                                points="150,15 258,77 258,202 150,265 42,202 42,77"
+                                                strokeWidth={1}
+                                                className="group-hover:fill-blue-500"
+                                                style={{ transform: "translateY(5px)" }}
+                                                fill={colors.theme.text}
+                                            />
+                                        </svg>
+                                    )}
                                 </g>
 
                                 <text
@@ -379,7 +379,6 @@ export default function FrequencyBar({
                                 >
                                     {spot.dx_callsign}
                                 </text>
-                                
                             </g>
 
                             {highlight_spot && (
@@ -411,17 +410,15 @@ export default function FrequencyBar({
             </svg>
 
             <div className="h-[5%] w-full flex justify-center items-center">
-                {ranges
-                    .concat(features)
-                    .map(legend => (
-                        <p
-                            style={{ color: legend.color }}
-                            key={`legend_${legend.name}`}
-                            className="text-[14px] inline px-[0.4rem] bg-gray-100 rounded-full m-1 border border-gray-300 font-medium"
-                        >
-                            {legend.name.toUpperCase()}
-                        </p>
-                    ))}
+                {ranges.concat(features).map(legend => (
+                    <p
+                        style={{ color: legend.color }}
+                        key={`legend_${legend.name}`}
+                        className="text-[14px] inline px-[0.4rem] bg-gray-100 rounded-full m-1 border border-gray-300 font-medium"
+                    >
+                        {legend.name.toUpperCase()}
+                    </p>
+                ))}
             </div>
         </div>
     );
