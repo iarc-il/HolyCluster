@@ -406,7 +406,7 @@ export default function FrequencyBar({
             </svg>
 
             <div className="h-[5%] w-full float-right">
-                {features.concat(ranges).map(legend => (
+                {features.concat(ranges).reverse().map(legend => (
                     <p
                         style={{ color: legend.color }}
                         key={`legend_${legend.name}`}
