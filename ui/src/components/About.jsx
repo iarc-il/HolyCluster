@@ -7,6 +7,16 @@ import { useColors } from "../hooks/useColors";
 
 const RELEASES = [
     [
+        "04/04/2025",
+        [
+            "The band bar",
+            "Toggle alerts",
+            "Zulu to UTC",
+            "CAT control infrastructure",
+            "New tutorial video by VE9CF",
+        ],
+    ],
+    [
         "10/03/2025",
         ["New callsign filter interface supporting filtering by dx/spotter and dxcc entity"],
     ],
