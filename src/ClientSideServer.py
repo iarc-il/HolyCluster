@@ -1,17 +1,17 @@
 from contextlib import asynccontextmanager
 import asyncio
+import json
 import logging
 import mimetypes
-import random
 import socket
 import webbrowser
 import os
-
 import fastapi
 from fastapi.staticfiles import StaticFiles
 from starlette.websockets import WebSocketDisconnect
 import httpx
 import uvicorn
+import websockets
 
 import RadioController
 
@@ -45,7 +45,10 @@ logger = logging.getLogger(__name__)
 
 HOST = "localhost"
 # Port collision is very unlikely
-port = random.randint(10000, 60000)
+# port = random.randint(10000, 60000)
+port = 10001
+
+proxy_url = "holycluster.iarc.org"
 
 
 async def start_webbrowser():
@@ -125,10 +128,40 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
 
+@app.websocket("/submit_spot")
+async def submit_spot_endpoint(websocket: fastapi.WebSocket):
+    await websocket.accept()
+    logger.info("Spot submission WebSocket connected")
+
+    try:
+        async with websockets.connect(f"wss://{proxy_url}/submit_spot") as target_ws:
+            async def forward_spot_to_server():
+                while True:
+                    data = await websocket.receive_json()
+                    logger.info(f"Forwarding spot to server: {data}")
+                    # await websocket.send_json(data)
+                    await target_ws.send(json.dumps(data))
+            
+            async def forward_response_from_server():
+                while True:
+                    data_str = await target_ws.recv()
+                    data = json.loads(data_str)
+                    logger.debug(f"Forwarding from target: {data}")
+                    await websocket.send_json(data)
+            
+            await asyncio.gather(forward_spot_to_server(), forward_response_from_server())
+
+    except WebSocketDisconnect:
+        logger.info("Client WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"WebSocket proxy error: {str(e)}")
+
+
+
 
 async def proxy_to_main_server(path: str, response: fastapi.Response):
     async with httpx.AsyncClient() as client:
-        result = await client.get(f"https://holycluster.iarc.org/{path}")
+        result = await client.get(f"https://{proxy_url}/{path}")
         response.body = result.content
         response.status_code = result.status_code
         for (key, value) in result.headers.items():
