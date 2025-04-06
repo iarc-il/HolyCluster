@@ -56,9 +56,10 @@ function SvgMap({
     const radius = Math.min(center_x, center_y) - inner_padding;
     const [center_lon, center_lat] = map_controls.location.location;
 
+    const size_fit = radius * 2 - 15;
     const projection = d3["geoAzimuthalEquidistant"]()
         .precision(0.1)
-        .fitSize([width - inner_padding * 2, height - inner_padding * 2], dxcc_map)
+        .fitSize([size_fit, size_fit], dxcc_map)
         .rotate([-center_lon, -center_lat, 0])
         .translate([center_x, center_y]);
 
