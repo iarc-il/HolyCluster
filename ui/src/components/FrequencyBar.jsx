@@ -168,12 +168,12 @@ export default function FrequencyBar({
             if (freq <= band_plans[band].max && freq >= band_plans[band].min) return band;
         }
 
-        return selected_band;
+        set_selected_band(20);
     }
 
     let radio_band = get_band_from_freq(radio_freq);
 
-    const band = selected_band == -1 ? radio_band : selected_band;
+    let band = selected_band == -1 ? radio_band : selected_band;
 
     // Sort spots by frequency
     let sorted_spots = useMemo(() => {
