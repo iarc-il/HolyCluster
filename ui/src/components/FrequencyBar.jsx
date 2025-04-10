@@ -168,6 +168,14 @@ export default function FrequencyBar({
             if (freq <= band_plans[band].max && freq >= band_plans[band].min) return band;
         }
 
+        return -1;
+    }
+
+    if (
+        (radio_status != "connected" || get_band_from_freq(radio_freq) === -1) &&
+        selected_band == -1
+    ) {
+        console.log(radio_status, get_band_from_freq(radio_freq));
         set_selected_band(20);
     }
 
@@ -226,7 +234,7 @@ export default function FrequencyBar({
                     text_color={selected_band == -1 ? colors.bands[radio_band] : undefined}
                     className={`text-lg p-2 w-1/2 text-center`}
                 >
-                    {radio_status === "connected" && (
+                    {radio_status === "connected" && get_band_from_freq(radio_freq) !== -1 && (
                         <option style={{ color: colors.bands[radio_band] }} value={-1}>
                             Radio
                         </option>
@@ -506,7 +514,7 @@ function Ruler({ max_freq, min_freq, radio_freq, band, radio_status }) {
                 </g>
             ))}
 
-            {radio_status === "connected" && (
+            {radio_status === "connected" && radio_freq != 0 && radio_freq !== undefined && (
                 <svg
                     viewBox="0 0 50 90"
                     height="8%"
