@@ -76,9 +76,9 @@ function MapControls({
                         value={Math.round(propagation.a_index)}
                         label="A"
                         min={0}
-                        max={20}
-                        low_mid={6}
-                        mid_high={10}
+                        max={100}
+                        low_mid={14}
+                        mid_high={80}
                     />
                     <Bar
                         value={Math.round(propagation.k_index)}
@@ -94,8 +94,8 @@ function MapControls({
                         min={0}
                         max={200}
                         reverse_colors={true}
-                        low_mid={70}
-                        mid_high={100}
+                        low_mid={83}
+                        mid_high={120}
                     />
                 </div>
             )}
