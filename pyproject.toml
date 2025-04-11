@@ -7,6 +7,8 @@ dependencies = [
     "fastapi",
     "httpx",
     "uvicorn",
+    "pystray",
+    "pillow",
 ]
 
 [project.optional-dependencies]

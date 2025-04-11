@@ -12,6 +12,8 @@ from starlette.websockets import WebSocketDisconnect
 import httpx
 import uvicorn
 import websockets
+import pystray
+import PIL.Image
 
 import RadioController
 
@@ -24,8 +26,7 @@ logging.config.dictConfig({
     "disable_existing_loggers": False,
     "formatters": {
         "default": {
-            "()": "uvicorn.logging.DefaultFormatter",
-            "fmt": "%(levelprefix)s %(asctime)s %(message)s",
+            "format": "%(levelname)s %(asctime)s %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
     },
@@ -168,23 +169,45 @@ async def proxy_to_main_server(path: str, response: fastapi.Response):
             response.headers[key] = value
         return response
 
-
 if os.environ.get("LOCAL_UI") is not None:
     @app.get("/spots")
-    async def proxy_spots_request(response: fastapi.Response):
-        return await proxy_to_main_server("spots", response)
+    async def proxy_spots_request(response: fastapi.Response, request: fastapi.Request):
+        return await proxy_to_main_server(f"spots?{request.query_params}", response)
 
     UI_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ui/dist")
     app.mount("/", StaticFiles(directory=UI_DIR, html=True), name="static")
 else:
     @app.get("/{path:path}")
-    async def proxy_all_requests(path: str, response: fastapi.Response):
-        return await proxy_to_main_server(path, response)
+    async def proxy_all_requests(path: str, response: fastapi.Response, request: fastapi.Request):
+        return await proxy_to_main_server(f"{path}?{request.query_params}", response)
 
+def do_nothing():
+    pass
+
+def menu_launch_browser():
+    webbrowser.open(f"http://{HOST}:{port}/")
+
+def menu_terminate():
+    icon.stop()
+    os._exit(0)
+
+# In order for the icon to be displayed, you must provide an icon
+icon = pystray.Icon(
+    name="HolyCluster",
+    title="HolyCluster",
+    icon=PIL.Image.open(os.path.join(os.path.dirname(__file__), "icon.png")),
+    run_action=menu_launch_browser, 
+    menu=pystray.Menu(
+        pystray.MenuItem("Launch", menu_launch_browser, default=True),
+        pystray.MenuItem("Terminate", menu_terminate),
+        pystray.MenuItem(f"http://localhost:{port}", do_nothing),
+    )
+)
 
 def main():
-    uvicorn.run(app, host=HOST, port=port)
-
+    icon.run_detached()
+    uvicorn.run(app, host=HOST, port=port, log_config=None)
+    
 
 if __name__ == "__main__":
     main()
