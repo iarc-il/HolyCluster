@@ -473,7 +473,7 @@ function MainContainer() {
                     pinned_spot={pinned_spot}
                     set_pinned_spot={set_pinned_spot}
                     radio_status={radio_status}
-                    radio_freq={radio_freq}
+                    radio_freq={Math.round(radio_freq / 1000)}
                     set_cat_to_spot={set_cat_to_spot}
                     cat_control={cat_control}
                     set_cat_control={set_cat_control}

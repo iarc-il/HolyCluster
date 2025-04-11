@@ -57,7 +57,7 @@ class OmnirigRadioController:
 
     def get_data(self):
         """Get the current frequency, mode, and status of the radio"""
-        freq = self.omni_client.getParam("Freq") // 1000
+        freq = self.omni_client.getParam("FreqA")
         status = self.omni_client.getParam("StatusStr")
 
         return {"freq": freq, "status": "connected", "status_str": status}
