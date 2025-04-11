@@ -72,7 +72,7 @@ function TopBar({
                     <SevenSegmentDisplay
                         className={"h-[25px]"}
                         height={25}
-                        display_size={radio_freq ? (radio_freq).toString().length : 8}
+                        display_size={radio_freq ? radio_freq.toString().length : 8}
                         value={radio_freq ? radio_freq : undefined}
                         error={radio_status !== "connected"}
                     />
