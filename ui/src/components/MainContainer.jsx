@@ -7,7 +7,7 @@ import Continents from "@/components/Continents.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import CallsignsView from "@/components/CallsignsView.jsx";
 import Tabs from "@/components/Tabs.jsx";
-import { use_object_local_storage, is_matching_list } from "@/utils.js";
+import { use_object_local_storage, is_matching_list, get_max_radius } from "@/utils.js";
 import { bands, modes, continents } from "@/filters_data.js";
 import { useFilters } from "../hooks/useFilters";
 import { get_flag } from "@/flags.js";
@@ -172,7 +172,7 @@ function MainContainer() {
         ascending: false,
     });
 
-    const [radius_in_km, set_radius_in_km] = useState(settings.default_radius);
+
 
     const current_time = new Date().getTime() / 1000;
 
@@ -282,6 +282,16 @@ function MainContainer() {
             return result;
         })
         .slice(0, 100);
+
+    const max_radius = get_max_radius(map_controls.location.location, filtered_spots);
+
+    const [radius_in_km, set_radius_in_km] = useState(settings.default_radius);
+    const [auto_toggle_radius, set_auto_toggle_radius] = useState(false);
+    useEffect(() => {
+        if( max_radius >0 && auto_toggle_radius){
+            set_radius_in_km(max_radius+1000)
+        }
+    }, [max_radius]);
 
     filtered_spots.sort((spot_a, spot_b) => {
         // Sorting by frequency should be always more accurate
@@ -402,6 +412,7 @@ function MainContainer() {
                     radius_in_km={radius_in_km}
                     set_radius_in_km={set_radius_in_km}
                     settings={settings}
+                    set_auto_toggle_radius={set_auto_toggle_radius}
                 />
             )}
         </div>

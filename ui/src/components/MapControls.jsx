@@ -19,6 +19,7 @@ function MapControls({
     set_radius_in_km,
     settings,
     propagation,
+    auto_toggle_radius,
 }) {
     const { colors } = useColors();
 
@@ -26,7 +27,9 @@ function MapControls({
         const locator = home_locator == "" ? "JJ00AA" : home_locator;
         const [lat, lon] = Maidenhead.toLatLon(locator);
         set_map_controls(state => {
-            set_radius_in_km(default_radius);
+            if (!auto_toggle_radius) {
+                set_radius_in_km(default_radius);
+            }
             state.location = { displayed_locator: locator, location: [lon, lat] };
         });
     }

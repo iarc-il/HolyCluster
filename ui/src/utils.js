@@ -1,5 +1,7 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect } from "react";
+import Maidenhead from "maidenhead";
+
 
 export function to_radian(deg) {
     return deg * (Math.PI / 180);
@@ -80,4 +82,21 @@ export function use_object_local_storage(key, default_value) {
 export function km_to_miles(km) {
     const miles = km * 0.621371;
     return Math.round(miles);
+}
+
+
+export const get_max_radius = (center, spots) =>{
+    const center_maiden = new Maidenhead(center[1], center[0]);
+    let max = 0;
+    spots.forEach(spot => {
+        const spot_maiden = new Maidenhead(spot.spotter_loc[1], spot.spotter_loc[0]);
+        const dx_maiden = new Maidenhead(spot.dx_loc[1], spot.dx_loc[0]);
+        const spoter_distance = center_maiden.distanceTo(spot_maiden);
+        const dx_ditance = center_maiden.distanceTo(dx_maiden);
+        max = Math.max(max, spoter_distance, dx_ditance);
+        
+    });
+
+    return max;
+
 }
