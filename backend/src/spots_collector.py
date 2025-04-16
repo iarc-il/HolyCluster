@@ -49,7 +49,7 @@ def prepare_dxheat_record(spot, debug=False):
       spot["Mode"] = "SSB"
       missing_mode = True
     if not 'DXlocator' in spot:
-        spot['DXLocator'] =  'JJ00AA'
+        spot['DXLocator'] =  None
     record = DxheatRaw(
         number=spot['Nr'],
         spotter=spot['Spotter'],
@@ -145,14 +145,17 @@ async def prepare_holy_spot(
             # prefixes_to_locators=prefixes_to_locators
         )
         if not dx_locator:
-            dx_locator = get_locator_from_qrz(
+            dx_locator = await get_locator_from_qrz(
                 qrz_session_key=qrz_session_key, 
                 callsign=dx_callsign, 
                 debug=debug
             )
+            if debug:
+              logger.debug(f"callsign={dx_callsign},   dx_locator={dx_locator}")
+            # if 'locator' in dx_locator:
             dx_locator = dx_locator["locator"]
             
-            if not dx_locator:
+            if not dx_locator or not 'locator' in dx_locator:
                 dx_locator = resolve_locator(
                     callsign=dx_callsign, 
                     # prefixes_to_locators=prefixes_to_locators
