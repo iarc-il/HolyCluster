@@ -34,7 +34,7 @@ async def get_locator_from_qrz(qrz_session_key:str, callsign: str, delay:float=0
         await asyncio.sleep(delay)
         url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
         async with httpx.AsyncClient() as client:
-            response = await client.get(url)
+            response = await client.get(url, timeout=30)
         if debug:
             logger.debug(f"{response=}")
         
