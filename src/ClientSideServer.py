@@ -49,7 +49,7 @@ HOST = "localhost"
 # port = random.randint(10000, 60000)
 port = 10001
 
-proxy_url = "holycluster.iarc.org"
+proxy_url = "holycluster-dev.iarc.org"
 
 
 async def start_webbrowser():
@@ -102,22 +102,30 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
         async def set_radio():
             while True:
                 data = await websocket.receive_json()
-                mode = data["mode"]
-                band = int(data["band"])
-                freq = data["freq"]
+                mode = data.get("mode", None)
+                freq = data.get("freq", None)
+                rig = data.get("rig", None)
+                band = data.get("band")
+                band = int(band) if band is not None else None
                 slot = "A"
 
-                if mode.upper() == "SSB":
-                    if band in (160, 80, 40):
-                        mode = "LSB"
-                    else:
-                        mode = "USB"
+                if mode is not None:
+                    if mode.upper() == "SSB":
+                        if band in (160, 80, 40):
+                            mode = "LSB"
+                        else:
+                            mode = "USB"
 
-                logger.info(f"Setting mode: {mode}")
-                app.state.radio_controller.set_mode(mode)
+                    logger.info(f"Setting mode: {mode}")
+                    app.state.radio_controller.set_mode(mode)
 
-                logger.info(f"Setting frequency: {freq} in slot {slot}")
-                app.state.radio_controller.set_frequency(slot, freq)
+                if freq is not None:
+                    logger.info(f"Setting frequency: {freq} in slot {slot}")
+                    app.state.radio_controller.set_frequency(slot, freq)
+
+                if rig is not None:
+                    logger.info(f"Setting rig: {rig}")
+                    app.state.radio_controller.set_rig(rig)
 
                 radio_data = app.state.radio_controller.get_data()
                 radio_data["result"] = "success"
@@ -135,7 +143,7 @@ async def submit_spot_endpoint(websocket: fastapi.WebSocket):
     logger.info("Spot submission WebSocket connected")
 
     try:
-        async with websockets.connect(f"wss://{proxy_url}/submit_spot") as target_ws:
+        async with websockets.connect(f"ws://{proxy_url}/submit_spot") as target_ws:
             async def forward_spot_to_server():
                 while True:
                     data = await websocket.receive_json()
@@ -162,7 +170,7 @@ async def submit_spot_endpoint(websocket: fastapi.WebSocket):
 
 async def proxy_to_main_server(path: str, response: fastapi.Response):
     async with httpx.AsyncClient() as client:
-        result = await client.get(f"https://{proxy_url}/{path}")
+        result = await client.get(f"http://{proxy_url}/{path}")
         response.body = result.content
         response.status_code = result.status_code
         for (key, value) in result.headers.items():

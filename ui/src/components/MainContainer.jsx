@@ -24,12 +24,14 @@ function connect_to_radio() {
     const { sendJsonMessage, readyState, lastJsonMessage } = useWebSocket(websocket_url);
     const [radio_status, set_radio_status] = useState("unknown");
     const [radio_freq, set_radio_freq] = useState(0);
+    const [rig, set_rig] = useState(1);
 
     useEffect(() => {
         if (lastJsonMessage != null) {
             if ("status" in lastJsonMessage) {
                 set_radio_status(lastJsonMessage.status);
                 set_radio_freq(lastJsonMessage.freq);
+                set_rig(lastJsonMessage.current_rig);
             }
         }
     }, [lastJsonMessage]);
@@ -44,6 +46,7 @@ function connect_to_radio() {
         send_message_to_radio: send_message_to_radio,
         radio_status: radio_status,
         radio_freq: radio_freq,
+        rig: rig,
     };
 }
 
@@ -320,7 +323,7 @@ function MainContainer() {
         spots_per_band_count[band] = Math.min(spots_per_band_count[band], 99);
     }
 
-    let { send_message_to_radio, radio_status, radio_freq } = connect_to_radio();
+    let { send_message_to_radio, radio_status, radio_freq, rig } = connect_to_radio();
 
     function set_cat_to_spot(spot) {
         if (cat_control != true) {
@@ -331,6 +334,16 @@ function MainContainer() {
             mode: spot.mode,
             freq: spot.freq,
             band: spot.band,
+        });
+    }
+
+    function set_rig(rig) {
+        if (![1, 2].includes(rig)) {
+            return;
+        }
+
+        send_message_to_radio({
+            rig: rig,
         });
     }
 
@@ -435,6 +448,8 @@ function MainContainer() {
                 dev_mode={dev_mode}
                 radio_status={radio_status}
                 radio_freq={radio_freq}
+                rig={rig}
+                set_rig={set_rig}
             />
             <div className="flex relative h-[calc(100%-4rem)]">
                 <LeftColumn
