@@ -93,11 +93,10 @@ function TopBar({
                             const rig_active = rig == rig_val;
                             return (
                                 <p
-                                    className={`text-right text-xs px-1 w-full text-[${
-                                        colors.theme.text
-                                    }] rounded-sm hover:cursor-pointer py-[1px] ${
+                                    className={`text-right text-xs px-1 w-full rounded-sm hover:cursor-pointer py-[1px] ${
                                         rig_active ? "bg-red-400" : "hover:bg-gray-400"
                                     }`}
+                                    style={{color: colors.theme.text}}
                                     onClick={() => {
                                         if (!rig_active) {
                                             set_requested_rig(rig_val);
