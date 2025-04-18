@@ -43,7 +43,8 @@ function SvgMap({
   radius_in_km,
   set_radius_in_km,
   settings,
-  set_auto_toggle_radius
+  auto_radius,
+  set_auto_radius
 }) {
 
   const svg_ref = useRef(null);
@@ -175,7 +176,7 @@ function SvgMap({
             height="40"
           >
             <div xmlns="http://www.w3.org/1999/xhtml">
-              <ToggleSVG set_auto_toggle_radius={set_auto_toggle_radius}/>
+              <ToggleSVG auto_radius={auto_radius} set_auto_radius={set_auto_radius}/>
             </div>
           </foreignObject>
 

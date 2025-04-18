@@ -286,12 +286,12 @@ function MainContainer() {
     const max_radius = get_max_radius(map_controls.location.location, filtered_spots);
 
     const [radius_in_km, set_radius_in_km] = useState(settings.default_radius);
-    const [auto_toggle_radius, set_auto_toggle_radius] = useState(false);
+    const [auto_radius, set_auto_radius] = useLocalStorage("auto_radius", true);
     useEffect(() => {
-        if( max_radius >0 && auto_toggle_radius){
-            set_radius_in_km(max_radius+1000)
+        if( max_radius >0 && auto_radius){
+            set_radius_in_km(Math.round((max_radius+500)/1000)*1000);
         }
-    }, [max_radius]);
+    }, [max_radius, auto_radius, map_controls.location]);
 
     filtered_spots.sort((spot_a, spot_b) => {
         // Sorting by frequency should be always more accurate
@@ -412,7 +412,8 @@ function MainContainer() {
                     radius_in_km={radius_in_km}
                     set_radius_in_km={set_radius_in_km}
                     settings={settings}
-                    set_auto_toggle_radius={set_auto_toggle_radius}
+                    auto_radius={auto_radius}
+                    set_auto_radius={set_auto_radius}
                 />
             )}
         </div>
