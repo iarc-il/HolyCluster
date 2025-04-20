@@ -79,9 +79,13 @@ function SvgMap({
     const zoom = d3
       .zoom()
       .scaleExtent([1, 20])
-      .on("zoom", (event) =>
+      .on("zoom", (event) =>{
+
         set_radius_in_km((21 - Math.round(event.transform.k)) * 1000)
-      );
+        if (event.sourceEvent && (event.sourceEvent.type === "wheel" || event.sourceEvent.type === "touchmove")) {
+          set_auto_radius(false)
+        }
+      });
     svg.call(zoom);
 
     const k_from_radius_in_km = 21 - radius_in_km / 1000;
