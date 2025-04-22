@@ -8,6 +8,7 @@ import Select from "@/components/Select.jsx";
 import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
 import { useColors } from "../hooks/useColors";
 import { useFilters } from "../hooks/useFilters";
+import { useServerData } from "@/hooks/useServerData";
 import { useLocalStorage } from "@uidotdev/usehooks";
 
 import Icon from "@/icon.png";
@@ -32,7 +33,6 @@ function TopBar({
     set_settings,
     set_map_controls,
     set_radius_in_km,
-    network_state,
     toggled_ui,
     set_toggled_ui,
     dev_mode,
@@ -42,6 +42,7 @@ function TopBar({
     set_rig,
 }) {
     const { filters, setFilters } = useFilters();
+    const { network_state } = useServerData();
     const box_container_style = "flex items-center h-full p-2 gap-3";
 
     const network_state_colors = {
@@ -160,7 +161,6 @@ function TopBar({
                     set_settings={set_settings}
                     set_map_controls={set_map_controls}
                     set_radius_in_km={set_radius_in_km}
-                    dev_mode={dev_mode}
                 />
                 {dev_mode ? <ColorPicker></ColorPicker> : ""}
                 <div className="p-2 hidden max-2xl:block">

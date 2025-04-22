@@ -6,16 +6,11 @@ import { useColors } from "../hooks/useColors";
 
 function CallsignsView({
     toggled_ui,
-    spots,
-    pinned_spot,
-    set_pinned_spot,
     radio_status,
     radio_freq,
     set_cat_to_spot,
     cat_control,
     set_cat_control,
-    hovered_spot,
-    set_hovered_spot,
 }) {
     const { colors } = useColors();
 
@@ -23,16 +18,11 @@ function CallsignsView({
 
     const freq_bar = (
         <FrequencyBar
-            spots={spots}
-            pinned_spot={pinned_spot}
-            set_pinned_spot={set_pinned_spot}
             radio_status={radio_status}
             radio_freq={radio_freq}
             set_cat_to_spot={set_cat_to_spot}
             cat_control={cat_control}
             set_cat_control={set_cat_control}
-            hovered_spot={hovered_spot}
-            set_hovered_spot={set_hovered_spot}
             className={"px-2 h-full"}
         />
     );

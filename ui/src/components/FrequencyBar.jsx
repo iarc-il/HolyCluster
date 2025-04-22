@@ -2,6 +2,7 @@ import Select from "@/components/Select.jsx";
 import Toggle from "@/components/Toggle.jsx";
 import { useMemo } from "react";
 import { useColors } from "../hooks/useColors";
+import { useServerData } from "@/hooks/useServerData";
 import { useLocalStorage } from "@uidotdev/usehooks";
 
 const ft8_color = "#FF0000";
@@ -148,20 +149,17 @@ const band_plans = {
 };
 
 export default function FrequencyBar({
-    spots,
-    pinned_spot,
-    set_pinned_spot,
     className,
     radio_status,
     radio_freq,
     set_cat_to_spot,
     cat_control,
     set_cat_control,
-    hovered_spot,
-    set_hovered_spot,
 }) {
     const { colors } = useColors();
-    const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20); // Set to -1 to use the current band that the radio is on
+    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
+    // Set to -1 to use the current band that the radio is on
+    const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
 
     function get_band_from_freq(freq) {
         for (let band of Object.keys(band_plans)) {

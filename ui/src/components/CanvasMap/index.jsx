@@ -18,6 +18,7 @@ import {
 } from "./draw_map.js";
 import SpotPopup from "@/components/SpotPopup.jsx";
 import { useColors } from "@/hooks/useColors";
+import { useServerData } from "@/hooks/useServerData";
 
 function apply_zoom_and_drag_behaviors(
     context,
@@ -133,17 +134,9 @@ function build_canvas_storage(projection, canvas_map) {
     );
 }
 
-function CanvasMap({
-    spots,
-    map_controls,
-    set_map_controls,
-    set_cat_to_spot,
-    hovered_spot,
-    set_hovered_spot,
-    pinned_spot,
-    set_pinned_spot,
-    settings,
-}) {
+function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }) {
+    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
+
     const map_canvas_ref = useRef(null);
     const spots_canvas_ref = useRef(null);
     const shadow_canvas_ref = useRef(null);

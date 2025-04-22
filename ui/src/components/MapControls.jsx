@@ -6,6 +6,7 @@ import Radio from "@/components/Radio.jsx";
 import Night from "@/components/Night.jsx";
 import Bar from "@/components/Bar.jsx";
 import { useColors } from "@/hooks/useColors";
+import { useServerData } from "@/hooks/useServerData";
 
 import Maidenhead from "maidenhead";
 
@@ -18,9 +19,9 @@ function MapControls({
     default_radius,
     set_radius_in_km,
     settings,
-    propagation,
 }) {
     const { colors } = useColors();
+    const { propagation } = useServerData();
 
     function reset_map() {
         const locator = home_locator == "" ? "JJ00AA" : home_locator;
