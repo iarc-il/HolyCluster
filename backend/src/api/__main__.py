@@ -7,6 +7,7 @@ import time
 from typing import Optional
 
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import websockets
 import fastapi
@@ -330,6 +331,13 @@ async def submit_spot(websocket: fastapi.WebSocket):
             await handle_one_spot(websocket)
         except websockets.WebSocketDisconnect:
             break
+
+
+@app.get("/")
+async def get_index():
+    response = FileResponse(f"{settings.UI_DIR}/index.html", media_type="text/html")
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 app.mount("/", StaticFiles(directory=settings.UI_DIR, html=True), name="static")
