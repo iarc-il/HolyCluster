@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useFilters } from "../hooks/useFilters";
 import { is_matching_list } from "@/utils.js";
 import { bands } from "@/filters_data.js";
@@ -165,62 +165,69 @@ export const ServerDataProvider = ({ children }) => {
             is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active;
     }
 
-    const current_time = new Date().getTime() / 1000;
-    const filtered_spots = spots
-        .filter(spot => {
-            if (filter_missing_flags) {
-                if (
-                    spot.dx_country != "" &&
-                    spot.dx_country != null &&
-                    get_flag(spot.dx_country) == null
-                ) {
-                    return true;
-                } else {
-                    return false;
+    const filtered_spots = useMemo(() => {
+        const current_time = new Date().getTime() / 1000;
+        return spots
+            .filter(spot => {
+                if (filter_missing_flags) {
+                    if (
+                        spot.dx_country != "" &&
+                        spot.dx_country != null &&
+                        get_flag(spot.dx_country) == null
+                    ) {
+                        return true;
+                    } else {
+                        return false;
+                    }
                 }
-            }
 
-            const is_in_time_limit = current_time - spot.time < filters.time_limit;
-            // Alerted spots are displayed, no matter what.
-            if (spot.is_alerted && is_in_time_limit) {
-                return true;
-            }
+                const is_in_time_limit = current_time - spot.time < filters.time_limit;
+                // Alerted spots are displayed, no matter what.
+                if (spot.is_alerted && is_in_time_limit) {
+                    return true;
+                }
 
-            const is_band_and_mode_active = filters.bands[spot.band] && filters.modes[spot.mode];
+                const is_band_and_mode_active =
+                    filters.bands[spot.band] && filters.modes[spot.mode];
 
-            const are_include_filters_empty = show_only_filters.length == 0;
-            const are_exclude_filters_empty = hide_filters.length == 0;
-            const are_filters_including =
-                is_matching_list(show_only_filters, spot) ||
-                are_include_filters_empty ||
-                !callsign_filters.is_show_only_filters_active;
-            const are_filters_not_excluding =
-                !is_matching_list(hide_filters, spot) ||
-                are_exclude_filters_empty ||
-                !callsign_filters.is_hide_filters_active;
+                const are_include_filters_empty = show_only_filters.length == 0;
+                const are_exclude_filters_empty = hide_filters.length == 0;
+                const are_filters_including =
+                    is_matching_list(show_only_filters, spot) ||
+                    are_include_filters_empty ||
+                    !callsign_filters.is_show_only_filters_active;
+                const are_filters_not_excluding =
+                    !is_matching_list(hide_filters, spot) ||
+                    are_exclude_filters_empty ||
+                    !callsign_filters.is_hide_filters_active;
 
-            const is_dx_continent_active = filters.dx_continents[spot.dx_continent];
-            const is_spotter_continent_active = filters.spotter_continents[spot.spotter_continent];
+                const is_dx_continent_active = filters.dx_continents[spot.dx_continent];
+                const is_spotter_continent_active =
+                    filters.spotter_continents[spot.spotter_continent];
 
-            const result =
-                is_in_time_limit &&
-                is_dx_continent_active &&
-                is_spotter_continent_active &&
-                is_band_and_mode_active &&
-                are_filters_including &&
-                are_filters_not_excluding;
-            return result;
-        })
-        .slice(0, 100);
+                const result =
+                    is_in_time_limit &&
+                    is_dx_continent_active &&
+                    is_spotter_continent_active &&
+                    is_band_and_mode_active &&
+                    are_filters_including &&
+                    are_filters_not_excluding;
+                return result;
+            })
+            .slice(0, 100);
+    }, [spots, filter_missing_flags, filters, callsign_filters]);
 
-    const spots_per_band_count = Object.fromEntries(
-        bands.map(band => [band, filtered_spots.filter(spot => spot.band == band).length]),
-    );
+    const spots_per_band_count = useMemo(() => {
+        const spots_per_band_count = Object.fromEntries(
+            bands.map(band => [band, filtered_spots.filter(spot => spot.band == band).length]),
+        );
 
-    // Limit the count for 2 digit display
-    for (const band in spots_per_band_count) {
-        spots_per_band_count[band] = Math.min(spots_per_band_count[band], 99);
-    }
+        // Limit the count for 2 digit display
+        for (const band in spots_per_band_count) {
+            spots_per_band_count[band] = Math.min(spots_per_band_count[band], 99);
+        }
+        return spots_per_band_count;
+    }, [filtered_spots]);
 
     return (
         <Provider
