@@ -54,7 +54,6 @@ function fetch_spots() {
     if (this.is_fetching_in_progress) {
         return;
     }
-    this.is_fetching_in_progress = true;
 
     let url;
     // For debugging purposes
@@ -70,6 +69,7 @@ function fetch_spots() {
     if (!navigator.onLine) {
         this.set_network_state("disconnected");
     } else {
+        this.is_fetching_in_progress = true;
         return fetch(url, { mode: "cors" })
             .then(response => {
                 if (response == null || !response.ok) {
@@ -88,9 +88,10 @@ function fetch_spots() {
                         }
                         return spot;
                     });
-                    const spots = new_spots.concat(this.spots);
+                    let spots = new_spots.concat(this.spots);
                     spots.sort((spot_a, spot_b) => spot_b.time - spot_a.time);
-                    spots.slice(500);
+                    let current_time = Math.round(Date.now() / 1000);
+                    spots = spots.filter(spot => spot.time > current_time - 3600);
                     this.last_timestamp = spots[0].time;
                     this.set_spots(spots);
                     this.set_network_state("connected");
