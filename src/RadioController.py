@@ -3,7 +3,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class DummyRadioController:
     def init_radio(self):
         self.rig_type = "dummy"
@@ -23,6 +22,7 @@ class OmnirigRadioController:
     def __init__(self):
         self.server = None
         self.omni_client = None
+        self.current_rig = 1
 
     def init_radio(self):
         """initialize an omnipyrig instance and set active rig"""
@@ -45,6 +45,18 @@ class OmnirigRadioController:
         }
         self.omni_client.setMode(mode_to_number[mode])
 
+    def set_rig(self, rig):
+        """Set the active rig between rig 1 and rig 2
+        
+            Args:
+            rig (int): Either 1 or 2
+        """
+        if (rig != 1 and rig != 2):
+            return
+
+        self.current_rig = rig
+        self.omni_client.setActiveRig(rig)
+
     def set_frequency(self, slot, freq):
         """Set the frequency of an omnirig slot.
 
@@ -57,8 +69,8 @@ class OmnirigRadioController:
 
     def get_data(self):
         """Get the current frequency, mode, and status of the radio"""
-        freq = self.omni_client.getParam("Freq") // 1000
+        freq = self.omni_client.getParam("FreqA")
         status = self.omni_client.getParam("StatusStr")
 
-        return {"freq": freq, "status": "connected", "status_str": status}
+        return {"freq": freq, "status": "connected", "status_str": status, "current_rig": self.current_rig}
 

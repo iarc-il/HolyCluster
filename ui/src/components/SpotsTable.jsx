@@ -2,7 +2,8 @@ import X from "@/components/X.jsx";
 import { useEffect, forwardRef, useRef } from "react";
 
 import { get_flag } from "@/flags.js";
-import { useColors } from "../hooks/useColors";
+import { useColors } from "@/hooks/useColors";
+import { useServerData } from "@/hooks/useServerData";
 
 const cell_classes = {
     time: "w-14",
@@ -159,18 +160,10 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort }) 
     );
 }
 
-function SpotsTable({
-    spots,
-    hovered_spot,
-    set_hovered_spot,
-    pinned_spot,
-    set_pinned_spot,
-    set_cat_to_spot,
-    table_sort,
-    set_table_sort,
-}) {
+function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const row_refs = useRef({});
     const { colors } = useColors();
+    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
 
     useEffect(() => {
         const hovered_ref = row_refs.current[hovered_spot.id];

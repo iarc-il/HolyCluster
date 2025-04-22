@@ -15,6 +15,7 @@ import { km_to_miles } from "@/utils.js";
 import { useColors } from "@/hooks/useColors";
 import ToggleSVG from "./ToggleSVG";
 
+import { useServerData } from "@/hooks/useServerData";
 
 const dxcc_map = geojsonRewind(dxcc_map_raw, true);
 
@@ -32,25 +33,23 @@ function get_night_circle() {
 }
 
 function SvgMap({
-  spots,
-  map_controls,
-  set_map_controls,
-  set_cat_to_spot,
-  hovered_spot,
-  set_hovered_spot,
-  pinned_spot,
-  set_pinned_spot,
-  radius_in_km,
-  set_radius_in_km,
-  settings,
-  auto_radius,
-  set_auto_radius
+    map_controls,
+    set_map_controls,
+    set_cat_to_spot,
+    radius_in_km,
+    set_radius_in_km,
+    settings,
+    auto_radius,
+    set_auto_radius
 }) {
+    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
 
-  const svg_ref = useRef(null);
-  // const [dimensions, set_dimensions] = useState({ width: 700, height: 700 });
-  const [svg_box_ref, { width, height }] = useMeasure();
-  const max_radius = 20000;
+    const svg_ref = useRef(null);
+    // const [dimensions, set_dimensions] = useState({ width: 700, height: 700 });
+    const [svg_box_ref, { width, height }] = useMeasure();
+    const max_radius = 20000;
+
+
 
   const is_sm_device = useMediaQuery("only screen and (min-width : 640px)");
   const is_max_xs_device = useMediaQuery("only screen and (max-width : 500px)");

@@ -2,6 +2,7 @@ import Select from "@/components/Select.jsx";
 import Toggle from "@/components/Toggle.jsx";
 import { useMemo } from "react";
 import { useColors } from "../hooks/useColors";
+import { useServerData } from "@/hooks/useServerData";
 import { useLocalStorage } from "@uidotdev/usehooks";
 
 const ft8_color = "#FF0000";
@@ -148,32 +149,37 @@ const band_plans = {
 };
 
 export default function FrequencyBar({
-    spots,
-    pinned_spot,
-    set_pinned_spot,
     className,
     radio_status,
     radio_freq,
     set_cat_to_spot,
     cat_control,
     set_cat_control,
-    hovered_spot,
-    set_hovered_spot,
 }) {
     const { colors } = useColors();
-    const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20); // Set to -1 to use the current band that the radio is on
+    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
+    // Set to -1 to use the current band that the radio is on
+    const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
 
     function get_band_from_freq(freq) {
         for (let band of Object.keys(band_plans)) {
             if (freq <= band_plans[band].max && freq >= band_plans[band].min) return band;
         }
 
-        return selected_band;
+        return -1;
+    }
+
+    if (
+        (radio_status != "connected" || get_band_from_freq(radio_freq) === -1) &&
+        selected_band == -1
+    ) {
+        console.log(radio_status, get_band_from_freq(radio_freq));
+        set_selected_band(20);
     }
 
     let radio_band = get_band_from_freq(radio_freq);
 
-    const band = selected_band == -1 ? radio_band : selected_band;
+    let band = selected_band == -1 ? radio_band : selected_band;
 
     // Sort spots by frequency
     let sorted_spots = useMemo(() => {
@@ -226,7 +232,7 @@ export default function FrequencyBar({
                     text_color={selected_band == -1 ? colors.bands[radio_band] : undefined}
                     className={`text-lg p-2 w-1/2 text-center`}
                 >
-                    {radio_status === "connected" && (
+                    {radio_status === "connected" && get_band_from_freq(radio_freq) !== -1 && (
                         <option style={{ color: colors.bands[radio_band] }} value={-1}>
                             Radio
                         </option>
@@ -409,12 +415,12 @@ export default function FrequencyBar({
                 })}
             </svg>
 
-            <div className="h-[5%] w-full flex justify-center items-center">
+            <div className="h-[4%] w-full flex justify-center items-center bg-gray-100 rounded-full border border-gray-300">
                 {ranges.concat(features).map(legend => (
                     <p
                         style={{ color: legend.color }}
                         key={`legend_${legend.name}`}
-                        className="text-[14px] inline px-[0.4rem] bg-gray-100 rounded-full m-1 border border-gray-300 font-medium"
+                        className="text-[14px] inline px-[0.4rem] font-medium"
                     >
                         {legend.name.toUpperCase()}
                     </p>
@@ -506,7 +512,7 @@ function Ruler({ max_freq, min_freq, radio_freq, band, radio_status }) {
                 </g>
             ))}
 
-            {radio_status === "connected" && (
+            {radio_status === "connected" && radio_freq != 0 && radio_freq !== undefined && (
                 <svg
                     viewBox="0 0 50 90"
                     height="8%"

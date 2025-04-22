@@ -2,8 +2,9 @@ import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
 import About from "@/components/About.jsx";
 import { bands, modes } from "@/filters_data.js";
-import { useFilters } from "../hooks/useFilters";
-import { useColors } from "../hooks/useColors";
+import { useServerData } from "@/hooks/useServerData";
+import { useFilters } from "@/hooks/useFilters";
+import { useColors } from "@/hooks/useColors";
 
 function Hex(color) {
     return (
@@ -63,7 +64,8 @@ function FeedbackButton({ size }) {
     );
 }
 
-function LeftColumn({ spots_per_band_count, toggled_ui }) {
+function LeftColumn({ toggled_ui }) {
+    const { spots_per_band_count } = useServerData();
     const { filters, setFilters } = useFilters();
 
     const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";

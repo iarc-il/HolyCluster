@@ -6,6 +6,7 @@ import Radio from "@/components/Radio.jsx";
 import Night from "@/components/Night.jsx";
 import Bar from "@/components/Bar.jsx";
 import { useColors } from "@/hooks/useColors";
+import { useServerData } from "@/hooks/useServerData";
 
 import Maidenhead from "maidenhead";
 
@@ -18,10 +19,10 @@ function MapControls({
     default_radius,
     set_radius_in_km,
     settings,
-    propagation,
     auto_toggle_radius,
 }) {
     const { colors } = useColors();
+    const { propagation } = useServerData();
 
     function reset_map() {
         const locator = home_locator == "" ? "JJ00AA" : home_locator;
@@ -79,9 +80,9 @@ function MapControls({
                         value={Math.round(propagation.a_index)}
                         label="A"
                         min={0}
-                        max={20}
-                        low_mid={6}
-                        mid_high={10}
+                        max={100}
+                        low_mid={14}
+                        mid_high={80}
                     />
                     <Bar
                         value={Math.round(propagation.k_index)}
@@ -97,8 +98,8 @@ function MapControls({
                         min={0}
                         max={200}
                         reverse_colors={true}
-                        low_mid={70}
-                        mid_high={100}
+                        low_mid={83}
+                        mid_high={120}
                     />
                 </div>
             )}

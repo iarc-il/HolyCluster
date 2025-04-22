@@ -46,7 +46,7 @@ const empty_temp_settings = {
     propagation_displayed: true,
 };
 
-function Settings({ settings, set_settings, set_map_controls, set_radius_in_km, dev_mode }) {
+function Settings({ settings, set_settings, set_map_controls, set_radius_in_km }) {
     const [temp_settings, set_temp_settings] = useState(empty_temp_settings);
     const is_locator_valid = Maidenhead.valid(temp_settings.locator);
     const is_default_radius_valid =
