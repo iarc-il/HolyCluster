@@ -294,7 +294,9 @@ function MainContainer() {
         const value_a = spot_a[column];
         const value_b = spot_b[column];
         if (typeof value_a == "string" && typeof value_b == "string") {
-            let comparison = table_sort.ascending ? value_a.localeCompare(value_b) : value_b.localeCompare(value_a);
+            let comparison = table_sort.ascending
+                ? value_a.localeCompare(value_b)
+                : value_b.localeCompare(value_a);
             if (comparison == 0) {
                 comparison = spot_b.time - spot_a.time;
             }
