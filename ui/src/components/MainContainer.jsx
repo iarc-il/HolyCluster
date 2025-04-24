@@ -89,18 +89,15 @@ function MainContainer() {
         ascending: false,
     });
 
-
-
     const [dev_mode, set_dev_mode] = useLocalStorage("dev_mode", false);
-
 
     const max_radius = get_max_radius(map_controls.location.location, spots);
 
     const [radius_in_km, set_radius_in_km] = useState(settings.default_radius);
     const [auto_radius, set_auto_radius] = useLocalStorage("auto_radius", true);
     useEffect(() => {
-        if( max_radius >0 && auto_radius){
-            set_radius_in_km(Math.round((max_radius+500)/1000)*1000);
+        if (max_radius > 0 && auto_radius) {
+            set_radius_in_km(Math.round((max_radius + 500) / 1000) * 1000);
         }
     }, [max_radius, auto_radius, map_controls.location]);
 
