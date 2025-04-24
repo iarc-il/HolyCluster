@@ -175,7 +175,7 @@ function SvgMap({
           <foreignObject
             x={text_x + 160}
             y={text_y - 18}
-            width="40"
+            width="67"
             height="40"
           >
             <div xmlns="http://www.w3.org/1999/xhtml">
