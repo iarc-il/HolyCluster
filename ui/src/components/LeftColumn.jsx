@@ -65,7 +65,7 @@ function FeedbackButton({ size }) {
 }
 
 function LeftColumn({ toggled_ui }) {
-    const { spots_per_band_count } = useServerData();
+    const { spots_per_band_count, set_hovered_band } = useServerData();
     const { filters, setFilters } = useFilters();
 
     const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";
@@ -113,6 +113,8 @@ function LeftColumn({ toggled_ui }) {
                                         bands: { ..._filters.bands, [band]: !_filters.bands[band] },
                                     }))
                                 }
+                                on_mouse_enter={_ => set_hovered_band(band)}
+                                on_mouse_leave={_ => set_hovered_band(null)}
                                 hover_brightness="125"
                                 size="small"
                             />
