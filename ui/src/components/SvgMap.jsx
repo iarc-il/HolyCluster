@@ -13,6 +13,8 @@ import Spot from "@/components/Spot/index.jsx";
 import SpotPopup from "@/components/SpotPopup.jsx";
 import { km_to_miles } from "@/utils.js";
 import { useColors } from "@/hooks/useColors";
+import ToggleSVG from "./ToggleSVG";
+
 import { useServerData } from "@/hooks/useServerData";
 
 const dxcc_map = geojsonRewind(dxcc_map_raw, true);
@@ -37,6 +39,8 @@ function SvgMap({
     radius_in_km,
     set_radius_in_km,
     settings,
+    auto_radius,
+    set_auto_radius,
 }) {
     const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
 
@@ -72,7 +76,15 @@ function SvgMap({
         const zoom = d3
             .zoom()
             .scaleExtent([1, 20])
-            .on("zoom", event => set_radius_in_km((21 - Math.round(event.transform.k)) * 1000));
+            .on("zoom", event => {
+                set_radius_in_km((21 - Math.round(event.transform.k)) * 1000);
+                if (
+                    event.sourceEvent &&
+                    (event.sourceEvent.type === "wheel" || event.sourceEvent.type === "touchmove")
+                ) {
+                    set_auto_radius(false);
+                }
+            });
         svg.call(zoom);
 
         const k_from_radius_in_km = 21 - radius_in_km / 1000;
@@ -144,12 +156,23 @@ function SvgMap({
 
                 <g className="font-medium text-lg select-none">
                     <text x={text_x} y={text_y} fill={colors.theme.text}>
-                        Center: {map_controls.location.displayed_locator}
-                    </text>
-                    <text x={text_x} y={text_y + text_height} fill={colors.theme.text}>
                         Radius: {settings.is_miles ? km_to_miles(radius_in_km) : radius_in_km}{" "}
                         {settings.is_miles ? "Miles" : "KM"}
                     </text>
+
+                    <foreignObject x={text_x + 160} y={text_y - 18} width="67" height="40">
+                        <div xmlns="http://www.w3.org/1999/xhtml">
+                            <ToggleSVG
+                                auto_radius={auto_radius}
+                                set_auto_radius={set_auto_radius}
+                            />
+                        </div>
+                    </foreignObject>
+
+                    <text x={text_x} y={text_y + text_height} fill={colors.theme.text}>
+                        Center: {map_controls.location.displayed_locator}
+                    </text>
+
                     <text x={text_x} y={text_y + 2 * text_height} fill={colors.theme.text}>
                         Spots: {spots.length}
                     </text>
