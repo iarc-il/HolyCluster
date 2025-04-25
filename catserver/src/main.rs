@@ -2,29 +2,34 @@ use std::ops::ControlFlow;
 
 use anyhow::{Context, Result};
 use axum::{
-    Router,
-    body::{Body, Bytes},
+    body::Body,
     extract::{
-        Request, State, WebSocketUpgrade,
         ws::{Message, WebSocket},
+        Request, State, WebSocketUpgrade,
     },
     http::{Response, StatusCode},
     response::IntoResponse,
     routing::any,
+    Router,
 };
 use axum_macros::debug_handler;
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
 
-const HOLY_CLUSTER_URL: &str = "https://holycluster.iarc.org";
+mod utils;
+
+const HOLY_CLUSTER_DNS: &str = "holycluster.iarc.org";
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let client = Client::new();
 
-    let app = Router::new().route("/radio", any(ws_handler));
+    let app = Router::new()
+        .route("/radio", any(cat_control_handler))
+        .route("/submit_spot", any(submit_spot_handler));
 
     let app = if std::env::var("LOCAL_UI").is_ok() {
         let mut ui_dir = std::env::current_exe()?;
@@ -54,8 +59,8 @@ async fn main() -> Result<()> {
 #[debug_handler]
 async fn proxy(State(client): State<Client>, request: Request<Body>) -> Response<Body> {
     let uri_string = format!(
-        "{}{}",
-        HOLY_CLUSTER_URL,
+        "https://{}{}",
+        HOLY_CLUSTER_DNS,
         request
             .uri()
             .path_and_query()
@@ -84,19 +89,61 @@ struct StatusMessage {
     current_rig: u8,
 }
 
-async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(handle_socket)
+async fn submit_spot_handler(websocket: WebSocketUpgrade) -> impl IntoResponse {
+    websocket.on_upgrade(handle_submit_spot_socket)
+}
+async fn handle_submit_spot_socket(client_socket: WebSocket) {
+    let (mut client_sender, mut client_receiver) = client_socket.split();
+
+    let (stream, _response) = connect_async(format!("ws://{}{}", HOLY_CLUSTER_DNS, "/submit_spot"))
+        .await
+        .unwrap();
+    let (mut server_sender, mut server_receiver) = stream.split();
+
+    let mut send_task = tokio::spawn(async move {
+        while let Some(Ok(message)) = server_receiver.next().await {
+            client_sender
+                .send(utils::tungstenite_to_axum_message(message))
+                .await
+                .unwrap();
+        }
+        let _ = client_sender
+            .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                code: axum::extract::ws::close_code::NORMAL,
+                reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
+            })))
+            .await;
+    });
+
+    let mut recv_task = tokio::spawn(async move {
+        while let Some(Ok(message)) = client_receiver.next().await {
+            server_sender.send(utils::axum_to_tungstenite_message(message)).await.unwrap();
+        }
+        let _ = server_sender
+            .send(tokio_tungstenite::tungstenite::Message::Close(Some(
+                tokio_tungstenite::tungstenite::protocol::CloseFrame {
+                    code: tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode::Normal,
+                    reason: tokio_tungstenite::tungstenite::Utf8Bytes::from_static("Goodbye"),
+                },
+            )))
+            .await;
+    });
+
+    tokio::select! {
+        _ = (&mut send_task) => {
+            recv_task.abort();
+        },
+        _ = (&mut recv_task) => {
+            send_task.abort();
+        }
+    }
 }
 
-async fn handle_socket(mut socket: WebSocket) {
-    if socket
-        .send(Message::Ping(Bytes::from_static(&[1, 2, 3])))
-        .await
-        .is_err()
-    {
-        return;
-    }
+async fn cat_control_handler(websocket: WebSocketUpgrade) -> impl IntoResponse {
+    websocket.on_upgrade(handle_cat_control_socket)
+}
 
+async fn handle_cat_control_socket(socket: WebSocket) {
     let (mut sender, mut receiver) = socket.split();
 
     let message = StatusMessage {
@@ -107,7 +154,6 @@ async fn handle_socket(mut socket: WebSocket) {
     };
 
     let mut send_task = tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         sender
             .send(Message::Text(
                 serde_json::to_string(&message).unwrap().into(),
