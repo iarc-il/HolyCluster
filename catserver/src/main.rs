@@ -92,10 +92,11 @@ struct StatusMessage {
 async fn submit_spot_handler(websocket: WebSocketUpgrade) -> impl IntoResponse {
     websocket.on_upgrade(handle_submit_spot_socket)
 }
+
 async fn handle_submit_spot_socket(client_socket: WebSocket) {
     let (mut client_sender, mut client_receiver) = client_socket.split();
 
-    let (stream, _response) = connect_async(format!("ws://{}{}", HOLY_CLUSTER_DNS, "/submit_spot"))
+    let (stream, _response) = connect_async(format!("wss://{}{}", HOLY_CLUSTER_DNS, "/submit_spot"))
         .await
         .unwrap();
     let (mut server_sender, mut server_receiver) = stream.split();
