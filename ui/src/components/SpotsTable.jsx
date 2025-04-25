@@ -138,30 +138,29 @@ function Spot(
             </td>
 
             <td className={cell_classes.flag}>
-                <div className="relative">
-                    <div
-                        ref={popup_anchor}
-                        onMouseEnter={_ => set_is_flag_hovered(true)}
-                        onMouseLeave={_ => set_is_flag_hovered(false)}
-                    >
-                        {dx_column}{" "}
-                    </div>
-                    {is_flag_hovered && settings.show_flags ? (
-                        <Popup anchor_ref={popup_anchor}>
-                            <div
-                                className="py-0 px-2 h-[24px] whitespace-nowrap rounded shadow-lg"
-                                style={{
-                                    color: colors.theme.text,
-                                    background: colors.theme.background,
-                                }}
-                            >
-                                {spot.dx_country}
-                            </div>
-                        </Popup>
-                    ) : (
-                        ""
-                    )}
+                <div
+                    className="relative"
+                    ref={popup_anchor}
+                    onMouseEnter={_ => set_is_flag_hovered(true)}
+                    onMouseLeave={_ => set_is_flag_hovered(false)}
+                >
+                    {dx_column}{" "}
                 </div>
+                {is_flag_hovered && settings.show_flags ? (
+                    <Popup anchor_ref={popup_anchor}>
+                        <div
+                            className="py-0 px-2 h-[24px] whitespace-nowrap rounded shadow-lg"
+                            style={{
+                                color: colors.theme.text,
+                                background: colors.theme.background,
+                            }}
+                        >
+                            {spot.dx_country}
+                        </div>
+                    </Popup>
+                ) : (
+                    ""
+                )}
             </td>
             <td className={cell_classes.dx_callsign + " font-semibold"}>
                 <Callsign callsign={spot.dx_callsign}></Callsign>
