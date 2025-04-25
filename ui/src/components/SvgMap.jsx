@@ -159,10 +159,10 @@ function SvgMap({
                 <g className="font-medium text-lg select-none">
                     <text x={text_x} y={text_y} fill={colors.theme.text}>
                         Radius: {settings.is_miles ? km_to_miles(radius_in_km) : radius_in_km}{" "}
-                        {settings.is_miles ? "Miles" : "KM"}
+                        {settings.is_miles ? "Miles" : "KM"} | Auto
                     </text>
 
-                    <foreignObject x={text_x + 160} y={text_y - 18} width="67" height="40">
+                    <foreignObject x={text_x + 215} y={text_y - 18} width="67" height="40">
                         <div xmlns="http://www.w3.org/1999/xhtml">
                             <ToggleSVG
                                 auto_radius={auto_radius}
