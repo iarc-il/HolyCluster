@@ -8,10 +8,11 @@ pub enum Mode {
     CW,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Rig {
     A,
     B,
+    Current,
 }
 
 pub struct Status {
@@ -62,14 +63,20 @@ impl Radio for DummyRadio {
         self.current_rig = rig;
     }
 
-    fn set_frequency(&mut self, rig: Rig, freq: u32) {
+    fn set_frequency(&mut self, mut rig: Rig, freq: u32) {
         println!("Setting rig: {rig:?} to freq: {freq}");
-        match self.current_rig {
+        if rig == Rig::Current {
+            rig = self.current_rig;
+        }
+        match rig {
             Rig::A => {
                 self.freq_a = freq;
             }
             Rig::B => {
                 self.freq_b = freq;
+            }
+            _ => {
+                panic!();
             }
         }
     }
@@ -79,6 +86,9 @@ impl Radio for DummyRadio {
             freq: match self.current_rig {
                 Rig::A => self.freq_a,
                 Rig::B => self.freq_b,
+                _ => {
+                    panic!();
+                }
             },
             status: "connected".into(),
             status_str: "".into(),

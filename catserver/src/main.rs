@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use axum::{
     Router,
     body::Body,
@@ -13,7 +13,7 @@ use axum::{
 use axum_macros::debug_handler;
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
-use rig::{DummyRadio, Radio};
+use rig::{DummyRadio, Mode, Radio, Rig};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
@@ -192,11 +192,19 @@ struct StatusMessage {
     status: String,
 }
 
+#[derive(Serialize)]
+struct StateMessage {
+    status: String,
+    status_str: String,
+    freq: u32,
+    current_rig: u8,
+}
+
 #[derive(Deserialize)]
 struct SetModeAndFreq {
     mode: String,
-    freq: u64,
-    band: String,
+    freq: u32,
+    band: u8,
 }
 
 #[derive(Deserialize)]
@@ -204,15 +212,45 @@ struct SetRig {
     rig: u8,
 }
 
-#[derive(Serialize)]
-struct StateMessage {
-    status: String,
-    status_str: String,
-    freq: u64,
-    current_rig: u8,
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ClientMessage {
+    SetRig(SetRig),
+    SetModeAndFreq(SetModeAndFreq),
 }
 
 fn process_message<R: Radio>(message: String, radio: &mut R) -> Result<Message> {
-    println!("Message: {message}");
+    let message: ClientMessage = serde_json::from_str(&message)?;
+    match message {
+        ClientMessage::SetRig(set_rig) => {
+            let rig = match set_rig.rig {
+                1 => Rig::A,
+                2 => Rig::B,
+                rig => {
+                    bail!("Unknown rig {}", rig);
+                }
+            };
+            radio.set_rig(rig);
+        }
+        ClientMessage::SetModeAndFreq(set_mode_and_freq) => {
+            let mode = match set_mode_and_freq.mode.as_str() {
+                "SSB" => match set_mode_and_freq.band {
+                    160 | 80 | 40 => Mode::LSB,
+                    _ => Mode::USB,
+                },
+                "USB" => Mode::USB,
+                "LSB" => Mode::LSB,
+                "FT8" => Mode::FT8,
+                "FT4" => Mode::FT4,
+                "DIGI" => Mode::DIGI,
+                "CW" => Mode::CW,
+                mode => {
+                    bail!("Unknown mode: {mode}");
+                }
+            };
+            radio.set_mode(mode);
+            radio.set_frequency(Rig::Current, set_mode_and_freq.freq);
+        }
+    }
     Ok(Message::text(""))
 }
