@@ -13,10 +13,12 @@ use axum::{
 use axum_macros::debug_handler;
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
+use rig::{DummyRadio, Radio};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
 
+mod rig;
 mod utils;
 
 const HOLY_CLUSTER_DNS: &str = "holycluster.iarc.org";
@@ -139,14 +141,6 @@ async fn handle_submit_spot_socket(client_socket: WebSocket) {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct StatusMessage {
-    status: String,
-    status_str: String,
-    freq: u64,
-    current_rig: u8,
-}
-
 async fn cat_control_handler(websocket: WebSocketUpgrade) -> impl IntoResponse {
     websocket
         .write_buffer_size(0)
@@ -158,10 +152,9 @@ async fn cat_control_handler(websocket: WebSocketUpgrade) -> impl IntoResponse {
 async fn handle_cat_control_socket(mut socket: WebSocket) {
     let message = StatusMessage {
         status: "connected".to_string(),
-        status_str: "Status".to_string(),
-        freq: 14200000,
-        current_rig: 1,
     };
+
+    let mut radio = DummyRadio::new();
 
     tokio::spawn(async move {
         socket
@@ -173,7 +166,8 @@ async fn handle_cat_control_socket(mut socket: WebSocket) {
         while let Some(Ok(message)) = socket.next().await {
             match message {
                 Message::Text(text) => {
-                    println!("{text}");
+                    let message = process_message(text.to_string(), &mut radio).unwrap();
+                    socket.send(message).await.unwrap();
                 }
                 Message::Binary(_data) => {}
                 Message::Close(_) => {
@@ -191,4 +185,34 @@ async fn handle_cat_control_socket(mut socket: WebSocket) {
     })
     .await
     .unwrap();
+}
+
+#[derive(Serialize)]
+struct StatusMessage {
+    status: String,
+}
+
+#[derive(Deserialize)]
+struct SetModeAndFreq {
+    mode: String,
+    freq: u64,
+    band: String,
+}
+
+#[derive(Deserialize)]
+struct SetRig {
+    rig: u8,
+}
+
+#[derive(Serialize)]
+struct StateMessage {
+    status: String,
+    status_str: String,
+    freq: u64,
+    current_rig: u8,
+}
+
+fn process_message<R: Radio>(message: String, radio: &mut R) -> Result<Message> {
+    println!("Message: {message}");
+    Ok(Message::text(""))
 }
