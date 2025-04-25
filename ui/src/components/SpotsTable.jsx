@@ -137,7 +137,7 @@ function Spot(
                 )}
             </td>
 
-            <td className={cell_classes.flag} title={spot.dx_country}>
+            <td className={cell_classes.flag}>
                 <div className="relative">
                     <div
                         ref={popup_anchor}
