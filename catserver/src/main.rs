@@ -1,5 +1,6 @@
 use std::ops::ControlFlow;
 
+use anyhow::{Context, Result};
 use axum::{
     Router,
     body::{Body, Bytes},
@@ -15,20 +16,39 @@ use axum_macros::debug_handler;
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tower_http::services::ServeDir;
 
 const HOLY_CLUSTER_URL: &str = "https://holycluster.iarc.org";
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     let client = Client::new();
 
-    let app = Router::new()
-        .route("/radio", any(ws_handler))
-        .fallback(any(proxy))
-        .with_state(client);
+    let app = Router::new().route("/radio", any(ws_handler));
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let app = if std::env::var("LOCAL_UI").is_ok() {
+        let mut ui_dir = std::env::current_exe()?;
+        let ui_dir = loop {
+            let result = ui_dir.join("ui/dist");
+            if result.exists() {
+                break result;
+            } else {
+                ui_dir = ui_dir
+                    .parent()
+                    .with_context(|| format!("Cannot get parent of {}", ui_dir.display()))?
+                    .into();
+            }
+        };
+        app.route("/spots", any(proxy))
+            .fallback_service(ServeDir::new(ui_dir))
+    } else {
+        app.fallback(any(proxy))
+    };
+    let app = app.with_state(client);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    axum::serve(listener, app).await?;
+    Ok(())
 }
 
 #[debug_handler]
