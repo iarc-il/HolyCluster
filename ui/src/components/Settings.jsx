@@ -218,9 +218,24 @@ function Settings({ settings, set_settings, set_map_controls, set_radius_in_km }
                             />
                         </td>
                     </tr>
+                    <tr>
+                        <td>Show flags:&nbsp;&nbsp;</td>
+                        <td>
+                            <Toggle
+                                value={temp_settings.show_flags}
+                                on_click={() => {
+                                    set_temp_settings({
+                                        ...temp_settings,
+                                        show_flags: !temp_settings.show_flags,
+                                    });
+                                }}
+                            />
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </Modal>
     );
 }
+
 export default Settings;

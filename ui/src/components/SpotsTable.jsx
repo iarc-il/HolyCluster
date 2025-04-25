@@ -33,6 +33,7 @@ function Spot(
         set_pinned_spot,
         set_hovered_spot,
         set_cat_to_spot,
+        settings,
     },
     ref,
 ) {
@@ -59,7 +60,17 @@ function Spot(
         background_color = colors.table.even_row;
     }
 
-    const flag = get_flag(spot.dx_country);
+    let dx_column;
+    if (settings.show_flags) {
+        const flag = get_flag(spot.dx_country);
+        dx_column = flag ? (
+            <img className="m-auto" width="16" src={`data:image/webp;base64, ${flag}`} />
+        ) : (
+            ""
+        );
+    } else {
+        dx_column = <small className="leading-none">{spot.dx_country}</small>;
+    }
 
     return (
         <tr
@@ -91,11 +102,7 @@ function Spot(
             </td>
 
             <td className={cell_classes.flag} title={spot.dx_country}>
-                {flag ? (
-                    <img className="m-auto" width="16" src={`data:image/webp;base64, ${flag}`} />
-                ) : (
-                    ""
-                )}
+                   {dx_column}{" "}
             </td>
             <td className={cell_classes.dx_callsign + " font-semibold"}>
                 <Callsign callsign={spot.dx_callsign}></Callsign>
@@ -160,7 +167,7 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort }) 
     );
 }
 
-function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
+function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
     const row_refs = useRef({});
     const { colors } = useColors();
     const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
@@ -254,6 +261,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                 set_pinned_spot={set_pinned_spot}
                                 set_hovered_spot={set_hovered_spot}
                                 set_cat_to_spot={set_cat_to_spot}
+                                settings={settings}
                             ></Spot>
                         ))}
                     </tbody>

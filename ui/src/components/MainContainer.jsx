@@ -82,6 +82,7 @@ function MainContainer() {
         callsign: "",
         is_miles: false,
         propagation_displayed: true,
+        show_flags: true,
     });
 
     const [table_sort, set_table_sort] = use_object_local_storage("table_sort", {
@@ -216,6 +217,7 @@ function MainContainer() {
     const table = (
         <SpotsTable
             set_cat_to_spot={set_cat_to_spot}
+            settings={settings}
             table_sort={table_sort}
             set_table_sort={set_table_sort}
         />
