@@ -1,16 +1,14 @@
-use std::ops::ControlFlow;
-
 use anyhow::{Context, Result};
 use axum::{
+    Router,
     body::Body,
     extract::{
-        ws::{Message, WebSocket},
         Request, State, WebSocketUpgrade,
+        ws::{CloseFrame, Message, Utf8Bytes, WebSocket},
     },
     http::{Response, StatusCode},
     response::IntoResponse,
     routing::any,
-    Router,
 };
 use axum_macros::debug_handler;
 use futures_util::{SinkExt, StreamExt};
@@ -81,24 +79,21 @@ async fn proxy(State(client): State<Client>, request: Request<Body>) -> Response
         .unwrap()
 }
 
-#[derive(Serialize, Deserialize)]
-struct StatusMessage {
-    status: String,
-    status_str: String,
-    freq: u64,
-    current_rig: u8,
-}
-
 async fn submit_spot_handler(websocket: WebSocketUpgrade) -> impl IntoResponse {
-    websocket.on_upgrade(handle_submit_spot_socket)
+    websocket
+        .write_buffer_size(0)
+        .read_buffer_size(0)
+        .accept_unmasked_frames(true)
+        .on_upgrade(handle_submit_spot_socket)
 }
 
 async fn handle_submit_spot_socket(client_socket: WebSocket) {
     let (mut client_sender, mut client_receiver) = client_socket.split();
 
-    let (stream, _response) = connect_async(format!("wss://{}{}", HOLY_CLUSTER_DNS, "/submit_spot"))
-        .await
-        .unwrap();
+    let (stream, _response) =
+        connect_async(format!("wss://{}{}", HOLY_CLUSTER_DNS, "/submit_spot"))
+            .await
+            .unwrap();
     let (mut server_sender, mut server_receiver) = stream.split();
 
     let mut send_task = tokio::spawn(async move {
@@ -118,12 +113,16 @@ async fn handle_submit_spot_socket(client_socket: WebSocket) {
 
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(message)) = client_receiver.next().await {
-            server_sender.send(utils::axum_to_tungstenite_message(message)).await.unwrap();
+            server_sender
+                .send(utils::axum_to_tungstenite_message(message))
+                .await
+                .unwrap();
         }
         let _ = server_sender
             .send(tokio_tungstenite::tungstenite::Message::Close(Some(
                 tokio_tungstenite::tungstenite::protocol::CloseFrame {
-                    code: tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode::Normal,
+                    code:
+                        tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode::Normal,
                     reason: tokio_tungstenite::tungstenite::Utf8Bytes::from_static("Goodbye"),
                 },
             )))
@@ -140,13 +139,23 @@ async fn handle_submit_spot_socket(client_socket: WebSocket) {
     }
 }
 
-async fn cat_control_handler(websocket: WebSocketUpgrade) -> impl IntoResponse {
-    websocket.on_upgrade(handle_cat_control_socket)
+#[derive(Serialize, Deserialize)]
+struct StatusMessage {
+    status: String,
+    status_str: String,
+    freq: u64,
+    current_rig: u8,
 }
 
-async fn handle_cat_control_socket(socket: WebSocket) {
-    let (mut sender, mut receiver) = socket.split();
+async fn cat_control_handler(websocket: WebSocketUpgrade) -> impl IntoResponse {
+    websocket
+        .write_buffer_size(0)
+        .read_buffer_size(0)
+        .accept_unmasked_frames(true)
+        .on_upgrade(handle_cat_control_socket)
+}
 
+async fn handle_cat_control_socket(mut socket: WebSocket) {
     let message = StatusMessage {
         status: "connected".to_string(),
         status_str: "Status".to_string(),
@@ -154,49 +163,32 @@ async fn handle_cat_control_socket(socket: WebSocket) {
         current_rig: 1,
     };
 
-    let mut send_task = tokio::spawn(async move {
-        sender
+    tokio::spawn(async move {
+        socket
             .send(Message::Text(
                 serde_json::to_string(&message).unwrap().into(),
             ))
             .await
             .unwrap();
-
-        // let _ = sender
-        //     .send(Message::Close(Some(CloseFrame {
-        //         code: axum::extract::ws::close_code::NORMAL,
-        //         reason: Utf8Bytes::from_static("Goodbye"),
-        //     })))
-        //     .await;
-    });
-
-    let mut recv_task = tokio::spawn(async move {
-        while let Some(Ok(msg)) = receiver.next().await {
-            if process_message(msg).is_break() {
-                break;
+        while let Some(Ok(message)) = socket.next().await {
+            match message {
+                Message::Text(text) => {
+                    println!("{text}");
+                }
+                Message::Binary(_data) => {}
+                Message::Close(_) => {
+                    break;
+                }
+                _ => {}
             }
         }
-    });
-
-    tokio::select! {
-        _ = (&mut send_task) => {
-            recv_task.abort();
-        },
-        _ = (&mut recv_task) => {
-            send_task.abort();
-        }
-    }
-}
-
-fn process_message(msg: Message) -> ControlFlow<(), ()> {
-    match msg {
-        Message::Text(_text) => {}
-        Message::Binary(_data) => {}
-        Message::Close(_) => {
-            return ControlFlow::Break(());
-        }
-
-        _ => {}
-    }
-    ControlFlow::Continue(())
+        let _ = socket
+            .send(Message::Close(Some(CloseFrame {
+                code: axum::extract::ws::close_code::NORMAL,
+                reason: Utf8Bytes::from_static("Goodbye"),
+            })))
+            .await;
+    })
+    .await
+    .unwrap();
 }
