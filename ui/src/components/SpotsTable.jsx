@@ -1,5 +1,6 @@
 import X from "@/components/X.jsx";
-import { useEffect, forwardRef, useRef } from "react";
+import { useEffect, useState, forwardRef, useRef } from "react";
+import { createPortal } from "react-dom";
 
 import { get_flag } from "@/flags.js";
 import { useColors } from "@/hooks/useColors";
@@ -24,6 +25,37 @@ function Callsign({ callsign }) {
     );
 }
 
+function Popup({ anchor_ref, children }) {
+    const [position, setPosition] = useState({ top: 0, left: 0 });
+    const popupRef = useRef(null);
+
+    useEffect(() => {
+        const anchor = anchor_ref.current;
+        if (!anchor) {
+            return;
+        }
+
+        const rect = anchor.getBoundingClientRect();
+        const popup_width = popupRef.current?.offsetWidth || 0;
+
+        setPosition({
+            top: rect.top + window.scrollY - 24,
+            left: rect.left + rect.width / 2 + window.scrollX - popup_width / 2,
+        });
+    }, [anchor_ref]);
+
+    return createPortal(
+        <div
+            ref={popupRef}
+            className="absolute z-50 p-0"
+            style={{ top: position.top, left: position.left }}
+        >
+            {children}
+        </div>,
+        document.body,
+    );
+}
+
 function Spot(
     {
         spot,
@@ -33,6 +65,7 @@ function Spot(
         set_pinned_spot,
         set_hovered_spot,
         set_cat_to_spot,
+        settings,
     },
     ref,
 ) {
@@ -59,7 +92,21 @@ function Spot(
         background_color = colors.table.even_row;
     }
 
-    const flag = get_flag(spot.dx_country);
+    const [is_flag_hovered, set_is_flag_hovered] = useState(false);
+
+    let dx_column;
+    if (settings.show_flags) {
+        const flag = get_flag(spot.dx_country);
+        dx_column = flag ? (
+            <img className="m-auto" width="16" src={`data:image/webp;base64, ${flag}`} />
+        ) : (
+            ""
+        );
+    } else {
+        dx_column = <small className="leading-none">{spot.dx_country}</small>;
+    }
+
+    let popup_anchor = useRef(null);
 
     return (
         <tr
@@ -90,12 +137,31 @@ function Spot(
                 )}
             </td>
 
-            <td className={cell_classes.flag} title={spot.dx_country}>
-                {flag ? (
-                    <img className="m-auto" width="16" src={`data:image/webp;base64, ${flag}`} />
-                ) : (
-                    ""
-                )}
+            <td className={cell_classes.flag}>
+                <div className="relative">
+                    <div
+                        ref={popup_anchor}
+                        onMouseEnter={_ => set_is_flag_hovered(true)}
+                        onMouseLeave={_ => set_is_flag_hovered(false)}
+                    >
+                        {dx_column}{" "}
+                    </div>
+                    {is_flag_hovered && settings.show_flags ? (
+                        <Popup anchor_ref={popup_anchor}>
+                            <div
+                                className="py-0 px-2 h-[24px] whitespace-nowrap rounded shadow-lg"
+                                style={{
+                                    color: colors.theme.text,
+                                    background: colors.theme.background,
+                                }}
+                            >
+                                {spot.dx_country}
+                            </div>
+                        </Popup>
+                    ) : (
+                        ""
+                    )}
+                </div>
             </td>
             <td className={cell_classes.dx_callsign + " font-semibold"}>
                 <Callsign callsign={spot.dx_callsign}></Callsign>
@@ -160,7 +226,7 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort }) 
     );
 }
 
-function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
+function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
     const row_refs = useRef({});
     const { colors } = useColors();
     const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
@@ -254,6 +320,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                 set_pinned_spot={set_pinned_spot}
                                 set_hovered_spot={set_hovered_spot}
                                 set_cat_to_spot={set_cat_to_spot}
+                                settings={settings}
                             ></Spot>
                         ))}
                     </tbody>

@@ -5,6 +5,8 @@ function FilterButton({
     text,
     is_active,
     on_click,
+    on_mouse_enter,
+    on_mouse_leave,
     color,
     text_color = "#000000",
     hover_brightness = "110",
@@ -44,6 +46,8 @@ function FilterButton({
         <div
             className={box_style.join(" ")}
             onClick={on_click}
+            onMouseEnter={on_mouse_enter}
+            onMouseLeave={on_mouse_leave}
             style={{
                 backgroundColor: is_active ? color : colors.buttons.disabled_background,
                 color: is_active ? text_color : colors.buttons.disabled,
