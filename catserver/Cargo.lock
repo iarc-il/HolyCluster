@@ -165,6 +165,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tower-http",
+ "winsafe",
 ]
 
 [[package]]
@@ -1861,6 +1862,11 @@ name = "windows_x86_64_msvc"
 version = "0.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "271414315aff87387382ec3d271b52d7ae78726f5d44ac98b4f4030c91880486"
+
+[[package]]
+name = "winsafe"
+version = "0.0.23"
+source = "git+https://github.com/rodrigocfd/winsafe.git#a3d1426619a120708c16c70aeb3e2dc9dcfd20bd"
 
 [[package]]
 name = "wit-bindgen-rt"
