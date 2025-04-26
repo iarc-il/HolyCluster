@@ -1,4 +1,7 @@
-#[derive(Debug)]
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
+
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Debug, Clone)]
 pub enum Mode {
     USB,
     LSB,
@@ -22,14 +25,30 @@ pub struct Status {
     current_rig: Rig,
 }
 
-pub trait Radio {
-    fn init();
+pub trait Radio: Send + Sync {
+    fn init(&mut self);
     fn set_mode(&mut self, mode: Mode);
     fn set_rig(&mut self, rig: Rig);
     fn set_frequency(&mut self, rig: Rig, freq: u32);
     fn get_status(&mut self) -> Status;
 }
 
+#[derive(Clone)]
+pub struct AnyRadio(Arc<RwLock<Box<dyn Radio + 'static>>>);
+unsafe impl Send for AnyRadio {}
+unsafe impl Sync for AnyRadio {}
+
+impl AnyRadio {
+    pub fn new<R: Radio + 'static>(radio: R) -> Self {
+        AnyRadio(Arc::new(RwLock::new(Box::new(radio))))
+    }
+
+    pub fn write(&self) -> RwLockWriteGuard<'_, Box<dyn Radio>> {
+        self.0.write().unwrap()
+    }
+}
+
+#[derive(Clone)]
 pub struct DummyRadio {
     mode: Mode,
     freq_a: u32,
@@ -49,7 +68,7 @@ impl DummyRadio {
 }
 
 impl Radio for DummyRadio {
-    fn init() {
+    fn init(&mut self) {
         println!("Initialize radio");
     }
 

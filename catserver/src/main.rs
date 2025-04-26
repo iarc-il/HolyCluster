@@ -13,7 +13,7 @@ use axum::{
 use axum_macros::debug_handler;
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
-use rig::{DummyRadio, Mode, Radio, Rig};
+use rig::{AnyRadio, DummyRadio, Mode, Rig};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
@@ -27,8 +27,17 @@ const HOLY_CLUSTER_DNS: &str = "holycluster.iarc.org";
 async fn main() -> Result<()> {
     let client = Client::new();
 
+    let radio = if std::env::var("DUMMY").is_ok() {
+        AnyRadio::new(DummyRadio::new())
+    } else {
+        panic!();
+    };
+
+    radio.write().init();
+
     let app = Router::new()
         .route("/radio", any(cat_control_handler))
+        .with_state(radio)
         .route("/submit_spot", any(submit_spot_handler));
 
     let app = if std::env::var("LOCAL_UI").is_ok() {
@@ -141,20 +150,21 @@ async fn handle_submit_spot_socket(client_socket: WebSocket) {
     }
 }
 
-async fn cat_control_handler(websocket: WebSocketUpgrade) -> impl IntoResponse {
+async fn cat_control_handler(
+    websocket: WebSocketUpgrade,
+    State(radio): State<AnyRadio>,
+) -> impl IntoResponse {
     websocket
         .write_buffer_size(0)
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
-        .on_upgrade(handle_cat_control_socket)
+        .on_upgrade(|websocket: WebSocket| handle_cat_control_socket(websocket, radio))
 }
 
-async fn handle_cat_control_socket(mut socket: WebSocket) {
+async fn handle_cat_control_socket(mut socket: WebSocket, radio: AnyRadio) {
     let message = StatusMessage {
         status: "connected".to_string(),
     };
-
-    let mut radio = DummyRadio::new();
 
     tokio::spawn(async move {
         socket
@@ -166,7 +176,7 @@ async fn handle_cat_control_socket(mut socket: WebSocket) {
         while let Some(Ok(message)) = socket.next().await {
             match message {
                 Message::Text(text) => {
-                    let message = process_message(text.to_string(), &mut radio).unwrap();
+                    let message = process_message(text.to_string(), radio.clone()).unwrap();
                     socket.send(message).await.unwrap();
                 }
                 Message::Binary(_data) => {}
@@ -219,7 +229,7 @@ enum ClientMessage {
     SetModeAndFreq(SetModeAndFreq),
 }
 
-fn process_message<R: Radio>(message: String, radio: &mut R) -> Result<Message> {
+fn process_message(message: String, radio: AnyRadio) -> Result<Message> {
     let message: ClientMessage = serde_json::from_str(&message)?;
     match message {
         ClientMessage::SetRig(set_rig) => {
@@ -230,7 +240,7 @@ fn process_message<R: Radio>(message: String, radio: &mut R) -> Result<Message> 
                     bail!("Unknown rig {}", rig);
                 }
             };
-            radio.set_rig(rig);
+            radio.write().set_rig(rig);
         }
         ClientMessage::SetModeAndFreq(set_mode_and_freq) => {
             let mode = match set_mode_and_freq.mode.as_str() {
@@ -248,8 +258,10 @@ fn process_message<R: Radio>(message: String, radio: &mut R) -> Result<Message> 
                     bail!("Unknown mode: {mode}");
                 }
             };
-            radio.set_mode(mode);
-            radio.set_frequency(Rig::Current, set_mode_and_freq.freq);
+            radio.write().set_mode(mode);
+            radio
+                .write()
+                .set_frequency(Rig::Current, set_mode_and_freq.freq);
         }
     }
     Ok(Message::text(""))
