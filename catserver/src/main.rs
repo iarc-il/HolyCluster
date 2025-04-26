@@ -13,27 +13,46 @@ use axum::{
 use axum_macros::debug_handler;
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
-use rig::{AnyRadio, DummyRadio, Mode, Rig};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
 
+mod dummy;
+mod omnirig;
 mod rig;
 mod utils;
 
+use dummy::DummyRadio;
+use rig::{AnyRadio, Mode, Rig};
+
 const HOLY_CLUSTER_DNS: &str = "holycluster.iarc.org";
+
+#[cfg(feature = "omnirig")]
+fn get_radio() -> AnyRadio {
+    use omnirig::OmnirigRadio;
+
+    if std::env::var("DUMMY").is_ok() {
+        AnyRadio::new(DummyRadio::new())
+    } else {
+        println!("Using omnirig");
+        AnyRadio::new(OmnirigRadio::new())
+    }
+}
+
+#[cfg(not(feature = "omnirig"))]
+fn get_radio() -> AnyRadio {
+    if std::env::var("DUMMY").is_ok() {
+        println!("DUMMY env variable doesn't have any affect in linux!");
+    }
+    AnyRadio::new(DummyRadio::new())
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let client = Client::new();
 
-    let radio = if std::env::var("DUMMY").is_ok() {
-        AnyRadio::new(DummyRadio::new())
-    } else {
-        panic!();
-    };
-
+    let radio = get_radio();
     radio.write().init();
 
     let app = Router::new()

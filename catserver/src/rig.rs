@@ -32,10 +32,10 @@ impl Serialize for Rig {
 
 #[derive(Debug, Serialize)]
 pub struct Status {
-    freq: u32,
-    status: String,
-    status_str: String,
-    current_rig: Rig,
+    pub freq: u32,
+    pub status: String,
+    pub status_str: String,
+    pub current_rig: Rig,
 }
 
 pub trait Radio: Send + Sync {
