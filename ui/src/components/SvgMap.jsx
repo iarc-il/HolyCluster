@@ -42,8 +42,15 @@ function SvgMap({
     auto_radius,
     set_auto_radius,
 }) {
-    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band, freq_spots } =
-        useServerData();
+    const {
+        spots,
+        hovered_spot,
+        set_hovered_spot,
+        pinned_spot,
+        set_pinned_spot,
+        hovered_band,
+        freq_spots,
+    } = useServerData();
 
     const svg_ref = useRef(null);
     // const [dimensions, set_dimensions] = useState({ width: 700, height: 700 });
