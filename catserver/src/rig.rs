@@ -1,5 +1,7 @@
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
+use serde::Serialize;
+
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone)]
 pub enum Mode {
@@ -12,12 +14,23 @@ pub enum Mode {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[repr(u8)]
 pub enum Rig {
-    A,
-    B,
-    Current,
+    A = 1,
+    B = 2,
+    Current = 0,
 }
 
+impl Serialize for Rig {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_u8(*self as u8)
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub struct Status {
     freq: u32,
     status: String,

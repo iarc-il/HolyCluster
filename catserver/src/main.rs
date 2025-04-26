@@ -15,6 +15,7 @@ use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
 use rig::{AnyRadio, DummyRadio, Mode, Rig};
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
 use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
 
@@ -161,23 +162,62 @@ async fn cat_control_handler(
         .on_upgrade(|websocket: WebSocket| handle_cat_control_socket(websocket, radio))
 }
 
-async fn handle_cat_control_socket(mut socket: WebSocket, radio: AnyRadio) {
-    let message = StatusMessage {
-        status: "connected".to_string(),
-    };
+async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) {
+    let (mut sender_inner, mut receiver) = socket.split();
 
-    tokio::spawn(async move {
-        socket
+    let (sender, mut sender_recv) = mpsc::unbounded_channel::<Message>();
+
+    let mut send_task = tokio::spawn(async move {
+        while let Some(message) = sender_recv.recv().await {
+            if sender_inner.send(message).await.is_err() {
+                break;
+            }
+        }
+
+        let _ = sender_inner
+            .send(Message::Close(Some(CloseFrame {
+                code: axum::extract::ws::close_code::NORMAL,
+                reason: Utf8Bytes::from_static("Goodbye"),
+            })))
+            .await;
+    });
+
+    let poll_radio = radio.clone();
+    let poll_sender = sender.clone();
+    let mut poll_task = tokio::spawn(async move {
+        let message = StatusMessage {
+            status: "connected".to_string(),
+        };
+        let radio = poll_radio.clone();
+        let sender = poll_sender;
+
+        sender
             .send(Message::Text(
                 serde_json::to_string(&message).unwrap().into(),
             ))
-            .await
             .unwrap();
-        while let Some(Ok(message)) = socket.next().await {
+
+        loop {
+            let data = radio.write().get_status();
+            let message = Message::Text(serde_json::to_string(&data).unwrap().into());
+            if sender.send(message).is_err() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+    });
+
+    let command_radio = radio.clone();
+    let command_sender = sender.clone();
+    let mut command_task = tokio::spawn(async move {
+        let radio = command_radio.clone();
+        let sender = command_sender;
+
+        while let Some(Ok(message)) = receiver.next().await {
             match message {
                 Message::Text(text) => {
                     let message = process_message(text.to_string(), radio.clone()).unwrap();
-                    socket.send(message).await.unwrap();
+                    sender.send(message).unwrap();
                 }
                 Message::Binary(_data) => {}
                 Message::Close(_) => {
@@ -186,28 +226,27 @@ async fn handle_cat_control_socket(mut socket: WebSocket, radio: AnyRadio) {
                 _ => {}
             }
         }
-        let _ = socket
-            .send(Message::Close(Some(CloseFrame {
-                code: axum::extract::ws::close_code::NORMAL,
-                reason: Utf8Bytes::from_static("Goodbye"),
-            })))
-            .await;
-    })
-    .await
-    .unwrap();
+    });
+
+    tokio::select! {
+        _ = (&mut send_task) => {
+            command_task.abort();
+            poll_task.abort();
+        },
+        _ = (&mut poll_task) => {
+            command_task.abort();
+            send_task.abort();
+        },
+        _ = (&mut command_task) => {
+            poll_task.abort();
+            send_task.abort();
+        }
+    }
 }
 
 #[derive(Serialize)]
 struct StatusMessage {
     status: String,
-}
-
-#[derive(Serialize)]
-struct StateMessage {
-    status: String,
-    status_str: String,
-    freq: u32,
-    current_rig: u8,
 }
 
 #[derive(Deserialize)]
