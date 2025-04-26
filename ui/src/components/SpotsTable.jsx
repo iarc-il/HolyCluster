@@ -66,6 +66,7 @@ function Spot(
         set_hovered_spot,
         set_cat_to_spot,
         settings,
+        same_freq_spots,
     },
     ref,
 ) {
@@ -73,8 +74,9 @@ function Spot(
     const utc_hours = String(time.getUTCHours()).padStart(2, "0");
     const utc_minutes = String(time.getUTCMinutes()).padStart(2, "0");
     const formatted_time = utc_hours + ":" + utc_minutes;
+    const is_same_freq = same_freq_spots.includes(spot.id);
     const is_pinned = spot.id == pinned_spot;
-    const is_hovered = spot.id == hovered_spot.id || is_pinned;
+    const is_hovered = spot.id == hovered_spot.id || is_pinned || is_same_freq;
 
     const { colors } = useColors();
     let row_classes;
@@ -229,7 +231,8 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort }) 
 function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
     const row_refs = useRef({});
     const { colors } = useColors();
-    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
+    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, freq_spots } =
+        useServerData();
 
     useEffect(() => {
         const hovered_ref = row_refs.current[hovered_spot.id];
@@ -321,6 +324,7 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                                 set_hovered_spot={set_hovered_spot}
                                 set_cat_to_spot={set_cat_to_spot}
                                 settings={settings}
+                                same_freq_spots={freq_spots}
                             ></Spot>
                         ))}
                     </tbody>

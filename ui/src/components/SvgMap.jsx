@@ -42,7 +42,7 @@ function SvgMap({
     auto_radius,
     set_auto_radius,
 }) {
-    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
+    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band, freq_spots } =
         useServerData();
 
     const svg_ref = useRef(null);
@@ -119,6 +119,7 @@ function SvgMap({
                 hovered_band={hovered_band}
                 set_pinned_spot={set_pinned_spot}
                 set_popup_position={set_popup_position}
+                same_freq_spots={freq_spots}
             />
         );
     });

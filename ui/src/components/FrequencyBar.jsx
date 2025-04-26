@@ -1,6 +1,6 @@
 import Select from "@/components/Select.jsx";
 import Toggle from "@/components/Toggle.jsx";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useColors } from "../hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 import { useLocalStorage } from "@uidotdev/usehooks";
@@ -157,7 +157,15 @@ export default function FrequencyBar({
     set_cat_control,
 }) {
     const { colors } = useColors();
-    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
+    const {
+        spots,
+        hovered_spot,
+        set_hovered_spot,
+        pinned_spot,
+        set_pinned_spot,
+        freq_spots,
+        set_freq_spots,
+    } = useServerData();
     // Set to -1 to use the current band that the radio is on
     const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
 
@@ -189,6 +197,16 @@ export default function FrequencyBar({
             .sort((a, b) => a.freq - b.freq);
     }, [spots, band]);
 
+    let same_freq_spots = useMemo(() => {
+        return spots.filter(spot => spot.freq === radio_freq).map(spot => spot.id);
+    }, [radio_freq, spots]);
+
+    useEffect(() => {
+        set_freq_spots(same_freq_spots);
+    }, [JSON.stringify(same_freq_spots)]);
+
+    console.error(freq_spots);
+
     const freq_offset = (band_plans[band].max - band_plans[band].min) / 50;
 
     const max_freq = band_plans[band].max + freq_offset;
@@ -218,8 +236,6 @@ export default function FrequencyBar({
 
     const features = band_plans[band].features;
     const ranges = band_plans[band].ranges;
-
-    let spot_highlighted = false; // Used to only highlight most recent spot of same frequency as radio
 
     return (
         <div className={className}>
@@ -281,15 +297,9 @@ export default function FrequencyBar({
 
                 {sorted_spots.map((spot, i) => {
                     const highlight_spot =
-                        (radio_status === "connected" &&
-                            radio_freq == spot.freq &&
-                            !spot_highlighted) ||
+                        (radio_status === "connected" && same_freq_spots.includes(spot.id)) ||
                         (radio_status !== "connected" && spot.id == pinned_spot) ||
                         spot.id === hovered_spot.id;
-
-                    if (highlight_spot) {
-                        spot_highlighted = true;
-                    }
 
                     return (
                         <g
@@ -302,16 +312,17 @@ export default function FrequencyBar({
                                 x2={"54%"}
                                 y1={`${((spot.freq - min_freq) / (max_freq - min_freq)) * 100}%`}
                                 y2={`${(i * 100) / sorted_spots.length + 2.5}%`}
-                                strokeWidth="1"
-                                stroke={
-                                    highlight_spot ? colors.bands[spot.band] : colors.theme.text
-                                }
-                                className="group-hover:opacity-100 opacity-25"
+                                strokeWidth={highlight_spot ? "2" : "1"}
+                                stroke={highlight_spot ? "#3b82f6" : colors.theme.text}
+                                className={`group-hover:opacity-100 ${highlight_spot ? "opacity-75" : "opacity-25"}`}
                                 onClick={() => {
                                     dx_handle_click(spot.id, spot);
                                 }}
                                 onMouseEnter={() =>
-                                    set_hovered_spot({ source: "bar", id: spot.id })
+                                    set_hovered_spot({
+                                        source: "bar",
+                                        id: spot.id,
+                                    })
                                 }
                             />
 
@@ -356,14 +367,18 @@ export default function FrequencyBar({
                                             height={15}
                                             width={15}
                                             viewBox="0 0 280 360"
-                                            style={{ transform: "translateY(5px)" }}
+                                            style={{
+                                                transform: "translateY(5px)",
+                                            }}
                                             className="group-hover:fill-blue-500"
                                         >
                                             <polygon
                                                 points="150,15 258,77 258,202 150,265 42,202 42,77"
                                                 strokeWidth={1}
                                                 className="group-hover:fill-blue-500"
-                                                style={{ transform: "translateY(5px)" }}
+                                                style={{
+                                                    transform: "translateY(5px)",
+                                                }}
                                                 fill={colors.theme.text}
                                             />
                                         </svg>
@@ -380,7 +395,10 @@ export default function FrequencyBar({
                                         dx_handle_click(spot.id, spot);
                                     }}
                                     onMouseEnter={() =>
-                                        set_hovered_spot({ source: "bar", id: spot.id })
+                                        set_hovered_spot({
+                                            source: "bar",
+                                            id: spot.id,
+                                        })
                                     }
                                 >
                                     {spot.dx_callsign}
@@ -401,8 +419,8 @@ export default function FrequencyBar({
                                     }
                                     rx={5}
                                     ry={5}
-                                    strokeWidth={1}
-                                    stroke={colors.bands[spot.band]}
+                                    strokeWidth="2"
+                                    stroke={"#3b82f6"}
                                     fillOpacity="0"
                                     className="-translate-y-[15px] hover:cursor-pointer"
                                     onClick={() => {

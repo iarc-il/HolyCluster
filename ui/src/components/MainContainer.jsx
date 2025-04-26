@@ -25,6 +25,7 @@ function connect_to_radio() {
     const { sendJsonMessage, readyState, lastJsonMessage } = useWebSocket(websocket_url);
     const [radio_status, set_radio_status] = useState("unknown");
     const [radio_freq, set_radio_freq] = useState(0);
+    const [radio_mode, set_radio_mode] = useState("");
     const [rig, set_rig] = useState(1);
 
     useEffect(() => {
@@ -32,6 +33,7 @@ function connect_to_radio() {
             if ("status" in lastJsonMessage) {
                 set_radio_status(lastJsonMessage.status);
                 set_radio_freq(lastJsonMessage.freq);
+                set_radio_mode(lastJsonMessage.mode);
                 set_rig(lastJsonMessage.current_rig);
             }
         }
@@ -47,6 +49,7 @@ function connect_to_radio() {
         send_message_to_radio: send_message_to_radio,
         radio_status: radio_status,
         radio_freq: radio_freq,
+        radio_mode: radio_mode,
         rig: rig,
     };
 }
@@ -66,6 +69,8 @@ function MainContainer() {
     });
 
     const [cat_control, set_cat_control] = useLocalStorage("freq_bar_cat_control", true);
+    const [prev_freqs, set_prev_freqs] = useState([]);
+    const prev_freq_limit = 1; // Set the max number of undos a user can do
 
     const set_map_controls = change_func => {
         set_map_controls_inner(previous_state => {
@@ -139,18 +144,41 @@ function MainContainer() {
         }
     });
 
-    let { send_message_to_radio, radio_status, radio_freq, rig } = connect_to_radio();
+    let { send_message_to_radio, radio_status, radio_freq, rig, radio_mode } = connect_to_radio();
 
     function set_cat_to_spot(spot) {
         if (cat_control != true) {
             return;
         }
 
+        set_prev_freqs(
+            [
+                {
+                    mode: radio_mode,
+                    freq: Math.floor(radio_freq / 1000),
+                },
+            ]
+                .concat(prev_freqs)
+                .slice(0, prev_freq_limit),
+        );
+
         send_message_to_radio({
             mode: spot.mode,
             freq: spot.freq,
             band: spot.band,
         });
+    }
+
+    function undo_freq_change() {
+        if (prev_freqs.length <= 0 || cat_control != true) {
+            return;
+        }
+
+        console.error(`undoing cat:`);
+        console.error(prev_freqs[0]);
+
+        send_message_to_radio(prev_freqs[0]);
+        set_prev_freqs(prev_freqs.slice(1));
     }
 
     function set_rig(rig) {
@@ -201,6 +229,8 @@ function MainContainer() {
                 default_radius={settings.default_radius}
                 set_radius_in_km={set_radius_in_km}
                 settings={settings}
+                can_undo_cat={prev_freqs.length > 0}
+                undo_cat={undo_freq_change}
             />
             {canvas ? (
                 <CanvasMap

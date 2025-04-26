@@ -101,6 +101,8 @@ export const ServerDataProvider = ({ children }) => {
     let [hovered_spot, set_hovered_spot] = useState({ source: null, id: null });
     let [hovered_band, set_hovered_band] = useState(null);
     let [pinned_spot, set_pinned_spot] = useState(null);
+    const [freq_spots, set_freq_spots] = useState([]);
+
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
     const { filters, callsign_filters } = useFilters();
@@ -244,6 +246,8 @@ export const ServerDataProvider = ({ children }) => {
                 spots_per_band_count,
                 propagation,
                 network_state,
+                freq_spots,
+                set_freq_spots,
             }}
         >
             {children}
