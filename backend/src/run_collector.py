@@ -13,7 +13,7 @@ import settings
 from db_classes import DxheatRaw, HolySpot, GeoCache, SpotWithIssue
 from spots_collector import get_dxheat_spots, prepare_dxheat_record, prepare_holy_spot
 from qrz import get_qrz_session_key
-from misc import string_to_boolean
+from misc import string_to_boolean, open_log_file
 
 from settings import (
     DEBUG,
@@ -273,6 +273,7 @@ if __name__ == "__main__":
     # logger.info(f"DEBUG={DEBUG}")
     if string_to_boolean(DEBUG):
         logger.info("DEBUG is True")
+        open_log_file("logs/run_collector")
     else:
         logger.info("DEBUG is False")
     asyncio.run(main(debug=string_to_boolean(DEBUG)))

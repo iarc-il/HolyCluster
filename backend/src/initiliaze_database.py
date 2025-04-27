@@ -5,9 +5,10 @@ from sqlalchemy.exc import SQLAlchemyError, ProgrammingError, OperationalError
 
 from db_classes import Base
 import settings
-
+from misc import string_to_boolean, open_log_file
 
 from settings import (
+    DEBUG, 
     GENERAL_DB_URL,
 )
 
@@ -49,7 +50,7 @@ def create_tables(engine, tables):
         logger.error(f'Error creating tables: {e}')
 
 
-def main():
+def main(debug: bool = False):
     # Create an engine connected to the default database
     engine = create_engine(f"{GENERAL_DB_URL}/postgres", echo=True)
 
@@ -57,11 +58,13 @@ def main():
     with engine.connect() as connection:
         connection.execution_options(isolation_level="AUTOCOMMIT")  # Set isolation level to autocommit
         try:
+            logger.info(f"Dropping database {settings.DATABASE}")
             drop_database_if_exists(connection=connection, db_name=settings.DATABASE)
+            logger.info(f"Creating database {settings.DATABASE}")
             create_new_database(connection=connection, db_name=settings.DATABASE)
 
         except (ProgrammingError, OperationalError) as e:
-            print(f'Error: {e}')
+            logger.error(f'Error: {e}')
 
     engine = create_engine(settings.DB_URL, echo=True)
 
@@ -76,4 +79,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if string_to_boolean(DEBUG):
+        logger.info("DEBUG is True")
+        open_log_file("logs/initiliaze_datasbe")
+    else:
+        logger.info("DEBUG is False")
+    main(debug=string_to_boolean(DEBUG))
