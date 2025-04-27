@@ -106,9 +106,26 @@ impl Radio for OmnirigRadio {
             .invoke_get("StatusStr", &[])
             .unwrap()
             .unwrap_bstr();
+        let mode = self.current_rig().invoke_get("Mode", &[]).unwrap();
+        let mode = if let winsafe::Variant::I4(mode) = mode {
+            println!("Raw mode: {mode:x}");
+            match mode {
+                0x2000000 | 0x4000000 => "SSB",
+                0x8000000 | 0x10000000 => "DIGI",
+                0x800000 | 0x1000000 => "CW",
+                0x20000000 => "AM",
+                0x40000000 => "FM",
+                _ => {
+                    panic!("Unknown mode: {mode:x}");
+                }
+            }
+        } else {
+            panic!("Unknown variant");
+        };
         Status {
             freq,
             status: "connected".into(),
+            mode: mode.into(),
             status_str,
             current_rig: self.current_rig,
         }

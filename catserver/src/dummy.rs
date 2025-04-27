@@ -69,6 +69,7 @@ impl Radio for DummyRadio {
                     panic!();
                 }
             },
+            mode: "SSB".into(),
             status: "connected".into(),
             status_str: "".into(),
             current_rig: self.current_rig,
