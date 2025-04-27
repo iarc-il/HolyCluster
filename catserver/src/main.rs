@@ -24,7 +24,7 @@ mod rig;
 mod utils;
 
 use dummy::DummyRadio;
-use rig::{AnyRadio, Mode, Rig};
+use rig::{AnyRadio, Mode, Slot};
 
 const HOLY_CLUSTER_DNS: &str = "holycluster.iarc.org";
 
@@ -235,7 +235,9 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) {
         while let Some(Ok(message)) = receiver.next().await {
             match message {
                 Message::Text(text) => {
-                    let message = process_message(text.to_string(), radio.clone()).unwrap();
+                    process_message(text.to_string(), radio.clone()).unwrap();
+                    let status = radio.write().get_status();
+                    let message = Message::Text(serde_json::to_string(&status).unwrap().into());
                     sender.send(message).unwrap();
                 }
                 Message::Binary(_data) => {}
@@ -287,40 +289,27 @@ enum ClientMessage {
     SetModeAndFreq(SetModeAndFreq),
 }
 
-fn process_message(message: String, radio: AnyRadio) -> Result<Message> {
+fn process_message(message: String, radio: AnyRadio) -> Result<()> {
     let message: ClientMessage = serde_json::from_str(&message)?;
     match message {
         ClientMessage::SetRig(set_rig) => {
-            let rig = match set_rig.rig {
-                1 => Rig::A,
-                2 => Rig::B,
-                rig => {
-                    bail!("Unknown rig {}", rig);
-                }
-            };
-            radio.write().set_rig(rig);
+            radio.write().set_rig(set_rig.rig);
         }
         ClientMessage::SetModeAndFreq(set_mode_and_freq) => {
-            let mode = match set_mode_and_freq.mode.as_str() {
-                "SSB" => match set_mode_and_freq.band {
-                    160 | 80 | 40 => Mode::LSB,
-                    _ => Mode::USB,
-                },
-                "USB" => Mode::USB,
-                "LSB" => Mode::LSB,
-                "FT8" => Mode::FT8,
-                "FT4" => Mode::FT4,
-                "DIGI" => Mode::DIGI,
-                "CW" => Mode::CW,
-                mode => {
-                    bail!("Unknown mode: {mode}");
+            let is_upper = !matches!(set_mode_and_freq.band, 160 | 80 | 40);
+            let mode = match (set_mode_and_freq.mode.as_str(), is_upper) {
+                ("SSB", true) => Mode::USB,
+                ("SSB", false) => Mode::LSB,
+                ("DIGI" | "FT8" | "FT4", _) => Mode::Data,
+                ("CW", true) => Mode::CWUpper,
+                ("CW", false) => Mode::CWLower,
+                (mode, is_upper) => {
+                    bail!("Unknown mode: {mode}, is upper: {is_upper}");
                 }
             };
             radio.write().set_mode(mode);
-            radio
-                .write()
-                .set_frequency(Rig::Current, set_mode_and_freq.freq);
+            radio.write().set_frequency(Slot::A, set_mode_and_freq.freq);
         }
     }
-    Ok(Message::text(""))
+    Ok(())
 }

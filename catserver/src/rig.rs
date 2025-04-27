@@ -7,27 +7,17 @@ use serde::Serialize;
 pub enum Mode {
     USB,
     LSB,
-    FT8,
-    FT4,
-    DIGI,
-    CW,
+    Data,
+    CWUpper,
+    CWLower,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[repr(u8)]
-pub enum Rig {
+pub enum Slot {
     A = 1,
+    #[allow(dead_code)]
     B = 2,
-    Current = 0,
-}
-
-impl Serialize for Rig {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_u8(*self as u8)
-    }
 }
 
 #[derive(Debug, Serialize)]
@@ -35,14 +25,14 @@ pub struct Status {
     pub freq: u32,
     pub status: String,
     pub status_str: String,
-    pub current_rig: Rig,
+    pub current_rig: u8,
 }
 
 pub trait Radio: Send + Sync {
     fn init(&mut self);
     fn set_mode(&mut self, mode: Mode);
-    fn set_rig(&mut self, rig: Rig);
-    fn set_frequency(&mut self, rig: Rig, freq: u32);
+    fn set_rig(&mut self, rig: u8);
+    fn set_frequency(&mut self, slot: Slot, freq: u32);
     fn get_status(&mut self) -> Status;
 }
 

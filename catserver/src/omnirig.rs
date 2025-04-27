@@ -2,17 +2,17 @@ use winsafe::guard::CoUninitializeGuard;
 use winsafe::prelude::oleaut_IDispatch;
 use winsafe::{CLSIDFromProgID, CoInitializeEx, IDispatch, co};
 
-use crate::rig::{Mode, Radio, Rig, Status};
+use crate::rig::{Mode, Radio, Slot, Status};
 
 struct OmnirigInner {
-    com_guard: CoUninitializeGuard,
-    omnirig: IDispatch,
+    _com_guard: CoUninitializeGuard,
+    _omnirig: IDispatch,
     rig1: IDispatch,
     rig2: IDispatch,
 }
 
 pub struct OmnirigRadio {
-    current_rig: Rig,
+    current_rig: u8,
     inner: Option<OmnirigInner>,
 }
 unsafe impl Send for OmnirigRadio {}
@@ -21,13 +21,21 @@ unsafe impl Sync for OmnirigRadio {}
 impl OmnirigRadio {
     pub fn new() -> Self {
         Self {
-            current_rig: Rig::A,
+            current_rig: 1,
             inner: None,
         }
     }
 
     fn inner(&self) -> &OmnirigInner {
         self.inner.as_ref().unwrap()
+    }
+
+    fn current_rig(&self) -> &'_ IDispatch {
+        match self.current_rig {
+            1 => &self.inner().rig1,
+            2 => &self.inner().rig2,
+            _ => panic!(),
+        }
     }
 }
 
@@ -47,31 +55,43 @@ impl Radio for OmnirigRadio {
         let rig2 = omnirig.invoke_get("Rig1", &[]).unwrap().unwrap_dispatch();
 
         self.inner = Some(OmnirigInner {
-            com_guard,
-            omnirig,
+            _com_guard: com_guard,
+            _omnirig: omnirig,
             rig1,
             rig2,
         });
+        println!("Omnirig initialized");
     }
 
-    fn set_mode(&mut self, mode: Mode) {}
-
-    fn set_rig(&mut self, rig: Rig) {}
-
-    fn set_frequency(&mut self, mut rig: Rig, freq: u32) {
-        println!("Setting freq at {rig:?} to {freq}");
-        if rig == Rig::Current {
-            rig = self.current_rig;
-        }
-        let rig_name = match rig {
-            Rig::A => "FreqA",
-            Rig::B => "FreqB",
-            Rig::Current => panic!(),
+    fn set_mode(&mut self, mode: Mode) {
+        let mode = match mode {
+            Mode::LSB => 0x04000000,
+            Mode::USB => 0x02000000,
+            Mode::CWLower => 0x01000000,
+            Mode::CWUpper => 0x00800000,
+            Mode::Data => 0x08000000,
         };
-        let _ = self
-            .inner()
-            .rig1
-            .invoke_put(rig_name, &winsafe::Variant::I4(freq as i32 * 1000));
+        self.current_rig()
+            .invoke_put("Mode", &winsafe::Variant::I4(mode))
+            .unwrap();
+    }
+
+    fn set_rig(&mut self, rig: u8) {
+        if rig != 1 && rig != 2 {
+            panic!("Invalid rig: {rig}");
+        }
+        self.current_rig = rig;
+    }
+
+    fn set_frequency(&mut self, vfo: Slot, freq: u32) {
+        println!("Setting freq at {vfo:?} to {freq}");
+        let vfo = match vfo {
+            Slot::A => "FreqA",
+            Slot::B => "FreqB",
+        };
+        self.current_rig()
+            .invoke_put(vfo, &winsafe::Variant::I4(freq as i32 * 1000))
+            .unwrap();
     }
 
     fn get_status(&mut self) -> Status {
@@ -79,7 +99,7 @@ impl Radio for OmnirigRadio {
             freq: 0,
             status: "connected".into(),
             status_str: "".into(),
-            current_rig: Rig::A,
+            current_rig: 1,
         }
     }
 }
