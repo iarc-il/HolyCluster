@@ -48,7 +48,7 @@ def prepare_dxheat_record(spot, debug=False):
     if "Mode" not in spot:
       spot["Mode"] = "SSB"
       missing_mode = True
-    if not 'DXlocator' in spot:
+    if not 'DXLocator' in spot:
         spot['DXLocator'] =  None
     record = DxheatRaw(
         number=spot['Nr'],

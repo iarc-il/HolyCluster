@@ -68,5 +68,9 @@ def main(debug: bool = False):
 
 
 if __name__ == "__main__":
-    debug = False
+    if string_to_boolean(DEBUG):
+        logger.info("DEBUG is True")
+        open_log_file("logs/cleanup_database")
+    else:
+        logger.info("DEBUG is False")
     main(debug=string_to_boolean(DEBUG))
