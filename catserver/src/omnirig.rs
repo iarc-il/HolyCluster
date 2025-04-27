@@ -95,11 +95,22 @@ impl Radio for OmnirigRadio {
     }
 
     fn get_status(&mut self) -> Status {
+        let freq = self.current_rig().invoke_get("FreqA", &[]).unwrap();
+        let freq = if let winsafe::Variant::I4(freq) = freq {
+            (freq as u32) / 1000
+        } else {
+            panic!("Unknown variant");
+        };
+        let status_str = self
+            .current_rig()
+            .invoke_get("StatusStr", &[])
+            .unwrap()
+            .unwrap_bstr();
         Status {
-            freq: 0,
+            freq,
             status: "connected".into(),
-            status_str: "".into(),
-            current_rig: 1,
+            status_str,
+            current_rig: self.current_rig,
         }
     }
 }
