@@ -130,14 +130,18 @@ def cleanup_spot(spot):
 
 
 @app.get("/spots")
-def spots(since: Optional[int] = None):
+def spots(since: Optional[int] = None, last_id: Optional[int] = None):
     with Session(engine) as session:
         query = select(DX)
         if since is None:
             since = int(time.time() - 3600)
-        query = query \
-            .where(DX.date_time > datetime.datetime.fromtimestamp(since)) \
-            .order_by(desc(DX.date_time)).limit(500)
+
+        if last_id is not None:
+            query = query.where(DX.id > last_id)
+        else:
+            query = query.where(DX.date_time > datetime.datetime.fromtimestamp(since))
+
+        query = query.order_by(desc(DX.date_time)).limit(500)
         spots = session.exec(query).all()
         spots = [
             cleanup_spot(spot)
