@@ -8,13 +8,24 @@
                 </Control>
 
                 <Control
+                    Id="CreateDesktopShortcutCheckbox"
+                    Type="CheckBox"
+                    X="20"
+                    Y="220"
+                    Width="200"
+                    Height="17"
+                    Property="INSTALLDESKTOPSHORTCUT"
+                    CheckBoxValue="1"
+                    Text="Create Desktop Shortcut"
+                />
+                <Control
                     Id="CreateShortcutCheckbox"
                     Type="CheckBox"
                     X="20"
                     Y="200"
                     Width="200"
                     Height="17"
-                    Property="INSTALLSHORTCUT"
+                    Property="INSTALLMENUSHORTCUT"
                     CheckBoxValue="1"
                     Text="Create Start Menu Shortcut"
                 />

@@ -51,11 +51,13 @@
             <Directory Id="ProgramMenuFolder">
                 <Directory Id="ApplicationProgramsFolder" Name="Holy Cluster"/>
             </Directory>
+            <Directory Id="DesktopFolder">
+            </Directory>
         </Directory>
 
         <DirectoryRef Id="ApplicationProgramsFolder">
-            <Component Id="ApplicationShortcut" Guid="0589829A-7D9E-409A-B952-120F7D9C1C25">
-                <Condition>INSTALLSHORTCUT = 1</Condition>
+            <Component Id="ApplicationShortcut" Guid="*">
+                <Condition>INSTALLMENUSHORTCUT = 1</Condition>
                 <Shortcut Id="ApplicationStartMenuShortcut"
                     Name="Holy Cluster"
                     Description="Web cluster with CAT control"
@@ -63,6 +65,21 @@
                     WorkingDirectory="APPLICATIONROOTDIRECTORY"/>
                 <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
                 <RegistryValue Root="HKCU" Key="Software\IARC\HolyCluster" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="DesktopFolder">
+            <Component Id="DesktopShortcut" Guid="*">
+                <Condition>INSTALLDESKTOPSHORTCUT = 1</Condition>
+                <Shortcut
+                    Id="ApplicationDesktopShortcut"
+                    Name="HolyCluster"
+                    WorkingDirectory="INSTALLDIR"
+                    Icon="ProductICO"
+                    Advertise="no"
+                    Target="[#HolyCluster.exe]"
+                />
+                <RemoveFolder Id="RemoveDesktopFolder" On="uninstall" />
+                <RegistryValue Root="HKCU" Key="Software\MyCompany\MyApp" Name="desktop_installed" Type="integer" Value="1" KeyPath="yes" />
             </Component>
         </DirectoryRef>
 
@@ -78,13 +95,15 @@
 
             <ComponentRef Id='HolyCluster.exe'/>
             <ComponentRef Id='ApplicationShortcut'/>
+            <ComponentRef Id="DesktopShortcut" />
         </Feature>
 
         <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
 
         <Icon Id='ProductICO' SourceFile='wix\icon.ico'/>
         <Property Id='ARPPRODUCTICON' Value='ProductICO'/>
-        <Property Id="INSTALLSHORTCUT" Value="1" />
+        <Property Id="INSTALLMENUSHORTCUT" Value="1" />
+        <Property Id="INSTALLDESKTOPSHORTCUT" Value="1" />
 
         <UI>
             <UIRef Id='WixUI_FeatureTree'/>
