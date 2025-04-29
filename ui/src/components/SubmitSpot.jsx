@@ -51,7 +51,7 @@ function connect_to_submit_spot_endpoint(on_response) {
     return { sendJsonMessage, readyState };
 }
 
-function SubmitSpot({ settings }) {
+function SubmitSpot({ settings, radio_freq }) {
     const [temp_data, set_temp_data] = useState(empty_temp_data);
     const [submit_status, set_submit_status] = useState({
         status: "pending",
@@ -60,6 +60,16 @@ function SubmitSpot({ settings }) {
     const { colors, setTheme } = useColors();
 
     const [external_close, set_external_close] = useState(true);
+
+    useEffect(() => {
+        if (temp_data.freq !== 0) {
+            return;
+        }
+
+        const initial_data = temp_data;
+        initial_data.freq = Math.round((radio_freq / 1000 || 0) * 10) / 10;
+        set_temp_data(initial_data);
+    }, [radio_freq]);
 
     function on_response(response) {
         if (response.status == "success") {
@@ -188,7 +198,7 @@ function SubmitSpot({ settings }) {
                                     value={temp_data.freq}
                                     onChange={event => {
                                         const value = event.target.value;
-                                        if (/^\d*$/.test(value)) {
+                                        if (/^\d*\.?\d{0,1}$/.test(value)) {
                                             if (Number.parseFloat(value) <= 75000 || value == "") {
                                                 set_temp_data({
                                                     ...temp_data,

@@ -208,8 +208,6 @@ export default function FrequencyBar({
         ranges = band_plans[band].ranges;
     }
 
-    console.error(selected_band, radio_band);
-
     // Remove all spots with duplicate dx_callsign keeping only the most recent one
     sorted_spots = sorted_spots.reduce((acc, spot) => {
         const existingSpot = acc.find(s => s.dx_callsign === spot.dx_callsign);
