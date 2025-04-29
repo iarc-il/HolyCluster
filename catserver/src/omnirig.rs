@@ -52,7 +52,7 @@ impl Radio for OmnirigRadio {
         .unwrap();
 
         let rig1 = omnirig.invoke_get("Rig1", &[]).unwrap().unwrap_dispatch();
-        let rig2 = omnirig.invoke_get("Rig1", &[]).unwrap().unwrap_dispatch();
+        let rig2 = omnirig.invoke_get("Rig2", &[]).unwrap().unwrap_dispatch();
 
         self.inner = Some(OmnirigInner {
             _com_guard: com_guard,
@@ -108,7 +108,6 @@ impl Radio for OmnirigRadio {
             .unwrap_bstr();
         let mode = self.current_rig().invoke_get("Mode", &[]).unwrap();
         let mode = if let winsafe::Variant::I4(mode) = mode {
-            println!("Raw mode: {mode:x}");
             match mode {
                 0x2000000 | 0x4000000 => "SSB",
                 0x8000000 | 0x10000000 => "DIGI",
@@ -116,7 +115,8 @@ impl Radio for OmnirigRadio {
                 0x20000000 => "AM",
                 0x40000000 => "FM",
                 _ => {
-                    panic!("Unknown mode: {mode:x}");
+                    println!("Unknown mode: {mode:x}");
+                    "Unknown"
                 }
             }
         } else {

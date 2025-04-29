@@ -104,7 +104,9 @@ async fn proxy(State(client): State<Client>, request: Request<Body>) -> Response
     };
 
     let mut response_builder = Response::builder().status(reqwest_response.status());
-    *response_builder.headers_mut().unwrap() = reqwest_response.headers().clone();
+    if let Some(headers) = response_builder.headers_mut() {
+        *headers = reqwest_response.headers().clone();
+    }
     response_builder
         .body(Body::from_stream(reqwest_response.bytes_stream()))
         .unwrap()
