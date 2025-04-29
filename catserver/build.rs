@@ -5,9 +5,7 @@ use {
 
 fn main() -> io::Result<()> {
     if env::var_os("CARGO_CFG_WINDOWS").is_some() {
-        WindowsResource::new()
-            .set_icon("wix/icon.ico")
-            .compile()?;
+        WindowsResource::new().set_icon("wix/icon.ico").compile()?;
     }
     Ok(())
 }

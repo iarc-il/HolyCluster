@@ -41,9 +41,11 @@ impl OmnirigRadio {
 
 impl Radio for OmnirigRadio {
     fn init(&mut self) {
+        println!("Initializing omnirig");
         let com_guard =
             CoInitializeEx(co::COINIT::MULTITHREADED | co::COINIT::DISABLE_OLE1DDE).unwrap();
 
+        println!("Creating instance");
         let omnirig = winsafe::CoCreateInstance::<IDispatch>(
             &CLSIDFromProgID("Omnirig.OmnirigX").unwrap(),
             None,
@@ -51,6 +53,7 @@ impl Radio for OmnirigRadio {
         )
         .unwrap();
 
+        println!("Getting rigs");
         let rig1 = omnirig.invoke_get("Rig1", &[]).unwrap().unwrap_dispatch();
         let rig2 = omnirig.invoke_get("Rig2", &[]).unwrap().unwrap_dispatch();
 

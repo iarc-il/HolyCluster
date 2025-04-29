@@ -25,36 +25,49 @@ mod utils;
 
 use dummy::DummyRadio;
 use rig::{AnyRadio, Mode, Slot};
+use tray_icon::{TrayIconBuilder, menu::Menu};
 
 const HOLY_CLUSTER_DNS: &str = "holycluster.iarc.org";
 
-#[cfg(feature = "omnirig")]
-fn get_radio() -> AnyRadio {
-    use omnirig::OmnirigRadio;
-
-    if std::env::var("DUMMY").is_ok() {
-        AnyRadio::new(DummyRadio::new())
-    } else {
-        println!("Using omnirig");
-        AnyRadio::new(OmnirigRadio::new())
-    }
+#[cfg(windows)]
+fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> {
+    use tray_icon::Icon;
+    Ok(tray_icon.with_icon(Icon::from_resource(1, Some((32, 32)))?))
 }
 
-#[cfg(not(feature = "omnirig"))]
-fn get_radio() -> AnyRadio {
-    if std::env::var("DUMMY").is_ok() {
-        println!("DUMMY env variable doesn't have any affect in linux!");
-    }
-    AnyRadio::new(DummyRadio::new())
+#[cfg(not(windows))]
+fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> {
+    Ok(tray_icon)
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let tray_menu = Menu::new();
+    let tray_icon = TrayIconBuilder::new()
+        .with_menu(Box::new(tray_menu))
+        .with_tooltip("system-tray - tray icon library!");
+    let _tray_icon = add_icon_to_tray_icon(tray_icon)?.build().unwrap();
+
     let client = Client::new();
 
-    let radio = get_radio();
+    let radio = if cfg!(windows) {
+        use omnirig::OmnirigRadio;
+
+        if std::env::var("DUMMY").is_ok() {
+            AnyRadio::new(DummyRadio::new())
+        } else {
+            println!("Using omnirig");
+            AnyRadio::new(OmnirigRadio::new())
+        }
+    } else {
+        if std::env::var("DUMMY").is_ok() {
+            println!("DUMMY env variable doesn't have any affect in linux!");
+        }
+        AnyRadio::new(DummyRadio::new())
+    };
     radio.write().init();
 
+    println!("Finished radio init");
     let app = Router::new()
         .route("/radio", any(cat_control_handler))
         .with_state(radio)
@@ -81,6 +94,7 @@ async fn main() -> Result<()> {
     let app = app.with_state(client);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    println!("Running webapp");
     axum::serve(listener, app).await?;
     Ok(())
 }
