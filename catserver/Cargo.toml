@@ -9,9 +9,11 @@ anyhow = "1.0.98"
 axum = { version = "0.8.3", features = ["ws"] }
 axum-macros = "0.5.0"
 futures-util = "0.3.31"
+open = "5.3.2"
 reqwest = { version = "0.12.15", features = ["stream"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
+single-instance = "0.3.3"
 tokio = { version = "1.44.2", features = ["rt", "rt-multi-thread"] }
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
 tower-http = { version = "0.6.2", features = ["fs"] }
