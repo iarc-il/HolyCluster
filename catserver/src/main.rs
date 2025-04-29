@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use anyhow::{Context, Result, bail};
 use axum::{
     Router,
