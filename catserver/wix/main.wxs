@@ -109,9 +109,10 @@
             <UIRef Id='WixUI_FeatureTree'/>
             <DialogRef Id="CustomInstallDirDlg" />
 
-            <Publish Dialog='WelcomeDlg' Control='Next' Event='NewDialog' Value='CustomizeDlg' Order='99'>1</Publish>
-            <Publish Dialog='CustomizeDlg' Control='Back' Event='NewDialog' Value='WelcomeDlg' Order='99'>1</Publish>
-            <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="CustomInstallDirDlg" Order='99'>1</Publish>
+            <Publish Dialog='WelcomeDlg' Control='Next' Event='NewDialog' Value='CustomInstallDirDlg'>1</Publish>
+            <Publish Dialog='CustomInstallDirDlg' Control='Back' Event='NewDialog' Value='WelcomeDlg'>1</Publish>
+            <Publish Dialog='CustomInstallDirDlg' Control='Next' Event='NewDialog' Value='VerifyReadyDlg'>1</Publish>
+            <Publish Dialog='VerifyReadyDlg' Control='Back' Event='NewDialog' Value='CustomInstallDirDlg'>1</Publish>
         </UI>
 
         <!--

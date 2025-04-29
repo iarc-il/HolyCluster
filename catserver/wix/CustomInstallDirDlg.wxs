@@ -8,34 +8,30 @@
                 </Control>
 
                 <Control
-                    Id="CreateDesktopShortcutCheckbox"
-                    Type="CheckBox"
-                    X="20"
-                    Y="220"
-                    Width="200"
-                    Height="17"
-                    Property="INSTALLDESKTOPSHORTCUT"
-                    CheckBoxValue="1"
-                    Text="Create Desktop Shortcut"
-                />
-                <Control
                     Id="CreateShortcutCheckbox"
                     Type="CheckBox"
                     X="20"
-                    Y="200"
+                    Y="50"
                     Width="200"
                     Height="17"
                     Property="INSTALLMENUSHORTCUT"
                     CheckBoxValue="1"
                     Text="Create Start Menu Shortcut"
                 />
+                <Control
+                    Id="CreateDesktopShortcutCheckbox"
+                    Type="CheckBox"
+                    X="20"
+                    Y="30"
+                    Width="200"
+                    Height="17"
+                    Property="INSTALLDESKTOPSHORTCUT"
+                    CheckBoxValue="1"
+                    Text="Create Desktop Shortcut"
+                />
 
-                <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&lt; Back">
-                    <Publish Event="NewDialog" Value="WelcomeDlg">1</Publish>
-                </Control>
-                <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="Next &gt;">
-                    <Publish Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
-                </Control>
+                <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&lt; Back" />
+                <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="Next &gt;" />
                 <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Text="Cancel">
                     <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
                 </Control>
