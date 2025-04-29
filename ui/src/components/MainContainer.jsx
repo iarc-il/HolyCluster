@@ -305,7 +305,7 @@ function MainContainer() {
                 <CallsignsView
                     toggled_ui={toggled_ui}
                     radio_status={radio_status}
-                    radio_freq={Math.round(radio_freq / 1000)}
+                    radio_freq={Math.round((radio_freq / 1000 || 0) * 10) / 10}
                     set_cat_to_spot={set_cat_to_spot}
                     cat_control={cat_control}
                     set_cat_control={set_cat_control}
