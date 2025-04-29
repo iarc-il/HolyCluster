@@ -37,53 +37,37 @@
         <Directory Id='TARGETDIR' Name='SourceDir'>
             <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
                 <Directory Id='APPLICATIONFOLDER' Name='HolyCluster'>
-                    <!--
-                      Enabling the license sidecar file in the installer is a four step process:
-
-                      1. Uncomment the `Component` tag and its contents.
-                      2. Change the value for the `Source` attribute in the `File` tag to a path
-                         to the file that should be included as the license sidecar file. The path
-                         can, and probably should be, relative to this file.
-                      3. Change the value for the `Name` attribute in the `File` tag to the
-                         desired name for the file when it is installed alongside the `bin` folder
-                         in the installation directory. This can be omitted if the desired name is
-                         the same as the file name.
-                      4. Uncomment the `ComponentRef` tag with the Id attribute value of "License"
-                         further down in this file.
-                    -->
-                    <!--
-                    <Component Id='License' Guid='*'>
-                        <File Id='LicenseFile' Name='ChangeMe' DiskId='1' Source='C:\Path\To\File' KeyPath='yes'/>
+                    <Component Id='HolyCluster.exe' Guid='*'>
+                        <File
+                            Id='HolyCluster.exe'
+                            Name='HolyCluster.exe'
+                            DiskId='1'
+                            Source='$(var.CargoTargetBinDir)\HolyCluster.exe'
+                            KeyPath='yes'/>
                     </Component>
-                    -->
-
-                    <Directory Id='Bin' Name='bin'>
-                        <Component Id='Path' Guid='5ECA3FEF-477B-471D-B932-AC600F38E99E' KeyPath='yes'>
-                            <Environment
-                                Id='PATH'
-                                Name='PATH'
-                                Value='[Bin]'
-                                Permanent='no'
-                                Part='last'
-                                Action='set'
-                                System='yes'/>
-                        </Component>
-                        <Component Id='binary0' Guid='*'>
-                            <File
-                                Id='exe0'
-                                Name='HolyCluster.exe'
-                                DiskId='1'
-                                Source='$(var.CargoTargetBinDir)\HolyCluster.exe'
-                                KeyPath='yes'/>
-                        </Component>
-                    </Directory>
                 </Directory>
+            </Directory>
+
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="ApplicationProgramsFolder" Name="Holy Cluster"/>
             </Directory>
         </Directory>
 
+        <DirectoryRef Id="ApplicationProgramsFolder">
+            <Component Id="ApplicationShortcut" Guid="0589829A-7D9E-409A-B952-120F7D9C1C25">
+                <Shortcut Id="ApplicationStartMenuShortcut"
+                    Name="Holy Cluster"
+                    Description="Web cluster with CAT control"
+                    Target="[#HolyCluster.exe]"
+                    WorkingDirectory="APPLICATIONROOTDIRECTORY"/>
+                <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
+                <RegistryValue Root="HKCU" Key="Software\IARC\HolyCluster" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+
         <Feature
-            Id='Binaries'
-            Title='Application'
+            Id='MainApp'
+            Title='Holy Cluster'
             Description='Installs all binaries and the license.'
             Level='1'
             ConfigurableDirectory='APPLICATIONFOLDER'
@@ -91,32 +75,12 @@
             Display='expand'
             Absent='disallow'>
 
-            <!--
-              Uncomment the following `ComponentRef` tag to add the license
-              sidecar file to the installer.
-            -->
-            <!--<ComponentRef Id='License'/>-->
-
-            <ComponentRef Id='binary0'/>
-
-            <Feature
-                Id='Environment'
-                Title='PATH Environment Variable'
-                Description='Add the install location of the [ProductName] executable to the PATH system environment variable. This allows the [ProductName] executable to be called from any location.'
-                Level='1'
-                Absent='allow'>
-                <ComponentRef Id='Path'/>
-            </Feature>
+            <ComponentRef Id='HolyCluster.exe'/>
+            <ComponentRef Id='ApplicationShortcut'/>
         </Feature>
 
         <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
 
-        <!--
-          Uncomment the following `Icon` and `Property` tags to change the product icon.
-
-          The product icon is the graphic that appears in the Add/Remove
-          Programs control panel for the application.
-        -->
         <Icon Id='ProductICO' SourceFile='wix\icon.ico'/>
         <Property Id='ARPPRODUCTICON' Value='ProductICO'/>
 
