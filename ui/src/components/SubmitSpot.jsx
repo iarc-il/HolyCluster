@@ -60,20 +60,22 @@ function SubmitSpot({ settings, radio_freq }) {
     const { colors, setTheme } = useColors();
 
     const [external_close, set_external_close] = useState(true);
+    const [is_open, set_is_open] = useState(false);
 
     useEffect(() => {
-        if (temp_data.freq !== 0) {
+        if (is_open) {
             return;
         }
 
         const initial_data = temp_data;
         initial_data.freq = Math.round((radio_freq / 1000 || 0) * 10) / 10;
         set_temp_data(initial_data);
-    }, [radio_freq]);
+    }, [radio_freq, is_open]);
 
     function on_response(response) {
         if (response.status == "success") {
             set_submit_status({ status: "success", reason: "" });
+            set_is_open(false);
             set_external_close(false);
             let theme;
             if (settings.theme == "Light") {
@@ -149,8 +151,12 @@ function SubmitSpot({ settings, radio_freq }) {
                 }
                 button={<SubmitIcon size="32"></SubmitIcon>}
                 on_open={() => {
+                    set_is_open(true);
                     set_external_close(true);
                     reset_temp_data();
+                }}
+                on_cancel={() => {
+                    set_is_open(false);
                 }}
                 external_close={external_close}
             >
