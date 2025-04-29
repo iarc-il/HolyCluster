@@ -21,3 +21,6 @@ winsafe = { version = "0.0.23", git = "https://github.com/rodrigocfd/winsafe.git
 [features]
 default = ["omnirig"]
 omnirig = []
+
+[build-dependencies]
+winresource = "0.1.20"
