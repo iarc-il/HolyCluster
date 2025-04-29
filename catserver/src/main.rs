@@ -14,6 +14,7 @@ use axum_macros::debug_handler;
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use single_instance::SingleInstance;
 use tokio::sync::mpsc;
 use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
@@ -28,6 +29,7 @@ use rig::{AnyRadio, Mode, Slot};
 use tray_icon::{TrayIconBuilder, menu::Menu};
 
 const HOLY_CLUSTER_DNS: &str = "holycluster.iarc.org";
+const LOCAL_PORT: u16 = 3000;
 
 #[cfg(windows)]
 fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> {
@@ -40,8 +42,23 @@ fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> 
     Ok(tray_icon)
 }
 
+fn open_at_browser() -> Result<()> {
+    open::that(format!("http://127.0.0.1:{LOCAL_PORT}"))?;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    let instance = SingleInstance::new("HolyCluster")?;
+    if instance.is_single() {
+        run_singleton_instance().await?;
+    } else {
+        open_at_browser()?;
+    }
+    Ok(())
+}
+
+async fn run_singleton_instance() -> Result<()> {
     let tray_menu = Menu::new();
     let tray_icon = TrayIconBuilder::new()
         .with_menu(Box::new(tray_menu))
@@ -94,6 +111,9 @@ async fn main() -> Result<()> {
     let app = app.with_state(client);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+
+    open_at_browser()?;
+
     println!("Running webapp");
     axum::serve(listener, app).await?;
     Ok(())
