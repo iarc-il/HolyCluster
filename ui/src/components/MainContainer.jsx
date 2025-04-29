@@ -174,9 +174,6 @@ function MainContainer() {
             return;
         }
 
-        console.error(`undoing cat:`);
-        console.error(prev_freqs[0]);
-
         send_message_to_radio(prev_freqs[0]);
         set_prev_freqs(prev_freqs.slice(1));
     }
