@@ -18,6 +18,7 @@ tokio = { version = "1.44.2", features = ["rt", "rt-multi-thread"] }
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
 tower-http = { version = "0.6.2", features = ["fs"] }
 tray-icon = { version = "0.20.1", default-features = false }
+winit = "0.30.10"
 winsafe = { version = "0.0.23", git = "https://github.com/rodrigocfd/winsafe.git", features = ["kernel", "ole", "oleaut"] }
 
 [features]
