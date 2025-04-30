@@ -155,7 +155,7 @@ function MainContainer() {
             [
                 {
                     mode: radio_mode,
-                    freq: Math.floor(radio_freq / 1000),
+                    freq: Math.round((radio_freq / 1000) * 1000) / 1000,
                 },
             ]
                 .concat(prev_freqs)

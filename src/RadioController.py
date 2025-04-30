@@ -64,7 +64,7 @@ class OmnirigRadioController:
             slot (str): Either "A" or "B"
             freq (int): The frequency, in Khz. For example, 28500.
         """
-        freq_in_hz = int(freq) * 1000
+        freq_in_hz = int(freq * 1000)
         self.omni_client.setFrequency("A", freq_in_hz)
 
     def get_data(self):
