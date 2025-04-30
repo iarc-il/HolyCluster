@@ -17,7 +17,10 @@ use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use single_instance::SingleInstance;
-use tokio::sync::mpsc::{self, UnboundedReceiver};
+use tokio::sync::{
+    broadcast::{self, Receiver},
+    mpsc::{self},
+};
 use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
 
@@ -29,6 +32,7 @@ mod utils;
 
 use dummy::DummyRadio;
 use rig::{AnyRadio, Mode, Slot};
+use tray_icon::IconTrayEvent;
 
 const HOLY_CLUSTER_DNS: &str = "holycluster.iarc.org";
 const LOCAL_PORT: u16 = 3000;
@@ -41,14 +45,15 @@ fn open_at_browser() -> Result<()> {
 fn main() -> Result<()> {
     let instance = SingleInstance::new("HolyCluster")?;
     if instance.is_single() {
-        let (quit_sender, quit_receiver) = mpsc::unbounded_channel::<()>();
+        let (tray_sender, tray_receiver) = broadcast::channel::<IconTrayEvent>(10);
+        let quit_reciever = tray_sender.subscribe();
 
         let _thread = std::thread::Builder::new()
             .name("tray-icon".into())
             .spawn(|| {
-                run_singleton_instance(quit_receiver).unwrap();
+                run_singleton_instance(quit_reciever, tray_receiver).unwrap();
             });
-        tray_icon::run_tray_icon(quit_sender);
+        tray_icon::run_tray_icon(tray_sender);
     } else {
         open_at_browser()?;
     }
@@ -56,7 +61,10 @@ fn main() -> Result<()> {
 }
 
 #[tokio::main]
-async fn run_singleton_instance(quit_receiver: UnboundedReceiver<()>) -> Result<()> {
+async fn run_singleton_instance(
+    quit_receiver: Receiver<IconTrayEvent>,
+    mut tray_receiver: Receiver<IconTrayEvent>,
+) -> Result<()> {
     let client = Client::new();
 
     let radio = if cfg!(windows) {
@@ -76,7 +84,7 @@ async fn run_singleton_instance(quit_receiver: UnboundedReceiver<()>) -> Result<
     };
     radio.write().init();
 
-    println!("Finished radio init");
+    println!("Radio initialized");
     let app = Router::new()
         .route("/radio", any(cat_control_handler))
         .with_state(radio)
@@ -106,6 +114,14 @@ async fn run_singleton_instance(quit_receiver: UnboundedReceiver<()>) -> Result<
 
     open_at_browser()?;
 
+    tokio::spawn(async move {
+        while let Ok(message) = tray_receiver.recv().await {
+            if message == IconTrayEvent::OpenBrowser {
+                open_at_browser().unwrap();
+            }
+        }
+    });
+
     println!("Running webapp");
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown(quit_receiver))
@@ -113,8 +129,12 @@ async fn run_singleton_instance(quit_receiver: UnboundedReceiver<()>) -> Result<
     Ok(())
 }
 
-async fn shutdown(mut quit_receiver: UnboundedReceiver<()>) {
-    while quit_receiver.recv().await.is_none() {}
+async fn shutdown(mut quit_receiver: Receiver<IconTrayEvent>) {
+    while let Ok(message) = quit_receiver.recv().await {
+        if message == IconTrayEvent::Quit {
+            break;
+        }
+    }
 }
 
 #[debug_handler]
