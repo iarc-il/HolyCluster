@@ -11,7 +11,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::any,
 };
-use axum_macros::debug_handler;
 use futures_util::{SinkExt, StreamExt};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -29,8 +28,30 @@ use crate::{
     utils,
 };
 
-const HOLY_CLUSTER_DNS: &str = "holycluster.iarc.org";
-const IS_USING_SSL: bool = true;
+#[derive(Clone)]
+pub struct RemoteServer {
+    pub dns: String,
+    pub is_using_ssl: bool,
+}
+
+impl RemoteServer {
+    fn build_uri(&self, schema: &str, path_and_query: &str) -> String {
+        format!(
+            "{}{}://{}{}",
+            schema,
+            if self.is_using_ssl { "s" } else { "" },
+            self.dns,
+            path_and_query,
+        )
+    }
+}
+
+#[derive(Clone)]
+struct AppState {
+    remote_server: RemoteServer,
+    radio: AnyRadio,
+    http_client: Client,
+}
 
 pub struct Server {
     app: Router,
@@ -38,12 +59,11 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn build_server(radio: AnyRadio) -> Result<Self> {
-        let client = Client::new();
+    pub async fn build_server(radio: AnyRadio, remote_server: RemoteServer) -> Result<Self> {
+        let http_client = Client::new();
 
         let app = Router::new()
             .route("/radio", any(cat_control_handler))
-            .with_state(radio)
             .route("/submit_spot", any(submit_spot_handler));
 
         let app = if std::env::var("LOCAL_UI").is_ok() {
@@ -64,7 +84,11 @@ impl Server {
         } else {
             app.fallback(any(proxy))
         };
-        let app = app.with_state(client);
+        let app = app.with_state(AppState {
+            remote_server,
+            radio,
+            http_client,
+        });
 
         let address = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), LOCAL_PORT);
         let listener = TcpListener::bind(address).await?;
@@ -87,19 +111,17 @@ async fn shutdown(mut quit_receiver: Receiver<IconTrayEvent>) {
     }
 }
 
-#[debug_handler]
-async fn proxy(State(client): State<Client>, request: Request<Body>) -> Response<Body> {
-    let uri_string = format!(
-        "http{}://{}{}",
-        if IS_USING_SSL { "s" } else { "" },
-        HOLY_CLUSTER_DNS,
+async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Response<Body> {
+    let uri_string = state.remote_server.build_uri(
+        "http",
         request
             .uri()
             .path_and_query()
             .map(|x| x.as_str())
-            .unwrap_or("")
+            .unwrap_or(""),
     );
-    let reqwest_response = match client.get(uri_string).send().await {
+
+    let reqwest_response = match state.http_client.get(uri_string).send().await {
         Ok(res) => res,
         Err(_) => {
             return (StatusCode::BAD_REQUEST, Body::empty()).into_response();
@@ -115,25 +137,24 @@ async fn proxy(State(client): State<Client>, request: Request<Body>) -> Response
         .unwrap()
 }
 
-async fn submit_spot_handler(websocket: WebSocketUpgrade) -> impl IntoResponse {
+async fn submit_spot_handler(
+    State(state): State<AppState>,
+    websocket: WebSocketUpgrade,
+) -> impl IntoResponse {
     websocket
         .write_buffer_size(0)
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
-        .on_upgrade(handle_submit_spot_socket)
+        .on_upgrade(|websocket: WebSocket| {
+            handle_submit_spot_socket(state.remote_server, websocket)
+        })
 }
 
-async fn handle_submit_spot_socket(client_socket: WebSocket) {
+async fn handle_submit_spot_socket(remote_server: RemoteServer, client_socket: WebSocket) {
     let (mut client_sender, mut client_receiver) = client_socket.split();
-
-    let (stream, _response) = connect_async(format!(
-        "ws{}://{}{}",
-        if IS_USING_SSL { "s" } else { "" },
-        HOLY_CLUSTER_DNS,
-        "/submit_spot",
-    ))
-    .await
-    .unwrap();
+    let (stream, _response) = connect_async(remote_server.build_uri("ws", "/submit_spot"))
+        .await
+        .unwrap();
     let (mut server_sender, mut server_receiver) = stream.split();
 
     let mut send_task = tokio::spawn(async move {
@@ -181,13 +202,13 @@ async fn handle_submit_spot_socket(client_socket: WebSocket) {
 
 async fn cat_control_handler(
     websocket: WebSocketUpgrade,
-    State(radio): State<AnyRadio>,
+    State(state): State<AppState>,
 ) -> impl IntoResponse {
     websocket
         .write_buffer_size(0)
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
-        .on_upgrade(|websocket: WebSocket| handle_cat_control_socket(websocket, radio))
+        .on_upgrade(|websocket: WebSocket| handle_cat_control_socket(websocket, state.radio))
 }
 
 async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) {

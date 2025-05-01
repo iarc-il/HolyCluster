@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use anyhow::Result;
-use server::Server;
+use server::{RemoteServer, Server};
 use single_instance::SingleInstance;
 use tokio::sync::broadcast::{self, Receiver};
 
@@ -19,6 +19,9 @@ use tray_icon::IconTrayEvent;
 
 pub const LOCAL_PORT: u16 = 3000;
 
+const HOLY_CLUSTER_DNS: &str = "holycluster.iarc.org";
+const IS_USING_SSL: bool = true;
+
 fn open_at_browser() -> Result<()> {
     open::that(format!("http://127.0.0.1:{LOCAL_PORT}"))?;
     Ok(())
@@ -26,6 +29,11 @@ fn open_at_browser() -> Result<()> {
 
 fn main() -> Result<()> {
     let instance = SingleInstance::new("HolyCluster")?;
+
+    let remote_server = RemoteServer {
+        dns: HOLY_CLUSTER_DNS.into(),
+        is_using_ssl: IS_USING_SSL,
+    };
     if instance.is_single() {
         let (tray_sender, tray_receiver) = broadcast::channel::<IconTrayEvent>(10);
         let quit_reciever = tray_sender.subscribe();
@@ -33,7 +41,7 @@ fn main() -> Result<()> {
         let _thread = std::thread::Builder::new()
             .name("tray-icon".into())
             .spawn(|| {
-                run_singleton_instance(quit_reciever, tray_receiver).unwrap();
+                run_singleton_instance(quit_reciever, tray_receiver, remote_server).unwrap();
             });
         tray_icon::run_tray_icon(tray_sender);
     } else {
@@ -46,6 +54,7 @@ fn main() -> Result<()> {
 async fn run_singleton_instance(
     quit_receiver: Receiver<IconTrayEvent>,
     mut tray_receiver: Receiver<IconTrayEvent>,
+    remote_server: RemoteServer,
 ) -> Result<()> {
     let radio = if cfg!(windows) {
         use omnirig::OmnirigRadio;
@@ -66,7 +75,7 @@ async fn run_singleton_instance(
 
     println!("Radio initialized");
 
-    let server = Server::build_server(radio).await?;
+    let server = Server::build_server(radio, remote_server).await?;
 
     open_at_browser()?;
 
