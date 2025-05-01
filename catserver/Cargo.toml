@@ -4,6 +4,11 @@ authors = ["HolyCluster dev team"]
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+
 [dependencies]
 anyhow = "1.0.98"
 argh = "0.1.13"
