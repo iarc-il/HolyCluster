@@ -30,6 +30,7 @@ use crate::{
 };
 
 const HOLY_CLUSTER_DNS: &str = "holycluster.iarc.org";
+const IS_USING_SSL: bool = true;
 
 pub struct Server {
     app: Router,
@@ -89,7 +90,8 @@ async fn shutdown(mut quit_receiver: Receiver<IconTrayEvent>) {
 #[debug_handler]
 async fn proxy(State(client): State<Client>, request: Request<Body>) -> Response<Body> {
     let uri_string = format!(
-        "https://{}{}",
+        "http{}://{}{}",
+        if IS_USING_SSL { "s" } else { "" },
         HOLY_CLUSTER_DNS,
         request
             .uri()
@@ -124,10 +126,14 @@ async fn submit_spot_handler(websocket: WebSocketUpgrade) -> impl IntoResponse {
 async fn handle_submit_spot_socket(client_socket: WebSocket) {
     let (mut client_sender, mut client_receiver) = client_socket.split();
 
-    let (stream, _response) =
-        connect_async(format!("wss://{}{}", HOLY_CLUSTER_DNS, "/submit_spot"))
-            .await
-            .unwrap();
+    let (stream, _response) = connect_async(format!(
+        "ws{}://{}{}",
+        if IS_USING_SSL { "s" } else { "" },
+        HOLY_CLUSTER_DNS,
+        "/submit_spot",
+    ))
+    .await
+    .unwrap();
     let (mut server_sender, mut server_receiver) = stream.split();
 
     let mut send_task = tokio::spawn(async move {
