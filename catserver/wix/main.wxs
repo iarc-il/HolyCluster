@@ -1,0 +1,140 @@
+<?xml version='1.0' encoding='windows-1252'?>
+
+<?if $(sys.BUILDARCH) = x64 or $(sys.BUILDARCH) = arm64 ?>
+    <?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
+<?else ?>
+    <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
+<?endif ?>
+
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+
+    <Product
+        Id='*'
+        Name='Holy Cluster'
+        UpgradeCode='DD2C1F58-D922-4BEF-90BD-C01652EFD082'
+        Manufacturer='HolyCluster dev team'
+        Language='1033'
+        Codepage='1252'
+        Version='$(var.Version)'>
+
+        <Package Id='*'
+            Keywords='Installer'
+            Manufacturer='HolyCluster dev team'
+            InstallerVersion='450'
+            Languages='1033'
+            Compressed='yes'
+            InstallScope='perMachine'
+            SummaryCodepage='1252'
+            />
+
+        <MajorUpgrade
+            Schedule='afterInstallInitialize'
+            DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.'/>
+
+        <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1'/>
+        <Property Id='DiskPrompt' Value='Holy Cluster Installation'/>
+
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
+                <Directory Id='APPLICATIONFOLDER' Name='HolyCluster'>
+                    <Component Id='HolyCluster.exe' Guid='*'>
+                        <File
+                            Id='HolyCluster.exe'
+                            Name='HolyCluster.exe'
+                            DiskId='1'
+                            Source='$(var.CargoTargetBinDir)\HolyCluster.exe'
+                            KeyPath='yes'/>
+                    </Component>
+                </Directory>
+            </Directory>
+
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="ApplicationProgramsFolder" Name="Holy Cluster"/>
+            </Directory>
+            <Directory Id="DesktopFolder">
+            </Directory>
+        </Directory>
+
+        <DirectoryRef Id="ApplicationProgramsFolder">
+            <Component Id="ApplicationShortcut" Guid="*">
+                <Condition>INSTALLMENUSHORTCUT = 1</Condition>
+                <Shortcut Id="ApplicationStartMenuShortcut"
+                    Name="Holy Cluster"
+                    Description="Web cluster with CAT control"
+                    Target="[#HolyCluster.exe]"
+                    WorkingDirectory="APPLICATIONROOTDIRECTORY"/>
+                <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
+                <RegistryValue Root="HKCU" Key="Software\IARC\HolyCluster" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="DesktopFolder">
+            <Component Id="DesktopShortcut" Guid="*">
+                <Condition>INSTALLDESKTOPSHORTCUT = 1</Condition>
+                <Shortcut
+                    Id="ApplicationDesktopShortcut"
+                    Name="HolyCluster"
+                    WorkingDirectory="INSTALLDIR"
+                    Icon="ProductICO"
+                    Advertise="no"
+                    Target="[#HolyCluster.exe]"
+                />
+                <RemoveFolder Id="RemoveDesktopFolder" On="uninstall" />
+                <RegistryValue Root="HKCU" Key="Software\MyCompany\MyApp" Name="desktop_installed" Type="integer" Value="1" KeyPath="yes" />
+            </Component>
+        </DirectoryRef>
+
+        <Feature
+            Id='MainApp'
+            Title='Holy Cluster'
+            Description='Installs all binaries and the license.'
+            Level='1'
+            ConfigurableDirectory='APPLICATIONFOLDER'
+            AllowAdvertise='no'
+            Display='expand'
+            Absent='disallow'>
+
+            <ComponentRef Id='HolyCluster.exe'/>
+            <ComponentRef Id='ApplicationShortcut'/>
+            <ComponentRef Id="DesktopShortcut" />
+        </Feature>
+
+        <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
+
+        <Icon Id='ProductICO' SourceFile='wix\icon.ico'/>
+        <Property Id='ARPPRODUCTICON' Value='ProductICO'/>
+        <Property Id="INSTALLMENUSHORTCUT" Value="1" />
+        <Property Id="INSTALLDESKTOPSHORTCUT" Value="1" />
+
+        <UI>
+            <UIRef Id='WixUI_FeatureTree'/>
+            <DialogRef Id="CustomInstallDirDlg" />
+
+            <Publish Dialog='WelcomeDlg' Control='Next' Event='NewDialog' Value='CustomInstallDirDlg'>1</Publish>
+            <Publish Dialog='CustomInstallDirDlg' Control='Back' Event='NewDialog' Value='WelcomeDlg'>1</Publish>
+            <Publish Dialog='CustomInstallDirDlg' Control='Next' Event='NewDialog' Value='VerifyReadyDlg'>1</Publish>
+            <Publish Dialog='VerifyReadyDlg' Control='Back' Event='NewDialog' Value='CustomInstallDirDlg'>1</Publish>
+        </UI>
+
+        <!--
+          Uncomment the next `WixVariable` tag to customize the installer's
+          Graphical User Interface (GUI) and add a custom banner image across
+          the top of each screen. See the WiX Toolset documentation for details
+          about customization.
+
+          The banner BMP dimensions are 493 x 58 pixels.
+        -->
+        <!--<WixVariable Id='WixUIBannerBmp' Value='wix\Banner.bmp'/>-->
+
+        <!--
+          Uncomment the next `WixVariable` tag to customize the installer's
+          Graphical User Interface (GUI) and add a custom image to the first
+          dialog, or screen. See the WiX Toolset documentation for details about
+          customization.
+
+          The dialog BMP dimensions are 493 x 312 pixels.
+        -->
+        <!--<WixVariable Id='WixUIDialogBmp' Value='wix\Dialog.bmp'/>-->
+
+    </Product>
+
+</Wix>
