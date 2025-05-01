@@ -59,14 +59,18 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn build_server(radio: AnyRadio, remote_server: RemoteServer) -> Result<Self> {
+    pub async fn build_server(
+        radio: AnyRadio,
+        remote_server: RemoteServer,
+        use_local_ui: bool,
+    ) -> Result<Self> {
         let http_client = Client::new();
 
         let app = Router::new()
             .route("/radio", any(cat_control_handler))
             .route("/submit_spot", any(submit_spot_handler));
 
-        let app = if std::env::var("LOCAL_UI").is_ok() {
+        let app = if use_local_ui {
             let mut ui_dir = std::env::current_exe()?;
             let ui_dir = loop {
                 let result = ui_dir.join("ui/dist");
