@@ -2,6 +2,7 @@ use winsafe::guard::CoUninitializeGuard;
 use winsafe::prelude::oleaut_IDispatch;
 use winsafe::{CLSIDFromProgID, CoInitializeEx, IDispatch, co};
 
+use crate::freq::{Hz, Khz};
 use crate::rig::{Mode, Radio, Slot, Status};
 
 struct OmnirigInner {
@@ -86,21 +87,22 @@ impl Radio for OmnirigRadio {
         self.current_rig = rig;
     }
 
-    fn set_frequency(&mut self, vfo: Slot, freq: u32) {
-        println!("Setting freq at {vfo:?} to {freq}");
+    fn set_frequency(&mut self, vfo: Slot, freq: Khz) {
+        println!("Setting freq at {vfo:?} to {freq:?}");
         let vfo = match vfo {
             Slot::A => "FreqA",
             Slot::B => "FreqB",
         };
+        let freq: Hz = freq.into();
         self.current_rig()
-            .invoke_put(vfo, &winsafe::Variant::I4(freq as i32 * 1000))
+            .invoke_put(vfo, &winsafe::Variant::I4(freq.0 as i32))
             .unwrap();
     }
 
     fn get_status(&mut self) -> Status {
         let freq = self.current_rig().invoke_get("FreqA", &[]).unwrap();
-        let freq = if let winsafe::Variant::I4(freq) = freq {
-            (freq as u32) / 1000
+        let freq: Hz = if let winsafe::Variant::I4(freq) = freq {
+            freq.into()
         } else {
             panic!("Unknown variant");
         };

@@ -25,6 +25,7 @@ use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
 
 mod dummy;
+mod freq;
 mod omnirig;
 mod rig;
 mod tray_icon;
@@ -362,7 +363,9 @@ fn process_message(message: String, radio: AnyRadio) -> Result<()> {
                 }
             };
             radio.write().set_mode(mode);
-            radio.write().set_frequency(Slot::A, set_mode_and_freq.freq);
+            radio
+                .write()
+                .set_frequency(Slot::A, set_mode_and_freq.freq.into());
         }
     }
     Ok(())
