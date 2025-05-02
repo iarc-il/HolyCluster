@@ -1,7 +1,9 @@
 #![windows_subsystem = "windows"]
+use std::fs::OpenOptions;
 
 use anyhow::Result;
 use argh::FromArgs;
+use directories::ProjectDirs;
 use server::{Server, ServerConfig};
 use single_instance::SingleInstance;
 use tokio::sync::broadcast::{self, Receiver};
@@ -17,6 +19,8 @@ mod utils;
 
 use dummy::DummyRadio;
 use rig::AnyRadio;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{EnvFilter, Layer, Registry, layer::SubscriberExt};
 use tray_icon::IconTrayEvent;
 
 const BASE_LOCAL_PORT: u16 = 3000;
@@ -93,8 +97,45 @@ fn get_slug_from_args(args: &Args) -> String {
     slug.join("-")
 }
 
+fn configure_tracing() {
+    let project_dirs = ProjectDirs::from("org", "iarc", "holycluster").unwrap();
+    let cache_dir = project_dirs.cache_dir();
+    std::fs::create_dir_all(cache_dir).unwrap();
+    let log_path = cache_dir.join("debug.log");
+
+    let debug_file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(log_path)
+        .unwrap();
+
+    let log_file_filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env()
+        .unwrap()
+        .add_directive("catserver=debug".parse().unwrap());
+
+    let subscriber = Registry::default()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .compact()
+                .with_ansi(!cfg!(windows))
+                .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
+                    tracing::Level::INFO,
+                )),
+        )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .compact()
+                .with_writer(debug_file)
+                .with_filter(log_file_filter),
+        );
+
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+}
+
 fn main() -> Result<()> {
-    tracing_subscriber::fmt().init();
+    configure_tracing();
 
     let args: Args = argh::from_env();
     let args_slug = get_slug_from_args(&args);
