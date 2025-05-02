@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
     sync::{broadcast::Receiver, mpsc},
+    task::JoinHandle,
 };
 use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
@@ -127,8 +128,9 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
     );
 
     let reqwest_response = match state.http_client.get(uri_string).send().await {
-        Ok(res) => res,
-        Err(_) => {
+        Ok(result) => result,
+        Err(error) => {
+            tracing::error!("Error: {error:?}");
             return (StatusCode::BAD_REQUEST, Body::empty()).into_response();
         }
     };
@@ -150,40 +152,57 @@ async fn submit_spot_handler(
         .write_buffer_size(0)
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
-        .on_upgrade(|websocket: WebSocket| {
+        .on_upgrade(async |websocket: WebSocket| {
             handle_submit_spot_socket(state.server_config, websocket)
+                .await
+                .unwrap()
         })
 }
 
-async fn handle_submit_spot_socket(server_config: ServerConfig, client_socket: WebSocket) {
+async fn handle_submit_spot_socket(
+    server_config: ServerConfig,
+    client_socket: WebSocket,
+) -> Result<()> {
     let (mut client_sender, mut client_receiver) = client_socket.split();
-    let (stream, _response) = connect_async(server_config.build_uri("ws", "/submit_spot"))
-        .await
-        .unwrap();
+    let (stream, _response) = connect_async(server_config.build_uri("ws", "/submit_spot")).await?;
     let (mut server_sender, mut server_receiver) = stream.split();
 
-    let mut send_task = tokio::spawn(async move {
+    let mut send_task: JoinHandle<Result<()>> = tokio::spawn(async move {
         while let Some(Ok(message)) = server_receiver.next().await {
             client_sender
                 .send(utils::tungstenite_to_axum_message(message))
-                .await
-                .unwrap();
+                .await?;
         }
+
+        // This is best effort, so we ignore errors
         let _ = client_sender
             .send(Message::Close(Some(axum::extract::ws::CloseFrame {
                 code: axum::extract::ws::close_code::NORMAL,
                 reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
             })))
             .await;
+        Ok(())
     });
 
-    let mut recv_task = tokio::spawn(async move {
+    let mut recv_task: JoinHandle<Result<()>> = tokio::spawn(async move {
         while let Some(Ok(message)) = client_receiver.next().await {
-            server_sender
+            let result = server_sender
                 .send(utils::axum_to_tungstenite_message(message))
-                .await
-                .unwrap();
+                .await;
+            if let Err(error) = &result {
+                use tokio_tungstenite::tungstenite::Error;
+                match error {
+                    Error::ConnectionClosed => {
+                        break;
+                    }
+                    _ => {
+                        result?;
+                    }
+                }
+            }
         }
+
+        // This is best effort, so we ignore errors
         let _ = server_sender
             .send(tokio_tungstenite::tungstenite::Message::Close(Some(
                 tokio_tungstenite::tungstenite::protocol::CloseFrame {
@@ -193,6 +212,7 @@ async fn handle_submit_spot_socket(server_config: ServerConfig, client_socket: W
                 },
             )))
             .await;
+        Ok(())
     });
 
     tokio::select! {
@@ -203,6 +223,7 @@ async fn handle_submit_spot_socket(server_config: ServerConfig, client_socket: W
             send_task.abort();
         }
     }
+    Ok(())
 }
 
 async fn cat_control_handler(
@@ -221,59 +242,58 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) {
 
     let (sender, mut sender_recv) = mpsc::unbounded_channel::<Message>();
 
-    let mut send_task = tokio::spawn(async move {
+    let mut send_task: JoinHandle<Result<()>> = tokio::spawn(async move {
         while let Some(message) = sender_recv.recv().await {
             if sender_inner.send(message).await.is_err() {
                 break;
             }
         }
 
+        // This is best effort, so we ignore errors
         let _ = sender_inner
             .send(Message::Close(Some(CloseFrame {
                 code: axum::extract::ws::close_code::NORMAL,
                 reason: Utf8Bytes::from_static("Goodbye"),
             })))
             .await;
+        Ok(())
     });
 
     let poll_radio = radio.clone();
     let poll_sender = sender.clone();
-    let mut poll_task = tokio::spawn(async move {
+    let mut poll_task: JoinHandle<Result<()>> = tokio::spawn(async move {
         let message = StatusMessage {
             status: "connected".to_string(),
         };
         let radio = poll_radio.clone();
         let sender = poll_sender;
 
-        sender
-            .send(Message::Text(
-                serde_json::to_string(&message).unwrap().into(),
-            ))
-            .unwrap();
+        sender.send(Message::Text(serde_json::to_string(&message)?.into()))?;
 
         loop {
             let data = radio.write().get_status();
-            let message = Message::Text(serde_json::to_string(&data).unwrap().into());
+            let message = Message::Text(serde_json::to_string(&data)?.into());
             if sender.send(message).is_err() {
                 break;
             }
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
+        Ok(())
     });
 
     let command_radio = radio.clone();
     let command_sender = sender.clone();
-    let mut command_task = tokio::spawn(async move {
+    let mut command_task: JoinHandle<Result<()>> = tokio::spawn(async move {
         let radio = command_radio.clone();
         let sender = command_sender;
 
         while let Some(Ok(message)) = receiver.next().await {
             match message {
                 Message::Text(text) => {
-                    process_message(text.to_string(), radio.clone()).unwrap();
+                    process_message(text.to_string(), radio.clone())?;
                     let status = radio.write().get_status();
-                    let message = Message::Text(serde_json::to_string(&status).unwrap().into());
-                    sender.send(message).unwrap();
+                    let message = Message::Text(serde_json::to_string(&status)?.into());
+                    sender.send(message)?;
                 }
                 Message::Binary(_data) => {}
                 Message::Close(_) => {
@@ -282,6 +302,7 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) {
                 _ => {}
             }
         }
+        Ok(())
     });
 
     tokio::select! {
