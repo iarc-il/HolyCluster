@@ -22,7 +22,9 @@ use tray_icon::IconTrayEvent;
 const BASE_LOCAL_PORT: u16 = 3000;
 
 fn open_at_browser(port: u16) -> Result<()> {
-    open::that(format!("http://127.0.0.1:{port}"))?;
+    let address = format!("http://127.0.0.1:{port}");
+    tracing::info!("Opening browser at: {address}");
+    open::that(address)?;
     Ok(())
 }
 
@@ -50,7 +52,6 @@ fn get_radio(use_dummy: bool) -> AnyRadio {
     if use_dummy {
         AnyRadio::new(DummyRadio::new())
     } else {
-        println!("Using omnirig");
         AnyRadio::new(OmnirigRadio::new())
     }
 }
@@ -58,7 +59,7 @@ fn get_radio(use_dummy: bool) -> AnyRadio {
 #[cfg(not(windows))]
 fn get_radio(use_dummy: bool) -> AnyRadio {
     if use_dummy {
-        println!("DUMMY env variable doesn't have any affect in linux!");
+        tracing::warn!("DUMMY env variable doesn't have any affect in linux!");
     }
     AnyRadio::new(DummyRadio::new())
 }
@@ -93,6 +94,8 @@ fn get_slug_from_args(args: &Args) -> String {
 }
 
 fn main() -> Result<()> {
+    tracing_subscriber::fmt().init();
+
     let args: Args = argh::from_env();
     let args_slug = get_slug_from_args(&args);
     let local_port = get_port_from_args(BASE_LOCAL_PORT, &args);
@@ -100,12 +103,14 @@ fn main() -> Result<()> {
     let instance = SingleInstance::new(&format!("HolyCluster-{args_slug}"))?;
 
     let server_config = if args.dev_server {
+        tracing::info!("Using dev server");
         ServerConfig {
             dns: "holycluster-dev.iarc.org".into(),
             is_using_ssl: false,
             local_port,
         }
     } else {
+        tracing::info!("Using production server");
         ServerConfig {
             dns: "holycluster.iarc.org".into(),
             is_using_ssl: true,
@@ -134,6 +139,7 @@ fn main() -> Result<()> {
             });
         tray_icon::run_tray_icon(&args_slug, tray_sender);
     } else {
+        tracing::info!("Server is already running");
         open_at_browser(local_port)?;
     }
     Ok(())
@@ -147,9 +153,9 @@ async fn run_singleton_instance(
     server_config: ServerConfig,
     use_local_ui: bool,
 ) -> Result<()> {
+    tracing::info!("Initializing {} radio", radio.read().get_name());
     radio.write().init();
-
-    println!("Radio initialized");
+    tracing::info!("Radio initialized");
 
     let local_port = server_config.local_port;
     let server = Server::build_server(radio, server_config, use_local_ui).await?;
@@ -163,7 +169,7 @@ async fn run_singleton_instance(
         }
     });
 
-    println!("Running webapp");
+    tracing::info!("Running webapp");
     server.run_server(quit_receiver).await?;
 
     Ok(())

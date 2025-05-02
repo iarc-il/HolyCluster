@@ -25,22 +25,21 @@ impl DummyRadio {
 }
 
 impl Radio for DummyRadio {
-    fn init(&mut self) {
-        println!("Initialize radio");
+    fn init(&mut self) {}
+
+    fn get_name(&self) -> &str {
+        "dummy"
     }
 
     fn set_mode(&mut self, mode: Mode) {
-        println!("Setting mode: {mode:?}");
         self.mode = mode;
     }
 
     fn set_rig(&mut self, rig: u8) {
-        println!("Set rig: {rig:?}");
         self.current_rig = rig;
     }
 
     fn set_frequency(&mut self, slot: Slot, freq: Khz) {
-        println!("Setting rig: {slot:?} to freq: {freq:?}");
         match (slot, self.current_rig) {
             (Slot::A, 1) => {
                 self.freq_a1 = freq.into();

@@ -42,11 +42,10 @@ impl OmnirigRadio {
 
 impl Radio for OmnirigRadio {
     fn init(&mut self) {
-        println!("Initializing omnirig");
         let com_guard =
             CoInitializeEx(co::COINIT::MULTITHREADED | co::COINIT::DISABLE_OLE1DDE).unwrap();
 
-        println!("Creating instance");
+        tracing::debug!("Creating instance");
         let omnirig = winsafe::CoCreateInstance::<IDispatch>(
             &CLSIDFromProgID("Omnirig.OmnirigX").unwrap(),
             None,
@@ -54,7 +53,7 @@ impl Radio for OmnirigRadio {
         )
         .unwrap();
 
-        println!("Getting rigs");
+        tracing::debug!("Getting rigs");
         let rig1 = omnirig.invoke_get("Rig1", &[]).unwrap().unwrap_dispatch();
         let rig2 = omnirig.invoke_get("Rig2", &[]).unwrap().unwrap_dispatch();
 
@@ -64,7 +63,10 @@ impl Radio for OmnirigRadio {
             rig1,
             rig2,
         });
-        println!("Omnirig initialized");
+    }
+
+    fn get_name(&self) -> &str {
+        "omnirig"
     }
 
     fn set_mode(&mut self, mode: Mode) {
@@ -88,7 +90,6 @@ impl Radio for OmnirigRadio {
     }
 
     fn set_frequency(&mut self, vfo: Slot, freq: Khz) {
-        println!("Setting freq at {vfo:?} to {freq:?}");
         let vfo = match vfo {
             Slot::A => "FreqA",
             Slot::B => "FreqB",
@@ -120,7 +121,7 @@ impl Radio for OmnirigRadio {
                 0x20000000 => "AM",
                 0x40000000 => "FM",
                 _ => {
-                    println!("Unknown mode: {mode:x}");
+                    tracing::warn!("Unknown mode: {mode:x}");
                     "Unknown"
                 }
             }

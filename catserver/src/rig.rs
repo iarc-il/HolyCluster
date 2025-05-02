@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock, RwLockWriteGuard};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use serde::Serialize;
 
@@ -33,6 +33,7 @@ pub struct Status {
 
 pub trait Radio: Send + Sync {
     fn init(&mut self);
+    fn get_name(&self) -> &str;
     fn set_mode(&mut self, mode: Mode);
     fn set_rig(&mut self, rig: u8);
     fn set_frequency(&mut self, slot: Slot, freq: Khz);
@@ -51,5 +52,9 @@ impl AnyRadio {
 
     pub fn write(&self) -> RwLockWriteGuard<'_, Box<dyn Radio>> {
         self.0.write().unwrap()
+    }
+
+    pub fn read(&self) -> RwLockReadGuard<'_, Box<dyn Radio>> {
+        self.0.read().unwrap()
     }
 }

@@ -328,6 +328,7 @@ fn process_message(message: String, radio: AnyRadio) -> Result<()> {
     let message: ClientMessage = serde_json::from_str(&message)?;
     match message {
         ClientMessage::SetRig(set_rig) => {
+            tracing::debug!("Setting rig to {}", set_rig.rig);
             radio.write().set_rig(set_rig.rig);
         }
         ClientMessage::SetModeAndFreq(set_mode_and_freq) => {
@@ -342,10 +343,11 @@ fn process_message(message: String, radio: AnyRadio) -> Result<()> {
                     bail!("Unknown mode: {mode}, is upper: {is_upper}");
                 }
             };
+            tracing::debug!("Setting mode to {mode:?}");
             radio.write().set_mode(mode);
-            radio
-                .write()
-                .set_frequency(Slot::A, set_mode_and_freq.freq.into());
+            let freq = set_mode_and_freq.freq.into();
+            tracing::debug!("Setting freq to {freq:?}");
+            radio.write().set_frequency(Slot::A, freq);
         }
     }
     Ok(())
