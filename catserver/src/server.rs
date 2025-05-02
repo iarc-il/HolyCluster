@@ -22,19 +22,19 @@ use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
 
 use crate::{
-    LOCAL_PORT,
     rig::{AnyRadio, Mode, Slot},
     tray_icon::IconTrayEvent,
     utils,
 };
 
 #[derive(Clone)]
-pub struct RemoteServer {
+pub struct ServerConfig {
     pub dns: String,
     pub is_using_ssl: bool,
+    pub local_port: u16,
 }
 
-impl RemoteServer {
+impl ServerConfig {
     fn build_uri(&self, schema: &str, path_and_query: &str) -> String {
         format!(
             "{}{}://{}{}",
@@ -48,7 +48,7 @@ impl RemoteServer {
 
 #[derive(Clone)]
 struct AppState {
-    remote_server: RemoteServer,
+    server_config: ServerConfig,
     radio: AnyRadio,
     http_client: Client,
 }
@@ -61,7 +61,7 @@ pub struct Server {
 impl Server {
     pub async fn build_server(
         radio: AnyRadio,
-        remote_server: RemoteServer,
+        server_config: ServerConfig,
         use_local_ui: bool,
     ) -> Result<Self> {
         let http_client = Client::new();
@@ -88,13 +88,14 @@ impl Server {
         } else {
             app.fallback(any(proxy))
         };
+        let local_port = server_config.local_port;
         let app = app.with_state(AppState {
-            remote_server,
+            server_config,
             radio,
             http_client,
         });
 
-        let address = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), LOCAL_PORT);
+        let address = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), local_port);
         let listener = TcpListener::bind(address).await?;
         Ok(Self { app, listener })
     }
@@ -116,7 +117,7 @@ async fn shutdown(mut quit_receiver: Receiver<IconTrayEvent>) {
 }
 
 async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Response<Body> {
-    let uri_string = state.remote_server.build_uri(
+    let uri_string = state.server_config.build_uri(
         "http",
         request
             .uri()
@@ -150,13 +151,13 @@ async fn submit_spot_handler(
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
         .on_upgrade(|websocket: WebSocket| {
-            handle_submit_spot_socket(state.remote_server, websocket)
+            handle_submit_spot_socket(state.server_config, websocket)
         })
 }
 
-async fn handle_submit_spot_socket(remote_server: RemoteServer, client_socket: WebSocket) {
+async fn handle_submit_spot_socket(server_config: ServerConfig, client_socket: WebSocket) {
     let (mut client_sender, mut client_receiver) = client_socket.split();
-    let (stream, _response) = connect_async(remote_server.build_uri("ws", "/submit_spot"))
+    let (stream, _response) = connect_async(server_config.build_uri("ws", "/submit_spot"))
         .await
         .unwrap();
     let (mut server_sender, mut server_receiver) = stream.split();

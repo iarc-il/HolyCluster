@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use argh::FromArgs;
-use server::{RemoteServer, Server};
+use server::{Server, ServerConfig};
 use single_instance::SingleInstance;
 use tokio::sync::broadcast::{self, Receiver};
 
@@ -19,18 +19,18 @@ use dummy::DummyRadio;
 use rig::AnyRadio;
 use tray_icon::IconTrayEvent;
 
-pub const LOCAL_PORT: u16 = 3000;
+const BASE_LOCAL_PORT: u16 = 3000;
 
-fn open_at_browser() -> Result<()> {
-    open::that(format!("http://127.0.0.1:{LOCAL_PORT}"))?;
+fn open_at_browser(port: u16) -> Result<()> {
+    open::that(format!("http://127.0.0.1:{port}"))?;
     Ok(())
 }
 
 #[derive(FromArgs)]
-/// Holy Cluster
+/// The Holy Cluster - debug flags
 #[argh(help_triggers("-h", "--help"))]
 struct Args {
-    /// run the server with the UI from the production server
+    /// run the server with the UI from the development server
     #[argh(switch)]
     dev_server: bool,
 
@@ -63,20 +63,53 @@ fn get_radio(use_dummy: bool) -> AnyRadio {
     AnyRadio::new(DummyRadio::new())
 }
 
+/// For development purposes, we run each instance in different port, based on the given arguments
+fn get_port_from_args(base_port: u16, args: &Args) -> u16 {
+    let mut port = base_port;
+    if args.dev_server {
+        port += 1;
+    }
+    if args.dummy {
+        port += 2;
+    }
+    if args.local_ui {
+        port += 4;
+    }
+    port
+}
+
+fn get_slug_from_args(args: &Args) -> String {
+    let mut slug = vec![];
+    if args.dev_server {
+        slug.push("dev_server");
+    }
+    if args.dummy {
+        slug.push("dummy");
+    }
+    if args.local_ui {
+        slug.push("local_ui");
+    }
+    slug.join("-")
+}
+
 fn main() -> Result<()> {
     let args: Args = argh::from_env();
+    let args_slug = get_slug_from_args(&args);
+    let local_port = get_port_from_args(BASE_LOCAL_PORT, &args);
 
-    let instance = SingleInstance::new("HolyCluster")?;
+    let instance = SingleInstance::new(&format!("HolyCluster-{args_slug}"))?;
 
-    let remote_server = if args.dev_server {
-        RemoteServer {
+    let server_config = if args.dev_server {
+        ServerConfig {
             dns: "holycluster-dev.iarc.org".into(),
             is_using_ssl: false,
+            local_port,
         }
     } else {
-        RemoteServer {
+        ServerConfig {
             dns: "holycluster.iarc.org".into(),
             is_using_ssl: true,
+            local_port,
         }
     };
 
@@ -94,14 +127,14 @@ fn main() -> Result<()> {
                     quit_reciever,
                     tray_receiver,
                     radio,
-                    remote_server,
+                    server_config,
                     use_local_ui,
                 )
                 .unwrap();
             });
-        tray_icon::run_tray_icon(tray_sender);
+        tray_icon::run_tray_icon(&args_slug, tray_sender);
     } else {
-        open_at_browser()?;
+        open_at_browser(local_port)?;
     }
     Ok(())
 }
@@ -111,21 +144,21 @@ async fn run_singleton_instance(
     quit_receiver: Receiver<IconTrayEvent>,
     mut tray_receiver: Receiver<IconTrayEvent>,
     radio: AnyRadio,
-    remote_server: RemoteServer,
+    server_config: ServerConfig,
     use_local_ui: bool,
 ) -> Result<()> {
     radio.write().init();
 
     println!("Radio initialized");
 
-    let server = Server::build_server(radio, remote_server, use_local_ui).await?;
-
-    open_at_browser()?;
+    let local_port = server_config.local_port;
+    let server = Server::build_server(radio, server_config, use_local_ui).await?;
+    open_at_browser(local_port)?;
 
     tokio::spawn(async move {
         while let Ok(message) = tray_receiver.recv().await {
             if message == IconTrayEvent::OpenBrowser {
-                open_at_browser().unwrap();
+                open_at_browser(local_port).unwrap();
             }
         }
     });
