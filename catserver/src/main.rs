@@ -125,8 +125,8 @@ fn main() -> Result<()> {
         let quit_reciever = tray_sender.subscribe();
 
         let use_local_ui = args.local_ui;
-        let _thread = std::thread::Builder::new()
-            .name("tray-icon".into())
+        let thread = std::thread::Builder::new()
+            .name("singleton".into())
             .spawn(move || {
                 run_singleton_instance(
                     quit_reciever,
@@ -136,8 +136,15 @@ fn main() -> Result<()> {
                     use_local_ui,
                 )
                 .unwrap();
-            });
-        tray_icon::run_tray_icon(&args_slug, tray_sender);
+            })?;
+
+        // Currently we don't care about tray icon for linux because it's only used for development.
+        // This can be enabled if we ever support linux for users.
+        if cfg!(windows) {
+            tray_icon::run_tray_icon(&args_slug, tray_sender);
+        } else {
+            thread.join().unwrap();
+        }
     } else {
         tracing::info!("Server is already running");
         open_at_browser(local_port)?;
