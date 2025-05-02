@@ -8,11 +8,20 @@ export default function SevenSegmentDisplay({ className, height, value, display_
     return (
         <div className={`flex flex-row gap-2 ${className || ""}`}>
             {Array.from({ length: display_size }, (_, i) => (
-                <SevenSegmentTile
-                    key={i}
-                    className={`h-[${height}px]`}
-                    value={error ? -1 : parseInt(value[i])}
-                />
+                <>
+                    <SevenSegmentTile
+                        key={i}
+                        className={`h-[${height}px]`}
+                        value={error ? -1 : parseInt(value[i])}
+                    />
+                    {(display_size - i) % 3 === 1 && i !== display_size - 1 && (
+                        <div
+                            className={`h-[3px] aspect-square mt-auto -mx-1 ${
+                                error ? "bg-slate-200 opacity-25" : "bg-red-500"
+                            }`}
+                        ></div>
+                    )}
+                </>
             ))}
         </div>
     );
