@@ -107,6 +107,10 @@ const themes = {
             night: "#000080",
             borders: "#000000",
         },
+        seven_segment: {
+            on: "#ef4444",
+            off: "#e2e8f0",
+        },
     },
     Dark: {
         bands: {
@@ -185,6 +189,10 @@ const themes = {
             60: "#81868e",
             80: "#b28884",
             160: "#8199ab",
+        },
+        seven_segment: {
+            on: "#ef4444",
+            off: "#414141",
         },
     },
     Blue: {
@@ -265,6 +273,10 @@ const themes = {
             80: "#b28884",
             160: "#8199ab",
         },
+        seven_segment: {
+            on: "#ef4444",
+            off: "#414141",
+        },
     },
     Gray: {
         bands: {
@@ -343,6 +355,10 @@ const themes = {
             60: "#81868e",
             80: "#b28884",
             160: "#8199ab",
+        },
+        seven_segment: {
+            on: "#ef4444",
+            off: "#505050",
         },
     },
 };
