@@ -52,9 +52,13 @@ async def get_locator_from_qrz(qrz_session_key:str, callsign: str, delay:float=0
                 error = root.find('.//qrz:Error', ns).text
                 logger.error(f"qrz.com: {error}")
                 return {"locator": None, "error": error}
-            
-            locator = root.find('.//qrz:grid', ns).text                
-            return {"locator": locator}
+
+            geoloc =  root.find('.//qrz:geoloc', ns).text                
+            if geoloc == "user":
+              locator = root.find('.//qrz:grid', ns).text                
+              return {"locator": locator}
+            else:
+              return {"locator": None, "error": "no user supplied grid"}
         
         except Exception as e:
             return {"locator": None, "error": f"Exception: {e}"}
