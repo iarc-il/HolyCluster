@@ -1,13 +1,13 @@
-use crate::freq::{Hz, Khz};
+use crate::freq::Freq;
 use crate::rig::{Mode, Radio, Slot, Status};
 
 #[derive(Clone)]
 pub struct DummyRadio {
     mode: Mode,
-    freq_a1: Hz,
-    freq_b1: Hz,
-    freq_a2: Hz,
-    freq_b2: Hz,
+    freq_a1: Freq,
+    freq_b1: Freq,
+    freq_a2: Freq,
+    freq_b2: Freq,
     current_rig: u8,
 }
 
@@ -15,10 +15,10 @@ impl DummyRadio {
     pub fn new() -> Self {
         Self {
             mode: Mode::USB,
-            freq_a1: 0.into(),
-            freq_b1: 0.into(),
-            freq_a2: 0.into(),
-            freq_b2: 0.into(),
+            freq_a1: Freq::from_u32_hz(0),
+            freq_b1: Freq::from_u32_hz(0),
+            freq_a2: Freq::from_u32_hz(0),
+            freq_b2: Freq::from_u32_hz(0),
             current_rig: 1,
         }
     }
@@ -39,19 +39,19 @@ impl Radio for DummyRadio {
         self.current_rig = rig;
     }
 
-    fn set_frequency(&mut self, slot: Slot, freq: Khz) {
+    fn set_frequency(&mut self, slot: Slot, freq: Freq) {
         match (slot, self.current_rig) {
             (Slot::A, 1) => {
-                self.freq_a1 = freq.into();
+                self.freq_a1 = freq;
             }
             (Slot::B, 1) => {
-                self.freq_b1 = freq.into();
+                self.freq_b1 = freq;
             }
             (Slot::A, 2) => {
-                self.freq_a2 = freq.into();
+                self.freq_a2 = freq;
             }
             (Slot::B, 2) => {
-                self.freq_b2 = freq.into();
+                self.freq_b2 = freq;
             }
             _ => {
                 panic!();
@@ -63,8 +63,8 @@ impl Radio for DummyRadio {
         Status {
             // Currently slot b is not in the status message
             freq: match self.current_rig {
-                1 => self.freq_a1,
-                2 => self.freq_a2,
+                1 => self.freq_a1.as_u32_hz(),
+                2 => self.freq_a2.as_u32_hz(),
                 _ => {
                     panic!();
                 }

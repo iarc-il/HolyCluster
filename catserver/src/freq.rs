@@ -1,42 +1,17 @@
-use serde::Serialize;
+// Frequency datatype, stored in hertz units
+#[derive(Debug, Clone, Copy)]
+pub struct Freq(u32);
 
-#[derive(Debug, Copy, Clone, Serialize)]
-pub struct Khz(pub u32);
-#[derive(Debug, Copy, Clone, Serialize)]
-pub struct Hz(pub u32);
-
-impl From<Khz> for Hz {
-    fn from(khz: Khz) -> Hz {
-        Hz(khz.0 * 1000)
+impl Freq {
+    pub fn from_f32_khz(freq: f32) -> Self {
+        Freq((freq * 1000.0) as u32)
     }
-}
 
-impl From<Hz> for Khz {
-    fn from(hz: Hz) -> Khz {
-        Khz(hz.0 / 1000)
+    pub fn from_u32_hz(freq: u32) -> Self {
+        Freq(freq)
     }
-}
 
-impl From<u32> for Khz {
-    fn from(khz: u32) -> Self {
-        Khz(khz)
-    }
-}
-
-impl From<i32> for Khz {
-    fn from(khz: i32) -> Self {
-        Khz(khz as u32)
-    }
-}
-
-impl From<u32> for Hz {
-    fn from(hz: u32) -> Self {
-        Hz(hz)
-    }
-}
-
-impl From<i32> for Hz {
-    fn from(hz: i32) -> Self {
-        Hz(hz as u32)
+    pub fn as_u32_hz(&self) -> u32 {
+        self.0
     }
 }

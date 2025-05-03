@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use serde::Serialize;
 
-use crate::freq::{Hz, Khz};
+use crate::freq::Freq;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone)]
@@ -24,7 +24,8 @@ pub enum Slot {
 
 #[derive(Debug, Serialize)]
 pub struct Status {
-    pub freq: Hz,
+    // value in hertz
+    pub freq: u32,
     pub status: String,
     pub mode: String,
     pub status_str: String,
@@ -36,7 +37,7 @@ pub trait Radio: Send + Sync {
     fn get_name(&self) -> &str;
     fn set_mode(&mut self, mode: Mode);
     fn set_rig(&mut self, rig: u8);
-    fn set_frequency(&mut self, slot: Slot, freq: Khz);
+    fn set_frequency(&mut self, slot: Slot, freq: Freq);
     fn get_status(&mut self) -> Status;
 }
 

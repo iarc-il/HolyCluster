@@ -23,6 +23,7 @@ use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
 
 use crate::{
+    freq::Freq,
     rig::{AnyRadio, Mode, Slot},
     tray_icon::IconTrayEvent,
     utils,
@@ -329,7 +330,7 @@ struct StatusMessage {
 #[derive(Deserialize)]
 struct SetModeAndFreq {
     mode: String,
-    freq: u32,
+    freq: f32,
     band: u8,
 }
 
@@ -365,10 +366,12 @@ fn process_message(message: String, radio: AnyRadio) -> Result<()> {
                 }
             };
             tracing::debug!("Setting mode to {mode:?}");
-            radio.write().set_mode(mode);
-            let freq = set_mode_and_freq.freq.into();
+            let freq =  Freq::from_f32_khz(set_mode_and_freq.freq);
             tracing::debug!("Setting freq to {freq:?}");
-            radio.write().set_frequency(Slot::A, freq);
+            radio.write().set_mode(mode);
+            radio
+                .write()
+                .set_frequency(Slot::A, freq);
         }
     }
     Ok(())
