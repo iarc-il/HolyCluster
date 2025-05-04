@@ -235,10 +235,14 @@ async fn cat_control_handler(
         .write_buffer_size(0)
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
-        .on_upgrade(|websocket: WebSocket| handle_cat_control_socket(websocket, state.radio))
+        .on_upgrade(async |websocket: WebSocket| {
+            handle_cat_control_socket(websocket, state.radio)
+                .await
+                .unwrap()
+        })
 }
 
-async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) {
+async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result<()> {
     let (mut sender_inner, mut receiver) = socket.split();
 
     let (sender, mut sender_recv) = mpsc::unbounded_channel::<Message>();
@@ -296,28 +300,38 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) {
                     let message = Message::Text(serde_json::to_string(&status)?.into());
                     sender.send(message)?;
                 }
-                Message::Binary(_data) => {}
+                Message::Binary(data) => {
+                    tracing::warn!("Ignoring binary data: {data:?}");
+                }
                 Message::Close(_) => {
                     break;
                 }
-                _ => {}
+                message => {
+                    tracing::warn!("Ignoring message: {message:?}");
+                }
             }
         }
         Ok(())
     });
 
     tokio::select! {
-        _ = (&mut send_task) => {
+        result = (&mut send_task) => {
+            tracing::debug!("Closing websocket since send task exited");
             command_task.abort();
             poll_task.abort();
+            result?
         },
-        _ = (&mut poll_task) => {
+        result = (&mut poll_task) => {
+            tracing::debug!("Closing websocket since poll task exited");
             command_task.abort();
             send_task.abort();
+            result?
         },
-        _ = (&mut command_task) => {
+        result = (&mut command_task) => {
+            tracing::debug!("Closing websocket since command task exited");
             poll_task.abort();
             send_task.abort();
+            result?
         }
     }
 }
