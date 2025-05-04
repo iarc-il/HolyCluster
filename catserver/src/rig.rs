@@ -10,8 +10,7 @@ pub enum Mode {
     USB,
     LSB,
     Data,
-    CWUpper,
-    CWLower,
+    CW,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

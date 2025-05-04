@@ -73,8 +73,7 @@ impl Radio for OmnirigRadio {
         let mode = match mode {
             Mode::LSB => 0x04000000,
             Mode::USB => 0x02000000,
-            Mode::CWLower => 0x01000000,
-            Mode::CWUpper => 0x00800000,
+            Mode::CW => 0x01000000,
             Mode::Data => 0x08000000,
         };
         self.current_rig()

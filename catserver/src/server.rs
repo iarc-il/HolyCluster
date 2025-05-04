@@ -359,19 +359,16 @@ fn process_message(message: String, radio: AnyRadio) -> Result<()> {
                 ("SSB", true) => Mode::USB,
                 ("SSB", false) => Mode::LSB,
                 ("DIGI" | "FT8" | "FT4", _) => Mode::Data,
-                ("CW", true) => Mode::CWUpper,
-                ("CW", false) => Mode::CWLower,
+                ("CW", _) => Mode::CW,
                 (mode, is_upper) => {
                     bail!("Unknown mode: {mode}, is upper: {is_upper}");
                 }
             };
             tracing::debug!("Setting mode to {mode:?}");
-            let freq =  Freq::from_f32_khz(set_mode_and_freq.freq);
+            let freq = Freq::from_f32_khz(set_mode_and_freq.freq);
             tracing::debug!("Setting freq to {freq:?}");
             radio.write().set_mode(mode);
-            radio
-                .write()
-                .set_frequency(Slot::A, freq);
+            radio.write().set_frequency(Slot::A, freq);
         }
     }
     Ok(())
