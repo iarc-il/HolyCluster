@@ -23,17 +23,22 @@ pub enum IconTrayEvent {
     OpenBrowser,
 }
 
-pub fn run_tray_icon(tray_sender: Sender<IconTrayEvent>) {
+pub fn run_tray_icon(instance_name: &str, tray_sender: Sender<IconTrayEvent>) {
     let open_menu_item = MenuItem::new("Open", true, None);
     let quit_menu_item = MenuItem::new("Quit", true, None);
     let tray_menu = Menu::new();
+    let instance_title = if !instance_name.is_empty() {
+        format!("Holy Cluster - {instance_name}")
+    } else {
+        "Holy Cluster".into()
+    };
     tray_menu
         .append_items(&[&open_menu_item, &quit_menu_item])
         .unwrap();
     let tray_icon = TrayIconBuilder::new()
         .with_menu(Box::new(tray_menu))
-        .with_tooltip("Holy Cluster")
-        .with_title("Holy Cluster");
+        .with_tooltip(&instance_title)
+        .with_title(&instance_title);
     let _tray_icon = add_icon_to_tray_icon(tray_icon).unwrap().build().unwrap();
 
     let quit_menu_id = quit_menu_item.id().clone();

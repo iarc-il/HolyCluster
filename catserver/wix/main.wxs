@@ -31,19 +31,48 @@
             Schedule='afterInstallInitialize'
             DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.'/>
 
+        <Upgrade Id="A1B2C3D4-E5F6-1234-ABCD-9876543210FE">
+            <UpgradeVersion
+                Minimum="1.0.0"
+                IncludeMinimum="yes"
+                OnlyDetect="no"
+                Property="PREVIOUSFOUND"
+            />
+        </Upgrade>
+
+        <InstallExecuteSequence>
+            <RemoveExistingProducts After="InstallInitialize"/>
+        </InstallExecuteSequence>
+
         <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1'/>
         <Property Id='DiskPrompt' Value='Holy Cluster Installation'/>
 
         <Directory Id='TARGETDIR' Name='SourceDir'>
             <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
                 <Directory Id='APPLICATIONFOLDER' Name='HolyCluster'>
-                    <Component Id='HolyCluster.exe' Guid='*'>
+                    <Component Id='HolyCluster.exe' Guid='EC42A25D-4307-42AA-AA73-F5F6B5321A6D'>
                         <File
                             Id='HolyCluster.exe'
                             Name='HolyCluster.exe'
                             DiskId='1'
                             Source='$(var.CargoTargetBinDir)\HolyCluster.exe'
                             KeyPath='yes'/>
+                    </Component>
+                    <Component Id="DevServerShortcut" Guid="1E53809D-3826-40EA-A49A-5D77F7736C8F">
+                        <Shortcut Id="DevServerShortcut"
+                                  Name="HolyCluster (Dev Server)"
+                                  Description="Run HolyCluster with development server"
+                                  Target="[#HolyCluster.exe]"
+                                  Arguments="--dev-server"
+                                  WorkingDirectory="APPLICATIONFOLDER" />
+                        <RegistryValue
+                            Root="HKCU"
+                            Key="Software\IARC\HolyCluster"
+                            Name="devshortcut"
+                            Type="integer"
+                            Value="1"
+                            KeyPath="yes"
+                        />
                     </Component>
                 </Directory>
             </Directory>
@@ -56,7 +85,7 @@
         </Directory>
 
         <DirectoryRef Id="ApplicationProgramsFolder">
-            <Component Id="ApplicationShortcut" Guid="*">
+            <Component Id="ApplicationShortcut" Guid="E504755C-11A2-43E1-8E42-A65A121E4F50">
                 <Condition>INSTALLMENUSHORTCUT = 1</Condition>
                 <Shortcut Id="ApplicationStartMenuShortcut"
                     Name="Holy Cluster"
@@ -68,7 +97,7 @@
             </Component>
         </DirectoryRef>
         <DirectoryRef Id="DesktopFolder">
-            <Component Id="DesktopShortcut" Guid="*">
+            <Component Id="DesktopShortcut" Guid="F1F6CB17-FDA9-43B3-B152-EB0C9EA4EF71">
                 <Condition>INSTALLDESKTOPSHORTCUT = 1</Condition>
                 <Shortcut
                     Id="ApplicationDesktopShortcut"
@@ -96,6 +125,7 @@
             <ComponentRef Id='HolyCluster.exe'/>
             <ComponentRef Id='ApplicationShortcut'/>
             <ComponentRef Id="DesktopShortcut" />
+            <ComponentRef Id="DevServerShortcut" />
         </Feature>
 
         <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
