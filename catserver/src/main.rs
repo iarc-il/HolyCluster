@@ -276,7 +276,7 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) {
             if sender.send(message).is_err() {
                 break;
             }
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
     });
 
