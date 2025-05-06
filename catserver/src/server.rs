@@ -278,12 +278,9 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result
         loop {
             let data = radio.write().get_status();
             let message = Message::Text(serde_json::to_string(&data)?.into());
-            if sender.send(message).is_err() {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            sender.send(message)?;
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
-        Ok(())
     });
 
     let command_radio = radio.clone();
