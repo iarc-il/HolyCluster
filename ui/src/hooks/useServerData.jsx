@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { useFilters } from "../hooks/useFilters";
 import { is_matching_list } from "@/utils.js";
 import { bands } from "@/filters_data.js";
+import { get_flag } from "@/flags.js";
 
 const ServerDataContext = createContext(undefined);
 

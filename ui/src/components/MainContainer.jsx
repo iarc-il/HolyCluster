@@ -11,7 +11,6 @@ import { use_object_local_storage, is_matching_list, get_max_radius } from "@/ut
 import { bands, modes, continents } from "@/filters_data.js";
 import { useFilters } from "@/hooks/useFilters";
 import { useServerData } from "@/hooks/useServerData";
-import { get_flag } from "@/flags.js";
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
@@ -57,7 +56,12 @@ function connect_to_radio() {
 function MainContainer() {
     const [toggled_ui, set_toggled_ui] = useState({ left: true, right: true });
 
-    const { spots, set_pinned_spot } = useServerData();
+    const {
+        spots,
+        set_pinned_spot,
+        filter_missing_flags,
+        set_filter_missing_flags,
+    } = useServerData();
 
     const [map_controls, set_map_controls_inner] = use_object_local_storage("map_controls", {
         night: false,
