@@ -97,7 +97,7 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
             while True:
                 radio_data = app.state.radio_controller.get_data()
                 await websocket.send_json(radio_data)
-                await asyncio.sleep(5)
+                await asyncio.sleep(0.2)
 
         async def set_radio():
             while True:

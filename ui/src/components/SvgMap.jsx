@@ -42,8 +42,15 @@ function SvgMap({
     auto_radius,
     set_auto_radius,
 }) {
-    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
-        useServerData();
+    const {
+        spots,
+        hovered_spot,
+        set_hovered_spot,
+        pinned_spot,
+        set_pinned_spot,
+        hovered_band,
+        freq_spots,
+    } = useServerData();
 
     const svg_ref = useRef(null);
     // const [dimensions, set_dimensions] = useState({ width: 700, height: 700 });
@@ -119,6 +126,7 @@ function SvgMap({
                 hovered_band={hovered_band}
                 set_pinned_spot={set_pinned_spot}
                 set_popup_position={set_popup_position}
+                same_freq_spots={freq_spots}
             />
         );
     });
@@ -159,10 +167,10 @@ function SvgMap({
                 <g className="font-medium text-lg select-none">
                     <text x={text_x} y={text_y} fill={colors.theme.text}>
                         Radius: {settings.is_miles ? km_to_miles(radius_in_km) : radius_in_km}{" "}
-                        {settings.is_miles ? "Miles" : "KM"}
+                        {settings.is_miles ? "Miles" : "KM"} | Auto
                     </text>
 
-                    <foreignObject x={text_x + 160} y={text_y - 18} width="67" height="40">
+                    <foreignObject x={text_x + 215} y={text_y - 18} width="67" height="40">
                         <div xmlns="http://www.w3.org/1999/xhtml">
                             <ToggleSVG
                                 auto_radius={auto_radius}

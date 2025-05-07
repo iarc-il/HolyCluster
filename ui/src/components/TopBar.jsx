@@ -124,7 +124,7 @@ function TopBar({
             )}
 
             <div className={box_container_style}>
-                <SubmitSpot settings={settings} />
+                <SubmitSpot settings={settings} radio_freq={radio_freq ? radio_freq : 0} />
                 <Clock />
 
                 <Select

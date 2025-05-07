@@ -1,6 +1,6 @@
 import Select from "@/components/Select.jsx";
 import Toggle from "@/components/Toggle.jsx";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useColors } from "../hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 import { useLocalStorage } from "@uidotdev/usehooks";
@@ -157,7 +157,15 @@ export default function FrequencyBar({
     set_cat_control,
 }) {
     const { colors } = useColors();
-    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
+    const {
+        spots,
+        hovered_spot,
+        set_hovered_spot,
+        pinned_spot,
+        set_pinned_spot,
+        freq_spots,
+        set_freq_spots,
+    } = useServerData();
     // Set to -1 to use the current band that the radio is on
     const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
 
@@ -167,14 +175,6 @@ export default function FrequencyBar({
         }
 
         return -1;
-    }
-
-    if (
-        (radio_status != "connected" || get_band_from_freq(radio_freq) === -1) &&
-        selected_band == -1
-    ) {
-        console.log(radio_status, get_band_from_freq(radio_freq));
-        set_selected_band(20);
     }
 
     let radio_band = get_band_from_freq(radio_freq);
@@ -189,10 +189,24 @@ export default function FrequencyBar({
             .sort((a, b) => a.freq - b.freq);
     }, [spots, band]);
 
-    const freq_offset = (band_plans[band].max - band_plans[band].min) / 50;
+    let same_freq_spots = useMemo(() => {
+        return spots.filter(spot => spot.freq === radio_freq).map(spot => spot.id);
+    }, [radio_freq, spots]);
 
-    const max_freq = band_plans[band].max + freq_offset;
-    const min_freq = band_plans[band].min - freq_offset;
+    useEffect(() => {
+        set_freq_spots(same_freq_spots);
+    }, [JSON.stringify(same_freq_spots)]);
+
+    let freq_offset, max_freq, min_freq, features, ranges;
+
+    if (band_plans[band]) {
+        freq_offset = (band_plans[band].max - band_plans[band].min) / 50;
+
+        max_freq = band_plans[band].max + freq_offset;
+        min_freq = band_plans[band].min - freq_offset;
+        features = band_plans[band].features;
+        ranges = band_plans[band].ranges;
+    }
 
     // Remove all spots with duplicate dx_callsign keeping only the most recent one
     sorted_spots = sorted_spots.reduce((acc, spot) => {
@@ -216,11 +230,6 @@ export default function FrequencyBar({
         }
     }
 
-    const features = band_plans[band].features;
-    const ranges = band_plans[band].ranges;
-
-    let spot_highlighted = false; // Used to only highlight most recent spot of same frequency as radio
-
     return (
         <div className={className}>
             <span className={`w-full flex flex-row items-center justify-between h-[10%]`}>
@@ -232,7 +241,7 @@ export default function FrequencyBar({
                     text_color={selected_band == -1 ? colors.bands[radio_band] : undefined}
                     className={`text-lg p-2 w-1/2 text-center`}
                 >
-                    {radio_status === "connected" && get_band_from_freq(radio_freq) !== -1 && (
+                    {radio_status === "connected" && (
                         <option style={{ color: colors.bands[radio_band] }} value={-1}>
                             Radio
                         </option>
@@ -266,166 +275,200 @@ export default function FrequencyBar({
                     </span>
                 )}
             </span>
+            {!(selected_band == -1 && radio_band == -1) && (
+                <>
+                    <svg
+                        className={`w-full h-[85%] left-0 box-border`}
+                        style={{ background: colors.theme.background }}
+                    >
+                        <Ruler
+                            min_freq={min_freq}
+                            max_freq={max_freq}
+                            radio_freq={radio_freq}
+                            band={band}
+                            radio_status={radio_status}
+                        />
 
-            <svg
-                className={`w-full h-[85%] left-0 box-border`}
-                style={{ background: colors.theme.background }}
-            >
-                <Ruler
-                    min_freq={min_freq}
-                    max_freq={max_freq}
-                    radio_freq={radio_freq}
-                    band={band}
-                    radio_status={radio_status}
-                />
+                        {sorted_spots.map((spot, i) => {
+                            const highlight_spot =
+                                (radio_status === "connected" &&
+                                    same_freq_spots.includes(spot.id)) ||
+                                (radio_status !== "connected" && spot.id == pinned_spot) ||
+                                spot.id === hovered_spot.id;
 
-                {sorted_spots.map((spot, i) => {
-                    const highlight_spot =
-                        (radio_status === "connected" &&
-                            radio_freq == spot.freq &&
-                            !spot_highlighted) ||
-                        (radio_status !== "connected" && spot.id == pinned_spot) ||
-                        spot.id === hovered_spot.id;
-
-                    if (highlight_spot) {
-                        spot_highlighted = true;
-                    }
-
-                    return (
-                        <g
-                            className="group group-hover:stroke-blue-500 group-hover:fill-blue-500"
-                            key={`freq_bar_${spot.id}`}
-                            onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
-                        >
-                            <line
-                                x1={"30%"}
-                                x2={"54%"}
-                                y1={`${((spot.freq - min_freq) / (max_freq - min_freq)) * 100}%`}
-                                y2={`${(i * 100) / sorted_spots.length + 2.5}%`}
-                                strokeWidth="1"
-                                stroke={
-                                    highlight_spot ? colors.bands[spot.band] : colors.theme.text
-                                }
-                                className="group-hover:opacity-100 opacity-25"
-                                onClick={() => {
-                                    dx_handle_click(spot.id, spot);
-                                }}
-                                onMouseEnter={() =>
-                                    set_hovered_spot({ source: "bar", id: spot.id })
-                                }
-                            />
-
-                            <g
-                                id={`text_callsign_${i}`}
-                                onClick={() => {
-                                    dx_handle_click(spot.id, spot);
-                                }}
-                                className="hover:cursor-pointer"
-                            >
-                                <g style={{ transform: "translateY(-10px)" }}>
-                                    {spot.mode.toUpperCase() == "SSB" && (
-                                        <rect
-                                            x={"55%"}
-                                            y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                            height={10}
-                                            width={10}
-                                            strokeWidth={1}
-                                            fill={colors.theme.text}
-                                            className="group-hover:fill-blue-500"
-                                        />
-                                    )}
-
-                                    {spot.mode.toUpperCase() == "CW" && (
-                                        <svg
-                                            x={"55%"}
-                                            y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                            height={12}
-                                            width={12}
-                                            viewBox="0 0 100 100"
-                                            fill={colors.theme.text}
-                                            className="group-hover:fill-blue-500"
-                                        >
-                                            <polygon points="50 5, 100 90, 0 90" />
-                                        </svg>
-                                    )}
-
-                                    {["FT8", "FT4", "DIGI"].includes(spot.mode.toUpperCase()) && (
-                                        <svg
-                                            x={"54%"}
-                                            y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                            height={15}
-                                            width={15}
-                                            viewBox="0 0 280 360"
-                                            style={{ transform: "translateY(5px)" }}
-                                            className="group-hover:fill-blue-500"
-                                        >
-                                            <polygon
-                                                points="150,15 258,77 258,202 150,265 42,202 42,77"
-                                                strokeWidth={1}
-                                                className="group-hover:fill-blue-500"
-                                                style={{ transform: "translateY(5px)" }}
-                                                fill={colors.theme.text}
-                                            />
-                                        </svg>
-                                    )}
-                                </g>
-
-                                <text
-                                    x={"61%"}
-                                    y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                    fontSize="14"
-                                    fill={colors.theme.text}
-                                    className="group-hover:fill-blue-500 border-2 border-black border-solid"
-                                    onClick={() => {
-                                        dx_handle_click(spot.id, spot);
-                                    }}
-                                    onMouseEnter={() =>
-                                        set_hovered_spot({ source: "bar", id: spot.id })
+                            return (
+                                <g
+                                    className="group group-hover:stroke-blue-500 group-hover:fill-blue-500"
+                                    key={`freq_bar_${spot.id}`}
+                                    onMouseLeave={_ =>
+                                        set_hovered_spot({
+                                            source: null,
+                                            id: null,
+                                        })
                                     }
                                 >
-                                    {spot.dx_callsign}
-                                </text>
-                            </g>
+                                    <line
+                                        x1={"30%"}
+                                        x2={"54%"}
+                                        y1={`${
+                                            ((spot.freq - min_freq) / (max_freq - min_freq)) * 100
+                                        }%`}
+                                        y2={`${(i * 100) / sorted_spots.length + 2.5}%`}
+                                        strokeWidth={highlight_spot ? "2" : "1"}
+                                        stroke={highlight_spot ? "#3b82f6" : colors.theme.text}
+                                        className={`group-hover:opacity-100 ${
+                                            highlight_spot ? "opacity-75" : "opacity-25"
+                                        }`}
+                                        onClick={() => {
+                                            dx_handle_click(spot.id, spot);
+                                        }}
+                                        onMouseEnter={() =>
+                                            set_hovered_spot({
+                                                source: "bar",
+                                                id: spot.id,
+                                            })
+                                        }
+                                    />
 
-                            {highlight_spot && (
-                                <rect
-                                    x={"54%"}
-                                    y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                    height={20}
-                                    width={
-                                        document.getElementById(`text_callsign_${i}`)
-                                            ? document
-                                                  .getElementById(`text_callsign_${i}`)
-                                                  .getBoundingClientRect().width + 4
-                                            : 20
-                                    }
-                                    rx={5}
-                                    ry={5}
-                                    strokeWidth={1}
-                                    stroke={colors.bands[spot.band]}
-                                    fillOpacity="0"
-                                    className="-translate-y-[15px] hover:cursor-pointer"
-                                    onClick={() => {
-                                        dx_handle_click(spot.id, spot);
-                                    }}
-                                />
-                            )}
-                        </g>
-                    );
-                })}
-            </svg>
+                                    <g
+                                        id={`text_callsign_${i}`}
+                                        onClick={() => {
+                                            dx_handle_click(spot.id, spot);
+                                        }}
+                                        className="hover:cursor-pointer"
+                                    >
+                                        <g
+                                            style={{
+                                                transform: "translateY(-10px)",
+                                            }}
+                                        >
+                                            {spot.mode.toUpperCase() == "SSB" && (
+                                                <rect
+                                                    x={"55%"}
+                                                    y={`${(i * 100) / sorted_spots.length + 3}%`}
+                                                    height={10}
+                                                    width={10}
+                                                    strokeWidth={1}
+                                                    fill={colors.theme.text}
+                                                    className="group-hover:fill-blue-500"
+                                                />
+                                            )}
 
-            <div className="h-[4%] w-full flex justify-center items-center bg-gray-100 rounded-full border border-gray-300">
-                {ranges.concat(features).map(legend => (
-                    <p
-                        style={{ color: legend.color }}
-                        key={`legend_${legend.name}`}
-                        className="text-[14px] inline px-[0.4rem] font-medium"
-                    >
-                        {legend.name.toUpperCase()}
+                                            {spot.mode.toUpperCase() == "CW" && (
+                                                <svg
+                                                    x={"55%"}
+                                                    y={`${(i * 100) / sorted_spots.length + 3}%`}
+                                                    height={12}
+                                                    width={12}
+                                                    viewBox="0 0 100 100"
+                                                    fill={colors.theme.text}
+                                                    className="group-hover:fill-blue-500"
+                                                >
+                                                    <polygon points="50 5, 100 90, 0 90" />
+                                                </svg>
+                                            )}
+
+                                            {["FT8", "FT4", "DIGI"].includes(
+                                                spot.mode.toUpperCase(),
+                                            ) && (
+                                                <svg
+                                                    x={"54%"}
+                                                    y={`${(i * 100) / sorted_spots.length + 3}%`}
+                                                    height={15}
+                                                    width={15}
+                                                    viewBox="0 0 280 360"
+                                                    style={{
+                                                        transform: "translateY(5px)",
+                                                    }}
+                                                    className="group-hover:fill-blue-500"
+                                                >
+                                                    <polygon
+                                                        points="150,15 258,77 258,202 150,265 42,202 42,77"
+                                                        strokeWidth={1}
+                                                        className="group-hover:fill-blue-500"
+                                                        style={{
+                                                            transform: "translateY(5px)",
+                                                        }}
+                                                        fill={colors.theme.text}
+                                                    />
+                                                </svg>
+                                            )}
+                                        </g>
+
+                                        <text
+                                            x={"61%"}
+                                            y={`${(i * 100) / sorted_spots.length + 3}%`}
+                                            fontSize="14"
+                                            fill={colors.theme.text}
+                                            className="group-hover:fill-blue-500 border-2 border-black border-solid"
+                                            onClick={() => {
+                                                dx_handle_click(spot.id, spot);
+                                            }}
+                                            onMouseEnter={() =>
+                                                set_hovered_spot({
+                                                    source: "bar",
+                                                    id: spot.id,
+                                                })
+                                            }
+                                        >
+                                            {spot.dx_callsign}
+                                        </text>
+                                    </g>
+
+                                    {highlight_spot && (
+                                        <rect
+                                            x={"54%"}
+                                            y={`${(i * 100) / sorted_spots.length + 3}%`}
+                                            height={20}
+                                            width={
+                                                document.getElementById(`text_callsign_${i}`)
+                                                    ? document
+                                                          .getElementById(`text_callsign_${i}`)
+                                                          .getBoundingClientRect().width + 4
+                                                    : 20
+                                            }
+                                            rx={5}
+                                            ry={5}
+                                            strokeWidth="2"
+                                            stroke={"#3b82f6"}
+                                            fillOpacity="0"
+                                            className="-translate-y-[15px] hover:cursor-pointer"
+                                            onClick={() => {
+                                                dx_handle_click(spot.id, spot);
+                                            }}
+                                        />
+                                    )}
+                                </g>
+                            );
+                        })}
+                    </svg>
+                    <div className="h-[4%] w-full flex justify-center items-center bg-gray-100 rounded-full border border-gray-300">
+                        {ranges.concat(features).map(legend => (
+                            <p
+                                style={{ color: legend.color }}
+                                key={`legend_${legend.name}`}
+                                className="text-[14px] inline px-[0.4rem] font-medium"
+                            >
+                                {legend.name.toUpperCase()}
+                            </p>
+                        ))}
+                    </div>{" "}
+                </>
+            )}
+
+            {selected_band == -1 && radio_band == -1 && (
+                <>
+                    <p style={{ color: colors.theme.text }} className="px-2 pt-2 text-md">
+                        The radio could not be reached!
                     </p>
-                ))}
-            </div>
+                    <p style={{ color: colors.theme.text }} className="px-2 py-1 text-md">
+                        please ensure that it is connected or select a band manually.
+                    </p>
+                    <p style={{ color: colors.theme.text }} className="px-2 text-md">
+                        Once the radio connects the page will update automatically.
+                    </p>
+                </>
+            )}
         </div>
     );
 }

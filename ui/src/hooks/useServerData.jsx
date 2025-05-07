@@ -24,8 +24,8 @@ function fetch_spots() {
     } else {
         url = "/spots";
     }
-    if (this.last_timestamp != null) {
-        url += `?since=${this.last_timestamp}`;
+    if (this.last_id != null) {
+        url += `?last_id=${this.last_id}`;
     }
 
     if (!navigator.onLine) {
@@ -51,10 +51,10 @@ function fetch_spots() {
                         return spot;
                     });
                     let spots = new_spots.concat(this.spots);
-                    spots.sort((spot_a, spot_b) => spot_b.time - spot_a.time);
+                    spots.sort((spot_a, spot_b) => spot_b.id - spot_a.id);
                     let current_time = Math.round(Date.now() / 1000);
                     spots = spots.filter(spot => spot.time > current_time - 3600);
-                    this.last_timestamp = spots[0].time;
+                    this.last_id = spots[0].id;
                     this.set_spots(spots);
                     this.set_network_state("connected");
                 }
@@ -101,6 +101,8 @@ export const ServerDataProvider = ({ children }) => {
     let [hovered_spot, set_hovered_spot] = useState({ source: null, id: null });
     let [hovered_band, set_hovered_band] = useState(null);
     let [pinned_spot, set_pinned_spot] = useState(null);
+    const [freq_spots, set_freq_spots] = useState([]);
+
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
     const { filters, callsign_filters } = useFilters();
@@ -123,7 +125,7 @@ export const ServerDataProvider = ({ children }) => {
         spots,
         set_spots,
         set_network_state,
-        last_timestamp: null,
+        last_id: null,
     });
     // This is very importent because the spots are later sorted
     fetch_spots_context.current.spots = structuredClone(spots);
@@ -244,6 +246,8 @@ export const ServerDataProvider = ({ children }) => {
                 spots_per_band_count,
                 propagation,
                 network_state,
+                freq_spots,
+                set_freq_spots,
             }}
         >
             {children}

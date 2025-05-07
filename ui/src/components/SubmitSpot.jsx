@@ -51,7 +51,7 @@ function connect_to_submit_spot_endpoint(on_response) {
     return { sendJsonMessage, readyState };
 }
 
-function SubmitSpot({ settings }) {
+function SubmitSpot({ settings, radio_freq }) {
     const [temp_data, set_temp_data] = useState(empty_temp_data);
     const [submit_status, set_submit_status] = useState({
         status: "pending",
@@ -60,10 +60,22 @@ function SubmitSpot({ settings }) {
     const { colors, setTheme } = useColors();
 
     const [external_close, set_external_close] = useState(true);
+    const [is_open, set_is_open] = useState(false);
+
+    useEffect(() => {
+        if (is_open) {
+            return;
+        }
+
+        const initial_data = temp_data;
+        initial_data.freq = Math.round((radio_freq / 1000 || 0) * 10) / 10;
+        set_temp_data(initial_data);
+    }, [radio_freq, is_open]);
 
     function on_response(response) {
         if (response.status == "success") {
             set_submit_status({ status: "success", reason: "" });
+            set_is_open(false);
             set_external_close(false);
             let theme;
             if (settings.theme == "Light") {
@@ -139,8 +151,12 @@ function SubmitSpot({ settings }) {
                 }
                 button={<SubmitIcon size="32"></SubmitIcon>}
                 on_open={() => {
+                    set_is_open(true);
                     set_external_close(true);
                     reset_temp_data();
+                }}
+                on_cancel={() => {
+                    set_is_open(false);
                 }}
                 external_close={external_close}
             >
@@ -188,7 +204,7 @@ function SubmitSpot({ settings }) {
                                     value={temp_data.freq}
                                     onChange={event => {
                                         const value = event.target.value;
-                                        if (/^\d*$/.test(value)) {
+                                        if (/^\d*\.?\d{0,1}$/.test(value)) {
                                             if (Number.parseFloat(value) <= 75000 || value == "") {
                                                 set_temp_data({
                                                     ...temp_data,

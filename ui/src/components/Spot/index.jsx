@@ -15,6 +15,7 @@ function Spot({
     set_pinned_spot,
     hovered_band,
     set_popup_position,
+    same_freq_spots,
 }) {
     const { colors } = useColors();
     const line = {
@@ -31,7 +32,10 @@ function Spot({
     const [dx_x, dx_y] = projection(spot.dx_loc);
 
     const is_hovered =
-        spot.id == hovered_spot.id || spot.id == pinned_spot || spot.band == hovered_band;
+        spot.id == hovered_spot.id ||
+        spot.id == pinned_spot ||
+        spot.band == hovered_band ||
+        same_freq_spots.includes(spot.id);
     const dx_size = is_hovered ? 14 : 10;
 
     const color = colors.bands[spot.band];
