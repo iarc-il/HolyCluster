@@ -56,12 +56,8 @@ function connect_to_radio() {
 function MainContainer() {
     const [toggled_ui, set_toggled_ui] = useState({ left: true, right: true });
 
-    const {
-        spots,
-        set_pinned_spot,
-        filter_missing_flags,
-        set_filter_missing_flags,
-    } = useServerData();
+    const { spots, set_pinned_spot, filter_missing_flags, set_filter_missing_flags } =
+        useServerData();
 
     const [map_controls, set_map_controls_inner] = use_object_local_storage("map_controls", {
         night: false,
