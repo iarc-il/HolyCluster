@@ -1,0 +1,41 @@
+name: Build and Deploy React App
+
+on:
+  push:
+    paths:
+      - "catserver/**"
+    branches:
+      - "master"
+    tags:
+      - "*"
+
+jobs:
+  build-catserver:
+    name: Build Catserver
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust Setup
+        run: rustup default stable
+
+      - name: Rust Setup
+        run: rustup target add x86_64-pc-windows-gnu
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libgtk-3-dev libxdo-dev libappindicator3-dev
+
+      - uses: actions/checkout@v4
+
+      - name: Run rustfmt
+        working-directory: catserver
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        working-directory: ./catserver
+        run: cargo clippy --target x86_64-pc-windows-gnu -- -D warnings
