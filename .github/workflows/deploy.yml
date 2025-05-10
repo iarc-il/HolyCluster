@@ -2,14 +2,14 @@ name: Build and Deploy React App
 
 on:
   push:
+    paths:
+      - "ui/**"
     branches:
       - "master"
-    tags:
-      - "*"
 
 jobs:
-  build-and-deploy:
-    name: Build, Lint, and Deploy
+  build-and-deploy-ui:
+    name: Build, Lint, and Deploy the UI
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
     steps:
