@@ -141,6 +141,17 @@ function SubmitSpot({ settings, radio_freq }) {
         }
     }
 
+    function find_base_callsign(callsign) {
+        return callsign.split("/").reduce((a, b) => (a.length > b.length ? a : b));
+    }
+    let is_self_spotting =
+        find_base_callsign(settings.callsign) == find_base_callsign(temp_data.callsign);
+    console.log(
+        is_self_spotting,
+        find_base_callsign(settings.callsign),
+        find_base_callsign(temp_data.callsign),
+    );
+
     return (
         <>
             <Modal
@@ -168,17 +179,7 @@ function SubmitSpot({ settings, radio_freq }) {
                         <tr>
                             <td>Spotter callsign:</td>
                             <td>
-                                <Input
-                                    value={settings.callsign}
-                                    className="uppercase"
-                                    disabled
-                                    onChange={event => {
-                                        set_temp_data({
-                                            ...temp_data,
-                                            callsign: event.target.value.toUpperCase(),
-                                        });
-                                    }}
-                                />
+                                <Input value={settings.callsign} className="uppercase" disabled />
                             </td>
                         </tr>
                         <tr>
@@ -236,8 +237,15 @@ function SubmitSpot({ settings, radio_freq }) {
                         </tr>
                     </tbody>
                 </table>
+                {is_self_spotting ? (
+                    <p className="pb-2 px-2" style={{ color: colors.theme.text }}>
+                        Warning: are you sure you want to self spot?
+                    </p>
+                ) : (
+                    ""
+                )}
                 {submit_status.status == "failure" || not_connected ? (
-                    <p className="pb-4 px-2 text-red-400">
+                    <p className="pb-2 px-2 text-red-400">
                         {formatted_state}: {formatted_failure}
                     </p>
                 ) : (
