@@ -49,10 +49,14 @@ function FilterLine({ filter, id }) {
         filter_type_label = "Sfx";
     } else if (filter.type == "entity") {
         filter_type_label = "Ent";
+    } else if (filter.type == "self_spotters") {
+        filter_type_label = "SS";
     }
 
     let spotter_or_dx_label;
-    if (filter.spotter_or_dx == "spotter") {
+    if (filter.type == "self_spotters") {
+        spotter_or_dx_label = null;
+    } else if (filter.spotter_or_dx == "spotter") {
         spotter_or_dx_label = "DE";
     } else if (filter.spotter_or_dx == "dx") {
         spotter_or_dx_label = "DX";

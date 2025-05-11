@@ -97,7 +97,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                 }
             }}
             on_apply={() => {
-                if (temp_data.value.length > 0) {
+                if (temp_data.value.length > 0 || temp_data.type == "self_spotters") {
                     on_apply(temp_data);
                     set_temp_data(empty_filter_data);
                     return true;
@@ -113,6 +113,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         { label: "Prefix", value: "prefix" },
                         { label: "Suffix", value: "suffix" },
                         { label: "Entity", value: "entity" },
+                        { label: "Self Spotters", value: "self_spotters" },
                     ]}
                     field="type"
                     temp_data={temp_data}
@@ -125,74 +126,82 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         }
                     }}
                 />
-                <SelectionLine
-                    states={[
-                        { label: "DX", value: "dx" },
-                        { label: "Spotter", value: "spotter" },
-                    ]}
-                    field="spotter_or_dx"
-                    temp_data={temp_data}
-                    set_temp_data={set_temp_data}
-                />
-                <div className="flex justify-start space-x-5 items-center w-full">
-                    <div className>{temp_data.type}:</div>
-                    <div>
-                        {temp_data.type == "entity" ? (
-                            <SearchSelect
-                                className="h-10 w-20"
-                                value={{ value: temp_data.value, label: temp_data.value }}
-                                onChange={option => {
-                                    set_temp_data({
-                                        ...temp_data,
-                                        value: option.value,
-                                    });
-                                }}
-                                styles={{
-                                    control: (base_style, state) => ({
-                                        ...base_style,
-                                        backgroundColor: colors.theme.input_background,
-                                        borderColor: colors.theme.borders,
-                                        color: colors.theme.text,
-                                        width: "16rem",
-                                    }),
-                                    menu: (base_style, state) => ({
-                                        ...base_style,
-                                        backgroundColor: colors.theme.input_background,
-                                        borderColor: colors.theme.borders,
-                                        width: "16rem",
-                                    }),
-                                    option: (base_style, { isFocused }) => ({
-                                        ...base_style,
-                                        backgroundColor: isFocused
-                                            ? colors.theme.disabled_text
-                                            : colors.theme.input_background,
-                                        color: colors.theme.text,
-                                    }),
-                                    input: (base_style, state) => ({
-                                        ...base_style,
-                                        color: colors.theme.text,
-                                    }),
-                                    singleValue: (base_style, state) => ({
-                                        ...base_style,
-                                        color: colors.theme.text,
-                                    }),
-                                }}
-                                options={dxcc_entities}
-                            />
-                        ) : (
-                            <Input
-                                value={temp_data.value}
-                                className="uppercase h-10"
-                                onChange={event => {
-                                    set_temp_data({
-                                        ...temp_data,
-                                        value: event.target.value.toUpperCase(),
-                                    });
-                                }}
-                            />
-                        )}
-                    </div>
-                </div>
+                {temp_data.type != "self_spotters" ? (
+                    <>
+                        <SelectionLine
+                            states={[
+                                { label: "DX", value: "dx" },
+                                { label: "Spotter", value: "spotter" },
+                            ]}
+                            field="spotter_or_dx"
+                            temp_data={temp_data}
+                            set_temp_data={set_temp_data}
+                        />
+                        <div className="flex justify-start space-x-5 items-center w-full">
+                            <div className>{temp_data.type}:</div>
+                            <div>
+                                {temp_data.type == "entity" ? (
+                                    <SearchSelect
+                                        className="h-10 w-20"
+                                        value={{ value: temp_data.value, label: temp_data.value }}
+                                        onChange={option => {
+                                            set_temp_data({
+                                                ...temp_data,
+                                                value: option.value,
+                                            });
+                                        }}
+                                        styles={{
+                                            control: (base_style, state) => ({
+                                                ...base_style,
+                                                backgroundColor: colors.theme.input_background,
+                                                borderColor: colors.theme.borders,
+                                                color: colors.theme.text,
+                                                width: "16rem",
+                                            }),
+                                            menu: (base_style, state) => ({
+                                                ...base_style,
+                                                backgroundColor: colors.theme.input_background,
+                                                borderColor: colors.theme.borders,
+                                                width: "16rem",
+                                            }),
+                                            option: (base_style, { isFocused }) => ({
+                                                ...base_style,
+                                                backgroundColor: isFocused
+                                                    ? colors.theme.disabled_text
+                                                    : colors.theme.input_background,
+                                                color: colors.theme.text,
+                                            }),
+                                            input: (base_style, state) => ({
+                                                ...base_style,
+                                                color: colors.theme.text,
+                                            }),
+                                            singleValue: (base_style, state) => ({
+                                                ...base_style,
+                                                color: colors.theme.text,
+                                            }),
+                                        }}
+                                        options={dxcc_entities}
+                                    />
+                                ) : (
+                                    <Input
+                                        value={temp_data.value}
+                                        className="uppercase h-10"
+                                        onChange={event => {
+                                            set_temp_data({
+                                                ...temp_data,
+                                                value: event.target.value.toUpperCase(),
+                                            });
+                                        }}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <p>
+                        <strong>Warning:</strong> Self spotting is discourged!
+                    </p>
+                )}
             </div>
         </Modal>
     );

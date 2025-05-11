@@ -32,6 +32,8 @@ export function is_matching_list(list, spot) {
             is_value_matching = matched_value.endsWith(filter.value);
         } else if (filter.type == "entity") {
             is_value_matching = matched_value == filter.value;
+        } else if (filter.type == "self_spotters") {
+            is_value_matching = spot.dx_callsign == spot.spotter_callsign;
         }
         return is_value_matching;
     });
