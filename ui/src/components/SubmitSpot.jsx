@@ -7,6 +7,7 @@ import Button from "@/components/Button.jsx";
 import Modal from "@/components/Modal.jsx";
 import Spinner from "@/components/Spinner.jsx";
 import { useColors } from "@/hooks/useColors";
+import { is_same_base_callsign } from "@/utils.js";
 
 function SubmitIcon({ size }) {
     const { colors } = useColors();
@@ -144,13 +145,7 @@ function SubmitSpot({ settings, radio_freq }) {
     function find_base_callsign(callsign) {
         return callsign.split("/").reduce((a, b) => (a.length > b.length ? a : b));
     }
-    let is_self_spotting =
-        find_base_callsign(settings.callsign) == find_base_callsign(temp_data.callsign);
-    console.log(
-        is_self_spotting,
-        find_base_callsign(settings.callsign),
-        find_base_callsign(temp_data.callsign),
-    );
+    let is_self_spotting = is_same_base_callsign(settings.callsign, temp_data.callsign);
 
     return (
         <>
@@ -238,8 +233,12 @@ function SubmitSpot({ settings, radio_freq }) {
                     </tbody>
                 </table>
                 {is_self_spotting ? (
-                    <p className="pb-2 px-2" style={{ color: colors.theme.text }}>
-                        Warning: are you sure you want to self spot?
+                    <p
+                        className="pb-2 px-2 text-center text-lg"
+                        style={{ color: colors.theme.text }}
+                    >
+                        Usually, self spotting is <br />
+                        in the ham radio community
                     </p>
                 ) : (
                     ""

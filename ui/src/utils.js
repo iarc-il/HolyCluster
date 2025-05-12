@@ -8,6 +8,14 @@ export function to_radian(deg) {
 
 export const mod = (n, m) => ((n % m) + m) % m;
 
+function find_base_callsign(callsign) {
+    return callsign.split("/").reduce((a, b) => (a.length > b.length ? a : b));
+}
+
+export function is_same_base_callsign(callsign1, callsign2) {
+    return find_base_callsign(callsign1) == find_base_callsign(callsign2);
+}
+
 export function is_matching_list(list, spot) {
     return list.some(filter => {
         let matched_value;
@@ -33,7 +41,7 @@ export function is_matching_list(list, spot) {
         } else if (filter.type == "entity") {
             is_value_matching = matched_value == filter.value;
         } else if (filter.type == "self_spotters") {
-            is_value_matching = spot.dx_callsign == spot.spotter_callsign;
+            is_value_matching = is_same_base_callsign(spot.dx_callsign, spot.spotter_callsign);
         }
         return is_value_matching;
     });
