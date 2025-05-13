@@ -217,12 +217,25 @@ function SvgMap({
                         );
                     })}
                     {rendered_spots}
+                </g>
+
+                <g clipPath="url(#map-clip)">
                     {map_controls.night ? (
                         <path
-                            className="pointer-events-none"
+                            pointerEvents="none"
                             fill={colors.map.night}
                             opacity="0.2"
                             d={path_generator(get_night_circle())}
+                        />
+                    ) : (
+                        ""
+                    )}
+                    {settings.show_equator ? (
+                        <path
+                            stroke="black"
+                            strokeWidth="2"
+                            fill="none"
+                            d={path_generator(d3.geoCircle().radius(90).center([0, 90])())}
                         />
                     ) : (
                         ""
