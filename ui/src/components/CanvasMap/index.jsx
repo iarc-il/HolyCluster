@@ -204,6 +204,7 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
                 transform,
                 projection,
                 map_controls.night,
+                settings.show_equator,
             );
             if (animation_id_ref.current != null) {
                 cancelAnimationFrame(animation_id_ref.current);

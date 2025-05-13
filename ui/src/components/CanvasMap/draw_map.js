@@ -219,7 +219,16 @@ export class Dimensions {
     }
 }
 
-export function draw_map(context, spots, colors, dims, transform, projection, night_displayed) {
+export function draw_map(
+    context,
+    spots,
+    colors,
+    dims,
+    transform,
+    projection,
+    night_displayed,
+    show_equator,
+) {
     const path_generator = d3.geoPath().projection(projection).context(context);
 
     // Clear the map before rendering
@@ -261,6 +270,13 @@ export function draw_map(context, spots, colors, dims, transform, projection, ni
 
     if (night_displayed) {
         draw_night_circle(context, { path_generator });
+    }
+    if (show_equator) {
+        context.beginPath();
+        context.strokeStyle = "rgb(0, 0, 0)";
+        context.strokeWidth = 2;
+        path_generator(d3.geoCircle().radius(90).center([0, 90])());
+        context.stroke();
     }
 
     context.restore();
