@@ -237,7 +237,8 @@ function SubmitSpot({ settings, radio_freq }) {
                         className="pb-2 px-2 text-center text-lg"
                         style={{ color: colors.theme.text }}
                     >
-                        Usually, self spotting is <br />
+                        Usually, self spotting is discourged
+                        <br />
                         in the ham radio community
                     </p>
                 ) : (
