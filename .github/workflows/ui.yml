@@ -6,6 +6,8 @@ on:
       - "ui/**"
     branches:
       - "master"
+    tags:
+      - "*"
 
 jobs:
   build-and-deploy-ui:

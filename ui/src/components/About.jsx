@@ -7,6 +7,16 @@ import { useColors } from "../hooks/useColors";
 
 const RELEASES = [
     [
+        "13/05/2025",
+        [
+            "New auto zoom mode",
+            "When band button is hovered, the spots in the map are highlighted",
+            "Allow filtering self spotter",
+            "Warn when a user tries to spot himself",
+            "Allow showing DXCC entity instead of flag in the spots table",
+        ],
+    ],
+    [
         "04/04/2025",
         [
             "The band bar",

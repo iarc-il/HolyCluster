@@ -51,6 +51,7 @@ function MainContainer() {
         is_miles: false,
         propagation_displayed: true,
         show_flags: true,
+        show_equator: false,
     });
 
     const [table_sort, set_table_sort] = use_object_local_storage("table_sort", {

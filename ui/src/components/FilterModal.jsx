@@ -30,6 +30,7 @@ function RadioButton({ children, disabled, on_click }) {
         "text-white",
         "font-bold",
         "cursor-pointer",
+        "select-none",
     ];
     let color = disabled ? "gray" : "green";
     classes = [...classes, `bg-${color}-600`, `active:bg-${color}-800`, `hover:bg-${color}-700`];
@@ -198,9 +199,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         </div>
                     </>
                 ) : (
-                    <p>
-                        <strong>Warning:</strong> Self spotting is discourged!
-                    </p>
+                    ""
                 )}
             </div>
         </Modal>

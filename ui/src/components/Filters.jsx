@@ -49,14 +49,10 @@ function FilterLine({ filter, id }) {
         filter_type_label = "Sfx";
     } else if (filter.type == "entity") {
         filter_type_label = "Ent";
-    } else if (filter.type == "self_spotters") {
-        filter_type_label = "SS";
     }
 
     let spotter_or_dx_label;
-    if (filter.type == "self_spotters") {
-        spotter_or_dx_label = null;
-    } else if (filter.spotter_or_dx == "spotter") {
+    if (filter.spotter_or_dx == "spotter") {
         spotter_or_dx_label = "DE";
     } else if (filter.spotter_or_dx == "dx") {
         spotter_or_dx_label = "DX";
@@ -67,15 +63,23 @@ function FilterLine({ filter, id }) {
             className="flex justify-around items-center mb-1 w-full"
             style={{ color: colors.theme.text }}
         >
-            <Input
-                className="h-7 text-sm mr-1 w-20"
-                disabled
-                disabled_text_color={colors.theme.text}
-                title={filter.value}
-                value={filter.value}
-            />
-            <Indicator text={filter_type_label} />
-            <Indicator text={spotter_or_dx_label} />
+            {filter.type == "self_spotters" ? (
+                <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md mr-auto text-xs font-bold bg-green-600 text-white">
+                    Self spotters
+                </div>
+            ) : (
+                <>
+                    <Input
+                        className="h-7 text-sm mr-1 w-20"
+                        disabled
+                        disabled_text_color={colors.theme.text}
+                        title={filter.value}
+                        value={filter.value}
+                    />
+                    <Indicator text={filter_type_label} />
+                    <Indicator text={spotter_or_dx_label} />
+                </>
+            )}
             <FilterModal
                 initial_data={filter}
                 button={<EditSymbol size="24"></EditSymbol>}

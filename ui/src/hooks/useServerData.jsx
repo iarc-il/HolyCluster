@@ -22,7 +22,7 @@ function fetch_spots() {
     let url;
     // For debugging purposes
     if (window.location.port == "5173") {
-        url = "https://holycluster.iarc.org/spots";
+        url = "http://holycluster-dev.iarc.org/spots";
     } else {
         url = "/spots";
     }
@@ -52,8 +52,8 @@ function fetch_spots() {
                         }
                         return spot;
                     });
+                    new_spots.sort((spot_a, spot_b) => spot_b.id - spot_a.id);
                     let spots = new_spots.concat(this.spots);
-                    spots.sort((spot_a, spot_b) => spot_b.id - spot_a.id);
                     let current_time = Math.round(Date.now() / 1000);
                     spots = spots.filter(spot => spot.time > current_time - 3600);
                     this.last_id = spots[0].id;
