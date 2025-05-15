@@ -11,47 +11,10 @@ import { use_object_local_storage, is_matching_list, get_max_radius } from "@/ut
 import { bands, modes, continents } from "@/filters_data.js";
 import { useFilters } from "@/hooks/useFilters";
 import { useServerData } from "@/hooks/useServerData";
+import use_radio from "@/hooks/useRadio";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
-
-function connect_to_radio() {
-    const host = window.location.host;
-    const protocol = window.location.protocol;
-    const websocket_url = (protocol == "https:" ? "wss:" : "ws:") + "//" + host + "/radio";
-
-    const { sendJsonMessage, readyState, lastJsonMessage } = useWebSocket(websocket_url);
-    const [radio_status, set_radio_status] = useState("unknown");
-    const [radio_freq, set_radio_freq] = useState(0);
-    const [radio_mode, set_radio_mode] = useState("");
-    const [rig, set_rig] = useState(1);
-
-    useEffect(() => {
-        if (lastJsonMessage != null) {
-            if ("status" in lastJsonMessage) {
-                set_radio_status(lastJsonMessage.status);
-                set_radio_freq(lastJsonMessage.freq);
-                set_radio_mode(lastJsonMessage.mode);
-                set_rig(lastJsonMessage.current_rig);
-            }
-        }
-    }, [lastJsonMessage]);
-
-    const send_message_to_radio = message => {
-        if (readyState == ReadyState.OPEN) {
-            sendJsonMessage(message);
-        }
-    };
-
-    return {
-        send_message_to_radio: send_message_to_radio,
-        radio_status: radio_status,
-        radio_freq: radio_freq,
-        radio_mode: radio_mode,
-        rig: rig,
-    };
-}
 
 function MainContainer() {
     const [toggled_ui, set_toggled_ui] = useState({ left: true, right: true });
@@ -144,7 +107,8 @@ function MainContainer() {
         }
     });
 
-    let { send_message_to_radio, radio_status, radio_freq, rig, radio_mode } = connect_to_radio();
+    const { send_message_to_radio, radio_status, radio_freq, rig, radio_mode, radio_band } =
+        use_radio();
 
     function set_cat_to_spot(spot) {
         if (cat_control != true) {
@@ -154,8 +118,9 @@ function MainContainer() {
         set_prev_freqs(
             [
                 {
+                    band: radio_band,
                     mode: radio_mode,
-                    freq: Math.round((radio_freq / 1000) * 1000) / 1000,
+                    freq: Math.round((radio_freq / 1000) * 10) / 10,
                 },
             ]
                 .concat(prev_freqs)
@@ -271,7 +236,6 @@ function MainContainer() {
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
                 radio_status={radio_status}
-                radio_freq={radio_freq}
                 rig={rig}
                 set_rig={set_rig}
             />
@@ -305,7 +269,6 @@ function MainContainer() {
                 <CallsignsView
                     toggled_ui={toggled_ui}
                     radio_status={radio_status}
-                    radio_freq={Math.round((radio_freq / 1000 || 0) * 10) / 10}
                     set_cat_to_spot={set_cat_to_spot}
                     cat_control={cat_control}
                     set_cat_control={set_cat_control}

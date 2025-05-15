@@ -5,6 +5,7 @@ import { bands, modes } from "@/filters_data.js";
 import { useServerData } from "@/hooks/useServerData";
 import { useFilters } from "@/hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
+import use_radio from "../hooks/useRadio";
 
 function Hex(color) {
     return (
@@ -66,7 +67,8 @@ function FeedbackButton({ size }) {
 
 function LeftColumn({ toggled_ui }) {
     const { spots_per_band_count, set_hovered_band } = useServerData();
-    const { filters, setFilters } = useFilters();
+    const { filters, setFilters, setRadioModeFilter } = useFilters();
+    const { radio_band, radio_status } = use_radio();
 
     const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";
     const toggled_classes = toggled_ui.left
@@ -92,9 +94,14 @@ function LeftColumn({ toggled_ui }) {
                             filter_key="bands"
                             filter_value={band}
                             orientation="right"
+                            disabled={filters.radio_band}
                         >
-                            {spots_per_band_count[band] != 0 ? (
-                                <span className="absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10">
+                            {spots_per_band_count[band] != 0 && !filters.radio_band ? (
+                                <span
+                                    className={
+                                        "absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10"
+                                    }
+                                >
                                     <span className="relative inline-flex border border-gray-900 bg-red-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
                                         {spots_per_band_count[band]}
                                     </span>
@@ -107,13 +114,20 @@ function LeftColumn({ toggled_ui }) {
                                 is_active={filters.bands[band]}
                                 color={color}
                                 text_color={colors.text[band]}
-                                on_click={_ =>
-                                    setFilters(_filters => ({
-                                        ..._filters,
-                                        bands: { ..._filters.bands, [band]: !_filters.bands[band] },
-                                    }))
-                                }
-                                on_mouse_enter={_ => set_hovered_band(band)}
+                                on_click={_ => {
+                                    if (!filters.radio_band)
+                                        setFilters(_filters => ({
+                                            ..._filters,
+                                            bands: {
+                                                ..._filters.bands,
+                                                [band]: !_filters.bands[band],
+                                            },
+                                        }));
+                                }}
+                                className={filters.radio_band && "opacity-50"}
+                                on_mouse_enter={_ => {
+                                    if (!filters.radio_band) set_hovered_band(band);
+                                }}
                                 on_mouse_leave={_ => set_hovered_band(null)}
                                 hover_brightness="125"
                                 size="small"
@@ -121,7 +135,38 @@ function LeftColumn({ toggled_ui }) {
                         </FilterOptions>
                     );
                 })}
+
+                {/* RADIO BAND SELECTOR */}
+                {((radio_status != "unavailable" && radio_status != "unknown") ||
+                    filters.radio_band) && (
+                    <div>
+                        {spots_per_band_count[radio_band] != 0 ? (
+                            <span
+                                className={
+                                    "absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10"
+                                }
+                            >
+                                <span className="relative inline-flex border border-gray-900 bg-red-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
+                                    {spots_per_band_count[radio_band]}
+                                </span>
+                            </span>
+                        ) : (
+                            ""
+                        )}
+
+                        <FilterButton
+                            text={"Radio"}
+                            is_active={filters.radio_band}
+                            color={colors.bands[radio_band] ?? "black"}
+                            text_color={colors.text[radio_band] ?? "white"}
+                            on_click={_ => setRadioModeFilter(!filters.radio_band)}
+                            hover_brightness="125"
+                            size="small"
+                        />
+                    </div>
+                )}
             </div>
+
             <div className={filter_group_classes + " pt-4"}>
                 {modes.map(mode => {
                     return (
@@ -148,7 +193,10 @@ function LeftColumn({ toggled_ui }) {
                                 on_click={() =>
                                     setFilters(_filters => ({
                                         ..._filters,
-                                        modes: { ..._filters.modes, [mode]: !_filters.modes[mode] },
+                                        modes: {
+                                            ..._filters.modes,
+                                            [mode]: !_filters.modes[mode],
+                                        },
                                     }))
                                 }
                                 color={colors.buttons.modes}

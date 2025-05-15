@@ -3,6 +3,7 @@ import { useFilters } from "../hooks/useFilters";
 import { is_matching_list } from "@/utils.js";
 import { bands } from "@/filters_data.js";
 import { get_flag } from "@/flags.js";
+import use_radio from "./useRadio";
 
 const ServerDataContext = createContext(undefined);
 
@@ -106,6 +107,8 @@ export const ServerDataProvider = ({ children }) => {
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
+    const { radio_band } = use_radio();
+
     const { filters, callsign_filters } = useFilters();
 
     const [propagation, set_propagation] = useState();
@@ -191,7 +194,9 @@ export const ServerDataProvider = ({ children }) => {
                 }
 
                 const is_band_and_mode_active =
-                    filters.bands[spot.band] && filters.modes[spot.mode];
+                    ((filters.radio_band && radio_band == spot.band) ||
+                        (!filters.radio_band && filters.bands[spot.band])) &&
+                    filters.modes[spot.mode];
 
                 const are_include_filters_empty = show_only_filters.length == 0;
                 const are_exclude_filters_empty = hide_filters.length == 0;

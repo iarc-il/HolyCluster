@@ -15,6 +15,7 @@ export const FiltersProvider = ({ children }) => {
     const initial_filters = {
         bands: Object.fromEntries(Array.from(bands).map(band => [band, true])),
         modes: Object.fromEntries(modes.map(mode => [mode, true])),
+        radio_band: false,
         dx_continents: Object.fromEntries(continents.map(continent => [continent, true])),
         spotter_continents: Object.fromEntries(continents.map(continent => [continent, true])),
         time_limit: 3600,
@@ -58,6 +59,14 @@ export const FiltersProvider = ({ children }) => {
             ),
         }));
     }
+
+    function setRadioModeFilter(value) {
+        setFilters(state => ({
+            ...state,
+            radio_band: value,
+        }));
+    }
+
     return (
         <Provider
             value={{
@@ -65,6 +74,7 @@ export const FiltersProvider = ({ children }) => {
                 setFilters,
                 setFilterKeys,
                 setOnlyFilterKeys,
+                setRadioModeFilter,
                 callsign_filters,
                 setCallsignFilters,
             }}

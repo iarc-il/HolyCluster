@@ -7,6 +7,7 @@ import Button from "@/components/Button.jsx";
 import Modal from "@/components/Modal.jsx";
 import Spinner from "@/components/Spinner.jsx";
 import { useColors } from "@/hooks/useColors";
+import use_radio from "../hooks/useRadio";
 
 function SubmitIcon({ size }) {
     const { colors } = useColors();
@@ -51,7 +52,7 @@ function connect_to_submit_spot_endpoint(on_response) {
     return { sendJsonMessage, readyState };
 }
 
-function SubmitSpot({ settings, radio_freq }) {
+function SubmitSpot({ settings }) {
     const [temp_data, set_temp_data] = useState(empty_temp_data);
     const [submit_status, set_submit_status] = useState({
         status: "pending",
@@ -61,6 +62,8 @@ function SubmitSpot({ settings, radio_freq }) {
 
     const [external_close, set_external_close] = useState(true);
     const [is_open, set_is_open] = useState(false);
+    let { radio_freq } = use_radio();
+    radio_freq = radio_freq ?? 0;
 
     useEffect(() => {
         if (is_open) {
@@ -146,11 +149,6 @@ function SubmitSpot({ settings, radio_freq }) {
     }
     let is_self_spotting =
         find_base_callsign(settings.callsign) == find_base_callsign(temp_data.callsign);
-    console.log(
-        is_self_spotting,
-        find_base_callsign(settings.callsign),
-        find_base_callsign(temp_data.callsign),
-    );
 
     return (
         <>

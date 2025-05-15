@@ -4,7 +4,7 @@ import Button from "@/components/Button.jsx";
 import { useFilters } from "../hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
 
-function FilterOptions({ filter_key, filter_value, align, orientation, children }) {
+function FilterOptions({ filter_key, filter_value, align, orientation, disabled, children }) {
     const { setFilterKeys, setOnlyFilterKeys } = useFilters();
     const { colors } = useColors();
 
@@ -34,7 +34,10 @@ function FilterOptions({ filter_key, filter_value, align, orientation, children 
     return (
         <div
             className="relative"
-            onMouseEnter={() => set_is_hovered(true)}
+            onMouseEnter={() => {
+                if (disabled) return;
+                set_is_hovered(true);
+            }}
             onMouseLeave={() => set_is_hovered(false)}
         >
             {children}

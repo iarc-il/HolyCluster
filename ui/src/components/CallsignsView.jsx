@@ -7,7 +7,6 @@ import { useColors } from "../hooks/useColors";
 function CallsignsView({
     toggled_ui,
     radio_status,
-    radio_freq,
     set_cat_to_spot,
     cat_control,
     set_cat_control,
@@ -19,7 +18,6 @@ function CallsignsView({
     const freq_bar = (
         <FrequencyBar
             radio_status={radio_status}
-            radio_freq={radio_freq}
             set_cat_to_spot={set_cat_to_spot}
             cat_control={cat_control}
             set_cat_control={set_cat_control}

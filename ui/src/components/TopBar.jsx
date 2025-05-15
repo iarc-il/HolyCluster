@@ -16,6 +16,7 @@ import OpenMenu from "@/components/OpenMenu.jsx";
 
 import { modes } from "@/filters_data.js";
 import { useEffect } from "react";
+import use_radio from "../hooks/useRadio";
 
 const spots_time_limits = {
     "5 Minutes": 300,
@@ -36,7 +37,6 @@ function TopBar({
     toggled_ui,
     set_toggled_ui,
     dev_mode,
-    radio_freq,
     radio_status,
     rig,
     set_rig,
@@ -57,6 +57,8 @@ function TopBar({
             set_rig(requested_rig);
         }
     }, [rig]);
+
+    const { radio_freq } = use_radio();
 
     return (
         <div
@@ -124,7 +126,7 @@ function TopBar({
             )}
 
             <div className={box_container_style}>
-                <SubmitSpot settings={settings} radio_freq={radio_freq ? radio_freq : 0} />
+                <SubmitSpot settings={settings} />
                 <Clock />
 
                 <Select

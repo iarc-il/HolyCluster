@@ -9,6 +9,7 @@ function FilterButton({
     on_mouse_leave,
     color,
     text_color = "#000000",
+    className,
     hover_brightness = "110",
     size = "normal",
 }) {
@@ -22,6 +23,7 @@ function FilterButton({
         "cursor-pointer",
         "select-none",
         `hover:brightness-${hover_brightness}`,
+        className ?? "",
     ];
     if (size == "normal") {
         box_style.push(...["py-2", "px-2", "min-w-12"]);

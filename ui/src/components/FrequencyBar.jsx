@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import { useColors } from "../hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 import { useLocalStorage } from "@uidotdev/usehooks";
+import use_radio from "../hooks/useRadio";
 
 const ft8_color = "#FF0000";
 const ft4_color = "#0000FF";
@@ -151,7 +152,6 @@ const band_plans = {
 export default function FrequencyBar({
     className,
     radio_status,
-    radio_freq,
     set_cat_to_spot,
     cat_control,
     set_cat_control,
@@ -169,15 +169,9 @@ export default function FrequencyBar({
     // Set to -1 to use the current band that the radio is on
     const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
 
-    function get_band_from_freq(freq) {
-        for (let band of Object.keys(band_plans)) {
-            if (freq <= band_plans[band].max && freq >= band_plans[band].min) return band;
-        }
+    let { radio_band, radio_freq } = use_radio();
 
-        return -1;
-    }
-
-    let radio_band = get_band_from_freq(radio_freq);
+    radio_freq = radio_freq && radio_freq >= 0 ? Math.round((radio_freq / 1000) * 10) / 10 : 0;
 
     let band = selected_band == -1 ? radio_band : selected_band;
 
