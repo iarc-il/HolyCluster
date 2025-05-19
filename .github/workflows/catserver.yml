@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "catserver/**"
+      - ".github/workflows/catserver.yml"
     branches:
       - "master"
     tags:
@@ -18,8 +19,31 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/iarc-il/catserver-ci:latest
+      options: --user root
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          export HOME=/root
+          mkdir -p $HOME/.ssh
+          chmod 700 $HOME/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > $HOME/.ssh/id_rsa
+          chmod 600 $HOME/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_DEV }}" >> $HOME/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_PROD }}" >> $HOME/.ssh/known_hosts
+          chmod 644 $HOME/.ssh/known_hosts
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            catserver/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Run rustfmt
         working-directory: catserver
@@ -33,24 +57,21 @@ jobs:
         working-directory: ./catserver
         run: cargo build --target $TARGET --release
 
+      - name: Change build artifacts ownership
+        working-directory: ./catserver
+        run: chown -R wix:wix target
+
       - name: Build installer
         working-directory: ./catserver
-        run: ./build_msi.sh in-docker
-
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_DEV }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_PROD }} >> ~/.ssh/known_hosts
+        run: su wix -c "./build_msi.sh in-docker"
 
       - name: Upload to Development Server
+        working-directory: ./catserver
         if: github.ref == 'refs/heads/master'
         run: |
-          scp target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:/opt/temp
+          scp -v target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:/opt/temp
 
-      - name: Upload to Production Server
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          scp target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }}:/opt/temp
+      # - name: Upload to Production Server
+      #   if: startsWith(github.ref, 'refs/tags/')
+      #   run: |
+      #     scp target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }}:/opt/temp
