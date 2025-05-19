@@ -11,9 +11,11 @@ set -e
 
 run_wix() {
     cp $BUILD_DIR/catserver.exe $BUILD_DIR/HolyCluster.exe
-    candle -dVersion=$VERSION -dCargoTargetBinDir=$BUILD_DIR wix/$WIX_NAME.wxs -o "$BUILD_DIR/"
-    candle -dVersion=$VERSION -dCargoTargetBinDir=$BUILD_DIR wix/$DIALOG_NAME.wxs -o "$BUILD_DIR/"
-    light -ext WixUIExtension -sval $BUILD_DIR/$WIX_NAME.wixobj $BUILD_DIR/$DIALOG_NAME.wixobj -o "$OUTPUT_PATH"
+    wix build \
+        -d Version=$VERSION \
+        -d CargoTargetBinDir=$BUILD_DIR wix/$WIX_NAME.wxs \
+         -ext WixToolset.UI.wixext \
+        -o "$BUILD_DIR/HolyCluster.msi"
     echo "MSI complied successfuly: $OUTPUT_PATH"
 }
 
@@ -22,7 +24,7 @@ main() {
         run_wix
     else
         cargo build --target $TARGET --release
-        docker run -v $(pwd):/wix --rm fleetdm/wix $0 in-docker
+        docker run -v $(pwd):/work -w /work --rm ghcr.io/iarc-il/catserver-ci:latest $0 in-docker
     fi
 }
 
