@@ -178,7 +178,7 @@ async def main(debug=False):
             logger.info(f"geo_cache records: {len(geo_cache)}")
 
             #  dxheat_raw
-            logger.info("Collectign spots from DXHeat")
+            logger.info("Collecting spots from DXHeat")
             spot_records = await collect_dxheat_spots(debug=debug)
             for record in spot_records:
                 dxheat_record_to_dict = record.to_dict()
