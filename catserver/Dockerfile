@@ -34,14 +34,13 @@ RUN set -ex \
     && ln -sf /usr/local/bin/wix /usr/local/bin/wix.exe \
     # Needed for \
     && apt-get install -y \
-    libgtk-3-dev \
-    libxdo-dev \
-    libappindicator3-dev \
-    binutils-mingw-w64-x86-64 \
-    gcc-mingw-w64-x86-64-win32
+       libgtk-3-dev \
+       libxdo-dev \
+       libappindicator3-dev \
+       binutils-mingw-w64-x86-64 \
+       gcc-mingw-w64-x86-64-win32
 
 USER wix
-
 WORKDIR /home/wix
 
 RUN set -ex \
@@ -59,3 +58,16 @@ RUN set -ex \
     && rustup default stable \
     && rustup target add x86_64-pc-windows-gnu \
     && rustup component add clippy rustfmt
+
+USER root
+WORKDIR /
+
+RUN set -ex \
+    && apt-get purge -y curl xauth xvfb xz-utils p7zip-full unzip \
+    && apt-get clean -y \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
+USER wix
+WORKDIR /home/wix
+
