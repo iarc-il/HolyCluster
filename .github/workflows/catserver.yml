@@ -9,32 +9,16 @@ on:
     tags:
       - "*"
 
+env:
+  TARGET: x86_64-pc-windows-gnu
+
 jobs:
   build-catserver:
     name: Build Catserver
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/iarc-il/catserver-ci:latest
     steps:
-      - name: Install stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - name: Rust Setup
-        run: rustup default stable
-
-      - name: Rust Setup
-        run: rustup target add x86_64-pc-windows-gnu
-
-      - name: Install system dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            libgtk-3-dev \
-            libxdo-dev \
-            libappindicator3-dev \
-            binutils-mingw-w64-x86-64 \
-            gcc-mingw-w64-x86-64-win32
-
       - uses: actions/checkout@v4
 
       - name: Run rustfmt
@@ -43,4 +27,30 @@ jobs:
 
       - name: Run Clippy
         working-directory: ./catserver
-        run: cargo clippy --target x86_64-pc-windows-gnu -- -D warnings
+        run: cargo clippy --target $TARGET -- -D warnings
+
+      - name: Build catserver
+        working-directory: ./catserver
+        run: cargo build --target $TARGET --release
+
+      - name: Build installer
+        working-directory: ./catserver
+        run: ./build_msi.sh in-docker
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_DEV }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_PROD }} >> ~/.ssh/known_hosts
+
+      - name: Upload to Development Server
+        if: github.ref == 'refs/heads/master'
+        run: |
+          scp target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:/opt/temp
+
+      - name: Upload to Production Server
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          scp target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }}:/opt/temp
