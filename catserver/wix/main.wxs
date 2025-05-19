@@ -126,6 +126,8 @@
             <ui:WixUI Id="WixUI_FeatureTree" />
         </UI>
 
+        <WixVariable Id="WixUILicenseRtf" Value="wix/eula.rtf" />
+
         <!--
           Uncomment the next `WixVariable` tag to customize the installer's
           Graphical User Interface (GUI) and add a custom banner image across
