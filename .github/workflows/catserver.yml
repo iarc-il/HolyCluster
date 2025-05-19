@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "catserver/**"
+      - ".github/workflows/catserver.yml"
     branches:
       - "master"
     tags:
@@ -18,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/iarc-il/catserver-ci:latest
+      options: --user root
     steps:
       - uses: actions/checkout@v4
 
@@ -33,9 +35,13 @@ jobs:
         working-directory: ./catserver
         run: cargo build --target $TARGET --release
 
+      - name: Change build artifacts ownership
+        working-directory: ./catserver
+        run: chown -R wix:wix target
+
       - name: Build installer
         working-directory: ./catserver
-        run: ./build_msi.sh in-docker
+        run: su wix -c "./build_msi.sh in-docker"
 
       - name: Setup SSH
         run: |
@@ -48,9 +54,9 @@ jobs:
       - name: Upload to Development Server
         if: github.ref == 'refs/heads/master'
         run: |
-          scp target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:/opt/temp
+          scp -v -o StrictHostKeyChecking=no target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:/opt/temp
 
       - name: Upload to Production Server
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          scp target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }}:/opt/temp
+          scp -v -o StrictHostKeyChecking=no target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }}:/opt/temp
