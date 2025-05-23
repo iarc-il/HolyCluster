@@ -1,6 +1,9 @@
 #/bin/bash
+
+set -e
+
 main() {
-    while [[ $# -gt 0 ]]; do
+    while [ $# -gt 0 ]; do
         case $1 in
             --deploy-user)
               DEPLOY_USER="$2"
@@ -23,12 +26,14 @@ main() {
         shift
     done
 
+    chown -R $(id -u):$(id -g) .
+
     MSI_NAME=$(git describe --match 'catserver-v*').msi
 
     echo Copying msi $MSI_NAME
     scp $LOCAL_MSI_PATH $DEPLOY_USER@$DEPLOY_HOST:$REMOTE_MSI_DIR/$MSI_NAME
     echo Updating latest version
-    ssh $DEPLOY_USER@$DEPLOY_HOST echo $MSI_NAME > $REMOTE_MSI_DIR/latest
+    ssh $DEPLOY_USER@$DEPLOY_HOST "echo $MSI_NAME > $REMOTE_MSI_DIR/latest"
 }
 
 main $@

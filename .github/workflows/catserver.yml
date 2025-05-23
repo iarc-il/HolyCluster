@@ -12,7 +12,6 @@ on:
 
 env:
   TARGET: x86_64-pc-windows-gnu
-  MSI_PATH: catserver/target/$TARGET/release/HolyCluster.msi
 
 jobs:
   build-catserver:
@@ -23,6 +22,9 @@ jobs:
       options: --user root
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup SSH
         run: |
@@ -69,10 +71,10 @@ jobs:
       - name: Upload to Development Server
         if: github.ref == 'refs/heads/master'
         run: |
-          catserver/publish.sh \
+          bash catserver/publish.sh \
             --deploy-user ${{ secrets.DEPLOY_USER_DEV }} \
             --deploy-host ${{ secrets.DEPLOY_HOST_DEV }} \
-            --local-msi-path $MSI_PATH \
+            --local-msi-path catserver/target/$TARGET/release/HolyCluster.msi \
             --remote-msi-dir /opt/msi
 
       # - name: Upload to Production Server
