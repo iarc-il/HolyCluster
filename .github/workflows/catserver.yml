@@ -12,6 +12,7 @@ on:
 
 env:
   TARGET: x86_64-pc-windows-gnu
+  MSI_PATH: catserver/target/$TARGET/release/HolyCluster.msi
 
 jobs:
   build-catserver:
@@ -66,10 +67,13 @@ jobs:
         run: su wix -c "./build_msi.sh in-docker"
 
       - name: Upload to Development Server
-        working-directory: ./catserver
         if: github.ref == 'refs/heads/master'
         run: |
-          scp -v target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:/opt/temp
+          catserver/publish.sh \
+            --deploy-user ${{ secrets.DEPLOY_USER_DEV }} \
+            --deploy-host ${{ secrets.DEPLOY_HOST_DEV }} \
+            --local-msi-path $MSI_PATH \
+            --remote-msi-dir /opt/msi
 
       # - name: Upload to Production Server
       #   if: startsWith(github.ref, 'refs/tags/')
