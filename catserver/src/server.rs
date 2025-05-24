@@ -72,6 +72,11 @@ impl Server {
             .route("/radio", any(cat_control_handler))
             .route("/submit_spot", any(submit_spot_handler));
 
+        let app_state = AppState {
+            server_config,
+            radio,
+            http_client,
+        };
         let app = if use_local_ui {
             let mut ui_dir = std::env::current_exe()?;
             let ui_dir = loop {
@@ -85,17 +90,14 @@ impl Server {
                         .into();
                 }
             };
-            app.route("/spots", any(proxy))
-                .fallback_service(ServeDir::new(ui_dir))
+            app.route("/spots", any(proxy)).fallback_service(
+                ServeDir::new(ui_dir).fallback(any(proxy).with_state(app_state.clone())),
+            )
         } else {
             app.fallback(any(proxy))
         };
-        let local_port = server_config.local_port;
-        let app = app.with_state(AppState {
-            server_config,
-            radio,
-            http_client,
-        });
+        let local_port = app_state.server_config.local_port;
+        let app = app.with_state(app_state);
 
         let address = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), local_port);
         let listener = TcpListener::bind(address).await?;
