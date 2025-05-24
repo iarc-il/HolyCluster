@@ -193,13 +193,22 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
             break
 
 
-@app.get("/catserver_download")
-def download_file():
+def get_latest_catserver_name():
     latest_file_path = settings.CATSERVER_MSI_DIR / "latest"
     if not latest_file_path.exists():
         raise HTTPException(status_code=404, detail="No latest version found")
 
-    filename = latest_file_path.read_text().strip()
+    return latest_file_path.read_text().strip()
+
+
+@app.get("/catserver/latest")
+def latest_catserver():
+    return get_latest_catserver_name()
+
+
+@app.get("/catserver/download")
+def download_catserver():
+    filename = get_latest_catserver_name()
     file_to_serve = settings.CATSERVER_MSI_DIR / filename
     if not file_to_serve.exists():
         raise HTTPException(status_code=404, detail="File not found")
