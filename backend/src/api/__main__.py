@@ -10,7 +10,7 @@ import fastapi
 import uvicorn
 from fastapi import HTTPException, websockets
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc
 from sqlmodel import Field, Session, SQLModel, create_engine, select
@@ -201,7 +201,7 @@ def get_latest_catserver_name():
     return latest_file_path.read_text().strip()
 
 
-@app.get("/catserver/latest")
+@app.get("/catserver/latest", response_class=PlainTextResponse)
 def latest_catserver():
     return get_latest_catserver_name()
 
