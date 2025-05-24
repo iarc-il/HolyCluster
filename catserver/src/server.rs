@@ -72,6 +72,11 @@ impl Server {
             .route("/radio", any(cat_control_handler))
             .route("/submit_spot", any(submit_spot_handler));
 
+        let app_state = AppState {
+            server_config,
+            radio,
+            http_client,
+        };
         let app = if use_local_ui {
             let mut ui_dir = std::env::current_exe()?;
             let ui_dir = loop {
@@ -85,17 +90,14 @@ impl Server {
                         .into();
                 }
             };
-            app.route("/spots", any(proxy))
-                .fallback_service(ServeDir::new(ui_dir))
+            app.route("/spots", any(proxy)).fallback_service(
+                ServeDir::new(ui_dir).fallback(any(proxy).with_state(app_state.clone())),
+            )
         } else {
             app.fallback(any(proxy))
         };
-        let local_port = server_config.local_port;
-        let app = app.with_state(AppState {
-            server_config,
-            radio,
-            http_client,
-        });
+        let local_port = app_state.server_config.local_port;
+        let app = app.with_state(app_state);
 
         let address = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), local_port);
         let listener = TcpListener::bind(address).await?;
@@ -267,8 +269,9 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result
     let poll_radio = radio.clone();
     let poll_sender = sender.clone();
     let mut poll_task: JoinHandle<Result<()>> = tokio::spawn(async move {
-        let message = StatusMessage {
-            status: "connected".to_string(),
+        let message = InitMessage {
+            status: "connected".into(),
+            version: env!("VERSION").into(),
         };
         let radio = poll_radio.clone();
         let sender = poll_sender;
@@ -334,8 +337,9 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result
 }
 
 #[derive(Serialize)]
-struct StatusMessage {
+struct InitMessage {
     status: String,
+    version: String,
 }
 
 #[derive(Deserialize)]

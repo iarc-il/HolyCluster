@@ -63,6 +63,7 @@ export default function use_radio() {
     const [radio_mode, set_radio_mode] = useState("");
     const [rig, set_rig] = useState(1);
     const [radio_band, set_radio_band] = useState(-1);
+    const [catserver_version, set_catserver_version] = useState(null);
 
     function get_band_from_freq(freq) {
         for (let band of Object.keys(band_plans)) {
@@ -75,6 +76,9 @@ export default function use_radio() {
     useEffect(() => {
         if (lastJsonMessage != null) {
             if ("status" in lastJsonMessage) {
+                if ("version" in lastJsonMessage) {
+                    set_catserver_version(lastJsonMessage.version);
+                }
                 set_radio_status(lastJsonMessage.status);
                 set_radio_freq(lastJsonMessage.freq);
                 set_radio_mode(lastJsonMessage.mode);
@@ -96,6 +100,7 @@ export default function use_radio() {
         radio_freq: radio_freq,
         radio_mode: radio_mode,
         radio_band: radio_band,
+        catserver_version: catserver_version,
         rig: rig,
     };
 }

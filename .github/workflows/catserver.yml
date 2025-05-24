@@ -22,6 +22,31 @@ jobs:
       options: --user root
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup SSH
+        run: |
+          export HOME=/root
+          mkdir -p $HOME/.ssh
+          chmod 700 $HOME/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > $HOME/.ssh/id_rsa
+          chmod 600 $HOME/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_DEV }}" >> $HOME/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_PROD }}" >> $HOME/.ssh/known_hosts
+          chmod 644 $HOME/.ssh/known_hosts
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            catserver/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Run rustfmt
         working-directory: catserver
@@ -43,20 +68,16 @@ jobs:
         working-directory: ./catserver
         run: su wix -c "./build_msi.sh in-docker"
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_DEV }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_PROD }} >> ~/.ssh/known_hosts
-
       - name: Upload to Development Server
         if: github.ref == 'refs/heads/master'
         run: |
-          scp -v -o StrictHostKeyChecking=no target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:/opt/temp
+          bash catserver/publish.sh \
+            --deploy-user ${{ secrets.DEPLOY_USER_DEV }} \
+            --deploy-host ${{ secrets.DEPLOY_HOST_DEV }} \
+            --local-msi-path catserver/target/$TARGET/release/HolyCluster.msi \
+            --remote-msi-dir /opt/msi
 
-      - name: Upload to Production Server
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          scp -v -o StrictHostKeyChecking=no target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }}:/opt/temp
+      # - name: Upload to Production Server
+      #   if: startsWith(github.ref, 'refs/tags/')
+      #   run: |
+      #     scp target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }}:/opt/temp

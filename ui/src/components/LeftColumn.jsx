@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
 import About from "@/components/About.jsx";
@@ -50,25 +51,72 @@ function FeedbackButton({ size }) {
     const { colors } = useColors();
 
     return (
-        <a href="https://forms.gle/jak7KnvwCnBRN6QU7" target="_blank">
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                <title>Feedback form</title>
-                <path
-                    d="M8 9H16M8 13H14M18 4C18.7956 4 19.5587 4.31607 20.1213 4.87868C20.6839 5.44129 21 6.20435 21 7V15C21 15.7956 20.6839 16.5587 20.1213 17.1213C19.5587 17.6839 18.7956 18 18 18H13L8 21V18H6C5.20435 18 4.44129 17.6839 3.87868 17.1213C3.31607 16.5587 3 15.7956 3 15V7C3 6.20435 3.31607 5.44129 3.87868 4.87868C4.44129 4.31607 5.20435 4 6 4H18Z"
-                    stroke={colors.buttons.utility}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                />
-            </svg>
-        </a>
+        <div>
+            <a href="https://forms.gle/jak7KnvwCnBRN6QU7" target="_blank">
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+                    <title>Feedback form</title>
+                    <path
+                        d="M8 9H16M8 13H14M18 4C18.7956 4 19.5587 4.31607 20.1213 4.87868C20.6839 5.44129 21 6.20435 21 7V15C21 15.7956 20.6839 16.5587 20.1213 17.1213C19.5587 17.6839 18.7956 18 18 18H13L8 21V18H6C5.20435 18 4.44129 17.6839 3.87868 17.1213C3.31607 16.5587 3 15.7956 3 15V7C3 6.20435 3.31607 5.44129 3.87868 4.87868C4.44129 4.31607 5.20435 4 6 4H18Z"
+                        stroke={colors.buttons.utility}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+                </svg>
+            </a>{" "}
+        </div>
+    );
+}
+
+function CatserverDownload({ size, new_version_available }) {
+    const { colors } = useColors();
+
+    return (
+        <div>
+            <a href="/catserver/download">
+                {new_version_available ? (
+                    <span className="absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10">
+                        <span className="relative inline-flex border border-gray-900 bg-orange-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
+                            !
+                        </span>
+                    </span>
+                ) : (
+                    ""
+                )}
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+                    <title>Holy Cluster CAT control</title>
+                    <path
+                        d="M19 4H9C8.07003 4 7.60504 4 7.22354 4.10222C6.18827 4.37962 5.37962 5.18827 5.10222 6.22354C5 6.60504 5 7.08922 5 8.01919M5 8.01919C5.31428 8 5.70173 8 6.2 8H17.8C18.9201 8 19.4802 8 19.908 8.21799C20.2843 8.40973 20.5903 8.71569 20.782 9.09202C21 9.51984 21 10.0799 21 11.2V16.8C21 17.9201 21 18.4802 20.782 18.908C20.5903 19.2843 20.2843 19.5903 19.908 19.782C19.4802 20 18.9201 20 17.8 20H6.2C5.07989 20 4.51984 20 4.09202 19.782C3.71569 19.5903 3.40973 19.2843 3.21799 18.908C3 18.4802 3 17.9201 3 16.8V11.2C3 10.0799 3 9.51984 3.21799 9.09202C3.40973 8.71569 3.71569 8.40973 4.09202 8.21799C4.32953 8.09697 4.60779 8.04314 5 8.01919ZM14 12H18M14 16H18M10 14C10 15.1046 9.10457 16 8 16C6.89543 16 6 15.1046 6 14C6 12.8954 6.89543 12 8 12C9.10457 12 10 12.8954 10 14Z"
+                        stroke={colors.buttons.utility}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+                </svg>
+            </a>{" "}
+        </div>
     );
 }
 
 function LeftColumn({ toggled_ui }) {
     const { spots_per_band_count, set_hovered_band } = useServerData();
     const { filters, setFilters, setRadioModeFilter } = useFilters();
-    const { radio_band, radio_status } = use_radio();
+    const { radio_band, radio_status, catserver_version } = use_radio();
+    const [new_version_available, set_new_version_available] = useState(false);
+
+    useEffect(() => {
+        if (catserver_version == null) {
+            return;
+        }
+        fetch("/catserver/latest")
+            .then(data => data.text())
+            .then(data => {
+                const remote_version = data.split(".")[0];
+                if (catserver_version != remote_version) {
+                    set_new_version_available(true);
+                }
+            });
+    }, [catserver_version]);
 
     const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";
     const toggled_classes = toggled_ui.left
@@ -97,11 +145,7 @@ function LeftColumn({ toggled_ui }) {
                             disabled={filters.radio_band}
                         >
                             {spots_per_band_count[band] != 0 && !filters.radio_band ? (
-                                <span
-                                    className={
-                                        "absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10"
-                                    }
-                                >
+                                <span className="absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10">
                                     <span className="relative inline-flex border border-gray-900 bg-red-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
                                         {spots_per_band_count[band]}
                                     </span>
@@ -207,8 +251,9 @@ function LeftColumn({ toggled_ui }) {
                 })}
             </div>
             <div className="mt-auto mb-2 space-y-3">
+                <CatserverDownload size="36" new_version_available={new_version_available} />
                 <FeedbackButton size="36" />
-                <About />
+                <About size="36" />
             </div>
         </div>
     );
