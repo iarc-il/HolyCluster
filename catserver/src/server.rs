@@ -267,8 +267,9 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result
     let poll_radio = radio.clone();
     let poll_sender = sender.clone();
     let mut poll_task: JoinHandle<Result<()>> = tokio::spawn(async move {
-        let message = StatusMessage {
-            status: "connected".to_string(),
+        let message = InitMessage {
+            status: "connected".into(),
+            version: env!("VERSION").into(),
         };
         let radio = poll_radio.clone();
         let sender = poll_sender;
@@ -334,8 +335,9 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result
 }
 
 #[derive(Serialize)]
-struct StatusMessage {
+struct InitMessage {
     status: String,
+    version: String,
 }
 
 #[derive(Deserialize)]
