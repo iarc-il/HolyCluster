@@ -3,11 +3,12 @@ import datetime
 import logging
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 import fastapi
 import uvicorn
-from fastapi import websockets
+from fastapi import HTTPException, websockets
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -139,10 +140,7 @@ def spots(since: Optional[int] = None, last_id: Optional[int] = None):
 
         query = query.order_by(desc(DX.id))
         spots = session.exec(query).all()
-        spots = [
-            cleanup_spot(spot)
-            for spot in spots
-        ]
+        spots = [cleanup_spot(spot) for spot in spots]
         return spots
 
 
@@ -185,7 +183,6 @@ async def radio(websocket: fastapi.WebSocket):
     await websocket.close()
 
 
-
 @app.websocket("/submit_spot")
 async def submit_spot_one_spot(websocket: fastapi.WebSocket):
     await websocket.accept()
@@ -194,6 +191,22 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
             await submit_spot.handle_one_spot(websocket)
         except websockets.WebSocketDisconnect:
             break
+
+
+@app.get("/catserver_download")
+def download_file():
+    latest_file_path = settings.CATSERVER_MSI_DIR / "latest"
+    if not latest_file_path.exists():
+        raise HTTPException(status_code=404, detail="No latest version found")
+
+    filename = latest_file_path.read_text().strip()
+    file_to_serve = settings.CATSERVER_MSI_DIR / filename
+    if not file_to_serve.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(
+        str(file_to_serve), filename=filename.replace("catserver", "HolyCluster"), media_type="application/octet-stream"
+    )
 
 
 @app.get("/")
@@ -209,10 +222,7 @@ app.mount("/", StaticFiles(directory=settings.UI_DIR, html=True), name="static")
 if __name__ == "__main__":
     if settings.SSL_AVAILABLE:
         port = 443
-        ssl_kwargs = {
-            "ssl_keyfile": settings.SSL_KEYFILE,
-            "ssl_certfile": settings.SSL_CERTFILE
-        }
+        ssl_kwargs = {"ssl_keyfile": settings.SSL_KEYFILE, "ssl_certfile": settings.SSL_CERTFILE}
     else:
         port = 80
         ssl_kwargs = {}

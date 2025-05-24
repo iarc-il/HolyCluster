@@ -17,4 +17,5 @@ SSL_KEYFILE = env.str("SSL_KEYFILE", None)
 SSL_CERTFILE = env.str("SSL_CERTFILE", None)
 SSL_AVAILABLE = SSL_KEYFILE is not None and SSL_CERTFILE is not None
 
-UI_DIR = env.str("UI_DIR")
+UI_DIR = env.path("UI_DIR")
+CATSERVER_MSI_DIR = env.path("CATSERVER_MSI_DIR")
