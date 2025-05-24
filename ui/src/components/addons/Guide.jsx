@@ -1,0 +1,57 @@
+import Card from "@/components/addons/components/Card";
+
+export default function Guide() {
+    return (
+        <section id="install" className="py-16 px-4 bg-white">
+            <div className="container mx-auto">
+                <h2 className="text-3xl font-bold text-center mb-12 text-addons-primary">
+                    Installation Guide
+                </h2>
+
+                <div className="max-w-4xl mx-auto space-y-8">
+                    <GuideStep step={1}>
+                        <h3 className="text-xl font-semibold mb-3 text-addons-primary">
+                            Download the CAT Version of HolyCluster
+                        </h3>
+                        <p className="text-gray-700">
+                            Download the latest version of the HolyCluster CAT version from the
+                            download section below.
+                        </p>
+                    </GuideStep>
+
+                    <GuideStep step={2}>
+                        <h3 className="text-xl font-semibold mb-3 text-addons-primary">
+                            Connect to OmniRig
+                        </h3>
+                        <p className="text-gray-700">
+                            Download the latest version of OmniRig and connect your radio to
+                            OmniRig.
+                        </p>
+                    </GuideStep>
+
+                    <GuideStep step={3}>
+                        <h3 className="text-xl font-semibold mb-3 text-addons-primary">
+                            Ready to Use
+                        </h3>
+                        <p className="text-gray-700">
+                            The CAT Feature is now installed and configured. Open the application by
+                            clicking the OmniRig icon on your desktop, it will lauch a version of
+                            HolyCluster that allows for CAT control.
+                        </p>
+                    </GuideStep>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function GuideStep({ step, children }) {
+    return (
+        <Card className="shadow-md relative">
+            <div className="-translate-x-1/2 -translate-y-1/2 absolute sm:w-10 sm:h-10 w-8 h-8 text-lg rounded-full bg-addons-primary sm:text-xl flex items-center justify-center text-white font-bold">
+                {step}
+            </div>
+            <div className="m-6">{children}</div>
+        </Card>
+    );
+}
