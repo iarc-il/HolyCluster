@@ -52,6 +52,7 @@ const dxcc_to_country_flag = {
     "Saint Barthelemy": "France",
     Macao: "Macau",
     "Malpelo Island": "Colombia",
+    Eswatini: "Eswatini (Swaziland)",
 };
 
 export function get_flag(dx_country) {
