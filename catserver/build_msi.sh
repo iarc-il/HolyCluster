@@ -22,7 +22,6 @@ main() {
     if [ "$1" = "in-docker" ]; then
         run_wix
     else
-        cargo build --target $TARGET --release
         docker run -v $(pwd)/..:/work -w /work/catserver --rm ghcr.io/iarc-il/catserver-ci:latest $0 in-docker
     fi
 }

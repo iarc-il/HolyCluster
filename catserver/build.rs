@@ -13,7 +13,10 @@ fn main() -> io::Result<()> {
         .output()
         .unwrap();
     if output.stdout.is_empty() {
-        panic!("No matching git version tag found!");
+        panic!(
+            "No matching git version tag found:\n{}",
+            String::from_utf8(output.stderr).unwrap()
+        );
     }
     let version = String::from_utf8(output.stdout).unwrap();
     println!("cargo:rustc-env=VERSION={version}");
