@@ -20,6 +20,11 @@ class InvalidSpotter(Exception):
         return "Invalid spotter"
 
 
+class InitialConnectionFailed(Exception):
+    def __str__(self):
+        return "Initial connection failed"
+
+
 class LoginFailed(Exception):
     def __str__(self):
         return "Login failed"
@@ -58,14 +63,16 @@ async def expect_lines_inner(reader, valid_line, invalid_lines):
         line = await reader.readline()
         line = line.decode("utf-8", "ignore")
 
-        logger.debug(f"Output: {line.strip()}")
         if isinstance(valid_line, re.Pattern):
             if valid_line.search(line) is not None:
+                logger.info(f"Output: {line.strip()} is matching regex {valid_line}")
                 return
         elif valid_line in line:
+            logger.info(f"Output: {line.strip()} is matching string {valid_line}")
             return
         else:
-            logger.debug(f"line: {repr(line)} is not {repr(valid_line)}")
+            logger.info(f"Output: {repr(line)} not matching {repr(valid_line)}")
+
         for invalid_line, exception in invalid_lines.items():
             if invalid_line in line:
                 raise exception
@@ -106,6 +113,13 @@ async def handle_one_spot(websocket):
             raise InvalidDXCallsign()
 
         reader, writer = await connect_to_server()
+        await expect_lines(
+            reader,
+            "Please enter your call:",
+            {},
+            InitialConnectionFailed(),
+        )
+
         writer.write(f"{data['spotter_callsign']}\n".encode())
         await expect_lines(
             reader,
