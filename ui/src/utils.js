@@ -13,7 +13,7 @@ function find_base_callsign(callsign) {
 }
 
 export function is_same_base_callsign(callsign1, callsign2) {
-    return find_base_callsign(callsign1) == find_base_callsign(callsign2);
+    return find_base_callsign(callsign1) == find_base_callsign(callsign2) && callsign1.legnth > 0;
 }
 
 export function is_matching_list(list, spot) {
