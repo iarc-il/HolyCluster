@@ -8,7 +8,11 @@ CLUSTER_PORT = 7300
 
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+formatter = logging.Formatter('%(asctime)s | %(name)s |  %(levelname)s: %(message)s')
+file_handler = logging.FileHandler("/var/spots.log")
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 
 
 class InvalidSpotter(Exception):
@@ -54,14 +58,14 @@ async def expect_lines_inner(reader, valid_line, invalid_lines):
         line = await reader.readline()
         line = line.decode("utf-8", "ignore")
 
-        print(line.strip())
+        logger.debug(f"Output: {line.strip()}")
         if isinstance(valid_line, re.Pattern):
             if valid_line.search(line) is not None:
                 return
         elif valid_line in line:
             return
         else:
-            print(f"line: {repr(line)} is not {repr(valid_line)}")
+            logger.debug(f"line: {repr(line)} is not {repr(valid_line)}")
         for invalid_line, exception in invalid_lines.items():
             if invalid_line in line:
                 raise exception
@@ -116,7 +120,7 @@ async def handle_one_spot(websocket):
             command = "DX"
 
         spot_command = f"{command} {float(data['freq'])} {data['dx_callsign']} {data['comment']}\n"
-        print("Writing:", spot_command)
+        logger.info(f"Command: {spot_command}")
         writer.write(spot_command.encode())
 
         regex = re.compile(fr"DX de\s*{data['spotter_callsign']}:\s*{float(data['freq'])}\s*{data['dx_callsign']}")
