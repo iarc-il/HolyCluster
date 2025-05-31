@@ -126,7 +126,7 @@ function TopBar({
             )}
 
             <div className={box_container_style}>
-                <SubmitSpot settings={settings} />
+                <SubmitSpot settings={settings} dev_mode={dev_mode}/>
                 <Clock />
 
                 <Select

@@ -53,7 +53,7 @@ function connect_to_submit_spot_endpoint(on_response) {
     return { sendJsonMessage, readyState };
 }
 
-function SubmitSpot({ settings }) {
+function SubmitSpot({ settings, dev_mode }) {
     const [temp_data, set_temp_data] = useState(empty_temp_data);
     const [submit_status, set_submit_status] = useState({
         status: "pending",
@@ -63,6 +63,7 @@ function SubmitSpot({ settings }) {
 
     const [external_close, set_external_close] = useState(true);
     const [is_open, set_is_open] = useState(false);
+    const [is_testing, set_is_testing] = useState(false);
     let { radio_freq } = use_radio();
     radio_freq = radio_freq ?? 0;
 
@@ -116,6 +117,9 @@ function SubmitSpot({ settings }) {
                 freq: temp_data.freq,
                 comment: temp_data.comment,
             };
+            if (is_testing) {
+                message.testing = true;
+            }
             sendJsonMessage(message);
         }
     }
@@ -233,6 +237,20 @@ function SubmitSpot({ settings }) {
                                 />
                             </td>
                         </tr>
+                        {dev_mode ? (
+                            <tr>
+                                <td colSpan="2">
+                                    Testing only: &nbsp;
+                                    <input
+                                        type="checkbox"
+                                        value={is_testing}
+                                        onChange={_ => set_is_testing(!is_testing)}
+                                    />
+                                </td>
+                            </tr>
+                        ) : (
+                            ""
+                        )}
                     </tbody>
                 </table>
                 {is_self_spotting ? (
