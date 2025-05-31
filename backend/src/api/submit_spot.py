@@ -110,7 +110,12 @@ async def handle_one_spot(websocket):
             LoginFailed(),
         )
 
-        spot_command = f"DXTEST {float(data['freq'])} {data['dx_callsign']} {data['comment']}\n"
+        if data.get("testing"):
+            command = "DXTEST"
+        else:
+            command = "DX"
+
+        spot_command = f"{command} {float(data['freq'])} {data['dx_callsign']} {data['comment']}\n"
         print("Writing:", spot_command)
         writer.write(spot_command.encode())
 
