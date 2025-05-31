@@ -8,7 +8,7 @@ on:
     branches:
       - "master"
     tags:
-      - "*"
+      - "catserver-*"
 
 env:
   TARGET: x86_64-pc-windows-gnu
@@ -81,7 +81,11 @@ jobs:
             --local-msi-path catserver/target/$TARGET/release/HolyCluster.msi \
             --remote-msi-dir /opt/msi
 
-      # - name: Upload to Production Server
-      #   if: startsWith(github.ref, 'refs/tags/')
-      #   run: |
-      #     scp target/$TARGET/release/HolyCluster.msi ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }}:/opt/temp
+      - name: Upload to Production Server
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          bash catserver/publish.sh \
+            --deploy-user ${{ secrets.DEPLOY_USER_PROD }} \
+            --deploy-host ${{ secrets.DEPLOY_HOST_PROD }} \
+            --local-msi-path catserver/target/$TARGET/release/HolyCluster.msi \
+            --remote-msi-dir /opt/msi
