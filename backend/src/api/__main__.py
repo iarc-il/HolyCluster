@@ -4,10 +4,12 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from typing import Optional
+import os
 
 import fastapi
 import uvicorn
-from fastapi import HTTPException, websockets
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi import HTTPException, Request, websockets
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -92,6 +94,7 @@ app = fastapi.FastAPI(lifespan=lifespan)
 
 if settings.SSL_AVAILABLE:
     import ssl
+
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ssl_context.load_cert_chain(settings.SSL_CERTFILE, keyfile=settings.SSL_KEYFILE)
 
@@ -225,6 +228,15 @@ async def get_index():
 
 
 app.mount("/", StaticFiles(directory=settings.UI_DIR, html=True), name="static")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def spa_fallback(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404 and request.url.path not in ("/favicon.ico",):
+        index_path = os.path.join(settings.UI_DIR, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path, media_type="text/html")
+    raise exc
 
 
 if __name__ == "__main__":
