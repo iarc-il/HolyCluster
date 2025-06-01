@@ -6,7 +6,11 @@ BUILD_DIR=target/$TARGET/release
 WIX_NAME=main
 DIALOG_NAME=CustomInstallDirDlg
 OUTPUT_PATH=$BUILD_DIR/HolyCluster.msi
-VERSION=$(git describe --match 'catserver-v*' | sed -rn 's/.*v(.*)-(.*)-.*/\1.\2/p')
+
+GIT_TAG=$(git describe --match 'catserver-v*')
+BASE_VERSION=$(echo $GIT_TAG | sed -rn 's/catserver-v([.0-9]*)(-.*)?/\1/p')
+SUB_VERSION=$(echo $GIT_TAG | sed -rn 's/catserver-v[.0-9]*-(.*)-.*/\1/p')
+VERSION=$BASE_VERSION.${SUB_VERSION:-0}
 
 run_wix() {
     cp $BUILD_DIR/catserver.exe $BUILD_DIR/HolyCluster.exe

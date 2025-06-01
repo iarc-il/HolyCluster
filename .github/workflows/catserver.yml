@@ -48,9 +48,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Fix Git dubious ownership
+      - name: Fix git errors
         run: |
           git config --system --add safe.directory "$GITHUB_WORKSPACE"
+          git fetch --tags --force
 
       - name: Run rustfmt
         working-directory: catserver
