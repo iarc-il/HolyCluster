@@ -243,7 +243,7 @@ function SubmitSpot({ settings, dev_mode }) {
                                     Testing only: &nbsp;
                                     <input
                                         type="checkbox"
-                                        value={is_testing}
+                                        checked={is_testing}
                                         onChange={_ => set_is_testing(!is_testing)}
                                     />
                                 </td>
