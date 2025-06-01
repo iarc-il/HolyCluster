@@ -3,8 +3,8 @@ import logging
 import re
 
 
-CLUSTER_HOST = "dxc.k0xm.net"
-CLUSTER_PORT = 7300
+CLUSTER_HOST = "dxc.ve7cc.net"
+CLUSTER_PORT = 23
 
 
 logger = logging.getLogger(__name__)
