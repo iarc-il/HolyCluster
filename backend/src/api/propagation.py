@@ -1,5 +1,8 @@
+import re
 import aiohttp
 
+
+A_INDEX_REGEX = re.compile("(.*) {3,}(.*) {3,}(.*) {3,}(.*) {3,}")
 
 K_INDEX_ENDPOINT = "/products/noaa-planetary-k-index.json"
 A_INDEX_ENDPOINT = "/text/daily-geomagnetic-indices.txt"
@@ -16,8 +19,7 @@ async def collect_propagation_data():
         async with session.get(A_INDEX_ENDPOINT) as response:
             text_data = await response.text()
             last_line = (text_data).strip().split("\n")[-1]
-            _, _, _, planetary_index = last_line.split("    ")
-            a_index, _ = planetary_index.strip().split("   ")
+            _, _, _, a_index = A_INDEX_REGEX.match(last_line).groups()
             a_index = int(a_index)
 
         async with session.get(SFI_ENDPOINT) as response:
