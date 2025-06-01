@@ -103,11 +103,10 @@ export const ServerDataProvider = ({ children }) => {
     let [hovered_spot, set_hovered_spot] = useState({ source: null, id: null });
     let [hovered_band, set_hovered_band] = useState(null);
     let [pinned_spot, set_pinned_spot] = useState(null);
-    const [freq_spots, set_freq_spots] = useState([]);
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
-    const { radio_band } = use_radio();
+    const { radio_band, radio_freq } = use_radio();
 
     const { filters, callsign_filters } = useFilters();
 
@@ -237,6 +236,40 @@ export const ServerDataProvider = ({ children }) => {
         return spots_per_band_count;
     }, [filtered_spots]);
 
+    // console.log(spots);
+    // console.log(filtered_spots);
+
+    // Max offset for the frequency error in kHz
+    const freq_error_range = {
+        FT8: 0.2,
+        FT4: 0.2,
+        DIGI: 0.2,
+        CW: 0.2,
+        SSB: 0.5,
+    };
+    const freq_spots = useMemo(() => {
+        console.log(filtered_spots);
+
+        if (filtered_spots.length > 0) {
+            console.log(
+                freq_error_range[filtered_spots[0].mode],
+                filtered_spots[0].mode,
+                radio_freq,
+                filtered_spots[0].freq / 1000,
+            );
+        }
+
+        const same_freq_spots = filtered_spots
+            .filter(
+                spot =>
+                    radio_freq / 1000 >= spot.freq - freq_error_range[spot.mode] &&
+                    radio_freq / 1000 <= spot.freq + freq_error_range[spot.mode],
+            )
+            .map(spot => spot.id);
+
+        return same_freq_spots;
+    }, [filtered_spots, radio_freq]);
+
     return (
         <Provider
             value={{
@@ -253,7 +286,6 @@ export const ServerDataProvider = ({ children }) => {
                 propagation,
                 network_state,
                 freq_spots,
-                set_freq_spots,
             }}
         >
             {children}

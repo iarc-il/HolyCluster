@@ -157,15 +157,8 @@ export default function FrequencyBar({
     set_cat_control,
 }) {
     const { colors } = useColors();
-    const {
-        spots,
-        hovered_spot,
-        set_hovered_spot,
-        pinned_spot,
-        set_pinned_spot,
-        freq_spots,
-        set_freq_spots,
-    } = useServerData();
+    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, freq_spots } =
+        useServerData();
     // Set to -1 to use the current band that the radio is on
     const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
 
@@ -182,14 +175,6 @@ export default function FrequencyBar({
             .slice(0, 30)
             .sort((a, b) => a.freq - b.freq);
     }, [spots, band]);
-
-    let same_freq_spots = useMemo(() => {
-        return spots.filter(spot => spot.freq === radio_freq).map(spot => spot.id);
-    }, [radio_freq, spots]);
-
-    useEffect(() => {
-        set_freq_spots(same_freq_spots);
-    }, [JSON.stringify(same_freq_spots)]);
 
     let freq_offset, max_freq, min_freq, features, ranges;
 
@@ -285,8 +270,7 @@ export default function FrequencyBar({
 
                         {sorted_spots.map((spot, i) => {
                             const highlight_spot =
-                                (radio_status === "connected" &&
-                                    same_freq_spots.includes(spot.id)) ||
+                                (radio_status === "connected" && freq_spots.includes(spot.id)) ||
                                 (radio_status !== "connected" && spot.id == pinned_spot) ||
                                 spot.id === hovered_spot.id;
 
