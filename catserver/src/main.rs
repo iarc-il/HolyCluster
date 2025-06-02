@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "dev_server"), windows_subsystem = "windows")]
 
 use std::fs::OpenOptions;
+use tracing_panic::panic_hook;
 
 use anyhow::Result;
 use argh::FromArgs;
@@ -95,6 +96,8 @@ fn get_slug_from_args(args: &Args, use_dev_server: bool) -> String {
 }
 
 fn configure_tracing() {
+    std::panic::set_hook(Box::new(panic_hook));
+
     let project_dirs = ProjectDirs::from("org", "iarc", "holycluster").unwrap();
     let cache_dir = project_dirs.cache_dir();
     std::fs::create_dir_all(cache_dir).unwrap();
