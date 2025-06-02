@@ -9,8 +9,12 @@ OUTPUT_PATH=$BUILD_DIR/HolyCluster.msi
 
 GIT_TAG=$(git describe --match 'catserver-v*')
 BASE_VERSION=$(echo $GIT_TAG | sed -rn 's/catserver-v([.0-9]*)(-.*)?/\1/p')
+BUGFIX_VERSION=$(echo $BASE_VERSION | sed -rn "s/[0-9]*\.[0-9]*\.([0-9]*)/\1/p")
+MAJOR_AND_MINOR_VERSION=$(echo $BASE_VERSION | sed -rn "s/([0-9]*\.[0-9]*).*/\1/p")
 SUB_VERSION=$(echo $GIT_TAG | sed -rn 's/catserver-v[.0-9]*-(.*)-.*/\1/p')
-VERSION=$BASE_VERSION.${SUB_VERSION:-0}
+SUB_VERSION=${SUB_VERSION:-0}
+NEW_BUGFIX_VERSION=$(( SUB_VERSION * 10 + BUGFIX_VERSION ))
+VERSION=$MAJOR_AND_MINOR_VERSION.$NEW_BUGFIX_VERSION
 
 run_wix() {
     cp $BUILD_DIR/catserver.exe $BUILD_DIR/HolyCluster.exe
