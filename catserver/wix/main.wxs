@@ -13,7 +13,7 @@
         />
 
         <Upgrade Id="5A85AD3D-3294-4EB3-99EA-BFDFFE92F471">
-            <UpgradeVersion Minimum="1.0.0" IncludeMinimum="yes" OnlyDetect="no" Property="PREVIOUSFOUND" />
+            <UpgradeVersion Minimum="0.1.0.0" IncludeMinimum="yes" OnlyDetect="no" Property="PREVIOUSFOUND" />
         </Upgrade>
 
         <Media Id="1" Cabinet="media1.cab" EmbedCab="yes" DiskPrompt="CD-ROM #1" />
