@@ -112,6 +112,9 @@ function LeftColumn({ toggled_ui }) {
             .then(data => data.text())
             .then(data => {
                 const remote_version = data.slice(0, data.lastIndexOf("."));
+                console.log(
+                    `Remote version: ${remote_version}, Local version: ${catserver_version}`,
+                );
                 if (catserver_version != remote_version) {
                     set_new_version_available(true);
                 }
