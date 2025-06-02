@@ -36,10 +36,6 @@ fn open_at_browser(port: u16) -> Result<()> {
 /// The Holy Cluster - debug flags
 #[argh(help_triggers("-h", "--help"))]
 struct Args {
-    /// run the server with the UI from the development server
-    #[argh(switch)]
-    dev_server: bool,
-
     /// run with dummy radio instead of omnirig
     #[argh(switch)]
     dummy: bool,
@@ -69,9 +65,9 @@ fn get_radio(use_dummy: bool) -> AnyRadio {
 }
 
 /// For development purposes, we run each instance in different port, based on the given arguments
-fn get_port_from_args(base_port: u16, args: &Args) -> u16 {
+fn get_port_from_args(base_port: u16, args: &Args, use_dev_server: bool) -> u16 {
     let mut port = base_port;
-    if args.dev_server {
+    if use_dev_server {
         port += 1;
     }
     if args.dummy {
@@ -83,9 +79,9 @@ fn get_port_from_args(base_port: u16, args: &Args) -> u16 {
     port
 }
 
-fn get_slug_from_args(args: &Args) -> String {
+fn get_slug_from_args(args: &Args, use_dev_server: bool) -> String {
     let mut slug = vec![];
-    if args.dev_server {
+    if use_dev_server {
         slug.push("dev_server");
     }
     if args.dummy {
@@ -138,12 +134,13 @@ fn main() -> Result<()> {
     configure_tracing();
 
     let args: Args = argh::from_env();
-    let args_slug = get_slug_from_args(&args);
-    let local_port = get_port_from_args(BASE_LOCAL_PORT, &args);
+    let use_dev_server = env!("DEV_SERVER") == "1";
+    let args_slug = get_slug_from_args(&args, use_dev_server);
+    let local_port = get_port_from_args(BASE_LOCAL_PORT, &args, use_dev_server);
 
     let instance = SingleInstance::new(&format!("HolyCluster-{args_slug}"))?;
 
-    let server_config = if args.dev_server {
+    let server_config = if use_dev_server {
         tracing::info!("Using dev server");
         ServerConfig {
             dns: "holycluster-dev.iarc.org".into(),

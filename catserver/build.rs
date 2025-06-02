@@ -21,5 +21,14 @@ fn main() -> io::Result<()> {
     let version = String::from_utf8(output.stdout).unwrap();
     println!("cargo:rustc-env=VERSION={version}");
 
+    let dev_server_var = "DEV_SERVER";
+
+    println!("cargo:rerun-if-env-changed={dev_server_var}");
+    if env::var("DEV_SERVER").ok() == Some("1".to_string()) {
+        println!("cargo:rustc-env={dev_server_var}=1");
+    } else {
+        println!("cargo:rustc-env={dev_server_var}=0");
+    }
+
     Ok(())
 }
