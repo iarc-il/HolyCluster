@@ -140,6 +140,8 @@ fn main() -> Result<()> {
 
     let instance = SingleInstance::new(&format!("HolyCluster-{args_slug}"))?;
 
+    tracing::info!("Version tag: {}", env!("VERSION"));
+
     let server_config = if use_dev_server {
         tracing::info!("Using dev server");
         ServerConfig {
