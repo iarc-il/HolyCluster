@@ -111,7 +111,7 @@ function LeftColumn({ toggled_ui }) {
         fetch("/catserver/latest")
             .then(data => data.text())
             .then(data => {
-                const remote_version = data.split(".")[0];
+                const remote_version = data.slice(0, data.lastIndexOf("."));
                 if (catserver_version != remote_version) {
                     set_new_version_available(true);
                 }
