@@ -362,7 +362,8 @@ enum ClientMessage {
 }
 
 fn process_message(message: String, radio: AnyRadio) -> Result<()> {
-    let message: ClientMessage = serde_json::from_str(&message)?;
+    let message: ClientMessage = serde_json::from_str(&message)
+        .with_context(|| format!("Failed to parse message: {message}"))?;
     match message {
         ClientMessage::SetRig(set_rig) => {
             tracing::debug!("Setting rig to {}", set_rig.rig);
