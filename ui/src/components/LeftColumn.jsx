@@ -227,7 +227,7 @@ function LeftColumn({ toggled_ui }) {
                                 text={
                                     <>
                                         {mode}
-                                        <div className="ml-1 ">
+                                        <div className="ml-1">
                                             {mode_to_symbol[mode](
                                                 filters.modes[mode]
                                                     ? "#000000"
@@ -256,7 +256,7 @@ function LeftColumn({ toggled_ui }) {
             <div className="mt-auto mb-2 space-y-3">
                 <CatserverDownload size="36" new_version_available={new_version_available} />
                 <FeedbackButton size="36" />
-                <About size="36" />
+                <About version={catserver_version} />
             </div>
         </div>
     );

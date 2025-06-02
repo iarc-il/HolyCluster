@@ -69,7 +69,7 @@ function Info({ size }) {
     );
 }
 
-function About() {
+function About({ version }) {
     const { colors } = useColors();
 
     const about = (
@@ -137,6 +137,7 @@ function About() {
                 </a>
             </p>
             Contact us at: <strong>holycluster@iarc.org</strong>
+            {version != null ? <p>CAT Version: <code>{version}</code></p> : ""}
         </div>
     );
 
