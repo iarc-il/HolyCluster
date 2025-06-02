@@ -67,7 +67,9 @@ export default function use_radio() {
 
     function get_band_from_freq(freq) {
         for (let band of Object.keys(band_plans)) {
-            if (freq <= band_plans[band].max && freq >= band_plans[band].min) return band;
+            if (freq <= band_plans[band].max && freq >= band_plans[band].min) {
+                return Number.parseInt(band);
+            }
         }
 
         return -1;
