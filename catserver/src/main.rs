@@ -1,4 +1,5 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(feature = "dev_server"), windows_subsystem = "windows")]
+
 use std::fs::OpenOptions;
 
 use anyhow::Result;
@@ -134,7 +135,7 @@ fn main() -> Result<()> {
     configure_tracing();
 
     let args: Args = argh::from_env();
-    let use_dev_server = env!("DEV_SERVER") == "1";
+    let use_dev_server = cfg!(feature = "dev_server");
     let args_slug = get_slug_from_args(&args, use_dev_server);
     let local_port = get_port_from_args(BASE_LOCAL_PORT, &args, use_dev_server);
 

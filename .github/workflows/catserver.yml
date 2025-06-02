@@ -64,7 +64,7 @@ jobs:
       - name: Build development catserver
         if: github.ref == 'refs/heads/master'
         working-directory: ./catserver
-        run: DEV_SERVER=1 cargo build --target $TARGET --release
+        run: cargo build --target $TARGET --release --features dev_server
 
       - name: Build production catserver
         if: startsWith(github.ref, 'refs/tags/')
