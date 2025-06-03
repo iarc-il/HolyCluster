@@ -282,7 +282,7 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result
             let data = radio.write().get_status();
             let message = Message::Text(serde_json::to_string(&data)?.into());
             sender.send(message)?;
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
     });
 
