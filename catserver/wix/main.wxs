@@ -16,6 +16,19 @@
             <UpgradeVersion Minimum="0.1.0.0" IncludeMinimum="yes" OnlyDetect="no" Property="PREVIOUSFOUND" />
         </Upgrade>
 
+        <CustomAction
+            Id="CloseApp"
+            FileRef="HolyCluster.exe"
+            ExeCommand="--close"
+            Return="ignore"
+            Execute="immediate"
+            Impersonate="no"
+            />
+
+        <InstallExecuteSequence>
+          <Custom Action="CloseApp" Before="InstallValidate" />
+        </InstallExecuteSequence>
+
         <Media Id="1" Cabinet="media1.cab" EmbedCab="yes" DiskPrompt="CD-ROM #1" />
         <Property Id="DiskPrompt" Value="Holy Cluster Installation" />
 
