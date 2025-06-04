@@ -16,7 +16,7 @@ axum = { version = "0.8.3", features = ["ws"] }
 directories = "6.0.0"
 futures-util = "0.3.31"
 open = "5.3.2"
-reqwest = { version = "0.12.15", features = ["stream"] }
+reqwest = { version = "0.12.15", features = ["blocking", "stream"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 single-instance = "0.3.3"
