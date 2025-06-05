@@ -195,7 +195,8 @@ fn main() -> Result<()> {
         // Currently we don't care about tray icon for linux because it's only used for development.
         // This can be enabled if we ever support linux for users.
         if cfg!(windows) {
-            tray_icon::run_tray_icon(&args_slug, tray_sender);
+            let tray_receiver = tray_sender.subscribe();
+            tray_icon::run_tray_icon(&args_slug, tray_sender, tray_receiver);
         } else {
             thread.join().unwrap();
         }
@@ -229,8 +230,13 @@ async fn run_singleton_instance(
 
     tokio::spawn(async move {
         while let Ok(message) = tray_receiver.recv().await {
-            if message == IconTrayEvent::OpenBrowser {
-                open_at_browser(local_port).unwrap();
+            match message {
+                IconTrayEvent::Quit => {
+                    break;
+                }
+                IconTrayEvent::OpenBrowser => {
+                    open_at_browser(local_port).unwrap();
+                }
             }
         }
     });

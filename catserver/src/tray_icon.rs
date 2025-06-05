@@ -1,5 +1,5 @@
 use anyhow::Result;
-use tokio::sync::broadcast::Sender;
+use tokio::sync::broadcast::{Receiver, Sender};
 use tray_icon::{
     TrayIconBuilder,
     menu::{Menu, MenuEvent, MenuItem},
@@ -17,13 +17,17 @@ fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> 
     Ok(tray_icon)
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum IconTrayEvent {
     Quit,
     OpenBrowser,
 }
 
-pub fn run_tray_icon(instance_name: &str, tray_sender: Sender<IconTrayEvent>) {
+pub fn run_tray_icon(
+    instance_name: &str,
+    tray_sender: Sender<IconTrayEvent>,
+    mut tray_receiver: Receiver<IconTrayEvent>,
+) {
     let open_menu_item = MenuItem::new("Open", true, None);
     let quit_menu_item = MenuItem::new("Quit", true, None);
     let tray_menu = Menu::new();
@@ -56,11 +60,21 @@ pub fn run_tray_icon(instance_name: &str, tray_sender: Sender<IconTrayEvent>) {
             if id == &open_menu_id {
                 let _ = tray_sender.send(IconTrayEvent::OpenBrowser);
             } else if id == &quit_menu_id {
-                let _ = tray_sender.send(IconTrayEvent::Quit);
-                proxy.send_event(IconTrayEvent::Quit).ok();
+                let _ = tray_sender.send(IconTrayEvent::Quit).unwrap();
+                proxy.send_event(IconTrayEvent::Quit).unwrap();
             }
         }
     }));
+
+    let proxy_clone = proxy.clone();
+    std::thread::spawn(move || {
+        while let Ok(event) = tray_receiver.blocking_recv() {
+            if event == IconTrayEvent::Quit {
+                let _ = proxy_clone.send_event(IconTrayEvent::Quit);
+                break;
+            }
+        }
+    });
 
     struct App {}
     impl ApplicationHandler<IconTrayEvent> for App {
