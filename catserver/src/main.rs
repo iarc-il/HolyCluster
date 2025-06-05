@@ -8,7 +8,7 @@ use argh::FromArgs;
 use directories::ProjectDirs;
 use server::{Server, ServerConfig};
 use single_instance::SingleInstance;
-use tokio::sync::broadcast::{self, Receiver};
+use tokio::sync::broadcast::{self, Receiver, Sender};
 
 mod dummy;
 mod freq;
@@ -45,6 +45,10 @@ struct Args {
     /// search for local ui dist dir instead of using remote server
     #[argh(switch)]
     local_ui: bool,
+
+    /// closes the running instance
+    #[argh(switch)]
+    close: bool,
 }
 
 #[cfg(windows)]
@@ -165,15 +169,21 @@ fn main() -> Result<()> {
     let radio = get_radio(args.dummy);
 
     if instance.is_single() {
+        if args.close {
+            tracing::warn!("No running instance, not closing");
+            return Ok(());
+        }
         let (tray_sender, tray_receiver) = broadcast::channel::<IconTrayEvent>(10);
-        let quit_reciever = tray_sender.subscribe();
+        let event_receiver = tray_sender.subscribe();
+        let event_sender = tray_sender.clone();
 
         let use_local_ui = args.local_ui;
         let thread = std::thread::Builder::new()
             .name("singleton".into())
             .spawn(move || {
                 run_singleton_instance(
-                    quit_reciever,
+                    event_receiver,
+                    event_sender,
                     tray_receiver,
                     radio,
                     server_config,
@@ -189,6 +199,10 @@ fn main() -> Result<()> {
         } else {
             thread.join().unwrap();
         }
+    } else if args.close {
+        let client = reqwest::blocking::Client::new();
+        let exit_uri = format!("http://127.0.0.1:{local_port}/exit");
+        client.post(exit_uri).send()?;
     } else {
         tracing::info!("Server is already running");
         open_at_browser(local_port)?;
@@ -198,7 +212,8 @@ fn main() -> Result<()> {
 
 #[tokio::main]
 async fn run_singleton_instance(
-    quit_receiver: Receiver<IconTrayEvent>,
+    event_receiver: Receiver<IconTrayEvent>,
+    event_sender: Sender<IconTrayEvent>,
     mut tray_receiver: Receiver<IconTrayEvent>,
     radio: AnyRadio,
     server_config: ServerConfig,
@@ -209,7 +224,7 @@ async fn run_singleton_instance(
     tracing::info!("Radio initialized");
 
     let local_port = server_config.local_port;
-    let server = Server::build_server(radio, server_config, use_local_ui).await?;
+    let server = Server::build_server(event_sender, radio, server_config, use_local_ui).await?;
     open_at_browser(local_port)?;
 
     tokio::spawn(async move {
@@ -221,7 +236,7 @@ async fn run_singleton_instance(
     });
 
     tracing::info!("Running webapp");
-    server.run_server(quit_receiver).await?;
+    server.run_server(event_receiver).await?;
 
     Ok(())
 }

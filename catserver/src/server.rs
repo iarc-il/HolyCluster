@@ -9,14 +9,17 @@ use axum::{
         ws::{CloseFrame, Message, Utf8Bytes, WebSocket},
     },
     response::{IntoResponse, Response},
-    routing::any,
+    routing::{any, post},
 };
 use futures_util::{SinkExt, StreamExt};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
-    sync::{broadcast::Receiver, mpsc},
+    sync::{
+        broadcast::{Receiver, Sender},
+        mpsc,
+    },
     task::JoinHandle,
 };
 use tokio_tungstenite::connect_async;
@@ -53,6 +56,7 @@ struct AppState {
     server_config: ServerConfig,
     radio: AnyRadio,
     http_client: Client,
+    event_sender: Sender<IconTrayEvent>,
 }
 
 pub struct Server {
@@ -62,6 +66,7 @@ pub struct Server {
 
 impl Server {
     pub async fn build_server(
+        event_sender: Sender<IconTrayEvent>,
         radio: AnyRadio,
         server_config: ServerConfig,
         use_local_ui: bool,
@@ -70,12 +75,14 @@ impl Server {
 
         let app = Router::new()
             .route("/radio", any(cat_control_handler))
-            .route("/submit_spot", any(submit_spot_handler));
+            .route("/submit_spot", any(submit_spot_handler))
+            .route("/exit", post(exit_server_handler));
 
         let app_state = AppState {
             server_config,
             radio,
             http_client,
+            event_sender,
         };
         let app = if use_local_ui {
             let mut ui_dir = std::env::current_exe()?;
@@ -145,6 +152,11 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
     response_builder
         .body(Body::from_stream(reqwest_response.bytes_stream()))
         .unwrap()
+}
+
+async fn exit_server_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let _ = state.event_sender.send(IconTrayEvent::Quit);
+    StatusCode::OK
 }
 
 async fn submit_spot_handler(
