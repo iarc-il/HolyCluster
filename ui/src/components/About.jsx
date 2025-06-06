@@ -137,7 +137,13 @@ function About({ version }) {
                 </a>
             </p>
             Contact us at: <strong>holycluster@iarc.org</strong>
-            {version != null ? <p>CAT Version: <code>{version}</code></p> : ""}
+            {version != null ? (
+                <p>
+                    CAT Version: <code>{version}</code>
+                </p>
+            ) : (
+                ""
+            )}
         </div>
     );
 

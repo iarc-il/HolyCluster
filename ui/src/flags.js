@@ -53,6 +53,7 @@ const dxcc_to_country_flag = {
     Macao: "Macau",
     "Malpelo Island": "Colombia",
     Eswatini: "Eswatini (Swaziland)",
+    "Market Reef": "Åland Islands",
 };
 
 export function get_flag(dx_country) {

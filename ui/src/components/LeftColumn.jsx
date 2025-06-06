@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { get_base_url } from "@/utils.js";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
 import About from "@/components/About.jsx";
@@ -108,7 +109,7 @@ function LeftColumn({ toggled_ui }) {
         if (catserver_version == null) {
             return;
         }
-        fetch("/catserver/latest")
+        fetch(get_base_url() + "/catserver/latest")
             .then(data => data.text())
             .then(data => {
                 const remote_version = data.slice(0, data.lastIndexOf("."));

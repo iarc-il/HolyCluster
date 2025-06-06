@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useFilters } from "../hooks/useFilters";
-import { is_matching_list } from "@/utils.js";
+import { get_base_url, is_matching_list } from "@/utils.js";
 import { bands } from "@/filters_data.js";
 import { get_flag } from "@/flags.js";
 import use_radio from "./useRadio";
@@ -19,13 +19,8 @@ function fetch_spots() {
         return;
     }
 
-    let url;
-    // For debugging purposes
-    if (window.location.port == "5173") {
-        url = "http://holycluster-dev.iarc.org/spots";
-    } else {
-        url = "/spots";
-    }
+    let url = get_base_url();
+    url += "/spots";
     if (this.last_id != null) {
         url += `?last_id=${this.last_id}`;
     }
@@ -70,13 +65,7 @@ function fetch_spots() {
 }
 
 function fetch_propagation() {
-    let url;
-    // For debugging purposes
-    if (window.location.port == "5173") {
-        url = "https://holycluster.iarc.org/propagation";
-    } else {
-        url = "/propagation";
-    }
+    let url = get_base_url() + "/propagation";
 
     if (navigator.onLine) {
         return fetch(url, { mode: "cors" })
