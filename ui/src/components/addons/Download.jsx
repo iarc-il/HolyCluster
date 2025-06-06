@@ -1,6 +1,17 @@
+import { get_base_url } from "@/utils.js";
+import { useState, useEffect } from "react";
+
 import Card from "@/components/addons/components/Card";
 
 export default function Download() {
+    const [filename, set_filename] = useState("");
+
+    useEffect(() => {
+        fetch(get_base_url() + "/catserver/latest")
+            .then(data => data.text())
+            .then(set_filename);
+    }, []);
+
     return (
         <section id="download" className="py-16 px-4 bg-addons-bg">
             <div className="container mx-auto">
@@ -11,9 +22,7 @@ export default function Download() {
                 <div className="max-w-4xl mx-auto">
                     <Card className="bg-white p-8 shadow-lg border border-gray-200">
                         <div className="text-center mb-8">
-                            <h3 className="text-2xl font-bold text- addons-primary mb-2">
-                                HolyCluster CAT Feature v1.0.0
-                            </h3>
+                            <h3 className="text-xl font-bold addons-primary mb-2">{filename}</h3>
                             <p className="text-gray-600"></p>
                         </div>
 
