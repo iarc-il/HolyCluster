@@ -15,8 +15,13 @@ export default function Guide() {
                         </h3>
                         <p className="text-gray-700">
                             <ul className="list-none">
-                                <li>Download the latest version of the CAT Server from the download section above.</li>
-                                <li>Run the installation file and follow the on-screen instructions.</li>
+                                <li>
+                                    Download the latest version of the CAT Server from the download
+                                    section above.
+                                </li>
+                                <li>
+                                    Run the installation file and follow the on-screen instructions.
+                                </li>
                             </ul>
                         </p>
                     </GuideStep>
@@ -27,7 +32,16 @@ export default function Guide() {
                         </h3>
                         <p className="text-gray-700">
                             <ul>
-                                <li>Download and install the latest version of <a className="underline bold" href="https://dxatlas.com/OmniRig/Files/OmniRig.zip">OmniRig</a>.</li>
+                                <li>
+                                    Download and install the latest version of{" "}
+                                    <a
+                                        className="underline bold"
+                                        href="https://dxatlas.com/OmniRig/Files/OmniRig.zip"
+                                    >
+                                        OmniRig
+                                    </a>
+                                    .
+                                </li>
                                 <li>Use it to connect your radio to your computer.</li>
                             </ul>
                         </p>
@@ -39,8 +53,14 @@ export default function Guide() {
                         </h3>
                         <p className="text-gray-700">
                             <ul>
-                                <li>Once the CAT Server is installed and configured, start The Holy Cluster by clicking its desktop icon.</li>
-                                <li>This will automatically launch the CAT Server and open The Holy Cluster in your default web browser.</li>
+                                <li>
+                                    Once the CAT Server is installed and configured, start The Holy
+                                    Cluster by clicking its desktop icon.
+                                </li>
+                                <li>
+                                    This will automatically launch the CAT Server and open The Holy
+                                    Cluster in your default web browser.
+                                </li>
                             </ul>
                         </p>
                     </GuideStep>
