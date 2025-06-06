@@ -4,7 +4,7 @@ export default function Hero() {
             <div className="container mx-auto text-center">
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">HolyCluser CAT</h1>
                 <p className="text-xl md:text-2xl mb-8 max-w-3xl mx-auto">
-                    Advanced Computer-Aided Transceiver control for amateur ham radio operators
+                    CAT control for amateur ham radio operators
                 </p>
                 <div className="flex flex-col-reverse sm:flex-row justify-center gap-4">
                     <a href="#about">
