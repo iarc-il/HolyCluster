@@ -203,13 +203,24 @@ function Spot(
 
 Spot = forwardRef(Spot);
 
-function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort }) {
-    let direction = " ";
-    if (table_sort.column == field) {
+function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, sorting = true }) {
+    let direction = <span className="w-[0.8em] h-[0.8em]"></span>;
+    if (table_sort.column == field && sorting) {
         if (table_sort.ascending) {
-            direction = "🠯";
+            direction = (
+                <svg className="w-[0.8em] h-[0.8em]" viewBox="0 0 16 16" fill="none">
+                    <path d="M10 8L14 8V10L8 16L2 10V8H6V0L10 4.76995e-08V8Z" fill="#000000" />
+                </svg>
+            );
         } else {
-            direction = "🠭";
+            direction = (
+                <svg className="w-[0.8em] h-[0.8em]" viewBox="0 0 16 16" fill="none">
+                    <path
+                        d="M6 8L2 8L2 6L8 5.24536e-07L14 6L14 8L10 8L10 16L6 16L6 8Z"
+                        fill="#000000"
+                    />
+                </svg>
+            );
         }
     }
     function set_sort() {
@@ -220,9 +231,14 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort }) 
         }
     }
     return (
-        <td className={"cursor-pointer " + cell_classes[field]} onClick={set_sort}>
-            <span className="font-bold text-lg leading-3">{direction}</span>
-            {title}
+        <td
+            className={(sorting ? "cursor-pointer " : "") + cell_classes[field]}
+            onClick={() => (sorting ? set_sort() : "")}
+        >
+            <span className="inline-flex items-center space-x-1">
+                {direction}
+                <span>{title}</span>
+            </span>
         </td>
     );
 }
@@ -309,7 +325,14 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                                 table_sort={table_sort}
                                 set_table_sort={set_table_sort}
                             />
-                            <td className={cell_classes.comment}>Comment</td>
+                            <HeaderCell
+                                title="Comment"
+                                field="comment"
+                                cell_classes={cell_classes}
+                                table_sort={table_sort}
+                                set_table_sort={set_table_sort}
+                                sorting={false}
+                            />
                         </tr>
                         {spots.map((spot, index) => (
                             <Spot
