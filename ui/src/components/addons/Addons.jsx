@@ -6,7 +6,7 @@ import Download from "@/components/addons/Download";
 export default function Addons() {
     return (
         <>
-            <Hero /> <Download /> <Guide />
+            <Hero /> <Download /> <Guide /> <Features />
         </>
     );
 }

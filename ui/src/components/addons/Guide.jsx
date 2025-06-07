@@ -54,8 +54,8 @@ export default function Guide() {
                         <p className="text-gray-700">
                             <ul>
                                 <li>
-                                    Once the CAT Server is installed and configured, start The Holy
-                                    Cluster by clicking its desktop icon.
+                                    Once CAT Server is installed and OmniRig is configured, you can
+                                    start The Holy Cluster by clicking its desktop icon.
                                 </li>
                                 <li>
                                     This will automatically launch the CAT Server and open The Holy
