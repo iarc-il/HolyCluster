@@ -54,6 +54,7 @@ const dxcc_to_country_flag = {
     "Malpelo Island": "Colombia",
     Eswatini: "Eswatini (Swaziland)",
     "Market Reef": "Åland Islands",
+    "UK Sovereign Base Areas on Cyprus": "Cyprus",
 };
 
 export function get_flag(dx_country) {
