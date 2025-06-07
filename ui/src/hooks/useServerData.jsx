@@ -211,7 +211,7 @@ export const ServerDataProvider = ({ children }) => {
                 return result;
             })
             .slice(0, 100);
-    }, [spots, filter_missing_flags, filters, callsign_filters]);
+    }, [spots, filter_missing_flags, filters, callsign_filters, radio_band]);
 
     const spots_per_band_count = useMemo(() => {
         const spots_per_band_count = Object.fromEntries(
