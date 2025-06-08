@@ -91,7 +91,7 @@ function TopBar({
 
             {radio_status !== "unavailable" && radio_status !== "unknown" && (
                 <>
-                    <div className="flex flex-col w-[42px] h-full items-center ml-2 mr-1">
+                    <div className="flex flex-col w-[42px] h-full items-center ml-2 mr-4">
                         {[1, 2].map(rig_val => {
                             const rig_active = rig == rig_val;
                             return (
