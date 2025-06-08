@@ -176,7 +176,9 @@ function LeftColumn({ toggled_ui }) {
                         </FilterOptions>
                     );
                 })}
+            </div>
 
+            <div className={filter_group_classes + "py-4 border-b-2 border-slate-300"}>
                 {/* RADIO BAND SELECTOR */}
                 {((radio_status != "unavailable" && radio_status != "unknown") ||
                     filters.radio_band) && (
