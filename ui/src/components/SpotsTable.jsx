@@ -119,7 +119,7 @@ function Spot(
                 border: spot.is_alerted ? "3px solid white" : "",
                 color: is_even ? colors.table.even_text : colors.table.odd_text,
             }}
-            className={row_classes + " h-7"}
+            className={row_classes + " h-7 z-40"}
             onMouseEnter={() => set_hovered_spot({ source: "table", id: spot.id })}
             onClick={() => set_pinned_spot(spot.id)}
         >
