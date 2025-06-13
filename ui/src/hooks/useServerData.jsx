@@ -225,9 +225,6 @@ export const ServerDataProvider = ({ children }) => {
         return spots_per_band_count;
     }, [filtered_spots]);
 
-    // console.log(spots);
-    // console.log(filtered_spots);
-
     // Max offset for the frequency error in kHz
     const freq_error_range = {
         FT8: 0.2,
@@ -237,17 +234,6 @@ export const ServerDataProvider = ({ children }) => {
         SSB: 0.5,
     };
     const freq_spots = useMemo(() => {
-        console.log(filtered_spots);
-
-        if (filtered_spots.length > 0) {
-            console.log(
-                freq_error_range[filtered_spots[0].mode],
-                filtered_spots[0].mode,
-                radio_freq,
-                filtered_spots[0].freq / 1000,
-            );
-        }
-
         const same_freq_spots = filtered_spots
             .filter(
                 spot =>
