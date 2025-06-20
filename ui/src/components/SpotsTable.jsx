@@ -273,60 +273,27 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
         is_spotter: false,
     });
 
-    const handle_context_menu = (event, spot, is_spotter) => {
-        event.preventDefault();
-        const x = event.clientX;
-        const y = event.clientY;
-
-        // Adjust menu position if it would go off screen
-        const menuWidth = 200;
-        const menuHeight = 200;
-        const adjustedX = Math.min(x, window.innerWidth - menuWidth);
-        const adjustedY = Math.min(y, window.innerHeight - menuHeight);
-
-        set_context_menu({
-            visible: true,
-            x: adjustedX,
-            y: adjustedY,
-            spot,
-            is_spotter,
-        });
-    };
-
-    const addCallsignFilter = (spot, action, is_spotter) => {
-        const newFilter = {
-            action,
-            type: "prefix",
-            value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
-            spotter_or_dx: is_spotter ? "spotter" : "dx",
-        };
-        setCallsignFilters({
-            ...callsign_filters,
-            filters: [...callsign_filters.filters, newFilter],
-        });
-    };
-
-    const contextMenuActions = [
-        {
-            label: spot => "Copy callsign",
-            onClick: spot => {
-                navigator.clipboard.writeText(
-                    context_menu.is_spotter ? spot.spotter_callsign : spot.dx_callsign,
-                );
-            },
-        },
-        {
-            label: spot => "Copy Frequency",
-            onClick: spot => {
-                navigator.clipboard.writeText(spot.freq.toString());
-            },
-        },
-        {
-            label: spot => "Set Radio Frequency",
-            onClick: spot => {
-                set_cat_to_spot(spot);
-            },
-        },
+    const context_menu_actions = [
+        // {
+        //     label: spot => "Copy callsign",
+        //     onClick: spot => {
+        //         navigator.clipboard.writeText(
+        //             context_menu.is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+        //         );
+        //     },
+        // },
+        // {
+        //     label: spot => "Copy Frequency",
+        //     onClick: spot => {
+        //         navigator.clipboard.writeText(spot.freq.toString());
+        //     },
+        // },
+        // {
+        //     label: spot => "Set Radio Frequency",
+        //     onClick: spot => {
+        //         set_cat_to_spot(spot);
+        //     },
+        // },
         {
             label: spot => "Open QRZ Profile",
             onClick: spot => {
@@ -359,6 +326,39 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
             },
         },
     ];
+
+    const handle_context_menu = (event, spot, is_spotter) => {
+        event.preventDefault();
+        const x = event.clientX;
+        const y = event.clientY;
+
+        // Adjust menu position if it would go off screen
+        const menuWidth = 200;
+        const menuHeight = context_menu_actions.length * 43;
+        const adjustedX = Math.min(x, window.innerWidth - menuWidth);
+        const adjustedY = Math.min(y, window.innerHeight - menuHeight);
+
+        set_context_menu({
+            visible: true,
+            x: adjustedX,
+            y: adjustedY,
+            spot,
+            is_spotter,
+        });
+    };
+
+    const addCallsignFilter = (spot, action, is_spotter) => {
+        const newFilter = {
+            action,
+            type: "prefix",
+            value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+            spotter_or_dx: is_spotter ? "spotter" : "dx",
+        };
+        setCallsignFilters({
+            ...callsign_filters,
+            filters: [...callsign_filters.filters, newFilter],
+        });
+    };
 
     useEffect(() => {
         const hovered_ref = row_refs.current[hovered_spot.id];
@@ -471,8 +471,8 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                     x={context_menu.x}
                     y={context_menu.y}
                     spot={context_menu.spot}
-                    actions={contextMenuActions}
-                    onClose={() => set_context_menu({ ...context_menu, visible: false })}
+                    actions={context_menu_actions}
+                    on_close={() => set_context_menu({ ...context_menu, visible: false })}
                 />
             )}
         </>
