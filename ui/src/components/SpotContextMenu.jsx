@@ -13,8 +13,19 @@ export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
             }
         }
 
+        function handleEscapeKey(event) {
+            if (event.key === "Escape") {
+                on_close();
+            }
+        }
+
         document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        document.addEventListener("keydown", handleEscapeKey);
+
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("keydown", handleEscapeKey);
+        };
     }, [on_close]);
 
     return createPortal(
