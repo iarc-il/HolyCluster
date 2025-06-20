@@ -1,6 +1,7 @@
 import X from "@/components/X.jsx";
 import { useEffect, useState, forwardRef, useRef } from "react";
 import { createPortal } from "react-dom";
+import SpotContextMenu from "./SpotContextMenu";
 
 import { get_flag } from "@/flags.js";
 import { useColors } from "@/hooks/useColors";
@@ -67,6 +68,7 @@ function Spot(
         set_cat_to_spot,
         settings,
         same_freq_spots,
+        onContextMenu,
     },
     ref,
 ) {
@@ -164,8 +166,14 @@ function Spot(
                     ""
                 )}
             </td>
-            <td className={cell_classes.dx_callsign + " font-semibold"}>
-                <Callsign callsign={spot.dx_callsign}></Callsign>
+            <td
+                className={cell_classes.dx_callsign + " font-semibold"}
+                onContextMenu={e => {
+                    e.preventDefault();
+                    onContextMenu(e, spot);
+                }}
+            >
+                <Callsign callsign={spot.dx_callsign} />
             </td>
             <td className={cell_classes.freq}>
                 <div
@@ -190,8 +198,14 @@ function Spot(
                     {spot.band}
                 </p>
             </td>
-            <td className={cell_classes.spotter_callsign}>
-                <Callsign callsign={spot.spotter_callsign}></Callsign>
+            <td
+                className={cell_classes.spotter_callsign}
+                onContextMenu={e => {
+                    e.preventDefault();
+                    onContextMenu(e, spot);
+                }}
+            >
+                <Callsign callsign={spot.spotter_callsign} />
             </td>
             <td className={cell_classes.mode}>{spot.mode}</td>
             <td className={cell_classes.comment}>
@@ -249,6 +263,65 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
     const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, freq_spots } =
         useServerData();
 
+    const [contextMenu, setContextMenu] = useState({
+        visible: false,
+        x: 0,
+        y: 0,
+        spot: null,
+    });
+
+    const handleContextMenu = (e, spot) => {
+        e.preventDefault();
+        const x = e.clientX;
+        const y = e.clientY;
+
+        // Adjust menu position if it would go off screen
+        const menuWidth = 200;
+        const menuHeight = 200;
+        const adjustedX = Math.min(x, window.innerWidth - menuWidth);
+        const adjustedY = Math.min(y, window.innerHeight - menuHeight);
+
+        setContextMenu({
+            visible: true,
+            x: adjustedX,
+            y: adjustedY,
+            spot,
+        });
+    };
+
+    const contextMenuActions = [
+        {
+            label: spot => "Copy Callsign",
+            onClick: spot => {
+                navigator.clipboard.writeText(spot.dx_callsign);
+            },
+        },
+        {
+            label: spot => "Copy Frequency",
+            onClick: spot => {
+                navigator.clipboard.writeText(spot.freq.toString());
+            },
+        },
+        {
+            label: spot => "Set Radio Frequency",
+            onClick: spot => {
+                set_cat_to_spot(spot);
+            },
+        },
+        {
+            label: spot => "Open QRZ Profile",
+            onClick: spot => {
+                window.open(`https://www.qrz.com/db/${spot.dx_callsign}`, "_blank");
+            },
+        },
+        {
+            label: spot => (spot.id == pinned_spot ? "Unpin Spot" : "Pin Spot"),
+            onClick: spot => {
+                set_pinned_spot(spot.id === pinned_spot ? null : spot.id);
+            },
+        },
+    ];
+
     useEffect(() => {
         const hovered_ref = row_refs.current[hovered_spot.id];
 
@@ -262,97 +335,109 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
     }, [hovered_spot]);
 
     return (
-        <div
-            className="text-sm h-full overflow-x-visible border-x-4"
-            style={{
-                borderColor: colors.theme.borders,
-                backgroundColor: colors.theme.background,
-            }}
-        >
-            <div className="overflow-y-scroll h-full w-full">
-                <table
-                    className="max-md:table-fixed max-md:w-full text-center border-collapse"
-                    onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
-                >
-                    <tbody className="divide-y">
-                        <tr
-                            className="sticky top-0"
-                            style={{
-                                backgroundColor: colors.table.header,
-                                color: colors.table.header_text,
-                            }}
-                        >
-                            <HeaderCell
-                                title="Time"
-                                field="time"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <td className={cell_classes.flag}></td>
-                            <HeaderCell
-                                title="DX"
-                                field="dx_callsign"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <HeaderCell
-                                title="Freq"
-                                field="freq"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <HeaderCell
-                                title="Band"
-                                field="band"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <HeaderCell
-                                title="Spotter"
-                                field="spotter_callsign"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <HeaderCell
-                                title="Mode"
-                                field="mode"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <HeaderCell
-                                title="Comment"
-                                field="comment"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                                sorting={false}
-                            />
-                        </tr>
-                        {spots.map((spot, index) => (
-                            <Spot
-                                ref={element => (row_refs.current[spot.id] = element)}
-                                key={spot.id}
-                                spot={spot}
-                                is_even={index % 2 == 0}
-                                hovered_spot={hovered_spot}
-                                pinned_spot={pinned_spot}
-                                set_pinned_spot={set_pinned_spot}
-                                set_hovered_spot={set_hovered_spot}
-                                set_cat_to_spot={set_cat_to_spot}
-                                settings={settings}
-                                same_freq_spots={freq_spots}
-                            ></Spot>
-                        ))}
-                    </tbody>
-                </table>
+        <>
+            <div
+                className="text-sm h-full overflow-x-visible border-x-4"
+                style={{
+                    borderColor: colors.theme.borders,
+                    backgroundColor: colors.theme.background,
+                }}
+            >
+                <div className="overflow-y-scroll h-full w-full">
+                    <table
+                        className="max-md:table-fixed max-md:w-full text-center border-collapse"
+                        onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
+                    >
+                        <tbody className="divide-y">
+                            <tr
+                                className="sticky top-0"
+                                style={{
+                                    backgroundColor: colors.table.header,
+                                    color: colors.table.header_text,
+                                }}
+                            >
+                                <HeaderCell
+                                    title="Time"
+                                    field="time"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <td className={cell_classes.flag}></td>
+                                <HeaderCell
+                                    title="DX"
+                                    field="dx_callsign"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <HeaderCell
+                                    title="Freq"
+                                    field="freq"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <HeaderCell
+                                    title="Band"
+                                    field="band"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <HeaderCell
+                                    title="Spotter"
+                                    field="spotter_callsign"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <HeaderCell
+                                    title="Mode"
+                                    field="mode"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <HeaderCell
+                                    title="Comment"
+                                    field="comment"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                    sorting={false}
+                                />
+                            </tr>
+                            {spots.map((spot, index) => (
+                                <Spot
+                                    ref={element => (row_refs.current[spot.id] = element)}
+                                    key={spot.id}
+                                    spot={spot}
+                                    is_even={index % 2 == 0}
+                                    hovered_spot={hovered_spot}
+                                    pinned_spot={pinned_spot}
+                                    set_pinned_spot={set_pinned_spot}
+                                    set_hovered_spot={set_hovered_spot}
+                                    set_cat_to_spot={set_cat_to_spot}
+                                    settings={settings}
+                                    same_freq_spots={freq_spots}
+                                    onContextMenu={handleContextMenu}
+                                ></Spot>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
+            {contextMenu.visible && (
+                <SpotContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    spot={contextMenu.spot}
+                    actions={contextMenuActions}
+                    onClose={() => setContextMenu({ ...contextMenu, visible: false })}
+                />
+            )}
+        </>
     );
 }
 
