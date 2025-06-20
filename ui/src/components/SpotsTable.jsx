@@ -169,9 +169,9 @@ function Spot(
             </td>
             <td
                 className={cell_classes.dx_callsign + " font-semibold"}
-                onContextMenu={e => {
-                    e.preventDefault();
-                    on_context_menu(e, spot, false);
+                onContextMenu={event => {
+                    event.preventDefault();
+                    on_context_menu(event, spot, false);
                 }}
             >
                 <Callsign callsign={spot.dx_callsign} />
@@ -201,9 +201,9 @@ function Spot(
             </td>
             <td
                 className={cell_classes.spotter_callsign}
-                onContextMenu={e => {
-                    e.preventDefault();
-                    on_context_menu(e, spot, true);
+                onContextMenu={event => {
+                    event.preventDefault();
+                    on_context_menu(event, spot, true);
                 }}
             >
                 <Callsign callsign={spot.spotter_callsign} />
@@ -273,10 +273,10 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
         is_spotter: false,
     });
 
-    const handle_context_menu = (e, spot, is_spotter) => {
-        e.preventDefault();
-        const x = e.clientX;
-        const y = e.clientY;
+    const handle_context_menu = (event, spot, is_spotter) => {
+        event.preventDefault();
+        const x = event.clientX;
+        const y = event.clientY;
 
         // Adjust menu position if it would go off screen
         const menuWidth = 200;
