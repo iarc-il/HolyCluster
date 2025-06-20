@@ -6,6 +6,7 @@ import SpotContextMenu from "./SpotContextMenu";
 import { get_flag } from "@/flags.js";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
+import { useFilters } from "@/hooks/useFilters";
 
 const cell_classes = {
     time: "w-14",
@@ -68,7 +69,7 @@ function Spot(
         set_cat_to_spot,
         settings,
         same_freq_spots,
-        onContextMenu,
+        on_context_menu,
     },
     ref,
 ) {
@@ -170,7 +171,7 @@ function Spot(
                 className={cell_classes.dx_callsign + " font-semibold"}
                 onContextMenu={e => {
                     e.preventDefault();
-                    onContextMenu(e, spot);
+                    on_context_menu(e, spot, false);
                 }}
             >
                 <Callsign callsign={spot.dx_callsign} />
@@ -202,7 +203,7 @@ function Spot(
                 className={cell_classes.spotter_callsign}
                 onContextMenu={e => {
                     e.preventDefault();
-                    onContextMenu(e, spot);
+                    on_context_menu(e, spot, true);
                 }}
             >
                 <Callsign callsign={spot.spotter_callsign} />
@@ -262,15 +263,17 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
     const { colors } = useColors();
     const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, freq_spots } =
         useServerData();
+    const { callsign_filters, setCallsignFilters } = useFilters();
 
-    const [contextMenu, setContextMenu] = useState({
+    const [context_menu, set_context_menu] = useState({
         visible: false,
         x: 0,
         y: 0,
         spot: null,
+        is_spotter: false,
     });
 
-    const handleContextMenu = (e, spot) => {
+    const handle_context_menu = (e, spot, is_spotter) => {
         e.preventDefault();
         const x = e.clientX;
         const y = e.clientY;
@@ -281,19 +284,35 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
         const adjustedX = Math.min(x, window.innerWidth - menuWidth);
         const adjustedY = Math.min(y, window.innerHeight - menuHeight);
 
-        setContextMenu({
+        set_context_menu({
             visible: true,
             x: adjustedX,
             y: adjustedY,
             spot,
+            is_spotter,
+        });
+    };
+
+    const addCallsignFilter = (spot, action, is_spotter) => {
+        const newFilter = {
+            action,
+            type: "prefix",
+            value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+            spotter_or_dx: is_spotter ? "spotter" : "dx",
+        };
+        setCallsignFilters({
+            ...callsign_filters,
+            filters: [...callsign_filters.filters, newFilter],
         });
     };
 
     const contextMenuActions = [
         {
-            label: spot => "Copy Callsign",
+            label: spot => "Copy callsign",
             onClick: spot => {
-                navigator.clipboard.writeText(spot.dx_callsign);
+                navigator.clipboard.writeText(
+                    context_menu.is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+                );
             },
         },
         {
@@ -311,13 +330,32 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
         {
             label: spot => "Open QRZ Profile",
             onClick: spot => {
-                window.open(`https://www.qrz.com/db/${spot.dx_callsign}`, "_blank");
+                const callsign = context_menu.is_spotter ? spot.spotter_callsign : spot.dx_callsign;
+                window.open(`https://www.qrz.com/db/${callsign}`, "_blank");
             },
         },
         {
             label: spot => (spot.id == pinned_spot ? "Unpin Spot" : "Pin Spot"),
             onClick: spot => {
                 set_pinned_spot(spot.id === pinned_spot ? null : spot.id);
+            },
+        },
+        {
+            label: spot => "Create Alert",
+            onClick: spot => {
+                addCallsignFilter(spot, "alert", context_menu.is_spotter);
+            },
+        },
+        {
+            label: spot => "Create Show Only Filter",
+            onClick: spot => {
+                addCallsignFilter(spot, "show_only", context_menu.is_spotter);
+            },
+        },
+        {
+            label: spot => "Create Hide Filter",
+            onClick: spot => {
+                addCallsignFilter(spot, "hide", context_menu.is_spotter);
             },
         },
     ];
@@ -421,20 +459,20 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                                     set_cat_to_spot={set_cat_to_spot}
                                     settings={settings}
                                     same_freq_spots={freq_spots}
-                                    onContextMenu={handleContextMenu}
+                                    on_context_menu={handle_context_menu}
                                 ></Spot>
                             ))}
                         </tbody>
                     </table>
                 </div>
             </div>
-            {contextMenu.visible && (
+            {context_menu.visible && (
                 <SpotContextMenu
-                    x={contextMenu.x}
-                    y={contextMenu.y}
-                    spot={contextMenu.spot}
+                    x={context_menu.x}
+                    y={context_menu.y}
+                    spot={context_menu.spot}
                     actions={contextMenuActions}
-                    onClose={() => setContextMenu({ ...contextMenu, visible: false })}
+                    onClose={() => set_context_menu({ ...context_menu, visible: false })}
                 />
             )}
         </>

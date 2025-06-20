@@ -2,20 +2,20 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useColors } from "@/hooks/useColors";
 
-export default function SpotContextMenu({ x, y, onClose, spot, actions }) {
+export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
     const menuRef = useRef(null);
     const { colors } = useColors();
 
     useEffect(() => {
         function handleClickOutside(event) {
             if (menuRef.current && !menuRef.current.contains(event.target)) {
-                onClose();
+                on_close();
             }
         }
 
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [onClose]);
+    }, [on_close]);
 
     return createPortal(
         <div
@@ -35,7 +35,7 @@ export default function SpotContextMenu({ x, y, onClose, spot, actions }) {
                     style={{ color: colors.theme.text }}
                     onClick={() => {
                         action.onClick(spot);
-                        onClose();
+                        on_close();
                     }}
                 >
                     {action.label(spot)}
