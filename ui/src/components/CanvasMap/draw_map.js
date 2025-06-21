@@ -2,7 +2,7 @@ import * as d3 from "d3";
 import { century, equationOfTime, declination } from "solar-calculator";
 import geojsonRewind from "@mapbox/geojson-rewind";
 
-import { to_radian } from "@/utils.js";
+import { to_radian, calculate_geographic_azimuth } from "@/utils.js";
 import dxcc_map_raw from "@/assets/dxcc_map.json";
 
 export const dxcc_map = geojsonRewind(dxcc_map_raw, true);
@@ -219,6 +219,35 @@ export class Dimensions {
     }
 }
 
+function generate_concentric_circles(center_x, center_y, radius, circle_count = 6) {
+    const circles = [];
+    const step = radius / circle_count;
+    for (let r = step; r <= radius; r += step) {
+        circles.push({
+            cx: center_x,
+            cy: center_y,
+            r: r,
+        });
+    }
+    return circles;
+}
+
+function generate_radial_lines(center_x, center_y, radius, degrees_diff) {
+    const lines = [];
+    for (let angle = 0; angle < 360; angle += degrees_diff) {
+        const radians = (angle * Math.PI) / 180;
+        const x2 = center_x + radius * Math.cos(radians);
+        const y2 = center_y + radius * Math.sin(radians);
+        lines.push({
+            x1: center_x,
+            y1: center_y,
+            x2: x2,
+            y2: y2,
+        });
+    }
+    return lines;
+}
+
 export function draw_map(
     context,
     spots,
@@ -252,11 +281,20 @@ export function draw_map(
     apply_context_transform(context, transform);
     context.lineWidth = 1 / transform.k;
 
-    // Render the graticule
-    context.beginPath();
-    path_generator(d3.geoGraticule10());
-    context.strokeStyle = colors.map.graticule;
-    context.stroke();
+    generate_concentric_circles(dims.center_x, dims.center_y, dims.radius).forEach(circle => {
+        context.beginPath();
+        context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
+        context.strokeStyle = colors.map.graticule;
+        context.stroke();
+    });
+
+    generate_radial_lines(dims.center_x, dims.center_y, dims.radius, 15).forEach(line => {
+        context.beginPath();
+        context.moveTo(line.x1, line.y1);
+        context.lineTo(line.x2, line.y2);
+        context.strokeStyle = colors.map.graticule;
+        context.stroke();
+    });
 
     // Render the map countries from geojson
     dxcc_map.features.forEach(feature => {
@@ -326,6 +364,37 @@ export function draw_spots(
             });
         }
     });
+
+    // Draw azimuth line for hovered spot
+    if (bold_spot && hovered_spot.source === "dx") {
+        const [center_lon, center_lat] = projection.rotate().map(x => -x);
+        const azimuth = calculate_geographic_azimuth(
+            center_lat,
+            center_lon,
+            bold_spot.dx_loc[1],
+            bold_spot.dx_loc[0],
+        );
+
+        const angle = (90 - azimuth) * (Math.PI / 180);
+        const x = dims.center_x + dims.radius * Math.cos(angle);
+        const y = dims.center_y - dims.radius * Math.sin(angle);
+
+        context.restore();
+        context.save();
+
+        context.beginPath();
+        context.moveTo(dims.center_x, dims.center_y);
+        context.lineTo(x, y);
+        context.strokeStyle = "black";
+        context.lineWidth = 1;
+        context.setLineDash([5, 5]);
+        context.stroke();
+        context.setLineDash([]);
+
+        context.save();
+        apply_context_transform(context, transform);
+    }
+
     // This is used to draw the bold spot over all the other spots.
     if (bold_spot != null) {
         draw_spot(context, bold_spot, colors, dash_offset, {

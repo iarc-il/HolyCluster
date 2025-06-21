@@ -6,7 +6,7 @@ import Maidenhead from "maidenhead";
 import { useMeasure } from "@uidotdev/usehooks";
 import { HashMap } from "hashmap";
 
-import { mod } from "@/utils.js";
+import { mod, calculate_geographic_azimuth } from "@/utils.js";
 import {
     build_geojson_line,
     dxcc_map,
@@ -247,7 +247,7 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
             if (searched != null) {
                 let [type, spot_id] = searched;
                 if (hovered_spot.source != "map" || hovered_spot.id != spot_id) {
-                    set_hovered_spot({ source: "map", id: spot_id });
+                    set_hovered_spot({ source: type, id: spot_id });
                 }
                 if (type == "dx") {
                     if (popup_position == null) {
@@ -300,6 +300,17 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
             ? (haversine(hovered_spot_data.dx_loc, hovered_spot_data.spotter_loc) / 1000).toFixed()
             : "";
 
+    let azimuth = null;
+    if (hovered_spot_data && hovered_spot.source === "dx") {
+        const [center_lon, center_lat] = projection.rotate().map(x => -x);
+        azimuth = calculate_geographic_azimuth(
+            center_lat,
+            center_lon,
+            hovered_spot_data.dx_loc[1],
+            hovered_spot_data.dx_loc[0],
+        );
+    }
+
     return (
         <div
             ref={div_ref}
@@ -324,7 +335,7 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
                 width={width}
                 height={height}
             />
-            {hovered_spot.source == "map" && popup_position != null ? (
+            {hovered_spot.source == "dx" && popup_position != null ? (
                 <SpotPopup
                     hovered_spot={hovered_spot}
                     set_hovered_spot={set_hovered_spot}
@@ -333,6 +344,7 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
                     hovered_spot_data={hovered_spot_data}
                     distance={hovered_spot_distance}
                     settings={settings}
+                    azimuth={azimuth}
                 />
             ) : (
                 ""

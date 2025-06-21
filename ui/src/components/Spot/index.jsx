@@ -102,7 +102,7 @@ function Spot({
 
     return (
         <g
-            onMouseOver={() => set_hovered_spot({ source: "path", id: spot.id })}
+            onMouseOver={() => set_hovered_spot({ source: "arc", id: spot.id })}
             onMouseLeave={() => set_hovered_spot({ source: null, id: null })}
             onClick={on_click}
         >
