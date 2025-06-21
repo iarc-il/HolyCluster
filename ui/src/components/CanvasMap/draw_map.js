@@ -323,6 +323,11 @@ export function draw_map(
     context.beginPath();
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
     context.stroke();
+
+    context.beginPath();
+    context.arc(dims.center_x, dims.center_y, 4, 0, 2 * Math.PI);
+    context.fillStyle = "#FF0000";
+    context.fill();
 }
 
 export function draw_spots(
