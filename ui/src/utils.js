@@ -147,9 +147,20 @@ export function sort_spots(spots, table_sort, radio_status = null, radio_band = 
             if (!a_is_active && b_is_active) return 1;
         }
 
-        // Sorting by frequency should be always more accurate
-        const column = table_sort.column === "band" ? "freq" : table_sort.column;
+        if (table_sort.column === "band") {
+            const band_comparison = table_sort.ascending
+                ? spot_a.band - spot_b.band
+                : spot_b.band - spot_a.band;
 
+            if (band_comparison !== 0) {
+                return band_comparison;
+            }
+
+            // Within the same band, sort by time
+            return spot_b.time - spot_a.time;
+        }
+
+        const column = table_sort.column;
         const value_a = spot_a[column];
         const value_b = spot_b[column];
 
