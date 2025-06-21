@@ -84,7 +84,6 @@ function SvgMap({
     } = useServerData();
 
     const svg_ref = useRef(null);
-    // const [dimensions, set_dimensions] = useState({ width: 700, height: 700 });
     const [svg_box_ref, { width, height }] = useMeasure();
     const max_radius = 20000;
 
@@ -134,7 +133,6 @@ function SvgMap({
     const text_x = is_max_xs_device ? 10 : 20;
     const text_y = is_max_xs_device ? 20 : 30;
 
-    // const [is_popup_visible, set_is_popup_visible] = useState(false);
     const [popup_position, set_popup_position] = useState(null);
 
     let hovered_spot_data;
@@ -271,6 +269,25 @@ function SvgMap({
                         );
                     })}
                     {rendered_spots}
+                    {hovered_spot_data &&
+                        (() => {
+                            const [point_x, point_y] = projection(hovered_spot_data.dx_loc);
+                            const angle = Math.atan2(point_y - center_y, point_x - center_x);
+
+                            const x = center_x + radius * Math.cos(angle);
+                            const y = center_y + radius * Math.sin(angle);
+                            return (
+                                <line
+                                    x1={center_x}
+                                    y1={center_y}
+                                    x2={x}
+                                    y2={y}
+                                    stroke="black"
+                                    strokeWidth="1"
+                                    strokeDasharray="5,5"
+                                />
+                            );
+                        })()}
                 </g>
 
                 <g clipPath="url(#map-clip)">
