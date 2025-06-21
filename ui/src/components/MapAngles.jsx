@@ -2,7 +2,7 @@ import { to_radian } from "@/utils.js";
 import { useMediaQuery } from "@uidotdev/usehooks";
 import { useColors } from "../hooks/useColors";
 
-function MapAngles({ radius, center_x, center_y, degrees_diff = 15 }) {
+function MapAngles({ radius, center_x, center_y, degrees_diff }) {
     const { colors } = useColors();
 
     const angle_labels = Array.from(Array(Math.round(360 / degrees_diff)).keys()).map(x => {

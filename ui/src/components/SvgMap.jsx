@@ -19,6 +19,37 @@ import { useServerData } from "@/hooks/useServerData";
 
 const dxcc_map = geojsonRewind(dxcc_map_raw, true);
 
+const map_angles_diff = 15;
+
+function generate_radial_lines(center_x, center_y, radius, degrees_diff) {
+    const lines = [];
+    for (let angle = 0; angle < 360; angle += degrees_diff) {
+        const radians = (angle * Math.PI) / 180;
+        const x2 = center_x + radius * Math.cos(radians);
+        const y2 = center_y + radius * Math.sin(radians);
+        lines.push({
+            x1: center_x,
+            y1: center_y,
+            x2: x2,
+            y2: y2,
+        });
+    }
+    return lines;
+}
+
+function generate_concentric_circles(center_x, center_y, max_radius, circle_count = 6) {
+    const circles = [];
+    const step = max_radius / circle_count;
+    for (let r = step; r <= max_radius; r += step) {
+        circles.push({
+            cx: center_x,
+            cy: center_y,
+            r: r,
+        });
+    }
+    return circles;
+}
+
 function get_sun_coordinates() {
     const now = new Date();
     const day = new Date(+now).setUTCHours(0, 0, 0, 0);
@@ -192,15 +223,38 @@ function SvgMap({
                     center_x={center_x}
                     center_y={center_y}
                     radius={radius + inner_padding / 2}
+                    degrees_diff={map_angles_diff}
                 />
 
                 <g clipPath="url(#map-clip)">
-                    <path
-                        fill="none"
-                        stroke={colors.map.graticule}
-                        pointerEvents="none"
-                        d={path_generator(d3.geoGraticule10())}
-                    ></path>
+                    <g>
+                        {generate_concentric_circles(center_x, center_y, radius).map(
+                            (circle, index) => (
+                                <circle
+                                    key={`circle-${index}`}
+                                    cx={circle.cx}
+                                    cy={circle.cy}
+                                    r={circle.r}
+                                    fill="none"
+                                    stroke={colors.map.graticule}
+                                    strokeWidth="1"
+                                />
+                            ),
+                        )}
+                        {generate_radial_lines(center_x, center_y, radius, map_angles_diff).map(
+                            (line, index) => (
+                                <line
+                                    key={`line-${index}`}
+                                    x1={line.x1}
+                                    y1={line.y1}
+                                    x2={line.x2}
+                                    y2={line.y2}
+                                    stroke={colors.map.graticule}
+                                    strokeWidth="1"
+                                />
+                            ),
+                        )}
+                    </g>
                     {dxcc_map.features.map(shape => {
                         return (
                             <path
