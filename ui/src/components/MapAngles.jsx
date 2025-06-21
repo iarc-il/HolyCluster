@@ -13,6 +13,7 @@ function MapAngles({ radius, center_x, center_y, degrees_diff, hovered_azimuth }
         if (hovered_azimuth !== null) {
             let closest_angle =
                 Math.round(Math.round(hovered_azimuth) / degrees_diff) * degrees_diff;
+            closest_angle %= 360;
             return angles.map(angle => (closest_angle == angle ? hovered_azimuth : angle));
         } else {
             return angles;
