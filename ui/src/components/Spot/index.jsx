@@ -101,7 +101,7 @@ function Spot({
 
     return (
         <g
-            onMouseOver={() => set_hovered_spot({ source: "map", id: spot.id })}
+            onMouseOver={() => set_hovered_spot({ source: "path", id: spot.id })}
             onMouseLeave={() => set_hovered_spot({ source: null, id: null })}
             onClick={on_click}
         >
@@ -139,12 +139,24 @@ function Spot({
                 cx={spotter_x}
                 cy={spotter_y}
                 onClick={() => set_cat_to_spot(spot)}
+                onMouseOver={e => {
+                    e.stopPropagation();
+                    set_hovered_spot({ source: "spotter", id: spot.id });
+                }}
             ></circle>
             <g
-                onMouseOver={event =>
-                    set_popup_position({ x: event.nativeEvent.layerX, y: event.nativeEvent.layerY })
-                }
-                onMouseLeave={event => set_popup_position(null)}
+                onMouseOver={event => {
+                    event.stopPropagation();
+                    set_hovered_spot({ source: "dx", id: spot.id });
+                    set_popup_position({
+                        x: event.nativeEvent.layerX,
+                        y: event.nativeEvent.layerY,
+                    });
+                }}
+                onMouseLeave={event => {
+                    set_popup_position(null);
+                    set_hovered_spot({ source: null, id: null });
+                }}
             >
                 {symbol_component}
             </g>
