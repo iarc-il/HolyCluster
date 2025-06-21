@@ -178,10 +178,9 @@ function LeftColumn({ toggled_ui }) {
                 })}
             </div>
 
-            <div className={filter_group_classes + "py-4 border-b-2 border-slate-300"}>
-                {/* RADIO BAND SELECTOR */}
-                {((radio_status != "unavailable" && radio_status != "unknown") ||
-                    filters.radio_band) && (
+            {((radio_status != "unavailable" && radio_status != "unknown") ||
+                filters.radio_band) && (
+                <div className={filter_group_classes + "py-4 border-b-2 border-slate-300"}>
                     <div>
                         {spots_per_band_count[radio_band] != 0 ? (
                             <span
@@ -207,8 +206,8 @@ function LeftColumn({ toggled_ui }) {
                             size="small"
                         />
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             <div className={filter_group_classes + " pt-4"}>
                 {modes.map(mode => {
