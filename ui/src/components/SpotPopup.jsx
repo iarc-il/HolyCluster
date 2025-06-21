@@ -13,6 +13,10 @@ function SpotPopup({
 }) {
     const { colors } = useColors();
 
+    if (hovered_spot_data == null) {
+        return <></>;
+    }
+
     return (
         <div
             className="absolute p-2 w-fit bg-white border border-gray-300 rounded shadow-lg z-50"
