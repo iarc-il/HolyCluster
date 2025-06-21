@@ -3,6 +3,7 @@ import Square from "./components/Square.jsx";
 import Triangle from "./components/Triangle.jsx";
 import { to_radian } from "@/utils.js";
 import { useColors } from "@/hooks/useColors";
+import { useServerData } from "@/hooks/useServerData";
 
 function Spot({
     spot,
@@ -15,8 +16,8 @@ function Spot({
     set_pinned_spot,
     hovered_band,
     set_popup_position,
-    same_freq_spots,
 }) {
+    const { current_freq_spots } = useServerData();
     const { colors } = useColors();
     const line = {
         type: "LineString",
@@ -35,7 +36,7 @@ function Spot({
         spot.id == hovered_spot.id ||
         spot.id == pinned_spot ||
         spot.band == hovered_band ||
-        same_freq_spots.includes(spot.id);
+        current_freq_spots.includes(spot.id);
     const dx_size = is_hovered ? 14 : 10;
 
     const color = colors.bands[spot.band];

@@ -68,16 +68,16 @@ function Spot(
         set_hovered_spot,
         set_cat_to_spot,
         settings,
-        same_freq_spots,
         on_context_menu,
     },
     ref,
 ) {
+    const { current_freq_spots } = useServerData();
     const time = new Date(spot.time * 1000);
     const utc_hours = String(time.getUTCHours()).padStart(2, "0");
     const utc_minutes = String(time.getUTCMinutes()).padStart(2, "0");
     const formatted_time = utc_hours + ":" + utc_minutes;
-    const is_same_freq = same_freq_spots.includes(spot.id);
+    const is_same_freq = current_freq_spots.includes(spot.id);
     const is_pinned = spot.id == pinned_spot;
     const is_hovered = spot.id == hovered_spot.id || is_pinned || is_same_freq;
 
@@ -259,11 +259,17 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
 }
 
 function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
+    const {
+        spots,
+        hovered_spot,
+        set_hovered_spot,
+        pinned_spot,
+        set_pinned_spot,
+        current_freq_spots,
+    } = useServerData();
+    const { callsign_filters, setCallsignFilters } = useFilters();
     const row_refs = useRef({});
     const { colors } = useColors();
-    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, freq_spots } =
-        useServerData();
-    const { callsign_filters, setCallsignFilters } = useFilters();
 
     const [context_menu, set_context_menu] = useState({
         visible: false,
@@ -458,7 +464,6 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                                     set_hovered_spot={set_hovered_spot}
                                     set_cat_to_spot={set_cat_to_spot}
                                     settings={settings}
-                                    same_freq_spots={freq_spots}
                                     on_context_menu={handle_context_menu}
                                 ></Spot>
                             ))}
@@ -471,8 +476,9 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                     x={context_menu.x}
                     y={context_menu.y}
                     spot={context_menu.spot}
-                    actions={context_menu_actions}
-                    on_close={() => set_context_menu({ ...context_menu, visible: false })}
+                    is_spotter={context_menu.is_spotter}
+                    onClose={() => set_context_menu({ ...context_menu, visible: false })}
+                    onAddFilter={addCallsignFilter}
                 />
             )}
         </>

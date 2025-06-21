@@ -71,43 +71,6 @@ function MainContainer() {
         }
     }, [max_radius, auto_radius, map_controls.location]);
 
-    spots.sort((spot_a, spot_b) => {
-        // Sorting by frequency should be always more accurate
-        const column = table_sort.column == "band" ? "freq" : table_sort.column;
-
-        const value_a = spot_a[column];
-        const value_b = spot_b[column];
-        if (typeof value_a == "string" && typeof value_b == "string") {
-            let comparison = table_sort.ascending
-                ? value_a.localeCompare(value_b)
-                : value_b.localeCompare(value_a);
-            if (comparison == 0) {
-                comparison = spot_b.time - spot_a.time;
-            }
-            return comparison;
-        } else if (typeof value_b == "number" && typeof value_a == "number") {
-            let comparison = table_sort.ascending ? value_a - value_b : value_b - value_a;
-
-            // These are secondary sorting by dx callsign and spotter callsign, to ensure that the
-            // order is consistent. It looks like returning 0 can cause a random order.
-            if (comparison == 0) {
-                comparison = spot_a.dx_callsign.localeCompare(spot_b.dx_callsign);
-            }
-            if (comparison == 0) {
-                comparison = spot_a.spotter_callsign.localeCompare(spot_b.spotter_callsign);
-            }
-            return comparison;
-        } else {
-            console.log(
-                `Bad values of column ${table_sort.column}`,
-                value_a,
-                value_b,
-                spot_a,
-                spot_b,
-            );
-        }
-    });
-
     const { send_message_to_radio, radio_status, radio_freq, rig, radio_mode, radio_band } =
         use_radio();
 

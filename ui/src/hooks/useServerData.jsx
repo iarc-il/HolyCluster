@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useFilters } from "../hooks/useFilters";
-import { get_base_url, is_matching_list } from "@/utils.js";
+import { get_base_url, is_matching_list, sort_spots } from "@/utils.js";
 import { bands } from "@/filters_data.js";
 import { get_flag } from "@/flags.js";
 import use_radio from "./useRadio";
+import { use_object_local_storage } from "@/utils.js";
 
 const ServerDataContext = createContext(undefined);
 
@@ -95,13 +96,18 @@ export const ServerDataProvider = ({ children }) => {
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
-    const { radio_band, radio_freq } = use_radio();
+    const { radio_band, radio_freq, radio_status } = use_radio();
 
     const { filters, callsign_filters } = useFilters();
 
     const [propagation, set_propagation] = useState();
 
     const [network_state, set_network_state] = useState("connecting");
+
+    const [table_sort] = use_object_local_storage("table_sort", {
+        column: "time",
+        ascending: false,
+    });
 
     let show_only_filters = callsign_filters.filters.filter(filter => filter.action == "show_only");
     let hide_filters = callsign_filters.filters.filter(filter => filter.action == "hide");
@@ -161,7 +167,7 @@ export const ServerDataProvider = ({ children }) => {
 
     const filtered_spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;
-        return spots
+        const filtered = spots
             .filter(spot => {
                 if (filter_missing_flags) {
                     if (
@@ -211,7 +217,18 @@ export const ServerDataProvider = ({ children }) => {
                 return result;
             })
             .slice(0, 100);
-    }, [spots, filter_missing_flags, filters, callsign_filters, radio_band]);
+
+        // Sort the filtered spots
+        return sort_spots(filtered, table_sort, radio_status, radio_band);
+    }, [
+        spots,
+        filter_missing_flags,
+        filters,
+        callsign_filters,
+        radio_band,
+        radio_status,
+        table_sort,
+    ]);
 
     const spots_per_band_count = useMemo(() => {
         const spots_per_band_count = Object.fromEntries(
@@ -233,16 +250,14 @@ export const ServerDataProvider = ({ children }) => {
         CW: 0.2,
         SSB: 0.5,
     };
-    const freq_spots = useMemo(() => {
-        const same_freq_spots = filtered_spots
+    const current_freq_spots = useMemo(() => {
+        return filtered_spots
             .filter(
                 spot =>
                     radio_freq / 1000 >= spot.freq - freq_error_range[spot.mode] &&
                     radio_freq / 1000 <= spot.freq + freq_error_range[spot.mode],
             )
             .map(spot => spot.id);
-
-        return same_freq_spots;
     }, [filtered_spots, radio_freq]);
 
     return (
@@ -260,7 +275,7 @@ export const ServerDataProvider = ({ children }) => {
                 spots_per_band_count,
                 propagation,
                 network_state,
-                freq_spots,
+                current_freq_spots,
             }}
         >
             {children}
