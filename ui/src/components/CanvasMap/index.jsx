@@ -35,6 +35,10 @@ function apply_zoom_and_drag_behaviors(
     },
 ) {
     let is_drawing = false;
+    let lon_start = null;
+    let current_lon = null;
+    let drag_start = null;
+    let last_transform = zoom_transform.current;
 
     const zoom = d3
         .zoom()
@@ -48,17 +52,19 @@ function apply_zoom_and_drag_behaviors(
                 is_drawing = true;
                 requestAnimationFrame(() => {
                     context.clearRect(0, 0, width, height);
+
+                    if (last_transform.k > 1 && event.transform.k === 1) {
+                        event.transform.x = 0;
+                        event.transform.y = 0;
+                    }
+
                     zoom_transform.current = event.transform;
+                    last_transform = event.transform;
                     draw_map_inner(zoom_transform.current);
                     is_drawing = false;
                 });
             }
-        })
-        .on("end", event => {});
-
-    let lon_start = null;
-    let current_lon = null;
-    let drag_start = null;
+        });
 
     const drag = d3
         .drag()
@@ -68,18 +74,27 @@ function apply_zoom_and_drag_behaviors(
         })
         .on("drag", event => {
             if (zoom_transform.current.k > 1) {
-                // Panning logic: Adjust the zoom translation (transform.x, transform.y)
                 const dx = event.dx / zoom_transform.current.k;
                 const dy = event.dy / zoom_transform.current.k;
 
-                // Update zoom translation (panning)
                 zoom_transform.current = zoom_transform.current.translate(dx, dy);
+
+                const selection = d3.select(canvas);
+                const transform = zoom_transform.current;
+                const newCenter = [
+                    (width / 2 - transform.x) / transform.k,
+                    (height / 2 - transform.y) / transform.k,
+                ];
+                zoom.translateTo(selection, newCenter[0], newCenter[1]);
             } else {
                 const dx = (event.x - drag_start[0]) / zoom_transform.current.k;
                 current_lon = mod(lon_start + dx + 180, 360) - 180;
 
                 const current_rotation = projection.rotate();
                 projection.rotate([current_lon, current_rotation[1], current_rotation[2]]);
+
+                zoom_transform.current.x = 0;
+                zoom_transform.current.y = 0;
             }
 
             if (!is_drawing) {
@@ -92,16 +107,23 @@ function apply_zoom_and_drag_behaviors(
             }
         })
         .on("end", event => {
-            const displayed_locator = new Maidenhead(center_lat, -current_lon).locator.slice(0, 6);
-            set_map_controls(state => {
-                state.location = {
-                    displayed_locator: displayed_locator,
-                    location: [-current_lon, center_lat],
-                };
-            });
+            if (zoom_transform.current.k === 1) {
+                const displayed_locator = new Maidenhead(center_lat, -current_lon).locator.slice(
+                    0,
+                    6,
+                );
+                set_map_controls(state => {
+                    state.location = {
+                        displayed_locator: displayed_locator,
+                        location: [-current_lon, center_lat],
+                    };
+                });
+            }
         });
 
-    zoom.transform(d3.select(canvas).call(drag).call(zoom), zoom_transform.current);
+    const selection = d3.select(canvas).call(drag).call(zoom);
+    zoom.translateTo(selection, width / 2, height / 2);
+    zoom.transform(selection, zoom_transform.current);
 }
 
 function random_color() {
