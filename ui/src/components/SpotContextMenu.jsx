@@ -3,34 +3,34 @@ import { createPortal } from "react-dom";
 import { useColors } from "@/hooks/useColors";
 
 export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
-    const menuRef = useRef(null);
+    const menu_ref = useRef(null);
     const { colors } = useColors();
 
     useEffect(() => {
-        function handleClickOutside(event) {
-            if (menuRef.current && !menuRef.current.contains(event.target)) {
+        function handle_click_outside(event) {
+            if (menu_ref.current && !menu_ref.current.contains(event.target)) {
                 on_close();
             }
         }
 
-        function handleEscapeKey(event) {
+        function handle_escape_key(event) {
             if (event.key === "Escape") {
                 on_close();
             }
         }
 
-        document.addEventListener("mousedown", handleClickOutside);
-        document.addEventListener("keydown", handleEscapeKey);
+        document.body.addEventListener("mousedown", handle_click_outside);
+        document.body.addEventListener("keydown", handle_escape_key);
 
         return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-            document.removeEventListener("keydown", handleEscapeKey);
+            document.body.removeEventListener("mousedown", handle_click_outside);
+            document.body.removeEventListener("keydown", handle_escape_key);
         };
     }, [on_close]);
 
     return createPortal(
         <div
-            ref={menuRef}
+            ref={menu_ref}
             className="fixed z-50 min-w-[200px] py-2 rounded-lg shadow-lg"
             style={{
                 top: `${y}px`,
