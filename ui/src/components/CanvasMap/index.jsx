@@ -17,6 +17,7 @@ import {
     Dimensions,
 } from "./draw_map.js";
 import SpotPopup from "@/components/SpotPopup.jsx";
+import MapAngles from "@/components/MapAngles.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 
@@ -335,6 +336,15 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
                 width={width}
                 height={height}
             />
+            <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                <MapAngles
+                    radius={dims.radius + 25 * dims.scale}
+                    center_x={dims.center_x}
+                    center_y={dims.center_y}
+                    degrees_diff={15}
+                    hovered_azimuth={azimuth}
+                />
+            </svg>
             {hovered_spot.source == "dx" && popup_position != null ? (
                 <SpotPopup
                     hovered_spot={hovered_spot}
