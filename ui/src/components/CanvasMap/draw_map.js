@@ -158,14 +158,6 @@ function draw_shadow_spot(
     context.fill();
 }
 
-function draw_map_info_text(context, { spots, scale }) {
-    const font_size = 20;
-    context.font = `bold ${font_size}px Arial`;
-    context.fillStyle = "#000000";
-    context.beginPath();
-    context.fillText(`Spots: ${spots.length}`, font_size, 30);
-}
-
 export function apply_context_transform(context, transform) {
     context.setTransform(transform.k, 0, 0, transform.k, transform.x, transform.y, 1, 1, 1);
 }
@@ -231,8 +223,6 @@ export function draw_map(
     context.clearRect(0, 0, dims.width, dims.height);
 
     context.save();
-
-    draw_map_info_text(context, { spots, scale: dims.scale });
 
     // Clip the map content to the circle
     context.beginPath();

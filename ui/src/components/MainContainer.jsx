@@ -164,6 +164,10 @@ function MainContainer() {
                     set_map_controls={set_map_controls}
                     set_cat_to_spot={set_cat_to_spot}
                     settings={settings}
+                    radius_in_km={radius_in_km}
+                    set_radius_in_km={set_radius_in_km}
+                    auto_radius={auto_radius}
+                    set_auto_radius={set_auto_radius}
                 />
             ) : (
                 <SvgMap

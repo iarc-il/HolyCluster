@@ -3,10 +3,10 @@ import { useEffect, useState, useRef } from "react";
 import * as d3 from "d3";
 import haversine from "haversine-distance";
 import Maidenhead from "maidenhead";
-import { useMeasure } from "@uidotdev/usehooks";
+import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
 import { HashMap } from "hashmap";
 
-import { mod, calculate_geographic_azimuth } from "@/utils.js";
+import { mod, calculate_geographic_azimuth, km_to_miles } from "@/utils.js";
 import {
     build_geojson_line,
     dxcc_map,
@@ -18,6 +18,7 @@ import {
 } from "./draw_map.js";
 import SpotPopup from "@/components/SpotPopup.jsx";
 import MapAngles from "@/components/MapAngles.jsx";
+import ToggleSVG from "@/components/ToggleSVG";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 
@@ -157,7 +158,16 @@ function build_canvas_storage(projection, canvas_map) {
     );
 }
 
-function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }) {
+function CanvasMap({
+    map_controls,
+    set_map_controls,
+    set_cat_to_spot,
+    settings,
+    radius_in_km,
+    set_radius_in_km,
+    auto_radius,
+    set_auto_radius,
+}) {
     const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
 
     const map_canvas_ref = useRef(null);
@@ -176,6 +186,11 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
     const [center_lon, center_lat] = map_controls.location.location;
 
     const { colors } = useColors();
+
+    const is_max_xs_device = useMediaQuery("only screen and (max-width : 500px)");
+    const text_height = 20;
+    const text_x = is_max_xs_device ? 10 : 20;
+    const text_y = is_max_xs_device ? 20 : 30;
 
     const projection = d3
         .geoAzimuthalEquidistant()
@@ -359,6 +374,29 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
                 height={height}
             />
             <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                <g className="font-medium text-lg select-none">
+                    <text x={text_x} y={text_y} fill={colors.theme.text}>
+                        Radius: {settings.is_miles ? km_to_miles(radius_in_km) : radius_in_km}{" "}
+                        {settings.is_miles ? "Miles" : "KM"} | Auto
+                    </text>
+
+                    <foreignObject x={text_x + 215} y={text_y - 18} width="67" height="40">
+                        <div xmlns="http://www.w3.org/1999/xhtml">
+                            <ToggleSVG
+                                auto_radius={auto_radius}
+                                set_auto_radius={set_auto_radius}
+                            />
+                        </div>
+                    </foreignObject>
+
+                    <text x={text_x} y={text_y + text_height} fill={colors.theme.text}>
+                        Center: {map_controls.location.displayed_locator}
+                    </text>
+
+                    <text x={text_x} y={text_y + 2 * text_height} fill={colors.theme.text}>
+                        Spots: {spots.length}
+                    </text>
+                </g>
                 <MapAngles
                     radius={dims.radius + 25 * dims.scale}
                     center_x={dims.center_x}
