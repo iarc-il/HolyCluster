@@ -11,7 +11,7 @@ import dxcc_map_raw from "@/assets/dxcc_map.json";
 import MapAngles from "@/components/MapAngles.jsx";
 import Spot from "@/components/Spot/index.jsx";
 import SpotPopup from "@/components/SpotPopup.jsx";
-import { km_to_miles } from "@/utils.js";
+import { km_to_miles, calculate_geographic_azimuth } from "@/utils.js";
 import { useColors } from "@/hooks/useColors";
 import ToggleSVG from "./ToggleSVG";
 
@@ -160,6 +160,16 @@ function SvgMap({
         );
     });
 
+    let azimuth = null;
+    if (hovered_spot_data && hovered_spot.source === "dx") {
+        azimuth = calculate_geographic_azimuth(
+            center_lat,
+            center_lon,
+            hovered_spot_data.dx_loc[1],
+            hovered_spot_data.dx_loc[0],
+        );
+    }
+
     return (
         <div
             ref={svg_box_ref}
@@ -222,6 +232,7 @@ function SvgMap({
                     center_y={center_y}
                     radius={radius + inner_padding / 2}
                     degrees_diff={map_angles_diff}
+                    hovered_azimuth={azimuth}
                 />
 
                 <g clipPath="url(#map-clip)">
@@ -268,15 +279,12 @@ function SvgMap({
                             </path>
                         );
                     })}
-                    {rendered_spots}
                     {hovered_spot_data &&
                         hovered_spot.source === "dx" &&
                         (() => {
-                            const [point_x, point_y] = projection(hovered_spot_data.dx_loc);
-                            const angle = Math.atan2(point_y - center_y, point_x - center_x);
-
+                            const angle = (90 - azimuth) * (Math.PI / 180);
                             const x = center_x + radius * Math.cos(angle);
-                            const y = center_y + radius * Math.sin(angle);
+                            const y = center_y - radius * Math.sin(angle);
                             return (
                                 <line
                                     x1={center_x}
@@ -289,6 +297,7 @@ function SvgMap({
                                 />
                             );
                         })()}
+                    {rendered_spots}
                 </g>
 
                 <g clipPath="url(#map-clip)">
@@ -331,6 +340,7 @@ function SvgMap({
                     hovered_spot_data={hovered_spot_data}
                     distance={hovered_spot_distance}
                     settings={settings}
+                    azimuth={azimuth}
                 />
             ) : (
                 ""

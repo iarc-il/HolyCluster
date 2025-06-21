@@ -6,6 +6,24 @@ export function to_radian(deg) {
     return deg * (Math.PI / 180);
 }
 
+export function to_degrees(rad) {
+    return rad * (180 / Math.PI);
+}
+
+export function calculate_geographic_azimuth(from_lat, from_lon, to_lat, to_lon) {
+    const lat1 = to_radian(from_lat);
+    const lon1 = to_radian(from_lon);
+    const lat2 = to_radian(to_lat);
+    const lon2 = to_radian(to_lon);
+
+    const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+    const x =
+        Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+    let azimuth = Math.atan2(y, x);
+
+    return mod(to_degrees(azimuth), 360);
+}
+
 export const mod = (n, m) => ((n % m) + m) % m;
 
 function find_base_callsign(callsign) {

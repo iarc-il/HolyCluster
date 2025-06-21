@@ -9,6 +9,7 @@ function SpotPopup({
     hovered_spot_data,
     distance,
     settings,
+    azimuth,
 }) {
     const { colors } = useColors();
 
@@ -47,6 +48,11 @@ function SpotPopup({
                 <p className="inline" style={{ color: colors.bands[hovered_spot_data.band] }}>
                     {settings.is_miles ? km_to_miles(distance) : distance}{" "}
                     {settings.is_miles ? "Miles" : "KM"}
+                </p>
+                <br />
+                Azimuth:{" "}
+                <p className="inline" style={{ color: colors.bands[hovered_spot_data.band] }}>
+                    {Math.round(azimuth)}°
                 </p>
                 <p>
                     <small>(Click to freeze)</small>
