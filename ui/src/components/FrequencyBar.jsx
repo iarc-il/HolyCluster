@@ -149,13 +149,7 @@ const band_plans = {
     },
 };
 
-export default function FrequencyBar({
-    className,
-    radio_status,
-    set_cat_to_spot,
-    cat_control,
-    set_cat_control,
-}) {
+export default function FrequencyBar({ className, radio_status, set_cat_to_spot }) {
     const { colors } = useColors();
     const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, freq_spots } =
         useServerData();
@@ -218,7 +212,7 @@ export default function FrequencyBar({
                         set_selected_band(event.target.value);
                     }}
                     text_color={selected_band == -1 ? colors.bands[radio_band] : undefined}
-                    className={`text-lg p-2 w-1/2 text-center`}
+                    className={`text-lg p-2 w-full text-center`}
                 >
                     {radio_status === "connected" && (
                         <option style={{ color: colors.bands[radio_band] }} value={-1}>
@@ -234,26 +228,8 @@ export default function FrequencyBar({
                         );
                     })}
                 </Select>
-
-                {radio_status === "connected" && (
-                    <span className="flex flex-col items-center justify-center w-1/4 mx-3">
-                        <p className="h-1/4" style={{ color: colors.theme.text }}>
-                            CAT
-                        </p>
-                        <Toggle
-                            class_name={"h-1/4"}
-                            on_click={() => {
-                                if (cat_control == 1) {
-                                    set_cat_control(0);
-                                } else {
-                                    set_cat_control(1);
-                                }
-                            }}
-                            value={cat_control}
-                        />
-                    </span>
-                )}
             </span>
+
             {!(selected_band == -1 && radio_band == -1) && (
                 <>
                     <svg

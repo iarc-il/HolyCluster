@@ -31,7 +31,6 @@ function MainContainer() {
         },
     });
 
-    const [cat_control, set_cat_control] = useLocalStorage("freq_bar_cat_control", true);
     const [prev_freqs, set_prev_freqs] = useState([]);
     const prev_freq_limit = 1; // Set the max number of undos a user can do
 
@@ -112,10 +111,6 @@ function MainContainer() {
         use_radio();
 
     function set_cat_to_spot(spot) {
-        if (cat_control != true) {
-            return;
-        }
-
         set_prev_freqs(
             [
                 {
@@ -136,7 +131,7 @@ function MainContainer() {
     }
 
     function undo_freq_change() {
-        if (prev_freqs.length <= 0 || cat_control != true) {
+        if (prev_freqs.length <= 0) {
             return;
         }
 
@@ -188,7 +183,6 @@ function MainContainer() {
                 map_controls={map_controls}
                 set_map_controls={set_map_controls}
                 radio_status={radio_status}
-                cat_status={cat_control}
                 default_radius={settings.default_radius}
                 set_radius_in_km={set_radius_in_km}
                 settings={settings}
@@ -271,8 +265,6 @@ function MainContainer() {
                     toggled_ui={toggled_ui}
                     radio_status={radio_status}
                     set_cat_to_spot={set_cat_to_spot}
-                    cat_control={cat_control}
-                    set_cat_control={set_cat_control}
                 />
 
                 <Continents toggled_ui={toggled_ui} />

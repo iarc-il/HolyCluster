@@ -15,7 +15,6 @@ function MapControls({
     map_controls,
     set_map_controls,
     radio_status,
-    cat_status,
     default_radius,
     set_radius_in_km,
     settings,
@@ -37,15 +36,10 @@ function MapControls({
         });
     }
 
-    if (radio_status === "connected" && cat_status == false) {
-        radio_status = "cat_disabled";
-    }
-
     const radio_status_to_color = {
         unknown: "#888888",
         unavailable: "#888888",
         connected: "#00DD00",
-        cat_disabled: "#FFDD00",
         disconnected: "#DD0000",
     };
 
