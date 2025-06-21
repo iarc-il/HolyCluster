@@ -326,8 +326,10 @@ export function draw_spots(
         }
     });
 
-    // Draw azimuth line for hovered spot
-    if (bold_spot && hovered_spot.source === "dx") {
+    if (
+        (bold_spot && hovered_spot.source === "dx") ||
+        (bold_spot && pinned_spot === bold_spot.id && hovered_spot.source !== "dx")
+    ) {
         const [center_lon, center_lat] = projection.rotate().map(x => -x);
         const azimuth = calculate_geographic_azimuth(
             center_lat,

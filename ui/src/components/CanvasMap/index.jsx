@@ -339,13 +339,17 @@ function CanvasMap({
             : "";
 
     let azimuth = null;
-    if (hovered_spot_data && hovered_spot.source === "dx") {
+    if (
+        (hovered_spot_data && hovered_spot.source === "dx") ||
+        (spots.find(spot => spot.id === pinned_spot) && hovered_spot.source !== "dx")
+    ) {
+        const spot_data = hovered_spot_data || spots.find(spot => spot.id === pinned_spot);
         const [center_lon, center_lat] = projection.rotate().map(x => -x);
         azimuth = calculate_geographic_azimuth(
             center_lat,
             center_lon,
-            hovered_spot_data.dx_loc[1],
-            hovered_spot_data.dx_loc[0],
+            spot_data.dx_loc[1],
+            spot_data.dx_loc[0],
         );
     }
 

@@ -153,12 +153,16 @@ function SvgMap({
     });
 
     let azimuth = null;
-    if (hovered_spot_data && hovered_spot.source === "dx") {
+    if (
+        (hovered_spot_data && hovered_spot.source === "dx") ||
+        (spots.find(spot => spot.id === pinned_spot) && hovered_spot.source !== "dx")
+    ) {
+        const spot_data = hovered_spot_data || spots.find(spot => spot.id === pinned_spot);
         azimuth = calculate_geographic_azimuth(
             center_lat,
             center_lon,
-            hovered_spot_data.dx_loc[1],
-            hovered_spot_data.dx_loc[0],
+            spot_data.dx_loc[1],
+            spot_data.dx_loc[0],
         );
     }
 
@@ -271,24 +275,25 @@ function SvgMap({
                             </path>
                         );
                     })}
-                    {hovered_spot_data &&
-                        hovered_spot.source === "dx" &&
-                        (() => {
-                            const angle = (90 - azimuth) * (Math.PI / 180);
-                            const x = center_x + radius * Math.cos(angle);
-                            const y = center_y - radius * Math.sin(angle);
-                            return (
-                                <line
-                                    x1={center_x}
-                                    y1={center_y}
-                                    x2={x}
-                                    y2={y}
-                                    stroke="black"
-                                    strokeWidth="1"
-                                    strokeDasharray="5,5"
-                                />
-                            );
-                        })()}
+                    {(hovered_spot_data && hovered_spot.source === "dx") ||
+                    (spots.find(spot => spot.id === pinned_spot) && hovered_spot.source !== "dx")
+                        ? (() => {
+                              const angle = (90 - azimuth) * (Math.PI / 180);
+                              const x = center_x + radius * Math.cos(angle);
+                              const y = center_y - radius * Math.sin(angle);
+                              return (
+                                  <line
+                                      x1={center_x}
+                                      y1={center_y}
+                                      x2={x}
+                                      y2={y}
+                                      stroke="black"
+                                      strokeWidth="1"
+                                      strokeDasharray="5,5"
+                                  />
+                              );
+                          })()
+                        : ""}
                     {rendered_spots}
                 </g>
 
