@@ -22,6 +22,8 @@ import ToggleSVG from "@/components/ToggleSVG";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 
+export const ENABLE_PANNING = false;
+
 function apply_zoom_and_drag_behaviors(
     context,
     {
@@ -59,6 +61,13 @@ function apply_zoom_and_drag_behaviors(
                         event.transform.y = 0;
                     }
 
+                    if (!ENABLE_PANNING && event.transform.k > 1) {
+                        const centerOffsetX = (width / 2) * (1 - event.transform.k);
+                        const centerOffsetY = (height / 2) * (1 - event.transform.k);
+                        event.transform.x = centerOffsetX;
+                        event.transform.y = centerOffsetY;
+                    }
+
                     zoom_transform.current = event.transform;
                     last_transform = event.transform;
                     draw_map_inner(zoom_transform.current);
@@ -74,7 +83,7 @@ function apply_zoom_and_drag_behaviors(
             lon_start = projection.rotate()[0];
         })
         .on("drag", event => {
-            if (zoom_transform.current.k > 1) {
+            if (zoom_transform.current.k > 1 && !ENABLE_PANNING) {
                 const dx = event.dx / zoom_transform.current.k;
                 const dy = event.dy / zoom_transform.current.k;
 
