@@ -3,6 +3,7 @@ import Square from "./components/Square.jsx";
 import Triangle from "./components/Triangle.jsx";
 import { to_radian } from "@/utils.js";
 import { useColors } from "@/hooks/useColors";
+import { useServerData } from "@/hooks/useServerData";
 
 function Spot({
     spot,
@@ -15,8 +16,8 @@ function Spot({
     set_pinned_spot,
     hovered_band,
     set_popup_position,
-    same_freq_spots,
 }) {
+    const { current_freq_spots } = useServerData();
     const { colors } = useColors();
     const line = {
         type: "LineString",
@@ -35,7 +36,7 @@ function Spot({
         spot.id == hovered_spot.id ||
         spot.id == pinned_spot ||
         spot.band == hovered_band ||
-        same_freq_spots.includes(spot.id);
+        current_freq_spots.includes(spot.id);
     const dx_size = is_hovered ? 14 : 10;
 
     const color = colors.bands[spot.band];
@@ -101,7 +102,7 @@ function Spot({
 
     return (
         <g
-            onMouseOver={() => set_hovered_spot({ source: "map", id: spot.id })}
+            onMouseOver={() => set_hovered_spot({ source: "arc", id: spot.id })}
             onMouseLeave={() => set_hovered_spot({ source: null, id: null })}
             onClick={on_click}
         >
@@ -139,12 +140,24 @@ function Spot({
                 cx={spotter_x}
                 cy={spotter_y}
                 onClick={() => set_cat_to_spot(spot)}
+                onMouseOver={e => {
+                    e.stopPropagation();
+                    set_hovered_spot({ source: "spotter", id: spot.id });
+                }}
             ></circle>
             <g
-                onMouseOver={event =>
-                    set_popup_position({ x: event.nativeEvent.layerX, y: event.nativeEvent.layerY })
-                }
-                onMouseLeave={event => set_popup_position(null)}
+                onMouseOver={event => {
+                    event.stopPropagation();
+                    set_hovered_spot({ source: "dx", id: spot.id });
+                    set_popup_position({
+                        x: event.nativeEvent.layerX,
+                        y: event.nativeEvent.layerY,
+                    });
+                }}
+                onMouseLeave={event => {
+                    set_popup_position(null);
+                    set_hovered_spot({ source: null, id: null });
+                }}
             >
                 {symbol_component}
             </g>

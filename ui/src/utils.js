@@ -6,6 +6,24 @@ export function to_radian(deg) {
     return deg * (Math.PI / 180);
 }
 
+export function to_degrees(rad) {
+    return rad * (180 / Math.PI);
+}
+
+export function calculate_geographic_azimuth(from_lat, from_lon, to_lat, to_lon) {
+    const lat1 = to_radian(from_lat);
+    const lon1 = to_radian(from_lon);
+    const lat2 = to_radian(to_lat);
+    const lon2 = to_radian(to_lon);
+
+    const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+    const x =
+        Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+    let azimuth = Math.atan2(y, x);
+
+    return mod(to_degrees(azimuth), 360);
+}
+
 export const mod = (n, m) => ((n % m) + m) % m;
 
 function find_base_callsign(callsign) {
@@ -113,4 +131,67 @@ export function get_base_url() {
     } else {
         return "";
     }
+}
+
+export function sort_spots(spots, table_sort, radio_status = null, radio_band = null) {
+    return [...spots].sort((spot_a, spot_b) => {
+        // If sorting by frequency or band and CAT control is active, prioritize active band
+        if (
+            radio_status === "connected" &&
+            (table_sort.column === "freq" || table_sort.column === "band")
+        ) {
+            const a_is_active = spot_a.band === radio_band;
+            const b_is_active = spot_b.band === radio_band;
+
+            if (a_is_active && !b_is_active) return -1;
+            if (!a_is_active && b_is_active) return 1;
+        }
+
+        if (table_sort.column === "band") {
+            const band_comparison = table_sort.ascending
+                ? spot_a.band - spot_b.band
+                : spot_b.band - spot_a.band;
+
+            if (band_comparison !== 0) {
+                return band_comparison;
+            }
+
+            // Within the same band, sort by time
+            return spot_b.time - spot_a.time;
+        }
+
+        const column = table_sort.column;
+        const value_a = spot_a[column];
+        const value_b = spot_b[column];
+
+        if (typeof value_a === "string" && typeof value_b === "string") {
+            let comparison = table_sort.ascending
+                ? value_a.localeCompare(value_b)
+                : value_b.localeCompare(value_a);
+            if (comparison === 0) {
+                comparison = spot_b.time - spot_a.time;
+            }
+            return comparison;
+        } else if (typeof value_a === "number" && typeof value_b === "number") {
+            let comparison = table_sort.ascending ? value_a - value_b : value_b - value_a;
+
+            // Secondary sorting by dx callsign and spotter callsign for consistent order
+            if (comparison === 0) {
+                comparison = spot_a.dx_callsign.localeCompare(spot_b.dx_callsign);
+            }
+            if (comparison === 0) {
+                comparison = spot_a.spotter_callsign.localeCompare(spot_b.spotter_callsign);
+            }
+            return comparison;
+        } else {
+            console.log(
+                `Bad values of column ${table_sort.column}`,
+                value_a,
+                value_b,
+                spot_a,
+                spot_b,
+            );
+            return 0;
+        }
+    });
 }

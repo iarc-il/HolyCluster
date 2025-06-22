@@ -3,10 +3,10 @@ import { useEffect, useState, useRef } from "react";
 import * as d3 from "d3";
 import haversine from "haversine-distance";
 import Maidenhead from "maidenhead";
-import { useMeasure } from "@uidotdev/usehooks";
+import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
 import { HashMap } from "hashmap";
 
-import { mod } from "@/utils.js";
+import { mod, calculate_geographic_azimuth, km_to_miles } from "@/utils.js";
 import {
     build_geojson_line,
     dxcc_map,
@@ -17,8 +17,12 @@ import {
     Dimensions,
 } from "./draw_map.js";
 import SpotPopup from "@/components/SpotPopup.jsx";
+import MapAngles from "@/components/MapAngles.jsx";
+import ToggleSVG from "@/components/ToggleSVG";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
+
+export const ENABLE_PANNING = false;
 
 function apply_zoom_and_drag_behaviors(
     context,
@@ -34,6 +38,10 @@ function apply_zoom_and_drag_behaviors(
     },
 ) {
     let is_drawing = false;
+    let lon_start = null;
+    let current_lon = null;
+    let drag_start = null;
+    let last_transform = zoom_transform.current;
 
     const zoom = d3
         .zoom()
@@ -47,17 +55,26 @@ function apply_zoom_and_drag_behaviors(
                 is_drawing = true;
                 requestAnimationFrame(() => {
                     context.clearRect(0, 0, width, height);
+
+                    if (last_transform.k > 1 && event.transform.k === 1) {
+                        event.transform.x = 0;
+                        event.transform.y = 0;
+                    }
+
+                    if (!ENABLE_PANNING && event.transform.k > 1) {
+                        const centerOffsetX = (width / 2) * (1 - event.transform.k);
+                        const centerOffsetY = (height / 2) * (1 - event.transform.k);
+                        event.transform.x = centerOffsetX;
+                        event.transform.y = centerOffsetY;
+                    }
+
                     zoom_transform.current = event.transform;
+                    last_transform = event.transform;
                     draw_map_inner(zoom_transform.current);
                     is_drawing = false;
                 });
             }
-        })
-        .on("end", event => {});
-
-    let lon_start = null;
-    let current_lon = null;
-    let drag_start = null;
+        });
 
     const drag = d3
         .drag()
@@ -66,19 +83,28 @@ function apply_zoom_and_drag_behaviors(
             lon_start = projection.rotate()[0];
         })
         .on("drag", event => {
-            if (zoom_transform.current.k > 1) {
-                // Panning logic: Adjust the zoom translation (transform.x, transform.y)
+            if (zoom_transform.current.k > 1 && !ENABLE_PANNING) {
                 const dx = event.dx / zoom_transform.current.k;
                 const dy = event.dy / zoom_transform.current.k;
 
-                // Update zoom translation (panning)
                 zoom_transform.current = zoom_transform.current.translate(dx, dy);
+
+                const selection = d3.select(canvas);
+                const transform = zoom_transform.current;
+                const newCenter = [
+                    (width / 2 - transform.x) / transform.k,
+                    (height / 2 - transform.y) / transform.k,
+                ];
+                zoom.translateTo(selection, newCenter[0], newCenter[1]);
             } else {
                 const dx = (event.x - drag_start[0]) / zoom_transform.current.k;
                 current_lon = mod(lon_start + dx + 180, 360) - 180;
 
                 const current_rotation = projection.rotate();
                 projection.rotate([current_lon, current_rotation[1], current_rotation[2]]);
+
+                zoom_transform.current.x = 0;
+                zoom_transform.current.y = 0;
             }
 
             if (!is_drawing) {
@@ -91,16 +117,23 @@ function apply_zoom_and_drag_behaviors(
             }
         })
         .on("end", event => {
-            const displayed_locator = new Maidenhead(center_lat, -current_lon).locator.slice(0, 6);
-            set_map_controls(state => {
-                state.location = {
-                    displayed_locator: displayed_locator,
-                    location: [-current_lon, center_lat],
-                };
-            });
+            if (zoom_transform.current.k === 1) {
+                const displayed_locator = new Maidenhead(center_lat, -current_lon).locator.slice(
+                    0,
+                    6,
+                );
+                set_map_controls(state => {
+                    state.location = {
+                        displayed_locator: displayed_locator,
+                        location: [-current_lon, center_lat],
+                    };
+                });
+            }
         });
 
-    zoom.transform(d3.select(canvas).call(drag).call(zoom), zoom_transform.current);
+    const selection = d3.select(canvas).call(drag).call(zoom);
+    zoom.translateTo(selection, width / 2, height / 2);
+    zoom.transform(selection, zoom_transform.current);
 }
 
 function random_color() {
@@ -134,7 +167,16 @@ function build_canvas_storage(projection, canvas_map) {
     );
 }
 
-function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }) {
+function CanvasMap({
+    map_controls,
+    set_map_controls,
+    set_cat_to_spot,
+    settings,
+    radius_in_km,
+    set_radius_in_km,
+    auto_radius,
+    set_auto_radius,
+}) {
     const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
 
     const map_canvas_ref = useRef(null);
@@ -153,6 +195,11 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
     const [center_lon, center_lat] = map_controls.location.location;
 
     const { colors } = useColors();
+
+    const is_max_xs_device = useMediaQuery("only screen and (max-width : 500px)");
+    const text_height = 20;
+    const text_x = is_max_xs_device ? 10 : 20;
+    const text_y = is_max_xs_device ? 20 : 30;
 
     const projection = d3
         .geoAzimuthalEquidistant()
@@ -247,7 +294,7 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
             if (searched != null) {
                 let [type, spot_id] = searched;
                 if (hovered_spot.source != "map" || hovered_spot.id != spot_id) {
-                    set_hovered_spot({ source: "map", id: spot_id });
+                    set_hovered_spot({ source: type, id: spot_id });
                 }
                 if (type == "dx") {
                     if (popup_position == null) {
@@ -300,6 +347,21 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
             ? (haversine(hovered_spot_data.dx_loc, hovered_spot_data.spotter_loc) / 1000).toFixed()
             : "";
 
+    let azimuth = null;
+    if (
+        (hovered_spot_data && hovered_spot.source === "dx") ||
+        (spots.find(spot => spot.id === pinned_spot) && hovered_spot.source !== "dx")
+    ) {
+        const spot_data = hovered_spot_data || spots.find(spot => spot.id === pinned_spot);
+        const [center_lon, center_lat] = projection.rotate().map(x => -x);
+        azimuth = calculate_geographic_azimuth(
+            center_lat,
+            center_lon,
+            spot_data.dx_loc[1],
+            spot_data.dx_loc[0],
+        );
+    }
+
     return (
         <div
             ref={div_ref}
@@ -324,7 +386,39 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
                 width={width}
                 height={height}
             />
-            {hovered_spot.source == "map" && popup_position != null ? (
+            <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                <g className="font-medium text-lg select-none">
+                    <text x={text_x} y={text_y} fill={colors.theme.text}>
+                        Radius: {settings.is_miles ? km_to_miles(radius_in_km) : radius_in_km}{" "}
+                        {settings.is_miles ? "Miles" : "KM"} | Auto
+                    </text>
+
+                    <foreignObject x={text_x + 215} y={text_y - 18} width="67" height="40">
+                        <div xmlns="http://www.w3.org/1999/xhtml">
+                            <ToggleSVG
+                                auto_radius={auto_radius}
+                                set_auto_radius={set_auto_radius}
+                            />
+                        </div>
+                    </foreignObject>
+
+                    <text x={text_x} y={text_y + text_height} fill={colors.theme.text}>
+                        Center: {map_controls.location.displayed_locator}
+                    </text>
+
+                    <text x={text_x} y={text_y + 2 * text_height} fill={colors.theme.text}>
+                        Spots: {spots.length}
+                    </text>
+                </g>
+                <MapAngles
+                    radius={dims.radius + 25 * dims.scale}
+                    center_x={dims.center_x}
+                    center_y={dims.center_y}
+                    degrees_diff={15}
+                    hovered_azimuth={azimuth}
+                />
+            </svg>
+            {hovered_spot.source == "dx" && popup_position != null ? (
                 <SpotPopup
                     hovered_spot={hovered_spot}
                     set_hovered_spot={set_hovered_spot}
@@ -333,6 +427,7 @@ function CanvasMap({ map_controls, set_map_controls, set_cat_to_spot, settings }
                     hovered_spot_data={hovered_spot_data}
                     distance={hovered_spot_distance}
                     settings={settings}
+                    azimuth={azimuth}
                 />
             ) : (
                 ""

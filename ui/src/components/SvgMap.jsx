@@ -11,13 +11,44 @@ import dxcc_map_raw from "@/assets/dxcc_map.json";
 import MapAngles from "@/components/MapAngles.jsx";
 import Spot from "@/components/Spot/index.jsx";
 import SpotPopup from "@/components/SpotPopup.jsx";
-import { km_to_miles } from "@/utils.js";
+import { km_to_miles, calculate_geographic_azimuth } from "@/utils.js";
 import { useColors } from "@/hooks/useColors";
 import ToggleSVG from "./ToggleSVG";
 
 import { useServerData } from "@/hooks/useServerData";
 
 const dxcc_map = geojsonRewind(dxcc_map_raw, true);
+
+const map_angles_diff = 15;
+
+function generate_radial_lines(center_x, center_y, radius, degrees_diff) {
+    const lines = [];
+    for (let angle = 0; angle < 360; angle += degrees_diff) {
+        const radians = (angle * Math.PI) / 180;
+        const x2 = center_x + radius * Math.cos(radians);
+        const y2 = center_y + radius * Math.sin(radians);
+        lines.push({
+            x1: center_x,
+            y1: center_y,
+            x2: x2,
+            y2: y2,
+        });
+    }
+    return lines;
+}
+
+function generate_concentric_circles(center_x, center_y, max_radius, circle_count = 6) {
+    const circles = [];
+    const step = max_radius / circle_count;
+    for (let r = step; r <= max_radius; r += step) {
+        circles.push({
+            cx: center_x,
+            cy: center_y,
+            r: r,
+        });
+    }
+    return circles;
+}
 
 function get_sun_coordinates() {
     const now = new Date();
@@ -42,18 +73,10 @@ function SvgMap({
     auto_radius,
     set_auto_radius,
 }) {
-    const {
-        spots,
-        hovered_spot,
-        set_hovered_spot,
-        pinned_spot,
-        set_pinned_spot,
-        hovered_band,
-        freq_spots,
-    } = useServerData();
+    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
+        useServerData();
 
     const svg_ref = useRef(null);
-    // const [dimensions, set_dimensions] = useState({ width: 700, height: 700 });
     const [svg_box_ref, { width, height }] = useMeasure();
     const max_radius = 20000;
 
@@ -103,7 +126,6 @@ function SvgMap({
     const text_x = is_max_xs_device ? 10 : 20;
     const text_y = is_max_xs_device ? 20 : 30;
 
-    // const [is_popup_visible, set_is_popup_visible] = useState(false);
     const [popup_position, set_popup_position] = useState(null);
 
     let hovered_spot_data;
@@ -126,10 +148,23 @@ function SvgMap({
                 hovered_band={hovered_band}
                 set_pinned_spot={set_pinned_spot}
                 set_popup_position={set_popup_position}
-                same_freq_spots={freq_spots}
             />
         );
     });
+
+    let azimuth = null;
+    if (
+        (hovered_spot_data && hovered_spot.source === "dx") ||
+        (spots.find(spot => spot.id === pinned_spot) && hovered_spot.source !== "dx")
+    ) {
+        const spot_data = hovered_spot_data || spots.find(spot => spot.id === pinned_spot);
+        azimuth = calculate_geographic_azimuth(
+            center_lat,
+            center_lon,
+            spot_data.dx_loc[1],
+            spot_data.dx_loc[0],
+        );
+    }
 
     return (
         <div
@@ -192,15 +227,39 @@ function SvgMap({
                     center_x={center_x}
                     center_y={center_y}
                     radius={radius + inner_padding / 2}
+                    degrees_diff={map_angles_diff}
+                    hovered_azimuth={azimuth}
                 />
 
                 <g clipPath="url(#map-clip)">
-                    <path
-                        fill="none"
-                        stroke={colors.map.graticule}
-                        pointerEvents="none"
-                        d={path_generator(d3.geoGraticule10())}
-                    ></path>
+                    <g>
+                        {generate_concentric_circles(center_x, center_y, radius).map(
+                            (circle, index) => (
+                                <circle
+                                    key={`circle-${index}`}
+                                    cx={circle.cx}
+                                    cy={circle.cy}
+                                    r={circle.r}
+                                    fill="none"
+                                    stroke={colors.map.graticule}
+                                    strokeWidth="1"
+                                />
+                            ),
+                        )}
+                        {generate_radial_lines(center_x, center_y, radius, map_angles_diff).map(
+                            (line, index) => (
+                                <line
+                                    key={`line-${index}`}
+                                    x1={line.x1}
+                                    y1={line.y1}
+                                    x2={line.x2}
+                                    y2={line.y2}
+                                    stroke={colors.map.graticule}
+                                    strokeWidth="1"
+                                />
+                            ),
+                        )}
+                    </g>
                     {dxcc_map.features.map(shape => {
                         return (
                             <path
@@ -216,6 +275,25 @@ function SvgMap({
                             </path>
                         );
                     })}
+                    {(hovered_spot_data && hovered_spot.source === "dx") ||
+                    (spots.find(spot => spot.id === pinned_spot) && hovered_spot.source !== "dx")
+                        ? (() => {
+                              const angle = (90 - azimuth) * (Math.PI / 180);
+                              const x = center_x + radius * Math.cos(angle);
+                              const y = center_y - radius * Math.sin(angle);
+                              return (
+                                  <line
+                                      x1={center_x}
+                                      y1={center_y}
+                                      x2={x}
+                                      y2={y}
+                                      stroke="black"
+                                      strokeWidth="1"
+                                      strokeDasharray="5,5"
+                                  />
+                              );
+                          })()
+                        : ""}
                     {rendered_spots}
                 </g>
 
@@ -250,7 +328,7 @@ function SvgMap({
                 />
                 <circle r="4" fill="#FF0000" cx={center_x} cy={center_y} />
             </svg>
-            {hovered_spot.source == "map" && popup_position != null ? (
+            {hovered_spot.source == "dx" && popup_position != null ? (
                 <SpotPopup
                     hovered_spot={hovered_spot}
                     set_hovered_spot={set_hovered_spot}
@@ -259,6 +337,7 @@ function SvgMap({
                     hovered_spot_data={hovered_spot_data}
                     distance={hovered_spot_distance}
                     settings={settings}
+                    azimuth={azimuth}
                 />
             ) : (
                 ""

@@ -1,10 +1,12 @@
 import X from "@/components/X.jsx";
 import { useEffect, useState, forwardRef, useRef } from "react";
 import { createPortal } from "react-dom";
+import SpotContextMenu from "./SpotContextMenu";
 
 import { get_flag } from "@/flags.js";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
+import { useFilters } from "@/hooks/useFilters";
 
 const cell_classes = {
     time: "w-14",
@@ -66,15 +68,16 @@ function Spot(
         set_hovered_spot,
         set_cat_to_spot,
         settings,
-        same_freq_spots,
+        on_context_menu,
     },
     ref,
 ) {
+    const { current_freq_spots } = useServerData();
     const time = new Date(spot.time * 1000);
     const utc_hours = String(time.getUTCHours()).padStart(2, "0");
     const utc_minutes = String(time.getUTCMinutes()).padStart(2, "0");
     const formatted_time = utc_hours + ":" + utc_minutes;
-    const is_same_freq = same_freq_spots.includes(spot.id);
+    const is_same_freq = current_freq_spots.includes(spot.id);
     const is_pinned = spot.id == pinned_spot;
     const is_hovered = spot.id == hovered_spot.id || is_pinned || is_same_freq;
 
@@ -164,8 +167,14 @@ function Spot(
                     ""
                 )}
             </td>
-            <td className={cell_classes.dx_callsign + " font-semibold"}>
-                <Callsign callsign={spot.dx_callsign}></Callsign>
+            <td
+                className={cell_classes.dx_callsign + " font-semibold"}
+                onContextMenu={event => {
+                    event.preventDefault();
+                    on_context_menu(event, spot, false);
+                }}
+            >
+                <Callsign callsign={spot.dx_callsign} />
             </td>
             <td className={cell_classes.freq}>
                 <div
@@ -190,8 +199,14 @@ function Spot(
                     {spot.band}
                 </p>
             </td>
-            <td className={cell_classes.spotter_callsign}>
-                <Callsign callsign={spot.spotter_callsign}></Callsign>
+            <td
+                className={cell_classes.spotter_callsign}
+                onContextMenu={event => {
+                    event.preventDefault();
+                    on_context_menu(event, spot, true);
+                }}
+            >
+                <Callsign callsign={spot.spotter_callsign} />
             </td>
             <td className={cell_classes.mode}>{spot.mode}</td>
             <td className={cell_classes.comment}>
@@ -244,10 +259,112 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
 }
 
 function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
+    const {
+        spots,
+        hovered_spot,
+        set_hovered_spot,
+        pinned_spot,
+        set_pinned_spot,
+        current_freq_spots,
+    } = useServerData();
+    const { callsign_filters, setCallsignFilters } = useFilters();
     const row_refs = useRef({});
     const { colors } = useColors();
-    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, freq_spots } =
-        useServerData();
+
+    const [context_menu, set_context_menu] = useState({
+        visible: false,
+        x: 0,
+        y: 0,
+        spot: null,
+        is_spotter: false,
+    });
+
+    const context_menu_actions = [
+        // {
+        //     label: spot => "Copy callsign",
+        //     onClick: spot => {
+        //         navigator.clipboard.writeText(
+        //             context_menu.is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+        //         );
+        //     },
+        // },
+        // {
+        //     label: spot => "Copy Frequency",
+        //     onClick: spot => {
+        //         navigator.clipboard.writeText(spot.freq.toString());
+        //     },
+        // },
+        // {
+        //     label: spot => "Set Radio Frequency",
+        //     onClick: spot => {
+        //         set_cat_to_spot(spot);
+        //     },
+        // },
+        {
+            label: spot => "Open QRZ Profile",
+            onClick: spot => {
+                const callsign = context_menu.is_spotter ? spot.spotter_callsign : spot.dx_callsign;
+                window.open(`https://www.qrz.com/db/${callsign}`, "_blank");
+            },
+        },
+        {
+            label: spot => (spot.id == pinned_spot ? "Unpin Spot" : "Pin Spot"),
+            onClick: spot => {
+                set_pinned_spot(spot.id === pinned_spot ? null : spot.id);
+            },
+        },
+        {
+            label: spot => "Create Alert",
+            onClick: spot => {
+                addCallsignFilter(spot, "alert", context_menu.is_spotter);
+            },
+        },
+        {
+            label: spot => "Create Show Only Filter",
+            onClick: spot => {
+                addCallsignFilter(spot, "show_only", context_menu.is_spotter);
+            },
+        },
+        {
+            label: spot => "Create Hide Filter",
+            onClick: spot => {
+                addCallsignFilter(spot, "hide", context_menu.is_spotter);
+            },
+        },
+    ];
+
+    const handle_context_menu = (event, spot, is_spotter) => {
+        event.preventDefault();
+        const x = event.clientX;
+        const y = event.clientY;
+
+        // Adjust menu position if it would go off screen
+        const menuWidth = 200;
+        const menuHeight = context_menu_actions.length * 43;
+        const adjustedX = Math.min(x, window.innerWidth - menuWidth);
+        const adjustedY = Math.min(y, window.innerHeight - menuHeight);
+
+        set_context_menu({
+            visible: true,
+            x: adjustedX,
+            y: adjustedY,
+            spot,
+            is_spotter,
+        });
+    };
+
+    const addCallsignFilter = (spot, action, is_spotter) => {
+        const newFilter = {
+            action,
+            type: "prefix",
+            value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+            spotter_or_dx: is_spotter ? "spotter" : "dx",
+        };
+        setCallsignFilters({
+            ...callsign_filters,
+            filters: [...callsign_filters.filters, newFilter],
+        });
+    };
 
     useEffect(() => {
         const hovered_ref = row_refs.current[hovered_spot.id];
@@ -262,97 +379,110 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
     }, [hovered_spot]);
 
     return (
-        <div
-            className="text-sm h-full overflow-x-visible border-x-4"
-            style={{
-                borderColor: colors.theme.borders,
-                backgroundColor: colors.theme.background,
-            }}
-        >
-            <div className="overflow-y-scroll h-full w-full">
-                <table
-                    className="max-md:table-fixed max-md:w-full text-center border-collapse"
-                    onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
-                >
-                    <tbody className="divide-y">
-                        <tr
-                            className="sticky top-0"
-                            style={{
-                                backgroundColor: colors.table.header,
-                                color: colors.table.header_text,
-                            }}
-                        >
-                            <HeaderCell
-                                title="Time"
-                                field="time"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <td className={cell_classes.flag}></td>
-                            <HeaderCell
-                                title="DX"
-                                field="dx_callsign"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <HeaderCell
-                                title="Freq"
-                                field="freq"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <HeaderCell
-                                title="Band"
-                                field="band"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <HeaderCell
-                                title="Spotter"
-                                field="spotter_callsign"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <HeaderCell
-                                title="Mode"
-                                field="mode"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                            />
-                            <HeaderCell
-                                title="Comment"
-                                field="comment"
-                                cell_classes={cell_classes}
-                                table_sort={table_sort}
-                                set_table_sort={set_table_sort}
-                                sorting={false}
-                            />
-                        </tr>
-                        {spots.map((spot, index) => (
-                            <Spot
-                                ref={element => (row_refs.current[spot.id] = element)}
-                                key={spot.id}
-                                spot={spot}
-                                is_even={index % 2 == 0}
-                                hovered_spot={hovered_spot}
-                                pinned_spot={pinned_spot}
-                                set_pinned_spot={set_pinned_spot}
-                                set_hovered_spot={set_hovered_spot}
-                                set_cat_to_spot={set_cat_to_spot}
-                                settings={settings}
-                                same_freq_spots={freq_spots}
-                            ></Spot>
-                        ))}
-                    </tbody>
-                </table>
+        <>
+            <div
+                className="text-sm h-full overflow-x-visible border-x-4"
+                style={{
+                    borderColor: colors.theme.borders,
+                    backgroundColor: colors.theme.background,
+                }}
+            >
+                <div className="overflow-y-scroll h-full w-full">
+                    <table
+                        className="max-md:table-fixed max-md:w-full text-center border-collapse"
+                        onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
+                    >
+                        <tbody className="divide-y">
+                            <tr
+                                className="sticky top-0"
+                                style={{
+                                    backgroundColor: colors.table.header,
+                                    color: colors.table.header_text,
+                                }}
+                            >
+                                <HeaderCell
+                                    title="Time"
+                                    field="time"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <td className={cell_classes.flag}></td>
+                                <HeaderCell
+                                    title="DX"
+                                    field="dx_callsign"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <HeaderCell
+                                    title="Freq"
+                                    field="freq"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <HeaderCell
+                                    title="Band"
+                                    field="band"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <HeaderCell
+                                    title="Spotter"
+                                    field="spotter_callsign"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <HeaderCell
+                                    title="Mode"
+                                    field="mode"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                />
+                                <HeaderCell
+                                    title="Comment"
+                                    field="comment"
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                    sorting={false}
+                                />
+                            </tr>
+                            {spots.map((spot, index) => (
+                                <Spot
+                                    ref={element => (row_refs.current[spot.id] = element)}
+                                    key={spot.id}
+                                    spot={spot}
+                                    is_even={index % 2 == 0}
+                                    hovered_spot={hovered_spot}
+                                    pinned_spot={pinned_spot}
+                                    set_pinned_spot={set_pinned_spot}
+                                    set_hovered_spot={set_hovered_spot}
+                                    set_cat_to_spot={set_cat_to_spot}
+                                    settings={settings}
+                                    on_context_menu={handle_context_menu}
+                                ></Spot>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
+            {context_menu.visible && (
+                <SpotContextMenu
+                    x={context_menu.x}
+                    y={context_menu.y}
+                    spot={context_menu.spot}
+                    is_spotter={context_menu.is_spotter}
+                    on_close={() => set_context_menu({ ...context_menu, visible: false })}
+                    onAddFilter={addCallsignFilter}
+                    actions={context_menu_actions}
+                />
+            )}
+        </>
     );
 }
 
