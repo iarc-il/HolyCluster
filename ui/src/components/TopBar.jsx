@@ -23,10 +23,6 @@ const spots_time_limits = {
     "15 Minutes": 900,
     "30 Minutes": 1800,
     "1 Hour": 3600,
-    // "3 Hour": 10800,
-    // "9 Hour": 32400,
-    // "12 Hour": 43200,
-    // "24 Hour": 86400,
 };
 
 function TopBar({
@@ -147,17 +143,19 @@ function TopBar({
                     })}
                 </Select>
 
-                {network_state == "connecting" ? (
-                    <Spinner size="32" color="lightblue" />
-                ) : (
-                    <span title={network_state}>
-                        <NetworkState
-                            size="40"
-                            color={network_state_colors[network_state]}
-                            title={network_state}
-                        />
-                    </span>
-                )}
+                <div className="hidden xs:block">
+                    {network_state == "connecting" ? (
+                        <Spinner size="32" color="lightblue" />
+                    ) : (
+                        <span title={network_state}>
+                            <NetworkState
+                                size="40"
+                                color={network_state_colors[network_state]}
+                                title={network_state}
+                            />
+                        </span>
+                    )}
+                </div>
                 <Settings
                     settings={settings}
                     set_settings={set_settings}
