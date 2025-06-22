@@ -477,8 +477,9 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                     y={context_menu.y}
                     spot={context_menu.spot}
                     is_spotter={context_menu.is_spotter}
-                    onClose={() => set_context_menu({ ...context_menu, visible: false })}
+                    on_close={() => set_context_menu({ ...context_menu, visible: false })}
                     onAddFilter={addCallsignFilter}
+                    actions={context_menu_actions}
                 />
             )}
         </>
