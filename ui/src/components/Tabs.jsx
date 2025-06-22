@@ -1,5 +1,6 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect, useState } from "react";
+import { useSwipeable } from "react-swipeable";
 
 function Tabs({ tabs, local_storage_name = null, external_tab = null }) {
     const [active_tab, set_active_tab] = useLocalStorage(local_storage_name, 0);
@@ -15,6 +16,23 @@ function Tabs({ tabs, local_storage_name = null, external_tab = null }) {
             set_active_tab(external_tab);
         }
     }, [external_tab]);
+
+    const handlers = useSwipeable({
+        onSwipedLeft: () => {
+            console.log("Left");
+            if (active_tab < tabs.length - 1) {
+                set_active_tab(active_tab + 1);
+            }
+        },
+        onSwipedRight: () => {
+            console.log("Right");
+            if (active_tab > 0) {
+                set_active_tab(active_tab - 1);
+            }
+        },
+        trackMouse: false,
+        preventScrollOnSwipe: true,
+    });
 
     return (
         <div className="h-full w-full">
@@ -50,7 +68,9 @@ function Tabs({ tabs, local_storage_name = null, external_tab = null }) {
                 ))}
             </div>
 
-            <div className="w-full h-[calc(100%-42px)]">{tabs[active_tab].content}</div>
+            <div {...handlers} className="w-full h-[calc(100%-42px)]">
+                {tabs[active_tab].content}
+            </div>
         </div>
     );
 }

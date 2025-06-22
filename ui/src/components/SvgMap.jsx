@@ -107,6 +107,8 @@ function SvgMap({
         const zoom = d3
             .zoom()
             .scaleExtent([1, 20])
+            .touchable(true)
+            .filter(event => event.type != "touchstart" && event.type != "touchmove")
             .on("zoom", event => {
                 set_radius_in_km((21 - Math.round(event.transform.k)) * 1000);
                 if (
