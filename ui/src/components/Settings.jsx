@@ -60,6 +60,20 @@ function Settings({ settings, set_settings, set_map_controls, set_radius_in_km }
 
     const [first_launch, set_first_launch] = useLocalStorage("first_launch", true);
     const [should_open_settings, set_should_open_settings] = useState(false);
+    const [should_close_settings, set_should_close_settings] = useState(true);
+
+    function apply_settings(new_settings) {
+        const [lat, lon] = Maidenhead.toLatLon(new_settings.locator);
+        set_map_controls(map_controls => {
+            map_controls.location.displayed_locator = new_settings.locator;
+            map_controls.location.location = [lon, lat];
+            if (settings.default_radius != new_settings.default_radius) {
+                set_radius_in_km(new_settings.default_radius);
+            }
+        });
+        setTheme(new_settings.theme);
+        set_settings(new_settings);
+    }
 
     useEffect(() => {
         set_first_launch(false);
@@ -85,18 +99,10 @@ function Settings({ settings, set_settings, set_map_controls, set_radius_in_km }
                 set_temp_settings(settings);
             }}
             external_open={should_open_settings}
+            external_close={should_close_settings}
             on_apply={() => {
                 if (is_settings_valid) {
-                    set_map_controls(map_controls => {
-                        const [lat, lon] = Maidenhead.toLatLon(temp_settings.locator);
-                        map_controls.location.displayed_locator = temp_settings.locator;
-                        map_controls.location.location = [lon, lat];
-                        if (settings.default_radius != temp_settings.default_radius) {
-                            set_radius_in_km(temp_settings.default_radius);
-                        }
-                    });
-                    setTheme(temp_settings.theme);
-                    set_settings(temp_settings);
+                    apply_settings(temp_settings);
                     reset_temp_settings();
                 }
 
@@ -256,6 +262,8 @@ function Settings({ settings, set_settings, set_map_controls, set_radius_in_km }
                     settings={settings}
                     set_settings={set_settings}
                     set_temp_settings={set_temp_settings}
+                    apply_settings={apply_settings}
+                    set_should_close_settings={set_should_close_settings}
                 />
             </div>
         </Modal>

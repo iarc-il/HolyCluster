@@ -19,7 +19,13 @@ const EXPORTABLE_SETTINGS = {
     },
 };
 
-function ImportExport({ settings, set_settings, set_temp_settings }) {
+function ImportExport({
+    settings,
+    set_settings,
+    set_temp_settings,
+    apply_settings,
+    set_should_close_settings,
+}) {
     const { colors } = useColors();
     const { filters, setFilters, callsign_filters, setCallsignFilters } = useFilters();
 
@@ -70,8 +76,7 @@ function ImportExport({ settings, set_settings, set_temp_settings }) {
                     if (is_selected && imported_data[key]) {
                         switch (key) {
                             case "settings":
-                                set_settings(imported_data.settings);
-                                set_temp_settings(imported_data.settings);
+                                apply_settings(imported_data.settings);
                                 break;
                             case "filters":
                                 setFilters(imported_data.filters);
@@ -82,6 +87,7 @@ function ImportExport({ settings, set_settings, set_temp_settings }) {
                         }
                     }
                 });
+                set_should_close_settings(false);
             } catch (error) {
                 console.error("Error importing settings:", error);
             }
