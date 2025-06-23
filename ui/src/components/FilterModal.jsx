@@ -139,7 +139,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                             set_temp_data={set_temp_data}
                         />
                         <div className="flex justify-start space-x-5 items-center w-full">
-                            <div className>{temp_data.type}:</div>
+                            <div>{temp_data.type}:</div>
                             <div>
                                 {temp_data.type == "entity" ? (
                                     <SearchSelect
