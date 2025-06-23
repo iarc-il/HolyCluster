@@ -7,17 +7,21 @@ import { useFilters } from "@/hooks/useFilters";
 const EXPORTABLE_SETTINGS = {
     settings: {
         label: "General Settings",
-        description: "Includes locator, radius, theme, units, etc.",
+        description: "Locator, radius, theme, units, etc.",
     },
     filters: {
-        label: "Filters",
-        description: "Band, mode, and callsign filters",
+        label: "Band & Mode Filters",
+        description: "Band, mode, and continent filters",
+    },
+    callsign_filters: {
+        label: "Callsign Filters",
+        description: "Alert, show only, and hide filters",
     },
 };
 
-function ImportExport({ settings, filters, set_settings, set_temp_settings, set_filters }) {
+function ImportExport({ settings, set_settings, set_temp_settings }) {
     const { colors } = useColors();
-    const { filters, setFilters } = useFilters();
+    const { filters, setFilters, callsign_filters, setCallsignFilters } = useFilters();
 
     const [selected_settings, set_selected_settings] = useState(
         Object.fromEntries(Object.keys(EXPORTABLE_SETTINGS).map(key => [key, true])),
@@ -33,6 +37,9 @@ function ImportExport({ settings, filters, set_settings, set_temp_settings, set_
                         break;
                     case "filters":
                         export_data.filters = filters;
+                        break;
+                    case "callsign_filters":
+                        export_data.callsign_filters = callsign_filters;
                         break;
                 }
             }
@@ -67,7 +74,10 @@ function ImportExport({ settings, filters, set_settings, set_temp_settings, set_
                                 set_temp_settings(imported_data.settings);
                                 break;
                             case "filters":
-                                set_filters(imported_data.filters);
+                                setFilters(imported_data.filters);
+                                break;
+                            case "callsign_filters":
+                                setCallsignFilters(imported_data.callsign_filters);
                                 break;
                         }
                     }
