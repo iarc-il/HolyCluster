@@ -6,7 +6,7 @@ use crate::freq::Freq;
 use crate::rig::{Mode, Radio, Slot, Status};
 
 struct OmnirigInner {
-    _com_guard: CoUninitializeGuard,
+    com_guard: CoUninitializeGuard,
     _omnirig: IDispatch,
     rig1: IDispatch,
     rig2: IDispatch,
@@ -15,6 +15,7 @@ struct OmnirigInner {
 pub struct OmnirigRadio {
     current_rig: u8,
     inner: Option<OmnirigInner>,
+    reconnect_counter: u8,
 }
 unsafe impl Send for OmnirigRadio {}
 unsafe impl Sync for OmnirigRadio {}
@@ -24,6 +25,7 @@ impl OmnirigRadio {
         Self {
             current_rig: 1,
             inner: None,
+            reconnect_counter: 0,
         }
     }
 
@@ -42,10 +44,12 @@ impl OmnirigRadio {
 
 impl Radio for OmnirigRadio {
     fn init(&mut self) {
-        let com_guard =
-            CoInitializeEx(co::COINIT::MULTITHREADED | co::COINIT::DISABLE_OLE1DDE).unwrap();
+        let com_guard = if let Some(inner) = std::mem::take(&mut self.inner) {
+            inner.com_guard
+        } else {
+            CoInitializeEx(co::COINIT::MULTITHREADED | co::COINIT::DISABLE_OLE1DDE).unwrap()
+        };
 
-        tracing::debug!("Creating instance");
         let omnirig = winsafe::CoCreateInstance::<IDispatch>(
             &CLSIDFromProgID("Omnirig.OmnirigX").unwrap(),
             None,
@@ -53,12 +57,11 @@ impl Radio for OmnirigRadio {
         )
         .unwrap();
 
-        tracing::debug!("Getting rigs");
         let rig1 = omnirig.invoke_get("Rig1", &[]).unwrap().unwrap_dispatch();
         let rig2 = omnirig.invoke_get("Rig2", &[]).unwrap().unwrap_dispatch();
 
         self.inner = Some(OmnirigInner {
-            _com_guard: com_guard,
+            com_guard,
             _omnirig: omnirig,
             rig1,
             rig2,
@@ -76,6 +79,7 @@ impl Radio for OmnirigRadio {
             Mode::CW => 0x01000000,
             Mode::Data => 0x08000000,
         };
+
         self.current_rig()
             .invoke_put("Mode", &winsafe::Variant::I4(mode))
             .unwrap();
@@ -112,6 +116,7 @@ impl Radio for OmnirigRadio {
             .unwrap()
             .unwrap_bstr();
         let mode = self.current_rig().invoke_get("Mode", &[]).unwrap();
+
         let mode = if let winsafe::Variant::I4(mode) = mode {
             match mode {
                 0x2000000 | 0x4000000 => "SSB",
@@ -126,15 +131,27 @@ impl Radio for OmnirigRadio {
         };
 
         let status = match status_str.as_str() {
-            "On-line" => "connected",
-            "Rig is not responding" => "disconnected",
+            "On-line" => {
+                self.reconnect_counter = 0;
+                "connected"
+            }
+            "Rig is not responding" => {
+                self.reconnect_counter += 1;
+                "disconnected"
+            }
+            "Port is not available" => "disconnected",
             _ => "unknown",
-        }.to_string();
+        }
+        .to_string();
+
+        if self.reconnect_counter == 5 {
+            self.reconnect_counter = 0;
+            self.init();
+        }
         Status {
             freq: freq.as_u32_hz(),
             status,
             mode: mode.into(),
-            status_str,
             current_rig: self.current_rig,
         }
     }

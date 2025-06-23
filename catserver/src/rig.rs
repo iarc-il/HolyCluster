@@ -27,7 +27,6 @@ pub struct Status {
     pub freq: u32,
     pub status: String,
     pub mode: String,
-    pub status_str: String,
     pub current_rig: u8,
 }
 
