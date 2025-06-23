@@ -119,17 +119,20 @@ impl Radio for OmnirigRadio {
                 0x800000 | 0x1000000 => "CW",
                 0x20000000 => "AM",
                 0x40000000 => "FM",
-                _ => {
-                    tracing::warn!("Unknown mode: {mode:x}");
-                    "Unknown"
-                }
+                _ => "Unknown",
             }
         } else {
             panic!("Unknown variant");
         };
+
+        let status = match status_str.as_str() {
+            "On-line" => "connected",
+            "Rig is not responding" => "disconnected",
+            _ => "unknown",
+        }.to_string();
         Status {
             freq: freq.as_u32_hz(),
-            status: "connected".into(),
+            status,
             mode: mode.into(),
             status_str,
             current_rig: self.current_rig,
