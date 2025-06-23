@@ -149,7 +149,7 @@ const band_plans = {
     },
 };
 
-export default function FrequencyBar({ className, radio_status, set_cat_to_spot }) {
+export default function FrequencyBar({ className, set_cat_to_spot }) {
     const { colors } = useColors();
     const {
         spots,
@@ -162,7 +162,7 @@ export default function FrequencyBar({ className, radio_status, set_cat_to_spot 
     // Set to -1 to use the current band that the radio is on
     const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
 
-    let { radio_band, radio_freq } = use_radio();
+    let { radio_status, radio_band, radio_freq } = use_radio();
 
     radio_freq = radio_freq && radio_freq >= 0 ? Math.round((radio_freq / 1000) * 10) / 10 : 0;
 

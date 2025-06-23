@@ -9,6 +9,7 @@ import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
 import { useColors } from "../hooks/useColors";
 import { useFilters } from "../hooks/useFilters";
 import { useServerData } from "@/hooks/useServerData";
+import useRadio from "@/hooks/useRadio";
 import { useLocalStorage } from "@uidotdev/usehooks";
 
 import Icon from "@/icon.png";
@@ -33,12 +34,11 @@ function TopBar({
     toggled_ui,
     set_toggled_ui,
     dev_mode,
-    radio_status,
-    rig,
     set_rig,
 }) {
     const { filters, setFilters } = useFilters();
     const { network_state } = useServerData();
+    const { radio_status, rig } = useRadio();
     const box_container_style = "flex items-center h-full p-2 gap-3";
 
     const network_state_colors = {

@@ -70,8 +70,7 @@ function MainContainer() {
         }
     }, [max_radius, auto_radius, map_controls.location]);
 
-    const { send_message_to_radio, radio_status, radio_freq, rig, radio_mode, radio_band } =
-        use_radio();
+    const { send_message_to_radio, radio_freq, rig, radio_mode, radio_band } = use_radio();
 
     function set_cat_to_spot(spot) {
         set_prev_freqs(
@@ -145,7 +144,6 @@ function MainContainer() {
                 home_locator={settings.locator}
                 map_controls={map_controls}
                 set_map_controls={set_map_controls}
-                radio_status={radio_status}
                 default_radius={settings.default_radius}
                 set_radius_in_km={set_radius_in_km}
                 settings={settings}
@@ -197,8 +195,6 @@ function MainContainer() {
                 toggled_ui={toggled_ui}
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
-                radio_status={radio_status}
-                rig={rig}
                 set_rig={set_rig}
             />
             <div className="flex relative h-[calc(100%-4rem)]">
@@ -227,13 +223,7 @@ function MainContainer() {
                         {table}
                     </>
                 )}
-
-                <CallsignsView
-                    toggled_ui={toggled_ui}
-                    radio_status={radio_status}
-                    set_cat_to_spot={set_cat_to_spot}
-                />
-
+                <CallsignsView toggled_ui={toggled_ui} set_cat_to_spot={set_cat_to_spot} />
                 <Continents toggled_ui={toggled_ui} />
             </div>
         </>

@@ -4,18 +4,12 @@ import FrequencyBar from "@/components/FrequencyBar.jsx";
 
 import { useColors } from "../hooks/useColors";
 
-function CallsignsView({ toggled_ui, radio_status, set_cat_to_spot }) {
+function CallsignsView({ toggled_ui, set_cat_to_spot }) {
     const { colors } = useColors();
 
     const filters_component = <Filters toggled_ui={toggled_ui} />;
 
-    const freq_bar = (
-        <FrequencyBar
-            radio_status={radio_status}
-            set_cat_to_spot={set_cat_to_spot}
-            className={"px-2 h-full"}
-        />
-    );
+    const freq_bar = <FrequencyBar set_cat_to_spot={set_cat_to_spot} className={"px-2 h-full"} />;
 
     const toggled_classes = toggled_ui.right
         ? "hidden "

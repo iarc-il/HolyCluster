@@ -7,6 +7,7 @@ import Night from "@/components/Night.jsx";
 import Bar from "@/components/Bar.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
+import use_radio from "@/hooks/useRadio";
 
 import Maidenhead from "maidenhead";
 
@@ -14,7 +15,6 @@ function MapControls({
     home_locator,
     map_controls,
     set_map_controls,
-    radio_status,
     default_radius,
     set_radius_in_km,
     settings,
@@ -24,6 +24,7 @@ function MapControls({
 }) {
     const { colors } = useColors();
     const { propagation } = useServerData();
+    const { radio_status } = use_radio();
 
     function reset_map() {
         const locator = home_locator == "" ? "JJ00AA" : home_locator;
@@ -38,8 +39,11 @@ function MapControls({
 
     const radio_status_to_color = {
         unknown: "#888888",
+        // Not running in CAT mode
         unavailable: "#888888",
+        // CAT control is working
         connected: "#00DD00",
+        // Radio or omnirig is disconnected
         disconnected: "#DD0000",
     };
 
