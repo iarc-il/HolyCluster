@@ -21,7 +21,7 @@ pub enum Slot {
     B = 2,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Status {
     // value in hertz
     pub freq: u32,

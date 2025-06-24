@@ -290,10 +290,14 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result
 
         sender.send(Message::Text(serde_json::to_string(&message)?.into()))?;
 
+        let mut previous_data = None;
         loop {
             let data = radio.write().get_status();
-            let message = Message::Text(serde_json::to_string(&data)?.into());
-            sender.send(message)?;
+            if previous_data.as_ref() != Some(&data) {
+                let message = Message::Text(serde_json::to_string(&data)?.into());
+                sender.send(message)?;
+                previous_data = Some(data);
+            }
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
     });
