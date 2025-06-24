@@ -58,7 +58,7 @@ export default function use_radio() {
     const websocket_url = (protocol == "https:" ? "wss:" : "ws:") + "//" + host + "/radio";
 
     const { sendJsonMessage, readyState, lastJsonMessage } = useWebSocket(websocket_url);
-    const [radio_status, set_radio_status] = useState("unknown");
+    const [radio_status, set_radio_status] = useState("unavailable");
     const [radio_freq, set_radio_freq] = useState(0);
     const [radio_mode, set_radio_mode] = useState("");
     const [rig, set_rig] = useState(1);
@@ -97,12 +97,12 @@ export default function use_radio() {
     };
 
     return {
-        send_message_to_radio: send_message_to_radio,
-        radio_status: radio_status,
-        radio_freq: radio_freq,
-        radio_mode: radio_mode,
-        radio_band: radio_band,
-        catserver_version: catserver_version,
-        rig: rig,
+        send_message_to_radio,
+        radio_status,
+        radio_freq,
+        radio_mode,
+        radio_band,
+        catserver_version,
+        rig,
     };
 }

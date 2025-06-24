@@ -85,7 +85,7 @@ function TopBar({
                 The Holy Cluster
             </h1>
 
-            {radio_status !== "unavailable" && radio_status !== "unknown" && (
+            {radio_status !== "unavailable" ? (
                 <>
                     <div className="flex flex-col w-[42px] h-full items-center ml-2 mr-4">
                         {[1, 2].map(rig_val => {
@@ -119,6 +119,8 @@ function TopBar({
                         />
                     </div>
                 </>
+            ) : (
+                ""
             )}
 
             <div className={box_container_style}>
