@@ -1,12 +1,12 @@
-const Triangle = ({ handleClick, dx_x, dx_size, dx_y, light_color }) => {
+const Triangle = ({ handleClick, dx_x, dx_size, dx_y, color }) => {
     return (
         <polygon
             points={`
-        ${dx_x}, ${dx_y - dx_size / 2} 
-        ${dx_x - dx_size / 2}, ${dx_y + dx_size / 2} 
+        ${dx_x}, ${dx_y - dx_size / 2}
+        ${dx_x - dx_size / 2}, ${dx_y + dx_size / 2}
         ${dx_x + dx_size / 2}, ${dx_y + dx_size / 2}
     `}
-            fill={light_color}
+            fill={color}
             stroke="grey"
             strokeWidth="1px"
             onClick={() => handleClick()}

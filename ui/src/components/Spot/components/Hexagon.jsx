@@ -1,4 +1,4 @@
-const Hexagon = ({ handleClick, dx_x, dx_size, dx_y, light_color }) => {
+const Hexagon = ({ handleClick, dx_x, dx_size, dx_y, color }) => {
     return (
         <polygon
             points={`
@@ -9,7 +9,7 @@ const Hexagon = ({ handleClick, dx_x, dx_size, dx_y, light_color }) => {
         ${dx_x + (dx_size / 1.6) * Math.cos((4 * Math.PI) / 3)},${dx_y + (dx_size / 1.6) * Math.sin((4 * Math.PI) / 3)}
         ${dx_x + (dx_size / 1.6) * Math.cos((5 * Math.PI) / 3)},${dx_y + (dx_size / 1.6) * Math.sin((5 * Math.PI) / 3)}
     `}
-            fill={light_color}
+            fill={color}
             stroke="grey"
             strokeWidth="1px"
             onClick={() => handleClick()}

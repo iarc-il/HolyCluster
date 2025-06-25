@@ -72,7 +72,7 @@ function Spot({
                 y={dx_y - dx_size / 2}
                 width={dx_size}
                 height={dx_size}
-                fill={light_color}
+                fill={color}
                 stroke="grey"
                 strokeWidth="1px"
                 onClick={() => set_cat_to_spot(spot)}
@@ -84,7 +84,7 @@ function Spot({
                 dx_x={dx_x}
                 dx_y={dx_y}
                 dx_size={dx_size}
-                light_color={light_color}
+                color={color}
                 handleClick={() => set_cat_to_spot(spot)}
             />
         );
@@ -94,7 +94,7 @@ function Spot({
                 dx_x={dx_x}
                 dx_y={dx_y}
                 dx_size={dx_size}
-                light_color={light_color}
+                color={color}
                 handleClick={() => set_cat_to_spot(spot)}
             />
         );
@@ -135,7 +135,7 @@ function Spot({
             )}
             <circle
                 r={is_hovered ? 5 : 3}
-                fill={light_color}
+                fill={color}
                 stroke="grey"
                 cx={spotter_x}
                 cy={spotter_y}
