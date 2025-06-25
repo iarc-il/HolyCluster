@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useSwipeable } from "react-swipeable";
 import { useColors } from "@/hooks/useColors";
 
-function Tabs({ tabs, local_storage_name = null, external_tab = null }) {
+function Tabs({ tabs, active_color = null, local_storage_name = null, external_tab = null }) {
     const { colors } = useColors();
     const [active_tab, set_active_tab] = useLocalStorage(local_storage_name, 0);
 
@@ -36,20 +36,23 @@ function Tabs({ tabs, local_storage_name = null, external_tab = null }) {
         preventScrollOnSwipe: true,
     });
 
+    active_color = active_color || colors.theme.highlighted_tab;
+
     return (
         <div className="h-full w-full">
             <div className="flex border-b">
                 {tabs.map((tab, index) => {
                     const bg = tab.bg || colors.theme.background;
                     const text_color = tab.text_color || colors.theme.text;
+
                     return (
                         <button
                             key={index}
-                            className={`flex-1 text-center text-gray-800 py-2 text-sm font-medium ${bg} ${
-                                active_tab === index
-                                    ? "border-b-2 border-gray-800"
-                                    : "border-gray-500"
-                            }`}
+                            className="flex-1 text-center py-2 text-sm font-medium border-b-4"
+                            style={{
+                                borderBottomColor: active_tab == index ? active_color : bg,
+                                backgroundColor: bg,
+                            }}
                             onClick={() => set_active_tab(index)}
                         >
                             <div

@@ -82,6 +82,7 @@ const themes = {
             text: "#000000",
             disabled_text: "#9a9996",
             input_background: "#FFFFFF",
+            highlighted_tab: "#000000",
         },
         buttons: {
             modes: "#96FF9F",
@@ -151,6 +152,7 @@ const themes = {
             text: "#f4f0f0",
             disabled_text: "#62748E",
             input_background: "#2a3942",
+            highlighted_tab: "#FFFFFF",
         },
         buttons: {
             modes: "#2e7a35",
@@ -234,6 +236,7 @@ const themes = {
             text: "#f4f0f0",
             disabled_text: "#62748E",
             input_background: "#3344a5",
+            highlighted_tab: "#000000",
         },
         buttons: {
             modes: "#2e7a35",
@@ -317,6 +320,7 @@ const themes = {
             text: "#e0dcdc",
             disabled_text: "#c0bfbc",
             input_background: "#6c6a6a",
+            highlighted_tab: "#000000",
         },
         buttons: {
             modes: "#96FF9F",
