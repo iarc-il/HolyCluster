@@ -97,8 +97,7 @@ function ImportExport({
     }
 
     return (
-        <div className="border-t mt-4 pt-4" style={{ color: colors.theme.text }}>
-            <h3 className="text-xl mb-4">Import/Export Settings</h3>
+        <div className="p-4" style={{ color: colors.theme.text }}>
             <div className="space-y-2 mb-4">
                 {Object.entries(EXPORTABLE_SETTINGS).map(([key, { label, description }]) => (
                     <div key={key} className="flex items-center justify-between">
@@ -118,7 +117,7 @@ function ImportExport({
                     </div>
                 ))}
             </div>
-            <div className="flex justify-between mt-4">
+            <div className="flex justify-between">
                 <div>
                     <input
                         type="file"
