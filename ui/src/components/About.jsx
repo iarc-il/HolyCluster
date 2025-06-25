@@ -7,6 +7,21 @@ import { useColors } from "../hooks/useColors";
 
 const RELEASES = [
     [
+        "25/06/2025",
+        [
+            <>
+                🎉<b>CAT control </b> - first release of locally installed CAT control software!🎉
+            </>,
+            "Equator display on the map",
+            "Table context menu - right click on a callsign for quick actions",
+            "Change the grid of the map to be polar",
+            "Show azimuth of a hovered spot for easy antenna rotation",
+            "Import/Export of settings and filters",
+            "Mobile interface fixes and improvements",
+            "Missing flags in the spots table",
+        ],
+    ],
+    [
         "13/05/2025",
         [
             "New auto zoom mode",
