@@ -1,4 +1,7 @@
 import { createContext, useContext, useEffect } from "react";
+
+import { useLocalStorage } from "@uidotdev/usehooks";
+
 import { use_object_local_storage } from "@/utils.js";
 import { bands, modes, continents } from "@/filters_data.js";
 
@@ -370,7 +373,12 @@ const themes = {
 export const themes_names = Object.entries(themes).map(([name, theme]) => name);
 
 export const ColorsProvider = ({ children }) => {
-    const [colors, setColors] = use_object_local_storage("colors", themes.Light);
+    const [dev_mode, set_dev_mode] = useLocalStorage("dev_mode", false);
+    const [current_theme, set_current_theme] = useLocalStorage("currnet_theme", "Light");
+    const [colors_inner, set_colors_inner] = use_object_local_storage("colors", themes.Light);
+
+    let colors = dev_mode ? colors_inner : themes[current_theme];
+
     colors.light_bands = Object.fromEntries(
         Object.entries(colors.bands).map(([band, color]) => [band, pSBC(0.25, colors.bands[band])]),
     );
@@ -384,7 +392,7 @@ export const ColorsProvider = ({ children }) => {
     }
 
     function setSectionColor(section, name, color) {
-        setColors(state => ({
+        set_colors_inner(state => ({
             ...state,
             [section]: {
                 ...state[section],
@@ -394,12 +402,15 @@ export const ColorsProvider = ({ children }) => {
     }
 
     function setTheme(theme_name) {
-        setColors(themes[theme_name]);
+        set_current_theme(theme_name);
+        set_colors_inner(themes[theme_name]);
     }
 
     return (
         <Provider
             value={{
+                dev_mode,
+                set_dev_mode,
                 colors,
                 setSectionColor,
                 setTheme,

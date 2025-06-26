@@ -11,12 +11,14 @@ import { use_object_local_storage, is_matching_list, get_max_radius } from "@/ut
 import { bands, modes, continents } from "@/filters_data.js";
 import { useFilters } from "@/hooks/useFilters";
 import { useServerData } from "@/hooks/useServerData";
+import { useColors } from "../hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
 function MainContainer() {
+    const { dev_mode, set_dev_mode } = useColors();
     const [toggled_ui, set_toggled_ui] = useState({ left: true, right: true });
 
     const { spots, set_pinned_spot, filter_missing_flags, set_filter_missing_flags } =
@@ -57,8 +59,6 @@ function MainContainer() {
         column: "time",
         ascending: false,
     });
-
-    const [dev_mode, set_dev_mode] = useLocalStorage("dev_mode", false);
 
     const max_radius = get_max_radius(map_controls.location.location, spots);
 
