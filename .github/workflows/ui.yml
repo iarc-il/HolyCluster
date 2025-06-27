@@ -5,7 +5,7 @@ on:
     paths:
       - "ui/**"
     branches:
-      - "master"
+      - "dev"
     tags:
       - "v*"
 
@@ -13,7 +13,7 @@ jobs:
   build-and-deploy-ui:
     name: Build, Lint, and Deploy the UI
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+    if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST_PROD }} >> ~/.ssh/known_hosts
 
       - name: Upload to Development Server
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/dev'
         run: |
           scp -r ui/dist ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:${{ secrets.DEPLOY_PATH_DEV }}_temp
           ssh ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }} "sudo rm -rf ${{ secrets.DEPLOY_PATH_DEV }} && sudo mv ${{ secrets.DEPLOY_PATH_DEV }}_temp ${{ secrets.DEPLOY_PATH_DEV }}"

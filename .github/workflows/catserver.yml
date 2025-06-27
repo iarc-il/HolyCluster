@@ -6,7 +6,7 @@ on:
       - "catserver/**"
       - ".github/workflows/catserver.yml"
     branches:
-      - "master"
+      - "dev"
     tags:
       - "catserver-v*"
 
@@ -62,7 +62,7 @@ jobs:
         run: cargo clippy --target $TARGET -- -D warnings
 
       - name: Build development catserver
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/dev'
         working-directory: ./catserver
         run: cargo build --target $TARGET --release --features dev_server
 
@@ -80,7 +80,7 @@ jobs:
         run: su wix -c "./build_msi.sh in-docker"
 
       - name: Upload to Development Server
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/dev'
         run: |
           bash catserver/publish.sh \
             --deploy-user ${{ secrets.DEPLOY_USER_DEV }} \
