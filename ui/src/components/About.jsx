@@ -202,16 +202,24 @@ function About({ version }) {
                         {
                             label: <h1 className="text-xl">About</h1>,
                             text_color: colors.theme.text,
-                            content: about,
+                            content: (
+                                <div className="max-h-[60vh] overflow-y-auto w-[38rem]">
+                                    {about}
+                                </div>
+                            ),
                         },
                         {
                             label: <h1 className="text-xl">Release Notes</h1>,
                             text_color: colors.theme.text,
-                            content: release_notes,
+                            content: (
+                                <div className="max-h-[60vh] overflow-y-auto w-[38rem]">
+                                    {release_notes}
+                                </div>
+                            ),
                         },
                     ]}
                     external_tab={should_display_release_notes ? 1 : null}
-                ></Tabs>
+                />
             </div>
         </Modal>
     );
