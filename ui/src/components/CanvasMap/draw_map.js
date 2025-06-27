@@ -304,13 +304,11 @@ export function draw_spots(
 
     context.save();
 
-    // Clip the map content to the circle
     context.beginPath();
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
     context.clip();
 
     apply_context_transform(context, transform);
-    context.lineWidth = 1 / transform.k;
 
     let bold_spot;
     spots.forEach(spot => {
@@ -338,12 +336,13 @@ export function draw_spots(
             bold_spot.dx_loc[0],
         );
 
+        context.save();
+        // Reset transform for drawing the azimuth line
+        context.setTransform(1, 0, 0, 1, 0, 0);
+
         const angle = (90 - azimuth) * (Math.PI / 180);
         const x = dims.center_x + dims.radius * Math.cos(angle);
         const y = dims.center_y - dims.radius * Math.sin(angle);
-
-        context.restore();
-        context.save();
 
         context.beginPath();
         context.moveTo(dims.center_x, dims.center_y);
@@ -354,11 +353,10 @@ export function draw_spots(
         context.stroke();
         context.setLineDash([]);
 
-        context.save();
-        apply_context_transform(context, transform);
+        context.restore();
     }
 
-    // This is used to draw the bold spot over all the other spots.
+    // Draw the bold spot last
     if (bold_spot != null) {
         draw_spot(context, bold_spot, colors, dash_offset, {
             is_bold: true,
