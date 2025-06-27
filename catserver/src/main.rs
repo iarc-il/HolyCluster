@@ -15,12 +15,18 @@ mod freq;
 #[cfg(windows)]
 mod omnirig;
 mod rig;
+#[cfg(not(windows))]
+mod rigctld;
 mod server;
 mod tray_icon;
 mod utils;
 
 use dummy::DummyRadio;
+#[cfg(windows)]
+use omnirig::OmnirigRadio;
 use rig::AnyRadio;
+#[cfg(not(windows))]
+use rigctld::RigctldRadio;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer, Registry, layer::SubscriberExt};
 use tray_icon::IconTrayEvent;
@@ -38,7 +44,7 @@ fn open_at_browser(port: u16) -> Result<()> {
 /// The Holy Cluster - debug flags
 #[argh(help_triggers("-h", "--help"))]
 struct Args {
-    /// run with dummy radio instead of omnirig
+    /// run with dummy radio instead of real radio
     #[argh(switch)]
     dummy: bool,
 
@@ -53,8 +59,6 @@ struct Args {
 
 #[cfg(windows)]
 fn get_radio(use_dummy: bool) -> AnyRadio {
-    use omnirig::OmnirigRadio;
-
     if use_dummy {
         AnyRadio::new(DummyRadio::new())
     } else {
@@ -66,8 +70,10 @@ fn get_radio(use_dummy: bool) -> AnyRadio {
 fn get_radio(use_dummy: bool) -> AnyRadio {
     if use_dummy {
         tracing::warn!("DUMMY env variable doesn't have any affect in linux!");
+        AnyRadio::new(DummyRadio::new())
+    } else {
+        AnyRadio::new(RigctldRadio::new("localhost".into(), 4532))
     }
-    AnyRadio::new(DummyRadio::new())
 }
 
 /// For development purposes, we run each instance in different port, based on the given arguments
