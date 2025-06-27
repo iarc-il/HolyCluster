@@ -186,7 +186,7 @@ function MainContainer() {
     );
 
     return (
-        <>
+        <div className="flex flex-col h-full">
             <TopBar
                 settings={settings}
                 set_settings={set_settings}
@@ -197,7 +197,7 @@ function MainContainer() {
                 dev_mode={dev_mode}
                 set_rig={set_rig}
             />
-            <div className="flex relative h-[calc(100%-4rem)]">
+            <div className="flex relative flex-1 overflow-hidden">
                 <LeftColumn toggled_ui={toggled_ui} />
                 {is_md_device ? (
                     <Tabs
@@ -226,7 +226,7 @@ function MainContainer() {
                 <CallsignsView toggled_ui={toggled_ui} set_cat_to_spot={set_cat_to_spot} />
                 <Continents toggled_ui={toggled_ui} />
             </div>
-        </>
+        </div>
     );
 }
 
