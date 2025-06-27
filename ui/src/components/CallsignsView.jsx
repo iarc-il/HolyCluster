@@ -18,7 +18,7 @@ function CallsignsView({ toggled_ui, set_cat_to_spot }) {
         <div
             className={
                 toggled_classes +
-                " 2xl:flex flex-col bg-white h-full divide-y divide-slate-300 w-56 2xl:w-[30rem] overflow-y-auto"
+                " 2xl:flex flex-col bg-white h-full divide-y divide-slate-300 w-56 2xl:w-[30rem]"
             }
             style={{ backgroundColor: colors.theme.background }}
         >
