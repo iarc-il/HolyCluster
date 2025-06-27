@@ -394,7 +394,7 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                     >
                         <tbody className="divide-y">
                             <tr
-                                className="sticky top-0"
+                                className="sticky top-0 z-50"
                                 style={{
                                     backgroundColor: colors.table.header,
                                     color: colors.table.header_text,
