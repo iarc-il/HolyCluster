@@ -70,19 +70,21 @@ export const ServerDataProvider = ({ children }) => {
     });
     fetch_propagation_context.current.propagation = propagation;
 
-    const spots_context = useRef({
-        spots,
-        set_spots,
-    });
-    spots_context.current.spots = structuredClone(spots);
-
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const websocket_url = get_base_url().replace(/^http(s)?:/, protocol) + "/spots_ws";
 
-    const { lastJsonMessage, readyState } = useWebSocket(websocket_url, {
-        onOpen: () => set_network_state("connected"),
-        onClose: () => set_network_state("disconnected"),
-        onError: () => set_network_state("disconnected"),
+    const [is_first_connection, set_is_first_connection] = useState(true);
+    const last_spot_id_ref = useRef(0);
+
+    const { lastJsonMessage, readyState, sendJsonMessage } = useWebSocket(websocket_url, {
+        onOpen: () => {
+            if (is_first_connection) {
+                sendJsonMessage({ initial: true });
+                set_is_first_connection(false);
+            } else {
+                sendJsonMessage({ last_id: last_spot_id_ref.current });
+            }
+        },
         reconnectAttempts: 10,
         reconnectInterval: 5000,
         shouldReconnect: () => navigator.onLine,
@@ -99,19 +101,31 @@ export const ServerDataProvider = ({ children }) => {
             });
 
             if (data.type === "initial") {
-                spots_context.current.set_spots(new_spots);
+                set_spots(new_spots);
             } else if (data.type === "update") {
-                let spots = new_spots.concat(spots_context.current.spots);
+                let current_spots = new_spots.concat(spots);
                 let current_time = Math.round(Date.now() / 1000);
-                spots = spots.filter(spot => spot.time > current_time - 3600);
-                spots_context.current.set_spots(spots);
+                current_spots = current_spots.filter(spot => spot.time > current_time - 3600);
+                set_spots(current_spots);
+            }
+
+            if (new_spots.length > 0) {
+                last_spot_id_ref.current = new_spots[new_spots.length - 1].id;
             }
         }
     }, [lastJsonMessage]);
 
     useEffect(() => {
-        if (readyState === ReadyState.CONNECTING) {
-            set_network_state("connecting");
+        switch (readyState) {
+            case ReadyState.CONNECTING:
+                set_network_state("connecting");
+                break;
+            case ReadyState.OPEN:
+                set_network_state("connected");
+                break;
+            case ReadyState.CLOSED:
+                set_network_state("disconnected");
+                break;
         }
     }, [readyState]);
 
@@ -122,20 +136,7 @@ export const ServerDataProvider = ({ children }) => {
         fetch_propagation_with_context();
         let propagation_interval_id = setInterval(fetch_propagation_with_context, 3600 * 1000);
 
-        const handle_online = () => {
-            set_network_state("connecting");
-            fetch_propagation_with_context();
-        };
-        const handle_offline = () => {
-            set_network_state("disconnected");
-        };
-
-        window.addEventListener("online", handle_online);
-        window.addEventListener("offline", handle_offline);
-
         return () => {
-            window.removeEventListener("online", handle_online);
-            window.removeEventListener("offline", handle_offline);
             clearInterval(propagation_interval_id);
         };
     }, []);
