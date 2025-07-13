@@ -200,27 +200,28 @@ async def spots_ws(websocket: fastapi.WebSocket):
     await websocket.accept()
 
     try:
-        with Session(engine) as session:
-            query = select(DX).order_by(desc(DX.id)).limit(500)
-            initial_spots = session.exec(query).all()
-            initial_spots = [cleanup_spot(spot) for spot in reversed(initial_spots)]
-            await websocket.send_json({"type": "initial", "spots": initial_spots})
+        message = await websocket.receive_json()
 
-            if initial_spots:
-                last_id = initial_spots[-1]["id"]
+        with Session(engine) as session:
+            if "initial" in message:
+                query = select(DX).order_by(desc(DX.id)).limit(500)
+                initial_spots = session.exec(query).all()
+                initial_spots = [cleanup_spot(spot) for spot in reversed(initial_spots)]
+                await websocket.send_json({"type": "initial", "spots": initial_spots})
+
+                if initial_spots:
+                    last_id = initial_spots[-1]["id"]
+                else:
+                    last_id = 0
             else:
-                last_id = 0
+                last_id = message.get("last_id", 0)
 
         while True:
             await asyncio.sleep(30)
 
             with Session(engine) as session:
-                query = select(DX).limit(100)
-                new_spots = session.exec(query)
-
                 query = select(DX).where(DX.id > last_id).order_by(DX.id)
                 new_spots = session.exec(query).all()
-                print(new_spots)
 
                 if new_spots:
                     new_spots = [cleanup_spot(spot) for spot in new_spots]
