@@ -195,6 +195,42 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
             break
 
 
+@app.websocket("/spots_ws")
+async def spots_ws(websocket: fastapi.WebSocket):
+    await websocket.accept()
+
+    try:
+        with Session(engine) as session:
+            query = select(DX).order_by(desc(DX.id)).limit(500)
+            initial_spots = session.exec(query).all()
+            initial_spots = [cleanup_spot(spot) for spot in reversed(initial_spots)]
+            await websocket.send_json({"type": "initial", "spots": initial_spots})
+
+            if initial_spots:
+                last_id = initial_spots[-1]["id"]
+            else:
+                last_id = 0
+
+        while True:
+            await asyncio.sleep(30)
+
+            with Session(engine) as session:
+                query = select(DX).limit(100)
+                new_spots = session.exec(query)
+
+                query = select(DX).where(DX.id > last_id).order_by(DX.id)
+                new_spots = session.exec(query).all()
+                print(new_spots)
+
+                if new_spots:
+                    new_spots = [cleanup_spot(spot) for spot in new_spots]
+                    last_id = new_spots[-1]["id"]
+                    await websocket.send_json({"type": "update", "spots": new_spots})
+
+    except websockets.WebSocketDisconnect:
+        pass
+
+
 def get_latest_catserver_name():
     latest_file_path = settings.CATSERVER_MSI_DIR / "latest"
     if not latest_file_path.exists():

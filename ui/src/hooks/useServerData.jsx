@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useFilters } from "../hooks/useFilters";
 import { get_base_url, is_matching_list, sort_spots } from "@/utils.js";
 import { bands } from "@/filters_data.js";
@@ -14,56 +15,6 @@ export const useServerData = () => {
     const context = useContext(ServerDataContext);
     return { ...context };
 };
-
-function fetch_spots() {
-    if (this.is_fetching_in_progress) {
-        return;
-    }
-
-    let url = get_base_url();
-    url += "/spots";
-    if (this.last_id != null) {
-        url += `?last_id=${this.last_id}`;
-    }
-
-    if (!navigator.onLine) {
-        this.set_network_state("disconnected");
-    } else {
-        this.is_fetching_in_progress = true;
-        return fetch(url, { mode: "cors" })
-            .then(response => {
-                if (response == null || !response.ok) {
-                    return Promise.reject(response);
-                } else {
-                    return response.json();
-                }
-            })
-            .then(data => {
-                if (data == null) {
-                    return Promise.reject(response);
-                } else {
-                    const new_spots = data.map(spot => {
-                        if (spot.mode == "DIGITAL") {
-                            spot.mode = "DIGI";
-                        }
-                        return spot;
-                    });
-                    new_spots.sort((spot_a, spot_b) => spot_b.id - spot_a.id);
-                    let spots = new_spots.concat(this.spots);
-                    let current_time = Math.round(Date.now() / 1000);
-                    spots = spots.filter(spot => spot.time > current_time - 3600);
-                    this.last_id = spots[0].id;
-                    this.set_spots(spots);
-                    this.set_network_state("connected");
-                }
-                this.is_fetching_in_progress = false;
-            })
-            .catch(_ => {
-                this.set_network_state("disconnected");
-                this.is_fetching_in_progress = false;
-            });
-    }
-}
 
 function fetch_propagation() {
     let url = get_base_url() + "/propagation";
@@ -119,30 +70,60 @@ export const ServerDataProvider = ({ children }) => {
     });
     fetch_propagation_context.current.propagation = propagation;
 
-    const fetch_spots_context = useRef({
+    const spots_context = useRef({
         spots,
         set_spots,
-        set_network_state,
-        last_id: null,
     });
-    // This is very importent because the spots are later sorted
-    fetch_spots_context.current.spots = structuredClone(spots);
+    spots_context.current.spots = structuredClone(spots);
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const websocket_url = get_base_url().replace(/^http(s)?:/, protocol) + "/spots_ws";
+
+    const { lastJsonMessage, readyState } = useWebSocket(websocket_url, {
+        onOpen: () => set_network_state("connected"),
+        onClose: () => set_network_state("disconnected"),
+        onError: () => set_network_state("disconnected"),
+        reconnectAttempts: 10,
+        reconnectInterval: 5000,
+        shouldReconnect: () => navigator.onLine,
+    });
 
     useEffect(() => {
-        const fetch_spots_with_context = fetch_spots.bind(fetch_spots_context.current);
-        fetch_spots_with_context();
-        let spots_interval_id = setInterval(fetch_spots_with_context, 30 * 1000);
+        if (lastJsonMessage) {
+            const data = lastJsonMessage;
+            let new_spots = data.spots.map(spot => {
+                if (spot.mode === "DIGITAL") {
+                    spot.mode = "DIGI";
+                }
+                return spot;
+            });
 
+            if (data.type === "initial") {
+                spots_context.current.set_spots(new_spots);
+            } else if (data.type === "update") {
+                let spots = new_spots.concat(spots_context.current.spots);
+                let current_time = Math.round(Date.now() / 1000);
+                spots = spots.filter(spot => spot.time > current_time - 3600);
+                spots_context.current.set_spots(spots);
+            }
+        }
+    }, [lastJsonMessage]);
+
+    useEffect(() => {
+        if (readyState === ReadyState.CONNECTING) {
+            set_network_state("connecting");
+        }
+    }, [readyState]);
+
+    useEffect(() => {
         const fetch_propagation_with_context = fetch_propagation.bind(
             fetch_propagation_context.current,
         );
         fetch_propagation_with_context();
         let propagation_interval_id = setInterval(fetch_propagation_with_context, 3600 * 1000);
 
-        // Try to fetch again the spots when the device is connected to the internet
         const handle_online = () => {
             set_network_state("connecting");
-            fetch_spots_with_context();
             fetch_propagation_with_context();
         };
         const handle_offline = () => {
@@ -155,7 +136,6 @@ export const ServerDataProvider = ({ children }) => {
         return () => {
             window.removeEventListener("online", handle_online);
             window.removeEventListener("offline", handle_offline);
-            clearInterval(spots_interval_id);
             clearInterval(propagation_interval_id);
         };
     }, []);
