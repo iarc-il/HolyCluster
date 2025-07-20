@@ -109,7 +109,7 @@ async def prepare_holy_spots_records(holy_spots_list: list,
 
 
 async def collect_dxheat_spots(debug=False):
-    bands = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6, 4]
+    bands = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6, 4, "SHF", "UHF", "VHF", "LF"]
     start = time()
     tasks = []
     for band in bands:
