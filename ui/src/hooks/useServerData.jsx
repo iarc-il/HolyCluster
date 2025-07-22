@@ -3,7 +3,7 @@ import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useFilters } from "../hooks/useFilters";
 import { get_base_url, is_matching_list, sort_spots } from "@/utils.js";
 import { bands, modes } from "@/filters_data.js";
-import { get_flag } from "@/flags.js";
+import { get_flag, shorten_dxcc } from "@/flags.js";
 import use_radio from "./useRadio";
 import { use_object_local_storage } from "@/utils.js";
 
@@ -97,6 +97,7 @@ export const ServerDataProvider = ({ children }) => {
                 if (spot.mode === "DIGITAL") {
                     spot.mode = "DIGI";
                 }
+                spot.dx_country = shorten_dxcc(spot.dx_country);
                 return spot;
             });
 

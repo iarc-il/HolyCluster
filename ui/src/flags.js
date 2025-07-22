@@ -28,8 +28,8 @@ const dxcc_to_country_flag = {
     "Kure Island": "United States Minor Outlying Islands",
     "Wake Island": "United States Minor Outlying Islands",
     "Mariana Islands": "United States Minor Outlying Islands",
-    "Guantanamo Bay": "United States of America",
-    Alaska: "United States of America",
+    "Guantanamo Bay": "USA",
+    Alaska: "USA",
     Corsica: "France",
     "Wallis and Futuna Islands": "France",
     "North Cook Islands": "Cook Islands",
@@ -58,6 +58,15 @@ const dxcc_to_country_flag = {
     "UK Sovereign Base Areas on Cyprus": "Cyprus",
 };
 
+const dxcc_to_short_dxcc = {
+    "Czech Republic": "Czechia",
+    "International Telecommunication Union Headquarters": "ITU Headquarters",
+    "Slovak Republic": "Slovakia",
+    "United Arab Emirates": "UAE",
+    "United Nations Headquarters": "UN Headquarters",
+    "United States of America": "USA",
+};
+
 export function get_flag(dx_country) {
     if (dxcc_to_country_flag[dx_country]) {
         return flags[dxcc_to_country_flag[dx_country]];
@@ -65,5 +74,14 @@ export function get_flag(dx_country) {
         return flags[dx_country];
     } else {
         return null;
+    }
+}
+
+export function shorten_dxcc(dx_country) {
+    let shorted = dxcc_to_short_dxcc[dx_country];
+    if (shorted) {
+        return shorted;
+    } else {
+        return dx_country;
     }
 }
