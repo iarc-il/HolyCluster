@@ -34,7 +34,6 @@ function ContinentColumn({ spot_type, colors }) {
                                 },
                             }));
                         }}
-                        size="small"
                     />
                 </FilterOptions>
             ))}

@@ -171,7 +171,6 @@ function LeftColumn({ toggled_ui }) {
                                 }}
                                 on_mouse_leave={_ => set_hovered_band(null)}
                                 hover_brightness="125"
-                                size="small"
                             />
                         </FilterOptions>
                     );
@@ -202,7 +201,6 @@ function LeftColumn({ toggled_ui }) {
                             text_color={colors.text[radio_band] ?? "white"}
                             on_click={_ => setRadioModeFilter(!filters.radio_band)}
                             hover_brightness="125"
-                            size="small"
                         />
                     </div>
                 </div>
@@ -243,7 +241,6 @@ function LeftColumn({ toggled_ui }) {
                                     }))
                                 }
                                 color={colors.buttons.modes}
-                                size="small"
                             />
                         </FilterOptions>
                     );

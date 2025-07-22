@@ -11,7 +11,6 @@ function FilterButton({
     text_color = "#000000",
     className,
     hover_brightness = "110",
-    size = "normal",
 }) {
     const { colors } = useColors();
 
@@ -22,14 +21,10 @@ function FilterButton({
         "rounded-full",
         "cursor-pointer",
         "select-none",
+        "w-16",
         `hover:brightness-${hover_brightness}`,
         className ?? "",
     ];
-    if (size == "normal") {
-        box_style.push(...["py-2", "px-2", "min-w-12"]);
-    } else if (size == "small") {
-        box_style.push(...["w-16"]);
-    }
 
     if (is_active) {
         box_style.push("border", "border-slate-700");
