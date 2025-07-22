@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useFilters } from "../hooks/useFilters";
 import { get_base_url, is_matching_list, sort_spots } from "@/utils.js";
-import { bands } from "@/filters_data.js";
+import { bands, modes } from "@/filters_data.js";
 import { get_flag } from "@/flags.js";
 import use_radio from "./useRadio";
 import { use_object_local_storage } from "@/utils.js";
@@ -223,6 +223,18 @@ export const ServerDataProvider = ({ children }) => {
         return spots_per_band_count;
     }, [filtered_spots]);
 
+    const spots_per_mode_count = useMemo(() => {
+        const spots_per_mode_count = Object.fromEntries(
+            modes.map(mode => [mode, filtered_spots.filter(spot => spot.mode === mode).length]),
+        );
+
+        // Limit the count for 2 digit display
+        for (const mode in spots_per_mode_count) {
+            spots_per_mode_count[mode] = Math.min(spots_per_mode_count[mode], 99);
+        }
+        return spots_per_mode_count;
+    }, [filtered_spots]);
+
     // Max offset for the frequency error in kHz
     const freq_error_range = {
         FT8: 0.2,
@@ -254,6 +266,7 @@ export const ServerDataProvider = ({ children }) => {
                 filter_missing_flags,
                 set_filter_missing_flags,
                 spots_per_band_count,
+                spots_per_mode_count,
                 propagation,
                 network_state,
                 current_freq_spots,

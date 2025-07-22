@@ -114,15 +114,13 @@ function SpotCount({ count }) {
 
     return (
         <span className="absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10">
-            <span className={classes.join(" ")}>
-                {count}
-            </span>
+            <span className={classes.join(" ")}>{count}</span>
         </span>
     );
 }
 
 function LeftColumn({ toggled_ui }) {
-    const { spots_per_band_count, set_hovered_band } = useServerData();
+    const { spots_per_band_count, spots_per_mode_count, set_hovered_band } = useServerData();
     const { filters, setFilters, setRadioModeFilter } = useFilters();
     const { radio_band, radio_status, catserver_version } = use_radio();
     const [new_version_available, set_new_version_available] = useState(false);
@@ -227,6 +225,7 @@ function LeftColumn({ toggled_ui }) {
                             filter_value={mode}
                             orientation="right"
                         >
+                            <SpotCount count={spots_per_mode_count[mode]} />
                             <FilterButton
                                 text={
                                     <>
