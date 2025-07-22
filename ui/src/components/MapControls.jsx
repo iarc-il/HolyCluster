@@ -4,7 +4,7 @@ import Input from "@/components/Input.jsx";
 import Button from "@/components/Button.jsx";
 import Radio from "@/components/Radio.jsx";
 import Night from "@/components/Night.jsx";
-import Bar from "@/components/Bar.jsx";
+import PropagationBar from "@/components/PropagationBar.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 import use_radio from "@/hooks/useRadio";
@@ -87,30 +87,33 @@ function MapControls({
             </div>
             {propagation && is_md_device && settings.propagation_displayed && (
                 <div className="absolute bottom-2 z-40 right-5 flex justify-center pt-1 xs:pt-2 gap-1 xs:gap-2">
-                    <Bar
-                        value={Math.round(propagation.a_index)}
+                    <PropagationBar
+                        value={propagation.a_index.value}
+                        timestamp={propagation.a_index.timestamp}
                         label="A"
                         min={0}
                         max={100}
                         low_mid={14}
                         mid_high={80}
                     />
-                    <Bar
-                        value={Math.round(propagation.k_index)}
+                    <PropagationBar
+                        value={propagation.k_index.value}
+                        timestamp={propagation.k_index.timestamp}
                         label="K"
                         min={0}
                         max={9}
                         low_mid={3}
                         mid_high={5}
                     />
-                    <Bar
-                        value={Math.round(propagation.sfi)}
+                    <PropagationBar
+                        value={propagation.sfi.value}
+                        timestamp={propagation.sfi.timestamp}
                         label="SFI"
                         min={0}
                         max={200}
-                        reverse_colors={true}
                         low_mid={83}
                         mid_high={120}
+                        reverse_colors={true}
                     />
                 </div>
             )}
