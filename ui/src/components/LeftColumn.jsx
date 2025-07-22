@@ -92,6 +92,35 @@ function CatserverDownload({ size, new_version_available }) {
     );
 }
 
+function SpotCount({ count }) {
+    if (count === 0) return null;
+
+    const classes = [
+        "relative",
+        "inline-flex",
+        "border",
+        "border-gray-900",
+        "bg-red-600",
+        "text-white",
+        "font-medium",
+        "justify-center",
+        "items-center",
+        "rounded-full",
+        "h-5",
+        "w-5",
+        "text-center",
+        "text-[12px]",
+    ];
+
+    return (
+        <span className="absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10">
+            <span className={classes.join(" ")}>
+                {count}
+            </span>
+        </span>
+    );
+}
+
 function LeftColumn({ toggled_ui }) {
     const { spots_per_band_count, set_hovered_band } = useServerData();
     const { filters, setFilters, setRadioModeFilter } = useFilters();
@@ -141,14 +170,8 @@ function LeftColumn({ toggled_ui }) {
                             orientation="right"
                             disabled={filters.radio_band}
                         >
-                            {spots_per_band_count[band] != 0 && !filters.radio_band ? (
-                                <span className="absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10">
-                                    <span className="relative inline-flex border border-gray-900 bg-red-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
-                                        {spots_per_band_count[band]}
-                                    </span>
-                                </span>
-                            ) : (
-                                ""
+                            {!filters.radio_band && (
+                                <SpotCount count={spots_per_band_count[band]} />
                             )}
                             <FilterButton
                                 text={band + "m"}
@@ -180,20 +203,7 @@ function LeftColumn({ toggled_ui }) {
             {radio_status != "unavailable" || filters.radio_band ? (
                 <div className={filter_group_classes + "py-4 border-b-2 border-slate-300"}>
                     <div>
-                        {spots_per_band_count[radio_band] != 0 ? (
-                            <span
-                                className={
-                                    "absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10"
-                                }
-                            >
-                                <span className="relative inline-flex border border-gray-900 bg-red-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
-                                    {spots_per_band_count[radio_band]}
-                                </span>
-                            </span>
-                        ) : (
-                            ""
-                        )}
-
+                        <SpotCount count={spots_per_band_count[radio_band]} />
                         <FilterButton
                             text={"Radio"}
                             is_active={filters.radio_band}
