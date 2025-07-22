@@ -79,7 +79,7 @@ async def propagation_data_collector(app):
             logger.info(f"Got propagation data: {app.state.propagation}")
         except Exception as e:
             sleep = 10
-            logger.exception(f"Failed to fetch spots: {str(e)}")
+            logger.exception(f"Failed to fetch propagation data: {str(e)}")
         await asyncio.sleep(sleep)
 
 
