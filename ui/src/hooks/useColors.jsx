@@ -48,6 +48,9 @@ pSBC = pSBC.bind({});
 const themes = {
     Light: {
         bands: {
+            SHF: "#666062",
+            UHF: "#666062",
+            VHF: "#666062",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -64,6 +67,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
+            SHF: "default_bright",
+            UHF: "default_bright",
+            VHF: "default_bright",
             4: "default_bright",
             6: "default_dark",
             10: "default_dark",
@@ -118,6 +124,9 @@ const themes = {
     },
     Dark: {
         bands: {
+            SHF: "#666062",
+            UHF: "#666062",
+            VHF: "#666062",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -134,6 +143,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
+            SHF: "white",
+            UHF: "white",
+            VHF: "white",
             4: "white",
             6: "black",
             10: "black",
@@ -182,6 +194,9 @@ const themes = {
             borders: "#000000",
         },
         light_bands: {
+            SHF: "#9b9899",
+            UHF: "#9b9899",
+            VHF: "#9b9899",
             4: "#9b9899",
             6: "#ff99ef",
             10: "#eea283",
@@ -202,6 +217,9 @@ const themes = {
     },
     Blue: {
         bands: {
+            SHF: "#666062",
+            UHF: "#666062",
+            VHF: "#666062",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -218,6 +236,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
+            SHF: "white",
+            UHF: "white",
+            VHF: "white",
             4: "white",
             6: "black",
             10: "black",
@@ -266,6 +287,9 @@ const themes = {
             borders: "#000000",
         },
         light_bands: {
+            SHF: "#9b9899",
+            UHF: "#9b9899",
+            VHF: "#9b9899",
             4: "#9b9899",
             6: "#ff99ef",
             10: "#eea283",
@@ -286,6 +310,9 @@ const themes = {
     },
     Gray: {
         bands: {
+            SHF: "#666062",
+            UHF: "#666062",
+            VHF: "#666062",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -302,6 +329,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
+            SHF: "white",
+            UHF: "white",
+            VHF: "white",
             4: "white",
             6: "black",
             10: "black",
@@ -350,6 +380,9 @@ const themes = {
             borders: "#000000",
         },
         light_bands: {
+            SHF: "#9b9899",
+            UHF: "#9b9899",
+            VHF: "#9b9899",
             4: "#9b9899",
             6: "#ff99ef",
             10: "#eea283",

@@ -160,6 +160,7 @@ function LeftColumn({ toggled_ui }) {
             <div className={filter_group_classes + "pb-4 border-b-2 border-slate-300"}>
                 {bands.map(band => {
                     const color = colors.bands[band];
+                    let label = Number.isInteger(band) ? band + "m" : band;
                     return (
                         <FilterOptions
                             key={band}
@@ -172,7 +173,7 @@ function LeftColumn({ toggled_ui }) {
                                 <SpotCount count={spots_per_band_count[band]} />
                             )}
                             <FilterButton
-                                text={band + "m"}
+                                text={label}
                                 is_active={filters.bands[band]}
                                 color={color}
                                 text_color={colors.text[band]}
