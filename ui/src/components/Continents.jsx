@@ -3,6 +3,8 @@ import FilterButton from "@/components/FilterButton.jsx";
 import { continents } from "@/filters_data.js";
 import { useFilters } from "../hooks/useFilters";
 import { useColors } from "../hooks/useColors";
+import UtilityButtons from "./UtilityButtons";
+
 const title = { dx: "DX", spotter: "DE" };
 
 function ContinentColumn({ spot_type, colors }) {
@@ -59,6 +61,9 @@ function Continents({ toggled_ui }) {
             {["dx", "spotter"].map(spot_type => (
                 <ContinentColumn key={spot_type} spot_type={spot_type} colors={colors} />
             ))}
+            <div className="mt-auto mb-2">
+                <UtilityButtons />
+            </div>
         </div>
     );
 }
