@@ -123,7 +123,7 @@ def cleanup_spot(spot):
         "dx_country": spot.dx_country,
         "dx_continent": spot.dx_continent,
         "freq": float(spot.frequency),
-        "band": int(float(spot.band)),
+        "band": float(spot.band),
         "mode": mode,
         "time": int(spot.date_time.timestamp()),
         "comment": spot.comment,
