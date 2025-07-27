@@ -1,0 +1,32 @@
+Cluster Name,Hostname,Port,Type
+DXUSA,dxc.dxusa.net,7300,dx-cluster
+WA9PIE-2,hrd.wa9pie.net,8000,dx-cluster
+VE7CC,ve7cc.net,23,cc-cluster
+K3WW,cluster.k3ww.com,23,cc-cluster
+N4AF,cluster.n4af.net,7373,cc-cluster
+N6WS,cluster.n6ws.com,7373,cc-cluster
+SK6AW,sk6aw.dxcluster.se,41112,dx-cluster
+DL8EBW,dxcluster.dl8ebw.de,8000,dx-cluster
+OK2PEN,ok2pen.net,41112,dx-cluster
+OZ4DX,cluster.oz4dx.dk,7373,dx-cluster
+F5LEN,f5len.hb9eme.ch,8000,dx-cluster
+HB9ON,cluster.hb9on.ch,8000,dx-cluster
+SM0Y,cluster.sm0y.com,41112,dx-cluster
+G7VJR,cluster.g7vjr.org,7373,dx-cluster
+DXSpider (GEN‑US),dxspider.org,7300,dx-cluster
+EI7SDX,dxc.ei7sdx.net,7373,dx-cluster
+I0JBL-6,i0jbl.ath.cx,41112,dx-cluster
+ZL1AOX,zl1aox.info,7300,dx-cluster
+ZL4PW,zl4pw.dyndns.org,7300,dx-cluster
+K6TT,dxc.k6tt.com,7373,dx-cluster
+K3LR,dxc.k3lr.com,7373,dx-cluster
+N9MXQ,dxc.n9mxq.net,7373,dx-cluster
+DB0FHN,db0fhn.efi.fh-nuernberg.de,7300,dx-cluster
+DB0LJ,db0lj.dyndns.org,41112,dx-cluster
+DB0SPC,db0spc.myvnc.com,8000,dx-cluster
+EA5C,cluster.ea5rcg.org,8000,dx-cluster
+EA7URC,dx.ea7urc.org,41112,dx-cluster
+EA3AKS,ea3aks.org,41112,dx-cluster
+EA1URF,campelo.cdf.udc.es,8000,dx-cluster
+S50CLX,s50clx.infrax.si,23,ar-cluster
+
