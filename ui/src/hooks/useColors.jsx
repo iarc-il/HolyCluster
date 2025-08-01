@@ -48,9 +48,9 @@ pSBC = pSBC.bind({});
 const themes = {
     Light: {
         bands: {
-            SHF: "#666062",
-            UHF: "#666062",
-            VHF: "#666062",
+            SHF: "#A07CFF",
+            UHF: "#5ECFFF",
+            VHF: "#5EFFA0",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -67,9 +67,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
-            SHF: "default_bright",
-            UHF: "default_bright",
-            VHF: "default_bright",
+            SHF: "default_dark",
+            UHF: "default_dark",
+            VHF: "default_dark",
             4: "default_bright",
             6: "default_dark",
             10: "default_dark",
@@ -124,9 +124,9 @@ const themes = {
     },
     Dark: {
         bands: {
-            SHF: "#666062",
-            UHF: "#666062",
-            VHF: "#666062",
+            SHF: "#A07CFF",
+            UHF: "#5ECFFF",
+            VHF: "#5EFFA0",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -143,9 +143,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
-            SHF: "white",
-            UHF: "white",
-            VHF: "white",
+            SHF: "black",
+            UHF: "black",
+            VHF: "black",
             4: "white",
             6: "black",
             10: "black",
@@ -200,9 +200,9 @@ const themes = {
     },
     Blue: {
         bands: {
-            SHF: "#666062",
-            UHF: "#666062",
-            VHF: "#666062",
+            SHF: "#A07CFF",
+            UHF: "#5ECFFF",
+            VHF: "#5EFFA0",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -219,9 +219,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
-            SHF: "white",
-            UHF: "white",
-            VHF: "white",
+            SHF: "black",
+            UHF: "black",
+            VHF: "black",
             4: "white",
             6: "black",
             10: "black",
@@ -276,9 +276,9 @@ const themes = {
     },
     Gray: {
         bands: {
-            SHF: "#666062",
-            UHF: "#666062",
-            VHF: "#666062",
+            SHF: "#A07CFF",
+            UHF: "#5ECFFF",
+            VHF: "#5EFFA0",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -295,9 +295,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
-            SHF: "white",
-            UHF: "white",
-            VHF: "white",
+            SHF: "black",
+            UHF: "black",
+            VHF: "black",
             4: "white",
             6: "black",
             10: "black",
