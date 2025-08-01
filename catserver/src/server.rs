@@ -75,7 +75,14 @@ impl Server {
 
         let app = Router::new()
             .route("/radio", any(cat_control_handler))
-            .route("/submit_spot", any(submit_spot_handler))
+            .route(
+                "/submit_spot",
+                any(|state, websocket| websocket_handler(state, websocket, "/submit_spot")),
+            )
+            .route(
+                "/spots_ws",
+                any(|state, websocket| websocket_handler(state, websocket, "/spots_ws")),
+            )
             .route("/exit", post(exit_server_handler));
 
         let app_state = AppState {
@@ -159,27 +166,29 @@ async fn exit_server_handler(State(state): State<AppState>) -> impl IntoResponse
     StatusCode::OK
 }
 
-async fn submit_spot_handler(
+async fn websocket_handler(
     State(state): State<AppState>,
     websocket: WebSocketUpgrade,
+    path: &'static str,
 ) -> impl IntoResponse {
     websocket
         .write_buffer_size(0)
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
         .on_upgrade(async |websocket: WebSocket| {
-            handle_submit_spot_socket(state.server_config, websocket)
+            handle_websocket(state.server_config, websocket, path)
                 .await
                 .unwrap()
         })
 }
 
-async fn handle_submit_spot_socket(
+async fn handle_websocket(
     server_config: ServerConfig,
     client_socket: WebSocket,
+    path: &str,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = client_socket.split();
-    let (stream, _response) = connect_async(server_config.build_uri("ws", "/submit_spot")).await?;
+    let (stream, _response) = connect_async(server_config.build_uri("ws", path)).await?;
     let (mut server_sender, mut server_receiver) = stream.split();
 
     let mut send_task: JoinHandle<Result<()>> = tokio::spawn(async move {
