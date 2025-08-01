@@ -52,7 +52,7 @@ impl Radio for OmnirigRadio {
 
         let omnirig = winsafe::CoCreateInstance::<IDispatch>(
             &CLSIDFromProgID("Omnirig.OmnirigX").unwrap(),
-            None,
+            None::<&winsafe::IUnknown>,
             co::CLSCTX::LOCAL_SERVER,
         )
         .unwrap();
