@@ -25,7 +25,7 @@ impl RigctldRadio {
 
     fn send_command(&mut self, cmd: &str) -> Option<String> {
         let result = if let Some(stream) = &mut self.stream {
-            if let Err(err) = writeln!(stream, "{}", cmd) {
+            if let Err(err) = writeln!(stream, "{cmd}") {
                 tracing::error!("Failed to send command: {}", err);
                 None
             } else {
@@ -91,7 +91,7 @@ impl Radio for RigctldRadio {
             Mode::CW => "CW",
         };
 
-        let cmd = format!("M {} 0", mode_str);
+        let cmd = format!("M {mode_str} 0");
         if self.send_command(&cmd).is_none() {
             tracing::error!("Failed to set mode");
         }
