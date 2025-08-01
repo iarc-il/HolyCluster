@@ -56,6 +56,7 @@ const dxcc_to_country_flag = {
     Eswatini: "Eswatini (Swaziland)",
     "Market Reef": "Åland Islands",
     "UK Sovereign Base Areas on Cyprus": "Cyprus",
+    "Sao Tome & Principe": "São Tomé and Príncipe",
 };
 
 const dxcc_to_short_dxcc = {
