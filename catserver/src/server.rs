@@ -47,7 +47,7 @@ pub struct ServerConfig {
 }
 
 impl ServerConfig {
-    fn build_uri(&self, schema: &str, path_and_query: &str) -> String {
+    pub fn build_uri(&self, schema: &str, path_and_query: &str) -> String {
         format!(
             "{}{}://{}{}",
             schema,
@@ -179,7 +179,7 @@ async fn shutdown(mut receiver: Receiver<UserEvent>) {
 }
 
 async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Response<Body> {
-    let uri_string = state.server_config.build_uri(
+    let uri = state.server_config.build_uri(
         "http",
         request
             .uri()
@@ -188,7 +188,7 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
             .unwrap_or(""),
     );
 
-    let reqwest_response = match state.http_client.get(uri_string).send().await {
+    let reqwest_response = match state.http_client.get(uri).send().await {
         Ok(result) => result,
         Err(error) => {
             tracing::error!("Error: {error:?}");

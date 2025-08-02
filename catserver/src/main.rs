@@ -69,7 +69,6 @@ fn get_radio(use_dummy: bool) -> AnyRadio {
 #[cfg(not(windows))]
 fn get_radio(use_dummy: bool) -> AnyRadio {
     if use_dummy {
-        tracing::warn!("DUMMY env variable doesn't have any affect in linux!");
         AnyRadio::new(DummyRadio::new())
     } else {
         AnyRadio::new(RigctldRadio::new("localhost".into(), 4532))
@@ -199,11 +198,13 @@ fn main() -> Result<()> {
         }
     } else if args.close {
         let client = reqwest::blocking::Client::new();
-        let exit_uri = format!("http://127.0.0.1:{local_port}/exit");
-        client.post(exit_uri).send()?;
+        let uri = format!("http://127.0.0.1:{local_port}/exit");
+        client.post(uri).send()?;
     } else {
         tracing::info!("Server is already running");
-        open_at_browser(local_port)?;
+        let client = reqwest::blocking::Client::new();
+        let uri = format!("http://127.0.0.1:{local_port}/open");
+        let _response = client.post(uri).send()?;
     }
     Ok(())
 }
