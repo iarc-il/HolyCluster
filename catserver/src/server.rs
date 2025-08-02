@@ -1,5 +1,9 @@
 use std::{
     net::{Ipv4Addr, SocketAddrV4},
+    sync::{
+        Arc,
+        atomic::{AtomicU8, Ordering},
+    },
     time::Duration,
 };
 
@@ -59,21 +63,27 @@ struct AppState {
     radio: AnyRadio,
     http_client: Client,
     sender: Sender<UserEvent>,
+    client_count: Arc<AtomicU8>,
 }
 
 pub struct Server {
     app: Router,
     listener: TcpListener,
     sender: Sender<UserEvent>,
+    // Used for opening a browser tab if there is no opened tabs
+    broswer_sender: mpsc::Sender<UserEvent>,
+    client_count: Arc<AtomicU8>,
 }
 
 impl Server {
     pub async fn build_server(
         sender: Sender<UserEvent>,
+        broswer_sender: mpsc::Sender<UserEvent>,
         radio: AnyRadio,
         server_config: ServerConfig,
         use_local_ui: bool,
     ) -> Result<Self> {
+        let client_count = Arc::new(AtomicU8::new(0));
         let http_client = Client::new();
 
         let app = Router::new()
@@ -93,6 +103,7 @@ impl Server {
             radio,
             http_client,
             sender: sender.clone(),
+            client_count: client_count.clone(),
         };
         let app = if use_local_ui {
             let mut ui_dir = std::env::current_exe()?;
@@ -122,20 +133,41 @@ impl Server {
             app,
             listener,
             sender,
+            broswer_sender,
+            client_count,
         })
     }
 
     pub async fn run_server(self) -> Result<()> {
+        let mut receiver = self.sender.subscribe();
+        tokio::spawn(async move {
+            loop {
+                match receiver.recv().await? {
+                    UserEvent::Quit => {
+                        break;
+                    }
+                    UserEvent::OpenBrowser => {
+                        if self.client_count.load(Ordering::SeqCst) == 0 {
+                            self.broswer_sender.send(UserEvent::OpenBrowser).await?;
+                        }
+                    }
+                }
+            }
+            Ok::<(), anyhow::Error>(())
+        })
+        .await??;
+
         axum::serve(self.listener, self.app)
             .with_graceful_shutdown(shutdown(self.sender.subscribe()))
             .await?;
+
         Ok(())
     }
 }
 
 async fn shutdown(mut receiver: Receiver<UserEvent>) {
     while let Ok(message) = receiver.recv().await
-        && message == UserEvent::Quit
+        && message != UserEvent::Quit
     {
         // Waiting
     }
@@ -249,18 +281,26 @@ async fn cat_control_handler(
     websocket: WebSocketUpgrade,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
+    let receiver = state.sender.subscribe();
+    let client_count = state.client_count.clone();
+
     websocket
         .write_buffer_size(0)
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
-        .on_upgrade(async |websocket: WebSocket| {
-            handle_cat_control_socket(websocket, state.radio)
-                .await
-                .unwrap()
+        .on_upgrade(async move |websocket: WebSocket| {
+            client_count.fetch_add(1, Ordering::SeqCst);
+            let result = handle_cat_control_socket(websocket, state.radio, receiver).await;
+            client_count.fetch_sub(1, Ordering::SeqCst);
+            result.unwrap();
         })
 }
 
-async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result<()> {
+async fn handle_cat_control_socket(
+    socket: WebSocket,
+    radio: AnyRadio,
+    mut receiver: Receiver<UserEvent>,
+) -> Result<()> {
     let (mut client_sender, mut client_receiver) = socket.split();
 
     let message = InitMessage {
@@ -292,6 +332,22 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result
                     message => {
                         tracing::warn!("Ignoring message: {message:?}");
                     }
+                }
+            },
+            event = receiver.recv() => {
+                match event? {
+                    UserEvent::Quit => {
+                        break;
+                    },
+                    UserEvent::OpenBrowser => {
+                        #[derive(Serialize)]
+                        struct FocusMessage {
+                            focus: bool,
+                        }
+                        let message = FocusMessage { focus: true };
+                        let message = Message::Text(serde_json::to_string(&message)?.into());
+                        client_sender.send(message).await?;
+                    },
                 }
             },
             _ = interval.tick() => {
