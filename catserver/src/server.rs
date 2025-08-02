@@ -97,7 +97,8 @@ impl Server {
                 "/spots_ws",
                 any(|state, websocket| websocket_handler(state, websocket, "/spots_ws")),
             )
-            .route("/exit", post(exit_server_handler));
+            .route("/exit", post(exit_server_handler))
+            .route("/open", post(open_tab_handler));
 
         let app_state = AppState {
             server_config,
@@ -206,6 +207,11 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
 
 async fn exit_server_handler(State(state): State<AppState>) -> impl IntoResponse {
     let _ = state.sender.send(UserEvent::Quit);
+    StatusCode::OK
+}
+
+async fn open_tab_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let _ = state.sender.send(UserEvent::OpenBrowser);
     StatusCode::OK
 }
 
@@ -363,8 +369,6 @@ async fn handle_cat_control_socket(
                     let message = Message::Text(serde_json::to_string(&data)?.into());
                     client_sender.send(message).await?;
                     previous_data = Some(data);
-                } else {
-                    continue;
                 }
             }
         }
