@@ -350,6 +350,14 @@ async fn handle_cat_control_socket(
             event = receiver.recv() => {
                 match event? {
                     UserEvent::Quit => {
+                        #[derive(Serialize)]
+                        struct CloseMessage {
+                            close: bool,
+                        }
+
+                        let message = CloseMessage { close: true };
+                        let message = Message::Text(serde_json::to_string(&message)?.into());
+                        let _ = client_sender.send(message).await;
                         break;
                     },
                     UserEvent::OpenBrowser => {

@@ -93,6 +93,10 @@ export function RadioProvider({ children }) {
             if ("focus" in lastJsonMessage && lastJsonMessage.focus) {
                 window.focus();
             }
+
+            if ("close" in lastJsonMessage && lastJsonMessage.close) {
+                window.close();
+            }
         }
     }, [lastJsonMessage]);
 

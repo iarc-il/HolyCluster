@@ -184,7 +184,7 @@ function MainContainer() {
     );
 
     const table =
-        (catserver_version != "catserver-v1.0.0.msi") ? (
+        catserver_version != "catserver-v1.0.0.msi" ? (
             <SpotsTable
                 set_cat_to_spot={set_cat_to_spot}
                 settings={settings}
