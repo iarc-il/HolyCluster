@@ -87,6 +87,10 @@ export default function use_radio() {
                 set_rig(lastJsonMessage.current_rig);
                 set_radio_band(get_band_from_freq(lastJsonMessage.freq));
             }
+
+            if ("focus" in lastJsonMessage && lastJsonMessage.focus) {
+                window.focus();
+            }
         }
     }, [lastJsonMessage]);
 
