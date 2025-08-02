@@ -5,6 +5,7 @@ import Spinner from "@/components/Spinner.jsx";
 import Settings from "@/components/Settings.jsx";
 import ColorPicker from "@/components/ColorPicker.jsx";
 import Select from "@/components/Select.jsx";
+import Button from "@/components/Button.jsx";
 import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
 import { useColors } from "../hooks/useColors";
 import { useFilters } from "../hooks/useFilters";
@@ -85,45 +86,41 @@ function TopBar({
                 The Holy Cluster
             </h1>
 
-            {radio_status !== "unavailable" ? (
-                <>
-                    <div className="flex flex-col w-[42px] h-full items-center ml-2 mr-4">
-                        {[1, 2].map(rig_val => {
-                            const rig_active = rig == rig_val;
-                            return (
-                                <p
-                                    className={`text-right text-xs px-1 w-full rounded-sm hover:cursor-pointer py-[1px] ${
-                                        rig_active ? "bg-red-400" : "hover:bg-gray-400"
-                                    }`}
-                                    style={{ color: colors.theme.text }}
-                                    onClick={() => {
-                                        if (!rig_active) {
-                                            set_requested_rig(rig_val);
-                                            set_rig(rig_val);
-                                        }
-                                    }}
-                                >
-                                    Rig {rig_val}
-                                </p>
-                            );
-                        })}
-                    </div>
+            <div className={box_container_style}>
+                {radio_status !== "unvailable" ? (
+                    <>
+                        <div className="flex flex-col w-[42px] h-full justify-around">
+                            {[1, 2].map(rig_val => {
+                                const rig_active = rig == rig_val;
+                                return (
+                                    <Button
+                                        key={rig_val}
+                                        color={rig_active ? "red" : "white"}
+                                        style={{ color: colors.theme.text }}
+                                        className="text-xs p-0 w-full h-4 cursor-pointer"
+                                        on_click={() => {
+                                            if (!rig_active) {
+                                                set_requested_rig(rig_val);
+                                                set_rig(rig_val);
+                                            }
+                                        }}
+                                    >
+                                        Rig {rig_val}
+                                    </Button>
+                                );
+                            })}
+                        </div>
 
-                    <div className="mr-5 h-full hidden lg:block">
                         <SevenSegmentDisplay
-                            className={"h-[25px]"}
-                            height={25}
+                            height="10"
                             display_size={radio_freq ? radio_freq.toString().length : 8}
                             value={radio_freq ? radio_freq : undefined}
                             error={radio_status !== "connected"}
                         />
-                    </div>
-                </>
-            ) : (
-                ""
-            )}
-
-            <div className={box_container_style}>
+                    </>
+                ) : (
+                    ""
+                )}
                 <SubmitSpot settings={settings} dev_mode={dev_mode} />
                 <Clock />
 
