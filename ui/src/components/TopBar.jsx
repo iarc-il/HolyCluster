@@ -40,7 +40,6 @@ function TopBar({
     const { filters, setFilters } = useFilters();
     const { network_state } = useServerData();
     const { radio_status, rig } = useRadio();
-    const box_container_style = "flex items-center h-full p-2 gap-3";
 
     const network_state_colors = {
         connected: "#00EE00",
@@ -59,7 +58,7 @@ function TopBar({
 
     return (
         <div
-            className="flex flex-row justify-between items-center min-h-16 border-b-2"
+            className="flex flex-row justify-between items-center h-[4rem] border-b-2"
             style={{
                 backgroundColor: colors.theme.background,
                 borderColor: colors.theme.borders,
@@ -86,8 +85,8 @@ function TopBar({
                 The Holy Cluster
             </h1>
 
-            <div className={box_container_style}>
-                {radio_status !== "unvailable" ? (
+            <div className="flex items-center h-full p-2 gap-3">
+                {radio_status !== "unavailable" ? (
                     <>
                         <div className="flex flex-col w-[42px] h-full justify-around">
                             {[1, 2].map(rig_val => {
@@ -97,7 +96,7 @@ function TopBar({
                                         key={rig_val}
                                         color={rig_active ? "red" : "white"}
                                         style={{ color: colors.theme.text }}
-                                        className="text-xs p-0 w-full h-4 cursor-pointer"
+                                        className="text-xs p-0 w-full h-4"
                                         on_click={() => {
                                             if (!rig_active) {
                                                 set_requested_rig(rig_val);

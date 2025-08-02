@@ -197,7 +197,7 @@ function MainContainer() {
                 dev_mode={dev_mode}
                 set_rig={set_rig}
             />
-            <div className="flex relative flex-1 overflow-hidden">
+            <div className="flex relative h-[calc(100%-4rem)]">
                 <LeftColumn toggled_ui={toggled_ui} />
                 {is_md_device ? (
                     <Tabs

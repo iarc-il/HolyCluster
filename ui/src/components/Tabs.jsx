@@ -48,13 +48,18 @@ function Tabs({ tabs, active_color = null, local_storage_name = null, external_t
                     return (
                         <button
                             key={index}
-                            className="flex-1 text-center py-2 text-sm font-medium border-b-4"
+                            className="flex-1 text-center py-2 text-sm font-medium relative after:absolute after:bottom-0 after:left-0 after:right-0 after:h-1 after:transition-colors"
                             style={{
-                                borderBottomColor: active_tab == index ? active_color : bg,
                                 backgroundColor: bg,
                             }}
                             onClick={() => set_active_tab(index)}
                         >
+                            <div
+                                className="absolute bottom-0 left-0 right-0 h-1"
+                                style={{
+                                    backgroundColor: active_tab == index ? active_color : bg,
+                                }}
+                            />
                             <div
                                 className="inline-flex items-center justify-center"
                                 style={{ color: text_color }}

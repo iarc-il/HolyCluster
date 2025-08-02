@@ -12,8 +12,8 @@ function CallsignsView({ toggled_ui, set_cat_to_spot }) {
     const freq_bar = <FrequencyBar set_cat_to_spot={set_cat_to_spot} className={"px-2 h-full"} />;
 
     const toggled_classes = toggled_ui.right
-        ? "hidden "
-        : "max-2xl:absolute z-40 right-20 top-0 border-l border-slate-300 ";
+        ? "hidden"
+        : "max-2xl:absolute z-40 right-20 top-0 border-l border-slate-300";
     return (
         <div
             className={
