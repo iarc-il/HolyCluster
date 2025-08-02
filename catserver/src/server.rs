@@ -1,4 +1,7 @@
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::{
+    net::{Ipv4Addr, SocketAddrV4},
+    time::Duration,
+};
 
 use anyhow::{Context, Result, bail};
 use axum::{
@@ -6,7 +9,7 @@ use axum::{
     body::Body,
     extract::{
         Request, State, WebSocketUpgrade,
-        ws::{CloseFrame, Message, Utf8Bytes, WebSocket},
+        ws::{Message, WebSocket},
     },
     response::{IntoResponse, Response},
     routing::{any, post},
@@ -271,93 +274,53 @@ async fn cat_control_handler(
 }
 
 async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result<()> {
-    let (mut sender_inner, mut receiver) = socket.split();
+    let (mut client_sender, mut client_receiver) = socket.split();
 
-    let (sender, mut sender_recv) = mpsc::unbounded_channel::<Message>();
+    let message = InitMessage {
+        status: "connected".into(),
+        version: env!("VERSION").into(),
+    };
+    let message = Message::Text(serde_json::to_string(&message)?.into());
+    client_sender.send(message).await?;
 
-    let mut send_task = tokio::spawn(async move {
-        while let Some(message) = sender_recv.recv().await {
-            if sender_inner.send(message).await.is_err() {
-                break;
-            }
-        }
+    let mut interval = tokio::time::interval(Duration::from_millis(500));
+    let mut previous_data = None;
 
-        // This is best effort, so we ignore errors
-        let _ = sender_inner
-            .send(Message::Close(Some(CloseFrame {
-                code: axum::extract::ws::close_code::NORMAL,
-                reason: Utf8Bytes::from_static("Goodbye"),
-            })))
-            .await;
-        Ok(())
-    });
-
-    let poll_radio = radio.clone();
-    let poll_sender = sender.clone();
-    let mut poll_task = tokio::spawn(async move {
-        let message = InitMessage {
-            status: "connected".into(),
-            version: env!("VERSION").into(),
-        };
-        poll_sender.send(Message::Text(serde_json::to_string(&message)?.into()))?;
-
-        let mut previous_data = None;
-        loop {
-            let data = poll_radio.write().get_status();
-            if previous_data.as_ref() != Some(&data) {
-                let message = Message::Text(serde_json::to_string(&data)?.into());
-                poll_sender.send(message)?;
-                previous_data = Some(data);
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        }
-    });
-
-    let command_radio = radio.clone();
-    let command_sender = sender.clone();
-    let mut command_task = tokio::spawn(async move {
-        while let Some(Ok(message)) = receiver.next().await {
-            match message {
-                Message::Text(text) => {
-                    process_message(text.to_string(), &command_radio)?;
-                    let status = command_radio.write().get_status();
-                    let message = Message::Text(serde_json::to_string(&status)?.into());
-                    command_sender.send(message)?;
+    loop {
+        tokio::select! {
+            Some(message) = client_receiver.next() => {
+                match message? {
+                    Message::Text(text) => {
+                        process_message(text.to_string(), &radio)?;
+                        let status = radio.write().get_status();
+                        let message = Message::Text(serde_json::to_string(&status)?.into());
+                        client_sender.send(message).await?;
+                    }
+                    Message::Binary(data) => {
+                        tracing::warn!("Ignoring binary data: {data:?}");
+                    }
+                    Message::Close(_) => {
+                        break;
+                    }
+                    message => {
+                        tracing::warn!("Ignoring message: {message:?}");
+                    }
                 }
-                Message::Binary(data) => {
-                    tracing::warn!("Ignoring binary data: {data:?}");
-                }
-                Message::Close(_) => {
-                    break;
-                }
-                message => {
-                    tracing::warn!("Ignoring message: {message:?}");
+            },
+            _ = interval.tick() => {
+                let data = radio.write().get_status();
+                if previous_data.as_ref() != Some(&data) {
+                    let message = Message::Text(serde_json::to_string(&data)?.into());
+                    client_sender.send(message).await?;
+                    previous_data = Some(data);
+                } else {
+                    continue;
                 }
             }
-        }
-        Ok(())
-    });
-
-    tokio::select! {
-        result = (&mut send_task) => {
-            tracing::debug!("Closing websocket since send task exited");
-            command_task.abort();
-            poll_task.abort();
-            result?
-        },
-        result = (&mut poll_task) => {
-            tracing::debug!("Closing websocket since poll task exited");
-            command_task.abort();
-            send_task.abort();
-            result?
-        },
-        result = (&mut command_task) => {
-            tracing::debug!("Closing websocket since command task exited");
-            poll_task.abort();
-            send_task.abort();
-            result?
         }
     }
+
+    Ok(())
 }
 
 #[derive(Serialize)]
