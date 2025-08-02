@@ -255,9 +255,12 @@ async fn handle_websocket(
                 }
             }
             Some(Ok(message)) = server_receiver.next() => {
-                client_sender
+                let result = client_sender
                     .send(utils::tungstenite_to_axum_message(message))
-                    .await?;
+                    .await;
+                if result.is_err() {
+                    break;
+                }
             }
         }
     }
