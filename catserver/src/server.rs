@@ -23,7 +23,6 @@ use tokio::{
         broadcast::{Receiver, Sender},
         mpsc,
     },
-    task::JoinHandle,
 };
 use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
@@ -199,62 +198,50 @@ async fn handle_websocket(
     let (stream, _response) = connect_async(server_config.build_uri("ws", path)).await?;
     let (mut server_sender, mut server_receiver) = stream.split();
 
-    let mut send_task: JoinHandle<Result<()>> = tokio::spawn(async move {
-        while let Some(Ok(message)) = server_receiver.next().await {
-            client_sender
-                .send(utils::tungstenite_to_axum_message(message))
-                .await?;
-        }
+    use tokio_tungstenite::tungstenite;
 
-        // This is best effort, so we ignore errors
-        let _ = client_sender
-            .send(Message::Close(Some(axum::extract::ws::CloseFrame {
-                code: axum::extract::ws::close_code::NORMAL,
-                reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
-            })))
-            .await;
-        Ok(())
-    });
-
-    let mut recv_task: JoinHandle<Result<()>> = tokio::spawn(async move {
-        while let Some(Ok(message)) = client_receiver.next().await {
-            let result = server_sender
-                .send(utils::axum_to_tungstenite_message(message))
-                .await;
-            if let Err(error) = &result {
-                use tokio_tungstenite::tungstenite::Error;
-                match error {
-                    Error::ConnectionClosed => {
-                        break;
-                    }
-                    _ => {
-                        result?;
+    loop {
+        tokio::select! {
+            Some(Ok(message)) = client_receiver.next() => {
+                let result = server_sender
+                    .send(utils::axum_to_tungstenite_message(message))
+                    .await;
+                if let Err(error) = &result {
+                    use tungstenite::Error;
+                    match error {
+                        Error::ConnectionClosed => {
+                            break;
+                        }
+                        _ => {
+                            result?;
+                        }
                     }
                 }
             }
-        }
-
-        // This is best effort, so we ignore errors
-        let _ = server_sender
-            .send(tokio_tungstenite::tungstenite::Message::Close(Some(
-                tokio_tungstenite::tungstenite::protocol::CloseFrame {
-                    code:
-                        tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode::Normal,
-                    reason: tokio_tungstenite::tungstenite::Utf8Bytes::from_static("Goodbye"),
-                },
-            )))
-            .await;
-        Ok(())
-    });
-
-    tokio::select! {
-        _ = (&mut send_task) => {
-            recv_task.abort();
-        },
-        _ = (&mut recv_task) => {
-            send_task.abort();
+            Some(Ok(message)) = server_receiver.next() => {
+                client_sender
+                    .send(utils::tungstenite_to_axum_message(message))
+                    .await?;
+            }
         }
     }
+
+    // This is best effort, so we ignore errors
+    let _ = server_sender
+        .send(tungstenite::Message::Close(Some(
+            tungstenite::protocol::CloseFrame {
+                code: tungstenite::protocol::frame::coding::CloseCode::Normal,
+                reason: tungstenite::Utf8Bytes::from_static("Goodbye"),
+            },
+        )))
+        .await;
+    let _ = client_sender
+        .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+            code: axum::extract::ws::close_code::NORMAL,
+            reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
+        })))
+        .await;
+
     Ok(())
 }
 
