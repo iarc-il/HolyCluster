@@ -8,7 +8,7 @@ use argh::FromArgs;
 use directories::ProjectDirs;
 use server::{Server, ServerConfig};
 use single_instance::SingleInstance;
-use tokio::sync::broadcast::{self, Receiver, Sender};
+use tokio::sync::broadcast::{self, Sender};
 
 mod dummy;
 mod freq;
@@ -179,30 +179,21 @@ fn main() -> Result<()> {
             tracing::warn!("No running instance, not closing");
             return Ok(());
         }
-        let (tray_sender, tray_receiver) = broadcast::channel::<UserEvent>(10);
-        let event_receiver = tray_sender.subscribe();
-        let event_sender = tray_sender.clone();
+        let (sender, _) = broadcast::channel::<UserEvent>(10);
 
+        let event_sender = sender.clone();
         let use_local_ui = args.local_ui;
         let thread = std::thread::Builder::new()
             .name("singleton".into())
             .spawn(move || {
-                run_singleton_instance(
-                    event_receiver,
-                    event_sender,
-                    tray_receiver,
-                    radio,
-                    server_config,
-                    use_local_ui,
-                )
-                .unwrap();
+                run_singleton_instance(event_sender, radio, server_config, use_local_ui).unwrap();
             })?;
 
         // Currently we don't care about tray icon for linux because it's only used for development.
         // This can be enabled if we ever support linux for users.
         if cfg!(windows) {
-            let tray_receiver = tray_sender.subscribe();
-            tray_icon::run_tray_icon(&args_slug, tray_sender, tray_receiver);
+            let receiver = sender.subscribe();
+            tray_icon::run_tray_icon(&args_slug, sender, receiver);
         } else {
             thread.join().unwrap();
         }
@@ -219,9 +210,7 @@ fn main() -> Result<()> {
 
 #[tokio::main]
 async fn run_singleton_instance(
-    event_receiver: Receiver<UserEvent>,
-    event_sender: Sender<UserEvent>,
-    mut tray_receiver: Receiver<UserEvent>,
+    sender: Sender<UserEvent>,
     radio: AnyRadio,
     server_config: ServerConfig,
     use_local_ui: bool,
@@ -231,11 +220,13 @@ async fn run_singleton_instance(
     tracing::info!("Radio initialized");
 
     let local_port = server_config.local_port;
-    let server = Server::build_server(event_sender, radio, server_config, use_local_ui).await?;
+    let mut receiver = sender.subscribe();
+
+    let server = Server::build_server(sender, radio, server_config, use_local_ui).await?;
     open_at_browser(local_port)?;
 
     tokio::spawn(async move {
-        while let Ok(message) = tray_receiver.recv().await {
+        while let Ok(message) = receiver.recv().await {
             match message {
                 UserEvent::Quit => {
                     break;
@@ -248,7 +239,7 @@ async fn run_singleton_instance(
     });
 
     tracing::info!("Running webapp");
-    server.run_server(event_receiver).await?;
+    server.run_server().await?;
 
     Ok(())
 }

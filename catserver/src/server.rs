@@ -56,17 +56,18 @@ struct AppState {
     server_config: ServerConfig,
     radio: AnyRadio,
     http_client: Client,
-    event_sender: Sender<UserEvent>,
+    sender: Sender<UserEvent>,
 }
 
 pub struct Server {
     app: Router,
     listener: TcpListener,
+    sender: Sender<UserEvent>,
 }
 
 impl Server {
     pub async fn build_server(
-        event_sender: Sender<UserEvent>,
+        sender: Sender<UserEvent>,
         radio: AnyRadio,
         server_config: ServerConfig,
         use_local_ui: bool,
@@ -89,7 +90,7 @@ impl Server {
             server_config,
             radio,
             http_client,
-            event_sender,
+            sender: sender.clone(),
         };
         let app = if use_local_ui {
             let mut ui_dir = std::env::current_exe()?;
@@ -115,22 +116,26 @@ impl Server {
 
         let address = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), local_port);
         let listener = TcpListener::bind(address).await?;
-        Ok(Self { app, listener })
+        Ok(Self {
+            app,
+            listener,
+            sender,
+        })
     }
 
-    pub async fn run_server(self, quit_receiver: Receiver<UserEvent>) -> Result<()> {
+    pub async fn run_server(self) -> Result<()> {
         axum::serve(self.listener, self.app)
-            .with_graceful_shutdown(shutdown(quit_receiver))
+            .with_graceful_shutdown(shutdown(self.sender.subscribe()))
             .await?;
         Ok(())
     }
 }
 
-async fn shutdown(mut quit_receiver: Receiver<UserEvent>) {
-    while let Ok(message) = quit_receiver.recv().await {
-        if message == UserEvent::Quit {
-            break;
-        }
+async fn shutdown(mut receiver: Receiver<UserEvent>) {
+    while let Ok(message) = receiver.recv().await
+        && message == UserEvent::Quit
+    {
+        // Waiting
     }
 }
 
@@ -162,7 +167,7 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
 }
 
 async fn exit_server_handler(State(state): State<AppState>) -> impl IntoResponse {
-    let _ = state.event_sender.send(UserEvent::Quit);
+    let _ = state.sender.send(UserEvent::Quit);
     StatusCode::OK
 }
 
