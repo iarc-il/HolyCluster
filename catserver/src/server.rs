@@ -275,7 +275,7 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result
 
     let (sender, mut sender_recv) = mpsc::unbounded_channel::<Message>();
 
-    let mut send_task: JoinHandle<Result<()>> = tokio::spawn(async move {
+    let mut send_task = tokio::spawn(async move {
         while let Some(message) = sender_recv.recv().await {
             if sender_inner.send(message).await.is_err() {
                 break;
@@ -294,22 +294,19 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result
 
     let poll_radio = radio.clone();
     let poll_sender = sender.clone();
-    let mut poll_task: JoinHandle<Result<()>> = tokio::spawn(async move {
+    let mut poll_task = tokio::spawn(async move {
         let message = InitMessage {
             status: "connected".into(),
             version: env!("VERSION").into(),
         };
-        let radio = poll_radio.clone();
-        let sender = poll_sender;
-
-        sender.send(Message::Text(serde_json::to_string(&message)?.into()))?;
+        poll_sender.send(Message::Text(serde_json::to_string(&message)?.into()))?;
 
         let mut previous_data = None;
         loop {
-            let data = radio.write().get_status();
+            let data = poll_radio.write().get_status();
             if previous_data.as_ref() != Some(&data) {
                 let message = Message::Text(serde_json::to_string(&data)?.into());
-                sender.send(message)?;
+                poll_sender.send(message)?;
                 previous_data = Some(data);
             }
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
@@ -318,17 +315,14 @@ async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result
 
     let command_radio = radio.clone();
     let command_sender = sender.clone();
-    let mut command_task: JoinHandle<Result<()>> = tokio::spawn(async move {
-        let radio = command_radio.clone();
-        let sender = command_sender;
-
+    let mut command_task = tokio::spawn(async move {
         while let Some(Ok(message)) = receiver.next().await {
             match message {
                 Message::Text(text) => {
-                    process_message(text.to_string(), radio.clone())?;
-                    let status = radio.write().get_status();
+                    process_message(text.to_string(), &command_radio)?;
+                    let status = command_radio.write().get_status();
                     let message = Message::Text(serde_json::to_string(&status)?.into());
-                    sender.send(message)?;
+                    command_sender.send(message)?;
                 }
                 Message::Binary(data) => {
                     tracing::warn!("Ignoring binary data: {data:?}");
@@ -391,7 +385,7 @@ enum ClientMessage {
     SetModeAndFreq(SetModeAndFreq),
 }
 
-fn process_message(message: String, radio: AnyRadio) -> Result<()> {
+fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
     let message: ClientMessage = serde_json::from_str(&message)
         .with_context(|| format!("Failed to parse message: {message}"))?;
     match message {
