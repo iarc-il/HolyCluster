@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use std::{
     net::{Ipv4Addr, SocketAddrV4},
     sync::{
@@ -140,7 +141,7 @@ impl Server {
 
     pub async fn run_server(self) -> Result<()> {
         let mut receiver = self.sender.subscribe();
-        tokio::spawn(async move {
+        let browser_task = tokio::spawn(async move {
             loop {
                 match receiver.recv().await? {
                     UserEvent::Quit => {
@@ -154,14 +155,17 @@ impl Server {
                 }
             }
             Ok::<(), anyhow::Error>(())
-        })
-        .await??;
+        });
 
-        axum::serve(self.listener, self.app)
-            .with_graceful_shutdown(shutdown(self.sender.subscribe()))
-            .await?;
+        let server = axum::serve(self.listener, self.app)
+            .with_graceful_shutdown(shutdown(self.sender.subscribe()));
 
-        Ok(())
+        let (browser_result, server_result) = tokio::join!(browser_task, server);
+        server_result.map_err(|err| anyhow!(err)).and(
+            browser_result
+                .map_err(|err| anyhow!(err))
+                .and_then(|err| err),
+        )
     }
 }
 
