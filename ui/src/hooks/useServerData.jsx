@@ -9,12 +9,10 @@ import { use_object_local_storage } from "@/utils.js";
 
 const ServerDataContext = createContext(undefined);
 
-const { Provider } = ServerDataContext;
-
-export const useServerData = () => {
+export function useServerData() {
     const context = useContext(ServerDataContext);
     return { ...context };
-};
+}
 
 function fetch_propagation() {
     let url = get_base_url() + "/propagation";
@@ -262,7 +260,7 @@ export const ServerDataProvider = ({ children }) => {
     }, [filtered_spots, radio_freq]);
 
     return (
-        <Provider
+        <ServerDataContext.Provider
             value={{
                 spots: filtered_spots,
                 hovered_spot,
@@ -281,6 +279,6 @@ export const ServerDataProvider = ({ children }) => {
             }}
         >
             {children}
-        </Provider>
+        </ServerDataContext.Provider>
     );
 };

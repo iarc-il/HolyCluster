@@ -7,8 +7,6 @@ import { bands, modes, continents } from "@/filters_data.js";
 
 const ColorsContext = createContext(undefined);
 
-const { Provider } = ColorsContext;
-
 export const useColors = () => {
     const context = useContext(ColorsContext);
     return { ...context };
@@ -389,7 +387,7 @@ export const ColorsProvider = ({ children }) => {
     }
 
     return (
-        <Provider
+        <ColorsContext.Provider
             value={{
                 dev_mode,
                 set_dev_mode,
@@ -399,6 +397,6 @@ export const ColorsProvider = ({ children }) => {
             }}
         >
             {children}
-        </Provider>
+        </ColorsContext.Provider>
     );
 };

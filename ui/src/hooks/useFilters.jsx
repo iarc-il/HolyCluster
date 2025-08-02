@@ -4,8 +4,6 @@ import { bands, modes, continents } from "@/filters_data.js";
 
 const FiltersContext = createContext(undefined);
 
-const { Provider } = FiltersContext;
-
 export const useFilters = () => {
     const context = useContext(FiltersContext);
     return { ...context };
@@ -94,7 +92,7 @@ export const FiltersProvider = ({ children }) => {
     }
 
     return (
-        <Provider
+        <FiltersContext.Provider
             value={{
                 filters,
                 setFilters,
@@ -106,6 +104,6 @@ export const FiltersProvider = ({ children }) => {
             }}
         >
             {children}
-        </Provider>
+        </FiltersContext.Provider>
     );
 };
