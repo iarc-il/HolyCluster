@@ -29,7 +29,7 @@ use rig::AnyRadio;
 use rigctld::RigctldRadio;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer, Registry, layer::SubscriberExt};
-use tray_icon::IconTrayEvent;
+use tray_icon::UserEvent;
 
 const BASE_LOCAL_PORT: u16 = 3000;
 
@@ -179,7 +179,7 @@ fn main() -> Result<()> {
             tracing::warn!("No running instance, not closing");
             return Ok(());
         }
-        let (tray_sender, tray_receiver) = broadcast::channel::<IconTrayEvent>(10);
+        let (tray_sender, tray_receiver) = broadcast::channel::<UserEvent>(10);
         let event_receiver = tray_sender.subscribe();
         let event_sender = tray_sender.clone();
 
@@ -219,9 +219,9 @@ fn main() -> Result<()> {
 
 #[tokio::main]
 async fn run_singleton_instance(
-    event_receiver: Receiver<IconTrayEvent>,
-    event_sender: Sender<IconTrayEvent>,
-    mut tray_receiver: Receiver<IconTrayEvent>,
+    event_receiver: Receiver<UserEvent>,
+    event_sender: Sender<UserEvent>,
+    mut tray_receiver: Receiver<UserEvent>,
     radio: AnyRadio,
     server_config: ServerConfig,
     use_local_ui: bool,
@@ -237,10 +237,10 @@ async fn run_singleton_instance(
     tokio::spawn(async move {
         while let Ok(message) = tray_receiver.recv().await {
             match message {
-                IconTrayEvent::Quit => {
+                UserEvent::Quit => {
                     break;
                 }
-                IconTrayEvent::OpenBrowser => {
+                UserEvent::OpenBrowser => {
                     open_at_browser(local_port).unwrap();
                 }
             }

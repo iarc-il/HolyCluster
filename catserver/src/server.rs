@@ -28,7 +28,7 @@ use tower_http::services::ServeDir;
 use crate::{
     freq::Freq,
     rig::{AnyRadio, Mode, Slot},
-    tray_icon::IconTrayEvent,
+    tray_icon::UserEvent,
     utils,
 };
 
@@ -56,7 +56,7 @@ struct AppState {
     server_config: ServerConfig,
     radio: AnyRadio,
     http_client: Client,
-    event_sender: Sender<IconTrayEvent>,
+    event_sender: Sender<UserEvent>,
 }
 
 pub struct Server {
@@ -66,7 +66,7 @@ pub struct Server {
 
 impl Server {
     pub async fn build_server(
-        event_sender: Sender<IconTrayEvent>,
+        event_sender: Sender<UserEvent>,
         radio: AnyRadio,
         server_config: ServerConfig,
         use_local_ui: bool,
@@ -118,7 +118,7 @@ impl Server {
         Ok(Self { app, listener })
     }
 
-    pub async fn run_server(self, quit_receiver: Receiver<IconTrayEvent>) -> Result<()> {
+    pub async fn run_server(self, quit_receiver: Receiver<UserEvent>) -> Result<()> {
         axum::serve(self.listener, self.app)
             .with_graceful_shutdown(shutdown(quit_receiver))
             .await?;
@@ -126,9 +126,9 @@ impl Server {
     }
 }
 
-async fn shutdown(mut quit_receiver: Receiver<IconTrayEvent>) {
+async fn shutdown(mut quit_receiver: Receiver<UserEvent>) {
     while let Ok(message) = quit_receiver.recv().await {
-        if message == IconTrayEvent::Quit {
+        if message == UserEvent::Quit {
             break;
         }
     }
@@ -162,7 +162,7 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
 }
 
 async fn exit_server_handler(State(state): State<AppState>) -> impl IntoResponse {
-    let _ = state.event_sender.send(IconTrayEvent::Quit);
+    let _ = state.event_sender.send(UserEvent::Quit);
     StatusCode::OK
 }
 
