@@ -49,12 +49,12 @@ function Continents({ toggled_ui }) {
 
     const toggled_classes = toggled_ui.right
         ? "max-2xl:hidden "
-        : "max-2xl:absolute z-50 right-0 top-0 ";
+        : "max-2xl:absolute right-0 top-0 ";
     return (
         <div
             className={
                 toggled_classes +
-                "flex flex-col w-20 p-2 text-center h-full gap-3 items-center bg-gray-100"
+                "flex flex-col w-20 p-2 text-center h-full gap-3 items-center bg-gray-100 z-[70]"
             }
             style={{ backgroundColor: colors.theme.columns }}
         >
