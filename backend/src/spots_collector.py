@@ -167,6 +167,8 @@ async def prepare_holy_spot(
         mode = "FT8"    
     elif is_value_in_range(frequency, FT4_HF_FREQUENCIES) or re.search("FT4", comment.upper()):
         mode = "FT4"
+    elif re.search("DIGI", comment.upper()) or re.search("VARAC", comment.upper()):
+        mode = "DIGI"
 
     holy_spot_record = HolySpot(
         date=date,  
