@@ -5,7 +5,7 @@ function SpotPopup({
     hovered_spot,
     set_hovered_spot,
     set_pinned_spot,
-    popup_position,
+    pinned_spot_data,
     hovered_spot_data,
     distance,
     settings,
@@ -13,7 +13,9 @@ function SpotPopup({
 }) {
     const { colors } = useColors();
 
-    if (hovered_spot_data == null) {
+    const spot_data = hovered_spot_data ?? pinned_spot_data;
+
+    if (!spot_data) {
         return <></>;
     }
 
@@ -23,26 +25,24 @@ function SpotPopup({
             onMouseOver={() => set_hovered_spot(hovered_spot)}
             onMouseLeave={() => set_hovered_spot({ source: null, id: null })}
             onClick={() => set_pinned_spot(hovered_spot)}
-            style={{ borderColor: colors.bands[hovered_spot_data.band] }}
+            style={{
+                borderColor: colors.bands[spot_data.band],
+                color: colors.theme.text,
+            }}
         >
-            <div className="text-sm font-bold" style={{ color: colors.text }}>
+            <div className="text-sm font-bold">
                 <p>
-                    DX: {hovered_spot_data.dx_callsign}
-                    {hovered_spot_data.freq}
-                    {"continent_dx" in hovered_spot_data
-                        ? ", " + hovered_spot_data.continent_dx
-                        : ""}
+                    DX: {spot_data.dx_callsign}
+                    {spot_data.freq}
+                    {"continent_dx" in spot_data ? ", " + spot_data.continent_dx : ""}
                 </p>
-                <p>DX Country: {hovered_spot_data.dx_country}</p>
-                <p>Spotter: {hovered_spot_data.spotter_callsign}</p>
+                <p>DX Country: {spot_data.dx_country}</p>
+                <p>Spotter: {spot_data.spotter_callsign}</p>
                 <p>
                     Distance: {settings.is_miles ? km_to_miles(distance) : distance}{" "}
                     {settings.is_miles ? "Miles" : "KM"}
                 </p>
                 <p>Azimuth: {Math.round(azimuth)}°</p>
-                <p>
-                    <small>(Click to freeze)</small>
-                </p>
             </div>
         </div>
     );

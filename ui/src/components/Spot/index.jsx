@@ -15,7 +15,6 @@ function Spot({
     pinned_spot,
     set_pinned_spot,
     hovered_band,
-    set_popup_position,
 }) {
     const { current_freq_spots } = useServerData();
     const { colors } = useColors();
@@ -105,6 +104,7 @@ function Spot({
             onMouseOver={() => set_hovered_spot({ source: "arc", id: spot.id })}
             onMouseLeave={() => set_hovered_spot({ source: null, id: null })}
             onClick={on_click}
+            className="hover:cursor-pointer"
         >
             <path
                 fill="none"
@@ -149,13 +149,8 @@ function Spot({
                 onMouseOver={event => {
                     event.stopPropagation();
                     set_hovered_spot({ source: "dx", id: spot.id });
-                    set_popup_position({
-                        x: event.nativeEvent.layerX,
-                        y: event.nativeEvent.layerY,
-                    });
                 }}
                 onMouseLeave={event => {
-                    set_popup_position(null);
                     set_hovered_spot({ source: null, id: null });
                 }}
             >
