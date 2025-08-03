@@ -149,20 +149,14 @@ const band_plans = {
     },
 };
 
-export default function FrequencyBar({ className, set_cat_to_spot }) {
+export default function FrequencyBar({ className, radio_status, set_cat_to_spot }) {
     const { colors } = useColors();
-    const {
-        spots,
-        hovered_spot,
-        set_hovered_spot,
-        pinned_spot,
-        set_pinned_spot,
-        current_freq_spots,
-    } = useServerData();
+    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, freq_spots } =
+        useServerData();
     // Set to -1 to use the current band that the radio is on
     const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
 
-    let { radio_status, radio_band, radio_freq } = use_radio();
+    let { radio_band, radio_freq } = use_radio();
 
     radio_freq = radio_freq && radio_freq >= 0 ? Math.round((radio_freq / 1000) * 10) / 10 : 0;
 
@@ -209,6 +203,61 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
         }
     }
 
+    let bracketY, bracketHeight;
+
+    if (radio_freq && freq_spots && freq_spots.length > 0) {
+        // 1. Use radio_freq as center if no freq_spots
+        const groupFreq =
+            freq_spots.length > 0
+                ? (sorted_spots.find(s => s.id === freq_spots[0])?.freq ?? radio_freq)
+                : radio_freq;
+
+        // 2. Find nearest lower and upper spot frequencies (not in the group)
+        const lowerSpot = [...sorted_spots]
+            .reverse()
+            .find(s => s.freq < groupFreq && !freq_spots.includes(s.id));
+        const upperSpot = sorted_spots.find(s => s.freq > groupFreq && !freq_spots.includes(s.id));
+
+        // 3. Calculate their indices (for Y position)
+        const lowerIdx = lowerSpot ? sorted_spots.findIndex(s => s.id === lowerSpot.id) : -1;
+        const upperIdx = upperSpot ? sorted_spots.findIndex(s => s.id === upperSpot.id) : -1;
+
+        // 4. Calculate Y positions for lower and upper
+        const yLower = lowerIdx !== -1 ? (lowerIdx * 100) / sorted_spots.length + 3 : 3;
+        const yUpper =
+            upperIdx !== -1
+                ? (upperIdx * 100) / sorted_spots.length + 3
+                : ((sorted_spots.length - 1) * 100) / sorted_spots.length + 3;
+
+        // 5. Place the C bracket in the middle between lower and upper
+        const cBracketY = (yLower + yUpper) / 2;
+
+        bracketY = cBracketY - 0.5; // default for 0 spots: minimal height
+        bracketHeight = 1; // minimal height
+
+        if (freq_spots.length === 1) {
+            // Find the index of the spot
+            const idx = sorted_spots.findIndex(s => s.id === freq_spots[0]);
+
+            bracketY = (idx * 100) / sorted_spots.length + 1;
+            const lastY = (idx * 100) / sorted_spots.length + 3.7;
+            bracketHeight = lastY - bracketY;
+        } else if (freq_spots.length > 1) {
+            // Find indices of all spots at this frequency
+            const indices = freq_spots
+                .map(id => sorted_spots.findIndex(s => s.id === id))
+                .filter(idx => idx !== -1)
+                .sort((a, b) => a - b);
+
+            if (indices.length > 0) {
+                const firstY = (indices[0] * 100) / sorted_spots.length + 1;
+                const lastY = (indices[indices.length - 1] * 100) / sorted_spots.length + 3.7;
+                bracketY = firstY;
+                bracketHeight = lastY - firstY;
+            }
+        }
+    }
+
     return (
         <div className={className}>
             <span className={`w-full flex flex-row items-center justify-between h-[10%]`}>
@@ -252,8 +301,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
 
                         {sorted_spots.map((spot, i) => {
                             const highlight_spot =
-                                (radio_status === "connected" &&
-                                    current_freq_spots.includes(spot.id)) ||
+                                (radio_status === "connected" && freq_spots.includes(spot.id)) ||
                                 (radio_status !== "connected" && spot.id == pinned_spot) ||
                                 spot.id === hovered_spot.id;
 
@@ -402,6 +450,69 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                 </g>
                             );
                         })}
+
+                        {radio_status === "connected" &&
+                            radio_freq != 0 &&
+                            radio_freq !== undefined &&
+                            freq_spots.length >= 1 && (
+                                <svg
+                                    width="100%"
+                                    height={`${bracketHeight}%`}
+                                    x="0"
+                                    y={`${bracketY}%`}
+                                    style={{
+                                        position: "absolute",
+                                        pointerEvents: "none",
+                                    }}
+                                >
+                                    {/* Left vertical */}
+                                    <line
+                                        x1={`50%`}
+                                        y1="0"
+                                        x2={`50%`}
+                                        y2={"100%"}
+                                        stroke={colors.theme.text}
+                                        strokeWidth="2"
+                                    />
+                                    {/* Top horizontal */}
+                                    <line
+                                        x1={`50%`}
+                                        y1="0"
+                                        x2={`53%`}
+                                        y2="0"
+                                        stroke={colors.theme.text}
+                                        strokeWidth="2"
+                                    />
+                                    {/* Bottom horizontal */}
+                                    <line
+                                        x1={`50%`}
+                                        y1={"100%"}
+                                        x2={`53%`}
+                                        y2={"100%"}
+                                        stroke={colors.theme.text}
+                                        strokeWidth="2"
+                                    />
+                                </svg>
+                            )}
+                        {radio_status === "connected" &&
+                            radio_freq != 0 &&
+                            radio_freq !== undefined &&
+                            freq_spots.length == 0 && (
+                                <svg
+                                    viewBox="0 0 50 90"
+                                    height="8%"
+                                    width="5%"
+                                    y={`${bracketY - 2.5}%`}
+                                    x="42%"
+                                >
+                                    <polygon
+                                        points="0 0, 50 45, 0 90"
+                                        fill="transparent"
+                                        stroke="red"
+                                        strokeWidth={5}
+                                    />
+                                </svg>
+                            )}
                     </svg>
                     <div className="h-[4%] w-full flex justify-center items-center bg-gray-100 rounded-full border border-gray-300">
                         {ranges.concat(features).map(legend => (
