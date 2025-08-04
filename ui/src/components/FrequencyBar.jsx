@@ -211,7 +211,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
         }
     }
 
-    console.log(callsign_refs)
+    console.log(callsign_refs);
 
     let bracket_y, bracket_height;
 
@@ -438,8 +438,8 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                             height={20}
                                             width={
                                                 callsign_refs.current[i]
-                                            ? callsign_refs.current[i].getBBox().width + 20
-                                            : 20
+                                                    ? callsign_refs.current[i].getBBox().width + 20
+                                                    : 20
                                             }
                                             rx={5}
                                             ry={5}
