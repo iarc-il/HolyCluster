@@ -1,6 +1,6 @@
 import Select from "@/components/Select.jsx";
 import Toggle from "@/components/Toggle.jsx";
-import { useEffect, useMemo } from "react";
+import { useRef, useMemo } from "react";
 import { useColors } from "../hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 import { useLocalStorage } from "@uidotdev/usehooks";
@@ -176,6 +176,8 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
             .sort((a, b) => a.freq - b.freq);
     }, [spots, band]);
 
+    const callsign_refs = useRef([]);
+
     let freq_offset, max_freq, min_freq, features, ranges;
 
     if (band_plans[band]) {
@@ -208,6 +210,8 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
             set_selected_band(-1);
         }
     }
+
+    console.log(callsign_refs)
 
     let bracket_y, bracket_height;
 
@@ -352,7 +356,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                         onClick={() => {
                                             dx_handle_click(spot.id, spot);
                                         }}
-                                        className="hover:cursor-pointer"
+                                        className="hover:cursor-pointer w-full"
                                     >
                                         <g
                                             style={{
@@ -394,18 +398,12 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                                     height={15}
                                                     width={15}
                                                     viewBox="0 0 280 360"
-                                                    style={{
-                                                        transform: "translateY(5px)",
-                                                    }}
                                                     className="group-hover:fill-blue-500"
                                                 >
                                                     <polygon
                                                         points="150,15 258,77 258,202 150,265 42,202 42,77"
                                                         strokeWidth={1}
                                                         className="group-hover:fill-blue-500"
-                                                        style={{
-                                                            transform: "translateY(5px)",
-                                                        }}
                                                         fill={colors.theme.text}
                                                     />
                                                 </svg>
@@ -414,6 +412,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
 
                                         <text
                                             x={"61%"}
+                                            ref={el => (callsign_refs.current[i] = el)}
                                             y={`${(i * 100) / sorted_spots.length + 3}%`}
                                             fontSize="14"
                                             fill={colors.theme.text}
@@ -438,11 +437,9 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                             y={`${(i * 100) / sorted_spots.length + 3}%`}
                                             height={20}
                                             width={
-                                                document.getElementById(`text_callsign_${i}`)
-                                                    ? document
-                                                          .getElementById(`text_callsign_${i}`)
-                                                          .getBoundingClientRect().width + 4
-                                                    : 20
+                                                callsign_refs.current[i]
+                                            ? callsign_refs.current[i].getBBox().width + 20
+                                            : 20
                                             }
                                             rx={5}
                                             ry={5}
