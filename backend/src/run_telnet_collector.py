@@ -147,7 +147,7 @@ async def parse_dx_line(cluster: TelnetCluster, line: str, debug: bool = False):
             return spot
 
     except Exception as e:
-            logger.error(f"Error parse_dc_line: {e}   {cluster.hostname=} {cluster.port=} {cluster.type=}")
+            logger.error(f"Error parse_dx_line: {e}   {cluster.hostname=} {cluster.port=} {cluster.type=}")
 
     return None
 
@@ -199,8 +199,6 @@ async def connect_and_listen(cluster: dict, debug: bool = False):
             logger.error(f"Error connect_and_listen: {e}   {cluster.hostname=} {cluster.port=} {cluster.type=}")
 
 
-
-        
 
 
 async def main(debug: bool = False):
