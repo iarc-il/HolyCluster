@@ -50,6 +50,7 @@ def check_telnet_connection(host, port, username, cluster_type, global_log_file=
             reconnect_attempts = 0
 
             if username:
+                time.sleep(2) # Wait for 2 seconds before sending username
                 sock.sendall(f"{username}\n".encode('utf-8'))
                 log.info(f"Sent username: {username}")
 
