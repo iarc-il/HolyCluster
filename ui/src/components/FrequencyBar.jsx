@@ -286,14 +286,28 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
 
                 bracket_y = y_lower + (y_upper - y_lower) * freq_pos;
             } else if (lower_spot) {
-                // If only lower spot exists, stick to its position
-                bracket_y = ((lower_spot.freq - min_freq) / (max_freq - min_freq)) * 100 + 3;
+                // Only lower spot: interpolate between lower spot and band max
+                const lower_idx = sorted_spots.findIndex(s => s.id === lower_spot.id);
+                const y_lower = (lower_idx * 100) / sorted_spots.length + 0.5;
+                const y_max = 100 + 0.5; // bottom of the bar
+
+                const freq_range = band_plans[band].max - lower_spot.freq;
+                const freq_pos = (radio_freq - lower_spot.freq) / freq_range;
+
+                bracket_y = y_lower + (y_max - y_lower) * freq_pos;
             } else if (upper_spot) {
-                // If only upper spot exists, stick to its position
-                bracket_y = ((upper_spot.freq - min_freq) / (max_freq - min_freq)) * 100 + 3;
+                // Only upper spot: interpolate between band min and upper spot
+                const upper_idx = sorted_spots.findIndex(s => s.id === upper_spot.id);
+                const y_upper = (upper_idx * 100) / sorted_spots.length + 0.5;
+                const y_min = 0.5; // top of the bar
+
+                const freq_range = upper_spot.freq - band_plans[band].min;
+                const freq_pos = (radio_freq - band_plans[band].min) / freq_range;
+
+                bracket_y = y_min + (y_upper - y_min) * freq_pos;
             } else {
                 // No spots at all
-                bracket_y = 3;
+                bracket_y = ((radio_freq - min_freq) / (max_freq - min_freq)) * 100 - 4;
             }
         }
     }
