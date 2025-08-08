@@ -10,13 +10,12 @@ def run_concurrent_telnet_connections():
     process to connect to each server concurrently.
     """
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Go up two directories to the project root, then into src
-    csv_path = os.path.join(script_dir, '..', '..', 'src', 'telnet_servers.csv')
-    connection_script_path = os.path.join(script_dir, 'test_telnet_connection.py')
+    csv_path = os.path.join(script_dir, 'telnet_servers.csv')
+    connection_script_path = os.path.join(script_dir, 'telnet_connection.py')
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     global_log_filename = f"all_clusters_{timestamp}.txt"
-    global_log_file = os.path.join(script_dir, 'logs_telnet', global_log_filename)
+    global_log_file = os.path.join(script_dir, 'logs', global_log_filename)
 
     try:
         with open(csv_path, 'r') as f:

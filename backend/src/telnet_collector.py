@@ -12,7 +12,7 @@ def check_telnet_connection(host, port, username, cluster_type, global_log_file=
     reconnect_attempts = 0
     backoff_delays = [60, 300, 600, 1200, 2400, 3600]  # 1, 5, 10, 20, 40, 60 minutes
 
-    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs_telnet')
+    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
     os.makedirs(log_dir, exist_ok=True)
 
     output_filename = f"{host}.txt"
