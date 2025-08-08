@@ -5,6 +5,7 @@ import time
 import re
 import json
 from loguru import logger
+from valkey_config import get_valkey_client
 
 def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
     try:
@@ -68,6 +69,8 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir):
 
     log = logger.bind(host=host, port=port, cluster_type=cluster_type, cluster_info_padded=padded_cluster_info)
 
+    valkey_client = get_valkey_client()
+
     with open(output_filepath, 'a') as f:
         f.write('\n\n')
 
@@ -105,6 +108,13 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir):
                         spot = parse_dx_line(line, cluster_type, host, port)
                         if spot:
                             log.info(json.dumps(spot, indent=2))
+                            try:
+                                spot_id = f"spot:{spot.get('dx_callsign', 'UNKNOWN')}:{spot.get('time', 'UNKNOWN')}:{spot.get('frequency', 'UNKNOWN')}"
+                                valkey_client.hset(spot_id, mapping=spot)
+                                valkey_client.expire(spot_id, 3600) # Set TTL to 1 hour (3600 seconds)
+                                log.info(f"Spot stored in Valkey: {spot_id}")
+                            except Exception as e:
+                                log.error(f"Failed to store spot in Valkey: {e}")
                         else:
                             log.warning(f"Could not parse spot line: {line}")
 
