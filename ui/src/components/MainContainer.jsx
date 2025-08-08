@@ -95,7 +95,6 @@ function MainContainer() {
         send_message_to_radio({
             mode: spot.mode,
             freq: spot.freq,
-            band: spot.band,
         });
     }
 
