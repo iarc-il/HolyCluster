@@ -249,13 +249,15 @@ export const ServerDataProvider = ({ children }) => {
         CW: 0.2,
         SSB: 0.5,
     };
+
     const current_freq_spots = useMemo(() => {
         return filtered_spots
-            .filter(
-                spot =>
+            .filter(spot => {
+                return (
                     radio_freq / 1000 >= spot.freq - freq_error_range[spot.mode] &&
-                    radio_freq / 1000 <= spot.freq + freq_error_range[spot.mode],
-            )
+                    radio_freq / 1000 <= spot.freq + freq_error_range[spot.mode]
+                );
+            })
             .map(spot => spot.id);
     }, [filtered_spots, radio_freq]);
 

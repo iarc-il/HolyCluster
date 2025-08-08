@@ -19,11 +19,11 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                     element={
                         <ColorsProvider>
                             <FiltersProvider>
-                                <ServerDataProvider>
-                                    <RadioProvider>
+                                <RadioProvider>
+                                    <ServerDataProvider>
                                         <MainContainer />
-                                    </RadioProvider>
-                                </ServerDataProvider>
+                                    </ServerDataProvider>
+                                </RadioProvider>
                             </FiltersProvider>
                         </ColorsProvider>
                     }
