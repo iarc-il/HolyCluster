@@ -5,6 +5,8 @@ __pycache__/
 logs/
 logs_telnet/
 .DS_store
+uv.lock
+
 
 # C extensions
 *.so

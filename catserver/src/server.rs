@@ -395,7 +395,6 @@ struct InitMessage {
 struct SetModeAndFreq {
     mode: String,
     freq: f32,
-    band: u8,
 }
 
 #[derive(Deserialize)]
@@ -410,6 +409,12 @@ enum ClientMessage {
     SetModeAndFreq(SetModeAndFreq),
 }
 
+fn is_upper_sideband(freq: f32) -> bool {
+    !(1800.0..=2000.0).contains(&freq)
+        && !(3500.0..=4000.0).contains(&freq)
+        && !(7000.0..=7300.0).contains(&freq)
+}
+
 fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
     let message: ClientMessage = serde_json::from_str(&message)
         .with_context(|| format!("Failed to parse message: {message}"))?;
@@ -419,7 +424,7 @@ fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
             radio.write().set_rig(set_rig.rig);
         }
         ClientMessage::SetModeAndFreq(set_mode_and_freq) => {
-            let is_upper = !matches!(set_mode_and_freq.band, 160 | 80 | 40);
+            let is_upper = is_upper_sideband(set_mode_and_freq.freq);
             let mode = match (set_mode_and_freq.mode.as_str(), is_upper) {
                 ("SSB", true) => Mode::USB,
                 ("SSB", false) => Mode::LSB,
