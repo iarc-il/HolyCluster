@@ -544,7 +544,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                 height="8%"
                                 width="5%"
                                 y={`${bracket_y - 2.5}%`}
-                                x="42%"
+                                x="47.5%"
                             >
                                 <polygon
                                     points="0 0, 50 45, 0 90"
