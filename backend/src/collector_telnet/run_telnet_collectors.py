@@ -15,7 +15,7 @@ def run_concurrent_telnet_connections():
 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
     global_log_filename = f"{timestamp}-all_clusters.txt"
-    log_dir = os.path.join(script_dir, '..', 'logs')
+    log_dir = os.path.join(script_dir, '..', '..', 'logs')
     os.makedirs(log_dir, exist_ok=True)
     telnet_log_dir = os.path.join(log_dir, 'telnet')
     os.makedirs(telnet_log_dir, exist_ok=True)
