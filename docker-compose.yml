@@ -1,0 +1,12 @@
+services:
+  postgres:
+    container_name: postgres
+    build:
+      context: ./backend/postgres
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    volumes:
+      - ./backend/postgres/data:/var/lib/postgresql/data
+    ports:
+      - "15432:5432"
