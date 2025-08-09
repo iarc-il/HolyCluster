@@ -7,5 +7,5 @@ FROM postgres:16.9-bookworm
 # Expose default Postgres port
 EXPOSE 5432
 
-HEALTHCHECK --interval=5s --timeout=5s --retries=5 CMD pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+
 

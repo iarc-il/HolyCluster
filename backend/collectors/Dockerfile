@@ -11,10 +11,11 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies using uv.
-RUN uv sync --system
+RUN uv sync
 
 # Copy the source code.
 COPY src/ ./src/
 
 # Specify the command to run on container startup.
-CMD ["python", "src/run_collector.py"]
+#CMD ["python", "src/run_collector.py"]
+CMD ["tail", "-f", "/dev/null"]

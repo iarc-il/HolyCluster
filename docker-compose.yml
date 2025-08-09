@@ -10,11 +10,20 @@ services:
       - ./backend/postgres/data:/var/lib/postgresql/data
     ports:
       - "15432:5432"
-  collector:
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  collectors:
+    container_name: collectors
     build:
       context: ./backend
-      dockerfile: collector/Dockerfile
+      dockerfile: collectors/Dockerfile
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     env_file:
       - ./.env
+    volumes:
+      - ./backend/collectors/logs:/app/src/logs
