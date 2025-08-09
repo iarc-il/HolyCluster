@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { get_base_url } from "@/utils.js";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
-import About from "@/components/About.jsx";
 import { bands, modes } from "@/filters_data.js";
 import { useServerData } from "@/hooks/useServerData";
 import { useFilters } from "@/hooks/useFilters";
@@ -48,72 +47,37 @@ const mode_to_symbol = {
     DIGI: Hex,
 };
 
-function FeedbackButton({ size }) {
-    const { colors } = useColors();
+function SpotCount({ count }) {
+    if (count === 0) return null;
+
+    const classes = [
+        "relative",
+        "inline-flex",
+        "border",
+        "border-gray-900",
+        "bg-red-600",
+        "text-white",
+        "font-medium",
+        "justify-center",
+        "items-center",
+        "rounded-full",
+        "h-5",
+        "w-5",
+        "text-center",
+        "text-[12px]",
+    ];
 
     return (
-        <div>
-            <a href="https://forms.gle/jak7KnvwCnBRN6QU7" target="_blank">
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                    <title>Feedback form</title>
-                    <path
-                        d="M8 9H16M8 13H14M18 4C18.7956 4 19.5587 4.31607 20.1213 4.87868C20.6839 5.44129 21 6.20435 21 7V15C21 15.7956 20.6839 16.5587 20.1213 17.1213C19.5587 17.6839 18.7956 18 18 18H13L8 21V18H6C5.20435 18 4.44129 17.6839 3.87868 17.1213C3.31607 16.5587 3 15.7956 3 15V7C3 6.20435 3.31607 5.44129 3.87868 4.87868C4.44129 4.31607 5.20435 4 6 4H18Z"
-                        stroke={colors.buttons.utility}
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </svg>
-            </a>{" "}
-        </div>
-    );
-}
-
-function CatserverDownload({ size, new_version_available }) {
-    const { colors } = useColors();
-
-    return (
-        <div>
-            <a href="/addons" target="_blank">
-                {new_version_available ? (
-                    <span className="absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10">
-                        <span className="relative inline-flex border border-gray-900 bg-orange-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
-                            !
-                        </span>
-                    </span>
-                ) : (
-                    ""
-                )}
-                <strong className="text-lg" style={{ color: colors.buttons.utility }}>
-                    CAT
-                </strong>
-            </a>{" "}
-        </div>
+        <span className="absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10">
+            <span className={classes.join(" ")}>{count}</span>
+        </span>
     );
 }
 
 function LeftColumn({ toggled_ui }) {
-    const { spots_per_band_count, set_hovered_band } = useServerData();
+    const { spots_per_band_count, spots_per_mode_count, set_hovered_band } = useServerData();
     const { filters, setFilters, setRadioModeFilter } = useFilters();
-    const { radio_band, radio_status, catserver_version } = use_radio();
-    const [new_version_available, set_new_version_available] = useState(false);
-
-    useEffect(() => {
-        if (catserver_version == null) {
-            return;
-        }
-        fetch(get_base_url() + "/catserver/latest")
-            .then(data => data.text())
-            .then(data => {
-                const remote_version = data.slice(0, data.lastIndexOf("."));
-                console.log(
-                    `Remote version: ${remote_version}, Local version: ${catserver_version}`,
-                );
-                if (catserver_version != remote_version) {
-                    set_new_version_available(true);
-                }
-            });
-    }, [catserver_version]);
+    const { radio_band, radio_status } = use_radio();
 
     const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";
     const toggled_classes = toggled_ui.left
@@ -133,6 +97,7 @@ function LeftColumn({ toggled_ui }) {
             <div className={filter_group_classes + "pb-4 border-b-2 border-slate-300"}>
                 {bands.map(band => {
                     const color = colors.bands[band];
+                    let label = Number.isInteger(band) ? band + "m" : band;
                     return (
                         <FilterOptions
                             key={band}
@@ -141,17 +106,11 @@ function LeftColumn({ toggled_ui }) {
                             orientation="right"
                             disabled={filters.radio_band}
                         >
-                            {spots_per_band_count[band] != 0 && !filters.radio_band ? (
-                                <span className="absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10">
-                                    <span className="relative inline-flex border border-gray-900 bg-red-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
-                                        {spots_per_band_count[band]}
-                                    </span>
-                                </span>
-                            ) : (
-                                ""
+                            {!filters.radio_band && (
+                                <SpotCount count={spots_per_band_count[band]} />
                             )}
                             <FilterButton
-                                text={band + "m"}
+                                text={label}
                                 is_active={filters.bands[band]}
                                 color={color}
                                 text_color={colors.text[band]}
@@ -171,7 +130,6 @@ function LeftColumn({ toggled_ui }) {
                                 }}
                                 on_mouse_leave={_ => set_hovered_band(null)}
                                 hover_brightness="125"
-                                size="small"
                             />
                         </FilterOptions>
                     );
@@ -181,20 +139,7 @@ function LeftColumn({ toggled_ui }) {
             {radio_status != "unavailable" || filters.radio_band ? (
                 <div className={filter_group_classes + "py-4 border-b-2 border-slate-300"}>
                     <div>
-                        {spots_per_band_count[radio_band] != 0 ? (
-                            <span
-                                className={
-                                    "absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10"
-                                }
-                            >
-                                <span className="relative inline-flex border border-gray-900 bg-red-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
-                                    {spots_per_band_count[radio_band]}
-                                </span>
-                            </span>
-                        ) : (
-                            ""
-                        )}
-
+                        <SpotCount count={spots_per_band_count[radio_band]} />
                         <FilterButton
                             text={"Radio"}
                             is_active={filters.radio_band}
@@ -202,7 +147,6 @@ function LeftColumn({ toggled_ui }) {
                             text_color={colors.text[radio_band] ?? "white"}
                             on_click={_ => setRadioModeFilter(!filters.radio_band)}
                             hover_brightness="125"
-                            size="small"
                         />
                     </div>
                 </div>
@@ -219,6 +163,7 @@ function LeftColumn({ toggled_ui }) {
                             filter_value={mode}
                             orientation="right"
                         >
+                            <SpotCount count={spots_per_mode_count[mode]} />
                             <FilterButton
                                 text={
                                     <>
@@ -243,16 +188,10 @@ function LeftColumn({ toggled_ui }) {
                                     }))
                                 }
                                 color={colors.buttons.modes}
-                                size="small"
                             />
                         </FilterOptions>
                     );
                 })}
-            </div>
-            <div className="mt-auto mb-2 space-y-3">
-                <CatserverDownload size="36" new_version_available={new_version_available} />
-                <FeedbackButton size="36" />
-                <About version={catserver_version} />
             </div>
         </div>
     );

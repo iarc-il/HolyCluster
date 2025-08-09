@@ -1,10 +1,8 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect } from "react";
 import { use_object_local_storage } from "@/utils.js";
 import { bands, modes, continents } from "@/filters_data.js";
 
 const FiltersContext = createContext(undefined);
-
-const { Provider } = FiltersContext;
 
 export const useFilters = () => {
     const context = useContext(FiltersContext);
@@ -68,7 +66,7 @@ export const FiltersProvider = ({ children }) => {
     }
 
     return (
-        <Provider
+        <FiltersContext.Provider
             value={{
                 filters,
                 setFilters,
@@ -80,6 +78,6 @@ export const FiltersProvider = ({ children }) => {
             }}
         >
             {children}
-        </Provider>
+        </FiltersContext.Provider>
     );
 };

@@ -148,7 +148,7 @@ function FilterSection({ title, filters, action, toggle_field }) {
     );
 }
 
-function Filters({}) {
+function Filters() {
     const { colors } = useColors();
     const { callsign_filters } = useFilters();
 

@@ -12,13 +12,13 @@ function CallsignsView({ toggled_ui, set_cat_to_spot }) {
     const freq_bar = <FrequencyBar set_cat_to_spot={set_cat_to_spot} className={"px-2 h-full"} />;
 
     const toggled_classes = toggled_ui.right
-        ? "hidden "
-        : "max-2xl:absolute z-40 right-20 top-0 border-l border-slate-300 ";
+        ? "hidden"
+        : "max-2xl:absolute right-20 top-0 border-l border-slate-300";
     return (
         <div
             className={
                 toggled_classes +
-                " 2xl:flex flex-col bg-white h-full divide-y divide-slate-300 w-56 2xl:w-[30rem]"
+                " 2xl:flex flex-col bg-white h-full divide-y divide-slate-300 w-56 2xl:w-[30rem] z-[70]"
             }
             style={{ backgroundColor: colors.theme.background }}
         >

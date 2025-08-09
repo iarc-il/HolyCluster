@@ -1,68 +1,17 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useFilters } from "../hooks/useFilters";
 import { get_base_url, is_matching_list, sort_spots } from "@/utils.js";
-import { bands } from "@/filters_data.js";
-import { get_flag } from "@/flags.js";
+import { bands, modes } from "@/filters_data.js";
+import { get_flag, shorten_dxcc } from "@/flags.js";
 import use_radio from "./useRadio";
 import { use_object_local_storage } from "@/utils.js";
 
 const ServerDataContext = createContext(undefined);
 
-const { Provider } = ServerDataContext;
-
-export const useServerData = () => {
+export function useServerData() {
     const context = useContext(ServerDataContext);
     return { ...context };
-};
-
-function fetch_spots() {
-    if (this.is_fetching_in_progress) {
-        return;
-    }
-
-    let url = get_base_url();
-    url += "/spots";
-    if (this.last_id != null) {
-        url += `?last_id=${this.last_id}`;
-    }
-
-    if (!navigator.onLine) {
-        this.set_network_state("disconnected");
-    } else {
-        this.is_fetching_in_progress = true;
-        return fetch(url, { mode: "cors" })
-            .then(response => {
-                if (response == null || !response.ok) {
-                    return Promise.reject(response);
-                } else {
-                    return response.json();
-                }
-            })
-            .then(data => {
-                if (data == null) {
-                    return Promise.reject(response);
-                } else {
-                    const new_spots = data.map(spot => {
-                        if (spot.mode == "DIGITAL") {
-                            spot.mode = "DIGI";
-                        }
-                        return spot;
-                    });
-                    new_spots.sort((spot_a, spot_b) => spot_b.id - spot_a.id);
-                    let spots = new_spots.concat(this.spots);
-                    let current_time = Math.round(Date.now() / 1000);
-                    spots = spots.filter(spot => spot.time > current_time - 3600);
-                    this.last_id = spots[0].id;
-                    this.set_spots(spots);
-                    this.set_network_state("connected");
-                }
-                this.is_fetching_in_progress = false;
-            })
-            .catch(_ => {
-                this.set_network_state("disconnected");
-                this.is_fetching_in_progress = false;
-            });
-    }
 }
 
 function fetch_propagation() {
@@ -119,43 +68,80 @@ export const ServerDataProvider = ({ children }) => {
     });
     fetch_propagation_context.current.propagation = propagation;
 
-    const fetch_spots_context = useRef({
-        spots,
-        set_spots,
-        set_network_state,
-        last_id: null,
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const websocket_url = get_base_url().replace(/^http(s)?:/, protocol) + "/spots_ws";
+
+    const [is_first_connection, set_is_first_connection] = useState(true);
+    const last_spot_id_ref = useRef(0);
+
+    const { lastJsonMessage, readyState, sendJsonMessage } = useWebSocket(websocket_url, {
+        onOpen: () => {
+            if (is_first_connection) {
+                sendJsonMessage({ initial: true });
+                set_is_first_connection(false);
+            } else {
+                sendJsonMessage({ last_id: last_spot_id_ref.current });
+            }
+        },
+        reconnectAttempts: 10,
+        reconnectInterval: 5000,
+        shouldReconnect: () => navigator.onLine,
     });
-    // This is very importent because the spots are later sorted
-    fetch_spots_context.current.spots = structuredClone(spots);
 
     useEffect(() => {
-        const fetch_spots_with_context = fetch_spots.bind(fetch_spots_context.current);
-        fetch_spots_with_context();
-        let spots_interval_id = setInterval(fetch_spots_with_context, 30 * 1000);
+        if (lastJsonMessage) {
+            const data = lastJsonMessage;
+            let new_spots = data.spots.map(spot => {
+                if (spot.mode === "DIGITAL") {
+                    spot.mode = "DIGI";
+                }
+                if (spot.band == 2) {
+                    spot.band = "VHF";
+                } else if (spot.band == 0.7) {
+                    spot.band = "UHF";
+                } else if (spot.band < 1) {
+                    spot.band = "SHF";
+                }
+                spot.dx_country = shorten_dxcc(spot.dx_country);
+                return spot;
+            });
 
+            if (data.type === "update") {
+                new_spots = new_spots.concat(spots);
+            }
+
+            let current_time = Math.round(Date.now() / 1000);
+            new_spots = new_spots.filter(spot => spot.time > current_time - 3600);
+            set_spots(new_spots);
+
+            if (new_spots.length > 0) {
+                last_spot_id_ref.current = Math.max(...new_spots.map(spot => spot.id));
+            }
+        }
+    }, [lastJsonMessage]);
+
+    useEffect(() => {
+        switch (readyState) {
+            case ReadyState.CONNECTING:
+                set_network_state("connecting");
+                break;
+            case ReadyState.OPEN:
+                set_network_state("connected");
+                break;
+            case ReadyState.CLOSED:
+                set_network_state("disconnected");
+                break;
+        }
+    }, [readyState]);
+
+    useEffect(() => {
         const fetch_propagation_with_context = fetch_propagation.bind(
             fetch_propagation_context.current,
         );
         fetch_propagation_with_context();
         let propagation_interval_id = setInterval(fetch_propagation_with_context, 3600 * 1000);
 
-        // Try to fetch again the spots when the device is connected to the internet
-        const handle_online = () => {
-            set_network_state("connecting");
-            fetch_spots_with_context();
-            fetch_propagation_with_context();
-        };
-        const handle_offline = () => {
-            set_network_state("disconnected");
-        };
-
-        window.addEventListener("online", handle_online);
-        window.addEventListener("offline", handle_offline);
-
         return () => {
-            window.removeEventListener("online", handle_online);
-            window.removeEventListener("offline", handle_offline);
-            clearInterval(spots_interval_id);
             clearInterval(propagation_interval_id);
         };
     }, []);
@@ -242,6 +228,18 @@ export const ServerDataProvider = ({ children }) => {
         return spots_per_band_count;
     }, [filtered_spots]);
 
+    const spots_per_mode_count = useMemo(() => {
+        const spots_per_mode_count = Object.fromEntries(
+            modes.map(mode => [mode, filtered_spots.filter(spot => spot.mode === mode).length]),
+        );
+
+        // Limit the count for 2 digit display
+        for (const mode in spots_per_mode_count) {
+            spots_per_mode_count[mode] = Math.min(spots_per_mode_count[mode], 99);
+        }
+        return spots_per_mode_count;
+    }, [filtered_spots]);
+
     // Max offset for the frequency error in kHz
     const freq_error_range = {
         FT8: 0.2,
@@ -250,18 +248,20 @@ export const ServerDataProvider = ({ children }) => {
         CW: 0.2,
         SSB: 0.5,
     };
+
     const current_freq_spots = useMemo(() => {
         return filtered_spots
-            .filter(
-                spot =>
+            .filter(spot => {
+                return (
                     radio_freq / 1000 >= spot.freq - freq_error_range[spot.mode] &&
-                    radio_freq / 1000 <= spot.freq + freq_error_range[spot.mode],
-            )
+                    radio_freq / 1000 <= spot.freq + freq_error_range[spot.mode]
+                );
+            })
             .map(spot => spot.id);
     }, [filtered_spots, radio_freq]);
 
     return (
-        <Provider
+        <ServerDataContext.Provider
             value={{
                 spots: filtered_spots,
                 hovered_spot,
@@ -273,12 +273,13 @@ export const ServerDataProvider = ({ children }) => {
                 filter_missing_flags,
                 set_filter_missing_flags,
                 spots_per_band_count,
+                spots_per_mode_count,
                 propagation,
                 network_state,
                 current_freq_spots,
             }}
         >
             {children}
-        </Provider>
+        </ServerDataContext.Provider>
     );
 };

@@ -1,3 +1,4 @@
+import React from "react";
 import { useColors } from "../hooks/useColors";
 
 export default function SevenSegmentDisplay({ className, height, value, display_size, error }) {
@@ -10,14 +11,10 @@ export default function SevenSegmentDisplay({ className, height, value, display_
     }
 
     return (
-        <div className={`flex flex-row gap-2 ${className || ""}`}>
+        <div className={`flex flex-row gap-2 h-[35px]`}>
             {Array.from({ length: display_size }, (_, i) => (
-                <>
-                    <SevenSegmentTile
-                        key={i}
-                        className={`h-[${height}px]`}
-                        value={error ? -1 : parseInt(value[i])}
-                    />
+                <React.Fragment key={i}>
+                    <SevenSegmentTile value={error ? -1 : parseInt(value[i])} />
                     {(display_size - i) % 3 === 1 && i !== display_size - 1 && (
                         <div
                             className={`h-[3px] aspect-square mt-auto -mx-1 ${error && "opacity-25"}`}
@@ -28,7 +25,7 @@ export default function SevenSegmentDisplay({ className, height, value, display_
                             }}
                         ></div>
                     )}
-                </>
+                </React.Fragment>
             ))}
         </div>
     );

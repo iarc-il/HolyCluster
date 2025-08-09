@@ -190,6 +190,7 @@ function SubmitSpot({ settings, dev_mode }) {
                                 <Input
                                     value={temp_data.callsign}
                                     maxLength={11}
+                                    autoFocus={true}
                                     className="uppercase"
                                     onChange={event => {
                                         set_temp_data({

@@ -128,15 +128,21 @@ function SvgMap({
     const text_x = is_max_xs_device ? 10 : 20;
     const text_y = is_max_xs_device ? 20 : 30;
 
-    const [popup_position, set_popup_position] = useState(null);
-
     let hovered_spot_data;
+    let pinned_spot_data;
     let hovered_spot_distance;
+    let pinned_spot_distance;
     const rendered_spots = spots.toReversed().map((spot, index) => {
         if (spot.id == hovered_spot.id) {
             hovered_spot_data = spot;
             hovered_spot_distance = (haversine(spot.dx_loc, spot.spotter_loc) / 1000).toFixed();
         }
+
+        if (spot.id == pinned_spot) {
+            pinned_spot_data = spot;
+            pinned_spot_distance = (haversine(spot.dx_loc, spot.spotter_loc) / 1000).toFixed();
+        }
+
         return (
             <Spot
                 key={index}
@@ -149,16 +155,13 @@ function SvgMap({
                 pinned_spot={pinned_spot}
                 hovered_band={hovered_band}
                 set_pinned_spot={set_pinned_spot}
-                set_popup_position={set_popup_position}
             />
         );
     });
 
     let azimuth = null;
-    if (
-        (hovered_spot_data && hovered_spot.source === "dx") ||
-        (spots.find(spot => spot.id === pinned_spot) && hovered_spot.source !== "dx")
-    ) {
+
+    if (spots.find(spot => spot.id === pinned_spot) || hovered_spot_data) {
         const spot_data = hovered_spot_data || spots.find(spot => spot.id === pinned_spot);
         azimuth = calculate_geographic_azimuth(
             center_lat,
@@ -189,7 +192,11 @@ function SvgMap({
                         const [lon, lat] = projection.invert([x, y]);
                         const displayed_locator = new Maidenhead(lat, lon).locator.slice(0, 6);
                         set_map_controls(
-                            state => (state.location = { displayed_locator, location: [lon, lat] }),
+                            state =>
+                                (state.location = {
+                                    displayed_locator,
+                                    location: [lon, lat],
+                                }),
                         );
                     }
                 }}
@@ -270,6 +277,7 @@ function SvgMap({
                                 pointerEvents="none"
                                 key={shape.properties.dxcc_name}
                                 d={path_generator(shape)}
+                                className="hover:cursor-pointer"
                             >
                                 <title>
                                     {shape.properties.dxcc_name} ({shape.properties.dxcc_prefix})
@@ -330,14 +338,14 @@ function SvgMap({
                 />
                 <circle r="4" fill="#FF0000" cx={center_x} cy={center_y} />
             </svg>
-            {hovered_spot.source == "dx" && popup_position != null ? (
+            {pinned_spot_data || hovered_spot_data ? (
                 <SpotPopup
                     hovered_spot={hovered_spot}
                     set_hovered_spot={set_hovered_spot}
                     set_pinned_spot={set_pinned_spot}
-                    popup_position={popup_position}
                     hovered_spot_data={hovered_spot_data}
-                    distance={hovered_spot_distance}
+                    pinned_spot_data={pinned_spot_data}
+                    distance={hovered_spot_distance ?? pinned_spot_distance}
                     settings={settings}
                     azimuth={azimuth}
                 />

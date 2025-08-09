@@ -3,7 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 logs/
+logs_telnet/
 .DS_store
+uv.lock
+
 
 # C extensions
 *.so

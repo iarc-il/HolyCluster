@@ -1,4 +1,7 @@
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::{
+    net::{Ipv4Addr, SocketAddrV4},
+    time::Duration,
+};
 
 use anyhow::{Context, Result, bail};
 use axum::{
@@ -6,7 +9,7 @@ use axum::{
     body::Body,
     extract::{
         Request, State, WebSocketUpgrade,
-        ws::{CloseFrame, Message, Utf8Bytes, WebSocket},
+        ws::{Message, WebSocket},
     },
     response::{IntoResponse, Response},
     routing::{any, post},
@@ -16,11 +19,7 @@ use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
-    sync::{
-        broadcast::{Receiver, Sender},
-        mpsc,
-    },
-    task::JoinHandle,
+    sync::broadcast::{Receiver, Sender},
 };
 use tokio_tungstenite::connect_async;
 use tower_http::services::ServeDir;
@@ -28,7 +27,7 @@ use tower_http::services::ServeDir;
 use crate::{
     freq::Freq,
     rig::{AnyRadio, Mode, Slot},
-    tray_icon::IconTrayEvent,
+    tray_icon::UserEvent,
     utils,
 };
 
@@ -40,7 +39,7 @@ pub struct ServerConfig {
 }
 
 impl ServerConfig {
-    fn build_uri(&self, schema: &str, path_and_query: &str) -> String {
+    pub fn build_uri(&self, schema: &str, path_and_query: &str) -> String {
         format!(
             "{}{}://{}{}",
             schema,
@@ -56,17 +55,18 @@ struct AppState {
     server_config: ServerConfig,
     radio: AnyRadio,
     http_client: Client,
-    event_sender: Sender<IconTrayEvent>,
+    sender: Sender<UserEvent>,
 }
 
 pub struct Server {
     app: Router,
     listener: TcpListener,
+    sender: Sender<UserEvent>,
 }
 
 impl Server {
     pub async fn build_server(
-        event_sender: Sender<IconTrayEvent>,
+        sender: Sender<UserEvent>,
         radio: AnyRadio,
         server_config: ServerConfig,
         use_local_ui: bool,
@@ -75,14 +75,22 @@ impl Server {
 
         let app = Router::new()
             .route("/radio", any(cat_control_handler))
-            .route("/submit_spot", any(submit_spot_handler))
-            .route("/exit", post(exit_server_handler));
+            .route(
+                "/submit_spot",
+                any(|state, websocket| websocket_handler(state, websocket, "/submit_spot")),
+            )
+            .route(
+                "/spots_ws",
+                any(|state, websocket| websocket_handler(state, websocket, "/spots_ws")),
+            )
+            .route("/exit", post(exit_server_handler))
+            .route("/open", post(open_tab_handler));
 
         let app_state = AppState {
             server_config,
             radio,
             http_client,
-            event_sender,
+            sender: sender.clone(),
         };
         let app = if use_local_ui {
             let mut ui_dir = std::env::current_exe()?;
@@ -108,27 +116,31 @@ impl Server {
 
         let address = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), local_port);
         let listener = TcpListener::bind(address).await?;
-        Ok(Self { app, listener })
+        Ok(Self {
+            app,
+            listener,
+            sender,
+        })
     }
 
-    pub async fn run_server(self, quit_receiver: Receiver<IconTrayEvent>) -> Result<()> {
+    pub async fn run_server(self) -> Result<()> {
         axum::serve(self.listener, self.app)
-            .with_graceful_shutdown(shutdown(quit_receiver))
+            .with_graceful_shutdown(shutdown(self.sender.subscribe()))
             .await?;
         Ok(())
     }
 }
 
-async fn shutdown(mut quit_receiver: Receiver<IconTrayEvent>) {
-    while let Ok(message) = quit_receiver.recv().await {
-        if message == IconTrayEvent::Quit {
-            break;
-        }
+async fn shutdown(mut receiver: Receiver<UserEvent>) {
+    while let Ok(message) = receiver.recv().await
+        && message != UserEvent::Quit
+    {
+        // Waiting
     }
 }
 
 async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Response<Body> {
-    let uri_string = state.server_config.build_uri(
+    let uri = state.server_config.build_uri(
         "http",
         request
             .uri()
@@ -137,7 +149,7 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
             .unwrap_or(""),
     );
 
-    let reqwest_response = match state.http_client.get(uri_string).send().await {
+    let reqwest_response = match state.http_client.get(uri).send().await {
         Ok(result) => result,
         Err(error) => {
             tracing::error!("Error: {error:?}");
@@ -155,89 +167,87 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
 }
 
 async fn exit_server_handler(State(state): State<AppState>) -> impl IntoResponse {
-    let _ = state.event_sender.send(IconTrayEvent::Quit);
+    let _ = state.sender.send(UserEvent::Quit);
     StatusCode::OK
 }
 
-async fn submit_spot_handler(
+async fn open_tab_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let _ = state.sender.send(UserEvent::OpenBrowser);
+    StatusCode::OK
+}
+
+async fn websocket_handler(
     State(state): State<AppState>,
     websocket: WebSocketUpgrade,
+    path: &'static str,
 ) -> impl IntoResponse {
     websocket
         .write_buffer_size(0)
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
         .on_upgrade(async |websocket: WebSocket| {
-            handle_submit_spot_socket(state.server_config, websocket)
+            handle_websocket(state.server_config, websocket, path)
                 .await
                 .unwrap()
         })
 }
 
-async fn handle_submit_spot_socket(
+async fn handle_websocket(
     server_config: ServerConfig,
     client_socket: WebSocket,
+    path: &str,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = client_socket.split();
-    let (stream, _response) = connect_async(server_config.build_uri("ws", "/submit_spot")).await?;
+    let (stream, _response) = connect_async(server_config.build_uri("ws", path)).await?;
     let (mut server_sender, mut server_receiver) = stream.split();
 
-    let mut send_task: JoinHandle<Result<()>> = tokio::spawn(async move {
-        while let Some(Ok(message)) = server_receiver.next().await {
-            client_sender
-                .send(utils::tungstenite_to_axum_message(message))
-                .await?;
-        }
+    use tokio_tungstenite::tungstenite;
 
-        // This is best effort, so we ignore errors
-        let _ = client_sender
-            .send(Message::Close(Some(axum::extract::ws::CloseFrame {
-                code: axum::extract::ws::close_code::NORMAL,
-                reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
-            })))
-            .await;
-        Ok(())
-    });
-
-    let mut recv_task: JoinHandle<Result<()>> = tokio::spawn(async move {
-        while let Some(Ok(message)) = client_receiver.next().await {
-            let result = server_sender
-                .send(utils::axum_to_tungstenite_message(message))
-                .await;
-            if let Err(error) = &result {
-                use tokio_tungstenite::tungstenite::Error;
-                match error {
-                    Error::ConnectionClosed => {
-                        break;
-                    }
-                    _ => {
-                        result?;
+    loop {
+        tokio::select! {
+            Some(Ok(message)) = client_receiver.next() => {
+                let result = server_sender
+                    .send(utils::axum_to_tungstenite_message(message))
+                    .await;
+                if let Err(error) = &result {
+                    use tungstenite::Error;
+                    match error {
+                        Error::ConnectionClosed => {
+                            break;
+                        }
+                        _ => {
+                            result?;
+                        }
                     }
                 }
             }
-        }
-
-        // This is best effort, so we ignore errors
-        let _ = server_sender
-            .send(tokio_tungstenite::tungstenite::Message::Close(Some(
-                tokio_tungstenite::tungstenite::protocol::CloseFrame {
-                    code:
-                        tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode::Normal,
-                    reason: tokio_tungstenite::tungstenite::Utf8Bytes::from_static("Goodbye"),
-                },
-            )))
-            .await;
-        Ok(())
-    });
-
-    tokio::select! {
-        _ = (&mut send_task) => {
-            recv_task.abort();
-        },
-        _ = (&mut recv_task) => {
-            send_task.abort();
+            Some(Ok(message)) = server_receiver.next() => {
+                let result = client_sender
+                    .send(utils::tungstenite_to_axum_message(message))
+                    .await;
+                if result.is_err() {
+                    break;
+                }
+            }
         }
     }
+
+    // This is best effort, so we ignore errors
+    let _ = server_sender
+        .send(tungstenite::Message::Close(Some(
+            tungstenite::protocol::CloseFrame {
+                code: tungstenite::protocol::frame::coding::CloseCode::Normal,
+                reason: tungstenite::Utf8Bytes::from_static("Goodbye"),
+            },
+        )))
+        .await;
+    let _ = client_sender
+        .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+            code: axum::extract::ws::close_code::NORMAL,
+            reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
+        })))
+        .await;
+
     Ok(())
 }
 
@@ -245,111 +255,92 @@ async fn cat_control_handler(
     websocket: WebSocketUpgrade,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
+    let receiver = state.sender.subscribe();
+
     websocket
         .write_buffer_size(0)
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
-        .on_upgrade(async |websocket: WebSocket| {
-            handle_cat_control_socket(websocket, state.radio)
-                .await
-                .unwrap()
+        .on_upgrade(async move |websocket: WebSocket| {
+            let result = handle_cat_control_socket(websocket, state.radio, receiver).await;
+            result.unwrap();
         })
 }
 
-async fn handle_cat_control_socket(socket: WebSocket, radio: AnyRadio) -> Result<()> {
-    let (mut sender_inner, mut receiver) = socket.split();
+async fn handle_cat_control_socket(
+    socket: WebSocket,
+    radio: AnyRadio,
+    mut receiver: Receiver<UserEvent>,
+) -> Result<()> {
+    let (mut client_sender, mut client_receiver) = socket.split();
 
-    let (sender, mut sender_recv) = mpsc::unbounded_channel::<Message>();
+    let message = InitMessage {
+        status: "connected".into(),
+        version: env!("VERSION").into(),
+    };
+    let message = Message::Text(serde_json::to_string(&message)?.into());
+    client_sender.send(message).await?;
 
-    let mut send_task: JoinHandle<Result<()>> = tokio::spawn(async move {
-        while let Some(message) = sender_recv.recv().await {
-            if sender_inner.send(message).await.is_err() {
-                break;
+    let mut interval = tokio::time::interval(Duration::from_millis(500));
+    let mut previous_data = None;
+
+    loop {
+        tokio::select! {
+            Some(message) = client_receiver.next() => {
+                match message? {
+                    Message::Text(text) => {
+                        process_message(text.to_string(), &radio)?;
+                        let status = radio.write().get_status();
+                        let message = Message::Text(serde_json::to_string(&status)?.into());
+                        client_sender.send(message).await?;
+                    }
+                    Message::Binary(data) => {
+                        tracing::warn!("Ignoring binary data: {data:?}");
+                    }
+                    Message::Close(_) => {
+                        break;
+                    }
+                    message => {
+                        tracing::warn!("Ignoring message: {message:?}");
+                    }
+                }
+            },
+            event = receiver.recv() => {
+                match event? {
+                    UserEvent::Quit => {
+                        #[derive(Serialize)]
+                        struct CloseMessage {
+                            close: bool,
+                        }
+
+                        let message = CloseMessage { close: true };
+                        let message = Message::Text(serde_json::to_string(&message)?.into());
+                        let _ = client_sender.send(message).await;
+                        break;
+                    },
+                    UserEvent::OpenBrowser => {
+                        #[derive(Serialize)]
+                        struct FocusMessage {
+                            focus: bool,
+                        }
+                        let message = FocusMessage { focus: true };
+                        let message = Message::Text(serde_json::to_string(&message)?.into());
+                        client_sender.send(message).await?;
+                    },
+                }
+            },
+            _ = interval.tick() => {
+                let data = radio.write().get_status();
+                if previous_data.as_ref() != Some(&data) {
+                    let message = Message::Text(serde_json::to_string(&data)?.into());
+                    client_sender.send(message).await?;
+                    previous_data = Some(data);
+                }
             }
-        }
-
-        // This is best effort, so we ignore errors
-        let _ = sender_inner
-            .send(Message::Close(Some(CloseFrame {
-                code: axum::extract::ws::close_code::NORMAL,
-                reason: Utf8Bytes::from_static("Goodbye"),
-            })))
-            .await;
-        Ok(())
-    });
-
-    let poll_radio = radio.clone();
-    let poll_sender = sender.clone();
-    let mut poll_task: JoinHandle<Result<()>> = tokio::spawn(async move {
-        let message = InitMessage {
-            status: "connected".into(),
-            version: env!("VERSION").into(),
-        };
-        let radio = poll_radio.clone();
-        let sender = poll_sender;
-
-        sender.send(Message::Text(serde_json::to_string(&message)?.into()))?;
-
-        let mut previous_data = None;
-        loop {
-            let data = radio.write().get_status();
-            if previous_data.as_ref() != Some(&data) {
-                let message = Message::Text(serde_json::to_string(&data)?.into());
-                sender.send(message)?;
-                previous_data = Some(data);
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        }
-    });
-
-    let command_radio = radio.clone();
-    let command_sender = sender.clone();
-    let mut command_task: JoinHandle<Result<()>> = tokio::spawn(async move {
-        let radio = command_radio.clone();
-        let sender = command_sender;
-
-        while let Some(Ok(message)) = receiver.next().await {
-            match message {
-                Message::Text(text) => {
-                    process_message(text.to_string(), radio.clone())?;
-                    let status = radio.write().get_status();
-                    let message = Message::Text(serde_json::to_string(&status)?.into());
-                    sender.send(message)?;
-                }
-                Message::Binary(data) => {
-                    tracing::warn!("Ignoring binary data: {data:?}");
-                }
-                Message::Close(_) => {
-                    break;
-                }
-                message => {
-                    tracing::warn!("Ignoring message: {message:?}");
-                }
-            }
-        }
-        Ok(())
-    });
-
-    tokio::select! {
-        result = (&mut send_task) => {
-            tracing::debug!("Closing websocket since send task exited");
-            command_task.abort();
-            poll_task.abort();
-            result?
-        },
-        result = (&mut poll_task) => {
-            tracing::debug!("Closing websocket since poll task exited");
-            command_task.abort();
-            send_task.abort();
-            result?
-        },
-        result = (&mut command_task) => {
-            tracing::debug!("Closing websocket since command task exited");
-            poll_task.abort();
-            send_task.abort();
-            result?
         }
     }
+
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -362,7 +353,6 @@ struct InitMessage {
 struct SetModeAndFreq {
     mode: String,
     freq: f32,
-    band: u8,
 }
 
 #[derive(Deserialize)]
@@ -377,7 +367,13 @@ enum ClientMessage {
     SetModeAndFreq(SetModeAndFreq),
 }
 
-fn process_message(message: String, radio: AnyRadio) -> Result<()> {
+fn is_upper_sideband(freq: f32) -> bool {
+    !(1800.0..=2000.0).contains(&freq)
+        && !(3500.0..=4000.0).contains(&freq)
+        && !(7000.0..=7300.0).contains(&freq)
+}
+
+fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
     let message: ClientMessage = serde_json::from_str(&message)
         .with_context(|| format!("Failed to parse message: {message}"))?;
     match message {
@@ -386,7 +382,7 @@ fn process_message(message: String, radio: AnyRadio) -> Result<()> {
             radio.write().set_rig(set_rig.rig);
         }
         ClientMessage::SetModeAndFreq(set_mode_and_freq) => {
-            let is_upper = !matches!(set_mode_and_freq.band, 160 | 80 | 40);
+            let is_upper = is_upper_sideband(set_mode_and_freq.freq);
             let mode = match (set_mode_and_freq.mode.as_str(), is_upper) {
                 ("SSB", true) => Mode::USB,
                 ("SSB", false) => Mode::LSB,

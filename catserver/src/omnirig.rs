@@ -52,7 +52,7 @@ impl Radio for OmnirigRadio {
 
         let omnirig = winsafe::CoCreateInstance::<IDispatch>(
             &CLSIDFromProgID("Omnirig.OmnirigX").unwrap(),
-            None,
+            None::<&winsafe::IUnknown>,
             co::CLSCTX::LOCAL_SERVER,
         )
         .unwrap();
@@ -76,7 +76,7 @@ impl Radio for OmnirigRadio {
         let mode = match mode {
             Mode::LSB => 0x04000000,
             Mode::USB => 0x02000000,
-            Mode::CW => 0x01000000,
+            Mode::CW => 0x00800000,
             Mode::Data => 0x08000000,
         };
 

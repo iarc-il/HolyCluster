@@ -6,17 +6,17 @@ function Button({
     className,
     ...other_props
 }) {
-    let classes;
+    let input_classes;
     if (className == null) {
-        classes = "";
+        input_classes = [];
     } else {
-        classes = className;
+        input_classes = className.split(" ");
     }
 
     if (other_props.disabled) {
         color = "gray";
     }
-    const builtin_classes = [
+    let classes = [
         `text-${text_color}`,
         `bg-${color}-600`,
         `active:bg-${color}-800`,
@@ -24,11 +24,15 @@ function Button({
         "font-medium",
         "rounded-lg",
         "text-sm",
-        "p-2",
-    ].join(" ");
+    ];
+    if (!input_classes.find(c => c.startsWith("p-"))) {
+        classes.push("p-2");
+    }
+
+    classes.push(...input_classes);
 
     return (
-        <button className={`${builtin_classes} ${classes}`} onClick={on_click} {...other_props}>
+        <button className={classes.join(" ")} onClick={on_click} {...other_props}>
             {children}
         </button>
     );

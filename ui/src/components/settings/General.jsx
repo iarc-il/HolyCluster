@@ -25,6 +25,7 @@ export default function General({ temp_settings, set_temp_settings, colors }) {
                                 value={temp_settings.callsign}
                                 maxLength={11}
                                 className="uppercase"
+                                autoFocus={true}
                                 onChange={event => {
                                     set_temp_settings({
                                         ...temp_settings,

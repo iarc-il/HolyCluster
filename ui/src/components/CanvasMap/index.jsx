@@ -188,7 +188,6 @@ function CanvasMap({
 
     const [div_ref, { width, height }] = useMeasure();
     const dims = new Dimensions(width, height, 50);
-    const [popup_position, set_popup_position] = useState(null);
 
     const zoom_transform = useRef(d3.zoomIdentity);
 
@@ -296,19 +295,9 @@ function CanvasMap({
                 if (hovered_spot.source != "map" || hovered_spot.id != spot_id) {
                     set_hovered_spot({ source: type, id: spot_id });
                 }
-                if (type == "dx") {
-                    if (popup_position == null) {
-                        set_popup_position({ x: offsetX, y: offsetY });
-                    }
-                } else {
-                    set_popup_position(null);
-                }
             } else {
                 if (hovered_spot.source != null || hovered_spot.id != null) {
                     set_hovered_spot({ source: null, id: null });
-                }
-                if (popup_position != null) {
-                    set_popup_position(null);
                 }
             }
         }
@@ -342,7 +331,14 @@ function CanvasMap({
     }, [spots, center_lon, center_lat, hovered_spot, width, height, map_controls]);
 
     const hovered_spot_data = spots.find(spot => spot.id == hovered_spot.id);
+    const pinned_spot_data = spots.find(spot => spot.id == pinned_spot);
+
     const hovered_spot_distance =
+        hovered_spot_data != null
+            ? (haversine(hovered_spot_data.dx_loc, hovered_spot_data.spotter_loc) / 1000).toFixed()
+            : "";
+
+    const pinned_spot_distance =
         hovered_spot_data != null
             ? (haversine(hovered_spot_data.dx_loc, hovered_spot_data.spotter_loc) / 1000).toFixed()
             : "";
@@ -418,14 +414,14 @@ function CanvasMap({
                     hovered_azimuth={azimuth}
                 />
             </svg>
-            {hovered_spot.source == "dx" && popup_position != null ? (
+            {pinned_spot_data || hovered_spot_data ? (
                 <SpotPopup
                     hovered_spot={hovered_spot}
                     set_hovered_spot={set_hovered_spot}
                     set_pinned_spot={set_pinned_spot}
-                    popup_position={popup_position}
                     hovered_spot_data={hovered_spot_data}
-                    distance={hovered_spot_distance}
+                    pinned_spot_data={pinned_spot_data}
+                    distance={hovered_spot_distance ?? pinned_spot_distance}
                     settings={settings}
                     azimuth={azimuth}
                 />

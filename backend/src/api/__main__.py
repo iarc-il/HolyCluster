@@ -79,7 +79,7 @@ async def propagation_data_collector(app):
             logger.info(f"Got propagation data: {app.state.propagation}")
         except Exception as e:
             sleep = 10
-            logger.exception(f"Failed to fetch spots: {str(e)}")
+            logger.exception(f"Failed to fetch propagation data: {str(e)}")
         await asyncio.sleep(sleep)
 
 
@@ -123,7 +123,7 @@ def cleanup_spot(spot):
         "dx_country": spot.dx_country,
         "dx_continent": spot.dx_continent,
         "freq": float(spot.frequency),
-        "band": int(float(spot.band)),
+        "band": float(spot.band),
         "mode": mode,
         "time": int(spot.date_time.timestamp()),
         "comment": spot.comment,
@@ -193,6 +193,46 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
             await submit_spot.handle_one_spot(websocket)
         except websockets.WebSocketDisconnect:
             break
+
+
+@app.websocket("/spots_ws")
+async def spots_ws(websocket: fastapi.WebSocket):
+    await websocket.accept()
+
+    try:
+        message = await websocket.receive_json()
+
+        with Session(engine) as session:
+            if "initial" in message:
+                query = select(DX) \
+                    .where(DX.date_time > datetime.datetime.fromtimestamp(time.time() - 3600)) \
+                    .order_by(desc(DX.id)) \
+                    .limit(500)
+                initial_spots = session.exec(query).all()
+                initial_spots = [cleanup_spot(spot) for spot in initial_spots]
+                await websocket.send_json({"type": "initial", "spots": initial_spots})
+
+                if initial_spots:
+                    last_id = max(spot["id"] for spot in initial_spots)
+                else:
+                    last_id = 0
+            else:
+                last_id = message.get("last_id", 0)
+
+        while True:
+            await asyncio.sleep(30)
+
+            with Session(engine) as session:
+                query = select(DX).where(DX.id > last_id).order_by(DX.id)
+                new_spots = session.exec(query).all()
+
+                if new_spots:
+                    new_spots = [cleanup_spot(spot) for spot in new_spots]
+                    last_id = new_spots[-1]["id"]
+                    await websocket.send_json({"type": "update", "spots": new_spots})
+
+    except websockets.WebSocketDisconnect:
+        pass
 
 
 def get_latest_catserver_name():

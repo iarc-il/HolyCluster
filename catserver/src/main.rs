@@ -8,22 +8,28 @@ use argh::FromArgs;
 use directories::ProjectDirs;
 use server::{Server, ServerConfig};
 use single_instance::SingleInstance;
-use tokio::sync::broadcast::{self, Receiver, Sender};
+use tokio::sync::broadcast::{self, Sender};
 
 mod dummy;
 mod freq;
 #[cfg(windows)]
 mod omnirig;
 mod rig;
+#[cfg(not(windows))]
+mod rigctld;
 mod server;
 mod tray_icon;
 mod utils;
 
 use dummy::DummyRadio;
+#[cfg(windows)]
+use omnirig::OmnirigRadio;
 use rig::AnyRadio;
+#[cfg(not(windows))]
+use rigctld::RigctldRadio;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer, Registry, layer::SubscriberExt};
-use tray_icon::IconTrayEvent;
+use tray_icon::UserEvent;
 
 const BASE_LOCAL_PORT: u16 = 3000;
 
@@ -38,7 +44,7 @@ fn open_at_browser(port: u16) -> Result<()> {
 /// The Holy Cluster - debug flags
 #[argh(help_triggers("-h", "--help"))]
 struct Args {
-    /// run with dummy radio instead of omnirig
+    /// run with dummy radio instead of real radio
     #[argh(switch)]
     dummy: bool,
 
@@ -53,8 +59,6 @@ struct Args {
 
 #[cfg(windows)]
 fn get_radio(use_dummy: bool) -> AnyRadio {
-    use omnirig::OmnirigRadio;
-
     if use_dummy {
         AnyRadio::new(DummyRadio::new())
     } else {
@@ -65,9 +69,10 @@ fn get_radio(use_dummy: bool) -> AnyRadio {
 #[cfg(not(windows))]
 fn get_radio(use_dummy: bool) -> AnyRadio {
     if use_dummy {
-        tracing::warn!("DUMMY env variable doesn't have any affect in linux!");
+        AnyRadio::new(DummyRadio::new())
+    } else {
+        AnyRadio::new(RigctldRadio::new("localhost".into(), 4532))
     }
-    AnyRadio::new(DummyRadio::new())
 }
 
 /// For development purposes, we run each instance in different port, based on the given arguments
@@ -173,49 +178,40 @@ fn main() -> Result<()> {
             tracing::warn!("No running instance, not closing");
             return Ok(());
         }
-        let (tray_sender, tray_receiver) = broadcast::channel::<IconTrayEvent>(10);
-        let event_receiver = tray_sender.subscribe();
-        let event_sender = tray_sender.clone();
+        let (sender, _) = broadcast::channel::<UserEvent>(10);
 
+        let event_sender = sender.clone();
         let use_local_ui = args.local_ui;
         let thread = std::thread::Builder::new()
             .name("singleton".into())
             .spawn(move || {
-                run_singleton_instance(
-                    event_receiver,
-                    event_sender,
-                    tray_receiver,
-                    radio,
-                    server_config,
-                    use_local_ui,
-                )
-                .unwrap();
+                run_singleton_instance(event_sender, radio, server_config, use_local_ui).unwrap();
             })?;
 
         // Currently we don't care about tray icon for linux because it's only used for development.
         // This can be enabled if we ever support linux for users.
         if cfg!(windows) {
-            let tray_receiver = tray_sender.subscribe();
-            tray_icon::run_tray_icon(&args_slug, tray_sender, tray_receiver);
+            let receiver = sender.subscribe();
+            tray_icon::run_tray_icon(&args_slug, sender, receiver);
         } else {
             thread.join().unwrap();
         }
     } else if args.close {
         let client = reqwest::blocking::Client::new();
-        let exit_uri = format!("http://127.0.0.1:{local_port}/exit");
-        client.post(exit_uri).send()?;
+        let uri = format!("http://127.0.0.1:{local_port}/exit");
+        client.post(uri).send()?;
     } else {
         tracing::info!("Server is already running");
-        open_at_browser(local_port)?;
+        let client = reqwest::blocking::Client::new();
+        let uri = format!("http://127.0.0.1:{local_port}/open");
+        let _response = client.post(uri).send()?;
     }
     Ok(())
 }
 
 #[tokio::main]
 async fn run_singleton_instance(
-    event_receiver: Receiver<IconTrayEvent>,
-    event_sender: Sender<IconTrayEvent>,
-    mut tray_receiver: Receiver<IconTrayEvent>,
+    sender: Sender<UserEvent>,
     radio: AnyRadio,
     server_config: ServerConfig,
     use_local_ui: bool,
@@ -225,24 +221,28 @@ async fn run_singleton_instance(
     tracing::info!("Radio initialized");
 
     let local_port = server_config.local_port;
-    let server = Server::build_server(event_sender, radio, server_config, use_local_ui).await?;
+
+    let mut receiver = sender.subscribe();
+
+    let server = Server::build_server(sender, radio, server_config, use_local_ui).await?;
     open_at_browser(local_port)?;
 
     tokio::spawn(async move {
-        while let Ok(message) = tray_receiver.recv().await {
-            match message {
-                IconTrayEvent::Quit => {
+        loop {
+            match receiver.recv().await? {
+                UserEvent::Quit => {
                     break;
                 }
-                IconTrayEvent::OpenBrowser => {
+                UserEvent::OpenBrowser => {
                     open_at_browser(local_port).unwrap();
                 }
             }
         }
+        Ok::<(), anyhow::Error>(())
     });
 
     tracing::info!("Running webapp");
-    server.run_server(event_receiver).await?;
+    server.run_server().await?;
 
     Ok(())
 }

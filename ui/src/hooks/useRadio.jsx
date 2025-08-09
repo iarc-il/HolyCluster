@@ -1,5 +1,5 @@
 import useWebSocket, { ReadyState } from "react-use-websocket";
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 
 const band_plans = {
     160: {
@@ -52,7 +52,9 @@ const band_plans = {
     },
 };
 
-export default function use_radio() {
+const RadioContext = createContext(null);
+
+export function RadioProvider({ children }) {
     const host = window.location.host;
     const protocol = window.location.protocol;
     const websocket_url = (protocol == "https:" ? "wss:" : "ws:") + "//" + host + "/radio";
@@ -87,22 +89,41 @@ export default function use_radio() {
                 set_rig(lastJsonMessage.current_rig);
                 set_radio_band(get_band_from_freq(lastJsonMessage.freq));
             }
+
+            if ("focus" in lastJsonMessage && lastJsonMessage.focus) {
+                window.focus();
+            }
+
+            if ("close" in lastJsonMessage && lastJsonMessage.close) {
+                window.close();
+            }
         }
     }, [lastJsonMessage]);
 
-    const send_message_to_radio = message => {
+    function send_message_to_radio(message) {
         if (readyState == ReadyState.OPEN) {
             sendJsonMessage(message);
         }
-    };
+    }
 
-    return {
-        send_message_to_radio,
-        radio_status,
-        radio_freq,
-        radio_mode,
-        radio_band,
-        catserver_version,
-        rig,
-    };
+    return (
+        <RadioContext.Provider
+            value={{
+                send_message_to_radio,
+                radio_status,
+                radio_freq,
+                radio_mode,
+                radio_band,
+                catserver_version,
+                rig,
+            }}
+        >
+            {children}
+        </RadioContext.Provider>
+    );
+}
+
+export default function useRadio() {
+    const context = useContext(RadioContext);
+    return { ...context };
 }

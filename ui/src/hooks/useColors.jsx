@@ -7,8 +7,6 @@ import { bands, modes, continents } from "@/filters_data.js";
 
 const ColorsContext = createContext(undefined);
 
-const { Provider } = ColorsContext;
-
 export const useColors = () => {
     const context = useContext(ColorsContext);
     return { ...context };
@@ -48,6 +46,9 @@ pSBC = pSBC.bind({});
 const themes = {
     Light: {
         bands: {
+            SHF: "#A07CFF",
+            UHF: "#5ECFFF",
+            VHF: "#5EFFA0",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -64,6 +65,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
+            SHF: "default_dark",
+            UHF: "default_dark",
+            VHF: "default_dark",
             4: "default_bright",
             6: "default_dark",
             10: "default_dark",
@@ -118,6 +122,9 @@ const themes = {
     },
     Dark: {
         bands: {
+            SHF: "#A07CFF",
+            UHF: "#5ECFFF",
+            VHF: "#5EFFA0",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -134,6 +141,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
+            SHF: "black",
+            UHF: "black",
+            VHF: "black",
             4: "white",
             6: "black",
             10: "black",
@@ -181,20 +191,6 @@ const themes = {
             night: "#000080",
             borders: "#000000",
         },
-        light_bands: {
-            4: "#9b9899",
-            6: "#ff99ef",
-            10: "#eea283",
-            12: "#8ee7f4",
-            15: "#8181d9",
-            17: "#a3829e",
-            20: "#e58484",
-            30: "#fbfb80",
-            40: "#81bc81",
-            60: "#81868e",
-            80: "#b28884",
-            160: "#8199ab",
-        },
         seven_segment: {
             on: "#ef4444",
             off: "#414141",
@@ -202,6 +198,9 @@ const themes = {
     },
     Blue: {
         bands: {
+            SHF: "#A07CFF",
+            UHF: "#5ECFFF",
+            VHF: "#5EFFA0",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -218,6 +217,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
+            SHF: "black",
+            UHF: "black",
+            VHF: "black",
             4: "white",
             6: "black",
             10: "black",
@@ -265,20 +267,6 @@ const themes = {
             night: "#000080",
             borders: "#000000",
         },
-        light_bands: {
-            4: "#9b9899",
-            6: "#ff99ef",
-            10: "#eea283",
-            12: "#8ee7f4",
-            15: "#8181d9",
-            17: "#a3829e",
-            20: "#e58484",
-            30: "#fbfb80",
-            40: "#81bc81",
-            60: "#81868e",
-            80: "#b28884",
-            160: "#8199ab",
-        },
         seven_segment: {
             on: "#ef4444",
             off: "#414141",
@@ -286,6 +274,9 @@ const themes = {
     },
     Gray: {
         bands: {
+            SHF: "#A07CFF",
+            UHF: "#5ECFFF",
+            VHF: "#5EFFA0",
             4: "#666062",
             6: "#FF61EA",
             10: "#E87421",
@@ -302,6 +293,9 @@ const themes = {
         bright_text: "white",
         dark_text: "black",
         text: {
+            SHF: "black",
+            UHF: "black",
+            VHF: "black",
             4: "white",
             6: "black",
             10: "black",
@@ -349,20 +343,6 @@ const themes = {
             night: "#5a00a3",
             borders: "#000000",
         },
-        light_bands: {
-            4: "#9b9899",
-            6: "#ff99ef",
-            10: "#eea283",
-            12: "#8ee7f4",
-            15: "#8181d9",
-            17: "#a3829e",
-            20: "#e58484",
-            30: "#fbfb80",
-            40: "#81bc81",
-            60: "#81868e",
-            80: "#b28884",
-            160: "#8199ab",
-        },
         seven_segment: {
             on: "#ef4444",
             off: "#505050",
@@ -407,7 +387,7 @@ export const ColorsProvider = ({ children }) => {
     }
 
     return (
-        <Provider
+        <ColorsContext.Provider
             value={{
                 dev_mode,
                 set_dev_mode,
@@ -417,6 +397,6 @@ export const ColorsProvider = ({ children }) => {
             }}
         >
             {children}
-        </Provider>
+        </ColorsContext.Provider>
     );
 };

@@ -28,7 +28,7 @@ tracing-panic = "0.1.2"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tray-icon = { version = "0.20.1", default-features = false }
 winit = "0.30.10"
-winsafe = { version = "0.0.23", git = "https://github.com/rodrigocfd/winsafe.git", features = ["kernel", "ole", "oleaut"] }
+winsafe = { version = "0.0.25", features = ["kernel", "ole", "oleaut"] }
 
 [build-dependencies]
 winresource = "0.1.20"

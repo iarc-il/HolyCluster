@@ -186,6 +186,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                                 ) : (
                                     <Input
                                         value={temp_data.value}
+                                        autoFocus={true}
                                         className="uppercase h-10"
                                         onChange={event => {
                                             set_temp_data({

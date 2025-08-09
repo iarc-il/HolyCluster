@@ -18,15 +18,15 @@ fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> 
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub enum IconTrayEvent {
+pub enum UserEvent {
     Quit,
     OpenBrowser,
 }
 
 pub fn run_tray_icon(
     instance_name: &str,
-    tray_sender: Sender<IconTrayEvent>,
-    mut tray_receiver: Receiver<IconTrayEvent>,
+    tray_sender: Sender<UserEvent>,
+    mut tray_receiver: Receiver<UserEvent>,
 ) {
     let open_menu_item = MenuItem::new("Open", true, None);
     let quit_menu_item = MenuItem::new("Quit", true, None);
@@ -48,7 +48,7 @@ pub fn run_tray_icon(
     let quit_menu_id = quit_menu_item.id().clone();
     let open_menu_id = open_menu_item.id().clone();
 
-    let event_loop = winit::event_loop::EventLoop::<IconTrayEvent>::with_user_event()
+    let event_loop = winit::event_loop::EventLoop::<UserEvent>::with_user_event()
         .build()
         .unwrap();
     let proxy = event_loop.create_proxy();
@@ -58,10 +58,10 @@ pub fn run_tray_icon(
         move |event: MenuEvent| {
             let id = event.id();
             if id == &open_menu_id {
-                let _ = tray_sender.send(IconTrayEvent::OpenBrowser);
+                let _ = tray_sender.send(UserEvent::OpenBrowser);
             } else if id == &quit_menu_id {
-                let _ = tray_sender.send(IconTrayEvent::Quit).unwrap();
-                proxy.send_event(IconTrayEvent::Quit).unwrap();
+                let _ = tray_sender.send(UserEvent::Quit).unwrap();
+                proxy.send_event(UserEvent::Quit).unwrap();
             }
         }
     }));
@@ -69,19 +69,19 @@ pub fn run_tray_icon(
     let proxy_clone = proxy.clone();
     std::thread::spawn(move || {
         while let Ok(event) = tray_receiver.blocking_recv() {
-            if event == IconTrayEvent::Quit {
-                let _ = proxy_clone.send_event(IconTrayEvent::Quit);
+            if event == UserEvent::Quit {
+                let _ = proxy_clone.send_event(UserEvent::Quit);
                 break;
             }
         }
     });
 
     struct App {}
-    impl ApplicationHandler<IconTrayEvent> for App {
+    impl ApplicationHandler<UserEvent> for App {
         fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
 
-        fn user_event(&mut self, event_loop: &ActiveEventLoop, event: IconTrayEvent) {
-            if event == IconTrayEvent::Quit {
+        fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
+            if event == UserEvent::Quit {
                 event_loop.exit();
             }
         }

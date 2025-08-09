@@ -3,11 +3,17 @@ import CanvasMap from "@/components/CanvasMap/index.jsx";
 import MapControls from "@/components/MapControls.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
+import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import Continents from "@/components/Continents.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import CallsignsView from "@/components/CallsignsView.jsx";
 import Tabs from "@/components/Tabs.jsx";
-import { use_object_local_storage, is_matching_list, get_max_radius } from "@/utils.js";
+import {
+    use_object_local_storage,
+    is_matching_list,
+    get_max_radius,
+    get_base_url,
+} from "@/utils.js";
 import { bands, modes, continents } from "@/filters_data.js";
 import { useFilters } from "@/hooks/useFilters";
 import { useServerData } from "@/hooks/useServerData";
@@ -20,6 +26,7 @@ import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 function MainContainer() {
     const { dev_mode, set_dev_mode } = useColors();
     const [toggled_ui, set_toggled_ui] = useState({ left: true, right: true });
+    const { catserver_version } = use_radio();
 
     const { spots, set_pinned_spot, filter_missing_flags, set_filter_missing_flags } =
         useServerData();
@@ -88,7 +95,6 @@ function MainContainer() {
         send_message_to_radio({
             mode: spot.mode,
             freq: spot.freq,
-            band: spot.band,
         });
     }
 
@@ -176,14 +182,17 @@ function MainContainer() {
         </div>
     );
 
-    const table = (
-        <SpotsTable
-            set_cat_to_spot={set_cat_to_spot}
-            settings={settings}
-            table_sort={table_sort}
-            set_table_sort={set_table_sort}
-        />
-    );
+    const table =
+        catserver_version != "catserver-v1.0.0.msi" ? (
+            <SpotsTable
+                set_cat_to_spot={set_cat_to_spot}
+                settings={settings}
+                table_sort={table_sort}
+                set_table_sort={set_table_sort}
+            />
+        ) : (
+            <UnsupportedVersion />
+        );
 
     return (
         <div className="flex flex-col h-full">
@@ -197,7 +206,7 @@ function MainContainer() {
                 dev_mode={dev_mode}
                 set_rig={set_rig}
             />
-            <div className="flex relative flex-1 overflow-hidden">
+            <div className="flex relative h-[calc(100%-4rem)]">
                 <LeftColumn toggled_ui={toggled_ui} />
                 {is_md_device ? (
                     <Tabs
