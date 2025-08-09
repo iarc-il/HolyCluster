@@ -160,10 +160,8 @@ function SvgMap({
     });
 
     let azimuth = null;
-    if (
-        (hovered_spot_data && hovered_spot.source === "dx") ||
-        (spots.find(spot => spot.id === pinned_spot) && hovered_spot.source !== "dx")
-    ) {
+
+    if (spots.find(spot => spot.id === pinned_spot) || hovered_spot_data) {
         const spot_data = hovered_spot_data || spots.find(spot => spot.id === pinned_spot);
         azimuth = calculate_geographic_azimuth(
             center_lat,
