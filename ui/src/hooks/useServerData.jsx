@@ -106,14 +106,13 @@ export const ServerDataProvider = ({ children }) => {
                 return spot;
             });
 
-            if (data.type === "initial") {
-                set_spots(new_spots);
-            } else if (data.type === "update") {
-                let current_spots = new_spots.concat(spots);
-                let current_time = Math.round(Date.now() / 1000);
-                current_spots = current_spots.filter(spot => spot.time > current_time - 3600);
-                set_spots(current_spots);
+            if (data.type === "update") {
+                new_spots = new_spots.concat(spots);
             }
+
+            let current_time = Math.round(Date.now() / 1000);
+            new_spots = new_spots.filter(spot => spot.time > current_time - 3600);
+            set_spots(new_spots);
 
             if (new_spots.length > 0) {
                 last_spot_id_ref.current = new_spots[new_spots.length - 1].id;
