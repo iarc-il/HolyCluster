@@ -1,3 +1,10 @@
+# ADDED BY ROY
+logs/
+logs_telnet/
+.DS_store
+uv.lock
+backend/postgres/data/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
