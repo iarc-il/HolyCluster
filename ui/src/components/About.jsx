@@ -7,6 +7,20 @@ import { useColors } from "../hooks/useColors";
 
 const RELEASES = [
     [
+        "09/08/2025",
+        [
+            <>
+                <b>NOTE ⚠️</b> The CAT control should be updated due to breaking changes!
+            </>,
+            "Add VHF, UHF and SHF bands!",
+            "Add timestamp when hovering over the propagation data",
+            "Move the hover spot popup form the map to the bottom left corner",
+            "Improve digital mode detection",
+            "Some band bar improvements",
+            "Add and fix some flags",
+        ],
+    ],
+    [
         "25/06/2025",
         [
             <>
