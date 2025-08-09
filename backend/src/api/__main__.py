@@ -213,7 +213,7 @@ async def spots_ws(websocket: fastapi.WebSocket):
                 await websocket.send_json({"type": "initial", "spots": initial_spots})
 
                 if initial_spots:
-                    last_id = initial_spots[-1]["id"]
+                    last_id = max(spot["id"] for spot in initial_spots)
                 else:
                     last_id = 0
             else:

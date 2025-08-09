@@ -115,7 +115,7 @@ export const ServerDataProvider = ({ children }) => {
             set_spots(new_spots);
 
             if (new_spots.length > 0) {
-                last_spot_id_ref.current = new_spots[new_spots.length - 1].id;
+                last_spot_id_ref.current = Math.max(...new_spots.map(spot => spot.id));
             }
         }
     }, [lastJsonMessage]);
