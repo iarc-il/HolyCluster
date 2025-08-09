@@ -10,3 +10,11 @@ services:
       - ./backend/postgres/data:/var/lib/postgresql/data
     ports:
       - "15432:5432"
+  collector:
+    build:
+      context: ./backend
+      dockerfile: collector/Dockerfile
+    depends_on:
+      - postgres
+    env_file:
+      - ./.env
