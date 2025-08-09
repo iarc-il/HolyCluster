@@ -58,12 +58,16 @@ function Spot(
 
     const color = colors.bands[spot.band];
     let background_color;
+    let text_color;
     if (is_hovered) {
         background_color = colors.light_bands[spot.band];
+        text_color = colors.text[spot.band];
     } else if (is_even) {
         background_color = colors.table.odd_row;
+        text_color = colors.table.even_text;
     } else {
         background_color = colors.table.even_row;
+        text_color = colors.table.odd_text;
     }
 
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
@@ -89,7 +93,7 @@ function Spot(
                 backgroundColor: background_color,
                 outlineColor: spot.is_alerted ? colors.light_bands[spot.band] : "",
                 border: spot.is_alerted ? "3px solid white" : "",
-                color: is_even ? colors.table.even_text : colors.table.odd_text,
+                color: text_color,
             }}
             className={row_classes + " h-7 z-40"}
             onMouseEnter={() => set_hovered_spot({ source: "table", id: spot.id })}
