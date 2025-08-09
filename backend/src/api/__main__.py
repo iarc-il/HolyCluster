@@ -204,9 +204,12 @@ async def spots_ws(websocket: fastapi.WebSocket):
 
         with Session(engine) as session:
             if "initial" in message:
-                query = select(DX).order_by(desc(DX.id)).limit(500)
+                query = select(DX) \
+                    .where(DX.date_time > datetime.datetime.fromtimestamp(time.time() - 3600)) \
+                    .order_by(desc(DX.id)) \
+                    .limit(500)
                 initial_spots = session.exec(query).all()
-                initial_spots = [cleanup_spot(spot) for spot in reversed(initial_spots)]
+                initial_spots = [cleanup_spot(spot) for spot in initial_spots]
                 await websocket.send_json({"type": "initial", "spots": initial_spots})
 
                 if initial_spots:
