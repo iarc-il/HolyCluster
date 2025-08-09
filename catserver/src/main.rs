@@ -222,15 +222,14 @@ async fn run_singleton_instance(
 
     let local_port = server_config.local_port;
 
-    let (browser_sender, mut broswer_receiver) = tokio::sync::mpsc::channel::<UserEvent>(10);
+    let mut receiver = sender.subscribe();
 
-    let server =
-        Server::build_server(sender, browser_sender, radio, server_config, use_local_ui).await?;
+    let server = Server::build_server(sender, radio, server_config, use_local_ui).await?;
     open_at_browser(local_port)?;
 
     tokio::spawn(async move {
-        while let Some(message) = broswer_receiver.recv().await {
-            match message {
+        loop {
+            match receiver.recv().await? {
                 UserEvent::Quit => {
                     break;
                 }
@@ -239,6 +238,7 @@ async fn run_singleton_instance(
                 }
             }
         }
+        Ok::<(), anyhow::Error>(())
     });
 
     tracing::info!("Running webapp");
