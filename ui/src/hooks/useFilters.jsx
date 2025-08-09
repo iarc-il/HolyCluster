@@ -32,32 +32,6 @@ export const FiltersProvider = ({ children }) => {
         initial_callsign_filters,
     );
 
-    useEffect(() => {
-        const missingBands = Array.from(bands).filter(band => !filters.bands[band]);
-        if (missingBands.length > 0) {
-            setFilters(state => ({
-                ...state,
-                bands: {
-                    ...state.bands,
-                    ...Object.fromEntries(missingBands.map(band => [band, true])),
-                },
-            }));
-        }
-    }, []);
-
-    useEffect(() => {
-        const missingModes = modes.filter(mode => !filters.modes[mode]);
-        if (missingModes.length > 0) {
-            setFilters(state => ({
-                ...state,
-                modes: {
-                    ...state.modes,
-                    ...Object.fromEntries(missingModes.map(mode => [mode, true])),
-                },
-            }));
-        }
-    }, []);
-
     // This function changes all the keys in the filter object.
     // For example: setFilterKeys("bands", true) will enable all bands.
     function setFilterKeys(filters_key, is_active) {
