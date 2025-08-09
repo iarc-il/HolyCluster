@@ -24,7 +24,7 @@ const RELEASES = [
         "25/06/2025",
         [
             <>
-                🎉<b>CAT control </b> - first release of locally installed CAT control software!🎉
+                🎉<b>CAT control </b> - first release of locally installed CAT control software!
             </>,
             "Equator display on the map",
             "Table context menu - right click on a callsign for quick actions",
