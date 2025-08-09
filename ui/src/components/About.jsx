@@ -14,7 +14,7 @@ const RELEASES = [
             </>,
             "Add VHF, UHF and SHF bands!",
             "Add timestamp when hovering over the propagation data",
-            "Move the hover spot popup form the map to the bottom left corner",
+            "Move the hover spot popup from the map to the bottom left corner",
             "Improve digital mode detection",
             "Some band bar improvements",
             "Add and fix some flags",
