@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from time import time
+from time import time, sleep
 import json
 import zipfile
 import os
@@ -8,6 +8,8 @@ from pathlib import Path
 import asyncio
 import httpx
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlmodel import SQLModel, select
 
 # Add project root and src root to the path to allow direct imports
 project_root = Path(__file__).resolve().parents[3]
@@ -18,6 +20,7 @@ sys.path.append(str(src_root))
 sys.path.append(str(db_path))
 from settings import (
     DEBUG,
+    POSTGRES_DB_URL,
 )
 from misc import string_to_boolean, open_log_file
 from db_classes import DxheatRaw
@@ -117,20 +120,44 @@ async def collect_dxheat_spots(debug=False):
     return spot_records
 
 
+async def push_spots_to_db(spot_records: list[DxheatRaw], debug: bool = False):
+    logger.info(f"Attempting to push {len(spot_records)} spot records to the database.")
+    engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
+    async with AsyncSession(engine) as session:
+        for record in spot_records:
+            session.add(record)
+        try:
+            await session.commit()
+            logger.info(f"Successfully pushed {len(spot_records)} spot records to the database.")
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Failed to push spot records to database: {e}")
+    await engine.dispose()
+
+
 async def main(debug=False):
-    await collect_dxheat_spots(debug=debug)
+    while True:
+        start = time()
+        logger.info(f"Start collection")
+        spot_records = await collect_dxheat_spots(debug=debug)
+        
+        if spot_records: # Only push if there are records
+            await push_spots_to_db(spot_records, debug=debug)
+        else:
+            logger.info("No new spot records to push to database.")
+
+        end = time()
+        if debug:
+            logger.debug(f"Elasped time: {end - start:.2f} seconds")
+        sleep(60)
 
 
 if __name__ == "__main__":
-    start = time()
     debug = string_to_boolean(DEBUG)
     if debug:
         log_file_path = open_log_file(log_filename_prefix="collectors/logs/web_collectors/dxheat", debug=debug)
     logger.info(f"DEBUG is {debug}")
     asyncio.run(main(debug=debug))
-    end = time()
-    if DEBUG:
-        logger.debug(f"Elasped time: {end - start:.2f} seconds")
 
     # Manual compression
     if debug and log_file_path and os.path.exists(log_file_path):
