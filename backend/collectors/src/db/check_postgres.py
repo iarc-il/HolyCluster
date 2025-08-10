@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
     if string_to_boolean(DEBUG):
         logger.info("DEBUG is True")
-        open_log_file("logs/init_postgres")
+        open_log_file("collectors/logs/init_postgres")
     else:
         logger.info("DEBUG is False")
     
