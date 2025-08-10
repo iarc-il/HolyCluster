@@ -14,7 +14,14 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync
 
 # Copy the source code.
-COPY src/ ./src/
+COPY collectors/src ./collectors/src
+COPY settings.py ./settings.py
+COPY collectors/entrypoint.sh ./collectors/entrypoint.sh
+
+RUN chmod +x collectors/entrypoint.sh
+
+# Set the entrypoint script as the command to run on startup
+ENTRYPOINT ["./collectors/entrypoint.sh"]
 
 # Specify the command to run on container startup.
 #CMD ["python", "src/run_collector.py"]
