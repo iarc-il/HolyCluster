@@ -19,7 +19,7 @@ from misc import string_to_boolean, open_log_file
 from settings import (
     DEBUG,
     POSTGRES_DB_URL,
-    POSTGRES_DB,
+    POSTGRES_DB_NAME,
 )
 
 async def check_database_exists(connection, db_name):
@@ -52,11 +52,12 @@ async def create_tables(engine):
 
 async def main(debug: bool = False, initialize: bool = False):
     try:
+        db_name = POSTGRES_DB_NAME
         engine = create_async_engine(POSTGRES_DB_URL.rsplit('/', 1)[0] + '/postgres', echo=debug)
 
         db_exists = False
         async with engine.connect() as connection:
-            db_exists = await check_database_exists(connection=connection, db_name=POSTGRES_DB)
+            db_exists = await check_database_exists(connection, db_name)
 
         if initialize:
             logger.info("Initialization flag set. Forcing drop and recreate of database.")

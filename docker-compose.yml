@@ -11,10 +11,13 @@ services:
     ports:
       - "15432:5432"
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      # test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
+    environment:
+        - TZ=Asia/Jerusalem
   collectors:
     container_name: collectors
     build:
@@ -29,3 +32,6 @@ services:
       - ./backend/collectors/logs/db:/app/collectors/logs/db
       - ./backend/collectors/logs/telnet_collectors:/app/collectors/logs/telnet_collectors
       - ./backend/collectors/logs/web_collectors:/app/collectors/logs/web_collectors
+    environment:
+        - TZ=Asia/Jerusalem
+
