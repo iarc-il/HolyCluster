@@ -14,12 +14,12 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.exc import SQLAlchemyError, ProgrammingError, OperationalError
 
 from db_classes import Base
-import settings
 from misc import string_to_boolean, open_log_file
 
 from settings import (
     DEBUG,
     POSTGRES_DB_URL,
+    POSTGRES_DB,
 )
 
 async def check_database_exists(connection, db_name):
@@ -52,12 +52,11 @@ async def create_tables(engine):
 
 async def main(debug: bool = False, initialize: bool = False):
     try:
-        db_name = settings.POSTGRES_DB
         engine = create_async_engine(POSTGRES_DB_URL.rsplit('/', 1)[0] + '/postgres', echo=debug)
 
         db_exists = False
         async with engine.connect() as connection:
-            db_exists = await check_database_exists(connection, db_name)
+            db_exists = await check_database_exists(connection=connection, db_name=POSTGRES_DB)
 
         if initialize:
             logger.info("Initialization flag set. Forcing drop and recreate of database.")
@@ -97,10 +96,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Check or initialize the PostgreSQL database.")
     parser.add_argument("--init", action="store_true", help="Drop and recreate the database and tables.")
     args = parser.parse_args()
+    open_log_file("collectors/logs/db/check_postgres")
 
     if string_to_boolean(DEBUG):
         logger.info("DEBUG is True")
-        open_log_file("collectors/logs/init_postgres")
     else:
         logger.info("DEBUG is False")
     
