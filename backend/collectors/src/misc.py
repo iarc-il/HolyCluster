@@ -12,14 +12,10 @@ def string_to_boolean(value: str) -> bool:
 def open_log_file(log_filename_prefix):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     try:
-        log_filename_info = f"{log_filename_prefix}.INFO.{timestamp}.txt"
-        log_filename_error = f"{log_filename_prefix}.ERROR.{timestamp}.txt"
-        log_filename_debug = f"{log_filename_prefix}.DEBUG.{timestamp}.txt"
+        log_filename = f"{log_filename_prefix}.{timestamp}.log"
 
-        # logger.add(log_filename, rotation="10 MB")
-        logger.add(log_filename_info, rotation="10 MB", filter=lambda record: record["level"].name == "INFO")
-        logger.add(log_filename_error, rotation="10 MB", filter=lambda record: record["level"].name == "ERROR")
-        logger.add(log_filename_debug, rotation="10 MB", filter=lambda record: record["level"].name == "DEBUG")
+        # Add a single sink for all log levels.
+        logger.add(log_filename, rotation="10 MB")
 
     except Exception as ex:
         template = "**** ERROR OPENING LOG FILE **** An exception of type {0} occured. Arguments: {1!r}"
