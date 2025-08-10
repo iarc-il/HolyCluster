@@ -9,7 +9,7 @@ from misc import string_to_boolean, open_log_file
 
 from settings import (
     DEBUG, 
-    GENERAL_DB_URL,
+    POSTGRES_DB_URL,
 )
 
 def check_database_exists(connection, db_name):
@@ -52,7 +52,7 @@ def create_tables(engine, tables):
 
 def main(debug: bool = False):
     # Create an engine connected to the default database
-    engine = create_engine(f"{GENERAL_DB_URL}/postgres", echo=True)
+    engine = create_engine(f"{POSTGRES_DB_URL}", echo=True)
 
     # Connect to the database and drop the target database if it exists, then create new database, then create tables
     with engine.connect() as connection:
