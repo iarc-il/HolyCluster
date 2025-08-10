@@ -33,9 +33,9 @@ function SpotPopup({
             <div className="text-sm font-bold">
                 <p>
                     DX: {spot_data.dx_callsign}
-                    {spot_data.freq}
                     {"continent_dx" in spot_data ? ", " + spot_data.continent_dx : ""}
                 </p>
+                <p>Frequency: {spot_data.freq}</p>
                 <p>DX Country: {spot_data.dx_country}</p>
                 <p>Spotter: {spot_data.spotter_callsign}</p>
                 <p>
