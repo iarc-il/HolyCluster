@@ -285,7 +285,7 @@ function SvgMap({
                             </path>
                         );
                     })}
-                    {(hovered_spot_data && hovered_spot.source === "dx") ||
+                    {hovered_spot_data ||
                     (spots.find(spot => spot.id === pinned_spot) && hovered_spot.source !== "dx")
                         ? (() => {
                               const angle = (90 - azimuth) * (Math.PI / 180);
