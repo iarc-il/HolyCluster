@@ -6,6 +6,7 @@ src_root = Path(__file__).resolve().parents[1]
 sys.path.append(str(project_root))
 sys.path.append(str(src_root))
 
+import argparse
 import asyncio
 from loguru import logger
 from sqlalchemy import text
@@ -49,40 +50,58 @@ async def create_tables(engine):
         logger.error(f'Error creating tables: {e}')
 
 
-async def main(debug: bool = False):
+async def main(debug: bool = False, initialize: bool = False):
     try:
-        # Create an engine connected to the default database ('postgres')
-        # NOTE: The database name in the URL is ignored for the initial connection to drop/create.
-        # We connect to the default 'postgres' db to perform these operations.
+        db_name = settings.POSTGRES_DB
         engine = create_async_engine(POSTGRES_DB_URL.rsplit('/', 1)[0] + '/postgres', echo=debug)
 
+        db_exists = False
         async with engine.connect() as connection:
-            await connection.execution_options(isolation_level="AUTOCOMMIT")
-            try:
-                db_name = settings.POSTGRES_DB
-                logger.info(f"Dropping database {db_name}")
-                await drop_database_if_exists(connection=connection, db_name=db_name)
-                logger.info(f"Creating database {db_name}")
-                await create_new_database(connection=connection, db_name=db_name)
-            except (ProgrammingError, OperationalError) as e:
-                logger.error(f'Error: {e}')
+            db_exists = await check_database_exists(connection, db_name)
 
-        # Dispose of the old engine
-        await engine.dispose()
+        if initialize:
+            logger.info("Initialization flag set. Forcing drop and recreate of database.")
+            async with engine.connect() as connection:
+                await connection.execution_options(isolation_level="AUTOCOMMIT")
+                await drop_database_if_exists(connection, db_name)
+                await create_new_database(connection, db_name)
+            
+            await engine.dispose()
+            new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
+            await create_tables(engine=new_db_engine)
+            await new_db_engine.dispose()
+            logger.info("Database initialization complete.")
 
-        # Now, connect to the newly created database to create tables
-        engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
-        await create_tables(engine=engine)
-        await engine.dispose()
+        elif not db_exists:
+            logger.info(f"Database '{db_name}' does not exist. Creating it now.")
+            async with engine.connect() as connection:
+                await connection.execution_options(isolation_level="AUTOCOMMIT")
+                await create_new_database(connection, db_name)
+            
+            await engine.dispose()
+            new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
+            await create_tables(engine=new_db_engine)
+            await new_db_engine.dispose()
+            logger.info("Database creation complete.")
+
+        else:
+            logger.info(f"Database '{db_name}' already exists. No action taken.")
+            await engine.dispose()
+
     except OSError as e:
         logger.error("Could not connect to the database. Please ensure it is running and accessible.")
         logger.error(f"Underlying error: {e}")
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Check or initialize the PostgreSQL database.")
+    parser.add_argument("--init", action="store_true", help="Drop and recreate the database and tables.")
+    args = parser.parse_args()
+
     if string_to_boolean(DEBUG):
         logger.info("DEBUG is True")
-        open_log_file("logs/init_pg") # Corrected typo in log file name
+        open_log_file("logs/init_postgres")
     else:
         logger.info("DEBUG is False")
-    asyncio.run(main(debug=string_to_boolean(DEBUG)))
+    
+    asyncio.run(main(debug=string_to_boolean(DEBUG), initialize=args.init))
