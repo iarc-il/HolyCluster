@@ -14,7 +14,7 @@ def open_log_file(log_filename_prefix: str, debug: bool = False):
     log_filename = f"{log_filename_prefix}.{timestamp}.log"
     logger.info(f"Opening log file at: {log_filename}")
     try:
-        logger.add(log_filename, rotation="10 MB")
+        logger.add(log_filename, rotation="10 MB", compression="zip")
         logger.info(f"log file: {log_filename}")
         return log_filename 
 
