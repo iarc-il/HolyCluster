@@ -12,4 +12,4 @@ uv run collectors/src/db/check_postgres.py
 
 # If you want the container to stay running even if the main script
 # finishes, you can add this line at the end:
-# exec tail -f /dev/null
+exec tail -f /dev/null
