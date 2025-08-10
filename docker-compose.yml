@@ -5,7 +5,7 @@ services:
       context: ./backend/postgres
       dockerfile: Dockerfile
     env_file:
-      - ./.env
+      - ./backend/.env
     volumes:
       - ./backend/postgres/data:/var/lib/postgresql/data
     ports:
@@ -24,6 +24,6 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - ./.env
+      - ./backend/.env
     volumes:
       - ./backend/collectors/logs:/app/src/logs
