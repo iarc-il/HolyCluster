@@ -2,18 +2,18 @@ from environs import Env
 from pathlib import Path
 
 env = Env()
-dotenv_path = Path(__file__).parent.parent.parent
-env.read_env(path=dotenv_path)
+dotenv_path = Path(__file__).parent / ".env"
+env.read_env(path=dotenv_path, recurse=False)
 
 DEBUG = env.str("DEBUG")
 POSTGRES_USER = env.str("POSTGRES_USER")
 POSTGRES_PASSWORD = env.str("POSTGRES_PASSWORD")
-POSTGRES_HOST = env.str("POSTGERES_HOST")
+POSTGRES_HOST = env.str("POSTGRES_HOST")
 POSTGRES_PORT = env.str("POSTGRES_PORT")
 POSTGRES_DB = env.str("POSTGRES_DB")
 
-POSTGRES_GENERAL_DB_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTRES_HOST}:{POSTGRES_PORT}"
-POSTGRES_DB_URL = f"{GENERAL_DB_URL}/{POSTGRES_DB}"
+POSTGRES_GENERAL_DB_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}"
+POSTGRES_DB_URL = f"{POSTGRES_GENERAL_DB_URL}/{POSTGRES_DB}"
 
 QRZ_USER = env.str("QRZ_USER")
 QRZ_PASSOWRD = env.str("QRZ_PASSWORD")
