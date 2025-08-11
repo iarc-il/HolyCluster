@@ -6,9 +6,9 @@ set -e
 echo "--- Checking database state ---"
 uv run collectors/src/db/check_postgres.py
 
-# Now, run the main collector script.
-#echo "--- Starting collector ---"
-#python collectors/src/run_collector.py
+# Now, run the collectors
+echo "--- Starting collectors ---"
+uv run collectors/src/web_collectors/dxheat_collector.py
 
 # If you want the container to stay running even if the main script
 # finishes, you can add this line at the end:
