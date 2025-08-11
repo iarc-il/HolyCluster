@@ -61,7 +61,7 @@ class DxheatRaw(Base):
     continent_spotter = Column(Text)
     dx_locator = Column(Text)
     __table_args__ = (
-        UniqueConstraint('date', 'time', 'spotter', 'dx_call', name='uix_3'),
+        UniqueConstraint('date', 'time', 'spotter', 'frequency', 'dx_call', name='uix_3'),
     )
 
     def __repr__(self):
