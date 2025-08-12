@@ -66,102 +66,134 @@ def prepare_dxheat_record(spot, debug=False):
 
 
 async def get_dxheat_spots_per_band(band:str, limit:int=30, debug:bool=False) -> list|None:
+    if debug:
+            logger.debug(f"Started get_dxheat_spots_per_band for band {band}")
+
     # assert isinstance(band, int)
     # assert isinstance(limit, int)
     limit = min(50, limit)
-    
-    url = f"https://dxheat.com/source/spots/?a={limit}&b={band}&cdx=EU&cdx=NA&cdx=SA&cdx=AS&cdx=AF&cdx=OC&cdx=AN&cde=EU&cde=NA&cde=SA&cde=AS&cde=AF&cde=OC&cde=AN&m=CW&m=PHONE&m=DIGI&valid=1&spam=0"
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, timeout=15)
-    if debug:
-        logger.debug(f"{response.content}")
+    spots = []
 
-    # Check if request was successful
-    if response.status_code == 200:
+    try:
+        url = f"https://dxheat.com/source/spots/?a={limit}&b={band}&cdx=EU&cdx=NA&cdx=SA&cdx=AS&cdx=AF&cdx=OC&cdx=AN&cde=EU&cde=NA&cde=SA&cde=AS&cde=AF&cde=OC&cde=AN&m=CW&m=PHONE&m=DIGI&valid=1&spam=0"
         if debug:
-            logger.debug(f"band={band}, limit={limit}")
-        # Parse JSON string to a Python list
-        spots = []
-        for spot in json.loads(response.content):
+            logger.debug(f"{url=}")
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, timeout=15)
+        if debug:
+            logger.debug(f"{response.content=}")
+
+        # Check if request was successful
+        if response.status_code == 200:
             if debug:
-                logger.debug(f"spot={spot}")
-            spots.append(spot)
+                logger.debug(f"band={band}, limit={limit}")
+            # Parse JSON string to a Python list
+            for spot in json.loads(response.content):
+                if debug:
+                    logger.debug(f"spot={spot}")
+                spots.append(spot)
+
+    except Exception as e:
+        logger.error(f"Error in get_dxheat_spots_per_band {e}")
+
+    finally:
+        if debug:
+            logger.debug(f"Compelted get_dxheat_spots_per_band for band {band}")
         return spots
-    else:
-        return []
 
 
 async def collect_dxheat_spots(debug=False):
-    bands = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6, 4, "SHF", "UHF", "VHF", "LF"]
     start = time()
+    bands = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6, 4, "SHF", "UHF", "VHF", "LF"]
     tasks = []
-    for band in bands:
-        task = asyncio.create_task(get_dxheat_spots_per_band(band=band, limit=30))
-        tasks.append(task)
-    all_spots = await asyncio.gather(*tasks)
-
-    if debug:
-        logger.debug(f"all_spots=\n{all_spots}")
-    end = time()
-    if debug:
-        logger.debug(f"Elasped time: {end - start:.2f} seconds")
-
     spot_records = []
-    for spots_in_band in all_spots:
-        if debug:
-            logger.debug(f"list=\n{spots_in_band}")
-        for spot in spots_in_band:
-            if debug:
-                logger.debug(f"spot={spot}")
-            record = prepare_dxheat_record(spot)
-            spot_records.append(record)
-            if debug:
-                logger.debug(f"record={record}")
 
-    return spot_records
+    try:
+        for band in bands:
+            task = asyncio.create_task(get_dxheat_spots_per_band(band=band, limit=30))
+            tasks.append(task)
+            if debug:
+                logger.debug(f"Appended asyncio task for band {band}")
+        if debug:
+            logger.debug(f"{tasks=}")
+        all_spots = await asyncio.gather(*tasks)
+
+        if debug:
+            logger.debug(f"all_spots=\n{all_spots}")
+        end = time()
+        if debug:
+            logger.debug(f"Elasped time: {end - start:.2f} seconds")
+
+        for spots_in_band in all_spots:
+            if debug:
+                logger.debug(f"list=\n{spots_in_band}")
+            for spot in spots_in_band:
+                if debug:
+                    logger.debug(f"spot={spot}")
+                record = prepare_dxheat_record(spot)
+                spot_records.append(record)
+                if debug:
+                    logger.debug(f"record={record}")
+
+    except Exception as e:
+        logger.error(f"Error in collect_dxheat_spots {e}")
+
+    finally:
+        return spot_records
 
 
 async def push_spots_to_db(spot_records: list[DxheatRaw], debug: bool = False):
     logger.info(f"Attempting to push {len(spot_records)} spot records to the database.")
-    engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
-    async with AsyncSession(engine) as session:
-        # Convert DxheatRaw objects to dictionaries for bulk insert
-        records_data = []
-        for record in spot_records:
-            record_dict = {k: v for k, v in record.__dict__.items() if not k.startswith('_')}
-            records_data.append(record_dict)
+    try:
+        engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
+        async with AsyncSession(engine) as session:
+            # Convert DxheatRaw objects to dictionaries for bulk insert
+            records_data = []
+            for record in spot_records:
+                record_dict = {k: v for k, v in record.__dict__.items() if not k.startswith('_')}
+                records_data.append(record_dict)
 
-        # Construct the insert statement with ON CONFLICT DO NOTHING
-        insert_stmt = insert(DxheatRaw).values(records_data)
-        on_conflict_stmt = insert_stmt.on_conflict_do_nothing(
-            index_elements=["date", "time", "spotter",  "frequency", "dx_call"] # Specify the unique index columns
-        )
+            # Construct the insert statement with ON CONFLICT DO NOTHING
+            insert_stmt = insert(DxheatRaw).values(records_data)
+            on_conflict_stmt = insert_stmt.on_conflict_do_nothing(
+                index_elements=["date", "time", "spotter",  "frequency", "dx_call"] # Specify the unique index columns
+            )
 
-        try:
-            await session.execute(on_conflict_stmt)
-            await session.commit()
-            logger.info(f"Successfully pushed {len(spot_records)} spot records (duplicates ignored).")
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Failed to push spot records to database: {e}")
-    await engine.dispose()
+            try:
+                await session.execute(on_conflict_stmt)
+                await session.commit()
+                logger.info(f"Successfully pushed {len(spot_records)} spot records (duplicates ignored).")
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Failed to push spot records to database: {e}")
+        await engine.dispose()
+
+    except Exception as e:
+        logger.error(f"Error in push_spots_to_db {e}")
 
 
 async def main(debug=False):
-    while True:
-        start = time()
-        logger.info(f"Start collection")
-        spot_records = await collect_dxheat_spots(debug=debug)
-        
-        if spot_records: # Only push if there are records
-            await push_spots_to_db(spot_records=spot_records, debug=debug)
-        else:
-            logger.info("No new spot records to push to database.")
+    try:
+        while True:
+            try:
+                start = time()
+                logger.info(f"Start collection")
+                spot_records = await collect_dxheat_spots(debug=debug)
+                
+                if spot_records: # Only push if there are records
+                    await push_spots_to_db(spot_records=spot_records, debug=debug)
+                else:
+                    logger.info("No new spot records to push to database.")
 
-        end = time()
-        if debug:
-            logger.debug(f"Elasped time: {end - start:.2f} seconds")
-        sleep(60)
+                end = time()
+                if debug:
+                    logger.debug(f"Elasped time: {end - start:.2f} seconds")
+            except Exception as e:
+                logger.error(f"Error in main loop: {e}")
+
+            sleep(60)
+    except Exception as e:
+        logger.error(f"Error in main {e}")
 
 
 if __name__ == "__main__":
