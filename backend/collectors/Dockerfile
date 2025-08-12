@@ -3,7 +3,6 @@ FROM python:3.13-slim-bookworm
 
 # Install uv for dependency management
 RUN pip install uv
-
 # Set the working directory in the container.
 WORKDIR /app
 
@@ -11,7 +10,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies using uv.
-RUN uv sync
+RUN uv sync --frozen --no-cache
 
 # Copy the source code.
 COPY collectors/src ./collectors/src
