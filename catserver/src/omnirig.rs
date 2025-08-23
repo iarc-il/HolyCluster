@@ -31,10 +31,6 @@ impl OmnirigRadio {
         }
     }
 
-    pub fn is_omnirig_available(&self) -> bool {
-        self.omnirig_available
-    }
-
     fn inner(&self) -> &OmnirigInner {
         self.inner.as_ref().unwrap()
     }

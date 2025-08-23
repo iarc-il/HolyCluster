@@ -223,7 +223,8 @@ async fn run_singleton_instance(
         tracing::info!("Radio initialized successfully");
     } else {
         tracing::error!("Radio initialization failed, OmniRig may not be installed. Exiting...");
-        open::that(server_config.build_uri("http", "omnirig-error"))?;
+        open::that(server_config.build_uri("http", "/omnirig-error"))?;
+        sender.send(UserEvent::Quit)?;
         return Ok(());
     }
 
