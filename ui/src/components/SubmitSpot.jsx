@@ -168,9 +168,21 @@ function SubmitSpot({ settings, dev_mode }) {
                     set_external_close(true);
                     reset_temp_data();
                 }}
+                on_apply={() => {
+                    try_to_submit_spot();
+                    return false;
+                }}
                 on_cancel={() => {
                     set_is_open(false);
                 }}
+                apply_text={
+                    submit_status.status == "Sending" ? (
+                        <Spinner size="20" color="lightblue" />
+                    ) : (
+                        "Submit"
+                    )
+                }
+                apply_disabled={readyState !== ReadyState.OPEN}
                 external_close={external_close}
             >
                 <table
@@ -273,15 +285,6 @@ function SubmitSpot({ settings, dev_mode }) {
                 ) : (
                     ""
                 )}
-                <div className="flex justify-center pb-5">
-                    <Button on_click={try_to_submit_spot} disabled={readyState !== ReadyState.OPEN}>
-                        {submit_status.status == "sending" ? (
-                            <Spinner size="20" color="lightblue" />
-                        ) : (
-                            "Submit"
-                        )}
-                    </Button>
-                </div>
             </Modal>
             <ToastContainer />
         </>
