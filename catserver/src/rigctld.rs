@@ -149,4 +149,9 @@ impl Radio for RigctldRadio {
 
         status
     }
+
+    fn is_available(&self) -> bool {
+        // TODO: implement this
+        true
+    }
 }

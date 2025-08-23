@@ -218,7 +218,14 @@ async fn run_singleton_instance(
 ) -> Result<()> {
     tracing::info!("Initializing {} radio", radio.read().get_name());
     radio.write().init();
-    tracing::info!("Radio initialized");
+
+    if radio.is_available() {
+        tracing::info!("Radio initialized successfully");
+    } else {
+        tracing::error!("Radio initialization failed, OmniRig may not be installed. Exiting...");
+        open::that(server_config.build_uri("http", "omnirig-error"))?;
+        return Ok(());
+    }
 
     let local_port = server_config.local_port;
 

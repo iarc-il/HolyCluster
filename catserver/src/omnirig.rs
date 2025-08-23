@@ -16,6 +16,7 @@ pub struct OmnirigRadio {
     current_rig: u8,
     inner: Option<OmnirigInner>,
     reconnect_counter: u8,
+    omnirig_available: bool,
 }
 unsafe impl Send for OmnirigRadio {}
 unsafe impl Sync for OmnirigRadio {}
@@ -26,7 +27,12 @@ impl OmnirigRadio {
             current_rig: 1,
             inner: None,
             reconnect_counter: 0,
+            omnirig_available: false,
         }
+    }
+
+    pub fn is_omnirig_available(&self) -> bool {
+        self.omnirig_available
     }
 
     fn inner(&self) -> &OmnirigInner {
@@ -47,15 +53,37 @@ impl Radio for OmnirigRadio {
         let com_guard = if let Some(inner) = std::mem::take(&mut self.inner) {
             inner.com_guard
         } else {
-            CoInitializeEx(co::COINIT::MULTITHREADED | co::COINIT::DISABLE_OLE1DDE).unwrap()
+            match CoInitializeEx(co::COINIT::MULTITHREADED | co::COINIT::DISABLE_OLE1DDE) {
+                Ok(guard) => guard,
+                Err(err) => {
+                    tracing::error!("Failed to initialize COM: {err}");
+                    self.omnirig_available = false;
+                    return;
+                }
+            }
         };
 
-        let omnirig = winsafe::CoCreateInstance::<IDispatch>(
-            &CLSIDFromProgID("Omnirig.OmnirigX").unwrap(),
+        let clsid = match CLSIDFromProgID("Omnirig.OmnirigX") {
+            Ok(clsid) => clsid,
+            Err(err) => {
+                tracing::error!("OmniRig is not installed or not registered: {err}");
+                self.omnirig_available = false;
+                return;
+            }
+        };
+
+        let omnirig = match winsafe::CoCreateInstance::<IDispatch>(
+            &clsid,
             None::<&winsafe::IUnknown>,
             co::CLSCTX::LOCAL_SERVER,
-        )
-        .unwrap();
+        ) {
+            Ok(omnirig) => omnirig,
+            Err(err) => {
+                tracing::error!("Failed to create OmniRig instance: {err}");
+                self.omnirig_available = false;
+                return;
+            }
+        };
 
         let rig1 = omnirig.invoke_get("Rig1", &[]).unwrap().unwrap_dispatch();
         let rig2 = omnirig.invoke_get("Rig2", &[]).unwrap().unwrap_dispatch();
@@ -66,6 +94,7 @@ impl Radio for OmnirigRadio {
             rig1,
             rig2,
         });
+        self.omnirig_available = true;
     }
 
     fn get_name(&self) -> &str {
@@ -154,5 +183,9 @@ impl Radio for OmnirigRadio {
             mode: mode.into(),
             current_rig: self.current_rig,
         }
+    }
+
+    fn is_available(&self) -> bool {
+        self.omnirig_available
     }
 }
