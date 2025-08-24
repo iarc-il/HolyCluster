@@ -1,10 +1,6 @@
 import React from "react";
 
 function OmniRigError() {
-    const openOmniRigWebsite = () => {
-        window.open("https://www.dxatlas.com/omnirig/", "_blank");
-    };
-
     return (
         <div className="min-h-screen bg-blue-900 flex items-center justify-center p-4">
             <div className="max-w-md w-full bg-white/10 backdrop-blur-lg rounded-xl shadow-2xl p-8 text-center border border-white/20">
@@ -40,15 +36,25 @@ function OmniRigError() {
                         </p>
                     </div>
 
-                    <button
-                        onClick={openOmniRigWebsite}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg"
-                    >
-                        Download OmniRig
-                    </button>
+                    <div className="flex space-x-4 text-white font-semibold">
+                        <button
+                            onClick={() =>
+                                window.open("https://www.dxatlas.com/omnirig/", "_blank")
+                            }
+                            className="bg-blue-600 hover:bg-blue-700 py-3 px-6 rounded-lg"
+                        >
+                            Download OmniRig
+                        </button>
+                        <button
+                            onClick={() => window.open("/", "_self")}
+                            className="bg-green-600 hover:bg-green-700 py-3 px-6 rounded-lg"
+                        >
+                            Continue without CAT
+                        </button>
+                    </div>
 
                     <div className="text-lg text-gray-200 space-y-1">
-                        <p>After installing OmniRig:</p>
+                        <p className="font-semibold">After installing OmniRig:</p>
                         <ol className="list-decimal list-inside space-y-1 text-left">
                             <li>Restart Holy Cluster</li>
                             <li>Configure your radio in OmniRig</li>
@@ -56,14 +62,6 @@ function OmniRigError() {
                         </ol>
                     </div>
                 </div>
-
-                {window.VERSION ? (
-                    <div className="mt-6 pt-4 border-t border-white/10">
-                        <p className="text-xs text-gray-500">Holy Cluster v{window.VERSION}</p>
-                    </div>
-                ) : (
-                    ""
-                )}
             </div>
         </div>
     );
