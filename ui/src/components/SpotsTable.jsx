@@ -39,10 +39,26 @@ function Spot(
         settings,
         on_callsign_context_menu,
         on_flag_context_menu,
+        is_new_spot,
     },
     ref,
 ) {
     const { current_freq_spots } = useServerData();
+    const [is_fading, set_is_fading] = useState(false);
+
+    useEffect(() => {
+        if (is_new_spot) {
+            set_is_fading(false);
+
+            const timer = setTimeout(() => {
+                set_is_fading(true);
+            }, 100);
+            return () => clearTimeout(timer);
+        } else {
+            set_is_fading(false);
+        }
+    }, [is_new_spot]);
+
     const time = new Date(spot.time * 1000);
     const utc_hours = String(time.getUTCHours()).padStart(2, "0");
     const utc_minutes = String(time.getUTCMinutes()).padStart(2, "0");
@@ -60,15 +76,25 @@ function Spot(
     const color = colors.bands[spot.band];
     let background_color;
     let text_color;
+
+    let normal_bg_color, normal_text_color;
+    if (is_even) {
+        normal_bg_color = colors.table.odd_row;
+        normal_text_color = colors.table.even_text;
+    } else {
+        normal_bg_color = colors.table.even_row;
+        normal_text_color = colors.table.odd_text;
+    }
+
     if (is_hovered) {
         background_color = colors.light_bands[spot.band];
         text_color = colors.text[spot.band];
-    } else if (is_even) {
-        background_color = colors.table.odd_row;
-        text_color = colors.table.even_text;
+    } else if (is_new_spot && !is_fading) {
+        background_color = colors.light_bands[spot.band];
+        text_color = colors.text[spot.band];
     } else {
-        background_color = colors.table.even_row;
-        text_color = colors.table.odd_text;
+        background_color = normal_bg_color;
+        text_color = normal_text_color;
     }
 
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
@@ -95,6 +121,9 @@ function Spot(
                 outlineColor: spot.is_alerted ? colors.light_bands[spot.band] : "",
                 border: spot.is_alerted ? "3px solid white" : "",
                 color: text_color,
+                transition: is_new_spot
+                    ? "background-color 2.5s ease-out, color 2.5s ease-out"
+                    : "none",
             }}
             className={row_classes + " h-7 z-40"}
             onMouseEnter={() => set_hovered_spot({ source: "table", id: spot.id })}
@@ -241,6 +270,7 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
 function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
     const {
         spots,
+        new_spot_ids,
         hovered_spot,
         set_hovered_spot,
         pinned_spot,
@@ -489,6 +519,7 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                                     settings={settings}
                                     on_callsign_context_menu={handle_callsign_context_menu}
                                     on_flag_context_menu={handle_flag_context_menu}
+                                    is_new_spot={new_spot_ids.has(spot.id)}
                                 ></Spot>
                             ))}
                         </tbody>
