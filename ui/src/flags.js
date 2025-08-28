@@ -58,6 +58,7 @@ const dxcc_to_country_flag = {
     "UK Sovereign Base Areas on Cyprus": "Cyprus",
     "Sao Tome & Principe": "São Tomé and Príncipe",
     "United Nations HQ": "UN Headquarters",
+    "ITU HQ": "Switzerland",
 };
 
 const dxcc_to_short_dxcc = {
