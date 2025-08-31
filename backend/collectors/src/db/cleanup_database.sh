@@ -1,4 +1,5 @@
-#!/bin/zsh
-cd /opt/HolyCluster/
-source /opt/HolyCluster/.venv/bin/activate
-/opt/HolyCluster/.venv/bin/python3 /opt/HolyCluster/src/cleanup_database.py 
+#!/usr/bin/bash
+cd /app/
+source .venv/bin/activate
+uv run collectors/src/db/cleanup_database.py 
+

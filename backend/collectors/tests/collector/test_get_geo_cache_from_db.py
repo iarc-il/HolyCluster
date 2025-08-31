@@ -1,35 +1,48 @@
-from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
-from sqlalchemy.exc import ProgrammingError, OperationalError
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, select
-
-
+import sys
+from pathlib import Path
+import asyncio
 from loguru import logger
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.exc import ProgrammingError, OperationalError
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).parents[3]))
+
 from db_classes import GeoCache
-import settings
-#from run_collector import get_geo_cache_from_db
-
-def get_geo_cache_from_db(callsign: str, debug: bool = False):
-  query = select(geo_cache).where(geo_cache.c.callsign == callsign)
-  result = conn.execute(query).fetchone()
-
-  return result
-
-debug = True
-
-engine = create_engine(settings.DB_URL, echo=False)
-Session = sessionmaker(bind=engine)
-session = Session()
-
-with engine.connect() as connection:
-    connection.execution_options(isolation_level="AUTOCOMMIT")  # Set isolation level to autocommit
-    try:
-      callsign = "A1BCD"
-      spot = get_geo_cache_from_db(callsign=callsign, debug=debug)
-      logger.debug(f"{spot}")
-
-    except (ProgrammingError, OperationalError) as e:
-        logger.error(f"Error: {e}")
+from settings import POSTGRES_DB_URL as DB_URL, DEBUG
+from misc import string_to_boolean
 
 
+async def get_geo_cache_from_db(session, callsign: str, debug: bool = False):
+    result = await session.execute(select(GeoCache).where(GeoCache.callsign == callsign))
+    return result.scalar_one_or_none()
+
+
+async def main(debug: bool = False):
+    engine = create_async_engine(DB_URL, echo=debug)
+    AsyncSession = async_sessionmaker(bind=engine)
+
+    async with AsyncSession() as session:
+        try:
+            callsign = "A1BCD"  # Example callsign
+            logger.info(f"Querying for callsign: {callsign}")
+            spot = await get_geo_cache_from_db(session=session, callsign=callsign, debug=debug)
+            if spot:
+                logger.info(f"Found spot: {spot}")
+            else:
+                logger.info(f"Spot not found for callsign: {callsign}")
+
+        except (ProgrammingError, OperationalError) as e:
+            logger.error(f"Database error: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+
+
+if __name__ == "__main__":
+    debug = string_to_boolean(DEBUG)
+    if debug:
+        logger.info("DEBUG is True")
+    else:
+        logger.info("DEBUG is False")
+    asyncio.run(main(debug=debug))

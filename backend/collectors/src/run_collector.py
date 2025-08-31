@@ -5,11 +5,10 @@ from pathlib import Path
 from loguru import logger
 import asyncio
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, select
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy import select
 from sqlalchemy.exc import ProgrammingError, OperationalError
 
-import settings
 from db_classes import DxheatRaw, HolySpot, GeoCache, SpotWithIssue
 from spots_collector import get_dxheat_spots, prepare_dxheat_record, prepare_holy_spot
 from qrz import get_qrz_session_key
@@ -20,92 +19,73 @@ from settings import (
     QRZ_USER,
     QRZ_PASSOWRD,
     QRZ_API_KEY,
+    POSTGRES_DB_URL as DB_URL,
 )
 
-geo_cache:dict = {}
-
-# 2 directories up
-grandparent_folder = Path(__file__).parents[1]
-sys.path.append(f"{grandparent_folder}")
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).parents[2]))
 
 
-def get_geo_cache_from_db(callsign: str, debug: bool = False):
-  query = select(geo_cache).where(geo_cache.c.callsign == callsign)
-  result = conn.execute(query).fetchone()
-
-  return result
-
-
-async def prepare_holy_spots_records(holy_spots_list: list, 
-                                     qrz_session_key: str, 
+async def prepare_holy_spots_records(holy_spots_list: list,
+                                     qrz_session_key: str,
                                      geo_cache: dict,
-                                     debug: bool=False) -> list:
-        start = time()
-        tasks = []
-        accumulated_delay = 0
-        engine = create_engine(settings.DB_URL, echo=False)
-        Session = sessionmaker(bind=engine)
-        session = Session()
+                                     debug: bool = False) -> list:
+    start = time()
+    tasks = []
+    accumulated_delay = 0
 
-        with engine.connect() as connection:
-          connection.execution_options(isolation_level="AUTOCOMMIT")  # Set isolation level to autocommit
-          try:
-            for index, spot in enumerate(holy_spots_list):
-              if debug:
-                logger.debug(f"{spot=}")
-                logger.debug(spot.spotter)
-              if spot.spotter in geo_cache:
-                geo_cache_spotter = geo_cache[spot.spotter]
-              else:
-                geo_cache_spotter = None
-              if spot.dx_call in geo_cache:
-                geo_cache_dx = geo_cache[spot.dx_call]
-              else:
-                geo_cache_dx = None
-              if debug:
-                logger.debug(f"{geo_cache_spotter=}")
-                logger.debug(f"{geo_cache_dx=}")
-              #geo_cache_spotter = get_geo_cache_from_db(callsign=spot["spotter"], debug=debug)
-              #geo_cache_dx = get_geo_cache_from_db(callsign=spot["dx_call"], debug=debug)
-              if not geo_cache_spotter or not geo_cache_dx:
-                accumulated_delay += 1/20
-                delay = accumulated_delay 
-              else:
-                delay = 0
+    for index, spot in enumerate(holy_spots_list):
+        if debug:
+            logger.debug(f"{spot=}")
+            logger.debug(spot.spotter)
+        if spot.spotter in geo_cache:
+            geo_cache_spotter = geo_cache[spot.spotter]
+        else:
+            geo_cache_spotter = None
+        if spot.dx_call in geo_cache:
+            geo_cache_dx = geo_cache[spot.dx_call]
+        else:
+            geo_cache_dx = None
+        if debug:
+            logger.debug(f"{geo_cache_spotter=}")
+            logger.debug(f"{geo_cache_dx=}")
 
-              task = asyncio.create_task(prepare_holy_spot(
-                  date=spot.date,
-                  time=spot.time,
-                  mode=spot.mode,
-                  missing_mode=spot.missing_mode,
-                  band=spot.band,
-                  frequency=spot.frequency,
-                  spotter_callsign=spot.spotter,
-                  dx_callsign=spot.dx_call,
-                  dx_locator=spot.dx_locator,
-                  comment=spot.comment,
-                  qrz_session_key=qrz_session_key,
-                  geo_cache_spotter=geo_cache_spotter,
-                  geo_cache_dx=geo_cache_dx,
-                  delay=delay,
-                  debug=debug
-              ))
-              tasks.append(task)
-            all_records = await asyncio.gather(*tasks)
-            # logger.debug(f"{all_records=}")
-            holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records = zip(*all_records)
-            if debug:
-                logger.debug(f"{holy_spots_records=}")
-                logger.debug(f"{geo_cache_spotter_records=}")
-                logger.debug(f"{geo_cache_dx_records=}")
-            end = time()
-            if debug:
-                logger.debug(f"Elasped time: {end - start:.2f} seconds")
+        if not geo_cache_spotter or not geo_cache_dx:
+            accumulated_delay += 1 / 20
+            delay = accumulated_delay
+        else:
+            delay = 0
 
-          except (ProgrammingError, OperationalError) as e:
-            logger.error(f"Error: {e}")
+        task = asyncio.create_task(prepare_holy_spot(
+            date=spot.date,
+            time=spot.time,
+            mode=spot.mode,
+            missing_mode=spot.missing_mode,
+            band=spot.band,
+            frequency=spot.frequency,
+            spotter_callsign=spot.spotter,
+            dx_callsign=spot.dx_call,
+            dx_locator=spot.dx_locator,
+            comment=spot.comment,
+            qrz_session_key=qrz_session_key,
+            geo_cache_spotter=geo_cache_spotter,
+            geo_cache_dx=geo_cache_dx,
+            delay=delay,
+            debug=debug
+        ))
+        tasks.append(task)
 
-        return holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records
+    all_records = await asyncio.gather(*tasks)
+    holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records = zip(*all_records)
+    if debug:
+        logger.debug(f"{holy_spots_records=}")
+        logger.debug(f"{geo_cache_spotter_records=}")
+        logger.debug(f"{geo_cache_dx_records=}")
+    end = time()
+    if debug:
+        logger.debug(f"Elasped time: {end - start:.2f} seconds")
+
+    return holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records
 
 
 async def collect_dxheat_spots(debug=False):
@@ -138,40 +118,27 @@ async def collect_dxheat_spots(debug=False):
     return spot_records
 
 
-def add_spot_to_spots_with_issues_file(spot:dict):
-    spots_with_issues = f"{grandparent_folder}/src/spots_with_issues.txt"
-    with open(spots_with_issues, 'a') as f:
-        f.write('-' * 50 + '\n')
-        for key, value in spot.items():
-            f.write(f'{key}: {value}\n')
-
 async def main(debug=False):
     holy_spots_list = []
-    qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)    
-    
-    # callsign_to_locator_filename = f"{grandparent_folder}/src/prefixes_list.csv"
-    # if debug:
-    #     logger.debug(f"{callsign_to_locator_filename=}")
-    # prefixes_to_locators = read_csv_to_list_of_tuples(filename=callsign_to_locator_filename)
+    qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)
 
-    engine = create_engine(settings.DB_URL, echo=False)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    engine = create_async_engine(DB_URL, echo=False)
+    AsyncSession = async_sessionmaker(bind=engine)
 
-    with engine.connect() as connection:
-        connection.execution_options(isolation_level="AUTOCOMMIT")  # Set isolation level to autocommit
+    async with AsyncSession() as session:
         try:
             # Reading GeoCache
             logger.info("Reading geo_cache from database")
-            geo_cache = { 
+            result = await session.execute(select(GeoCache))
+            geo_cache = {
                 row.callsign: {
-                    'locator': row.locator, 
-                    'lat': row.lat, 
-                    'lon': row.lon, 
+                    'locator': row.locator,
+                    'lat': row.lat,
+                    'lon': row.lon,
                     'country': row.country,
                     'continent': row.continent,
-                } 
-                for row in session.query(GeoCache).all()
+                }
+                for row in result.scalars().all()
             }
             if debug:
                 logger.debug(f"{json.dumps(geo_cache, indent=4, sort_keys=False)}")
@@ -183,24 +150,22 @@ async def main(debug=False):
             for record in spot_records:
                 dxheat_record_to_dict = record.to_dict()
                 stmt = insert(DxheatRaw).values(**dxheat_record_to_dict)
-                # Define the conflict resolution (do nothing on conflict)
                 stmt = stmt.on_conflict_do_nothing(
                     index_elements=['date', 'time', 'spotter', 'dx_call']
-                    # index_elements=['id'],  # The unique column causing the conflict
-                )                
-                # Execute the statement
-                session.execute(stmt)
+                )
+                await session.execute(stmt)
 
-                if  record.valid:
+                if record.valid:
                     holy_spots_list.append(record)
             logger.info(f"DXHeat records: {len(spot_records)}")
-            
+
             # holy_spot
             logger.info("Preparing Holy Spots")
-            holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records = await prepare_holy_spots_records(holy_spots_list=holy_spots_list, 
-                                                                  qrz_session_key=qrz_session_key,
-                                                                  geo_cache=geo_cache,
-                                                                  debug=debug)
+            holy_spots_records, geo_cache_spotter_records, geo_cache_dx_records = await prepare_holy_spots_records(
+                holy_spots_list=holy_spots_list,
+                qrz_session_key=qrz_session_key,
+                geo_cache=geo_cache,
+                debug=debug)
             logger.info(f"Holy Spots records: {len(holy_spots_records)}")
             logger.info("Adding Holy Spots to database")
             good_records: int = 0
@@ -217,7 +182,7 @@ async def main(debug=False):
                 if not holy_spot_record_dict['dx_locator']:
                     holy_spot_record_dict['comment'] += " *** Missing dx locator ***"
                     issue = True
-                if holy_spot_record_dict['spotter_callsign']=='W3LPL':
+                if holy_spot_record_dict['spotter_callsign'] == 'W3LPL':
                     holy_spot_record_dict['comment'] += " *** Spotter is W3LPL ***"
                     issue = True
                 if not holy_spot_record_dict['dx_country']:
@@ -235,15 +200,14 @@ async def main(debug=False):
                     records_with_issues += 1
                     stmt = insert(SpotWithIssue).values(**holy_spot_record_dict)
                     logger.error(f"Issues with spot:\n{holy_spot_record_dict}")
-                # Removing duplication by: Define the conflict resolution (do nothing on conflict)
+
                 stmt = stmt.on_conflict_do_nothing(
                     index_elements=['date', 'time', 'spotter_callsign', 'dx_callsign']
-                )                
-                # Execute the statement
-                session.execute(stmt)
+                )
+                await session.execute(stmt)
             logger.info(f"Good records: {good_records}, records with issues: {records_with_issues}")
 
-            session.commit()
+            await session.commit()
 
             # geo_cache
             logger.info("Updating geo_cache")
@@ -252,17 +216,12 @@ async def main(debug=False):
                     logger.debug(f"{record=}")
                 geo_cache_record_dict = record.to_dict()
                 stmt = insert(GeoCache).values(**geo_cache_record_dict)
-                # Removing duplication by: Define the conflict resolution (do nothing on conflict)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=['callsign'],
                     set_={col: getattr(stmt.excluded, col) for col in geo_cache_record_dict}
-                )                
-                # Execute the statement
-                session.execute(stmt)
-            session.commit()
-
-            # DX Lite
-            # TBD
+                )
+                await session.execute(stmt)
+            await session.commit()
 
         except (ProgrammingError, OperationalError) as e:
             logger.error(f"Error: {e}")
@@ -270,7 +229,6 @@ async def main(debug=False):
 
 if __name__ == "__main__":
     start = time()
-    # logger.info(f"DEBUG={DEBUG}")
     if string_to_boolean(DEBUG):
         logger.info("DEBUG is True")
         open_log_file("logs/run_collector")
@@ -278,5 +236,5 @@ if __name__ == "__main__":
         logger.info("DEBUG is False")
     asyncio.run(main(debug=string_to_boolean(DEBUG)))
     end = time()
-    if DEBUG:
+    if string_to_boolean(DEBUG):
         logger.debug(f"Elasped time: {end - start:.2f} seconds")
