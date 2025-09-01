@@ -5,7 +5,9 @@ ENV PYTHONDONTWRITEBYTECODE=1  \
 PYTHONUNBUFFERED=1
 
 # Install uv for dependency management
-RUN pip install uv
+# RUN pip install uv
+COPY --from=ghcr.io/astral-sh/uv:0.8.14 /uv /uvx /bin/
+
 # Set the working directory in the container.
 WORKDIR /app
 
