@@ -23,7 +23,7 @@ def main(debug: bool = False):
     # session = Session()
 
     # Specify the number of hours
-    hours = 24  # for example, hours=24 delete records older than 24 hours
+    hours = 24 * POSTGRES_DB_RETENTION_DAYS
     cutoff_datetime = datetime.now(timezone.utc) - timedelta(hours=hours)
     logger.info(f"Delete records older than {hours} hours")
     logger.info(f"now (UTC)             = {datetime.now(timezone.utc)}")
