@@ -39,6 +39,7 @@ function fetch_propagation() {
 
 export const ServerDataProvider = ({ children }) => {
     const [spots, set_spots] = useState([]);
+    const [new_spot_ids, set_new_spot_ids] = useState(new Set());
     let [hovered_spot, set_hovered_spot] = useState({ source: null, id: null });
     let [hovered_band, set_hovered_band] = useState(null);
     let [pinned_spot, set_pinned_spot] = useState(null);
@@ -107,6 +108,13 @@ export const ServerDataProvider = ({ children }) => {
             });
 
             if (data.type === "update") {
+                const new_ids = new Set(new_spots.map(spot => spot.id));
+                set_new_spot_ids(new_ids);
+
+                setTimeout(() => {
+                    set_new_spot_ids(new Set());
+                }, 3000);
+
                 new_spots = new_spots.concat(spots);
             }
 
@@ -264,6 +272,7 @@ export const ServerDataProvider = ({ children }) => {
         <ServerDataContext.Provider
             value={{
                 spots: filtered_spots,
+                new_spot_ids,
                 hovered_spot,
                 set_hovered_spot,
                 hovered_band,

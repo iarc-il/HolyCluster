@@ -74,4 +74,8 @@ impl Radio for DummyRadio {
             current_rig: self.current_rig,
         }
     }
+
+    fn is_available(&self) -> bool {
+        true
+    }
 }
