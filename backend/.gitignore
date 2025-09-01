@@ -6,6 +6,7 @@ logs/
 logs_telnet/
 .DS_store
 uv.lock
+postgres/data
 
 
 # C extensions
