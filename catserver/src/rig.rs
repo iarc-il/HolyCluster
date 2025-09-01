@@ -37,6 +37,7 @@ pub trait Radio: Send + Sync {
     fn set_rig(&mut self, rig: u8);
     fn set_frequency(&mut self, slot: Slot, freq: Freq);
     fn get_status(&mut self) -> Status;
+    fn is_available(&self) -> bool;
 }
 
 #[derive(Clone)]
@@ -55,5 +56,9 @@ impl AnyRadio {
 
     pub fn read(&self) -> RwLockReadGuard<'_, Box<dyn Radio>> {
         self.0.read().unwrap()
+    }
+
+    pub fn is_available(&self) -> bool {
+        self.read().is_available()
     }
 }

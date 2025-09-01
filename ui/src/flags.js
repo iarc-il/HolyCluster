@@ -57,6 +57,8 @@ const dxcc_to_country_flag = {
     "Market Reef": "Åland Islands",
     "UK Sovereign Base Areas on Cyprus": "Cyprus",
     "Sao Tome & Principe": "São Tomé and Príncipe",
+    "United Nations HQ": "UN Headquarters",
+    "ITU HQ": "Switzerland",
 };
 
 const dxcc_to_short_dxcc = {

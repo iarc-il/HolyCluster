@@ -14,17 +14,25 @@ function Modal({
     cancel_text = "Cancel",
     external_open = null,
     external_close = null,
+    apply_disabled = false,
     children,
 }) {
     const [show_modal, set_show_modal] = useState(false);
     const { colors } = useColors();
 
-    function on_escape(event) {
+    function on_keydown(event) {
+        if (!show_modal) return;
+
         if (event.key == "Escape") {
             if (on_cancel != null) {
                 on_cancel();
             }
             set_show_modal(false);
+        } else if (event.key == "Enter") {
+            if (on_apply && !apply_disabled) {
+                event.preventDefault();
+                set_show_modal(!on_apply());
+            }
         }
     }
 
@@ -42,11 +50,13 @@ function Modal({
     }, [external_close]);
 
     useEffect(() => {
-        document.body.addEventListener("keydown", on_escape);
-        return () => {
-            document.body.removeEventListener("keydown", on_escape);
-        };
-    });
+        if (show_modal) {
+            document.addEventListener("keydown", on_keydown);
+            return () => {
+                document.removeEventListener("keydown", on_keydown);
+            };
+        }
+    }, [show_modal, on_apply, apply_disabled, on_cancel]);
 
     return (
         <>
@@ -115,6 +125,7 @@ function Modal({
                                         {on_apply != null ? (
                                             <Button
                                                 color="blue"
+                                                disabled={apply_disabled}
                                                 on_click={() => set_show_modal(!on_apply())}
                                             >
                                                 {apply_text}

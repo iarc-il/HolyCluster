@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router";
 
 import MainContainer from "@/components/MainContainer.jsx";
 import Addons from "@/components/addons/Addons";
+import OmniRigError from "@/components/OmniRigError.jsx";
 import { ServerDataProvider } from "@/hooks/useServerData";
 import { FiltersProvider } from "@/hooks/useFilters";
 import { ColorsProvider } from "@/hooks/useColors";
@@ -29,6 +30,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                     }
                 />
                 <Route path="/addons" element={<Addons />} />
+                <Route path="/omnirig-error" element={<OmniRigError />} />
             </Routes>
         </BrowserRouter>
     </React.StrictMode>,

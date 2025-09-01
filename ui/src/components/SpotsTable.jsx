@@ -37,11 +37,28 @@ function Spot(
         set_hovered_spot,
         set_cat_to_spot,
         settings,
-        on_context_menu,
+        on_callsign_context_menu,
+        on_flag_context_menu,
+        is_new_spot,
     },
     ref,
 ) {
     const { current_freq_spots } = useServerData();
+    const [is_fading, set_is_fading] = useState(false);
+
+    useEffect(() => {
+        if (is_new_spot) {
+            set_is_fading(false);
+
+            const timer = setTimeout(() => {
+                set_is_fading(true);
+            }, 100);
+            return () => clearTimeout(timer);
+        } else {
+            set_is_fading(false);
+        }
+    }, [is_new_spot]);
+
     const time = new Date(spot.time * 1000);
     const utc_hours = String(time.getUTCHours()).padStart(2, "0");
     const utc_minutes = String(time.getUTCMinutes()).padStart(2, "0");
@@ -59,15 +76,25 @@ function Spot(
     const color = colors.bands[spot.band];
     let background_color;
     let text_color;
+
+    let normal_bg_color, normal_text_color;
+    if (is_even) {
+        normal_bg_color = colors.table.odd_row;
+        normal_text_color = colors.table.even_text;
+    } else {
+        normal_bg_color = colors.table.even_row;
+        normal_text_color = colors.table.odd_text;
+    }
+
     if (is_hovered) {
         background_color = colors.light_bands[spot.band];
         text_color = colors.text[spot.band];
-    } else if (is_even) {
-        background_color = colors.table.odd_row;
-        text_color = colors.table.even_text;
+    } else if (is_new_spot && !is_fading) {
+        background_color = colors.light_bands[spot.band];
+        text_color = colors.text[spot.band];
     } else {
-        background_color = colors.table.even_row;
-        text_color = colors.table.odd_text;
+        background_color = normal_bg_color;
+        text_color = normal_text_color;
     }
 
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
@@ -94,6 +121,9 @@ function Spot(
                 outlineColor: spot.is_alerted ? colors.light_bands[spot.band] : "",
                 border: spot.is_alerted ? "3px solid white" : "",
                 color: text_color,
+                transition: is_new_spot
+                    ? "background-color 2.5s ease-out, color 2.5s ease-out"
+                    : "none",
             }}
             className={row_classes + " h-7 z-40"}
             onMouseEnter={() => set_hovered_spot({ source: "table", id: spot.id })}
@@ -115,9 +145,15 @@ function Spot(
                 )}
             </td>
 
-            <td className={cell_classes.flag}>
+            <td
+                onContextMenu={event => {
+                    event.preventDefault();
+                    on_flag_context_menu(event, spot);
+                }}
+                className={cell_classes.flag}
+            >
                 <div
-                    className="relative"
+                    className="relative cursor-pointer"
                     ref={popup_anchor}
                     onMouseEnter={_ => set_is_flag_hovered(true)}
                     onMouseLeave={_ => set_is_flag_hovered(false)}
@@ -144,7 +180,7 @@ function Spot(
                 className={cell_classes.dx_callsign + " font-semibold"}
                 onContextMenu={event => {
                     event.preventDefault();
-                    on_context_menu(event, spot, false);
+                    on_callsign_context_menu(event, spot, false);
                 }}
             >
                 <Callsign callsign={spot.dx_callsign} />
@@ -176,7 +212,7 @@ function Spot(
                 className={cell_classes.spotter_callsign}
                 onContextMenu={event => {
                     event.preventDefault();
-                    on_context_menu(event, spot, true);
+                    on_callsign_context_menu(event, spot, true);
                 }}
             >
                 <Callsign callsign={spot.spotter_callsign} />
@@ -234,6 +270,7 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
 function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
     const {
         spots,
+        new_spot_ids,
         hovered_spot,
         set_hovered_spot,
         pinned_spot,
@@ -250,70 +287,78 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
         y: 0,
         spot: null,
         is_spotter: false,
+        menu_type: "callsign",
     });
 
-    const context_menu_actions = [
-        // {
-        //     label: spot => "Copy callsign",
-        //     onClick: spot => {
-        //         navigator.clipboard.writeText(
-        //             context_menu.is_spotter ? spot.spotter_callsign : spot.dx_callsign,
-        //         );
-        //     },
-        // },
-        // {
-        //     label: spot => "Copy Frequency",
-        //     onClick: spot => {
-        //         navigator.clipboard.writeText(spot.freq.toString());
-        //     },
-        // },
-        // {
-        //     label: spot => "Set Radio Frequency",
-        //     onClick: spot => {
-        //         set_cat_to_spot(spot);
-        //     },
-        // },
-        {
-            label: spot => "Open QRZ Profile",
-            onClick: spot => {
-                const callsign = context_menu.is_spotter ? spot.spotter_callsign : spot.dx_callsign;
-                window.open(`https://www.qrz.com/db/${callsign}`, "_blank");
-            },
-        },
-        {
-            label: spot => (spot.id == pinned_spot ? "Unpin Spot" : "Pin Spot"),
-            onClick: spot => {
-                set_pinned_spot(spot.id === pinned_spot ? null : spot.id);
-            },
-        },
-        {
-            label: spot => "Create Alert",
-            onClick: spot => {
-                addCallsignFilter(spot, "alert", context_menu.is_spotter);
-            },
-        },
-        {
-            label: spot => "Create Show Only Filter",
-            onClick: spot => {
-                addCallsignFilter(spot, "show_only", context_menu.is_spotter);
-            },
-        },
-        {
-            label: spot => "Create Hide Filter",
-            onClick: spot => {
-                addCallsignFilter(spot, "hide", context_menu.is_spotter);
-            },
-        },
-    ];
+    const get_context_menu_actions = menu_type => {
+        if (menu_type === "flag") {
+            return [
+                {
+                    label: spot => `Create Alert for ${spot.dx_country}`,
+                    onClick: spot => {
+                        add_country_filter(spot, "alert");
+                    },
+                },
+                {
+                    label: spot => `Show Only ${spot.dx_country}`,
+                    onClick: spot => {
+                        add_country_filter(spot, "show_only");
+                    },
+                },
+                {
+                    label: spot => `Hide ${spot.dx_country}`,
+                    onClick: spot => {
+                        add_country_filter(spot, "hide");
+                    },
+                },
+            ];
+        } else {
+            return [
+                {
+                    label: spot => "Open QRZ Profile",
+                    onClick: spot => {
+                        const callsign = context_menu.is_spotter
+                            ? spot.spotter_callsign
+                            : spot.dx_callsign;
+                        window.open(`https://www.qrz.com/db/${callsign}`, "_blank");
+                    },
+                },
+                {
+                    label: spot => (spot.id == pinned_spot ? "Unpin Spot" : "Pin Spot"),
+                    onClick: spot => {
+                        set_pinned_spot(spot.id === pinned_spot ? null : spot.id);
+                    },
+                },
+                {
+                    label: spot => "Create Alert",
+                    onClick: spot => {
+                        add_callsign_filter(spot, "alert", context_menu.is_spotter);
+                    },
+                },
+                {
+                    label: spot => "Create Show Only Filter",
+                    onClick: spot => {
+                        add_callsign_filter(spot, "show_only", context_menu.is_spotter);
+                    },
+                },
+                {
+                    label: spot => "Create Hide Filter",
+                    onClick: spot => {
+                        add_callsign_filter(spot, "hide", context_menu.is_spotter);
+                    },
+                },
+            ];
+        }
+    };
 
-    const handle_context_menu = (event, spot, is_spotter) => {
+    const handle_callsign_context_menu = (event, spot, is_spotter) => {
         event.preventDefault();
         const x = event.clientX;
         const y = event.clientY;
 
-        // Adjust menu position if it would go off screen
         const menuWidth = 200;
-        const menuHeight = context_menu_actions.length * 43;
+        const callsign_actions = get_context_menu_actions("callsign");
+        const menuHeight = callsign_actions.length * 43;
         const adjustedX = Math.min(x, window.innerWidth - menuWidth);
         const adjustedY = Math.min(y, window.innerHeight - menuHeight);
 
@@ -323,15 +368,50 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
             y: adjustedY,
             spot,
             is_spotter,
+            menu_type: "callsign",
         });
     };
 
-    const addCallsignFilter = (spot, action, is_spotter) => {
+    const handle_flag_context_menu = (event, spot) => {
+        event.preventDefault();
+        const x = event.clientX;
+        const y = event.clientY;
+
+        const menuWidth = 200;
+        const flag_actions = get_context_menu_actions("flag");
+        const menuHeight = flag_actions.length * 43;
+        const adjustedX = Math.min(x, window.innerWidth - menuWidth);
+        const adjustedY = Math.min(y, window.innerHeight - menuHeight);
+
+        set_context_menu({
+            visible: true,
+            x: adjustedX,
+            y: adjustedY,
+            spot,
+            is_spotter: false,
+            menu_type: "flag",
+        });
+    };
+
+    const add_callsign_filter = (spot, action, is_spotter) => {
         const newFilter = {
             action,
             type: "prefix",
             value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
             spotter_or_dx: is_spotter ? "spotter" : "dx",
+        };
+        setCallsignFilters({
+            ...callsign_filters,
+            filters: [...callsign_filters.filters, newFilter],
+        });
+    };
+
+    const add_country_filter = (spot, action) => {
+        const newFilter = {
+            action,
+            type: "entity",
+            value: spot.dx_country,
+            spotter_or_dx: "dx",
         };
         setCallsignFilters({
             ...callsign_filters,
@@ -367,7 +447,7 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                     >
                         <tbody className="divide-y">
                             <tr
-                                className="sticky top-0 z-50"
+                                className="sticky top-0 z-40"
                                 style={{
                                     backgroundColor: colors.table.header,
                                     color: colors.table.header_text,
@@ -437,7 +517,9 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                                     set_hovered_spot={set_hovered_spot}
                                     set_cat_to_spot={set_cat_to_spot}
                                     settings={settings}
-                                    on_context_menu={handle_context_menu}
+                                    on_callsign_context_menu={handle_callsign_context_menu}
+                                    on_flag_context_menu={handle_flag_context_menu}
+                                    is_new_spot={new_spot_ids.has(spot.id)}
                                 ></Spot>
                             ))}
                         </tbody>
@@ -451,8 +533,7 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                     spot={context_menu.spot}
                     is_spotter={context_menu.is_spotter}
                     on_close={() => set_context_menu({ ...context_menu, visible: false })}
-                    onAddFilter={addCallsignFilter}
-                    actions={context_menu_actions}
+                    actions={get_context_menu_actions(context_menu.menu_type)}
                 />
             )}
         </>
