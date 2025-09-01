@@ -14,16 +14,17 @@ from misc import string_to_boolean, open_log_file
 
 from settings import (
     DEBUG,
-    POSTGRES_DB_URL as DB_URL,
+    POSTGRES_DB_URL,
+    POSTGRES_DB_RETENTION_DAYS,
 )
 
 
 async def main(debug: bool = False):
     open_log_file("logs/cleanup_database")
-    engine = create_async_engine(DB_URL, echo=False)
+    engine = create_async_engine(POSTGRES_DB_URL, echo=False)
     AsyncSession = async_sessionmaker(bind=engine)
 
-    hours = 24
+    hours = 24 * POSTGRES_DB_RETENTION_DAYS
     now_utc = datetime.now(UTC)
     cutoff_datetime = (now_utc - timedelta(hours=hours)).replace(tzinfo=None)
     logger.info(f"Delete records older than {hours} hours")
