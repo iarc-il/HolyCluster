@@ -67,7 +67,7 @@ class GeoCache(SQLModel, table=True):
 
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 
 async def propagation_data_collector(app):
@@ -287,4 +287,4 @@ if __name__ == "__main__":
         port = 80
         ssl_kwargs = {}
 
-    uvicorn.run(app, host="0.0.0.0", port=port, **ssl_kwargs)
+    uvicorn.run(app, host="0.0.0.0", port=port, access_log=False, **ssl_kwargs)
