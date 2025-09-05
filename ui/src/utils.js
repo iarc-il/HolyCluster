@@ -37,7 +37,9 @@ export function is_same_base_callsign(callsign1, callsign2) {
 export function is_matching_list(list, spot) {
     return list.some(filter => {
         let matched_value;
-        if (filter.spotter_or_dx == "spotter") {
+        if (filter.type == "comment") {
+            matched_value = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">").toLowerCase();
+        } else if (filter.spotter_or_dx == "spotter") {
             if (filter.type == "entity") {
                 matched_value = spot.spotter_country;
             } else {
@@ -52,7 +54,9 @@ export function is_matching_list(list, spot) {
         }
 
         let is_value_matching;
-        if (filter.type == "prefix") {
+        if (filter.type == "comment") {
+            is_value_matching = matched_value.includes(filter.value.toLowerCase());
+        } else if (filter.type == "prefix") {
             is_value_matching = matched_value.startsWith(filter.value);
         } else if (filter.type == "suffix") {
             is_value_matching = matched_value.endsWith(filter.value);
