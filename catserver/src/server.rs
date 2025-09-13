@@ -438,7 +438,9 @@ async fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
             socket
                 .send_to(&packet, format!("127.0.0.1:{}", message.udp_port))
                 .await
-                .with_context(|| format!("Failed to send UDP packet to port {}", message.udp_port))?;
+                .with_context(|| {
+                    format!("Failed to send UDP packet to port {}", message.udp_port)
+                })?;
         }
     }
     Ok(())
