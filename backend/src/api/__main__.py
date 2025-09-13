@@ -17,6 +17,9 @@ from sqlalchemy import desc
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 from . import propagation, settings, submit_spot
+from .profiling import memory_tracker, track_endpoint_memory, setup_memory_logging, periodic_memory_check
+
+setup_memory_logging()
 
 
 class DX(SQLModel, table=True):
@@ -85,7 +88,10 @@ async def propagation_data_collector(app):
 
 @asynccontextmanager
 async def lifespan(app: fastapi.FastAPI):
+    asyncio.get_running_loop().create_task(periodic_memory_check(app)())
     asyncio.get_running_loop().create_task(propagation_data_collector(app))
+
+    app.state.active_connections = set()
     yield
 
 
@@ -131,10 +137,13 @@ def cleanup_spot(spot):
 
 
 @app.get("/spots")
+@track_endpoint_memory
 def spots(since: Optional[int] = None, last_id: Optional[int] = None):
     with Session(engine) as session:
         if since is None:
             since = int(time.time() - 3600)
+
+        memory_tracker.log_memory_stats("Before spots query")
 
         query = select(DX).where(DX.date_time > datetime.datetime.fromtimestamp(since))
         if last_id is not None:
@@ -143,6 +152,9 @@ def spots(since: Optional[int] = None, last_id: Optional[int] = None):
         query = query.order_by(desc(DX.id))
         spots = session.exec(query).all()
         spots = [cleanup_spot(spot) for spot in spots]
+
+        memory_tracker.log_memory_stats("After spots query")
+
         return spots
 
 
@@ -196,19 +208,30 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
 
 
 @app.websocket("/spots_ws")
+@track_endpoint_memory
 async def spots_ws(websocket: fastapi.WebSocket):
     await websocket.accept()
+
+    app.state.active_connections.add(websocket)
+    memory_tracker.log_memory_stats(f"New WebSocket connection. Total: {len(app.state.active_connections)}")
 
     try:
         message = await websocket.receive_json()
 
         with Session(engine) as session:
             if "initial" in message:
-                query = select(DX) \
-                    .where(DX.date_time > datetime.datetime.fromtimestamp(time.time() - 3600)) \
-                    .order_by(desc(DX.id)) \
+                memory_tracker.log_memory_stats("Before initial spots query")
+
+                query = (
+                    select(DX)
+                    .where(DX.date_time > datetime.datetime.fromtimestamp(time.time() - 3600))
+                    .order_by(desc(DX.id))
                     .limit(500)
+                )
                 initial_spots = session.exec(query).all()
+
+                memory_tracker.log_memory_stats("After initial spots query")
+
                 initial_spots = [cleanup_spot(spot) for spot in initial_spots]
                 await websocket.send_json({"type": "initial", "spots": initial_spots})
 
@@ -223,6 +246,8 @@ async def spots_ws(websocket: fastapi.WebSocket):
             await asyncio.sleep(30)
 
             with Session(engine) as session:
+                memory_tracker.log_memory_stats("Before update spots query")
+
                 query = select(DX).where(DX.id > last_id).order_by(DX.id)
                 new_spots = session.exec(query).all()
 
@@ -231,8 +256,13 @@ async def spots_ws(websocket: fastapi.WebSocket):
                     last_id = new_spots[-1]["id"]
                     await websocket.send_json({"type": "update", "spots": new_spots})
 
+                    memory_tracker.log_memory_stats("After sending spots update")
+
     except websockets.WebSocketDisconnect:
         pass
+    finally:
+        app.state.active_connections.remove(websocket)
+        memory_tracker.log_memory_stats(f"WebSocket disconnected. Total: {len(app.state.active_connections)}")
 
 
 def get_latest_catserver_name():
