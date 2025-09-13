@@ -17,6 +17,7 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
+use tokio::net::UdpSocket;
 use tokio::{
     net::TcpListener,
     sync::broadcast::{Receiver, Sender},
@@ -289,7 +290,7 @@ async fn handle_cat_control_socket(
             Some(message) = client_receiver.next() => {
                 match message? {
                     Message::Text(text) => {
-                        process_message(text.to_string(), &radio)?;
+                        process_message(text.to_string(), &radio).await?;
                         let status = radio.write().get_status();
                         let message = Message::Text(serde_json::to_string(&status)?.into());
                         client_sender.send(message).await?;
@@ -361,10 +362,22 @@ struct SetRig {
 }
 
 #[derive(Deserialize)]
+struct HighlightSpot {
+    dx_callsign: String,
+    de_callsign: String,
+    freq: u64,
+    mode: String,
+    dx_grid: String,
+    de_grid: String,
+    udp_port: u16,
+}
+
+#[derive(Deserialize)]
 #[serde(untagged)]
 enum ClientMessage {
     SetRig(SetRig),
     SetModeAndFreq(SetModeAndFreq),
+    HighlightSpot(HighlightSpot),
 }
 
 fn is_upper_sideband(freq: f32) -> bool {
@@ -373,7 +386,7 @@ fn is_upper_sideband(freq: f32) -> bool {
         && !(7000.0..=7300.0).contains(&freq)
 }
 
-fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
+async fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
     let message: ClientMessage = serde_json::from_str(&message)
         .with_context(|| format!("Failed to parse message: {message}"))?;
     match message {
@@ -397,6 +410,34 @@ fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
             tracing::debug!("Setting freq to {freq:?}");
             radio.write().set_mode(mode);
             radio.write().set_frequency(Slot::A, freq);
+        }
+        ClientMessage::HighlightSpot(spot) => {
+            let mode = match spot.mode.as_str() {
+                "FT8" => crate::reporting::Mode::FT8,
+                "FT4" => crate::reporting::Mode::FT4,
+                "CW" => crate::reporting::Mode::CW,
+                "SSB" => crate::reporting::Mode::Ssb,
+                "DIGI" => crate::reporting::Mode::Rtty,
+                mode => {
+                    bail!("Unknown mode for Log4OM: {mode}");
+                }
+            };
+
+            let packet = crate::reporting::build_status_packet(
+                &spot.dx_callsign,
+                &spot.de_callsign,
+                spot.freq,
+                mode,
+                "0",
+                &spot.dx_grid,
+                &spot.de_grid,
+            );
+
+            let socket = UdpSocket::bind("127.0.0.1:0").await?;
+            socket
+                .send_to(&packet, format!("127.0.0.1:{}", spot.udp_port))
+                .await
+                .with_context(|| format!("Failed to send UDP packet to port {}", spot.udp_port))?;
         }
     }
     Ok(())

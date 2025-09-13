@@ -1,17 +1,28 @@
+use std::{error::Error, net::UdpSocket};
+
 const MAGIC: u32 = 0xadbccbda;
 const SCHEMA: u32 = 2;
 // This is the status packet type
 const PACKET_TYPE: u32 = 1;
 const WSJTX_ID: &[u8; 6] = b"WSJT-X";
 
+#[derive(Debug)]
 pub enum Mode {
     FT8,
+    FT4,
+    CW,
+    Ssb,
+    Rtty,
 }
 
 impl Mode {
     fn as_bytes(&self) -> &[u8] {
         match self {
             Mode::FT8 => b"FT8",
+            Mode::FT4 => b"FT4",
+            Mode::CW => b"CW",
+            Mode::Ssb => b"SSB",
+            Mode::Rtty => b"RTTY",
         }
     }
 }
@@ -64,7 +75,7 @@ pub fn build_status_packet(
     // Special op mode?
     write_str(&mut packet, b"Default");
     // Unknown
-    packet.extend( b"\xFF\xFF\xFF\xFF");
+    packet.extend(b"\xFF\xFF\xFF\xFF");
 
     packet
 }
