@@ -17,6 +17,6 @@ dependencies = [
     "uvicorn[standard]==0.30.6",
     "psycopg>=3.2.9",
     "redis>=6.4.0",
-    "psutils>=3.3.11",
     "psycopg2>=2.9.10",
+    "psutil>=7.0.0",
 ]
