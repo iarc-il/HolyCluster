@@ -367,8 +367,6 @@ struct HighlightSpot {
     de_callsign: String,
     freq: u64,
     mode: String,
-    dx_grid: String,
-    de_grid: String,
     udp_port: u16,
 }
 
@@ -432,8 +430,8 @@ async fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
                 message.freq,
                 mode,
                 "0",
-                &message.dx_grid,
-                &message.de_grid,
+                "",
+                "",
             );
 
             let socket = UdpSocket::bind("127.0.0.1:0").await?;
