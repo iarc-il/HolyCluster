@@ -19,6 +19,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useServerData } from "@/hooks/useServerData";
 import { useColors } from "../hooks/useColors";
 import use_radio from "@/hooks/useRadio";
+import { useSettings } from "@/hooks/useSettings";
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
@@ -27,6 +28,7 @@ function MainContainer() {
     const { dev_mode, set_dev_mode } = useColors();
     const [toggled_ui, set_toggled_ui] = useState({ left: true, right: true });
     const { catserver_version } = use_radio();
+    const { settings, set_settings } = useSettings();
 
     const { spots, set_pinned_spot, filter_missing_flags, set_filter_missing_flags } =
         useServerData();
@@ -50,17 +52,6 @@ function MainContainer() {
             return state;
         });
     };
-
-    const [settings, set_settings] = use_object_local_storage("settings", {
-        locator: "JJ00AA",
-        default_radius: 20000,
-        theme: "Light",
-        callsign: "",
-        is_miles: false,
-        propagation_displayed: true,
-        show_flags: true,
-        show_equator: false,
-    });
 
     const [table_sort, set_table_sort] = use_object_local_storage("table_sort", {
         column: "time",

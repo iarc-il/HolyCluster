@@ -45,6 +45,8 @@ const empty_temp_settings = {
     callsign: "",
     is_miles: false,
     propagation_displayed: true,
+    highlight_enabled: true,
+    highlight_port: 2237,
 };
 
 function Settings({ settings, set_settings, set_map_controls, set_radius_in_km }) {

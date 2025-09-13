@@ -9,6 +9,7 @@ import { ServerDataProvider } from "@/hooks/useServerData";
 import { FiltersProvider } from "@/hooks/useFilters";
 import { ColorsProvider } from "@/hooks/useColors";
 import { RadioProvider } from "@/hooks/useRadio";
+import { SettingsProvider } from "@/hooks/useSettings";
 import "@/index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -21,9 +22,11 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                         <ColorsProvider>
                             <FiltersProvider>
                                 <RadioProvider>
-                                    <ServerDataProvider>
-                                        <MainContainer />
-                                    </ServerDataProvider>
+                                    <SettingsProvider>
+                                        <ServerDataProvider>
+                                            <MainContainer />
+                                        </ServerDataProvider>
+                                    </SettingsProvider>
                                 </RadioProvider>
                             </FiltersProvider>
                         </ColorsProvider>
