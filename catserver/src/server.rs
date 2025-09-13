@@ -387,8 +387,10 @@ fn is_upper_sideband(freq: f32) -> bool {
 }
 
 async fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
-    let message: ClientMessage = serde_json::from_str(&message)
-        .with_context(|| format!("Failed to parse message: {message}"))?;
+    let Ok(message) = serde_json::from_str::<ClientMessage>(&message) else {
+        tracing::error!("Failed to parse message: {message}");
+        return Ok(());
+    };
     match message {
         ClientMessage::SetRig(set_rig) => {
             tracing::debug!("Setting rig to {}", set_rig.rig);
@@ -419,7 +421,8 @@ async fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
                 "SSB" => crate::reporting::Mode::Ssb,
                 "DIGI" => crate::reporting::Mode::Rtty,
                 mode => {
-                    bail!("Unknown mode for Log4OM: {mode}");
+                    tracing::error!("Unknown mode: {mode}");
+                    return Ok(());
                 }
             };
 
