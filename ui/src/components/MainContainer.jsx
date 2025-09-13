@@ -68,13 +68,12 @@ function MainContainer() {
         }
     }, [max_radius, auto_radius, map_controls.location]);
 
-    const { send_message_to_radio, radio_freq, rig, radio_mode, radio_band } = use_radio();
+    const { send_message_to_radio, radio_freq, rig, radio_mode } = use_radio();
 
     function set_cat_to_spot(spot) {
         set_prev_freqs(
             [
                 {
-                    band: radio_band,
                     mode: radio_mode,
                     freq: Math.round((radio_freq / 1000) * 10) / 10,
                 },
@@ -84,6 +83,7 @@ function MainContainer() {
         );
 
         send_message_to_radio({
+            type: "SetModeAndFreq",
             mode: spot.mode,
             freq: spot.freq,
         });
@@ -94,7 +94,7 @@ function MainContainer() {
             return;
         }
 
-        send_message_to_radio(prev_freqs[0]);
+        send_message_to_radio({ type: "SetModeAndFreq", ...prev_freqs[0] });
         set_prev_freqs(prev_freqs.slice(1));
     }
 
@@ -104,6 +104,7 @@ function MainContainer() {
         }
 
         send_message_to_radio({
+            type: "SetRig",
             rig: rig,
         });
     }

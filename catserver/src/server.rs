@@ -373,7 +373,7 @@ struct HighlightSpot {
 }
 
 #[derive(Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "type")]
 enum ClientMessage {
     SetRig(SetRig),
     SetModeAndFreq(SetModeAndFreq),
