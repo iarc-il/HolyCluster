@@ -11,6 +11,7 @@ import { useColors } from "../hooks/useColors";
 import { useFilters } from "../hooks/useFilters";
 import { useServerData } from "@/hooks/useServerData";
 import useRadio from "@/hooks/useRadio";
+import { useSettings } from "@/hooks/useSettings";
 import { useLocalStorage } from "@uidotdev/usehooks";
 
 import Icon from "@/icon.png";
@@ -28,8 +29,6 @@ const spots_time_limits = {
 };
 
 function TopBar({
-    settings,
-    set_settings,
     set_map_controls,
     set_radius_in_km,
     toggled_ui,
@@ -40,6 +39,7 @@ function TopBar({
     const { filters, setFilters } = useFilters();
     const { network_state } = useServerData();
     const { radio_status, rig } = useRadio();
+    const { settings, set_settings } = useSettings();
 
     const network_state_colors = {
         connected: "#00EE00",
@@ -120,7 +120,7 @@ function TopBar({
                 ) : (
                     ""
                 )}
-                <SubmitSpot settings={settings} dev_mode={dev_mode} />
+                <SubmitSpot dev_mode={dev_mode} />
                 <Clock />
 
                 <Select
@@ -154,12 +154,7 @@ function TopBar({
                         </span>
                     )}
                 </div>
-                <Settings
-                    settings={settings}
-                    set_settings={set_settings}
-                    set_map_controls={set_map_controls}
-                    set_radius_in_km={set_radius_in_km}
-                />
+                <Settings set_map_controls={set_map_controls} set_radius_in_km={set_radius_in_km} />
                 {dev_mode ? <ColorPicker></ColorPicker> : ""}
                 <div className="p-2 hidden max-2xl:block">
                     <OpenMenu

@@ -5,6 +5,7 @@ import Modal from "@/components/Modal.jsx";
 import { useColors } from "../hooks/useColors";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useFilters } from "@/hooks/useFilters";
+import { useSettings } from "@/hooks/useSettings";
 import ImportExport from "./settings/ImportExport";
 import General from "./settings/General";
 import CatControl from "./settings/CatControl";
@@ -51,9 +52,10 @@ const empty_temp_settings = {
     highlight_port: 2237,
 };
 
-function Settings({ settings, set_settings, set_map_controls, set_radius_in_km }) {
+function Settings({ set_map_controls, set_radius_in_km }) {
     const [temp_settings, set_temp_settings] = useState(empty_temp_settings);
     const { colors, setTheme } = useColors();
+    const { settings, set_settings } = useSettings();
     const { is_radio_available } = use_radio();
 
     const [first_launch, set_first_launch] = useLocalStorage("first_launch", true);

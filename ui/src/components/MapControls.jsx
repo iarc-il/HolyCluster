@@ -8,16 +8,14 @@ import PropagationBar from "@/components/PropagationBar.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 import use_radio from "@/hooks/useRadio";
+import { useSettings } from "@/hooks/useSettings";
 
 import Maidenhead from "maidenhead";
 
 function MapControls({
-    home_locator,
     map_controls,
     set_map_controls,
-    default_radius,
     set_radius_in_km,
-    settings,
     auto_toggle_radius,
     can_undo_cat,
     undo_cat,
@@ -25,13 +23,14 @@ function MapControls({
     const { colors } = useColors();
     const { propagation } = useServerData();
     const { radio_status } = use_radio();
+    const { settings } = useSettings();
 
     function reset_map() {
-        const locator = home_locator == "" ? "JJ00AA" : home_locator;
+        const locator = settings.locator == "" ? "JJ00AA" : settings.locator;
         const [lat, lon] = Maidenhead.toLatLon(locator);
         set_map_controls(state => {
             if (!auto_toggle_radius) {
-                set_radius_in_km(default_radius);
+                set_radius_in_km(settings.default_radius);
             }
             state.location = { displayed_locator: locator, location: [lon, lat] };
         });

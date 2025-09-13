@@ -3,6 +3,7 @@ import Button from "@/components/Button.jsx";
 import Toggle from "@/components/Toggle.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import { useSettings } from "@/hooks/useSettings";
 
 const EXPORTABLE_SETTINGS = {
     settings: {
@@ -19,15 +20,10 @@ const EXPORTABLE_SETTINGS = {
     },
 };
 
-function ImportExport({
-    settings,
-    set_settings,
-    set_temp_settings,
-    apply_settings,
-    set_should_close_settings,
-}) {
+function ImportExport({ set_temp_settings, apply_settings, set_should_close_settings }) {
     const { colors } = useColors();
     const { filters, setFilters, callsign_filters, setCallsignFilters } = useFilters();
+    const { settings } = useSettings();
 
     const [selected_settings, set_selected_settings] = useState(
         Object.fromEntries(Object.keys(EXPORTABLE_SETTINGS).map(key => [key, true])),

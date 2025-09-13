@@ -138,12 +138,9 @@ function MainContainer() {
     const map = (
         <div className="relative h-full w-full">
             <MapControls
-                home_locator={settings.locator}
                 map_controls={map_controls}
                 set_map_controls={set_map_controls}
-                default_radius={settings.default_radius}
                 set_radius_in_km={set_radius_in_km}
-                settings={settings}
                 can_undo_cat={prev_freqs.length > 0}
                 undo_cat={undo_freq_change}
             />
@@ -152,7 +149,6 @@ function MainContainer() {
                     map_controls={map_controls}
                     set_map_controls={set_map_controls}
                     set_cat_to_spot={set_cat_to_spot}
-                    settings={settings}
                     radius_in_km={radius_in_km}
                     set_radius_in_km={set_radius_in_km}
                     auto_radius={auto_radius}
@@ -165,7 +161,6 @@ function MainContainer() {
                     set_cat_to_spot={set_cat_to_spot}
                     radius_in_km={radius_in_km}
                     set_radius_in_km={set_radius_in_km}
-                    settings={settings}
                     auto_radius={auto_radius}
                     set_auto_radius={set_auto_radius}
                 />
@@ -177,7 +172,6 @@ function MainContainer() {
         catserver_version != "catserver-v1.0.0" ? (
             <SpotsTable
                 set_cat_to_spot={set_cat_to_spot}
-                settings={settings}
                 table_sort={table_sort}
                 set_table_sort={set_table_sort}
             />
@@ -188,8 +182,6 @@ function MainContainer() {
     return (
         <div className="flex flex-col h-full">
             <TopBar
-                settings={settings}
-                set_settings={set_settings}
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
                 toggled_ui={toggled_ui}
