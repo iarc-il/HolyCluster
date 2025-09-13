@@ -106,10 +106,32 @@ export function RadioProvider({ children }) {
         }
     }
 
+    function is_radio_available() {
+        return readyState === ReadyState.OPEN && radio_status !== "unavailable";
+    }
+
+    function highlight_spot(spot, udp_port) {
+        if (!spot) return;
+
+        send_message_to_radio({
+            highlight_spot: {
+                dx_callsign: spot.dx_callsign,
+                de_callsign: spot.de_callsign,
+                freq: Math.round(spot.freq * 1000), // Convert kHz to Hz
+                mode: spot.mode,
+                dx_grid: spot.dx_grid || "",
+                de_grid: spot.de_grid || "",
+                udp_port,
+            },
+        });
+    }
+
     return (
         <RadioContext.Provider
             value={{
                 send_message_to_radio,
+                highlight_spot,
+                is_radio_available,
                 radio_status,
                 radio_freq,
                 radio_mode,

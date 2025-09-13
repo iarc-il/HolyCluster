@@ -5,6 +5,7 @@ import { get_base_url, is_matching_list, sort_spots } from "@/utils.js";
 import { bands, modes } from "@/filters_data.js";
 import { get_flag, shorten_dxcc } from "@/flags.js";
 import use_radio from "./useRadio";
+import { useSettings } from "./useSettings";
 import { use_object_local_storage } from "@/utils.js";
 
 const ServerDataContext = createContext(undefined);
@@ -42,7 +43,17 @@ export const ServerDataProvider = ({ children }) => {
     const [new_spot_ids, set_new_spot_ids] = useState(new Set());
     let [hovered_spot, set_hovered_spot] = useState({ source: null, id: null });
     let [hovered_band, set_hovered_band] = useState(null);
-    let [pinned_spot, set_pinned_spot] = useState(null);
+    let [pinned_spot, set_pinned_spot_internal] = useState(null);
+
+    const { highlight_spot, is_radio_available } = use_radio();
+    const { settings } = useSettings();
+
+    function set_pinned_spot(spot) {
+        if (spot && settings.highlight_enabled && is_radio_available()) {
+            highlight_spot(spot, settings.highlight_port);
+        }
+        set_pinned_spot_internal(spot);
+    }
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 

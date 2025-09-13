@@ -30,4 +30,4 @@ export function SettingsProvider({ children }) {
             {children}
         </SettingsContext.Provider>
     );
-} 
+}
