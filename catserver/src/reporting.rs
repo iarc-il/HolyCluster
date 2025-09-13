@@ -1,5 +1,3 @@
-use std::{error::Error, net::UdpSocket};
-
 const MAGIC: u32 = 0xadbccbda;
 const SCHEMA: u32 = 2;
 // This is the status packet type
