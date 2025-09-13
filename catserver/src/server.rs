@@ -413,8 +413,8 @@ async fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
             radio.write().set_mode(mode);
             radio.write().set_frequency(Slot::A, freq);
         }
-        ClientMessage::HighlightSpot(spot) => {
-            let mode = match spot.mode.as_str() {
+        ClientMessage::HighlightSpot(message) => {
+            let mode = match message.mode.as_str() {
                 "FT8" => crate::reporting::Mode::FT8,
                 "FT4" => crate::reporting::Mode::FT4,
                 "CW" => crate::reporting::Mode::CW,
@@ -427,20 +427,20 @@ async fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
             };
 
             let packet = crate::reporting::build_status_packet(
-                &spot.dx_callsign,
-                &spot.de_callsign,
-                spot.freq,
+                &message.dx_callsign,
+                &message.de_callsign,
+                message.freq,
                 mode,
                 "0",
-                &spot.dx_grid,
-                &spot.de_grid,
+                &message.dx_grid,
+                &message.de_grid,
             );
 
             let socket = UdpSocket::bind("127.0.0.1:0").await?;
             socket
-                .send_to(&packet, format!("127.0.0.1:{}", spot.udp_port))
+                .send_to(&packet, format!("127.0.0.1:{}", message.udp_port))
                 .await
-                .with_context(|| format!("Failed to send UDP packet to port {}", spot.udp_port))?;
+                .with_context(|| format!("Failed to send UDP packet to port {}", message.udp_port))?;
         }
     }
     Ok(())
