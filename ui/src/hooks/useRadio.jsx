@@ -1,5 +1,6 @@
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useState, useEffect, createContext, useContext } from "react";
+import { useSettings } from "./useSettings";
 
 const band_plans = {
     160: {
@@ -55,6 +56,8 @@ const band_plans = {
 const RadioContext = createContext(null);
 
 export function RadioProvider({ children }) {
+    const { settings } = useSettings();
+
     const host = window.location.host;
     const protocol = window.location.protocol;
     const websocket_url = (protocol == "https:" ? "wss:" : "ws:") + "//" + host + "/radio";
@@ -111,19 +114,16 @@ export function RadioProvider({ children }) {
     }
 
     function highlight_spot(spot, udp_port) {
-        if (!spot) return;
-
-        send_message_to_radio({
-            highlight_spot: {
+        if (spot) {
+            send_message_to_radio({
+                type: "HighlightSpot",
                 dx_callsign: spot.dx_callsign,
-                de_callsign: spot.de_callsign,
-                freq: Math.round(spot.freq * 1000), // Convert kHz to Hz
+                de_callsign: settings.callsign,
+                freq: Math.round(spot.freq * 1000),
                 mode: spot.mode,
-                dx_grid: spot.dx_grid || "",
-                de_grid: spot.de_grid || "",
                 udp_port,
-            },
-        });
+            });
+        }
     }
 
     return (

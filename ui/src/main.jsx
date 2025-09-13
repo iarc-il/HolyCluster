@@ -21,13 +21,13 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                     element={
                         <ColorsProvider>
                             <FiltersProvider>
-                                <RadioProvider>
-                                    <SettingsProvider>
+                                <SettingsProvider>
+                                    <RadioProvider>
                                         <ServerDataProvider>
                                             <MainContainer />
                                         </ServerDataProvider>
-                                    </SettingsProvider>
-                                </RadioProvider>
+                                    </RadioProvider>
+                                </SettingsProvider>
                             </FiltersProvider>
                         </ColorsProvider>
                     }

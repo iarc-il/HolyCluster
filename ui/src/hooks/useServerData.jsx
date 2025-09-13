@@ -48,11 +48,14 @@ export const ServerDataProvider = ({ children }) => {
     const { highlight_spot, is_radio_available } = use_radio();
     const { settings } = useSettings();
 
-    function set_pinned_spot(spot) {
-        if (spot && settings.highlight_enabled && is_radio_available()) {
-            highlight_spot(spot, settings.highlight_port);
+    function set_pinned_spot(spot_id) {
+        if (spot_id && settings.highlight_enabled && is_radio_available()) {
+            highlight_spot(
+                spots.find(spot => spot.id == spot_id),
+                settings.highlight_port,
+            );
         }
-        set_pinned_spot_internal(spot);
+        set_pinned_spot_internal(spot_id);
     }
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
