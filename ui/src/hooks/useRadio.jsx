@@ -51,6 +51,14 @@ const band_plans = {
         min: 70000000,
         max: 70500000,
     },
+    VHF: {
+        min: 144000000,
+        max: 144300000,
+    },
+    UHF: {
+        min: 432000000,
+        max: 433000000,
+    },
 };
 
 const RadioContext = createContext(null);
@@ -73,7 +81,7 @@ export function RadioProvider({ children }) {
     function get_band_from_freq(freq) {
         for (let band of Object.keys(band_plans)) {
             if (freq <= band_plans[band].max && freq >= band_plans[band].min) {
-                return Number.parseInt(band);
+                return band;
             }
         }
 
