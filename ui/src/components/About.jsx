@@ -135,22 +135,22 @@ function About({ version }) {
                         xmlns="http://www.w3.org/2000/svg"
                         stroke="#ff0000"
                     >
-                        <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+                        <g id="SVGRepo_bgCarrier" strokeWidth="0"></g>
                         <g
                             id="SVGRepo_tracerCarrier"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
                         ></g>
                         <g id="SVGRepo_iconCarrier">
                             {" "}
                             <path
-                                fill-rule="evenodd"
-                                clip-rule="evenodd"
+                                fillRule="evenodd"
+                                clipRule="evenodd"
                                 d="M18.168 19.0028C20.4724 19.0867 22.41 17.29 22.5 14.9858V9.01982C22.41 6.71569 20.4724 4.91893 18.168 5.00282H6.832C4.52763 4.91893 2.58998 6.71569 2.5 9.01982V14.9858C2.58998 17.29 4.52763 19.0867 6.832 19.0028H18.168Z"
                                 stroke="#ff0000"
-                                stroke-width="1.5"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                             ></path>{" "}
                             <path
                                 fillRule="evenodd"
@@ -190,14 +190,14 @@ function About({ version }) {
         <div className="p-2">
             {RELEASES.map(([date, changes]) => {
                 return (
-                    <p className="pb-4" key={date}>
+                    <div className="pb-4" key={date}>
                         <h1 className="text-xl font-bold">{date}</h1>
                         <ul className="list-disc pl-4">
                             {changes.map((change, index) => (
                                 <li key={index}>{change}</li>
                             ))}
                         </ul>
-                    </p>
+                    </div>
                 );
             })}
         </div>
