@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { get_base_url } from "@/utils.js";
 import About from "@/components/About.jsx";
 import { useColors } from "@/hooks/useColors";
-import use_radio from "@/hooks/useRadio";
+import { useCatserverVersion } from "@/hooks/useCatserverVersion";
 
 function FeedbackButton({ size }) {
     const { colors } = useColors();
@@ -49,31 +49,13 @@ function CatserverDownload({ size, new_version_available }) {
 }
 
 function UtilityButtons() {
-    const [new_version_available, set_new_version_available] = useState(false);
-    const { catserver_version } = use_radio();
-
-    useEffect(() => {
-        if (catserver_version == null) {
-            return;
-        }
-        fetch(get_base_url() + "/catserver/latest")
-            .then(data => data.text())
-            .then(data => {
-                const remote_version = data.slice(0, data.lastIndexOf("."));
-                console.log(
-                    `Remote version: ${remote_version}, Local version: ${catserver_version}`,
-                );
-                if (catserver_version != remote_version) {
-                    set_new_version_available(true);
-                }
-            });
-    }, [catserver_version]);
+    const { local_version, new_version_available } = useCatserverVersion();
 
     return (
         <div className="space-y-3">
             <CatserverDownload size="36" new_version_available={new_version_available} />
             <FeedbackButton size="36" />
-            <About version={catserver_version} />
+            <About />
         </div>
     );
 }
