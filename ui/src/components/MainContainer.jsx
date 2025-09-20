@@ -27,7 +27,7 @@ import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 function MainContainer() {
     const { dev_mode, set_dev_mode } = useColors();
     const [toggled_ui, set_toggled_ui] = useState({ left: true, right: true });
-    const { catserver_version } = use_radio();
+    const { local_version } = use_radio();
     const { settings, set_settings } = useSettings();
 
     const { spots, set_pinned_spot, filter_missing_flags, set_filter_missing_flags } =
@@ -68,7 +68,7 @@ function MainContainer() {
         }
     }, [max_radius, auto_radius, map_controls.location]);
 
-    const { send_message_to_radio, radio_freq, rig, radio_mode } = use_radio();
+    const { set_mode_and_freq, radio_freq, rig, radio_mode } = use_radio();
 
     function set_cat_to_spot(spot) {
         set_prev_freqs(
@@ -82,11 +82,7 @@ function MainContainer() {
                 .slice(0, prev_freq_limit),
         );
 
-        send_message_to_radio({
-            type: "SetModeAndFreq",
-            mode: spot.mode,
-            freq: spot.freq,
-        });
+        set_mode_and_freq(spot.mode, spot.freq);
     }
 
     function undo_freq_change() {
@@ -94,19 +90,8 @@ function MainContainer() {
             return;
         }
 
-        send_message_to_radio({ type: "SetModeAndFreq", ...prev_freqs[0] });
+        set_mode_and_freq(prev_freqs[0].mode, prev_freqs[0].freq);
         set_prev_freqs(prev_freqs.slice(1));
-    }
-
-    function set_rig(rig) {
-        if (![1, 2].includes(rig)) {
-            return;
-        }
-
-        send_message_to_radio({
-            type: "SetRig",
-            rig: rig,
-        });
     }
 
     const [canvas, set_canvas] = useLocalStorage("canvas", false);
@@ -170,7 +155,7 @@ function MainContainer() {
     );
 
     const table =
-        catserver_version != "catserver-v1.0.0" ? (
+        local_version > [1, 0, 0, 0] || local_version == null ? (
             <SpotsTable
                 set_cat_to_spot={set_cat_to_spot}
                 table_sort={table_sort}
@@ -188,7 +173,6 @@ function MainContainer() {
                 toggled_ui={toggled_ui}
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
-                set_rig={set_rig}
             />
             <div className="flex relative h-[calc(100%-4rem)]">
                 <LeftColumn toggled_ui={toggled_ui} />

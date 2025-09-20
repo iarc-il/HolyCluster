@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { get_base_url } from "@/utils.js";
 import About from "@/components/About.jsx";
 import { useColors } from "@/hooks/useColors";
-import { useCatserverVersion } from "@/hooks/useCatserverVersion";
+import use_radio from "@/hooks/useRadio.jsx";
 
 function FeedbackButton({ size }) {
     const { colors } = useColors();
@@ -49,7 +49,7 @@ function CatserverDownload({ size, new_version_available }) {
 }
 
 function UtilityButtons() {
-    const { local_version, new_version_available } = useCatserverVersion();
+    const { local_version, new_version_available } = use_radio();
 
     return (
         <div className="space-y-3">

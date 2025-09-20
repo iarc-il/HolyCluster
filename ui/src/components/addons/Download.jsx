@@ -1,8 +1,8 @@
-import { useCatserverVersion } from "@/hooks/useCatserverVersion";
 import Card from "@/components/addons/components/Card";
+import use_radio from "@/hooks/useRadio.jsx";
 
 export default function Download() {
-    const { filename } = useCatserverVersion();
+    const { filename } = use_radio();
 
     return (
         <section id="download" className="py-8 px-4 bg-addons-bg">

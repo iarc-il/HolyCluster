@@ -28,17 +28,10 @@ const spots_time_limits = {
     "1 Hour": 3600,
 };
 
-function TopBar({
-    set_map_controls,
-    set_radius_in_km,
-    toggled_ui,
-    set_toggled_ui,
-    dev_mode,
-    set_rig,
-}) {
+function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui, dev_mode }) {
     const { filters, setFilters } = useFilters();
     const { network_state } = useServerData();
-    const { radio_status, rig } = useRadio();
+    const { set_rig, radio_status, rig } = use_radio();
     const { settings, set_settings } = useSettings();
 
     const network_state_colors = {

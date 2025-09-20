@@ -4,9 +4,9 @@ import { useLocalStorage } from "@uidotdev/usehooks";
 import Modal from "@/components/Modal.jsx";
 import Tabs from "@/components/Tabs.jsx";
 import Button from "@/components/Button.jsx";
-import { useColors } from "../hooks/useColors";
-import { useCatserverVersion } from "../hooks/useCatserverVersion";
-import { get_base_url } from "../utils";
+import { useColors } from "@/hooks/useColors.jsx";
+import use_radio from "@/hooks/useRadio.jsx";
+import { get_base_url } from "@/utils.js";
 
 const RELEASES = [
     [
@@ -103,7 +103,7 @@ function Info({ size }) {
 
 function About() {
     const { colors } = useColors();
-    const { local_version, remote_version, new_version_available } = useCatserverVersion();
+    const { raw_local_version, raw_remote_version, new_version_available } = use_radio();
 
     const about = (
         <div className="p-2">
@@ -170,9 +170,9 @@ function About() {
                 </a>
             </p>
             Contact us at: <strong>holycluster@iarc.org</strong>
-            {local_version != null ? (
+            {raw_local_version != null ? (
                 <p>
-                    CAT Version: <code>{local_version}</code>
+                    CAT Version: <code>{raw_local_version}</code>
                 </p>
             ) : (
                 ""
@@ -196,8 +196,8 @@ function About() {
                 <div className="mb-4 p-4 bg-blue-100 dark:bg-blue-900 rounded-lg">
                     <div className="flex flex-col items-center space-y-2">
                         <p className="text-lg font-semibold">New version available!</p>
-                        <p>Current version: {local_version}</p>
-                        <p>Latest version: {remote_version}</p>
+                        <p>Current version: {raw_local_version}</p>
+                        <p>Latest version: {raw_remote_version}</p>
                         <Button
                             className="px-4 py-2"
                             on_click={() => {

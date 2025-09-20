@@ -20,7 +20,7 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
             >
                 <tbody>
                     <tr>
-                        <td>Auto-fill Log4OM:&nbsp;&nbsp;</td>
+                        <td>Report callsign at click:&nbsp;&nbsp;</td>
                         <td>
                             <Toggle
                                 value={temp_settings.highlight_enabled}

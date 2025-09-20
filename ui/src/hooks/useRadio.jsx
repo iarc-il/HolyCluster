@@ -1,6 +1,7 @@
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useState, useEffect, createContext, useContext } from "react";
 import { useSettings } from "./useSettings";
+import { get_base_url } from "@/utils.js";
 
 const band_plans = {
     160: {
@@ -61,6 +62,64 @@ const band_plans = {
     },
 };
 
+function parse_version(version_str) {
+    if (!version_str) {
+        return null;
+    }
+
+    const match = version_str.match(/catserver-v(\d+)\.(\d+)\.(\d+)(?:-(\d+)-gc[a-f0-9]+)?/);
+    if (!match) {
+        return [0, 0, 0, 0];
+    }
+
+    const [, major, minor, patch, commit] = match;
+    return [
+        parseInt(major, 10),
+        parseInt(minor, 10),
+        parseInt(patch, 10),
+        commit ? parseInt(commit, 10) : 0,
+    ];
+}
+
+export function useCatserverVersion(raw_local_version) {
+    const [raw_remote_version, set_raw_remote_version] = useState(null);
+    const [new_version_available, set_new_version_available] = useState(false);
+    const [filename, set_filename] = useState("");
+
+    const local_version = parse_version(raw_local_version);
+    const remote_version = parse_version(raw_remote_version);
+
+    useEffect(() => {
+        if (raw_local_version == null) {
+            return;
+        }
+
+        fetch(get_base_url() + "/catserver/latest")
+            .then(data => data.text())
+            .then(data => {
+                set_filename(data);
+                const raw_remote_version = data.slice(0, data.lastIndexOf("."));
+                set_raw_remote_version(raw_remote_version);
+
+                if (local_version > parse_version(raw_remote_version)) {
+                    set_new_version_available(true);
+                    console.log(
+                        `New version available - Remote: ${raw_remote_version}, Local: ${local_version}`,
+                    );
+                }
+            });
+    }, [raw_local_version]);
+
+    return {
+        local_version,
+        remote_version,
+        raw_local_version,
+        raw_remote_version,
+        new_version_available,
+        filename,
+    };
+}
+
 const RadioContext = createContext(null);
 
 export function RadioProvider({ children }) {
@@ -74,9 +133,9 @@ export function RadioProvider({ children }) {
     const [radio_status, set_radio_status] = useState("unavailable");
     const [radio_freq, set_radio_freq] = useState(0);
     const [radio_mode, set_radio_mode] = useState("");
-    const [rig, set_rig] = useState(1);
+    const [rig, set_rig_inner] = useState(1);
     const [radio_band, set_radio_band] = useState(-1);
-    const [catserver_version, set_catserver_version] = useState(null);
+    const [raw_local_version, set_raw_local_version] = useState(null);
 
     function get_band_from_freq(freq) {
         for (let band of Object.keys(band_plans)) {
@@ -92,12 +151,12 @@ export function RadioProvider({ children }) {
         if (lastJsonMessage != null) {
             if ("status" in lastJsonMessage) {
                 if ("version" in lastJsonMessage) {
-                    set_catserver_version(lastJsonMessage.version);
+                    set_raw_local_version(lastJsonMessage.version);
                 }
                 set_radio_status(lastJsonMessage.status);
                 set_radio_freq(lastJsonMessage.freq);
                 set_radio_mode(lastJsonMessage.mode);
-                set_rig(lastJsonMessage.current_rig);
+                set_rig_inner(lastJsonMessage.current_rig);
                 set_radio_band(get_band_from_freq(lastJsonMessage.freq));
             }
 
@@ -121,8 +180,12 @@ export function RadioProvider({ children }) {
         return readyState === ReadyState.OPEN && radio_status !== "unavailable";
     }
 
+    const version_data = useCatserverVersion(raw_local_version);
+
+    const tagged_api_version = [1, 1, 0, 0];
+
     function highlight_spot(spot, udp_port) {
-        if (spot) {
+        if (spot && version_data.local_version > tagged_api_version) {
             send_message_to_radio({
                 type: "HighlightSpot",
                 dx_callsign: spot.dx_callsign,
@@ -134,18 +197,52 @@ export function RadioProvider({ children }) {
         }
     }
 
+    function set_rig(rig) {
+        if (![1, 2].includes(rig)) {
+            return;
+        }
+
+        if (version_data.local_version > tagged_api_version) {
+            send_message_to_radio({
+                type: "SetRig",
+                rig: rig,
+            });
+        } else {
+            send_message_to_radio({
+                rig: rig,
+            });
+        }
+    }
+
+    function set_mode_and_freq(mode, freq) {
+        if (version_data.local_version > tagged_api_version) {
+            send_message_to_radio({
+                type: "SetModeAndFreq",
+                mode,
+                freq,
+            });
+        } else {
+            send_message_to_radio({
+                mode,
+                freq,
+            });
+        }
+    }
+
     return (
         <RadioContext.Provider
             value={{
-                send_message_to_radio,
+                set_rig,
+                set_mode_and_freq,
                 highlight_spot,
                 is_radio_available,
                 radio_status,
                 radio_freq,
                 radio_mode,
                 radio_band,
-                catserver_version,
+                raw_local_version,
                 rig,
+                ...version_data,
             }}
         >
             {children}
