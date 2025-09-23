@@ -62,17 +62,17 @@ const band_plans = {
     },
 };
 
-function parse_version(version_str) {
-    if (!version_str) {
+function parse_version(raw_version) {
+    if (!raw_version) {
         return null;
     }
 
-    const match = version_str.match(/catserver-v(\d+)\.(\d+)\.(\d+)(?:-(\d+)-gc[a-f0-9]+)?/);
+    const match = raw_version.match(/catserver-v(\d+)\.(\d+)\.(\d+)(-(\d+)-g[a-f0-9]+)?/);
     if (!match) {
         return [0, 0, 0, 0];
     }
 
-    const [, major, minor, patch, commit] = match;
+    const [, major, minor, patch, _, commit] = match;
     return [
         parseInt(major, 10),
         parseInt(minor, 10),
