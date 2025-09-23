@@ -104,6 +104,7 @@ function Info({ size }) {
 function About() {
     const { colors } = useColors();
     const { raw_local_version, raw_remote_version, new_version_available } = use_radio();
+    console.log("Ze");
 
     const about = (
         <div className="p-2">
@@ -184,11 +185,12 @@ function About() {
     const [should_display_release_notes, set_should_display_release_notes] = useState(false);
 
     useEffect(() => {
-        if (last_release != RELEASES[0][0]) {
+        const current_release = RELEASES[0][0];
+        if (last_release != current_release) {
             set_should_display_release_notes(true);
-            set_last_release(RELEASES[0][0]);
+            set_last_release(current_release);
         }
-    }, [last_release]);
+    }, []);
 
     const release_notes = (
         <div className="p-2">
