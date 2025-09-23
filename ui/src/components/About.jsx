@@ -10,6 +10,18 @@ import { get_base_url } from "@/utils.js";
 
 const RELEASES = [
     [
+        "23/09/2025",
+        [
+            "Close and approve window by pressing Enter",
+            "Mobile UI bug fixes",
+            "Add context menu (Right click) for flags in the table",
+            "Highligh new spots when added to the table",
+            "Support filtering spots comments by free-text filter",
+            "Clicking on spot now fills the callsign in Log4OM (Upgrading installed cat server is required)",
+            "Added VHF and UHF bands to the the band bar",
+        ],
+    ],
+    [
         "09/08/2025",
         [
             <>
