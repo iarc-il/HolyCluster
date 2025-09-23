@@ -144,8 +144,8 @@ export function sort_spots(spots, table_sort, radio_status = null, radio_band = 
             radio_status === "connected" &&
             (table_sort.column === "freq" || table_sort.column === "band")
         ) {
-            const a_is_active = spot_a.band === radio_band;
-            const b_is_active = spot_b.band === radio_band;
+            const a_is_active = spot_a.band == radio_band;
+            const b_is_active = spot_b.band == radio_band;
 
             if (a_is_active && !b_is_active) return -1;
             if (!a_is_active && b_is_active) return 1;
