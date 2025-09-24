@@ -136,28 +136,6 @@ def cleanup_spot(spot):
     }
 
 
-@app.get("/spots")
-@track_endpoint_memory
-def spots(since: Optional[int] = None, last_id: Optional[int] = None):
-    with Session(engine) as session:
-        if since is None:
-            since = int(time.time() - 3600)
-
-        memory_tracker.log_memory_stats("Before spots query")
-
-        query = select(DX).where(DX.date_time > datetime.datetime.fromtimestamp(since))
-        if last_id is not None:
-            query = query.where(DX.id > last_id)
-
-        query = query.order_by(desc(DX.id))
-        spots = session.exec(query).all()
-        spots = [cleanup_spot(spot) for spot in spots]
-
-        memory_tracker.log_memory_stats("After spots query")
-
-        return spots
-
-
 @app.get("/geocache/all")
 def geocache_all():
     with Session(engine) as session:
