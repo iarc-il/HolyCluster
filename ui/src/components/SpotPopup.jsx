@@ -1,5 +1,6 @@
 import { km_to_miles } from "@/utils.js";
 import { useColors } from "@/hooks/useColors";
+import { useSettings } from "@/hooks/useSettings";
 
 function SpotPopup({
     hovered_spot,
@@ -8,10 +9,10 @@ function SpotPopup({
     pinned_spot_data,
     hovered_spot_data,
     distance,
-    settings,
     azimuth,
 }) {
     const { colors } = useColors();
+    const { settings } = useSettings();
 
     const spot_data = hovered_spot_data ?? pinned_spot_data;
 

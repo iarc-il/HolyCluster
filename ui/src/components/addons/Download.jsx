@@ -1,16 +1,8 @@
-import { get_base_url } from "@/utils.js";
-import { useState, useEffect } from "react";
-
 import Card from "@/components/addons/components/Card";
+import use_radio from "@/hooks/useRadio.jsx";
 
 export default function Download() {
-    const [filename, set_filename] = useState("");
-
-    useEffect(() => {
-        fetch(get_base_url() + "/catserver/latest")
-            .then(data => data.text())
-            .then(set_filename);
-    }, []);
+    const { filename } = use_radio();
 
     return (
         <section id="download" className="py-8 px-4 bg-addons-bg">

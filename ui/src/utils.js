@@ -37,7 +37,9 @@ export function is_same_base_callsign(callsign1, callsign2) {
 export function is_matching_list(list, spot) {
     return list.some(filter => {
         let matched_value;
-        if (filter.spotter_or_dx == "spotter") {
+        if (filter.type == "comment") {
+            matched_value = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">").toLowerCase();
+        } else if (filter.spotter_or_dx == "spotter") {
             if (filter.type == "entity") {
                 matched_value = spot.spotter_country;
             } else {
@@ -52,7 +54,9 @@ export function is_matching_list(list, spot) {
         }
 
         let is_value_matching;
-        if (filter.type == "prefix") {
+        if (filter.type == "comment") {
+            is_value_matching = matched_value.includes(filter.value.toLowerCase());
+        } else if (filter.type == "prefix") {
             is_value_matching = matched_value.startsWith(filter.value);
         } else if (filter.type == "suffix") {
             is_value_matching = matched_value.endsWith(filter.value);
@@ -140,8 +144,8 @@ export function sort_spots(spots, table_sort, radio_status = null, radio_band = 
             radio_status === "connected" &&
             (table_sort.column === "freq" || table_sort.column === "band")
         ) {
-            const a_is_active = spot_a.band === radio_band;
-            const b_is_active = spot_b.band === radio_band;
+            const a_is_active = spot_a.band == radio_band;
+            const b_is_active = spot_b.band == radio_band;
 
             if (a_is_active && !b_is_active) return -1;
             if (!a_is_active && b_is_active) return 1;

@@ -19,6 +19,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useServerData } from "@/hooks/useServerData";
 import { useColors } from "../hooks/useColors";
 import use_radio from "@/hooks/useRadio";
+import { useSettings } from "@/hooks/useSettings";
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
@@ -26,7 +27,8 @@ import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 function MainContainer() {
     const { dev_mode, set_dev_mode } = useColors();
     const [toggled_ui, set_toggled_ui] = useState({ left: true, right: true });
-    const { catserver_version } = use_radio();
+    const { local_version } = use_radio();
+    const { settings, set_settings } = useSettings();
 
     const { spots, set_pinned_spot, filter_missing_flags, set_filter_missing_flags } =
         useServerData();
@@ -51,17 +53,6 @@ function MainContainer() {
         });
     };
 
-    const [settings, set_settings] = use_object_local_storage("settings", {
-        locator: "JJ00AA",
-        default_radius: 20000,
-        theme: "Light",
-        callsign: "",
-        is_miles: false,
-        propagation_displayed: true,
-        show_flags: true,
-        show_equator: false,
-    });
-
     const [table_sort, set_table_sort] = use_object_local_storage("table_sort", {
         column: "time",
         ascending: false,
@@ -77,13 +68,12 @@ function MainContainer() {
         }
     }, [max_radius, auto_radius, map_controls.location]);
 
-    const { send_message_to_radio, radio_freq, rig, radio_mode, radio_band } = use_radio();
+    const { set_mode_and_freq, radio_freq, rig, radio_mode } = use_radio();
 
     function set_cat_to_spot(spot) {
         set_prev_freqs(
             [
                 {
-                    band: radio_band,
                     mode: radio_mode,
                     freq: Math.round((radio_freq / 1000) * 10) / 10,
                 },
@@ -92,10 +82,7 @@ function MainContainer() {
                 .slice(0, prev_freq_limit),
         );
 
-        send_message_to_radio({
-            mode: spot.mode,
-            freq: spot.freq,
-        });
+        set_mode_and_freq(spot.mode, spot.freq);
     }
 
     function undo_freq_change() {
@@ -103,18 +90,8 @@ function MainContainer() {
             return;
         }
 
-        send_message_to_radio(prev_freqs[0]);
+        set_mode_and_freq(prev_freqs[0].mode, prev_freqs[0].freq);
         set_prev_freqs(prev_freqs.slice(1));
-    }
-
-    function set_rig(rig) {
-        if (![1, 2].includes(rig)) {
-            return;
-        }
-
-        send_message_to_radio({
-            rig: rig,
-        });
     }
 
     const [canvas, set_canvas] = useLocalStorage("canvas", false);
@@ -147,12 +124,9 @@ function MainContainer() {
     const map = (
         <div className="relative h-full w-full">
             <MapControls
-                home_locator={settings.locator}
                 map_controls={map_controls}
                 set_map_controls={set_map_controls}
-                default_radius={settings.default_radius}
                 set_radius_in_km={set_radius_in_km}
-                settings={settings}
                 can_undo_cat={prev_freqs.length > 0}
                 undo_cat={undo_freq_change}
             />
@@ -161,7 +135,6 @@ function MainContainer() {
                     map_controls={map_controls}
                     set_map_controls={set_map_controls}
                     set_cat_to_spot={set_cat_to_spot}
-                    settings={settings}
                     radius_in_km={radius_in_km}
                     set_radius_in_km={set_radius_in_km}
                     auto_radius={auto_radius}
@@ -174,7 +147,6 @@ function MainContainer() {
                     set_cat_to_spot={set_cat_to_spot}
                     radius_in_km={radius_in_km}
                     set_radius_in_km={set_radius_in_km}
-                    settings={settings}
                     auto_radius={auto_radius}
                     set_auto_radius={set_auto_radius}
                 />
@@ -183,10 +155,9 @@ function MainContainer() {
     );
 
     const table =
-        catserver_version != "catserver-v1.0.0" ? (
+        local_version > [1, 0, 0, 0] || local_version == null ? (
             <SpotsTable
                 set_cat_to_spot={set_cat_to_spot}
-                settings={settings}
                 table_sort={table_sort}
                 set_table_sort={set_table_sort}
             />
@@ -197,14 +168,11 @@ function MainContainer() {
     return (
         <div className="flex flex-col h-full">
             <TopBar
-                settings={settings}
-                set_settings={set_settings}
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
                 toggled_ui={toggled_ui}
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
-                set_rig={set_rig}
             />
             <div className="flex relative h-[calc(100%-4rem)]">
                 <LeftColumn toggled_ui={toggled_ui} />

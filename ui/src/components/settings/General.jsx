@@ -4,7 +4,7 @@ import Toggle from "@/components/Toggle.jsx";
 import { themes_names } from "@/hooks/useColors";
 import Maidenhead from "maidenhead";
 
-export default function General({ temp_settings, set_temp_settings, colors }) {
+function General({ temp_settings, set_temp_settings, colors }) {
     const is_locator_valid = Maidenhead.valid(temp_settings.locator);
     const is_default_radius_valid =
         temp_settings.default_radius >= 1000 &&
@@ -163,3 +163,5 @@ export default function General({ temp_settings, set_temp_settings, colors }) {
         </div>
     );
 }
+
+export default General;

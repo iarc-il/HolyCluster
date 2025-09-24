@@ -3,9 +3,27 @@ import { useLocalStorage } from "@uidotdev/usehooks";
 
 import Modal from "@/components/Modal.jsx";
 import Tabs from "@/components/Tabs.jsx";
-import { useColors } from "../hooks/useColors";
+import Button from "@/components/Button.jsx";
+import { useColors } from "@/hooks/useColors.jsx";
+import use_radio from "@/hooks/useRadio.jsx";
+import { get_base_url } from "@/utils.js";
 
 const RELEASES = [
+    [
+        "24/09/2025",
+        [
+            <>
+                <b>Cat server update:</b> Clicking on spot now fills the callsign in Log4OM
+                (Upgrading cat server is required)
+            </>,
+            "Close and approve window by pressing Enter",
+            "Mobile UI bug fixes",
+            "Add context menu (Right click) for flags in the table",
+            "Highligh new spots when added to the table",
+            "Support filtering spots comments by free-text filter",
+            "Added VHF and UHF bands to the the band bar",
+        ],
+    ],
     [
         "09/08/2025",
         [
@@ -98,8 +116,10 @@ function Info({ size }) {
     );
 }
 
-function About({ version }) {
+function About() {
     const { colors } = useColors();
+    const { raw_local_version, raw_remote_version, new_version_available } = use_radio();
+    console.log("Ze");
 
     const about = (
         <div className="p-2">
@@ -135,22 +155,22 @@ function About({ version }) {
                         xmlns="http://www.w3.org/2000/svg"
                         stroke="#ff0000"
                     >
-                        <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+                        <g id="SVGRepo_bgCarrier" strokeWidth="0"></g>
                         <g
                             id="SVGRepo_tracerCarrier"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
                         ></g>
                         <g id="SVGRepo_iconCarrier">
                             {" "}
                             <path
-                                fill-rule="evenodd"
-                                clip-rule="evenodd"
+                                fillRule="evenodd"
+                                clipRule="evenodd"
                                 d="M18.168 19.0028C20.4724 19.0867 22.41 17.29 22.5 14.9858V9.01982C22.41 6.71569 20.4724 4.91893 18.168 5.00282H6.832C4.52763 4.91893 2.58998 6.71569 2.5 9.01982V14.9858C2.58998 17.29 4.52763 19.0867 6.832 19.0028H18.168Z"
                                 stroke="#ff0000"
-                                stroke-width="1.5"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                             ></path>{" "}
                             <path
                                 fillRule="evenodd"
@@ -166,9 +186,9 @@ function About({ version }) {
                 </a>
             </p>
             Contact us at: <strong>holycluster@iarc.org</strong>
-            {version != null ? (
+            {raw_local_version != null ? (
                 <p>
-                    CAT Version: <code>{version}</code>
+                    CAT Version: <code>{raw_local_version}</code>
                 </p>
             ) : (
                 ""
@@ -180,24 +200,42 @@ function About({ version }) {
     const [should_display_release_notes, set_should_display_release_notes] = useState(false);
 
     useEffect(() => {
-        if (last_release != RELEASES[0][0]) {
+        const current_release = RELEASES[0][0];
+        if (last_release != current_release) {
             set_should_display_release_notes(true);
-            set_last_release(RELEASES[0][0]);
+            set_last_release(current_release);
         }
-    }, [last_release]);
+    }, []);
 
     const release_notes = (
         <div className="p-2">
+            {new_version_available && (
+                <div className="mb-4 p-4 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                    <div className="flex flex-col items-center space-y-2">
+                        <p className="text-lg font-semibold">New version available!</p>
+                        <p>Current version: {raw_local_version}</p>
+                        <p>Latest version: {raw_remote_version}</p>
+                        <Button
+                            className="px-4 py-2"
+                            on_click={() => {
+                                window.location.href = "/catserver/download";
+                            }}
+                        >
+                            Download Update
+                        </Button>
+                    </div>
+                </div>
+            )}
             {RELEASES.map(([date, changes]) => {
                 return (
-                    <p className="pb-4" key={date}>
+                    <div className="pb-4" key={date}>
                         <h1 className="text-xl font-bold">{date}</h1>
                         <ul className="list-disc pl-4">
                             {changes.map((change, index) => (
                                 <li key={index}>{change}</li>
                             ))}
                         </ul>
-                    </p>
+                    </div>
                 );
             })}
         </div>

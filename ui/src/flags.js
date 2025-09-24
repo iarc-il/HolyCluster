@@ -48,6 +48,7 @@ const dxcc_to_country_flag = {
     "Pitcairn Island": "Pitcairn Islands",
     "Vatican City": "Vatican City (Holy See)",
     "Temotu Province": "Solomon Islands",
+    "Democratic Republic of the Congo": "DR Congo",
     Congo: "Republic of the Congo",
     "Macquarie Island": "Australia",
     "Saint Barthelemy": "France",

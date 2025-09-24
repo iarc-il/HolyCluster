@@ -21,6 +21,7 @@ import MapAngles from "@/components/MapAngles.jsx";
 import ToggleSVG from "@/components/ToggleSVG";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
+import { useSettings } from "@/hooks/useSettings";
 
 export const ENABLE_PANNING = false;
 
@@ -171,13 +172,13 @@ function CanvasMap({
     map_controls,
     set_map_controls,
     set_cat_to_spot,
-    settings,
     radius_in_km,
     set_radius_in_km,
     auto_radius,
     set_auto_radius,
 }) {
     const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
+    const { settings } = useSettings();
 
     const map_canvas_ref = useRef(null);
     const spots_canvas_ref = useRef(null);
@@ -422,7 +423,6 @@ function CanvasMap({
                     hovered_spot_data={hovered_spot_data}
                     pinned_spot_data={pinned_spot_data}
                     distance={hovered_spot_distance ?? pinned_spot_distance}
-                    settings={settings}
                     azimuth={azimuth}
                 />
             ) : (

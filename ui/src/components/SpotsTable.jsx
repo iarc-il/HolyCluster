@@ -7,6 +7,7 @@ import { get_flag } from "@/flags.js";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 import { useFilters } from "@/hooks/useFilters";
+import { useSettings } from "@/hooks/useSettings";
 
 const cell_classes = {
     time: "w-14",
@@ -36,7 +37,6 @@ function Spot(
         set_pinned_spot,
         set_hovered_spot,
         set_cat_to_spot,
-        settings,
         on_callsign_context_menu,
         on_flag_context_menu,
         is_new_spot,
@@ -44,6 +44,7 @@ function Spot(
     ref,
 ) {
     const { current_freq_spots } = useServerData();
+    const { settings } = useSettings();
     const [is_fading, set_is_fading] = useState(false);
 
     useEffect(() => {
@@ -267,7 +268,7 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
     );
 }
 
-function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
+function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const {
         spots,
         new_spot_ids,
@@ -516,7 +517,6 @@ function SpotsTable({ table_sort, settings, set_table_sort, set_cat_to_spot }) {
                                     set_pinned_spot={set_pinned_spot}
                                     set_hovered_spot={set_hovered_spot}
                                     set_cat_to_spot={set_cat_to_spot}
-                                    settings={settings}
                                     on_callsign_context_menu={handle_callsign_context_menu}
                                     on_flag_context_menu={handle_flag_context_menu}
                                     is_new_spot={new_spot_ids.has(spot.id)}

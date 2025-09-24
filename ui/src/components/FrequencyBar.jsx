@@ -1,5 +1,4 @@
 import Select from "@/components/Select.jsx";
-import Toggle from "@/components/Toggle.jsx";
 import { useRef, useMemo } from "react";
 import { useColors } from "../hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
@@ -146,6 +145,27 @@ const band_plans = {
             { name: "ssb", min: 70250, max: 70500, color: ssb_color },
         ],
         features: [{ name: "FT8", freq: 70100, color: ft8_color }],
+    },
+    VHF: {
+        min: 144000,
+        max: 144300,
+        ranges: [
+            { name: "cw", min: 144000, max: 144100, color: cw_color },
+            { name: "ssb", min: 144100, max: 144300, color: ssb_color },
+        ],
+        features: [
+            { name: "FT8", freq: 144175.5, color: ft8_color },
+            { name: "FT4", freq: 144171.5, color: ft4_color },
+        ],
+    },
+    UHF: {
+        min: 432000,
+        max: 433000,
+        ranges: [
+            { name: "cw", min: 432000, max: 432100, color: cw_color },
+            { name: "ssb", min: 432100, max: 433000, color: ssb_color },
+        ],
+        features: [{ name: "FT4", freq: 432175.5, color: ft4_color }],
     },
 };
 
@@ -329,13 +349,20 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                         </option>
                     )}
 
-                    {Object.keys(band_plans).map(band => {
-                        return (
-                            <option key={band} style={{ color: colors.theme.text }} value={band}>
-                                {band}m
-                            </option>
-                        );
-                    })}
+                    {Object.keys(band_plans)
+                        .sort((a, b) => b - a)
+                        .map(band => {
+                            return (
+                                <option
+                                    key={band}
+                                    style={{ color: colors.theme.text }}
+                                    value={band}
+                                >
+                                    {band}
+                                    {Number.isNaN(Number(band)) ? "" : "m"}
+                                </option>
+                            );
+                        })}
                 </Select>
             </span>
 

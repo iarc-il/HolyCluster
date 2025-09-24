@@ -48,7 +48,7 @@ function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_dat
         };
     }
     return (
-        <div className="w-fit flex justify-start items-center">
+        <div className="w-fit flex flex-wrap justify-start items-center gap-y-2">
             {states.map(state => {
                 return (
                     <label key={state.value}>
@@ -114,6 +114,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         { label: "Prefix", value: "prefix" },
                         { label: "Suffix", value: "suffix" },
                         { label: "Entity", value: "entity" },
+                        { label: "Comment", value: "comment" },
                         { label: "Self Spotters", value: "self_spotters" },
                     ]}
                     field="type"
@@ -127,7 +128,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         }
                     }}
                 />
-                {temp_data.type != "self_spotters" ? (
+                {temp_data.type != "self_spotters" && temp_data.type != "comment" ? (
                     <>
                         <SelectionLine
                             states={[
@@ -199,6 +200,23 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                             </div>
                         </div>
                     </>
+                ) : temp_data.type == "comment" ? (
+                    <div className="flex justify-start space-x-5 items-center w-full">
+                        <div>text:</div>
+                        <div>
+                            <Input
+                                value={temp_data.value}
+                                autoFocus={true}
+                                className="h-10 w-40"
+                                onChange={event => {
+                                    set_temp_data({
+                                        ...temp_data,
+                                        value: event.target.value,
+                                    });
+                                }}
+                            />
+                        </div>
+                    </div>
                 ) : (
                     ""
                 )}

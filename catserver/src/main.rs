@@ -14,6 +14,7 @@ mod dummy;
 mod freq;
 #[cfg(windows)]
 mod omnirig;
+mod reporting;
 mod rig;
 #[cfg(not(windows))]
 mod rigctld;

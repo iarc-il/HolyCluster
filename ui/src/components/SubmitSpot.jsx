@@ -8,6 +8,7 @@ import Modal from "@/components/Modal.jsx";
 import Spinner from "@/components/Spinner.jsx";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "../hooks/useRadio";
+import { useSettings } from "@/hooks/useSettings";
 import { is_same_base_callsign } from "@/utils.js";
 
 function SubmitIcon({ size }) {
@@ -53,13 +54,14 @@ function connect_to_submit_spot_endpoint(on_response) {
     return { sendJsonMessage, readyState };
 }
 
-function SubmitSpot({ settings, dev_mode }) {
+function SubmitSpot({ dev_mode }) {
     const [temp_data, set_temp_data] = useState(empty_temp_data);
     const [submit_status, set_submit_status] = useState({
         status: "pending",
         reason: "",
     });
     const { colors, setTheme } = useColors();
+    const { settings } = useSettings();
 
     const [external_close, set_external_close] = useState(true);
     const [is_open, set_is_open] = useState(false);
