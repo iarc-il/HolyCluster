@@ -155,7 +155,7 @@
 "HI","FK47","Dominican Republic","NA"
 "H[J,K][1-9]","FI29","Colombia","SA"
 "HK0","EJ93","Malpelo Island","SA"
-"HK0","EK92","San Andres and Providencia","NA"
+"(HK0|5K0)","EK92","San Andres and Providencia","NA"
 "(6K|D[7-9]|HL|D[S,T])","PM34","South Korea","AS"
 "(H[O-P]|H3)","EJ88","Panama","NA"
 "H[Q-R]","EK54","Honduras","NA"
