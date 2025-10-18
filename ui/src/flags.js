@@ -60,6 +60,9 @@ const dxcc_to_country_flag = {
     "Sao Tome & Principe": "São Tomé and Príncipe",
     "United Nations HQ": "UN Headquarters",
     "ITU HQ": "Switzerland",
+    "San Andres and Providencia": "Colombia",
+    "Fernando de noronha": "Brazil",
+    "Saba & St. Eustatius": "Caribbean Netherlands",
 };
 
 const dxcc_to_short_dxcc = {
