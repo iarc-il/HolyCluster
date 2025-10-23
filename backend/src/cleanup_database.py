@@ -11,6 +11,7 @@ from misc import string_to_boolean, open_log_file
 from settings import (
     DEBUG,
     DB_URL,
+    POSTGRES_DB_RETENTION_DAYS,
 )
 
 
