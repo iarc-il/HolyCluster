@@ -14,6 +14,8 @@ QRZ_API_KEY = env.str("QRZ_API_KEY")
 HOST = "localhost"
 PORT = "5432"
 
+POSTGRES_DB_RETENTION_DAYS = 1
+
 # Connect to the default 'postgres' database
 DATABASE = "holy_cluster"
 
