@@ -32,8 +32,8 @@ def main(debug: bool = False):
     with Session() as session:
         try:
             tables = [
-                ["dxheat_raw", DxheatRaw, "id"],
-                ["holy_spot", HolySpot, "id"],
+                # ["dxheat_raw", DxheatRaw, "id"],
+                # ["holy_spot", HolySpot, "id"],
                 ["geo_cache", GeoCache, "callsign"]
             ]
             for  item in tables:
