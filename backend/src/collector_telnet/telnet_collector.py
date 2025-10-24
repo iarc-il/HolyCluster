@@ -5,7 +5,7 @@ import time
 import re
 import json
 from loguru import logger
-from valkey_config import get_valkey_client
+from db.valkey_config import get_valkey_client
 
 def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
     try:
