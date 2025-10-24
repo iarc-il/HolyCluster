@@ -1,0 +1,41 @@
+services:
+  app-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.app-test
+    container_name: app-test
+    restart: always
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/app-test:/app-test
+    expose:
+      - "8000"
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile.nginx
+    container_name: nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    environment:
+      - DOMAIN=${DOMAIN}
+    depends_on:
+      - app-test
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: >
+      /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
+

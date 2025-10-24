@@ -1,0 +1,10 @@
+FROM nginx:latest
+
+# Copy template file
+COPY nginx.conf /etc/nginx/nginx.conf.template
+
+# Use envsubst to replace environment variables
+RUN apt-get update && apt-get install -y gettext-base && rm -rf /var/lib/apt/lists/*
+
+CMD envsubst '${DOMAIN}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+
