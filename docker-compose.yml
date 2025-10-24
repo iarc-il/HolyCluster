@@ -16,12 +16,13 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.api
+    working_dir: /app
     container_name: api
     restart: always
     env_file:
       - ./backend/.env
     volumes:
-      - ./backend/api:/api
+      - ./backend/api:/app/api
     expose:
       - "8000"
 

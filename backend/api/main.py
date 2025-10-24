@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-from . import propagation, settings, submit_spot
+from api import propagation, settings, submit_spot
 
 
 class DX(SQLModel, table=True):
