@@ -38,14 +38,12 @@ docker exec -it certbot certbot certonly --webroot \
   --email ${EMAIL} \
   --agree-tos \
   --no-eff-email
+# --staging
 
 # Step 6: Reload NGINX to use the new staging certificate
 echo "🔄 Reloading NGINX with staging certificate..."
 docker compose exec nginx nginx -s reload
 
-echo "✅ NGINX reloaded with staging certificate."
+echo "✅ NGINX reloaded with Let's Encrypt certificate."
 
 echo "🎉 First-time setup complete! Verify your site at https://${DOMAIN}"
-
-echo "⚠️ Once verified, re-run the Certbot command without --staging to get a real certificate:"
-echo "docker compose run --rm certbot certonly --webroot --webroot-path=/var/www/certbot -d ${DOMAIN} --email ${EMAIL} --agree-tos --no-eff-email"
