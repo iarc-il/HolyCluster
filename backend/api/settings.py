@@ -6,11 +6,11 @@ env.read_env()
 HOST = "localhost"
 PORT = "5432"
 
-PSQL_USERNAME = env.str("PSQL_USERNAME")
-PSQL_PASSWORD = env.str("PSQL_PASSWORD")
+POSTGRES_USER = env.str("POSTGRES_USER")
+POSTGRES_PASSWORD = env.str("POSTGRES_PASSWORD")
 
 DATABASE = "holy_cluster"
-GENERAL_DB_URL = f"postgresql+psycopg2://{PSQL_USERNAME}:{PSQL_PASSWORD}@{HOST}:{PORT}"
+GENERAL_DB_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{HOST}:{PORT}"
 DB_URL = f"{GENERAL_DB_URL}/{DATABASE}"
 
 UI_DIR = env.path("UI_DIR")
