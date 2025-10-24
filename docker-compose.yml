@@ -24,7 +24,7 @@ services:
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
-      - ./certbot/var/log:/var/log
+      - ./nginx/var/log:/var/log
     environment:
       - DOMAIN=${DOMAIN}
     depends_on:
@@ -36,6 +36,7 @@ services:
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
+      - ./certbot/var/log:/var/
     entrypoint: >
       /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
 
