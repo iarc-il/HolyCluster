@@ -10,6 +10,19 @@ services:
     volumes:
       - ./backend/app-test:/app-test
     expose:
+      - "8001"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    container_name: api
+    restart: always
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/api:/api
+    expose:
       - "8000"
 
   nginx:
@@ -28,7 +41,7 @@ services:
     environment:
       - DOMAIN=${DOMAIN}
     depends_on:
-      - app-test
+      - api
 
   certbot:
     image: certbot/certbot:latest
@@ -39,4 +52,6 @@ services:
       - ./certbot/log:/var/log
     entrypoint: >
       /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
+  
+
 
