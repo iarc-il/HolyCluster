@@ -4,7 +4,7 @@ set -e
 # Load environment variables
 export $(grep -v '^#' .env | xargs)
 
-echo "🚀 Starting HolyCluster first-time setup..."
+echo "🚀 Starting HolyCluster first-time setup for domain ${DOMAIN}"
 
 # Step 1: Create necessary directories
 mkdir -p certbot/conf/live/${DOMAIN}
@@ -26,18 +26,20 @@ echo "✅ Containers started with temporary self-signed certificate."
 # Wait a few seconds for NGINX and app-test to be up
 sleep 5
 
-# Step 4: Issue a staging certificate using Certbot webroot
-echo "🌐 Issuing staging Let's Encrypt certificate..."
-docker compose run --rm certbot certonly \
-  --webroot \
+# Step 4: Removing temporary self-signed certificate for NGINX
+echo "🔑 Removing temporary self-signed certificate..."
+rm certbot/conf/live/${DOMAIN}/*.pem
+
+# Step 5: Issue a certificate using Certbot webroot
+echo "🌐 Issuing Let's Encrypt certificate..."
+docker exec -it certbot certbot certonly --webroot \
   --webroot-path=/var/www/certbot \
   -d ${DOMAIN} \
   --email ${EMAIL} \
   --agree-tos \
-  --no-eff-email \
-  --staging
+  --no-eff-email
 
-# Step 5: Reload NGINX to use the new staging certificate
+# Step 6: Reload NGINX to use the new staging certificate
 echo "🔄 Reloading NGINX with staging certificate..."
 docker compose exec nginx nginx -s reload
 
