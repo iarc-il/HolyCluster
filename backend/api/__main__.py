@@ -94,12 +94,6 @@ async def lifespan(app: fastapi.FastAPI):
 engine = create_engine(settings.DB_URL)
 app = fastapi.FastAPI(lifespan=lifespan)
 
-if settings.SSL_AVAILABLE:
-    import ssl
-
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ssl_context.load_cert_chain(settings.SSL_CERTFILE, keyfile=settings.SSL_KEYFILE)
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -272,13 +266,3 @@ async def spa_fallback(request: Request, exc: StarletteHTTPException):
             return FileResponse(index_path, media_type="text/html")
     raise exc
 
-
-if __name__ == "__main__":
-    if settings.SSL_AVAILABLE:
-        port = 443
-        ssl_kwargs = {"ssl_keyfile": settings.SSL_KEYFILE, "ssl_certfile": settings.SSL_CERTFILE}
-    else:
-        port = 80
-        ssl_kwargs = {}
-
-    uvicorn.run(app, host="0.0.0.0", port=port, access_log=False, **ssl_kwargs)
