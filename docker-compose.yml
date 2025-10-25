@@ -1,16 +1,24 @@
 services:
-  app-test:
+  postgres:
     build:
-      context: ./backend
-      dockerfile: Dockerfile.app-test
-    container_name: app-test
+      context: ./postgres
+      dockerfile: Dockerfile.postgres
+    container_name: postgres
     restart: always
     env_file:
       - ./backend/.env
     volumes:
-      - ./backend/app-test:/app-test
-    expose:
-      - "8001"
+      - ./postgres/data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      # test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    environment:
+        - TZ=Asia/Jerusalem
 
   api:
     build:
