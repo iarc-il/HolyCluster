@@ -10,7 +10,7 @@ services:
     volumes:
       - ./postgres/data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "15432:5432"
     healthcheck:
       # test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "postgres"]
@@ -30,8 +30,7 @@ services:
     env_file:
       - ./backend/.env
     volumes:
-      - ./backend/api:/app/api
-      - ./ui/ui-dist:/opt/ui-dist
+      - /opt/ui-dist:/opt/ui-dist
     expose:
       - "8000"
 
