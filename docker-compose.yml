@@ -20,6 +20,22 @@ services:
     environment:
         - TZ=Asia/Jerusalem
 
+  web_collectors:
+    container_name: web_collectors
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.web_collectors
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/collectors/logs/db:/app/collectors/logs/db
+      - ./backend/collectors/logs/web_collectors:/app/collectors/logs/web_collectors
+    environment:
+        - TZ=Asia/Jerusalem
+
   api:
     build:
       context: ./backend
@@ -30,7 +46,7 @@ services:
     env_file:
       - ./backend/.env
     volumes:
-      - /opt/ui-dist:/opt/ui-dist
+      - /tmp/ui-dist:/opt/ui-dist
     expose:
       - "8000"
 
