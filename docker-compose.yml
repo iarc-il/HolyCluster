@@ -23,6 +23,7 @@ services:
       - ./backend/.env
     volumes:
       - ./backend/api:/app/api
+      - ./ui/ui-dist:/opt/ui-dist
     expose:
       - "8000"
 
