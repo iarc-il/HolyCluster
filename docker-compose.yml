@@ -1,10 +1,10 @@
 services:
   postgres:
+    container_name: postgres
     build:
       context: ./postgres
       dockerfile: Dockerfile.postgres
-    container_name: postgres
-    restart: always
+    restart: unless-stopped
     env_file:
       - ./backend/.env
     volumes:
@@ -25,6 +25,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.web_collectors
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,12 +38,12 @@ services:
         - TZ=Asia/Jerusalem
 
   api:
+    container_name: api
     build:
       context: ./backend
       dockerfile: Dockerfile.api
     working_dir: /app
-    container_name: api
-    restart: always
+    restart: unless-stopped
     env_file:
       - ./backend/.env
     volumes:
@@ -51,11 +52,11 @@ services:
       - "8000"
 
   nginx:
+    container_name: nginx
     build:
       context: ./nginx
       dockerfile: Dockerfile.nginx
-    container_name: nginx
-    restart: always
+    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
@@ -69,8 +70,9 @@ services:
       - api
 
   certbot:
-    image: certbot/certbot:latest
     container_name: certbot
+    restart: unless-stopped
+    image: certbot/certbot:latest
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
