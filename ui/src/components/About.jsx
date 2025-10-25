@@ -119,7 +119,6 @@ function Info({ size }) {
 function About() {
     const { colors } = useColors();
     const { raw_local_version, raw_remote_version, new_version_available } = use_radio();
-    console.log("Ze");
 
     const about = (
         <div className="p-2">

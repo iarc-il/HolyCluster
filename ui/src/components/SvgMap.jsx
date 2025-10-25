@@ -270,20 +270,16 @@ function SvgMap({
                             ),
                         )}
                     </g>
-                    {dxcc_map.features.map(shape => {
+                    {dxcc_map.features.map((shape, index) => {
                         return (
                             <path
                                 fill={colors.map.land}
                                 stroke={colors.map.land_borders}
                                 pointerEvents="none"
-                                key={shape.properties.dxcc_name}
+                                key={index}
                                 d={path_generator(shape)}
                                 className="hover:cursor-pointer"
-                            >
-                                <title>
-                                    {shape.properties.dxcc_name} ({shape.properties.dxcc_prefix})
-                                </title>
-                            </path>
+                            />
                         );
                     })}
                     {hovered_spot_data ||
