@@ -3,7 +3,7 @@ import os
 import threading
 from loguru import logger
 from datetime import datetime
-from telnet_collector import telnet_and_collect
+from telnet_collectors import telnet_and_collect
 
 def run_concurrent_telnet_connections():
     """
