@@ -68,6 +68,8 @@ services:
       - DOMAIN=${DOMAIN}
     depends_on:
       - api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   certbot:
     container_name: certbot
