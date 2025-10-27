@@ -48,6 +48,7 @@ services:
       - ./backend/.env
     volumes:
       - /opt/ui-dist:/opt/ui-dist
+      - ./ui:/ui
     expose:
       - "8000"
 
@@ -68,6 +69,8 @@ services:
       - DOMAIN=${DOMAIN}
     depends_on:
       - api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   certbot:
     container_name: certbot
@@ -80,5 +83,3 @@ services:
     entrypoint: >
       /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
   
-
-

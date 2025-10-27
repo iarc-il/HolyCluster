@@ -7,7 +7,6 @@ postgres/data/
 logs/
 logs_telnet/
 .DS_store
-postgres/data
 tmp/
 
 # C extensions
