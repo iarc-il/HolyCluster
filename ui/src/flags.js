@@ -63,6 +63,7 @@ const dxcc_to_country_flag = {
     "San Andres and Providencia": "Colombia",
     "Fernando de noronha": "Brazil",
     "Saba & St. Eustatius": "Caribbean Netherlands",
+    Revillagigedo: "Mexico",
 };
 
 const dxcc_to_short_dxcc = {
