@@ -5,6 +5,7 @@ __pycache__/
 *.pem
 postgres/data/
 logs/
+log/
 logs_telnet/
 .DS_store
 postgres/data
