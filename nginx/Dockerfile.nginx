@@ -1,8 +1,8 @@
 # Use official NGINX image
 FROM nginx:latest
 
-# Install envsubst for variable substitution
-RUN apt-get update && apt-get install -y gettext-base && rm -rf /var/lib/apt/lists/*
+# Install envsubst for variable substitution, network utilities
+RUN apt-get update && apt-get install -y gettext-base net-tools iputils-ping dnsutils procps && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /etc/nginx
