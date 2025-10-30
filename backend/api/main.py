@@ -7,7 +7,6 @@ from typing import Optional
 import os
 
 import fastapi
-import uvicorn
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi import HTTPException, Request, websockets
 from fastapi.middleware.cors import CORSMiddleware
@@ -265,4 +264,3 @@ async def spa_fallback(request: Request, exc: StarletteHTTPException):
         if os.path.exists(index_path):
             return FileResponse(index_path, media_type="text/html")
     raise exc
-

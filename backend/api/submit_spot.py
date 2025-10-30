@@ -1,15 +1,15 @@
 import asyncio
 import logging
 import re
-
+from api import settings
 
 CLUSTER_HOST = "dxc.ve7cc.net"
 CLUSTER_PORT = 23
 
 
 logger = logging.getLogger(__name__)
-formatter = logging.Formatter('%(asctime)s | %(name)s |  %(levelname)s: %(message)s')
-file_handler = logging.FileHandler("/var/spots.log")
+formatter = logging.Formatter("%(asctime)s | %(name)s |  %(levelname)s: %(message)s")
+file_handler = logging.FileHandler(settings.SPOTS_LOG_PATH)
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
@@ -80,10 +80,7 @@ async def expect_lines_inner(reader, valid_line, invalid_lines):
 
 async def expect_lines(reader, valid_line, invalid_lines, default_exception=None):
     try:
-        await asyncio.wait_for(
-            expect_lines_inner(reader, valid_line, invalid_lines),
-            timeout=10
-        )
+        await asyncio.wait_for(expect_lines_inner(reader, valid_line, invalid_lines), timeout=10)
     except TimeoutError:
         logger.warning(f"Got timeout while waiting for: {valid_line}")
         if default_exception is not None:
@@ -137,7 +134,7 @@ async def handle_one_spot(websocket):
         logger.info(f"Command: {spot_command}")
         writer.write(spot_command.encode())
 
-        regex = re.compile(fr"DX de\s*{data['spotter_callsign']}:\s*{float(data['freq'])}\s*{data['dx_callsign']}")
+        regex = re.compile(rf"DX de\s*{data['spotter_callsign']}:\s*{float(data['freq'])}\s*{data['dx_callsign']}")
         await expect_lines(
             reader,
             regex,
