@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-from api import propagation, settings, submit_spot
+from . import propagation, settings, submit_spot
 
 
 class DX(SQLModel, table=True):
@@ -82,15 +82,55 @@ async def propagation_data_collector(app):
         await asyncio.sleep(sleep)
 
 
+async def spots_broadcast_task(app):
+    last_broadcast_id = 0
+
+    while True:
+        await asyncio.sleep(30)
+
+        try:
+            with Session(engine) as session:
+                query = select(DX).where(DX.id > last_broadcast_id).order_by(DX.id)
+                new_spots = session.exec(query).all()
+
+                if new_spots:
+                    new_spots_cleaned = [cleanup_spot(spot) for spot in new_spots]
+                    last_broadcast_id = new_spots_cleaned[-1]["id"]
+
+                    message = {"type": "update", "spots": new_spots_cleaned}
+
+                    disconnected = set()
+                    for websocket in app.state.active_connections.copy():
+                        try:
+                            await websocket.send_json(message)
+                        except Exception as e:
+                            logger.warning(f"Failed to send to websocket: {e}")
+                            disconnected.add(websocket)
+
+                    for websocket in disconnected:
+                        app.state.active_connections.discard(websocket)
+
+        except Exception as e:
+            logger.exception(f"Error in spots broadcast task: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: fastapi.FastAPI):
     asyncio.get_running_loop().create_task(propagation_data_collector(app))
+    asyncio.get_running_loop().create_task(spots_broadcast_task(app))
 
     app.state.active_connections = set()
     yield
 
 
-engine = create_engine(settings.DB_URL)
+engine = create_engine(
+    settings.DB_URL,
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
 app = fastapi.FastAPI(lifespan=lifespan)
 
 app.add_middleware(
@@ -185,7 +225,6 @@ async def spots_ws(websocket: fastapi.WebSocket):
 
         with Session(engine) as session:
             if "initial" in message:
-
                 query = (
                     select(DX)
                     .where(DX.date_time > datetime.datetime.fromtimestamp(time.time() - 3600))
@@ -197,29 +236,13 @@ async def spots_ws(websocket: fastapi.WebSocket):
                 initial_spots = [cleanup_spot(spot) for spot in initial_spots]
                 await websocket.send_json({"type": "initial", "spots": initial_spots})
 
-                if initial_spots:
-                    last_id = max(spot["id"] for spot in initial_spots)
-                else:
-                    last_id = 0
-            else:
-                last_id = message.get("last_id", 0)
-
         while True:
-            await asyncio.sleep(30)
-
-            with Session(engine) as session:
-                query = select(DX).where(DX.id > last_id).order_by(DX.id)
-                new_spots = session.exec(query).all()
-
-                if new_spots:
-                    new_spots = [cleanup_spot(spot) for spot in new_spots]
-                    last_id = new_spots[-1]["id"]
-                    await websocket.send_json({"type": "update", "spots": new_spots})
+            await websocket.receive_text()
 
     except websockets.WebSocketDisconnect:
         pass
     finally:
-        app.state.active_connections.remove(websocket)
+        app.state.active_connections.discard(websocket)
 
 
 def get_latest_catserver_name():
