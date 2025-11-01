@@ -6,6 +6,9 @@ import { empty_filter_data, default as FilterModal } from "@/components/FilterMo
 
 import { useColors } from "../hooks/useColors";
 import { useFilters } from "../hooks/useFilters";
+import { useState } from "react";
+import { DndContext, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 
 function Indicator({ text }) {
     return (
@@ -38,9 +41,20 @@ function EditSymbol({ size }) {
     );
 }
 
-function FilterLine({ filter, id }) {
+function FilterLine({ filter, id, is_dragging }) {
     const { colors } = useColors();
     const { callsign_filters, setCallsignFilters } = useFilters();
+
+    const { attributes, listeners, setNodeRef, transform } = useDraggable({
+        id: `filter-${id}`,
+        data: { filterId: id, currentAction: filter.action, filter: filter },
+    });
+
+    const style = {
+        transform: CSS.Translate.toString(transform),
+        opacity: is_dragging ? 0.5 : 1,
+        color: colors.theme.text,
+    };
 
     let filter_type_label;
     if (filter.type == "prefix") {
@@ -60,22 +74,29 @@ function FilterLine({ filter, id }) {
 
     return (
         <div
+            ref={setNodeRef}
             className="flex justify-around items-center mb-1 w-full"
-            style={{ color: colors.theme.text }}
+            style={style}
         >
             {filter.type == "self_spotters" ? (
-                <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md mr-auto text-xs font-bold bg-green-600 text-white">
+                <div
+                    {...listeners}
+                    {...attributes}
+                    className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md mr-auto text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing"
+                >
                     Self spotters
                 </div>
             ) : (
                 <>
-                    <Input
-                        className="h-7 text-sm mr-1 w-20"
-                        disabled
-                        disabled_text_color={colors.theme.text}
-                        title={filter.value}
-                        value={filter.value}
-                    />
+                    <div {...listeners} {...listeners}>
+                        <Input
+                            className="h-7 text-sm mr-1 w-20 cursor-grab active:cursor-grabbing"
+                            disabled
+                            disabled_text_color={colors.theme.text}
+                            title={filter.value}
+                            value={filter.value}
+                        />
+                    </div>
                     <Indicator text={filter_type_label} />
                     <Indicator text={spotter_or_dx_label} />
                 </>
@@ -103,54 +124,72 @@ function FilterLine({ filter, id }) {
     );
 }
 
-function FilterSection({ title, filters, action, toggle_field }) {
+function FilterSection({ title, filters, action, toggle_field, active_filter_id }) {
+    const { colors } = useColors();
     const { callsign_filters, setCallsignFilters } = useFilters();
+    const { setNodeRef, isOver } = useDroppable({
+        id: action,
+    });
+
     let empty_with_action = { ...empty_filter_data, action: action };
+
+    const drop_zone_inner_style = {
+        backgroundColor: isOver ? `${colors.theme.accent}20` : "transparent",
+        border: isOver ? `2px solid ${colors.theme.accent}` : "2px solid transparent",
+        borderRadius: "0.375rem",
+        padding: "0.5rem",
+        margin: "-0.5rem",
+        transition: "all 0.2s ease",
+    };
 
     return (
         <div className="pt-2">
-            <div className="flex justify-between pb-3">
-                <h3 className="text-lg w-fit inline">{title}</h3>
-                <div className="flex justify-end space-x-3">
-                    <Toggle
-                        value={callsign_filters[toggle_field]}
-                        on_click={() => {
-                            setCallsignFilters({
-                                ...callsign_filters,
-                                [toggle_field]: !callsign_filters[toggle_field],
-                            });
-                        }}
-                    />
-                    <FilterModal
-                        initial_data={empty_with_action}
-                        button={<Button className="h-7 flex items-center ">Add</Button>}
-                        on_apply={new_filter => {
-                            setCallsignFilters({
-                                ...callsign_filters,
-                                filters: [...callsign_filters.filters, new_filter],
-                            });
-                        }}
-                    />
+            <div ref={setNodeRef} style={drop_zone_inner_style}>
+                <div className="flex justify-between pb-3">
+                    <h3 className="text-lg w-fit inline">{title}</h3>
+                    <div className="flex justify-end space-x-3">
+                        <Toggle
+                            value={callsign_filters[toggle_field]}
+                            on_click={() => {
+                                setCallsignFilters({
+                                    ...callsign_filters,
+                                    [toggle_field]: !callsign_filters[toggle_field],
+                                });
+                            }}
+                        />
+                        <FilterModal
+                            initial_data={empty_with_action}
+                            button={<Button className="h-7 flex items-center ">Add</Button>}
+                            on_apply={new_filter => {
+                                setCallsignFilters({
+                                    ...callsign_filters,
+                                    filters: [...callsign_filters.filters, new_filter],
+                                });
+                            }}
+                        />
+                    </div>
                 </div>
+                {filters.map(([id, filter]) => {
+                    return (
+                        <FilterLine
+                            key={id}
+                            id={id}
+                            filter={filter}
+                            filter_type={filter.type}
+                            spotter_or_dx={filter.spotter_or_dx}
+                            is_dragging={active_filter_id === `filter-${id}`}
+                        />
+                    );
+                })}
             </div>
-            {filters.map(([id, filter]) => {
-                return (
-                    <FilterLine
-                        key={id}
-                        id={id}
-                        filter={filter}
-                        filter_type={filter.type}
-                        spotter_or_dx={filter.spotter_or_dx}
-                    />
-                );
-            })}
         </div>
     );
 }
 
 function Filters() {
     const { colors } = useColors();
-    const { callsign_filters } = useFilters();
+    const { callsign_filters, setCallsignFilters } = useFilters();
+    const [active_id, set_active_id] = useState(null);
 
     const id_to_filter = callsign_filters.filters.map((filter, index) => [index, filter]);
 
@@ -158,29 +197,116 @@ function Filters() {
     let show_only = id_to_filter.filter(([id, filter]) => filter.action == "show_only");
     let hide = id_to_filter.filter(([id, filter]) => filter.action == "hide");
 
+    const handle_drag_start = event => {
+        set_active_id(event.active.id);
+    };
+
+    const handle_drag_end = event => {
+        const { active, over } = event;
+        set_active_id(null);
+
+        if (!over) return;
+
+        const filterId = active.data.current.filterId;
+        const currentAction = active.data.current.currentAction;
+        const newAction = over.id;
+
+        if (currentAction !== newAction) {
+            const new_filters = [...callsign_filters.filters];
+            new_filters[filterId] = { ...new_filters[filterId], action: newAction };
+            setCallsignFilters({ ...callsign_filters, filters: new_filters });
+        }
+    };
+
+    const handleDragCancel = () => {
+        set - active - id(null);
+    };
+
+    const activeFilter = active_id
+        ? callsign_filters.filters[Number.parseInt(active_id.replace("filter-", ""))]
+        : null;
+
     return (
-        <div className="p-2" style={{ color: colors.theme.text }}>
-            <div className="divide-y divide-slate-300 space-y-6">
-                <FilterSection
-                    title="Alert"
-                    action="alert"
-                    filters={alerts}
-                    toggle_field="is_alert_filters_active"
-                />
-                <FilterSection
-                    title="Show Only"
-                    action="show_only"
-                    filters={show_only}
-                    toggle_field="is_show_only_filters_active"
-                />
-                <FilterSection
-                    title="Hide"
-                    action="hide"
-                    filters={hide}
-                    toggle_field="is_hide_filters_active"
-                />
+        <DndContext
+            onDragStart={handle_drag_start}
+            onDragEnd={handle_drag_end}
+            onDragCancel={handleDragCancel}
+        >
+            <div className="p-2" style={{ color: colors.theme.text }}>
+                <div className="divide-y divide-slate-300 space-y-6">
+                    <FilterSection
+                        title="Alert"
+                        action="alert"
+                        filters={alerts}
+                        toggle_field="is_alert_filters_active"
+                        active_filter_id={active_id}
+                    />
+                    <FilterSection
+                        title="Show Only"
+                        action="show_only"
+                        filters={show_only}
+                        toggle_field="is_show_only_filters_active"
+                        active_filter_id={active_id}
+                    />
+                    <FilterSection
+                        title="Hide"
+                        action="hide"
+                        filters={hide}
+                        toggle_field="is_hide_filters_active"
+                        active_filter_id={active_id}
+                    />
+                </div>
             </div>
-        </div>
+            <DragOverlay>
+                {active_id && activeFilter ? (
+                    <div
+                        className="flex justify-around items-center mb-1 w-full opacity-90 shadow-lg"
+                        style={{
+                            color: colors.theme.text,
+                            backgroundColor: colors.theme.background,
+                            padding: "0.25rem",
+                            borderRadius: "0.375rem",
+                        }}
+                    >
+                        {activeFilter.type == "self_spotters" ? (
+                            <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md mr-auto text-xs font-bold bg-green-600 text-white">
+                                Self spotters
+                            </div>
+                        ) : (
+                            <>
+                                <Input
+                                    className="h-7 text-sm mr-1 w-20"
+                                    disabled
+                                    disabled_text_color={colors.theme.text}
+                                    title={activeFilter.value}
+                                    value={activeFilter.value}
+                                />
+                                <Indicator
+                                    text={
+                                        activeFilter.type == "prefix"
+                                            ? "Pfx"
+                                            : activeFilter.type == "suffix"
+                                              ? "Sfx"
+                                              : activeFilter.type == "entity"
+                                                ? "Ent"
+                                                : ""
+                                    }
+                                />
+                                <Indicator
+                                    text={
+                                        activeFilter.spotter_or_dx == "spotter"
+                                            ? "DE"
+                                            : activeFilter.spotter_or_dx == "dx"
+                                              ? "DX"
+                                              : ""
+                                    }
+                                />
+                            </>
+                        )}
+                    </div>
+                ) : null}
+            </DragOverlay>
+        </DndContext>
     );
 }
 
