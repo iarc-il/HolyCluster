@@ -9,6 +9,8 @@
         "fmt": "biome check --write ."
     },
     "dependencies": {
+        "@dnd-kit/core": "^6.3.1",
+        "@dnd-kit/utilities": "^3.2.2",
         "@mapbox/geojson-rewind": "^0.5.2",
         "@uidotdev/usehooks": "^2.4.1",
         "d3": "^7.9.0",
