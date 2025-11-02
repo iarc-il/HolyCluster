@@ -13,14 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import Field, Session, SQLModel, create_engine, select, func
 
 from . import propagation, settings, submit_spot
 
 
 class DX(SQLModel, table=True):
     __tablename__ = "holy_spots"
-
     id: Optional[int] = Field(default=None, primary_key=True)
     dx_callsign: str
     dx_lat: str
@@ -83,13 +82,14 @@ async def propagation_data_collector(app):
 
 
 async def spots_broadcast_task(app):
-    last_broadcast_id = 0
+    with Session(engine) as session:
+        query = select(func.max(DX.id))
+        last_broadcast_id = session.exec(query).one()
 
-    while True:
-        await asyncio.sleep(30)
+        while True:
+            await asyncio.sleep(30)
 
-        try:
-            with Session(engine) as session:
+            try:
                 query = select(DX).where(DX.id > last_broadcast_id).order_by(DX.id)
                 new_spots = session.exec(query).all()
 
@@ -110,8 +110,8 @@ async def spots_broadcast_task(app):
                     for websocket in disconnected:
                         app.state.active_connections.discard(websocket)
 
-        except Exception as e:
-            logger.exception(f"Error in spots broadcast task: {e}")
+            except Exception as e:
+                logger.exception(f"Error in spots broadcast task: {e}")
 
 
 @asynccontextmanager
