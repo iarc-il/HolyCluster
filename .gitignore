@@ -6,6 +6,7 @@ __pycache__/
 postgres/data/
 logs/
 logs_telnet/
+certbot/log/letsencrypt/
 .DS_store
 tmp/
 
