@@ -1,5 +1,5 @@
 # Use official NGINX image
-FROM nginx:latest
+FROM nginx:stable-bookworm
 
 # Install envsubst for variable substitution
 RUN apt-get update && apt-get install -y gettext-base && rm -rf /var/lib/apt/lists/*
