@@ -20,6 +20,27 @@ services:
     environment:
         - TZ=Asia/Jerusalem
 
+  valkey:
+    container_name: valkey
+    build: 
+      context: ./valkey
+      dockerfile: Dockerfile.valkey
+    ports:
+      - "6379:6379"
+    # Mount a volume for data persistence (optional, but recommended)
+    # volumes:
+    #   - valkey_data:/data
+    environment:
+    # Password needs to be passed to the healthcheck command
+      - VALKEY_PASSWORD=${VALKEY_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a ${VALKEY_PASSWORD} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s # Grace period for Valkey to start up
+    restart: always
+
   web_collectors:
     container_name: web_collectors
     build:
