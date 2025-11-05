@@ -3,7 +3,12 @@ import os
 import threading
 from loguru import logger
 from datetime import datetime
+
 from telnet_collectors import telnet_and_collect
+from collectors.src.settings import (
+    DEBUG,
+    USERNAME_FOR_TELNET_CLUSTERS,
+)
 
 def run_concurrent_telnet_connections():
     """
@@ -49,13 +54,13 @@ def run_concurrent_telnet_connections():
 
         thread = threading.Thread(
             target=telnet_and_collect,
-            args=(host, port, '4X0IARC', cluster_type, cluster_log_dir),
+            args=(host, port, USERNAME_FOR_TELNET_CLUSTERS, cluster_type, cluster_log_dir, DEBUG),
             daemon=True
         )
         threads.append(thread)
         thread.start()
         log = logger.bind(cluster_info_padded=f"{host}:{port} ({cluster_type})".ljust(45))
-        log.info(f"Starting connection to {host}:{port}")
+        log.info(f"Starting connection to {host}:{port} , debug={DEBUG}")
 
     for thread in threads:
         thread.join()

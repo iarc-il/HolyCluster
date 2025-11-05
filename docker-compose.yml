@@ -58,6 +58,21 @@ services:
     environment:
         - TZ=Asia/Jerusalem
 
+  telnet_collectors:
+    container_name: telnet_collectors
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.telnet_collectors
+    restart: unless-stopped
+    depends_on:
+      valkey:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/collectors/logs/db:/app/collectors/logs/db
+      - ./backend/collectors/logs/telnet_collectors:/app/collectors/logs/telnet_collectors
+
   api:
     container_name: api
     build:
