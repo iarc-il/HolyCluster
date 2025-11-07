@@ -194,6 +194,8 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                     thread_logger.info(line)
                     if line.startswith("DX de"):
                         spot = parse_dx_line(line, cluster_type, host, port)
+                        cluster = f"{host}:{port}"
+                        spot.update({'cluster': cluster})
                         spot_data = json.dumps(spot)
                         if spot:
                             if debug:

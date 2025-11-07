@@ -21,7 +21,7 @@ RUN uv sync --no-cache
 # Copy application code
 COPY collectors/src ./collectors/src
 
-# Specify the command to run on container startup.
-#CMD ["python", "src/run_collector.py"]
-CMD ["uv","run","collectors/src/telnet_collectors/run_telnet_collectors.py"]
+RUN chmod +x /app/collectors/src/run_telnet_scripts.sh
+
+CMD ["./collectors/src/run_telnet_scripts.sh"]
 
