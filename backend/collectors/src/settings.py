@@ -5,7 +5,7 @@ env = Env()
 dotenv_path = Path(__file__).parent / ".env"
 env.read_env(path=dotenv_path, recurse=False)
 
-DEBUG = env.str("DEBUG")
+DEBUG = env.bool("DEBUG", default=False)
 POSTGRES_USER = env.str("POSTGRES_USER")
 POSTGRES_PASSWORD = env.str("POSTGRES_PASSWORD")
 POSTGRES_HOST = env.str("POSTGRES_HOST")

@@ -5,6 +5,9 @@ import time
 import re
 import json
 from loguru import logger
+import logging
+
+from collectors.src.misc import open_log_file, open_log_file2
 from collectors.src.db.valkey_config import get_valkey_client
 
 from collectors.src.settings import (
@@ -91,58 +94,52 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
     """
     Establishes a Telnet connection, sends a username, and collects spots.
     If the connection is lost, it attempts to reconnect with exponential backoff.
+    Push spots to Valkey database
     """
     reconnect_attempts = 0
     backoff_delays = [60, 300, 600, 1200, 2400, 3600]  # 1, 5, 10, 20, 40, 60 minutes
 
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    output_filename = f"{timestamp}-{host}.txt"
-    output_filepath = os.path.join(telnet_log_dir, output_filename)
+    log_filename_prefix = os.path.join(telnet_log_dir, host)
+    if debug:
+        logger.debug(f"{log_filename_prefix=}")
+    thread_logger = open_log_file2(log_filename_prefix=log_filename_prefix, debug=debug)
 
-    # Prepare the fixed-width cluster information string
-    cluster_info = f"{host}:{port} ({cluster_type})"
-    padded_cluster_info = f"{cluster_info:<45}" # Pad to 45 characters
-
-    file_format = "[{time:YYYY-MM-DD HH:mm:ss}] {level: <8} {extra[cluster_info_padded]} | {function}:{line} - {message}"
-    logger.add(output_filepath, format=file_format, level="INFO", rotation="10 MB", retention="7 days", enqueue=True, backtrace=True, diagnose=True, filter=lambda record: record["extra"].get("host") == host)
-
-    log = logger.bind(host=host, port=port, cluster_type=cluster_type, cluster_info_padded=padded_cluster_info)
-
+    thread_logger.info(f"Start of telnet_and_collect for {host}. {debug=}")
     valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
-    with open(output_filepath, 'a') as f:
-        f.write('\n\n')
+    stream_name = "spots"
+
+    # with open(output_filepath, 'a') as f:
+    #     f.write('\n\n')
 
     while True:
         sock = None
         line_buffer = b'' # Reset line_buffer for each new connection attempt
         try:
-            if debug:
-                log.info(f"Attempting to connect...")
+            logger.info(f"Attempting to connect to {host}:{port} ...")
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(10)
             sock.connect((host, int(port)))
             sock.settimeout(None)
 
-            if debug:
-                log.success(f"Successfully connected")
+            logger.info(f"{host}:{port}  Successfully connected")
             reconnect_attempts = 0
 
             if username:
                 time.sleep(2) # Wait for 2 seconds before sending username
                 sock.sendall(f"{username}\n".encode('utf-8'))
                 if debug:
-                    log.info(f"Sent username: {username}")
+                    thread_logger.debug(f"Sent username: {username}")
 
             # Issue 'show/dx 100' command
             sock.sendall(f"show/dx 100\n".encode('utf-8'))
             if debug:
-                log.info(f"Sent command: show/dx 100")
+                thread_logger.debug(f"Sent command: show/dx 100")
 
             # Read and parse initial DX spots from 'show/dx 100' command
             while True:
                 data = sock.recv(4096)
                 if not data:
-                    log.warning("Connection closed by remote host during initial DX read.")
+                    thread_logger.error("Connection closed by remote host during initial DX read.")
                     break
 
                 lines = (line_buffer + data).split(b'\n')
@@ -150,8 +147,7 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
 
                 for line_bytes in lines:
                     line = line_bytes.decode('utf-8', errors='ignore').replace('\r', '')
-                    if debug:
-                        log.info(line)
+                    thread_logger.info(line)
                     if not line.strip(): # Break on empty line (end of output)
                         break
                     if '>' in line: # Break on prompt
@@ -160,24 +156,28 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                     spot = parse_show_dx_line(line, host, port)
                     if spot:
                         if debug:
-                            log.info(json.dumps(spot, indent=2))
+                            thread_logger.debug(json.dumps(spot, indent=2))
                         try:
                             spot_id = f"spot:{spot.get('time', 'UNKNOWN')}:{spot.get('dx_callsign', 'UNKNOWN')}:{spot.get('frequency', 'UNKNOWN')}:{spot.get('spotter_callsign', 'UNKNOWN')}"
                             valkey_client.hset(spot_id, mapping=spot)
                             valkey_client.expire(spot_id, 3600) # Set TTL to 1 hour (3600 seconds)
-                            log.info(f"Spot stored in Valkey: {spot_id}")
+                            if debug:
+                                thread_logger.debug(f"Spot stored in Valkey: {spot_id}")
+                            entry_id = valkey_client.xadd(stream_name, spot)
+                            if debug:
+                                    thread_logger.debug(f"Spot {spot} stored in Valkey, {entry_id=}")
                         except Exception as e:
-                            log.error(f"Failed to store spot in Valkey: {e}")
+                            thread_logger.error(f"Failed to store spot in Valkey: {e}")
                     else:
-                        log.warning(f"Could not parse show/dx line: {line}")
+                        thread_logger.error(f"Could not parse show/dx line: {line}")
                 if not line.strip() or '>' in line: # Break outer loop if terminator found
                     break
 
-            
+            # read live spots
             while True:
                 data = sock.recv(4096)
                 if not data:
-                    log.warning("Connection closed by remote host.")
+                    thread_logger.error("Connection closed by remote host.")
                     break
 
                 lines = (line_buffer + data).split(b'\n')
@@ -185,28 +185,31 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
 
                 for line_bytes in lines:
                     line = line_bytes.decode('utf-8', errors='ignore').replace('\r', '')
-                    if debug:
-                        log.info(line)
+                    thread_logger.info(line)
                     if line.startswith("DX de"):
                         spot = parse_dx_line(line, cluster_type, host, port)
                         if spot:
-                            log.info(json.dumps(spot, indent=2))
+                            if debug:
+                                thread_logger.debug(json.dumps(spot, indent=2))
                             try:
                                 spot_id = f"spot:{spot.get('time', 'UNKNOWN')}:{spot.get('dx_callsign', 'UNKNOWN')}:{spot.get('frequency', 'UNKNOWN')}:{spot.get('spotter_callsign', 'UNKNOWN')}"
                                 valkey_client.hset(spot_id, mapping=spot)
                                 valkey_client.expire(spot_id, 3600) # Set TTL to 1 hour (3600 seconds)
                                 if debug:
-                                    log.info(f"Spot stored in Valkey: {spot_id}")
+                                    thread_logger.debug(f"Spot stored in Valkey: {spot_id}")
+                                entry_id = valkey_client.xadd(stream_name, spot)
+                                if debug:
+                                        thread_logger.debug(f"Spot {spot} stored in Valkey, {entry_id=}")
                             except Exception as e:
-                                log.error(f"Failed to store spot in Valkey: {e}")
+                                thread_logger.error(f"Failed to store spot in Valkey: {e}")
                         else:
-                            log.warning(f"Could not parse spot line: {line}")
+                            thread_logger.error(f"Could not parse spot line: {line}")
 
         except (socket.timeout, ConnectionRefusedError, OSError) as e:
-            log.error(f"Connection failed: {e}")
+            logger.error(f"Connection failed: {host}:{port}  {e}")
 
         except KeyboardInterrupt:
-            log.info("Exiting due to user request (Ctrl+C).")
+            logger.info("Exiting due to user request (Ctrl+C).")
             break
 
         finally:
@@ -219,13 +222,13 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
         else:
             delay = backoff_delays[-1]
 
-        log.info(f"Reconnection attempt {reconnect_attempts + 1}. Waiting for {delay // 60} minutes before retrying.")
+        logger.info(f"{host}:{port} Reconnection attempt {reconnect_attempts + 1}. Waiting for {delay // 60} minutes before retrying.")
 
         try:
             time.sleep(delay)
             reconnect_attempts += 1
         except KeyboardInterrupt:
-            log.info("Exiting during backoff due to user request (Ctrl+C).")
+            logger.info("Exiting during backoff due to user request (Ctrl+C).")
             break
 
 if __name__ == '__main__':
