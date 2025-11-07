@@ -15,6 +15,7 @@ from collectors.src.settings import (
     VALKEY_HOST,
     VALKEY_PORT,
     VALKEY_DB,
+    VALKEY_SPOT_EXPIRATION,
 )
 
 def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
@@ -34,13 +35,16 @@ def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
         )
         match = DX_RE.match(line.strip())
         if match:
-            spot["spotter_callsign"] = match.group(1)
-            spot["frequency"] = float(match.group(2))
-            spot["dx_callsign"] = match.group(3)
-            spot["comment"] = match.group(4).strip()
-            spot["dx_locator"] = match.group(5)
-            spot["time"] = match.group(6)
-            spot["spotter_locator"] = match.group(7)
+            spot = {
+                "spotter_callsign": match.group(1),
+                "frequency": float(match.group(2)),
+                "dx_callsign": match.group(3),
+                "comment": match.group(4).strip(),
+                "dx_locator": match.group(5),
+                "time": match.group(6),
+                "spotter_locator": match.group(7)
+            }
+
             return spot
 
         # ar-cluster       
@@ -56,7 +60,7 @@ def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
                 "frequency": float(match.group(2)),
                 "dx_callsign": match.group(3),
                 "comment": match.group(4).strip(),
-                "time": match.group(5),
+                "time": match.group(5)
             }
             return spot
 
@@ -106,7 +110,8 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
 
     thread_logger.info(f"Start of telnet_and_collect for {host}. {debug=}")
     valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
-    stream_name = "spots"
+    STREAM_NAME = "spots"
+    DEDUP_KEY_PREFIX = "spots_dedup:"
 
     # with open(output_filepath, 'a') as f:
     #     f.write('\n\n')
@@ -158,14 +163,15 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                         if debug:
                             thread_logger.debug(json.dumps(spot, indent=2))
                         try:
-                            spot_id = f"spot:{spot.get('time', 'UNKNOWN')}:{spot.get('dx_callsign', 'UNKNOWN')}:{spot.get('frequency', 'UNKNOWN')}:{spot.get('spotter_callsign', 'UNKNOWN')}"
-                            valkey_client.hset(spot_id, mapping=spot)
-                            valkey_client.expire(spot_id, 3600) # Set TTL to 1 hour (3600 seconds)
-                            if debug:
-                                thread_logger.debug(f"Spot stored in Valkey: {spot_id}")
-                            entry_id = valkey_client.xadd(stream_name, spot)
-                            if debug:
-                                    thread_logger.debug(f"Spot {spot} stored in Valkey, {entry_id=}")
+                            pass
+                            # spot_id = f"spot:{spot.get('time', 'UNKNOWN')}:{spot.get('dx_callsign', 'UNKNOWN')}:{spot.get('frequency', 'UNKNOWN')}:{spot.get('spotter_callsign', 'UNKNOWN')}"
+                            # valkey_client.hset(spot_id, mapping=spot)
+                            # valkey_client.expire(spot_id, 3600) # Set TTL to 1 hour (3600 seconds)
+                            # if debug:
+                            #     thread_logger.debug(f"Spot stored in Valkey: {spot_id}")
+                            # entry_id = valkey_client.xadd(stream_name, spot)
+                            # if debug:
+                            #         thread_logger.debug(f"Spot {spot} stored in Valkey, {entry_id=}")
                         except Exception as e:
                             thread_logger.error(f"Failed to store spot in Valkey: {e}")
                     else:
@@ -188,20 +194,26 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                     thread_logger.info(line)
                     if line.startswith("DX de"):
                         spot = parse_dx_line(line, cluster_type, host, port)
+                        spot_data = json.dumps(spot)
                         if spot:
                             if debug:
                                 thread_logger.debug(json.dumps(spot, indent=2))
                             try:
-                                spot_id = f"spot:{spot.get('time', 'UNKNOWN')}:{spot.get('dx_callsign', 'UNKNOWN')}:{spot.get('frequency', 'UNKNOWN')}:{spot.get('spotter_callsign', 'UNKNOWN')}"
-                                valkey_client.hset(spot_id, mapping=spot)
-                                valkey_client.expire(spot_id, 3600) # Set TTL to 1 hour (3600 seconds)
-                                if debug:
-                                    thread_logger.debug(f"Spot stored in Valkey: {spot_id}")
-                                entry_id = valkey_client.xadd(stream_name, spot)
-                                if debug:
-                                        thread_logger.debug(f"Spot {spot} stored in Valkey, {entry_id=}")
+                                spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
+                                added = valkey_client.set(spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True)
+                                if added:
+                                    entry_id = valkey_client.xadd(STREAM_NAME, spot, '*')
+                                    if debug:
+                                        thread_logger.debug(f"Spot stored in Valkey: {entry_id=}  {spot_data=}")
+
+                                        logger.debug(f"spot stored in Valkey: {host}:{port}  {spot_data}")
+                                else:
+                                    if debug:
+                                        thread_logger.debug(f"Duplicate spot not stored in Valkey: {spot_data}")
+                                        logger.debug(f"duplicate spot not stored in Valkey: {host}:{port}  {spot_data}")
+
                             except Exception as e:
-                                thread_logger.error(f"Failed to store spot in Valkey: {e}")
+                                thread_logger.error(f"**** Failed to store spot in Valkey: {e}")
                         else:
                             thread_logger.error(f"Could not parse spot line: {line}")
 
@@ -211,6 +223,11 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
         except KeyboardInterrupt:
             logger.info("Exiting due to user request (Ctrl+C).")
             break
+
+        except Exception as ex:
+            template = "**** ERROR telnet_and_collect **** An exception of type {0} occured. Arguments: {1!r}"
+            message = template.format(type(ex).__name__, ex.args)
+            print(message)
 
         finally:
             if sock:
