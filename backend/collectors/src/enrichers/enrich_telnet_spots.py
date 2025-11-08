@@ -7,7 +7,7 @@ from loguru import logger
 
 from collectors.src.misc import open_log_file
 from collectors.src.db.valkey_config import get_valkey_client
-from collectors.src.enrichers.frequencies import find_band
+from collectors.src.enrichers.frequencies import find_band_and_mode
 
 from collectors.src.settings import (
     DEBUG,
@@ -21,9 +21,9 @@ def enrich_telnet_spot(spot: dict, debug: bool = False):
     try:
         if debug:
             logger.debug(f"{spot=}")
-        band =  find_band(spot['frequency'])
+        band, mode =  find_band_and_mode(frequency=spot['frequency'], comment=spot['comment'], debug=debug)
         if debug:
-                logger.debug(f"{band=}")
+                logger.debug(f"{band=}   {mode=}")
 
         
         if debug:

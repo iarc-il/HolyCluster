@@ -2,12 +2,12 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[3]))
 
-from collectors.src.enrichers.frequencies import load_bands_from_csv
+from collectors.src.enrichers.frequencies import load_bands_from_file
 
-def test_load_bands_from_csv():
+def test_load_bands_from_file():
     # Path to the bands.csv file
-    csv_path = Path(__file__).parent / '../../src/enrichers/bands.csv'
-    bands = load_bands_from_csv(csv_path)
+    file_path = Path(__file__).parent / '../../src/enrichers/bands.csv'
+    bands = load_bands_from_file(file_path)
     
     # Assert that bands is a list
     assert isinstance(bands, list)
@@ -21,9 +21,9 @@ def test_load_bands_from_csv():
         assert isinstance(band[2], float)
     
     # Assert specific values, e.g., first band
-    assert bands[0] == ('40m', 7000.0, 7300.0)
+    assert bands[0] == ('40', 7000.0, 7300.0)
     
     print(f"Loaded {len(bands)} bands successfully.")
 
 if __name__ == "__main__":
-    test_load_bands_from_csv()
+    test_load_bands_from_file()
