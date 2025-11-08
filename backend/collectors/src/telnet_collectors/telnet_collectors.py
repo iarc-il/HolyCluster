@@ -110,8 +110,8 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
 
     thread_logger.info(f"Start of telnet_and_collect for {host}. {debug=}")
     valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
-    STREAM_NAME = "spots"
-    DEDUP_KEY_PREFIX = "spots_dedup:"
+    STREAM_NAME = "telnet"
+    DEDUP_KEY_PREFIX = "telnet_spots_dedup:"
 
     # with open(output_filepath, 'a') as f:
     #     f.write('\n\n')
@@ -194,10 +194,10 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                     thread_logger.info(line)
                     if line.startswith("DX de"):
                         spot = parse_dx_line(line, cluster_type, host, port)
-                        cluster = f"{host}:{port}"
-                        spot.update({'cluster': cluster})
-                        spot_data = json.dumps(spot)
                         if spot:
+                            cluster = f"{host}:{port}"
+                            spot.update({'cluster': cluster})
+                            spot_data = json.dumps(spot)
                             if debug:
                                 thread_logger.debug(json.dumps(spot, indent=2))
                             try:
@@ -220,6 +220,7 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                             thread_logger.error(f"Could not parse spot line: {line}")
 
         except (socket.timeout, ConnectionRefusedError, OSError) as e:
+            thread_logger.error(f"Connection failed: {host}:{port}  {e}")
             logger.error(f"Connection failed: {host}:{port}  {e}")
 
         except KeyboardInterrupt:
@@ -227,9 +228,9 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
             break
 
         except Exception as ex:
-            template = "**** ERROR telnet_and_collect **** An exception of type {0} occured. Arguments: {1!r}"
-            message = template.format(type(ex).__name__, ex.args)
-            print(message)
+            message = f"**** ERROR telnet_and_collect **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+            thread_logger.error(message)
+            logger.error(message)
 
         finally:
             if sock:
@@ -241,6 +242,7 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
         else:
             delay = backoff_delays[-1]
 
+        thread_logger.info(f"{host}:{port} Reconnection attempt {reconnect_attempts + 1}. Waiting for {delay // 60} minutes before retrying.")
         logger.info(f"{host}:{port} Reconnection attempt {reconnect_attempts + 1}. Waiting for {delay // 60} minutes before retrying.")
 
         try:
