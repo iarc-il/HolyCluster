@@ -65,11 +65,12 @@ def spots_consumer(debug: bool = False):
                 continue
 
             for stream_name, messages in resp:
-                if debug:
-                    logger.debug(f"{stream_name=}   {messages=}")
+                # if debug:
+                #     logger.debug(f"{stream_name=}   {messages=}")
                 for msg_id, spot in messages:
                     if debug:
-                        logger.debug(f"{msg_id=}   {spot=}")
+                        logger.debug(f"{msg_id=}")
+                        logger.debug(f"spot={json.dumps(spot, indent=4)}")
                     valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
                     valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
                     enrich_telnet_spot(spot=spot, debug=debug)
