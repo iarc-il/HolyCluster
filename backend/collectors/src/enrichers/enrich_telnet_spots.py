@@ -21,11 +21,11 @@ def enrich_telnet_spot(spot: dict, debug: bool = False):
     try:
         if debug:
             logger.debug(f"{spot=}")
-        band, mode =  find_band_and_mode(frequency=spot['frequency'], comment=spot['comment'], debug=debug)
+        band, mode, mode_selection =  find_band_and_mode(frequency=spot['frequency'], comment=spot['comment'], debug=debug)
         if debug:
-                logger.debug(f"{band=}   {mode=}")
-
-        
+                logger.debug(f"{band=}   {mode=}   {mode_selection=}")
+        spot.update({'band':band, 'mode': mode, 'mode_selection': mode_selection})
+        logger.info(f"{spot=}") 
         if debug:
             logger.debug(40*"-")
     except Exception as ex:
@@ -34,7 +34,6 @@ def enrich_telnet_spot(spot: dict, debug: bool = False):
 
 
 def spots_consumer(debug: bool = False):
-    debug = True
     script_dir = os.path.dirname(os.path.abspath(__file__))
     log_filename = f"enrich_telnet_spots"
     log_dir = os.path.join(script_dir, '..', '..', 'logs')

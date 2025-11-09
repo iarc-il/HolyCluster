@@ -70,21 +70,27 @@ def find_band_and_mode(frequency:str, comment:str, debug: bool=False)->List:
     try:
         band = find_band(frequency=frequency, debug=debug)
         mode = ""
+        mode_selection = ""
         frequency_khz = float(frequency)
         if debug:
             logger.debug(f"{band=}")
             logger.debug(f"{frequency_khz=}")
         if band:
             if re.search("CW", comment.upper()):
-                mode = "CW"    
+                mode = "CW"
+                mode_selection = "comment"
             elif re.search("FT8", comment.upper()):
                 mode = "FT8"    
+                mode_selection = "comment"
             elif re.search("FT4", comment.upper()):
                 mode = "FT4"
+                mode_selection = "comment"
             elif re.search("RTTY", comment.upper()):
                 mode = "RTTY"
+                mode_selection = "comment"
             elif re.search("DIGI", comment.upper()) or re.search("VARAC", comment.upper()):
                 mode = "DIGI"
+                mode_selection = "comment"
             elif band in modes:
                 if debug:
                     logger.debug(f"{modes[band]=}")
@@ -96,6 +102,7 @@ def find_band_and_mode(frequency:str, comment:str, debug: bool=False)->List:
                     if start <= frequency_khz < end:
                         if debug:
                             logger.debug(f"Frequency {frequency} mode is: {mode}")
+                        mode_selection = "range"
                         break
 
             else:
@@ -108,14 +115,14 @@ def find_band_and_mode(frequency:str, comment:str, debug: bool=False)->List:
                 logger.debug(f"Mode not found for {frequency=} since missign band")
 
         if debug:
-            logger.debug(f"{mode=}")
+            logger.debug(f"{mode=}   {mode_selection=}")
 
     except Exception as ex:
         message = f"**** ERROR find_band_and_mode **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
         logger.error(message)
 
     finally:
-        return band, mode
+        return band, mode, mode_selection
 
 
 
