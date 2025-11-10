@@ -8,21 +8,27 @@ from loguru import logger
 
 
 def get_qrz_session_key(username, password, api_key):
-    url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
-    with httpx.Client() as client:
-        response = client.get(url)
-    
-    if response.status_code == 200:
-        root = ET.fromstring(response.text)
-        ns = {'qrz': 'http://xmldata.qrz.com'}
-        session_key = root.find('.//qrz:Key', ns).text
-        return session_key
-    else:
-        print("Error:", response.status_code)
-        return None
+    try:
+        url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
+        with httpx.Client() as client:
+            response = client.get(url)
+        
+        if response.status_code == 200:
+            root = ET.fromstring(response.text)
+            ns = {'qrz': 'http://xmldata.qrz.com'}
+            session_key = root.find('.//qrz:Key', ns).text
+            return session_key
+        else:
+            print("Error:", response.status_code)
+            return None
+    except Exception as ex:
+        message = f"**** ERROR get_qrz_session_key **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        logger.error(message)
+        
 
 
 async def get_locator_from_qrz(qrz_session_key:str, callsign: str, delay:float=0, debug:bool=False) -> dict:
+    try:
         if debug:
             logger.debug(f"{callsign=}   {delay=}")
         suffix_list = ["/M", "/P"]
@@ -50,7 +56,8 @@ async def get_locator_from_qrz(qrz_session_key:str, callsign: str, delay:float=0
             xml_error = root.find('.//qrz:Error',ns)
             if xml_error is not None:
                 error = root.find('.//qrz:Error', ns).text
-                logger.debug(f"qrz.com: {error}")
+                if debug:
+                    logger.debug(f"qrz.com: {error}")
                 return {"locator": None, "error": error}
 
             geoloc =  root.find('.//qrz:geoloc', ns).text                
@@ -62,4 +69,7 @@ async def get_locator_from_qrz(qrz_session_key:str, callsign: str, delay:float=0
         
         except Exception as e:
             return {"locator": None, "error": f"Exception: {e}"}
+    except Exception as ex:
+        message = f"**** ERROR get_locator_from_qrz **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        logger.error(message)
         

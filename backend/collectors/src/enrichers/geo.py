@@ -19,7 +19,7 @@ from collectors.src.settings import (
     QRZ_USER,
     QRZ_PASSOWRD,
     QRZ_API_KEY,
-
+    QRZ_SESSION_KEY_REFRESH,
 )
 from collectors.src.enrichers.qrz import get_qrz_session_key, get_locator_from_qrz
 global qrz_session_key
@@ -65,7 +65,7 @@ async def add_geo_cache(callsign: str, geo_details_str: str, debug: bool = False
         return 
 
 
-async def find_geo_details(callsign: str, debug: bool = False):
+async def get_geo_details(callsign: str, debug: bool = False):
     locator = None
     locator_source = None
     lat = None
@@ -124,7 +124,6 @@ async def find_geo_details(callsign: str, debug: bool = False):
             }
             geo_details_str = json.dumps(geo_details_dict)
             await add_geo_cache(callsign=callsign, geo_details_str=geo_details_str, debug=debug)
-
 
 
     if debug:

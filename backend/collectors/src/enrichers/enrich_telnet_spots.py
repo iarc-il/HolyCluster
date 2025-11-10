@@ -9,7 +9,7 @@ from loguru import logger
 from collectors.src.misc import open_log_file
 from collectors.src.db.valkey_config import get_valkey_client
 from collectors.src.enrichers.frequencies import find_band_and_mode
-from collectors.src.enrichers.geo import find_geo_details
+from collectors.src.enrichers.geo import get_geo_details
 
 from collectors.src.settings import (
     DEBUG,
@@ -35,14 +35,18 @@ async def enrich_telnet_spot(spot: dict, debug: bool = False):
             logger.debug(f"{spot=}")
 
         # Enrich locator
-        spotter_locator, spotter_lat, spotter_lon, spotter_country, spotter_continent = await find_geo_details(spot['spotter_callsign'])
-        dx_locator, dx_lat, dx_lon, dx_country, dx_continent = await find_geo_details(spot['dx_callsign'])
+        spotter_geo_cache, spotter_locator_source, spotter_locator, spotter_lat, spotter_lon, spotter_country, spotter_continent = await get_geo_details(spot['spotter_callsign'])
+        dx_geo_cache, dx_locator_source, dx_locator, dx_lat, dx_lon, dx_country, dx_continent = await get_geo_details(spot['dx_callsign'])
         spot.update({
+            'spotter_geo_cache': spotter_geo_cache,
+            'spotter_locator_source': spotter_locator_source,
             'spotter_locator': spotter_locator,
             'spotter_lat': spotter_lat,
             'spotter_lon': spotter_lon,
             'spotter_country': spotter_country,
             'spotter_continent': spotter_continent,
+            'dx_geo_cache': dx_geo_cache,
+            'dx_locator_source': dx_locator_source,
             'dx_locator': dx_locator,
             'dx_lat': dx_lat,
             'dx_lon': dx_lon,

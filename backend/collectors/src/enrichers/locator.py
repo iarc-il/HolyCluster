@@ -1,6 +1,5 @@
 import re
 import csv
-from typing import List
 from pathlib import Path
 
 
