@@ -50,7 +50,7 @@ async def get_locator_from_qrz(qrz_session_key:str, callsign: str, delay:float=0
             xml_error = root.find('.//qrz:Error',ns)
             if xml_error is not None:
                 error = root.find('.//qrz:Error', ns).text
-                logger.error(f"qrz.com: {error}")
+                logger.debug(f"qrz.com: {error}")
                 return {"locator": None, "error": error}
 
             geoloc =  root.find('.//qrz:geoloc', ns).text                

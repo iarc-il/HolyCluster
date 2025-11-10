@@ -2,7 +2,10 @@ from environs import Env
 from pathlib import Path
 
 env = Env()
-dotenv_path = Path(__file__).parent / ".env"
+print(Path.cwd().name)
+print(Path(__file__))
+dotenv_path = Path(__file__).parents[2] / ".env"
+print(dotenv_path)
 env.read_env(path=dotenv_path, recurse=False)
 
 DEBUG = env.bool("DEBUG", default=False)
@@ -20,6 +23,7 @@ VALKEY_HOST = env.str("VALKEY_HOST")
 VALKEY_PORT = env.str("VALKEY_PORT")
 VALKEY_DB = env.str("VALKEY_DB")
 VALKEY_SPOT_EXPIRATION = env.int("VALKEY_SPOT_EXPIRATION", default=60)
+VALKEY_GEO_EXPIRATION = env.int("VALKEY_GEO_EXPIRATION", default=3600) 
 
 USERNAME_FOR_TELNET_CLUSTERS = env.str("USERNAME_FOR_TELNET_CLUSTERS")
 

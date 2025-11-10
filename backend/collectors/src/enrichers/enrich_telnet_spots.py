@@ -3,11 +3,13 @@ import os
 import time
 import re
 import json
+import asyncio
 from loguru import logger
 
 from collectors.src.misc import open_log_file
 from collectors.src.db.valkey_config import get_valkey_client
 from collectors.src.enrichers.frequencies import find_band_and_mode
+from collectors.src.enrichers.geo import find_geo_details
 
 from collectors.src.settings import (
     DEBUG,
@@ -16,16 +18,40 @@ from collectors.src.settings import (
     VALKEY_DB,
 )
 
+global valkey_client
+valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
 
-def enrich_telnet_spot(spot: dict, debug: bool = False):
+
+async def enrich_telnet_spot(spot: dict, debug: bool = False):
     try:
+        # Enrich band and mode
         if debug:
             logger.debug(f"{spot=}")
         band, mode, mode_selection =  find_band_and_mode(frequency=spot['frequency'], comment=spot['comment'], debug=debug)
         if debug:
                 logger.debug(f"{band=}   {mode=}   {mode_selection=}")
-        spot.update({'band':band, 'mode': mode, 'mode_selection': mode_selection})
-        logger.info(f"{spot=}") 
+        spot.update({'band': band, 'mode': mode, 'mode_selection': mode_selection})
+        if debug:
+            logger.debug(f"{spot=}")
+
+        # Enrich locator
+        spotter_locator, spotter_lat, spotter_lon, spotter_country, spotter_continent = await find_geo_details(spot['spotter_callsign'])
+        dx_locator, dx_lat, dx_lon, dx_country, dx_continent = await find_geo_details(spot['dx_callsign'])
+        spot.update({
+            'spotter_locator': spotter_locator,
+            'spotter_lat': spotter_lat,
+            'spotter_lon': spotter_lon,
+            'spotter_country': spotter_country,
+            'spotter_continent': spotter_continent,
+            'dx_locator': dx_locator,
+            'dx_lat': dx_lat,
+            'dx_lon': dx_lon,
+            'dx_country': dx_country,
+            'dx_continent': dx_continent,
+        })
+        logger.info(f"{spot=}")
+
+
         if debug:
             logger.debug(40*"-")
     except Exception as ex:
@@ -33,7 +59,7 @@ def enrich_telnet_spot(spot: dict, debug: bool = False):
         logger.error(message)
 
 
-def spots_consumer(debug: bool = False):
+async def spots_consumer(debug: bool = False):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     log_filename = f"enrich_telnet_spots"
     log_dir = os.path.join(script_dir, '..', '..', 'logs')
@@ -44,7 +70,6 @@ def spots_consumer(debug: bool = False):
     open_log_file(log_filename_prefix=log_path, debug=debug)
     logger.info(f"spots_consumer started")
 
-    valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
     STREAM_NAME = "telnet"
     CONSUMER_GROUP = "telnet_group"
     CONSUMER_NAME = "consumer_1"
@@ -72,11 +97,11 @@ def spots_consumer(debug: bool = False):
                         logger.debug(f"spot={json.dumps(spot, indent=4)}")
                     valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
                     valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
-                    enrich_telnet_spot(spot=spot, debug=debug)
+                    await enrich_telnet_spot(spot=spot, debug=debug)
 
-        except Exception as ex:
+        except exception as ex:
             message = f"**** ERROR consume_spots **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
             logger.error(message)
 
 if __name__ == "__main__":
-    spots_consumer(debug=DEBUG)
+    asyncio.run(spots_consumer(debug=DEBUG))
