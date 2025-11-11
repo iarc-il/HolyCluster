@@ -16,14 +16,8 @@ from collectors.src.settings import (
     VALKEY_PORT,
     VALKEY_DB,
     VALKEY_GEO_EXPIRATION,
-    QRZ_USER,
-    QRZ_PASSOWRD,
-    QRZ_API_KEY,
-    QRZ_SESSION_KEY_REFRESH,
 )
-from collectors.src.enrichers.qrz import get_qrz_session_key, get_locator_from_qrz
-global qrz_session_key
-qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)    
+from collectors.src.enrichers.qrz import get_locator_from_qrz
 
 global valkey_client
 try:
@@ -65,7 +59,7 @@ async def add_geo_cache(callsign: str, geo_details_str: str, debug: bool = False
         return 
 
 
-async def get_geo_details(callsign: str, debug: bool = False):
+async def get_geo_details(qrz_session_key: str, callsign: str, debug: bool = False):
     locator = None
     locator_source = None
     lat = None

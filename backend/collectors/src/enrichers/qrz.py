@@ -7,20 +7,27 @@ from loguru import logger
 
 
 
-def get_qrz_session_key(username, password, api_key):
+def get_qrz_session_key(username:str, password:str, api_key:str):
     try:
-        url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
-        with httpx.Client() as client:
-            response = client.get(url)
-        
-        if response.status_code == 200:
-            root = ET.fromstring(response.text)
-            ns = {'qrz': 'http://xmldata.qrz.com'}
-            session_key = root.find('.//qrz:Key', ns).text
-            return session_key
-        else:
-            print("Error:", response.status_code)
-            return None
+        attempts=0
+        while attempts<=5:
+            attempts += 1
+            url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
+            with httpx.Client() as client:
+                response = client.get(url)
+            
+            if response.status_code == 200:
+                root = ET.fromstring(response.text)
+                ns = {'qrz': 'http://xmldata.qrz.com'}
+                session_key = root.find('.//qrz:Key', ns).text
+                logger.info(f"Received QRZ key in {attempts=}")
+                return session_key
+            else:
+                logger.error(f"**** Error: trying to get qrz session key {attempts=}: {response.status_code=}")
+            time.sleep(5)
+        logger.error(f"**** Error: stopped attempting to get QRZ key after {attempts=}")
+        return None
+
     except Exception as ex:
         message = f"**** ERROR get_qrz_session_key **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
         logger.error(message)

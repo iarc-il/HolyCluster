@@ -135,49 +135,49 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                 if debug:
                     thread_logger.debug(f"Sent username: {username}")
 
-            # Issue 'show/dx 100' command
-            sock.sendall(f"show/dx 100\n".encode('utf-8'))
-            if debug:
-                thread_logger.debug(f"Sent command: show/dx 100")
-
-            # Read and parse initial DX spots from 'show/dx 100' command
-            while True:
-                data = sock.recv(4096)
-                if not data:
-                    thread_logger.error("Connection closed by remote host during initial DX read.")
-                    break
-
-                lines = (line_buffer + data).split(b'\n')
-                line_buffer = lines.pop()
-
-                for line_bytes in lines:
-                    line = line_bytes.decode('utf-8', errors='ignore').replace('\r', '')
-                    thread_logger.info(line)
-                    if not line.strip(): # Break on empty line (end of output)
-                        break
-                    if '>' in line: # Break on prompt
-                        break
-
-                    spot = parse_show_dx_line(line, host, port)
-                    if spot:
-                        if debug:
-                            thread_logger.debug(json.dumps(spot, indent=2))
-                        try:
-                            pass
-                            # spot_id = f"spot:{spot.get('time', 'UNKNOWN')}:{spot.get('dx_callsign', 'UNKNOWN')}:{spot.get('frequency', 'UNKNOWN')}:{spot.get('spotter_callsign', 'UNKNOWN')}"
-                            # valkey_client.hset(spot_id, mapping=spot)
-                            # valkey_client.expire(spot_id, 3600) # Set TTL to 1 hour (3600 seconds)
-                            # if debug:
-                            #     thread_logger.debug(f"Spot stored in Valkey: {spot_id}")
-                            # entry_id = valkey_client.xadd(stream_name, spot)
-                            # if debug:
-                            #         thread_logger.debug(f"Spot {spot} stored in Valkey, {entry_id=}")
-                        except Exception as e:
-                            thread_logger.error(f"Failed to store spot in Valkey: {e}")
-                    else:
-                        thread_logger.error(f"Could not parse show/dx line: {line}")
-                if not line.strip() or '>' in line: # Break outer loop if terminator found
-                    break
+            # # Issue 'show/dx 100' command
+            # sock.sendall(f"show/dx 100\n".encode('utf-8'))
+            # if debug:
+            #     thread_logger.debug(f"Sent command: show/dx 100")
+            #
+            # # Read and parse initial DX spots from 'show/dx 100' command
+            # while True:
+            #     data = sock.recv(4096)
+            #     if not data:
+            #         thread_logger.error("Connection closed by remote host during initial DX read.")
+            #         break
+            #
+            #     lines = (line_buffer + data).split(b'\n')
+            #     line_buffer = lines.pop()
+            #
+            #     for line_bytes in lines:
+            #         line = line_bytes.decode('utf-8', errors='ignore').replace('\r', '')
+            #         thread_logger.info(line)
+            #         if not line.strip(): # Break on empty line (end of output)
+            #             break
+            #         if '>' in line: # Break on prompt
+            #             break
+            #
+            #         spot = parse_show_dx_line(line, host, port)
+            #         if spot:
+            #             if debug:
+            #                 thread_logger.debug(json.dumps(spot, indent=2))
+            #             try:
+            #                 pass
+            #                 # spot_id = f"spot:{spot.get('time', 'UNKNOWN')}:{spot.get('dx_callsign', 'UNKNOWN')}:{spot.get('frequency', 'UNKNOWN')}:{spot.get('spotter_callsign', 'UNKNOWN')}"
+            #                 # valkey_client.hset(spot_id, mapping=spot)
+            #                 # valkey_client.expire(spot_id, 3600) # Set TTL to 1 hour (3600 seconds)
+            #                 # if debug:
+            #                 #     thread_logger.debug(f"Spot stored in Valkey: {spot_id}")
+            #                 # entry_id = valkey_client.xadd(stream_name, spot)
+            #                 # if debug:
+            #                 #         thread_logger.debug(f"Spot {spot} stored in Valkey, {entry_id=}")
+            #             except Exception as e:
+            #                 thread_logger.error(f"Failed to store spot in Valkey: {e}")
+            #         else:
+            #             thread_logger.error(f"Could not parse show/dx line: {line}")
+            #     if not line.strip() or '>' in line: # Break outer loop if terminator found
+            #         break
 
             # read live spots
             while True:

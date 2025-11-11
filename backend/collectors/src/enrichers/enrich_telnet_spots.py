@@ -16,13 +16,18 @@ from collectors.src.settings import (
     VALKEY_HOST,
     VALKEY_PORT,
     VALKEY_DB,
+    QRZ_USER,
+    QRZ_PASSOWRD,
+    QRZ_API_KEY,
+    QRZ_SESSION_KEY_REFRESH,
 )
+from collectors.src.enrichers.qrz import get_qrz_session_key 
 
 global valkey_client
 valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
 
 
-async def enrich_telnet_spot(spot: dict, debug: bool = False):
+async def enrich_telnet_spot(qrz_session_key:str, spot: dict, debug: bool = False):
     try:
         # Enrich band and mode
         if debug:
@@ -35,8 +40,8 @@ async def enrich_telnet_spot(spot: dict, debug: bool = False):
             logger.debug(f"{spot=}")
 
         # Enrich locator
-        spotter_geo_cache, spotter_locator_source, spotter_locator, spotter_lat, spotter_lon, spotter_country, spotter_continent = await get_geo_details(spot['spotter_callsign'])
-        dx_geo_cache, dx_locator_source, dx_locator, dx_lat, dx_lon, dx_country, dx_continent = await get_geo_details(spot['dx_callsign'])
+        spotter_geo_cache, spotter_locator_source, spotter_locator, spotter_lat, spotter_lon, spotter_country, spotter_continent = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot['spotter_callsign'], debug=debug)
+        dx_geo_cache, dx_locator_source, dx_locator, dx_lat, dx_lon, dx_country, dx_continent = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot['dx_callsign'], debug=debug)
         spot.update({
             'spotter_geo_cache': spotter_geo_cache,
             'spotter_locator_source': spotter_locator_source,
@@ -53,7 +58,7 @@ async def enrich_telnet_spot(spot: dict, debug: bool = False):
             'dx_country': dx_country,
             'dx_continent': dx_continent,
         })
-        logger.info(f"{spot=}")
+        logger.info(f"spot=\n{json.dumps(spot, indent=4)}")
 
 
         if debug:
@@ -85,8 +90,18 @@ async def spots_consumer(debug: bool = False):
         pass
 
     last_id = '>'
+    last_run = time.time()
+    # global qrz_session_key
+    qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)    
+
     while True:
         try:
+            now = time.time()
+            if now - last_run >= QRZ_SESSION_KEY_REFRESH:
+                logger.info(f"Refreshing QRZ key (every {QRZ_SESSION_KEY_REFRESH} seconds)")
+                time.sleep(5) # sleepin 5 seconds to allow pervious QRZ calls to complete
+                qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)    
+                last_run = now
             # Block until a message arrives
             resp = valkey_client.xreadgroup(CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: last_id}, count=10, block=5000)
             if not resp:
@@ -101,7 +116,7 @@ async def spots_consumer(debug: bool = False):
                         logger.debug(f"spot={json.dumps(spot, indent=4)}")
                     valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
                     valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
-                    await enrich_telnet_spot(spot=spot, debug=debug)
+                    await enrich_telnet_spot(qrz_session_key=qrz_session_key,spot=spot, debug=debug)
 
         except exception as ex:
             message = f"**** ERROR consume_spots **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
