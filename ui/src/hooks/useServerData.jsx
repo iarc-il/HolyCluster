@@ -173,6 +173,36 @@ export const ServerDataProvider = ({ children }) => {
             is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active;
     }
 
+    useEffect(() => {
+        if (
+            new_spot_ids.size > 0 &&
+            settings.alert_sound_enabled &&
+            callsign_filters.is_alert_filters_active
+        ) {
+            const alerted_count = spots.filter(
+                spot => new_spot_ids.has(spot.id) && spot.is_alerted,
+            ).length;
+
+            if (alerted_count > 0) {
+                const audio_context = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audio_context.createOscillator();
+                const gain_node = audio_context.createGain();
+
+                oscillator.connect(gain_node);
+                gain_node.connect(audio_context.destination);
+
+                oscillator.frequency.value = 800;
+                oscillator.type = "sine";
+
+                gain_node.gain.setValueAtTime(0.3, audio_context.currentTime);
+                gain_node.gain.exponentialRampToValueAtTime(0.01, audio_context.currentTime + 0.3);
+
+                oscillator.start(audio_context.currentTime);
+                oscillator.stop(audio_context.currentTime + 0.3);
+            }
+        }
+    }, [new_spot_ids]);
+
     const filtered_spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;
         const filtered = spots

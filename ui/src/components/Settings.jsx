@@ -50,6 +50,7 @@ const empty_temp_settings = {
     propagation_displayed: true,
     highlight_enabled: true,
     highlight_port: 2237,
+    alert_sound_enabled: false,
 };
 
 function Settings({ set_map_controls, set_radius_in_km }) {

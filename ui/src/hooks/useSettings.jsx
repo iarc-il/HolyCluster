@@ -23,6 +23,7 @@ export function SettingsProvider({ children }) {
         show_equator: false,
         highlight_enabled: true,
         highlight_port: 2237,
+        alert_sound_enabled: false,
     });
 
     return (

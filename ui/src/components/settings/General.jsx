@@ -158,6 +158,20 @@ function General({ temp_settings, set_temp_settings, colors }) {
                             />
                         </td>
                     </tr>
+                    <tr>
+                        <td>Alert sound:&nbsp;&nbsp;</td>
+                        <td>
+                            <Toggle
+                                value={temp_settings.alert_sound_enabled}
+                                on_click={() => {
+                                    set_temp_settings({
+                                        ...temp_settings,
+                                        alert_sound_enabled: !temp_settings.alert_sound_enabled,
+                                    });
+                                }}
+                            />
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
