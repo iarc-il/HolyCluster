@@ -110,7 +110,7 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
 
     thread_logger.info(f"Start of telnet_and_collect for {host}. {debug=}")
     valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
-    STREAM_NAME = "telnet"
+    STREAM_NAME = "stream-telnet"
     DEDUP_KEY_PREFIX = "telnet_spots_dedup:"
 
     # with open(output_filepath, 'a') as f:

@@ -71,7 +71,7 @@ async def get_geo_details(qrz_session_key: str, callsign: str, debug: bool = Fal
     geo_cache_details = await check_geo_cache(callsign=callsign, debug=debug)
 
     if geo_cache_details:
-        geo_cache = True
+        geo_cache = 1 
         geo = json.loads(geo_cache_details)
         locator = geo['locator']
         locator_source = geo['locator_source']
@@ -81,7 +81,7 @@ async def get_geo_details(qrz_session_key: str, callsign: str, debug: bool = Fal
         continent = geo['continent']
 
     else:
-        geo_cache = False
+        geo_cache = 0
         # Get locator from qrz
         qrz_locator_dict = await get_locator_from_qrz(
             qrz_session_key=qrz_session_key, 

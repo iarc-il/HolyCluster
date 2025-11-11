@@ -59,13 +59,14 @@ async def enrich_telnet_spot(qrz_session_key:str, spot: dict, debug: bool = Fals
             'dx_continent': dx_continent,
         })
         logger.info(f"spot=\n{json.dumps(spot, indent=4)}")
-
-
         if debug:
             logger.debug(40*"-")
+        return spot
+
     except Exception as ex:
         message = f"**** ERROR enrich_telnet_spot **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
         logger.error(message)
+        return spot
 
 
 async def spots_consumer(debug: bool = False):
@@ -79,7 +80,7 @@ async def spots_consumer(debug: bool = False):
     open_log_file(log_filename_prefix=log_path, debug=debug)
     logger.info(f"spots_consumer started")
 
-    STREAM_NAME = "telnet"
+    STREAM_NAME = "stream-telnet"
     CONSUMER_GROUP = "telnet_group"
     CONSUMER_NAME = "consumer_1"
 # Create consumer group (only first time)
@@ -108,18 +109,29 @@ async def spots_consumer(debug: bool = False):
                 continue
 
             for stream_name, messages in resp:
-                # if debug:
-                #     logger.debug(f"{stream_name=}   {messages=}")
                 for msg_id, spot in messages:
                     if debug:
                         logger.debug(f"{msg_id=}")
                         logger.debug(f"spot={json.dumps(spot, indent=4)}")
                     valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
                     valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
-                    await enrich_telnet_spot(qrz_session_key=qrz_session_key,spot=spot, debug=debug)
+                    enriched_spot = await enrich_telnet_spot(qrz_session_key=qrz_session_key,spot=spot, debug=debug)
+                    enriched_spot_str = json.dumps(enriched_spot)
+                    # Add enriched spot to psql stream
+                    STREAM_PSQL = "stream-postres"
+                    entry_id = valkey_client.xadd(STREAM_PSQL, enriched_spot, '*')
+                    if debug:
+                        logger.debug(f"enriched spot stored in Valkey: {entry_id=} {enriched_spot=}")
+                    # Add enriched spot to api stream only if has both locators
+                    STREAM_API = "stream-api"
+                    if 'spotter_locator' in enriched_spot and 'dx_locator' in enriched_spot:
+                        entry_id = valkey_client.xadd(STREAM_API, enriched_spot, '*')
+                        if debug:
+                            logger.debug(f"enriched spot stored in Valkey: {entry_id=} {enriched_spot=}")
+                    
 
-        except exception as ex:
-            message = f"**** ERROR consume_spots **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        except Exception as ex:
+            message = f"**** ERROR spots_consumer **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
             logger.error(message)
 
 if __name__ == "__main__":
