@@ -6,6 +6,7 @@ import { bands, modes } from "@/filters_data.js";
 import { useServerData } from "@/hooks/useServerData";
 import { useFilters } from "@/hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
+import { useSettings } from "@/hooks/useSettings";
 import use_radio from "../hooks/useRadio";
 
 function Hex(color) {
@@ -78,6 +79,7 @@ function LeftColumn({ toggled_ui }) {
     const { spots_per_band_count, spots_per_mode_count, set_hovered_band } = useServerData();
     const { filters, setFilters, setRadioModeFilter } = useFilters();
     const { radio_band, radio_status } = use_radio();
+    const { settings } = useSettings();
 
     const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";
     const toggled_classes = toggled_ui.left
@@ -85,6 +87,13 @@ function LeftColumn({ toggled_ui }) {
         : "max-2xl:absolute max-2xl:flex z-50 border-r border-slate-300 ";
 
     const { colors } = useColors();
+
+    const visible_bands = bands.filter(band => {
+        if (settings.show_disabled_bands) {
+            return true;
+        }
+        return !settings.disabled_bands[band];
+    });
 
     return (
         <div
@@ -95,7 +104,7 @@ function LeftColumn({ toggled_ui }) {
             }}
         >
             <div className={filter_group_classes + "pb-4 border-b-2 border-slate-300"}>
-                {bands.map(band => {
+                {visible_bands.map(band => {
                     const color = colors.bands[band];
                     let label = Number.isInteger(band) ? band + "m" : band;
                     return (

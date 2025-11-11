@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import { use_object_local_storage } from "@/utils.js";
+import { bands } from "@/filters_data.js";
 
 const SettingsContext = createContext(undefined);
 
@@ -24,6 +25,8 @@ export function SettingsProvider({ children }) {
         highlight_enabled: true,
         highlight_port: 2237,
         alert_sound_enabled: false,
+        disabled_bands: Object.fromEntries(bands.map(band => [band, false])),
+        show_disabled_bands: false,
     });
 
     return (

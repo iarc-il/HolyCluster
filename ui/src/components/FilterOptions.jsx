@@ -3,10 +3,12 @@ import React, { useState } from "react";
 import Button from "@/components/Button.jsx";
 import { useFilters } from "../hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
+import { useSettings } from "@/hooks/useSettings";
 
 function FilterOptions({ filter_key, filter_value, align, orientation, disabled, children }) {
     const { setFilterKeys, setOnlyFilterKeys } = useFilters();
     const { colors } = useColors();
+    const { settings } = useSettings();
 
     const [is_hovered, set_is_hovered] = useState(false);
     let classes = [
@@ -58,7 +60,7 @@ function FilterOptions({ filter_key, filter_value, align, orientation, disabled,
                             color="green"
                             className="w-16 px-2"
                             on_click={() => {
-                                setFilterKeys(filter_key, true);
+                                setFilterKeys(filter_key, true, settings.disabled_bands);
                                 set_is_hovered(false);
                             }}
                         >

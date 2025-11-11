@@ -9,8 +9,10 @@ import { useSettings } from "@/hooks/useSettings";
 import ImportExport from "./settings/ImportExport";
 import General from "./settings/General";
 import CatControl from "./settings/CatControl";
+import Bands from "./settings/Bands";
 import use_radio from "@/hooks/useRadio";
 import Tabs from "./Tabs";
+import { bands } from "@/filters_data.js";
 
 function SettingsIcon({ size }) {
     const { colors } = useColors();
@@ -51,12 +53,15 @@ const empty_temp_settings = {
     highlight_enabled: true,
     highlight_port: 2237,
     alert_sound_enabled: false,
+    disabled_bands: Object.fromEntries(bands.map(band => [band, false])),
+    show_disabled_bands: false,
 };
 
 function Settings({ set_map_controls, set_radius_in_km }) {
     const [temp_settings, set_temp_settings] = useState(empty_temp_settings);
     const { colors, setTheme } = useColors();
     const { settings, set_settings } = useSettings();
+    const { filters, setFilters } = useFilters();
     const { is_radio_available } = use_radio();
 
     const [first_launch, set_first_launch] = useLocalStorage("first_launch", true);
@@ -74,6 +79,19 @@ function Settings({ set_map_controls, set_radius_in_km }) {
         });
         setTheme(new_settings.theme);
         set_settings(new_settings);
+
+        setFilters(current_filters => {
+            const updated_bands = { ...current_filters.bands };
+            bands.forEach(band => {
+                if (new_settings.disabled_bands[band]) {
+                    updated_bands[band] = false;
+                }
+            });
+            return {
+                ...current_filters,
+                bands: updated_bands,
+            };
+        });
     }
 
     useEffect(() => {
@@ -93,6 +111,16 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             label: "General",
             content: (
                 <General
+                    temp_settings={temp_settings}
+                    set_temp_settings={set_temp_settings}
+                    colors={colors}
+                />
+            ),
+        },
+        {
+            label: "Bands",
+            content: (
+                <Bands
                     temp_settings={temp_settings}
                     set_temp_settings={set_temp_settings}
                     colors={colors}
