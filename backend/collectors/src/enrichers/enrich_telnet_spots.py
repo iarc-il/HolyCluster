@@ -1,5 +1,6 @@
 import argparse
 import os
+from datetime import datetime, timedelta, timezone
 import time
 import re
 import json
@@ -27,8 +28,33 @@ global valkey_client
 valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
 
 
+def get_date_time(time_str: str, debug: bool = False):
+    try:
+        # Parse the hour and minute
+        hour = int(time_str[:2])
+        minute = int(time_str[2:4])
+        # Get current time (to extract seconds)
+        now_utc = datetime.now(timezone.utc)
+        current_seconds = now_utc.second
+        # Get today's date in UTC
+        date_time = datetime.now(timezone.utc).replace(hour=hour, minute=minute, second=current_seconds, microsecond=0)
+        date_time = date_time.strftime("%Y-%m-%d %H:%M:%S%z")
+
+        return date_time
+
+    except Exception as ex:
+        message = f"**** ERROR get_date_time **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        logger.error(message)
+        return None
+
 async def enrich_telnet_spot(qrz_session_key:str, spot: dict, debug: bool = False):
     try:
+        # Add date_time
+        date_time = get_date_time(time_str=spot['time'], debug=debug)
+        if debug:
+            logger.debug(f"{date_time=}")
+        spot.update({'date_time': date_time})
+
         # Enrich band and mode
         if debug:
             logger.debug(f"{spot=}")
