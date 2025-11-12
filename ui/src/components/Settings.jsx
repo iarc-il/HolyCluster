@@ -55,6 +55,7 @@ const empty_temp_settings = {
     alert_sound_enabled: false,
     disabled_bands: Object.fromEntries(bands.map(band => [band, false])),
     show_disabled_bands: false,
+    show_only_latest_spot: false,
 };
 
 function Settings({ set_map_controls, set_radius_in_km }) {

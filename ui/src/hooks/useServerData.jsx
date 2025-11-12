@@ -205,7 +205,7 @@ export const ServerDataProvider = ({ children }) => {
 
     const filtered_spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;
-        const filtered = spots
+        let filtered = spots
             .filter(spot => {
                 if (filter_missing_flags) {
                     if (
@@ -256,6 +256,17 @@ export const ServerDataProvider = ({ children }) => {
             })
             .slice(0, 100);
 
+        if (settings.show_only_latest_spot) {
+            const latest_spots = new Map();
+            for (const spot of filtered) {
+                const existing = latest_spots.get(spot.dx_callsign);
+                if (!existing || spot.time > existing.time) {
+                    latest_spots.set(spot.dx_callsign, spot);
+                }
+            }
+            filtered = Array.from(latest_spots.values());
+        }
+
         // Sort the filtered spots
         return sort_spots(filtered, table_sort, radio_status, radio_band);
     }, [
@@ -266,6 +277,7 @@ export const ServerDataProvider = ({ children }) => {
         radio_band,
         radio_status,
         table_sort,
+        settings.show_only_latest_spot,
     ]);
 
     const spots_per_band_count = useMemo(() => {

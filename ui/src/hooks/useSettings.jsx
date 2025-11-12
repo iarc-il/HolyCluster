@@ -27,6 +27,7 @@ export function SettingsProvider({ children }) {
         alert_sound_enabled: false,
         disabled_bands: Object.fromEntries(bands.map(band => [band, false])),
         show_disabled_bands: false,
+        show_only_latest_spot: false,
     });
 
     return (
