@@ -222,3 +222,137 @@ class SpotWithIssue(Base):
             'comment': self.comment
         }
 
+class HolySpot2(Base):
+    __tablename__ = 'holy_spots2'
+    id = Column(Integer, primary_key=True)
+    cluster = Column(Tex)
+    time = Column(Time)
+    date_time = Column(DateTime)
+    frequency = Column(Text)
+    band = Column(Text)
+    mode = Column(Text)
+    mode_selection = Column(Text)
+    spotter_callsign = Column(Text)
+    spotter_locator = Column(Text)
+    spotter_locator_source = Column(Text)
+    spotter_lat = Column(Text)
+    spotter_lon = Column(Text)
+    spotter_country = Column(Text)
+    spotter_continent = Column(Text)
+    dx_callsign = Column(Text)
+    dx_locator = Column(Text)
+    dx_locator_source = Column(Text)
+    dx_lat = Column(Text)
+    dx_lon = Column(Text)
+    dx_country = Column(Text)
+    dx_continent = Column(Text)
+    comment = Column(Text)
+    __table_args__ = (
+        UniqueConstraint('time', 'spotter_callsign', 'dx_callsign', name='uix_1'),
+    )
+
+    def __repr__(self):
+        return (f"<HolySpot(id={self.id}, cluster={self.cluster}, time={self.time}, date_time={self.date_time}, "
+                f"frequency={self.frequency}, band={self.band}, mode={self.mode}, mode_selection={self.mode_selection}, "
+                f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
+                f"spotter_locator_source={self.spotter_locator_source}, spotter_lat={self.spotter_lat}, spotter_lon={self.spotter_lon}, "
+                f"spotter_country={self.spotter_country}, spotter_continent={self.spotter_continent}, "
+                f"dx_callsign={self.dx_callsign}, dx_locator={self.dx_locator}, dx_locator_source={self.dx_locator_source}, "
+                f"dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country}, dx_continent={self.dx_continent}, "
+                f"comment={self.comment})>")
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'cluster': self.cluster,
+            'time': self.time,
+            'date_time': self.date_time,
+            'frequency': self.frequency,
+            'band': self.band,
+            'mode': self.mode,
+            'mode_selection': self.mode_selection,
+            'spotter_callsign': self.spotter_callsign,
+            'spotter_locator': self.spotter_locator,
+            'spotter_locator_source': self.spotter_locator_source,
+            'spotter_lat': self.spotter_lat,
+            'spotter_lon': self.spotter_lon,
+            'spotter_country': self.spotter_country,
+            'spotter_continent': self.spotter_continent,
+            'dx_callsign': self.dx_callsign,
+            'dx_locator': self.dx_locator,
+            'dx_locator_source': self.dx_locator_source,
+            'dx_lat': self.dx_lat,
+            'dx_lon': self.dx_lon,
+            'dx_country': self.dx_country,
+            'dx_continent': self.dx_continent,
+            'comment': self.comment
+        } 
+
+class SpotWithIssue2(Base):
+    __tablename__ = 'spots_with_issues2'
+    id = Column(Integer, primary_key=True)
+    cluster = Column(Tex)
+    time = Column(Time)
+    date_time = Column(DateTime)
+    frequency = Column(Text)
+    band = Column(Text)
+    mode = Column(Text)
+    mode_selection = Column(Text)
+    spotter_callsign = Column(Text)
+    spotter_locator = Column(Text)
+    spotter_locator_source = Column(Text)
+    spotter_lat = Column(Text)
+    spotter_lon = Column(Text)
+    spotter_country = Column(Text)
+    spotter_continent = Column(Text)
+    dx_callsign = Column(Text)
+    dx_locator = Column(Text)
+    dx_locator_source = Column(Text)
+    dx_lat = Column(Text)
+    dx_lon = Column(Text)
+    dx_country = Column(Text)
+    dx_continent = Column(Text)
+    comment = Column(Text)
+    issues = Column(Text)
+    __table_args__ = (
+        UniqueConstraint('time', 'spotter_callsign', 'dx_callsign', name='uix_1'),
+    )
+
+    def __repr__(self):
+        return (f"<HolySpot(id={self.id}, cluster={self.cluster}, time={self.time}, date_time={self.date_time}, "
+                f"frequency={self.frequency}, band={self.band}, mode={self.mode}, mode_selection={self.mode_selection}, "
+                f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
+                f"spotter_locator_source={self.spotter_locator_source}, spotter_lat={self.spotter_lat}, spotter_lon={self.spotter_lon}, "
+                f"spotter_country={self.spotter_country}, spotter_continent={self.spotter_continent}, "
+                f"dx_callsign={self.dx_callsign}, dx_locator={self.dx_locator}, dx_locator_source={self.dx_locator_source}, "
+                f"dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country}, dx_continent={self.dx_continent}, "
+                f"comment={self.comment}), issues={self.issues}>")
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'cluster': self.cluster,
+            'time': self.time,
+            'date_time': self.date_time,
+            'frequency': self.frequency,
+            'band': self.band,
+            'mode': self.mode,
+            'mode_selection': self.mode_selection,
+            'spotter_callsign': self.spotter_callsign,
+            'spotter_locator': self.spotter_locator,
+            'spotter_locator_source': self.spotter_locator_source,
+            'spotter_lat': self.spotter_lat,
+            'spotter_lon': self.spotter_lon,
+            'spotter_country': self.spotter_country,
+            'spotter_continent': self.spotter_continent,
+            'dx_callsign': self.dx_callsign,
+            'dx_locator': self.dx_locator,
+            'dx_locator_source': self.dx_locator_source,
+            'dx_lat': self.dx_lat,
+            'dx_lon': self.dx_lon,
+            'dx_country': self.dx_country,
+            'dx_continent': self.dx_continent,
+            'comment': self.comment,
+            'issues': self.issues
+
+        } 
+
+
