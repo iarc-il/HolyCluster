@@ -3,8 +3,8 @@
 set -e
 
 # Run the database check/init script first.
-echo "--- Checking database state ---"
-uv run collectors/src/db/check_postgres.py
+# echo "--- Checking database state ---"
+# uv run collectors/src/db/check_postgres.py
 
 # Now, run the collectors
 echo "--- Starting collectors ---"
