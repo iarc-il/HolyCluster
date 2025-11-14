@@ -48,6 +48,8 @@ services:
       dockerfile: Dockerfile.web_collectors
     restart: unless-stopped
     depends_on:
+      valkey:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     env_file:
@@ -66,6 +68,8 @@ services:
     restart: unless-stopped
     depends_on:
       valkey:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     env_file:
       - ./backend/.env
