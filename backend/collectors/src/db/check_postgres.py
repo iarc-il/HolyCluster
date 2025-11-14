@@ -23,21 +23,34 @@ from settings import (
 )
 
 async def check_database_exists(connection, db_name):
-    result = await connection.execute(text(f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"))
-    return result.scalar() is not None
+    try:
+        result = await connection.execute(text(f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"))
+        return result.scalar() is not None
+    except Exception as ex:
+        message = f"**** ERROR {sys._getframe(0).f_code.co_name} **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        logger.error(message)
+        
 
 
 async def drop_database_if_exists(connection, db_name):
-    if await check_database_exists(connection=connection, db_name=db_name):
-        await connection.execute(text(f'DROP DATABASE {db_name} WITH (FORCE);'))
-        logger.info(f'Database "{db_name}" dropped successfully.')
-    else:
-        logger.info(f'Database "{db_name}" does not exist.')
+    try:
+        if await check_database_exists(connection=connection, db_name=db_name):
+            await connection.execute(text(f'DROP DATABASE {db_name} WITH (FORCE);'))
+            logger.info(f'Database "{db_name}" dropped successfully.')
+        else:
+            logger.info(f'Database "{db_name}" does not exist.')
+    except Exception as ex:
+        message = f"**** ERROR {sys._getframe(0).f_code.co_name}  **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        logger.error(message)
 
 
 async def create_new_database(connection, db_name):
-    await connection.execute(text(f'CREATE DATABASE {db_name}'))
-    logger.info(f'Database "{db_name}" created successfully.')
+    try:
+        await connection.execute(text(f'CREATE DATABASE {db_name}'))
+        logger.info(f'Database "{db_name}" created successfully.')
+    except Exception as ex:
+        message = f"**** ERROR {sys._getframe(0).f_code.co_name}  **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        logger.error(message)
 
 
 async def create_tables(engine):
@@ -47,10 +60,13 @@ async def create_tables(engine):
             await conn.run_sync(Base.metadata.create_all)
         logger.info('Tables created successfully')
     except SQLAlchemyError as e:
-        logger.error(f'Error creating tables: {e}')
+        logger.error(f'**** {sys._getframe(0).f_code.co_name} **** Error creating tables: {e}')
+    except Exception as ex:
+        message = f"**** ERROR {sys._getframe(0).f_code.co_name}  **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        logger.error(message)
 
 
-async def main(debug: bool = False, initialize: bool = False):
+async def main(initialize: bool = False,debug: bool = False):
     try:
         db_name = POSTGRES_DB_NAME
         engine = create_async_engine(POSTGRES_DB_URL.rsplit('/', 1)[0] + '/postgres', echo=debug)
@@ -90,7 +106,10 @@ async def main(debug: bool = False, initialize: bool = False):
 
     except OSError as e:
         logger.error("Could not connect to the database. Please ensure it is running and accessible.")
-        logger.error(f"Underlying error: {e}")
+        logger.error(f"**** {sys._getframe(0).f_code.co_name} **** OS error: {e}")
+    except Exception as ex:
+        message = f"**** ERROR {sys._getframe(0).f_code.co_name}  **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        logger.error(message)
 
 
 if __name__ == "__main__":
@@ -99,9 +118,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     open_log_file("collectors/logs/db/check_postgres")
 
-    if string_to_boolean(DEBUG):
+    if DEBUG:
         logger.info("DEBUG is True")
     else:
         logger.info("DEBUG is False")
     
-    asyncio.run(main(debug=string_to_boolean(DEBUG), initialize=args.init))
+    asyncio.run(main(initialize=args.init,debug=DEBUG))
