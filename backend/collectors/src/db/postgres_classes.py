@@ -61,7 +61,7 @@ class DxheatRaw(Base):
     continent_spotter = Column(Text)
     dx_locator = Column(Text)
     __table_args__ = (
-        UniqueConstraint('date', 'time', 'spotter', 'frequency', 'dx_call', name='uix_3'),
+        UniqueConstraint('date', 'time', 'spotter', 'frequency', 'dx_call', name='uc_dxheat_raw'),
     )
 
     def __repr__(self):
@@ -126,7 +126,7 @@ class HolySpot(Base):
     dx_continent = Column(Text)
     comment = Column(Text)
     __table_args__ = (
-        UniqueConstraint('date', 'time', 'spotter_callsign', 'dx_callsign', name='uix_1'),
+        UniqueConstraint('date', 'time', 'spotter_callsign', 'dx_callsign', name='uc_holy_spots'),
     )
 
     def __repr__(self):
@@ -187,7 +187,7 @@ class SpotWithIssue(Base):
     dx_continent = Column(Text)
     comment = Column(Text)
     __table_args__ = (
-        UniqueConstraint('date', 'time', 'spotter_callsign', 'dx_callsign', name='uix_2'),
+        UniqueConstraint('date', 'time', 'spotter_callsign', 'dx_callsign', name='uc_spots_with_issues'),
     )
 
     def __repr__(self):
@@ -225,7 +225,7 @@ class SpotWithIssue(Base):
 class HolySpot2(Base):
     __tablename__ = 'holy_spots2'
     id = Column(Integer, primary_key=True)
-    cluster = Column(Tex)
+    cluster = Column(Text)
     time = Column(Time)
     date_time = Column(DateTime)
     frequency = Column(Text)
@@ -248,7 +248,7 @@ class HolySpot2(Base):
     dx_continent = Column(Text)
     comment = Column(Text)
     __table_args__ = (
-        UniqueConstraint('time', 'spotter_callsign', 'dx_callsign', name='uix_1'),
+        UniqueConstraint('time', 'spotter_callsign', 'dx_callsign', name='uc_holy_spots2'),
     )
 
     def __repr__(self):
@@ -290,7 +290,7 @@ class HolySpot2(Base):
 class SpotWithIssue2(Base):
     __tablename__ = 'spots_with_issues2'
     id = Column(Integer, primary_key=True)
-    cluster = Column(Tex)
+    cluster = Column(Text)
     time = Column(Time)
     date_time = Column(DateTime)
     frequency = Column(Text)
@@ -314,7 +314,7 @@ class SpotWithIssue2(Base):
     comment = Column(Text)
     issues = Column(Text)
     __table_args__ = (
-        UniqueConstraint('time', 'spotter_callsign', 'dx_callsign', name='uix_1'),
+        UniqueConstraint('time', 'spotter_callsign', 'dx_callsign', name='uc_spots_with_issues2'),
     )
 
     def __repr__(self):
