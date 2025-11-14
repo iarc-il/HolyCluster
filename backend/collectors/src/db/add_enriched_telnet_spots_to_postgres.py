@@ -57,8 +57,8 @@ async def postgres_spots_consumer(debug: bool = False):
                     valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
                     valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
 
-                    # add spot to postres
-
+                    # add spot to postgres
+                    
                     
 
         except Exception as ex:
