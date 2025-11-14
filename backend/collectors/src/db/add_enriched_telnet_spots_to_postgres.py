@@ -1,10 +1,14 @@
+from datetime import datetime, timezone
+import time
 import argparse
 import os
-import time
 import re
 import json
 import asyncio
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlmodel import SQLModel, select
+from sqlalchemy.dialects.postgresql import insert
 
 from collectors.src.misc import open_log_file
 from collectors.src.db.valkey_config import get_valkey_client
@@ -14,10 +18,81 @@ from collectors.src.settings import (
     VALKEY_HOST,
     VALKEY_PORT,
     VALKEY_DB,
+    POSTGRES_DB_URL,
 )
+from postgres_classes import HolySpot2, SpotWithIssue2
 
 global valkey_client
 valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
+
+async def convert_spot_to_record(spot: dict, debug: bool = False):
+    record = HolySpot2(
+        # date = datetime.strptime(spot['Date'], '%d/%m/%y').date()
+        cluster = spot['cluster'], 
+        time = datetime.strptime(spot['date_time'], "%Y-%m-%d %H:%M:%S%z").strftime("%H:%M"),
+        date_time = datetime.strptime(spot['date_time'], "%Y-%m-%d %H:%M:%S%z"),
+        frequency = spot['frequency'], 
+        band = spot['band'], 
+        mode = spot['mode'], 
+        mode_selection = spot['mode_selection'], 
+        spotter_callsign = spot['spotter_callsign'], 
+        spotter_locator = spot['spotter_locator'], 
+        spotter_locator_source = spot['spotter_locator_source'], 
+        spotter_lat = spot['spotter_lat'], 
+        spotter_lon = spot['spotter_lon'], 
+        spotter_country = spot['spotter_country'], 
+        spotter_continent = spot['spotter_continent'], 
+        dx_callsign = spot['dx_callsign'], 
+        dx_locator = spot['dx_locator'], 
+        dx_locator_source = spot['dx_locator_source'], 
+        dx_lat = spot['dx_lat'], 
+        dx_lon = spot['dx_lon'], 
+        dx_country = spot['dx_country'], 
+        dx_continent = spot['dx_continent'], 
+        comment = spot['comment'] 
+    )
+
+    return record
+
+
+
+async def add_spot_to_postgres(spot: dict, debug: bool = False):
+    if debug:
+        logger.debug(f"Attempting to add spot records to the database.")
+    try:
+        record = await convert_spot_to_record(spot=spot, debug=debug)
+        engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
+        async with AsyncSession(engine) as session:
+            session.add(record)
+            # records_data = []
+            # record_dict = {k: v for k, v in record.__dict__.items() if not k.startswith('_')}
+            # records_data.append(record_dict)
+            #
+            # # Construct the insert statement with ON CONFLICT DO NOTHING
+            # insert_stmt = insert(HolySpot2).values(records_data)
+            # on_conflict_stmt = insert_stmt.on_conflict_do_nothing(
+            #     index_elements=["time", "spotter_callsign",  "frequency", "dx_callsign"] # Specify the unique index columns
+            # )
+
+            try:
+                on_conflict_stmt = insert_stmt.on_conflict_do_nothing(
+                    index_elements=["time", "spotter_callsign",  "frequency", "dx_callsign"] # Specify the unique index columns
+                )
+                await session.execute(on_conflict_stmt)
+                await session.commit()
+                logger.info(f"Successfully pushed spot record (duplicates ignored).")
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Failed to push spot records to database: {e}")
+        await engine.dispose()
+
+    except Exception as ex:
+        message = f"**** ERROR postress_spots_consumer **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        logger.error(message)
+    #
+    return
+
+
 
 async def postgres_spots_consumer(debug: bool = False):
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -58,7 +133,8 @@ async def postgres_spots_consumer(debug: bool = False):
                     valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
 
                     # add spot to postgres
-                    
+                    logger.info(f"{spot=}")
+                    await add_spot_to_postgres(spot=spot, debug=debug)
                     
 
         except Exception as ex:
