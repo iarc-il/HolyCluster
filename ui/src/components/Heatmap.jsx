@@ -48,7 +48,7 @@ function Heatmap() {
         }
 
         return { counts, max_count };
-    }, [raw_spots, selected_continent, visible_bands]);
+    }, [raw_spots, selected_continent, settings]);
 
     useEffect(() => {
         if (!canvas_ref.current) return;
@@ -56,7 +56,7 @@ function Heatmap() {
         const cell_width = 50;
         const cell_height = 30;
         const left_margin = 50;
-        const top_margin = 30;
+        const top_margin = 40;
         const width = continents.length * cell_width + left_margin;
         const height = visible_bands.length * cell_height + top_margin + 20;
 
@@ -81,12 +81,12 @@ function Heatmap() {
         }
 
         const points = [];
-        visible_bands.forEach((band, bandIndex) => {
-            continents.forEach((continent, continentIndex) => {
+        visible_bands.forEach((band, band_index) => {
+            continents.forEach((continent, continent_index) => {
                 const value = heatmap_data.counts[band]?.[continent] || 0;
                 points.push([
-                    left_margin + continentIndex * cell_width + cell_width / 2,
-                    top_margin + bandIndex * cell_height + cell_height / 2,
+                    left_margin + continent_index * cell_width + cell_width / 2,
+                    top_margin + band_index * cell_height + cell_height / 2,
                     value,
                 ]);
             });
@@ -113,13 +113,13 @@ function Heatmap() {
         continents.forEach((continent, index) => {
             ctx.fillText(continent, left_margin + index * cell_width + cell_width / 2, 20);
         });
-    }, [heatmap_data, colors.theme.text, visible_bands]);
+    }, [heatmap_data, colors.theme.text, settings]);
 
     return (
         <div className="pt-2">
             <div className="flex justify-between items-center pb-3">
                 <div style={{ color: colors.theme.text }}>
-                    <span className="text-sm">Your Continent is </span>
+                    <span className="text-sm">Continent:</span>
                     <select
                         value={selected_continent}
                         onChange={e => set_selected_continent(e.target.value)}
