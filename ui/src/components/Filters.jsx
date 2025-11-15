@@ -3,7 +3,6 @@ import Button from "@/components/Button.jsx";
 import Toggle from "@/components/Toggle.jsx";
 import X from "@/components/X.jsx";
 import { empty_filter_data, default as FilterModal } from "@/components/FilterModal.jsx";
-import Heatmap from "@/components/Heatmap.jsx";
 
 import { useColors } from "../hooks/useColors";
 import { useFilters } from "../hooks/useFilters";
@@ -256,9 +255,6 @@ function Filters() {
                         toggle_field="is_hide_filters_active"
                         active_filter_id={active_id}
                     />
-                </div>
-                <div className="mt-auto">
-                    <Heatmap />
                 </div>
             </div>
             <DragOverlay>

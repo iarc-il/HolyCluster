@@ -66,11 +66,11 @@ function Tabs({ tabs, active_color = null, local_storage_name = null, external_t
                             >
                                 {tab.icon != null ? (
                                     <svg
-                                        width="16"
-                                        height="16"
+                                        width={tab.size}
+                                        height={tab.size}
                                         fill="currentColor"
                                         className="bi bi-globe"
-                                        viewBox="0 0 16 16"
+                                        viewBox={tab.viewbox}
                                     >
                                         <path d={tab.icon} />
                                     </svg>

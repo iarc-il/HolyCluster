@@ -54,7 +54,7 @@ function Continents({ toggled_ui }) {
         <div
             className={
                 toggled_classes +
-                "flex flex-col w-20 p-2 text-center h-full gap-3 items-center bg-gray-100 z-50"
+                "flex flex-col w-16 p-2 text-center h-full gap-3 items-center bg-gray-100 z-50"
             }
             style={{ backgroundColor: colors.theme.columns }}
         >

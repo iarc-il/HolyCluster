@@ -58,7 +58,7 @@ function Heatmap() {
         const left_margin = 50;
         const top_margin = 30;
         const width = continents.length * cell_width + left_margin;
-        const height = visible_bands.length * cell_height + top_margin;
+        const height = visible_bands.length * cell_height + top_margin + 20;
 
         canvas_ref.current.width = width;
         canvas_ref.current.height = height;
