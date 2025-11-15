@@ -10,6 +10,17 @@ import { get_base_url } from "@/utils.js";
 
 const RELEASES = [
     [
+        "",
+        [
+            "Filter line in 'Alert', 'Show Only' and 'Hide' can now be dragged and dropped between sections",
+            "Add optional sound played when a new spot with alert on it arrives. Can be switched on in the settings",
+            "Add option to show only the latest reported spot for each station, in the settings",
+            "Add 'My Bands' section in the settings that allows the user to disable unwanted bands",
+            "Added heatmap",
+            "Fixed missing stations",
+        ],
+    ],
+    [
         "24/09/2025",
         [
             <>
