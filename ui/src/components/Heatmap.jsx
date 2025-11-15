@@ -142,7 +142,7 @@ function Heatmap() {
                 />
             </div>
 
-            {heatmap_data.max_count > 0 && (
+            {
                 <div className="mt-4" style={{ color: colors.theme.text }}>
                     <div className="flex items-center justify-between text-xs mb-1">
                         <span>0</span>
@@ -158,7 +158,7 @@ function Heatmap() {
                         }}
                     />
                 </div>
-            )}
+            }
         </div>
     );
 }
