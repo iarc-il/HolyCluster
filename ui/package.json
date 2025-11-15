@@ -24,6 +24,7 @@
         "react-swipeable": "^7.0.2",
         "react-toastify": "^11.0.3",
         "react-use-websocket": "^4.8.1",
+        "simpleheat": "^0.4.0",
         "solar-calculator": "^0.3.0"
     },
     "devDependencies": {

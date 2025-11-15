@@ -328,6 +328,7 @@ export const ServerDataProvider = ({ children }) => {
         <ServerDataContext.Provider
             value={{
                 spots: filtered_spots,
+                raw_spots: spots,
                 new_spot_ids,
                 hovered_spot,
                 set_hovered_spot,
