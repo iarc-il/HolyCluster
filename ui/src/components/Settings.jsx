@@ -119,7 +119,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             ),
         },
         {
-            label: "Bands",
+            label: "My Bands",
             content: (
                 <Bands
                     temp_settings={temp_settings}
