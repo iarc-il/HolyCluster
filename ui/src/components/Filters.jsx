@@ -233,7 +233,7 @@ function Filters() {
             onDragEnd={handle_drag_end}
             onDragCancel={handleDragCancel}
         >
-            <div className="p-2" style={{ color: colors.theme.text }}>
+            <div className="p-2 flex flex-col h-full" style={{ color: colors.theme.text }}>
                 <div className="divide-y divide-slate-300 space-y-6">
                     <FilterSection
                         title="Alert"
@@ -256,6 +256,8 @@ function Filters() {
                         toggle_field="is_hide_filters_active"
                         active_filter_id={active_id}
                     />
+                </div>
+                <div className="mt-auto">
                     <Heatmap />
                 </div>
             </div>
