@@ -195,7 +195,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         </td>
                     </tr>
                     <tr>
-                        <td>Show only latest spot:&nbsp;&nbsp;</td>
+                        <td>Single spot per station:&nbsp;&nbsp;</td>
                         <td>
                             <Toggle
                                 value={temp_settings.show_only_latest_spot}
