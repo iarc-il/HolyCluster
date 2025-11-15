@@ -137,6 +137,24 @@ export function get_base_url() {
     }
 }
 
+export function play_alert_sound() {
+    const audio_context = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audio_context.createOscillator();
+    const gain_node = audio_context.createGain();
+
+    oscillator.connect(gain_node);
+    gain_node.connect(audio_context.destination);
+
+    oscillator.frequency.value = 800;
+    oscillator.type = "sine";
+
+    gain_node.gain.setValueAtTime(0.3, audio_context.currentTime);
+    gain_node.gain.exponentialRampToValueAtTime(0.01, audio_context.currentTime + 0.3);
+
+    oscillator.start(audio_context.currentTime);
+    oscillator.stop(audio_context.currentTime + 0.3);
+}
+
 export function sort_spots(spots, table_sort, radio_status = null, radio_band = null) {
     return [...spots].sort((spot_a, spot_b) => {
         // If sorting by frequency or band and CAT control is active, prioritize active band

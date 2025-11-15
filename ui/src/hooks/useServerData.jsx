@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useFilters } from "../hooks/useFilters";
-import { get_base_url, is_matching_list, sort_spots } from "@/utils.js";
+import { get_base_url, is_matching_list, play_alert_sound, sort_spots } from "@/utils.js";
 import { bands, modes } from "@/filters_data.js";
 import { get_flag, shorten_dxcc } from "@/flags.js";
 import use_radio from "./useRadio";
@@ -184,21 +184,7 @@ export const ServerDataProvider = ({ children }) => {
             ).length;
 
             if (alerted_count > 0) {
-                const audio_context = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audio_context.createOscillator();
-                const gain_node = audio_context.createGain();
-
-                oscillator.connect(gain_node);
-                gain_node.connect(audio_context.destination);
-
-                oscillator.frequency.value = 800;
-                oscillator.type = "sine";
-
-                gain_node.gain.setValueAtTime(0.3, audio_context.currentTime);
-                gain_node.gain.exponentialRampToValueAtTime(0.01, audio_context.currentTime + 0.3);
-
-                oscillator.start(audio_context.currentTime);
-                oscillator.stop(audio_context.currentTime + 0.3);
+                play_alert_sound();
             }
         }
     }, [new_spot_ids]);
