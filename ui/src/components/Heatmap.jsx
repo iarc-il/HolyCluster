@@ -3,14 +3,23 @@ import { useLocalStorage } from "@uidotdev/usehooks";
 import simpleheat from "simpleheat";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
+import { useSettings } from "@/hooks/useSettings";
 import { bands, continents } from "@/filters_data.js";
 
 function Heatmap() {
     const { colors } = useColors();
     const { raw_spots } = useServerData();
+    const { settings } = useSettings();
     const [selected_continent, set_selected_continent] = useLocalStorage("heatmap_continent", "EU");
     const canvas_ref = useRef(null);
     const heatmap_instance_ref = useRef(null);
+
+    const visible_bands = bands.filter(band => {
+        if (settings.show_disabled_bands) {
+            return true;
+        }
+        return !settings.disabled_bands[band];
+    });
 
     const heatmap_data = useMemo(() => {
         const current_time = Math.floor(Date.now() / 1000);
@@ -23,7 +32,7 @@ function Heatmap() {
         const counts = {};
         let max_count = 0;
 
-        for (const band of bands) {
+        for (const band of visible_bands) {
             counts[band] = {};
             for (const continent of continents) {
                 counts[band][continent] = 0;
@@ -39,7 +48,7 @@ function Heatmap() {
         }
 
         return { counts, max_count };
-    }, [raw_spots, selected_continent]);
+    }, [raw_spots, selected_continent, visible_bands]);
 
     useEffect(() => {
         if (!canvas_ref.current) return;
@@ -49,7 +58,7 @@ function Heatmap() {
         const left_margin = 50;
         const top_margin = 30;
         const width = continents.length * cell_width + left_margin;
-        const height = bands.length * cell_height + top_margin;
+        const height = visible_bands.length * cell_height + top_margin;
 
         canvas_ref.current.width = width;
         canvas_ref.current.height = height;
@@ -72,7 +81,7 @@ function Heatmap() {
         }
 
         const points = [];
-        bands.forEach((band, bandIndex) => {
+        visible_bands.forEach((band, bandIndex) => {
             continents.forEach((continent, continentIndex) => {
                 const value = heatmap_data.counts[band]?.[continent] || 0;
                 points.push([
@@ -94,7 +103,7 @@ function Heatmap() {
         ctx.textAlign = "start";
         ctx.textBaseline = "middle";
 
-        bands.forEach((band, index) => {
+        visible_bands.forEach((band, index) => {
             ctx.fillText(String(band), 0, top_margin + index * cell_height + cell_height / 2);
         });
 
@@ -104,7 +113,7 @@ function Heatmap() {
         continents.forEach((continent, index) => {
             ctx.fillText(continent, left_margin + index * cell_width + cell_width / 2, 20);
         });
-    }, [heatmap_data, colors.theme.text]);
+    }, [heatmap_data, colors.theme.text, visible_bands]);
 
     return (
         <div className="pt-2">
