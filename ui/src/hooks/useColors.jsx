@@ -354,8 +354,8 @@ export const themes_names = Object.entries(themes).map(([name, theme]) => name);
 
 export const ColorsProvider = ({ children }) => {
     const [dev_mode, set_dev_mode] = useLocalStorage("dev_mode", false);
-    const [current_theme, set_current_theme] = useLocalStorage("currnet_theme", "Light");
-    const [colors_inner, set_colors_inner] = use_object_local_storage("colors", themes.Light);
+    const [current_theme, set_current_theme] = useLocalStorage("currnet_theme", "Dark");
+    const [colors_inner, set_colors_inner] = use_object_local_storage("colors", themes.Dark);
 
     let colors = dev_mode ? colors_inner : themes[current_theme];
 
