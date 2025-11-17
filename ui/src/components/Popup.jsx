@@ -13,9 +13,10 @@ function Popup({ anchor_ref, children }) {
 
         const rect = anchor.getBoundingClientRect();
         const popup_width = popupRef.current?.offsetWidth || 0;
+        const popup_height = popupRef.current?.offsetHeight || 0;
 
         setPosition({
-            top: rect.top + window.scrollY - 24,
+            top: rect.top + window.scrollY - popup_height,
             left: rect.left + rect.width / 2 + window.scrollX - popup_width / 2,
         });
     }, [anchor_ref]);
@@ -23,7 +24,7 @@ function Popup({ anchor_ref, children }) {
     return createPortal(
         <div
             ref={popupRef}
-            className="absolute z-50 p-0"
+            className="absolute z-[80] p-0"
             style={{ top: position.top, left: position.left }}
         >
             {children}
