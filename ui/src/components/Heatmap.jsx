@@ -54,7 +54,7 @@ function Heatmap() {
         if (!canvas_ref.current) return;
 
         const cell_width = 50;
-        const cell_height = 30;
+        const cell_height = 50;
         const left_margin = 50;
         const top_margin = 40;
         const width = continents.length * cell_width + left_margin;
@@ -97,6 +97,50 @@ function Heatmap() {
         heatmap_instance_ref.current.draw(0.05);
 
         ctx.restore();
+
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const pixels = imageData.data;
+
+        for (let i = 0; i < pixels.length; i += 4) {
+            const r = pixels[i];
+            const g = pixels[i + 1];
+            const b = pixels[i + 2];
+            const alpha = pixels[i + 3];
+
+            if (alpha > 0) {
+                const brightness = (r + g + b) / 3;
+                if (brightness < 10) {
+                    pixels[i + 3] = 0;
+                }
+            }
+        }
+
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.putImageData(imageData, 0, 0);
+
+        ctx.clearRect(0, 0, width, height);
+
+        ctx.strokeStyle = colors.theme.borders;
+        ctx.lineWidth = 3;
+
+        for (let i = 1; i < continents.length; i++) {
+            ctx.beginPath();
+            ctx.moveTo(left_margin + i * cell_width, top_margin);
+            ctx.lineTo(left_margin + i * cell_width, top_margin + visible_bands.length * cell_height);
+            ctx.stroke();
+        }
+
+        for (let i = 1; i < visible_bands.length; i++) {
+            ctx.beginPath();
+            ctx.moveTo(left_margin, top_margin + i * cell_height);
+            ctx.lineTo(left_margin + continents.length * cell_width, top_margin + i * cell_height);
+            ctx.stroke();
+        }
+
+        ctx.drawImage(tempCanvas, 0, 0);
 
         ctx.font = "bold 24px sans-serif";
         ctx.fillStyle = colors.theme.text;
