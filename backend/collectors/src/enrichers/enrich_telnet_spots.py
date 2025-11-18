@@ -150,7 +150,8 @@ async def spots_consumer(debug: bool = False):
                         logger.debug(f"enriched spot stored in Valkey: {entry_id=} {enriched_spot=}")
                     # Add enriched spot to api stream only if has both locators
                     STREAM_API = "stream-api"
-                    if 'spotter_locator' in enriched_spot and 'dx_locator' in enriched_spot:
+                    # if enriched_spot['spotter_locator'] and enriched_spot['dx_locator'] and enriched_spot['band'] and  enriched_spot['mode']:
+                    if all(enriched_spot.get(k) for k in ('spotter_locator', 'dx_locator', 'band', 'mode')):
                         entry_id = valkey_client.xadd(STREAM_API, enriched_spot, '*')
                         if debug:
                             logger.debug(f"enriched spot stored in Valkey: {entry_id=} {enriched_spot=}")

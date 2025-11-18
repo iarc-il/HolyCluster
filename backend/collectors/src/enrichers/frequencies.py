@@ -44,7 +44,7 @@ bands = load_bands_from_file(Path(__file__).parent / 'bands.csv')
 modes = load_modes_from_file(Path(__file__).parent / 'modes.json')
 
 def find_band(frequency:str, debug: bool=False) -> str:
-    name = ""
+    band = ""
     try:
         if debug:
             logger.debug(f"{frequency=}")
@@ -57,6 +57,7 @@ def find_band(frequency:str, debug: bool=False) -> str:
         if debug:
             logger.debug(f"Band not found for {frequency=}")
         band = ""  # frequency not found
+        return band
 
     except Exception as ex:
         message = f"**** ERROR find_band **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"

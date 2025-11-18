@@ -26,11 +26,15 @@ global valkey_client
 valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
 
 async def convert_spot_to_record(spot: dict, debug: bool = False):
+    dt = datetime.strptime(spot['date_time'], "%Y-%m-%d %H:%M:%S%z")
+    dt_naive = dt.replace(tzinfo=None)
     record = HolySpot2(
         # date = datetime.strptime(spot['Date'], '%d/%m/%y').date()
         cluster = spot['cluster'], 
-        time = datetime.strptime(spot['date_time'], "%Y-%m-%d %H:%M:%S%z").strftime("%H:%M"),
-        date_time = datetime.strptime(spot['date_time'], "%Y-%m-%d %H:%M:%S%z"),
+        # time = datetime.strptime(spot['date_time'], "%Y-%m-%d %H:%M:%S%z").strftime("%H:%M"),
+        time = dt.time(),
+        # date_time = datetime.strptime(spot['date_time'], "%Y-%m-%d %H:%M:%S%z"),
+        date_time = dt_naive,
         frequency = spot['frequency'], 
         band = spot['band'], 
         mode = spot['mode'], 
@@ -75,11 +79,14 @@ async def add_spot_to_postgres(spot: dict, debug: bool = False):
             # )
 
             try:
-                on_conflict_stmt = insert_stmt.on_conflict_do_nothing(
-                    index_elements=["time", "spotter_callsign",  "frequency", "dx_callsign"] # Specify the unique index columns
-                )
-                await session.execute(on_conflict_stmt)
+                session.add(record)
                 await session.commit()
+                await session.refresh(record)
+                logger.debug(f"{record.id=}")                # on_conflict_stmt = insert_stmt.on_conflict_do_nothing(
+                #     index_elements=["time", "spotter_callsign",  "frequency", "dx_callsign"] # Specify the unique index columns
+                # )
+                # await session.execute(on_conflict_stmt)
+                # await session.commit()
                 logger.info(f"Successfully pushed spot record (duplicates ignored).")
             except Exception as e:
                 await session.rollback()
@@ -120,7 +127,7 @@ async def postgres_spots_consumer(debug: bool = False):
     while True:
         try:
             # Block until a message arrives
-            resp = valkey_client.xreadgroup(CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: last_id}, count=10, block=5000)
+            resp = valkey_client.xreadgroup(CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: last_id}, count=10, block=60000)
             if not resp:
                 continue
 
