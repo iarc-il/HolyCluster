@@ -115,10 +115,10 @@ function Heatmap() {
             }
         }
 
-        const tempCanvas = document.createElement('canvas');
+        const tempCanvas = document.createElement("canvas");
         tempCanvas.width = width;
         tempCanvas.height = height;
-        const tempCtx = tempCanvas.getContext('2d');
+        const tempCtx = tempCanvas.getContext("2d");
         tempCtx.putImageData(imageData, 0, 0);
 
         ctx.clearRect(0, 0, width, height);
@@ -129,7 +129,10 @@ function Heatmap() {
         for (let i = 1; i < continents.length; i++) {
             ctx.beginPath();
             ctx.moveTo(left_margin + i * cell_width, top_margin);
-            ctx.lineTo(left_margin + i * cell_width, top_margin + visible_bands.length * cell_height);
+            ctx.lineTo(
+                left_margin + i * cell_width,
+                top_margin + visible_bands.length * cell_height,
+            );
             ctx.stroke();
         }
 
