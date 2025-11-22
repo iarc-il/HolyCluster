@@ -81,6 +81,7 @@ function SvgMap({
     const [svg_box_ref, { width, height }] = useMeasure();
     const max_radius = 20000;
     const [drag_rotation, set_drag_rotation] = useState(null);
+    const rotation_ref = useRef(null);
 
     const is_sm_device = useMediaQuery("only screen and (min-width : 640px)");
     const is_max_xs_device = useMediaQuery("only screen and (max-width : 500px)");
@@ -94,6 +95,7 @@ function SvgMap({
     const size_fit = radius * 2 - 15;
     const projectionType = map_controls.is_globe ? "geoOrthographic" : "geoAzimuthalEquidistant";
     const rotation = drag_rotation || [-center_lon, -center_lat, 0];
+    rotation_ref.current = rotation;
     const projection = d3[projectionType]()
         .precision(0.1)
         .fitSize([size_fit, size_fit], dxcc_map)
@@ -124,43 +126,29 @@ function SvgMap({
             });
 
         if (map_controls.is_globe) {
-            let rotation_start = null;
-            let drag_start_pos = null;
-
             const drag = d3
                 .drag()
                 .on("start", event => {
-                    rotation_start = projection.rotate();
-                    drag_start_pos = [event.x, event.y];
+                    // Just mark that we're starting a drag
                 })
                 .on("drag", event => {
-                    if (!rotation_start || !drag_start_pos) return;
+                    const current_rotation = rotation_ref.current;
+                    const proj_radius = projection.scale();
+                    const scale = 360 / (2 * Math.PI * proj_radius);
 
-                    const dx = event.x - drag_start_pos[0];
-                    const dy = event.y - drag_start_pos[1];
+                    const new_rotation = [
+                        current_rotation[0] + event.dx * scale,
+                        current_rotation[1] - event.dy * scale,
+                        current_rotation[2],
+                    ];
 
-                    const sensitivity = 0.5;
-                    const new_lon = rotation_start[0] + dx * sensitivity;
-                    const new_lat = rotation_start[1] - dy * sensitivity;
-
-                    const clamped_lat = Math.max(-90, Math.min(90, new_lat));
-
-                    set_drag_rotation([new_lon, clamped_lat, 0]);
+                    set_drag_rotation(new_rotation);
                 })
                 .on("end", event => {
-                    if (!rotation_start || !drag_start_pos) return;
+                    const current_rotation = rotation_ref.current;
 
-                    const dx = event.x - drag_start_pos[0];
-                    const dy = event.y - drag_start_pos[1];
-
-                    const sensitivity = 0.5;
-                    const new_lon = rotation_start[0] + dx * sensitivity;
-                    const new_lat = rotation_start[1] - dy * sensitivity;
-
-                    const clamped_lat = Math.max(-90, Math.min(90, new_lat));
-
-                    const final_lon = -new_lon;
-                    const final_lat = -clamped_lat;
+                    const final_lon = -current_rotation[0];
+                    const final_lat = -current_rotation[1];
 
                     const displayed_locator = new Maidenhead(final_lat, final_lon).locator.slice(
                         0,
@@ -175,8 +163,6 @@ function SvgMap({
                     );
 
                     set_drag_rotation(null);
-                    rotation_start = null;
-                    drag_start_pos = null;
                 });
 
             svg.call(drag);
