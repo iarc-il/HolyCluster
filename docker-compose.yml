@@ -101,10 +101,12 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "9999:9999"
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
       - ./nginx/log:/var/log/nginx
+      - ./nginx:/etc/nginx
     environment:
       - DOMAIN=${DOMAIN}
     depends_on:
@@ -122,4 +124,22 @@ services:
       - ./certbot/log:/var/log
     entrypoint: >
       /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
+
+  nginx_ui:
+      container_name: nginx_ui
+      stdin_open: true
+      tty: true
+      image: uozi/nginx-ui:latest
+      restart: unless-stopped
+      ports:
+        - "8080:80"
+        - "8443:443"
+      volumes:
+        - ./nginx:/etc/nginx
+        - ./nginx-ui:/etc/nginx-ui
+        - ./certbot/conf:/etc/letsencrypt
+        - /var/run/docker.sock:/var/run/docker.sock
+      environment:
+        - TZ=Asia/Jerusalem
+
   

@@ -1,3 +1,15 @@
+# Added by Roy 
+nginx/conf.d/
+nginx/sites-available/
+nginx/sites-enabled/
+nginx/streams-available/
+nginx/streams-enabled/
+nginx/nginx.conf
+nginx/nginx.conf*
+nginx-ui/app.ini
+nginx-ui/database.db
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
