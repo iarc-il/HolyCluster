@@ -352,8 +352,10 @@ function SvgMap({
                             />
                         );
                     })}
-                    {hovered_spot_data ||
-                    (spots.find(spot => spot.id === pinned_spot) && hovered_spot.source !== "dx")
+                    {!map_controls.is_globe &&
+                    (hovered_spot_data ||
+                        (spots.find(spot => spot.id === pinned_spot) &&
+                            hovered_spot.source !== "dx"))
                         ? (() => {
                               const angle = (90 - azimuth) * (Math.PI / 180);
                               const x = center_x + radius * Math.cos(angle);
@@ -403,7 +405,9 @@ function SvgMap({
                     fill="none"
                     stroke={colors.map.borders}
                 />
-                <circle r="4" fill="#FF0000" cx={center_x} cy={center_y} />
+                {!map_controls.is_globe && (
+                    <circle r="4" fill="#FF0000" cx={center_x} cy={center_y} />
+                )}
             </svg>
             {pinned_spot_data || hovered_spot_data ? (
                 <SpotPopup
