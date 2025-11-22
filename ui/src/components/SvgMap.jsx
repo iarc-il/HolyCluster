@@ -91,7 +91,8 @@ function SvgMap({
     const [center_lon, center_lat] = map_controls.location.location;
 
     const size_fit = radius * 2 - 15;
-    const projection = d3["geoAzimuthalEquidistant"]()
+    const projectionType = map_controls.is_globe ? "geoOrthographic" : "geoAzimuthalEquidistant";
+    const projection = d3[projectionType]()
         .precision(0.1)
         .fitSize([size_fit, size_fit], dxcc_map)
         .rotate([-center_lon, -center_lat, 0])
@@ -119,6 +120,77 @@ function SvgMap({
                     set_auto_radius(false);
                 }
             });
+
+        if (map_controls.is_globe) {
+            let rotation_start = null;
+            let drag_start_pos = null;
+
+            const drag = d3
+                .drag()
+                .on("start", event => {
+                    rotation_start = projection.rotate();
+                    drag_start_pos = [event.x, event.y];
+                })
+                .on("drag", event => {
+                    if (!rotation_start || !drag_start_pos) return;
+
+                    const dx = event.x - drag_start_pos[0];
+                    const dy = event.y - drag_start_pos[1];
+
+                    const sensitivity = 0.5;
+                    const new_lon = rotation_start[0] + dx * sensitivity;
+                    const new_lat = rotation_start[1] - dy * sensitivity;
+
+                    const clamped_lat = Math.max(-90, Math.min(90, new_lat));
+
+                    projection.rotate([new_lon, clamped_lat, 0]);
+
+                    svg.selectAll("path").attr("d", path_generator);
+                    svg.selectAll("g")
+                        .selectAll("*")
+                        .each(function () {
+                            const element = d3.select(this);
+                            if (element.attr("d")) {
+                                element.attr("d", path_generator);
+                            }
+                        });
+                })
+                .on("end", event => {
+                    if (!rotation_start || !drag_start_pos) return;
+
+                    const dx = event.x - drag_start_pos[0];
+                    const dy = event.y - drag_start_pos[1];
+
+                    const sensitivity = 0.5;
+                    const new_lon = rotation_start[0] + dx * sensitivity;
+                    const new_lat = rotation_start[1] - dy * sensitivity;
+
+                    const clamped_lat = Math.max(-90, Math.min(90, new_lat));
+
+                    const final_lon = -new_lon;
+                    const final_lat = -clamped_lat;
+
+                    const displayed_locator = new Maidenhead(final_lat, final_lon).locator.slice(
+                        0,
+                        6,
+                    );
+                    set_map_controls(
+                        state =>
+                            (state.location = {
+                                displayed_locator,
+                                location: [final_lon, final_lat],
+                            }),
+                    );
+
+                    rotation_start = null;
+                    drag_start_pos = null;
+                });
+
+            svg.call(drag);
+        } else {
+            svg.on(".drag", null);
+        }
+
         svg.call(zoom);
 
         const k_from_radius_in_km = 21 - radius_in_km / 1000;
