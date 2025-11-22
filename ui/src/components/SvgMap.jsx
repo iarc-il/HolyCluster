@@ -96,8 +96,14 @@ function SvgMap({
     const projectionType = map_controls.is_globe ? "geoOrthographic" : "geoAzimuthalEquidistant";
     const rotation = drag_rotation || [-center_lon, -center_lat, 0];
     rotation_ref.current = rotation;
-    const projection = d3[projectionType]()
-        .precision(0.1)
+
+    const projection = d3[projectionType]().precision(0.1);
+
+    if (map_controls.is_globe) {
+        projection.clipAngle(90);
+    }
+
+    projection
         .fitSize([size_fit, size_fit], dxcc_map)
         .rotate(rotation)
         .translate([center_x, center_y]);

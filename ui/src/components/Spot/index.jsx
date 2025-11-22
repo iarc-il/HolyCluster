@@ -28,8 +28,24 @@ function Spot({
         },
     };
 
-    const [spotter_x, spotter_y] = projection(spot.spotter_loc);
-    const [dx_x, dx_y] = projection(spot.dx_loc);
+    const spotter_point = { type: "Point", coordinates: spot.spotter_loc };
+    const dx_point = { type: "Point", coordinates: spot.dx_loc };
+
+    const spotter_path = path_generator(spotter_point);
+    const dx_path = path_generator(dx_point);
+
+    const spotter_visible = spotter_path !== null;
+    const dx_visible = dx_path !== null;
+
+    if (!spotter_visible && !dx_visible) {
+        return null;
+    }
+
+    const spotter_proj = projection(spot.spotter_loc);
+    const dx_proj = projection(spot.dx_loc);
+
+    const [spotter_x, spotter_y] = spotter_proj || [0, 0];
+    const [dx_x, dx_y] = dx_proj || [0, 0];
 
     const is_hovered =
         spot.id == hovered_spot.id ||
@@ -106,56 +122,64 @@ function Spot({
             onClick={on_click}
             className="hover:cursor-pointer"
         >
-            <path
-                fill="none"
-                stroke={is_hovered ? light_color : color}
-                strokeWidth={is_hovered ? "6px" : "2px"}
-                d={path_generator(line)}
-                style={style}
-            />
-            <path
-                fill="none"
-                opacity="0"
-                strokeWidth="8px"
-                stroke="#FFFFFF"
-                d={path_generator(line)}
-            />
-            {spot.is_alerted ? (
-                <style>
-                    {`
+            {spotter_visible && dx_visible && (
+                <>
+                    <path
+                        fill="none"
+                        stroke={is_hovered ? light_color : color}
+                        strokeWidth={is_hovered ? "6px" : "2px"}
+                        d={path_generator(line)}
+                        style={style}
+                    />
+                    <path
+                        fill="none"
+                        opacity="0"
+                        strokeWidth="8px"
+                        stroke="#FFFFFF"
+                        d={path_generator(line)}
+                    />
+                    {spot.is_alerted ? (
+                        <style>
+                            {`
                 @keyframes dash {
                     to {
                         stroke-dashoffset: 0;
                     }
                 }
             `}
-                </style>
-            ) : (
-                ""
+                        </style>
+                    ) : (
+                        ""
+                    )}
+                </>
             )}
-            <circle
-                r={is_hovered ? 5 : 3}
-                fill={color}
-                stroke="grey"
-                cx={spotter_x}
-                cy={spotter_y}
-                onClick={() => set_cat_to_spot(spot)}
-                onMouseOver={e => {
-                    e.stopPropagation();
-                    set_hovered_spot({ source: "spotter", id: spot.id });
-                }}
-            ></circle>
-            <g
-                onMouseOver={event => {
-                    event.stopPropagation();
-                    set_hovered_spot({ source: "dx", id: spot.id });
-                }}
-                onMouseLeave={event => {
-                    set_hovered_spot({ source: null, id: null });
-                }}
-            >
-                {symbol_component}
-            </g>
+            {spotter_visible && (
+                <circle
+                    r={is_hovered ? 5 : 3}
+                    fill={color}
+                    stroke="grey"
+                    cx={spotter_x}
+                    cy={spotter_y}
+                    onClick={() => set_cat_to_spot(spot)}
+                    onMouseOver={e => {
+                        e.stopPropagation();
+                        set_hovered_spot({ source: "spotter", id: spot.id });
+                    }}
+                ></circle>
+            )}
+            {dx_visible && (
+                <g
+                    onMouseOver={event => {
+                        event.stopPropagation();
+                        set_hovered_spot({ source: "dx", id: spot.id });
+                    }}
+                    onMouseLeave={event => {
+                        set_hovered_spot({ source: null, id: null });
+                    }}
+                >
+                    {symbol_component}
+                </g>
+            )}
         </g>
     );
 }
