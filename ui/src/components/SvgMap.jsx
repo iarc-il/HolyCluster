@@ -285,43 +285,55 @@ function SvgMap({
                     </text>
                 </g>
 
-                <MapAngles
-                    center_x={center_x}
-                    center_y={center_y}
-                    radius={radius + inner_padding / 2}
-                    degrees_diff={map_angles_diff}
-                    hovered_azimuth={azimuth}
-                />
+                {!map_controls.is_globe && (
+                    <MapAngles
+                        center_x={center_x}
+                        center_y={center_y}
+                        radius={radius + inner_padding / 2}
+                        degrees_diff={map_angles_diff}
+                        hovered_azimuth={azimuth}
+                    />
+                )}
 
                 <g clipPath="url(#map-clip)">
-                    <g>
-                        {generate_concentric_circles(center_x, center_y, radius).map(
-                            (circle, index) => (
-                                <circle
-                                    key={`circle-${index}`}
-                                    cx={circle.cx}
-                                    cy={circle.cy}
-                                    r={circle.r}
-                                    fill="none"
-                                    stroke={colors.map.graticule}
-                                    strokeWidth="1"
-                                />
-                            ),
-                        )}
-                        {generate_radial_lines(center_x, center_y, radius, map_angles_diff).map(
-                            (line, index) => (
-                                <line
-                                    key={`line-${index}`}
-                                    x1={line.x1}
-                                    y1={line.y1}
-                                    x2={line.x2}
-                                    y2={line.y2}
-                                    stroke={colors.map.graticule}
-                                    strokeWidth="1"
-                                />
-                            ),
-                        )}
-                    </g>
+                    {!map_controls.is_globe ? (
+                        <g>
+                            {generate_concentric_circles(center_x, center_y, radius).map(
+                                (circle, index) => (
+                                    <circle
+                                        key={`circle-${index}`}
+                                        cx={circle.cx}
+                                        cy={circle.cy}
+                                        r={circle.r}
+                                        fill="none"
+                                        stroke={colors.map.graticule}
+                                        strokeWidth="1"
+                                    />
+                                ),
+                            )}
+                            {generate_radial_lines(center_x, center_y, radius, map_angles_diff).map(
+                                (line, index) => (
+                                    <line
+                                        key={`line-${index}`}
+                                        x1={line.x1}
+                                        y1={line.y1}
+                                        x2={line.x2}
+                                        y2={line.y2}
+                                        stroke={colors.map.graticule}
+                                        strokeWidth="1"
+                                    />
+                                ),
+                            )}
+                        </g>
+                    ) : (
+                        <path
+                            d={path_generator(d3.geoGraticule10())}
+                            fill="none"
+                            stroke={colors.map.graticule}
+                            strokeWidth="1"
+                            pointerEvents="none"
+                        />
+                    )}
                     {dxcc_map.features.map((shape, index) => {
                         return (
                             <path
