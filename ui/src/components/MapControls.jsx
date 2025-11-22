@@ -75,7 +75,9 @@ function MapControls({
                 </div>
                 {dev_mode && (
                     <button
-                        onClick={() => set_map_controls(state => (state.is_globe = !state.is_globe))}
+                        onClick={() =>
+                            set_map_controls(state => (state.is_globe = !state.is_globe))
+                        }
                         className="flex items-center justify-center relative"
                         title={map_controls.is_globe ? "Switch to Azimuthal" : "Switch to Globe"}
                     >

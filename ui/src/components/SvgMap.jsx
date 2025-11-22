@@ -80,6 +80,7 @@ function SvgMap({
     const svg_ref = useRef(null);
     const [svg_box_ref, { width, height }] = useMeasure();
     const max_radius = 20000;
+    const [drag_rotation, set_drag_rotation] = useState(null);
 
     const is_sm_device = useMediaQuery("only screen and (min-width : 640px)");
     const is_max_xs_device = useMediaQuery("only screen and (max-width : 500px)");
@@ -92,10 +93,11 @@ function SvgMap({
 
     const size_fit = radius * 2 - 15;
     const projectionType = map_controls.is_globe ? "geoOrthographic" : "geoAzimuthalEquidistant";
+    const rotation = drag_rotation || [-center_lon, -center_lat, 0];
     const projection = d3[projectionType]()
         .precision(0.1)
         .fitSize([size_fit, size_fit], dxcc_map)
-        .rotate([-center_lon, -center_lat, 0])
+        .rotate(rotation)
         .translate([center_x, center_y]);
 
     projection.scale((max_radius / radius_in_km) * projection.scale());
@@ -143,17 +145,7 @@ function SvgMap({
 
                     const clamped_lat = Math.max(-90, Math.min(90, new_lat));
 
-                    projection.rotate([new_lon, clamped_lat, 0]);
-
-                    svg.selectAll("path").attr("d", path_generator);
-                    svg.selectAll("g")
-                        .selectAll("*")
-                        .each(function () {
-                            const element = d3.select(this);
-                            if (element.attr("d")) {
-                                element.attr("d", path_generator);
-                            }
-                        });
+                    set_drag_rotation([new_lon, clamped_lat, 0]);
                 })
                 .on("end", event => {
                     if (!rotation_start || !drag_start_pos) return;
@@ -182,6 +174,7 @@ function SvgMap({
                             }),
                     );
 
+                    set_drag_rotation(null);
                     rotation_start = null;
                     drag_start_pos = null;
                 });
@@ -189,6 +182,7 @@ function SvgMap({
             svg.call(drag);
         } else {
             svg.on(".drag", null);
+            set_drag_rotation(null);
         }
 
         svg.call(zoom);
