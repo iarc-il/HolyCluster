@@ -198,23 +198,21 @@ function Heatmap() {
                 />
             </div>
 
-            {
-                <div className="mt-4" style={{ color: colors.theme.text }}>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                        <span>0</span>
-                        <span>{Math.round(heatmap_data.max_count / 2)}</span>
-                        <span>{heatmap_data.max_count}</span>
-                    </div>
-                    <div
-                        className="h-4 rounded"
-                        style={{
-                            background:
-                                "linear-gradient(to right, blue, cyan, lime, yellow, orange, red)",
-                            border: `1px solid ${colors.theme.borders}`,
-                        }}
-                    />
+            <div className="mt-4" style={{ color: colors.theme.text }}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                    <span>0</span>
+                    <span>{Math.round(heatmap_data.max_count / 2)}</span>
+                    <span>{heatmap_data.max_count}</span>
                 </div>
-            }
+                <div
+                    className="h-4 rounded"
+                    style={{
+                        background:
+                            "linear-gradient(to right, blue, cyan, lime, yellow, orange, red)",
+                        border: `1px solid ${colors.theme.borders}`,
+                    }}
+                />
+            </div>
         </div>
     );
 }
