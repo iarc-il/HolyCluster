@@ -7,16 +7,17 @@ import { themes_names, useColors } from "@/hooks/useColors";
 import { play_alert_sound } from "@/utils.js";
 import Maidenhead from "maidenhead";
 
-function SoundIcon({ size }) {
+function PlayIcon({ size }) {
     const { colors } = useColors();
 
     return (
-        <svg width={size} height={size} viewBox="0 0 512 512">
-            <g stroke="none" stroke-width="1" fill="none" fillRule="evenodd">
-                <g id="icon" fill="#00FF00" transform="translate(42.666667, 85.333333)">
-                    <path d="M361.299413,341.610667 L328.014293,314.98176 C402.206933,233.906133 402.206933,109.96608 328.013013,28.8906667 L361.298133,2.26304 C447.910187,98.97536 447.908907,244.898347 361.299413,341.610667 Z M276.912853,69.77216 L243.588693,96.4309333 C283.38432,138.998613 283.38304,204.87488 243.589973,247.44256 L276.914133,274.101333 C329.118507,215.880107 329.118507,127.992107 276.912853,69.77216 Z M191.749973,1.42108547e-14 L80.8957867,87.2292267 L7.10542736e-15,87.2292267 L7.10542736e-15,257.895893 L81.0208,257.895893 L191.749973,343.35424 L191.749973,1.42108547e-14 L191.749973,1.42108547e-14 Z M42.6666667,129.895893 L95.6874667,129.895893 L149.083307,87.8749867 L149.083307,256.520747 L95.5624533,215.229227 L42.6666667,215.229227 L42.6666667,129.895893 Z"></path>
-                </g>
-            </g>
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M3 5.49686C3 3.17662 5.52116 1.73465 7.52106 2.91106L18.5764 9.41423C20.5484 10.5742 20.5484 13.4259 18.5764 14.5858L7.52106 21.089C5.52116 22.2654 3 20.8234 3 18.5032V5.49686Z"
+                fill="#00FF00"
+            />
         </svg>
     );
 }
@@ -218,7 +219,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                 }}
                             />
                             <button onClick={play_alert_sound} className="h-full">
-                                <SoundIcon size="24" />
+                                <PlayIcon size="24" />
                             </button>
                             <button
                                 ref={help_button_ref}
@@ -237,8 +238,8 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                             background: colors.theme.background,
                                         }}
                                     >
-                                        If you don't hear anything, check the computer's volume or
-                                        soundcard settings
+                                        Click the play button. If you don't hear anything, check the
+                                        computer's volume or soundcard settings.
                                     </div>
                                 </Popup>
                             )}
