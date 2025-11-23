@@ -213,6 +213,11 @@ function Heatmap() {
                     }}
                 />
             </div>
+
+            <div className="text-xs text-center p-4" style={{ color: colors.theme.text }}>
+                The heatmap is calculated from the reported spots from/to the selected continents in
+                the last hour.
+            </div>
         </div>
     );
 }
