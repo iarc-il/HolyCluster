@@ -7,10 +7,10 @@ import json
 from loguru import logger
 import logging
 
-from collectors.src.misc import open_log_file, open_log_file2
-from collectors.src.db.valkey_config import get_valkey_client
+from misc import open_log_file, open_log_file2
+from db.valkey_config import get_valkey_client
 
-from collectors.src.settings import (
+from settings import (
     DEBUG,
     VALKEY_HOST,
     VALKEY_PORT,

@@ -4,9 +4,9 @@ import threading
 from loguru import logger
 from datetime import datetime
 
-from collectors.src.misc import open_log_file
+from misc import open_log_file
 from telnet_collectors import telnet_and_collect
-from collectors.src.settings import (
+from settings import (
     DEBUG,
     USERNAME_FOR_TELNET_CLUSTERS,
 )

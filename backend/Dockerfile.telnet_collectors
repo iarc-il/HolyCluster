@@ -19,9 +19,9 @@ COPY collectors/pyproject.toml ./
 RUN uv sync --no-cache
 
 # Copy application code
-COPY collectors/src ./collectors/src
+COPY collectors/src ./src
 
-RUN chmod +x /app/collectors/src/run_telnet_scripts.sh
+RUN chmod +x /app/src/run_telnet_scripts.sh
 
-CMD ["./collectors/src/run_telnet_scripts.sh"]
+CMD ["./src/run_telnet_scripts.sh"]
 
