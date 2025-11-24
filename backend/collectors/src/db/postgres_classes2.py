@@ -58,7 +58,7 @@ class SpotsWithIssues2(SQLModel, table=True):
     model_config = {
         "arbitrary_types_allowed": True
     }
-    __tablename__ = "spots_with_issues"
+    __tablename__ = "spots_with_issues2"
 
     __table_args__ = (
         UniqueConstraint("time", "spotter_callsign", "dx_callsign"),
