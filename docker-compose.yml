@@ -20,13 +20,37 @@ services:
     environment:
         - TZ=Asia/Jerusalem
 
+  valkey:
+    container_name: valkey
+    build: 
+      context: ./valkey
+      dockerfile: Dockerfile.valkey
+    ports:
+      - "6379:6379"
+    # Mount a volume for data persistence (optional, but recommended)
+    # volumes:
+    #   - valkey_data:/data
+    environment:
+    # Password needs to be passed to the healthcheck command
+      - VALKEY_PASSWORD=${VALKEY_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a ${VALKEY_PASSWORD} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s # Grace period for Valkey to start up
+    restart: always
+
   web_collectors:
     container_name: web_collectors
+    profiles: ["dev"]
     build:
       context: ./backend
       dockerfile: Dockerfile.web_collectors
     restart: unless-stopped
     depends_on:
+      valkey:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     env_file:
@@ -36,6 +60,23 @@ services:
       - ./backend/collectors/logs/web_collectors:/app/collectors/logs/web_collectors
     environment:
         - TZ=Asia/Jerusalem
+
+  telnet_collectors:
+    container_name: telnet_collectors
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.telnet_collectors
+    restart: unless-stopped
+    depends_on:
+      valkey:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/collectors/logs/db:/app/collectors/logs/db
+      - ./backend/collectors/logs/telnet_collectors:/app/collectors/logs/telnet_collectors
 
   api:
     container_name: api
@@ -48,6 +89,7 @@ services:
       - ./backend/.env
     volumes:
       - /opt/ui-dist:/opt/ui-dist
+      - ./ui:/ui
     expose:
       - "8000"
 
@@ -60,10 +102,12 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "9999:9999"
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
       - ./nginx/log:/var/log/nginx
+      - ./nginx:/etc/nginx
     environment:
       - DOMAIN=${DOMAIN}
     depends_on:
@@ -81,6 +125,23 @@ services:
       - ./certbot/log:/var/log
     entrypoint: >
       /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
+
+  nginx_ui:
+      container_name: nginx_ui
+      profiles: ["dev"]
+      stdin_open: true
+      tty: true
+      image: uozi/nginx-ui:latest
+      restart: unless-stopped
+      ports:
+        - "8080:80"
+        - "8443:443"
+      volumes:
+        - ./nginx:/etc/nginx
+        - ./nginx-ui:/etc/nginx-ui
+        - ./certbot/conf:/etc/letsencrypt
+        - /var/run/docker.sock:/var/run/docker.sock
+      environment:
+        - TZ=Asia/Jerusalem
+
   
-
-
