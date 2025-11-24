@@ -14,7 +14,8 @@ def get_telnet_clusters_list(csv_path:str , debug: bool = False):
     servers = None
     try:
         with open(csv_path, 'r') as f:
-            reader = csv.DictReader(f)
+            filtered_lines = (line for line in f if not line.lstrip().startswith('#'))
+            reader = csv.DictReader(filtered_lines)
             servers = list(reader)
             if debug:
                 logger.debug(f"{servers=}")
