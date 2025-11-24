@@ -8,15 +8,15 @@ version = "0.1.0"
 dependencies = [
     "httpx==0.23.2",
     "loguru==0.7.2",
-    "sqlalchemy==2.0.31",
     "environs==11.0.0",
     "asyncio==3.4.3",
     "aiohttp==3.10.5",
-    "fastapi==0.115.5",
+    "sqlalchemy==2.0.31",
     "sqlmodel",
-    "uvicorn[standard]==0.30.6",
+    "asyncpg>=0.29.0",
     # "psycopg>=3.2.9",
     "redis>=6.4.0",
     # "psycopg2>=2.9.10",
+    "greenlet>=3.0.0",
     "psutil>=7.0.0",
 ]

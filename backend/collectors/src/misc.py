@@ -48,3 +48,11 @@ def open_log_file2(log_filename_prefix: str, debug: bool = False):
         message = template.format(type(ex).__name__, ex.args)
         print(message)
 
+def in_docker() -> bool:
+    """Detect whether running inside Docker."""
+    try:
+        with open("/proc/1/cgroup", "r") as f:
+            data = f.read()
+            return "docker" in data or "containerd" in data
+    except FileNotFoundError:
+        return False

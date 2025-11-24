@@ -15,17 +15,23 @@ from sqlalchemy.exc import SQLAlchemyError, ProgrammingError, OperationalError
 from sqlmodel import SQLModel, create_engine
 
 from postgres_classes2 import HolySpot2, SpotsWithIssues2 
-from misc import open_log_file
+from misc import open_log_file, in_docker
 
-from collectors.src.settings import (
+from settings import (
     DEBUG,
     POSTGRES_USER,
     POSTGRES_PASSWORD,
     POSTGRES_HOST,
+    POSTGRES_HOST_LOCAL,
     POSTGRES_PORT,
+    POSTGRES_PORT_LOCAL,
     POSTGRES_DB_NAME,
     POSTGRES_DB_URL,
 )
+if not in_docker():
+    POSTGRES_HOST = POSTGRES_HOST_LOCAL
+    POSTGRES_PORT = POSTGRES_PORT_LOCAL
+
 
 async def check_database_exists(connection, db_name):
     try:

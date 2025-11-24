@@ -2,9 +2,9 @@ name,hostname,port,type
 DXUSA,dxc.dxusa.net,7300,dx-spider
 WA9PIE-2,hrd.wa9pie.net,8000,dx-spider
 VE7CC,ve7cc.net,23,cc-cluster
-DXSpider (GEN‑US),dxspider.org,7300,dx-spider
+#DXSpider (GEN‑US),dxspider.org,7300,dx-spider
 K7AR,k7ar.net,7374,ar-cluster
 AI9T,dxc.ai9t.com,7300,cc-cluster
-IW0QNL‑6,iw0qnlserver.ns0.it,9002,ar-cluster
+#IW0QNL‑6,iw0qnlserver.ns0.it,9002,ar-cluster
 NC7J,dxc.nc7j.com,7373,ar-cluster
 

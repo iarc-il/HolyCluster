@@ -6,23 +6,30 @@ import re
 import json
 import asyncio
 from loguru import logger
+import redis
 
-from collectors.src.misc import open_log_file
-from collectors.src.db.valkey_config import get_valkey_client
-from collectors.src.enrichers.frequencies import find_band_and_mode
-from collectors.src.enrichers.geo import get_geo_details
+from misc import open_log_file, in_docker
+from db.valkey_config import get_valkey_client
+from enrichers.frequencies import find_band_and_mode
+from enrichers.geo import get_geo_details
 
-from collectors.src.settings import (
+from settings import (
     DEBUG,
     VALKEY_HOST,
+    VALKEY_HOST_LOCAL,
     VALKEY_PORT,
+    VALKEY_PORT_LOCAL,
     VALKEY_DB,
     QRZ_USER,
     QRZ_PASSOWRD,
     QRZ_API_KEY,
     QRZ_SESSION_KEY_REFRESH,
 )
-from collectors.src.enrichers.qrz import get_qrz_session_key 
+if not in_docker():
+    VALKEY_HOST = VALKEY_HOST_LOCAL 
+    VALKEY_PORT = VALKEY_PORT_LOCAL
+
+from enrichers.qrz import get_qrz_session_key 
 
 global valkey_client
 valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)

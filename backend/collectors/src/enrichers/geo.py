@@ -8,16 +8,16 @@ import redis
 import socket
 from loguru import logger
 
-from collectors.src.enrichers.locator import resolve_locator_from_list, resolve_country_and_continent_from_list
-from collectors.src.enrichers.coordinates import locator_to_coordinates
-from collectors.src.db.valkey_config import get_valkey_client
-from collectors.src.settings import (
+from enrichers.locator import resolve_locator_from_list, resolve_country_and_continent_from_list
+from enrichers.coordinates import locator_to_coordinates
+from db.valkey_config import get_valkey_client
+from settings import (
     VALKEY_HOST,
     VALKEY_PORT,
     VALKEY_DB,
     VALKEY_GEO_EXPIRATION,
 )
-from collectors.src.enrichers.qrz import get_locator_from_qrz
+from enrichers.qrz import get_locator_from_qrz
 
 global valkey_client
 try:
