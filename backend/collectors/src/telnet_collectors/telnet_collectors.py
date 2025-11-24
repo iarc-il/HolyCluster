@@ -205,6 +205,8 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                             spot_data = json.dumps(spot)
                             if debug:
                                 thread_logger.debug(json.dumps(spot, indent=2))
+                                logger.debug(json.dumps(spot, indent=2))
+
                             try:
                                 spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
                                 added = valkey_client.set(spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True)
@@ -212,7 +214,6 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                                     entry_id = valkey_client.xadd(STREAM_NAME, spot, '*')
                                     if debug:
                                         thread_logger.debug(f"Spot stored in Valkey: {entry_id=}  {spot_data=}")
-
                                         logger.debug(f"spot stored in Valkey: {host}:{port}  {spot_data}")
                                 else:
                                     if debug:

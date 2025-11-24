@@ -4,13 +4,6 @@ import threading
 import os
 from loguru import logger
 
-def string_to_boolean(value: str) -> bool:
-    if value.strip().lower() == "true":
-        return True
-    elif value.strip().lower() == "false":
-        return False
-
-
 def open_log_file(log_filename_prefix: str, debug: bool = False):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     log_filename = f"{log_filename_prefix}.{timestamp}.log"
@@ -51,8 +44,14 @@ def open_log_file2(log_filename_prefix: str, debug: bool = False):
 def in_docker() -> bool:
     """Detect whether running inside Docker."""
     try:
-        with open("/proc/1/cgroup", "r") as f:
-            data = f.read()
-            return "docker" in data or "containerd" in data
-    except FileNotFoundError:
-        return False
+        if os.path.exists('/.dockerenv'):
+            logger.info("In Docker")
+            return True
+        else:
+            logger.info("Not in Docker")
+            return False
+    except Exception as ex:
+        message = f"**** ERROR in_docker **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        logger.error(message)
+        return True
+

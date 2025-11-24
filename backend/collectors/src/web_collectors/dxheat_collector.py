@@ -23,7 +23,7 @@ from settings import (
     DEBUG,
     POSTGRES_DB_URL,
 )
-from misc import string_to_boolean, open_log_file
+from misc import open_log_file
 from postgres_classes import DxheatRaw
 
 
@@ -197,10 +197,9 @@ async def main(debug=False):
 
 
 if __name__ == "__main__":
-    debug = string_to_boolean(DEBUG)
-    # if debug:
+    debug = DEBUG
     log_file_path = open_log_file(log_filename_prefix="collectors/logs/web_collectors/dxheat", debug=debug)
-    logger.info(f"DEBUG is {debug}")
+    logger.info(f"{debug=}")
     asyncio.run(main(debug=debug))
 
     # Manual compression

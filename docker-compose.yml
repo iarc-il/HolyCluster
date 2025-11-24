@@ -43,6 +43,7 @@ services:
 
   web_collectors:
     container_name: web_collectors
+    profiles: ["dev"]
     build:
       context: ./backend
       dockerfile: Dockerfile.web_collectors
@@ -127,6 +128,7 @@ services:
 
   nginx_ui:
       container_name: nginx_ui
+      profiles: ["dev"]
       stdin_open: true
       tty: true
       image: uozi/nginx-ui:latest
