@@ -2,11 +2,7 @@ from environs import Env
 from pathlib import Path
 
 env = Env()
-print(Path.cwd().name)
-print(Path(__file__))
-dotenv_path = Path(__file__).parents[2] / ".env"
-print(dotenv_path)
-env.read_env(path=dotenv_path, recurse=False)
+env.read_env(".env", recurse=False)
 
 DEBUG = env.bool("DEBUG", default=False)
 POSTGRES_USER = env.str("POSTGRES_USER")
@@ -27,7 +23,7 @@ VALKEY_PORT = env.str("VALKEY_PORT")
 VALKEY_PORT_LOCAL = env.str("VALKEY_PORT_LOCAL")
 VALKEY_DB = env.str("VALKEY_DB")
 VALKEY_SPOT_EXPIRATION = env.int("VALKEY_SPOT_EXPIRATION", default=60)
-VALKEY_GEO_EXPIRATION = env.int("VALKEY_GEO_EXPIRATION", default=3600) 
+VALKEY_GEO_EXPIRATION = env.int("VALKEY_GEO_EXPIRATION", default=3600)
 
 USERNAME_FOR_TELNET_CLUSTERS = env.str("USERNAME_FOR_TELNET_CLUSTERS")
 
@@ -35,4 +31,3 @@ QRZ_USER = env.str("QRZ_USER")
 QRZ_PASSOWRD = env.str("QRZ_PASSWORD")
 QRZ_API_KEY = env.str("QRZ_API_KEY")
 QRZ_SESSION_KEY_REFRESH = env.int("QRZ_SESSION_KEY_REFRESH")
-
