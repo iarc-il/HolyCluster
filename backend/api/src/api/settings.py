@@ -3,15 +3,15 @@ from environs import Env
 env = Env()
 env.read_env()
 
-HOST = "localhost"
-PORT = "5432"
+POSTGRES_HOST = "localhost"
+POSTGRES_PORT = "15432"
 
 POSTGRES_USER = env.str("POSTGRES_USER")
 POSTGRES_PASSWORD = env.str("POSTGRES_PASSWORD")
 SPOTS_LOG_PATH = env.str("SPOTS_LOG_PATH")
 
 DATABASE = "holy_cluster"
-GENERAL_DB_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{HOST}:{PORT}"
+GENERAL_DB_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}"
 DB_URL = f"{GENERAL_DB_URL}/{DATABASE}"
 
 UI_DIR = env.path("UI_DIR")

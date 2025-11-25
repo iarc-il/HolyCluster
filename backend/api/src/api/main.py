@@ -19,7 +19,7 @@ from . import propagation, settings, submit_spot
 
 
 class DX(SQLModel, table=True):
-    __tablename__ = "holy_spots"
+    __tablename__ = "holy_spots2"
     id: Optional[int] = Field(default=None, primary_key=True)
     dx_callsign: str
     dx_lat: str
