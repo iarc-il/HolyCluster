@@ -5,13 +5,11 @@ import time
 import re
 import json
 from loguru import logger
-import logging
 
-from misc import open_log_file, open_log_file2, in_docker
+from misc import open_log_file2, in_docker
 from db.valkey_config import get_valkey_client
 
 from settings import (
-    DEBUG,
     VALKEY_HOST,
     VALKEY_HOST_LOCAL,
     VALKEY_PORT,
@@ -19,9 +17,11 @@ from settings import (
     VALKEY_DB,
     VALKEY_SPOT_EXPIRATION,
 )
+
 if not in_docker():
-    VALKEY_HOST = VALKEY_HOST_LOCAL 
+    VALKEY_HOST = VALKEY_HOST_LOCAL
     VALKEY_PORT = VALKEY_PORT_LOCAL
+
 
 def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
     spot = {
@@ -35,9 +35,7 @@ def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
     }
     try:
         # cc-cluster & dx-cluster
-        DX_RE = re.compile(
-        r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)"
-        )
+        DX_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
         match = DX_RE.match(line.strip())
         if match:
             spot = {
@@ -47,17 +45,15 @@ def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
                 "comment": match.group(4).strip(),
                 "dx_locator": match.group(5),
                 "time": match.group(6),
-                "spotter_locator": match.group(7)
+                "spotter_locator": match.group(7),
             }
 
             return spot
 
-        # ar-cluster       
+        # ar-cluster
         # DX de K5TR-#:    14056.0  VE2PID/W8    CW 17 dB 22 WPM CQ             2010Z
         # DX de KB8OTK:    18100.9  OD5ZZ                                       2053Z
-        DX_RE = re.compile(
-        r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+? (\d+Z)"
-        )
+        DX_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+? (\d+Z)")
         match = DX_RE.match(line.strip())
         if match:
             spot = {
@@ -65,14 +61,15 @@ def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
                 "frequency": float(match.group(2)),
                 "dx_callsign": match.group(3),
                 "comment": match.group(4).strip(),
-                "time": match.group(5)
+                "time": match.group(5),
             }
             return spot
 
     except Exception as e:
-            logger.error(f"Error parse_dx_line: {e}   {host=} {port=} {cluster_type=}")
+        logger.error(f"Error parse_dx_line: {e}   {host=} {port=} {cluster_type=}")
 
     return None
+
 
 def parse_show_dx_line(line: str, host: str, port: int):
     spot = {
@@ -99,7 +96,8 @@ def parse_show_dx_line(line: str, host: str, port: int):
         logger.error(f"Error parse_show_dx_line: {e}   {host=} {port=}")
     return None
 
-def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug: bool=False):
+
+def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug: bool = False):
     """
     Establishes a Telnet connection, sends a username, and collects spots.
     If the connection is lost, it attempts to reconnect with exponential backoff.
@@ -116,14 +114,11 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
     thread_logger.info(f"Start of telnet_and_collect for {host}. {debug=}")
     valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
     STREAM_NAME = "stream-telnet"
-    DEDUP_KEY_PREFIX = "telnet_spots_dedup:"
-
-    # with open(output_filepath, 'a') as f:
-    #     f.write('\n\n')
 
     while True:
         sock = None
-        line_buffer = b'' # Reset line_buffer for each new connection attempt
+        # Reset line_buffer for each new connection attempt
+        line_buffer = b""
         try:
             logger.info(f"Attempting to connect to {host}:{port} ...")
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -135,8 +130,9 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
             reconnect_attempts = 0
 
             if username:
-                time.sleep(2) # Wait for 2 seconds before sending username
-                sock.sendall(f"{username}\n".encode('utf-8'))
+                # Wait for 2 seconds before sending username
+                time.sleep(2)
+                sock.sendall(f"{username}\n".encode("utf-8"))
                 if debug:
                     thread_logger.debug(f"Sent username: {username}")
 
@@ -191,17 +187,17 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                     thread_logger.error("Connection closed by remote host.")
                     break
 
-                lines = (line_buffer + data).split(b'\n')
+                lines = (line_buffer + data).split(b"\n")
                 line_buffer = lines.pop()
 
                 for line_bytes in lines:
-                    line = line_bytes.decode('utf-8', errors='ignore').replace('\r', '')
+                    line = line_bytes.decode("utf-8", errors="ignore").replace("\r", "")
                     thread_logger.info(line)
                     if line.startswith("DX de"):
                         spot = parse_dx_line(line, cluster_type, host, port)
                         if spot:
                             cluster = f"{host}:{port}"
-                            spot.update({'cluster': cluster})
+                            spot.update({"cluster": cluster})
                             spot_data = json.dumps(spot)
                             if debug:
                                 thread_logger.debug(json.dumps(spot, indent=2))
@@ -211,7 +207,7 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                                 spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
                                 added = valkey_client.set(spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True)
                                 if added:
-                                    entry_id = valkey_client.xadd(STREAM_NAME, spot, '*')
+                                    entry_id = valkey_client.xadd(STREAM_NAME, spot, "*")
                                     if debug:
                                         thread_logger.debug(f"Spot stored in Valkey: {entry_id=}  {spot_data=}")
                                         logger.debug(f"spot stored in Valkey: {host}:{port}  {spot_data}")
@@ -248,8 +244,12 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
         else:
             delay = backoff_delays[-1]
 
-        thread_logger.info(f"{host}:{port} Reconnection attempt {reconnect_attempts + 1}. Waiting for {delay // 60} minutes before retrying.")
-        logger.info(f"{host}:{port} Reconnection attempt {reconnect_attempts + 1}. Waiting for {delay // 60} minutes before retrying.")
+        thread_logger.info(
+            f"{host}:{port} Reconnection attempt {reconnect_attempts + 1}. Waiting for {delay // 60} minutes before retrying."
+        )
+        logger.info(
+            f"{host}:{port} Reconnection attempt {reconnect_attempts + 1}. Waiting for {delay // 60} minutes before retrying."
+        )
 
         try:
             time.sleep(delay)
@@ -258,15 +258,15 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
             logger.info("Exiting during backoff due to user request (Ctrl+C).")
             break
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Check telnet connection to a host and port.')
-    parser.add_argument('--host', required=True, help='The hostname or IP address to connect to.')
-    parser.add_argument('--port', required=True, type=int, help='The port to connect to.')
-    parser.add_argument('--username', default='4X0IARC', help='The username to send after connecting.')
-    parser.add_argument('--cluster-type', default='unknown', help='The type of the cluster.')
-    parser.add_argument('--debug', default=False, help='Debug mode.')
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Check telnet connection to a host and port.")
+    parser.add_argument("--host", required=True, help="The hostname or IP address to connect to.")
+    parser.add_argument("--port", required=True, type=int, help="The port to connect to.")
+    parser.add_argument("--username", default="4X0IARC", help="The username to send after connecting.")
+    parser.add_argument("--cluster-type", default="unknown", help="The type of the cluster.")
+    parser.add_argument("--debug", default=False, help="Debug mode.")
 
     args = parser.parse_args()
 
     telnet_and_collect(args.host, args.port, args.username, args.cluster_type, args.debug)
-
