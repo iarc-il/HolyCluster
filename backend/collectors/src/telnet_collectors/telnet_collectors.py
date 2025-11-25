@@ -6,22 +6,15 @@ import re
 import json
 from loguru import logger
 
-from misc import open_log_file2, in_docker
+from misc import open_log_file2
 from db.valkey_config import get_valkey_client
 
 from settings import (
     VALKEY_HOST,
-    VALKEY_HOST_LOCAL,
     VALKEY_PORT,
-    VALKEY_PORT_LOCAL,
     VALKEY_DB,
     VALKEY_SPOT_EXPIRATION,
 )
-
-if not in_docker():
-    VALKEY_HOST = VALKEY_HOST_LOCAL
-    VALKEY_PORT = VALKEY_PORT_LOCAL
-
 
 def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
     spot = {

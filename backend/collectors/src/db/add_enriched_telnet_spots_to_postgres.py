@@ -6,7 +6,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 import redis
 
-from misc import open_log_file, in_docker
+from misc import open_log_file
 from db.valkey_config import get_valkey_client
 
 from settings import (
@@ -56,10 +56,9 @@ async def convert_spot_to_record(spot: dict, debug: bool = False):
 
 async def add_spot_to_postgres(spot: dict, debug: bool = False):
     if debug:
-        logger.debug(f"Attempting to add spot records to the database.")
+        logger.debug("Attempting to add spot records to the database.")
 
     record = await convert_spot_to_record(spot=spot, debug=debug)
-    import ipdb;ipdb.set_trace()
     engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
 
     async with AsyncSession(engine) as session:
@@ -67,21 +66,21 @@ async def add_spot_to_postgres(spot: dict, debug: bool = False):
         await session.commit()
         await session.refresh(record)
         logger.debug(f"{record.id=}")
-        logger.info(f"Successfully pushed spot record (duplicates ignored).")
+        logger.info("Successfully pushed spot record (duplicates ignored).")
 
     await engine.dispose()
 
 
 async def postgres_spots_consumer(debug: bool = False):
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    log_filename = f"add_enrich_telnet_spots"
+    log_filename = "add_enrich_telnet_spots"
     log_dir = os.path.join(script_dir, "..", "..", "logs")
     os.makedirs(log_dir, exist_ok=True)
     telnet_log_dir = os.path.join(log_dir, "db")
     os.makedirs(telnet_log_dir, exist_ok=True)
     log_path = os.path.join(telnet_log_dir, log_filename)
     open_log_file(log_filename_prefix=log_path, debug=debug)
-    logger.info(f"spots_consumer started")
+    logger.info("spots_consumer started")
 
     STREAM_NAME = "stream-postres"
     CONSUMER_GROUP = "postres-group"

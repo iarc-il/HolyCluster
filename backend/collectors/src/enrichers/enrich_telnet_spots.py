@@ -6,7 +6,7 @@ import asyncio
 from loguru import logger
 import redis
 
-from misc import open_log_file, in_docker
+from misc import open_log_file
 from db.valkey_config import get_valkey_client
 from enrichers.frequencies import find_band_and_mode
 from enrichers.geo import get_geo_details
@@ -14,19 +14,13 @@ from enrichers.geo import get_geo_details
 from settings import (
     DEBUG,
     VALKEY_HOST,
-    VALKEY_HOST_LOCAL,
     VALKEY_PORT,
-    VALKEY_PORT_LOCAL,
     VALKEY_DB,
     QRZ_USER,
     QRZ_PASSOWRD,
     QRZ_API_KEY,
     QRZ_SESSION_KEY_REFRESH,
 )
-
-if not in_docker():
-    VALKEY_HOST = VALKEY_HOST_LOCAL
-    VALKEY_PORT = VALKEY_PORT_LOCAL
 
 from enrichers.qrz import get_qrz_session_key
 
