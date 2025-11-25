@@ -20,3 +20,8 @@ dependencies = [
     "greenlet>=3.0.0",
     "psutil>=7.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "ipdb>=0.13.13",
+]
