@@ -1,4 +1,5 @@
 import csv
+import sys
 import os
 import threading
 from loguru import logger
@@ -31,6 +32,10 @@ def run_concurrent_telnet_connections(debug: bool = False):
     Reads a list of Telnet servers from a CSV file and launches a separate
     thread to connect to each server concurrently.
     """
+    if USERNAME_FOR_TELNET_CLUSTERS == "":
+        logger.error("USERNAME_FOR_TELNET_CLUSTERS must not be empty")
+        sys.exit(1)
+
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         csv_path = os.path.join(script_dir, "telnet_servers.csv")
@@ -54,7 +59,7 @@ def run_concurrent_telnet_connections(debug: bool = False):
         open_log_file(log_filename_prefix=global_log_file, debug=debug)
         logger.info(f"Start of global_log_file. {debug=}")
 
-        servers = get_telnet_clusters_list(csv_path=csv_path, debug=debug)
+        servers = get_telnet_clusters_list(csv_path, debug=debug)
         threads = []
         for server in servers:
             host = server.get("hostname")
