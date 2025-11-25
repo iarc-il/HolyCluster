@@ -6,6 +6,11 @@ from loguru import logger
 
 
 def get_qrz_session_key(username: str, password: str, api_key: str):
+    if username == "":
+        raise ValueError("Username is empty")
+    if password == "":
+        raise ValueError("Password is empty")
+
     try:
         attempts = 0
         while attempts <= 5:
@@ -28,7 +33,7 @@ def get_qrz_session_key(username: str, password: str, api_key: str):
 
     except Exception as ex:
         message = f"**** ERROR get_qrz_session_key **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
-        logger.error(message)
+        logger.exception(message)
 
 
 async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float = 0, debug: bool = False) -> dict:
