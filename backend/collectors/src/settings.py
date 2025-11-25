@@ -1,5 +1,5 @@
 from environs import Env
-from pathlib import Path
+from misc import in_docker
 
 env = Env()
 env.read_env(".env", recurse=False)
@@ -7,20 +7,23 @@ env.read_env(".env", recurse=False)
 DEBUG = env.bool("DEBUG", default=False)
 POSTGRES_USER = env.str("POSTGRES_USER")
 POSTGRES_PASSWORD = env.str("POSTGRES_PASSWORD")
-POSTGRES_HOST = env.str("POSTGRES_HOST")
-POSTGRES_HOST_LOCAL = env.str("POSTGRES_HOST_LOCAL")
-POSTGRES_PORT = env.str("POSTGRES_PORT")
-POSTGRES_PORT_LOCAL = env.str("POSTGRES_PORT_LOCAL")
 POSTGRES_DB_NAME = env.str("POSTGRES_DB_NAME")
+
+if not in_docker():
+    POSTGRES_HOST = env.str("POSTGRES_HOST_LOCAL")
+    POSTGRES_PORT = env.str("POSTGRES_PORT_LOCAL")
+    VALKEY_HOST = env.str("VALKEY_HOST_LOCAL")
+    VALKEY_PORT = env.str("VALKEY_PORT_LOCAL")
+else:
+    POSTGRES_HOST = env.str("POSTGRES_HOST")
+    POSTGRES_PORT = env.str("POSTGRES_PORT")
+    VALKEY_HOST = env.str("VALKEY_HOST")
+    VALKEY_PORT = env.str("VALKEY_PORT")
 
 POSTGRES_GENERAL_DB_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}"
 POSTGRES_DB_URL = f"{POSTGRES_GENERAL_DB_URL}/{POSTGRES_DB_NAME}"
 POSTGRES_DB_RETENTION_DAYS = 14
 
-VALKEY_HOST = env.str("VALKEY_HOST")
-VALKEY_HOST_LOCAL = env.str("VALKEY_HOST_LOCAL")
-VALKEY_PORT = env.str("VALKEY_PORT")
-VALKEY_PORT_LOCAL = env.str("VALKEY_PORT_LOCAL")
 VALKEY_DB = env.str("VALKEY_DB")
 VALKEY_SPOT_EXPIRATION = env.int("VALKEY_SPOT_EXPIRATION", default=60)
 VALKEY_GEO_EXPIRATION = env.int("VALKEY_GEO_EXPIRATION", default=3600)

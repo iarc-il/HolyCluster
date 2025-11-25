@@ -12,16 +12,10 @@ from db.valkey_config import get_valkey_client
 from settings import (
     DEBUG,
     VALKEY_HOST,
-    VALKEY_HOST_LOCAL,
     VALKEY_PORT,
-    VALKEY_PORT_LOCAL,
     VALKEY_DB,
     POSTGRES_DB_URL,
 )
-
-if not in_docker():
-    VALKEY_HOST = VALKEY_HOST_LOCAL
-    VALKEY_PORT = VALKEY_PORT_LOCAL
 
 from postgres_classes import HolySpot2
 

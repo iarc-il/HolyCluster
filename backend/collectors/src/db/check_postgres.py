@@ -6,22 +6,14 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 
-from misc import open_log_file, in_docker
+from misc import open_log_file
 
 from settings import (
     DEBUG,
-    POSTGRES_USER,
-    POSTGRES_PASSWORD,
-    POSTGRES_HOST,
-    POSTGRES_HOST_LOCAL,
-    POSTGRES_PORT,
-    POSTGRES_PORT_LOCAL,
     POSTGRES_DB_NAME,
+    POSTGRES_GENERAL_DB_URL,
+    POSTGRES_DB_URL,
 )
-
-if not in_docker():
-    POSTGRES_HOST = POSTGRES_HOST_LOCAL
-    POSTGRES_PORT = POSTGRES_PORT_LOCAL
 
 
 async def check_database_exists(connection, db_name):
@@ -56,17 +48,8 @@ async def create_new_database(connection, db_name):
 
 async def main(args, debug: bool = False):
     initialize = args.init
-    host = args.host if args.host is not None else POSTGRES_HOST
-    port = args.port if args.port is not None else POSTGRES_PORT
-    POSTGRES_GENERAL_DB_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{host}:{port}"
-    POSTGRES_DB_URL = f"{POSTGRES_GENERAL_DB_URL}/{POSTGRES_DB_NAME}"
     engine_name = POSTGRES_GENERAL_DB_URL + "/postgres"
     if debug:
-        logger.debug(f"{POSTGRES_USER=}")
-        logger.debug(f"{POSTGRES_HOST=}")
-        logger.debug(f"{host=}")
-        logger.debug(f"{POSTGRES_PORT=}")
-        logger.debug(f"{port=}")
         logger.debug(f"{POSTGRES_DB_NAME=}")
         logger.debug(f"{POSTGRES_GENERAL_DB_URL=}")
         logger.debug(f"{POSTGRES_DB_URL=}")
@@ -117,8 +100,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Check or initialize the PostgreSQL database.")
     parser.add_argument("--init", action="store_true", help="Drop and recreate the database and tables.")
     parser.add_argument("-d", "--debug", action="store_true", default=False, help="Debug mode")
-    parser.add_argument("--host", type=str, required=False, help="hostname")
-    parser.add_argument("--port", type=str, required=False, help="port")
     args = parser.parse_args()
     open_log_file("collectors/logs/db/check_postgres")
     debug = args.debug if args.debug else DEBUG
