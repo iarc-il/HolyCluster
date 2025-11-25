@@ -11,6 +11,7 @@ dependencies = [
     "environs>=14.5.0",
     "fastapi>=0.122.0",
     "psycopg2>=2.9.11",
+    "redis>=7.1.0",
     "sqlalchemy>=2.0.44",
     "sqlmodel>=0.0.27",
     "uvicorn>=0.38.0",
