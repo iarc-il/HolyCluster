@@ -66,70 +66,62 @@ async def create_new_database(connection, db_name):
 
 async def main(args, debug: bool = False
 ):
-    try:
-        initialize = args.init
-        host = args.host if args.host is not None else POSTGRES_HOST
-        port = args.port if args.port is not None else POSTGRES_PORT
-        POSTGRES_GENERAL_DB_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{host}:{port}"
-        POSTGRES_DB_URL = f"{POSTGRES_GENERAL_DB_URL}/{POSTGRES_DB_NAME}"
-        engine_name = POSTGRES_GENERAL_DB_URL + '/postgres'
-        if debug:
-            logger.debug(f"{POSTGRES_USER=}")
-            logger.debug(f"{POSTGRES_HOST=}")
-            logger.debug(f"{host=}")
-            logger.debug(f"{POSTGRES_PORT=}")
-            logger.debug(f"{port=}")
-            logger.debug(f"{POSTGRES_DB_NAME=}")
-            logger.debug(f"{POSTGRES_GENERAL_DB_URL=}")
-            logger.debug(f"{POSTGRES_DB_URL=}")
-            logger.debug(f"{engine_name=}")
-        engine = create_async_engine(engine_name, echo=debug)
+    initialize = args.init
+    host = args.host if args.host is not None else POSTGRES_HOST
+    port = args.port if args.port is not None else POSTGRES_PORT
+    POSTGRES_GENERAL_DB_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{host}:{port}"
+    POSTGRES_DB_URL = f"{POSTGRES_GENERAL_DB_URL}/{POSTGRES_DB_NAME}"
+    engine_name = POSTGRES_GENERAL_DB_URL + '/postgres'
+    if debug:
+        logger.debug(f"{POSTGRES_USER=}")
+        logger.debug(f"{POSTGRES_HOST=}")
+        logger.debug(f"{host=}")
+        logger.debug(f"{POSTGRES_PORT=}")
+        logger.debug(f"{port=}")
+        logger.debug(f"{POSTGRES_DB_NAME=}")
+        logger.debug(f"{POSTGRES_GENERAL_DB_URL=}")
+        logger.debug(f"{POSTGRES_DB_URL=}")
+        logger.debug(f"{engine_name=}")
+    engine = create_async_engine(engine_name, echo=debug)
 
-        db_exists = False
+    db_exists = False
+    async with engine.connect() as connection:
+        db_exists = await check_database_exists(connection, POSTGRES_DB_NAME)
+
+    if initialize:
+        logger.info("Initialization flag set. Forcing drop and recreate of database.")
         async with engine.connect() as connection:
-            db_exists = await check_database_exists(connection, POSTGRES_DB_NAME)
+            await connection.execution_options(isolation_level="AUTOCOMMIT")
+            await drop_database_if_exists(connection, POSTGRES_DB_NAME)
+            await create_new_database(connection, POSTGRES_DB_NAME)
 
-        if initialize:
-            logger.info("Initialization flag set. Forcing drop and recreate of database.")
-            async with engine.connect() as connection:
-                await connection.execution_options(isolation_level="AUTOCOMMIT")
-                await drop_database_if_exists(connection, POSTGRES_DB_NAME)
-                await create_new_database(connection, POSTGRES_DB_NAME)
+        await engine.dispose()
+        if debug:
+            logger.debug(f"Creating tables")
+        new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
+        async with new_db_engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+        await new_db_engine.dispose()
+        logger.info("Database initialization complete.")
 
-            await engine.dispose()
-            if debug:
-                logger.debug(f"Creating tables")
-            new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
-            async with new_db_engine.begin() as conn:
-                await conn.run_sync(SQLModel.metadata.create_all)
-            await new_db_engine.dispose()
-            logger.info("Database initialization complete.")
+    elif not db_exists:
+        logger.info(f"Database '{POSTGRES_DB_NAME}' does not exist. Creating it now.")
+        async with engine.connect() as connection:
+            await connection.execution_options(isolation_level="AUTOCOMMIT")
+            await create_new_database(connection, POSTGRES_DB_NAME)
 
-        elif not db_exists:
-            logger.info(f"Database '{POSTGRES_DB_NAME}' does not exist. Creating it now.")
-            async with engine.connect() as connection:
-                await connection.execution_options(isolation_level="AUTOCOMMIT")
-                await create_new_database(connection, POSTGRES_DB_NAME)
+        await engine.dispose()
+        if debug:
+            logger.debug(f"Creating tables")
+        new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
+        async with new_db_engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+        await new_db_engine.dispose()
+        logger.info("Database initialization complete.")
 
-            await engine.dispose()
-            if debug:
-                logger.debug(f"Creating tables")
-            new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
-            async with new_db_engine.begin() as conn:
-                await conn.run_sync(SQLModel.metadata.create_all)
-            await new_db_engine.dispose()
-            logger.info("Database initialization complete.")
-
-        else:
-            logger.info(f"Database '{POSTGRES_DB_NAME}' already exists. No action taken.")
-            await engine.dispose()
-
-    except OSError as e:
-        logger.error("Could not connect to the database. Please ensure it is running and accessible.")
-        logger.error(f"**** {sys._getframe(0).f_code.co_name} **** OS error: {e}")
-    except Exception as ex:
-        message = f"**** ERROR {sys._getframe(0).f_code.co_name}  **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
-        logger.error(message)
+    else:
+        logger.info(f"Database '{POSTGRES_DB_NAME}' already exists. No action taken.")
+        await engine.dispose()
 
 
 if __name__ == "__main__":
