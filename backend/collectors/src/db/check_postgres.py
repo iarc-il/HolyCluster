@@ -4,10 +4,8 @@ import asyncio
 from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.exc import SQLAlchemyError, ProgrammingError, OperationalError
-from sqlmodel import SQLModel, create_engine
+from sqlmodel import SQLModel
 
-from postgres_classes2 import HolySpot2, SpotsWithIssues2
 from misc import open_log_file, in_docker
 
 from settings import (
@@ -19,7 +17,6 @@ from settings import (
     POSTGRES_PORT,
     POSTGRES_PORT_LOCAL,
     POSTGRES_DB_NAME,
-    POSTGRES_DB_URL,
 )
 
 if not in_docker():
@@ -89,7 +86,7 @@ async def main(args, debug: bool = False):
 
         await engine.dispose()
         if debug:
-            logger.debug(f"Creating tables")
+            logger.debug("Creating tables")
         new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
         async with new_db_engine.begin() as conn:
             await conn.run_sync(SQLModel.metadata.create_all)
@@ -104,7 +101,7 @@ async def main(args, debug: bool = False):
 
         await engine.dispose()
         if debug:
-            logger.debug(f"Creating tables")
+            logger.debug("Creating tables")
         new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
         async with new_db_engine.begin() as conn:
             await conn.run_sync(SQLModel.metadata.create_all)
