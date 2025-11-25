@@ -1,11 +1,4 @@
 import sys
-from pathlib import Path
-# Add project root and src root to the path to allow direct imports
-project_root = Path(__file__).resolve().parents[3]
-src_root = Path(__file__).resolve().parents[1]
-sys.path.append(str(project_root))
-sys.path.append(str(src_root))
-
 import argparse
 import asyncio
 from loguru import logger
