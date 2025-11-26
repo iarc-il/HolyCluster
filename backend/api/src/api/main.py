@@ -13,7 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc
-from sqlmodel import Field, Session, SQLModel, create_engine, select, func
+from sqlmodel import Field, Session, SQLModel, create_engine, select
+import redis.asyncio as redis
 
 from . import propagation, settings, submit_spot
 
@@ -82,36 +83,50 @@ async def propagation_data_collector(app):
 
 
 async def spots_broadcast_task(app):
-    with Session(engine) as session:
-        query = select(func.max(DX.id))
-        last_broadcast_id = session.exec(query).one()
+    STREAM_NAME = "stream-api"
+    CONSUMER_GROUP = "api-group"
+    CONSUMER_NAME = "consumer_1"
 
-        while True:
-            await asyncio.sleep(30)
+    valkey_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
 
-            try:
-                query = select(DX).where(DX.id > last_broadcast_id).order_by(DX.id)
-                new_spots = session.exec(query).all()
+    try:
+        valkey_client.xgroup_create(STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True)
+    except redis.exceptions.ResponseError:
+        pass
 
-                if new_spots:
-                    new_spots_cleaned = [cleanup_spot(spot) for spot in new_spots]
-                    last_broadcast_id = new_spots_cleaned[-1]["id"]
+    while True:
+        response = await valkey_client.xreadgroup(
+            CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: ">"}, count=10, block=60000
+        )
+        if not response:
+            print("CONTINUE")
+            continue
 
-                    message = {"type": "update", "spots": new_spots_cleaned}
+        try:
+            for stream_name, messages in response:
+                spots = []
+                for msg_id, spot in messages:
+                    valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
+                    valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
 
-                    disconnected = set()
-                    for websocket in app.state.active_connections.copy():
-                        try:
-                            await websocket.send_json(message)
-                        except Exception as e:
-                            logger.warning(f"Failed to send to websocket: {e}")
-                            disconnected.add(websocket)
+                    print(spots)
+                    spots.append(cleanup_spot(spot))
 
-                    for websocket in disconnected:
-                        app.state.active_connections.discard(websocket)
+                message = {"type": "update", "spots": spots}
 
-            except Exception as e:
-                logger.exception(f"Error in spots broadcast task: {e}")
+                disconnected = set()
+                for websocket in app.state.active_connections.copy():
+                    try:
+                        await websocket.send_json(message)
+                    except Exception as e:
+                        logger.warning(f"Failed to send to websocket: {e}")
+                        disconnected.add(websocket)
+
+                for websocket in disconnected:
+                    app.state.active_connections.discard(websocket)
+
+        except Exception as e:
+            logger.exception(f"Error in spots broadcast task: {e}")
 
 
 @asynccontextmanager
@@ -142,26 +157,27 @@ app.add_middleware(
 
 
 def cleanup_spot(spot):
-    if spot.mode.upper() in ("SSB", "USB", "LSB"):
+    if spot["mode"].upper() in ("SSB", "USB", "LSB"):
         mode = "SSB"
     else:
-        mode = spot.mode.upper()
+        mode = spot["mode"].upper()
 
     return {
-        "id": spot.id,
-        "spotter_callsign": spot.spotter_callsign,
-        "spotter_loc": [float(spot.spotter_lon), float(spot.spotter_lat)],
-        "spotter_country": spot.spotter_country,
-        "spotter_continent": spot.spotter_continent,
-        "dx_callsign": spot.dx_callsign,
-        "dx_loc": [float(spot.dx_lon), float(spot.dx_lat)],
-        "dx_country": spot.dx_country,
-        "dx_continent": spot.dx_continent,
-        "freq": float(spot.frequency),
-        "band": float(spot.band),
+        # TODO: this is a big problem
+        "id": 0,
+        "spotter_callsign": spot["spotter_callsign"],
+        "spotter_loc": [float(spot["spotter_lon"]), float(spot["spotter_lat"])],
+        "spotter_country": spot["spotter_country"],
+        "spotter_continent": spot["spotter_continent"],
+        "dx_callsign": spot["dx_callsign"],
+        "dx_loc": [float(spot["dx_lon"]), float(spot["dx_lat"])],
+        "dx_country": spot["dx_country"],
+        "dx_continent": spot["dx_continent"],
+        "freq": float(spot["frequency"]),
+        "band": float(spot["band"]),
         "mode": mode,
-        "time": int(spot.date_time.timestamp()),
-        "comment": spot.comment,
+        "time": float(spot["timestamp"]),
+        "comment": spot["comment"],
     }
 
 
