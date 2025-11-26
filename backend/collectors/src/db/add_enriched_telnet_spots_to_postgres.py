@@ -24,7 +24,7 @@ valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_
 
 
 async def convert_spot_to_record(spot: dict, debug: bool = False):
-    dt = datetime.strptime(spot["date_time"], "%Y-%m-%d %H:%M:%S%z")
+    dt = datetime.fromtimestamp(spot["timestamp"])
     dt_naive = dt.replace(tzinfo=None)
     record = HolySpot2(
         cluster=spot["cluster"],

@@ -28,7 +28,7 @@ global valkey_client
 valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
 
 
-def get_date_time(time_str: str, debug: bool = False):
+def get_timestamp(time_str: str, debug: bool = False):
     try:
         # Parse the hour and minute
         hour = int(time_str[:2])
@@ -37,14 +37,17 @@ def get_date_time(time_str: str, debug: bool = False):
         now_utc = datetime.now(timezone.utc)
         current_seconds = now_utc.second
         # Get today's date in UTC
-        date_time = datetime.now(timezone.utc).replace(hour=hour, minute=minute, second=current_seconds, microsecond=0)
-        date_time = date_time.strftime("%Y-%m-%d %H:%M:%S%z")
+        timestamp = (
+            datetime.now(timezone.utc)
+            .replace(hour=hour, minute=minute, second=current_seconds, microsecond=0)
+            .timestamp()
+        )
 
-        return date_time
+        return timestamp
 
     except Exception as ex:
         message = (
-            f"**** ERROR get_date_time **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+            f"**** ERROR get_timestamp **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
         )
         logger.error(message)
         return None
@@ -52,11 +55,11 @@ def get_date_time(time_str: str, debug: bool = False):
 
 async def enrich_telnet_spot(qrz_session_key: str, spot: dict, debug: bool = False):
     try:
-        # Add date_time
-        date_time = get_date_time(time_str=spot["time"], debug=debug)
+        # Add timestamp
+        timestamp = get_timestamp(time_str=spot["time"], debug=debug)
         if debug:
-            logger.debug(f"{date_time=}")
-        spot.update({"date_time": date_time})
+            logger.debug(f"{timestamp=}")
+        spot.update({"timestamp": timestamp})
 
         # Enrich band and mode
         if debug:
