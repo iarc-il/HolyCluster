@@ -30,16 +30,15 @@ valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_
 
 def get_timestamp(time_str: str, debug: bool = False):
     try:
-        # Parse the hour and minute
-        hour = int(time_str[:2])
-        minute = int(time_str[2:4])
-        # Get current time (to extract seconds)
         now_utc = datetime.now(timezone.utc)
-        current_seconds = now_utc.second
-        # Get today's date in UTC
         timestamp = (
             datetime.now(timezone.utc)
-            .replace(hour=hour, minute=minute, second=current_seconds, microsecond=0)
+            .replace(
+                hour=int(time_str[:2]),
+                minute=int(time_str[2:4]),
+                second=now_utc.second,
+                microsecond=now_utc.microsecond,
+            )
             .timestamp()
         )
 
@@ -59,7 +58,7 @@ async def enrich_telnet_spot(qrz_session_key: str, spot: dict, debug: bool = Fal
         timestamp = get_timestamp(time_str=spot["time"], debug=debug)
         if debug:
             logger.debug(f"{timestamp=}")
-        spot.update({"timestamp": timestamp})
+        spot.update({"timestamp": timestamp, "id": int(timestamp * 10) % 1000000000})
 
         # Enrich band and mode
         if debug:
@@ -171,7 +170,7 @@ async def spots_consumer(debug: bool = False):
                         logger.debug(f"enriched spot stored in Valkey: {entry_id=} {enriched_spot=}")
                     # Add enriched spot to api stream only if has both locators
                     STREAM_API = "stream-api"
-                    # if enriched_spot['spotter_locator'] and enriched_spot['dx_locator'] and enriched_spot['band'] and  enriched_spot['mode']:
+
                     if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
                         entry_id = valkey_client.xadd(STREAM_API, enriched_spot, "*")
                         if debug:

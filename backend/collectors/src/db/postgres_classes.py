@@ -108,7 +108,7 @@ class HolySpot(Base):
     id = Column(Integer, primary_key=True)
     date = Column(Date)
     time = Column(Time)
-    date_time = Column(DateTime)
+    timestamp = Column(Integer)
     mode = Column(Text)
     missing_mode = Column(Boolean)
     band = Column(Text)
@@ -131,7 +131,7 @@ class HolySpot(Base):
 
     def __repr__(self):
         return (
-            f"<HolySpot(id={self.id}, date={self.date}, time={self.time}, date_time={self.date_time}, mode={self.mode}, missing_mode={self.missing_mode}, band={self.band}, frequency={self.frequency}, "
+            f"<HolySpot(id={self.id}, date={self.date}, time={self.time}, timestamp={self.timestamp}, mode={self.mode}, missing_mode={self.missing_mode}, band={self.band}, frequency={self.frequency}, "
             f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
             f"spotter_lat={self.spotter_lat}, spotter_lon={self.spotter_lon}, spotter_country={self.spotter_country}, spotter_continent={self.spotter_continent},  "
             f"dx_callsign={self.dx_callsign}, dx_locator={self.dx_locator}, dx_lat={self.dx_lat}, dx_lon={self.dx_lon}, dx_country={self.dx_country}, dx_continent={self.dx_continent}, comment={self.comment},>"
@@ -142,7 +142,7 @@ class HolySpot(Base):
             # 'id': self.id,
             "date": self.date,
             "time": self.time,
-            "date_time": self.date_time,
+            "timestamp": self.timestamp,
             "mode": self.mode,
             "missing_mode": self.missing_mode,
             "band": self.band,
@@ -230,7 +230,7 @@ class HolySpot2(Base):
     id = Column(Integer, primary_key=True)
     cluster = Column(Text)
     time = Column(Time)
-    date_time = Column(DateTime)
+    timestamp = Column(Integer)
     frequency = Column(Text)
     band = Column(Text)
     mode = Column(Text)
@@ -254,7 +254,7 @@ class HolySpot2(Base):
 
     def __repr__(self):
         return (
-            f"<HolySpot(id={self.id}, cluster={self.cluster}, time={self.time}, date_time={self.date_time}, "
+            f"<HolySpot(id={self.id}, cluster={self.cluster}, time={self.time}, timestamp={self.timestamp}, "
             f"frequency={self.frequency}, band={self.band}, mode={self.mode}, mode_selection={self.mode_selection}, "
             f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
             f"spotter_locator_source={self.spotter_locator_source}, spotter_lat={self.spotter_lat}, spotter_lon={self.spotter_lon}, "
@@ -269,7 +269,7 @@ class HolySpot2(Base):
             "id": self.id,
             "cluster": self.cluster,
             "time": self.time,
-            "date_time": self.date_time,
+            "timestamp": self.timestamp,
             "frequency": self.frequency,
             "band": self.band,
             "mode": self.mode,
@@ -297,7 +297,7 @@ class SpotWithIssue2(Base):
     id = Column(Integer, primary_key=True)
     cluster = Column(Text)
     time = Column(Time)
-    date_time = Column(DateTime)
+    timestamp = Column(Integer)
     frequency = Column(Text)
     band = Column(Text)
     mode = Column(Text)
@@ -322,7 +322,7 @@ class SpotWithIssue2(Base):
 
     def __repr__(self):
         return (
-            f"<HolySpot(id={self.id}, cluster={self.cluster}, time={self.time}, date_time={self.date_time}, "
+            f"<HolySpot(id={self.id}, cluster={self.cluster}, time={self.time}, timestamp={self.timestamp}, "
             f"frequency={self.frequency}, band={self.band}, mode={self.mode}, mode_selection={self.mode_selection}, "
             f"spotter_callsign={self.spotter_callsign}, spotter_locator={self.spotter_locator}, "
             f"spotter_locator_source={self.spotter_locator_source}, spotter_lat={self.spotter_lat}, spotter_lon={self.spotter_lon}, "
@@ -337,7 +337,7 @@ class SpotWithIssue2(Base):
             "id": self.id,
             "cluster": self.cluster,
             "time": self.time,
-            "date_time": self.date_time,
+            "timestamp": self.timestamp,
             "frequency": self.frequency,
             "band": self.band,
             "mode": self.mode,

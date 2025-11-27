@@ -9,7 +9,6 @@ import asyncio
 import httpx
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlmodel import SQLModel, select
 from sqlalchemy.dialects.postgresql import insert
 
 # Add project root and src root to the path to allow direct imports

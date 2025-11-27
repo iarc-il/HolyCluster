@@ -22,6 +22,7 @@ from . import propagation, settings, submit_spot
 class DX(SQLModel, table=True):
     __tablename__ = "holy_spots2"
     id: Optional[int] = Field(default=None, primary_key=True)
+    timestamp: int
     dx_callsign: str
     dx_lat: str
     dx_lon: str
@@ -35,7 +36,6 @@ class DX(SQLModel, table=True):
     frequency: str
     band: str
     mode: str
-    date_time: datetime.datetime
     comment: str
 
 
@@ -163,8 +163,7 @@ def cleanup_spot(spot):
         mode = spot["mode"].upper()
 
     return {
-        # TODO: this is a big problem
-        "id": 0,
+        "id": int(spot["id"]),
         "spotter_callsign": spot["spotter_callsign"],
         "spotter_loc": [float(spot["spotter_lon"]), float(spot["spotter_lat"])],
         "spotter_country": spot["spotter_country"],
@@ -243,13 +242,13 @@ async def spots_ws(websocket: fastapi.WebSocket):
             if "initial" in message:
                 query = (
                     select(DX)
-                    .where(DX.date_time > datetime.datetime.fromtimestamp(time.time() - 3600))
+                    .where(DX.timestamp > (time.time() - 3600))
                     .order_by(desc(DX.id))
                     .limit(500)
                 )
                 initial_spots = session.exec(query).all()
 
-                initial_spots = [cleanup_spot(spot) for spot in initial_spots]
+                initial_spots = [cleanup_spot(dict(spot)) for spot in initial_spots]
                 await websocket.send_json({"type": "initial", "spots": initial_spots})
 
         while True:
