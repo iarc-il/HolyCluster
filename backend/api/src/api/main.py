@@ -160,6 +160,11 @@ def cleanup_spot(spot):
     else:
         mode = spot["mode"].upper()
 
+    if spot["band"].upper() not in ("VHF", "UHF", "SHF"):
+        band = float(spot["band"])
+    else:
+        band = spot["band"]
+
     return {
         "id": int(spot["id"]),
         "spotter_callsign": spot["spotter_callsign"],
@@ -171,7 +176,7 @@ def cleanup_spot(spot):
         "dx_country": spot["dx_country"],
         "dx_continent": spot["dx_continent"],
         "freq": float(spot["frequency"]),
-        "band": float(spot["band"]),
+        "band": band,
         "mode": mode,
         "time": float(spot["timestamp"]),
         "comment": spot["comment"],
