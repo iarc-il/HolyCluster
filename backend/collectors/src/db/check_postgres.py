@@ -4,8 +4,8 @@ import asyncio
 from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
-from sqlmodel import SQLModel
 
+from postgres_classes import Base
 from misc import open_log_file
 
 from settings import (
@@ -72,7 +72,7 @@ async def main(args, debug: bool = False):
             logger.debug("Creating tables")
         new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
         async with new_db_engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.create_all)
+            await conn.run_sync(Base.metadata.create_all)
         await new_db_engine.dispose()
         logger.info("Database initialization complete.")
 
@@ -87,7 +87,7 @@ async def main(args, debug: bool = False):
             logger.debug("Creating tables")
         new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
         async with new_db_engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.create_all)
+            await conn.run_sync(Base.metadata.create_all)
         await new_db_engine.dispose()
         logger.info("Database initialization complete.")
 
