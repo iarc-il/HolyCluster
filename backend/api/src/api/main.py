@@ -99,17 +99,15 @@ async def spots_broadcast_task(app):
             CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: ">"}, count=10, block=60000
         )
         if not response:
-            print("CONTINUE")
             continue
 
         try:
             for stream_name, messages in response:
                 spots = []
                 for msg_id, spot in messages:
-                    valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
-                    valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
+                    await valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
+                    await valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
 
-                    print(spots)
                     spots.append(cleanup_spot(spot))
 
                 message = {"type": "update", "spots": spots}
