@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc
 from sqlmodel import Field, Session, SQLModel, create_engine, select
-import redis.asyncio as redis
+import redis.asyncio
 
 from . import propagation, settings, submit_spot
 
@@ -87,10 +87,10 @@ async def spots_broadcast_task(app):
     CONSUMER_GROUP = "api-group"
     CONSUMER_NAME = "consumer_1"
 
-    valkey_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
+    valkey_client = redis.asyncio.Redis(host="localhost", port=6379, db=0, decode_responses=True)
 
     try:
-        valkey_client.xgroup_create(STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True)
+        await valkey_client.xgroup_create(STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True)
     except redis.exceptions.ResponseError:
         pass
 
