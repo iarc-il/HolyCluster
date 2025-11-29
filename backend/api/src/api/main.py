@@ -290,18 +290,18 @@ def download_catserver():
 
 @app.get("/")
 async def get_index():
-    response = FileResponse(f"{settings.UI_DIR}/index.html", media_type="text/html")
+    response = FileResponse(f"{settings.UI_DIST_PATH}/index.html", media_type="text/html")
     response.headers["Cache-Control"] = "no-store"
     return response
 
 
-app.mount("/", StaticFiles(directory=settings.UI_DIR, html=True), name="static")
+app.mount("/", StaticFiles(directory=settings.UI_DIST_PATH, html=True), name="static")
 
 
 @app.exception_handler(StarletteHTTPException)
 async def spa_fallback(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404 and request.url.path not in ("/favicon.ico",):
-        index_path = os.path.join(settings.UI_DIR, "index.html")
+        index_path = os.path.join(settings.UI_DIST_PATH, "index.html")
         if os.path.exists(index_path):
             return FileResponse(index_path, media_type="text/html")
     raise exc
