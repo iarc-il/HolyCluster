@@ -5,7 +5,7 @@ from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from postgres_classes import Base
+from .postgres_classes import Base
 from misc import open_log_file
 
 from settings import (
@@ -46,7 +46,7 @@ async def create_new_database(connection, db_name):
         logger.error(message)
 
 
-async def main(args, debug: bool = False):
+async def check_postgres(args, debug: bool = False):
     initialize = args.init
     engine_name = POSTGRES_GENERAL_DB_URL + "/postgres"
     if debug:
@@ -96,7 +96,7 @@ async def main(args, debug: bool = False):
         await engine.dispose()
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Check or initialize the PostgreSQL database.")
     parser.add_argument("--init", action="store_true", help="Drop and recreate the database and tables.")
     parser.add_argument("-d", "--debug", action="store_true", default=False, help="Debug mode")
@@ -107,4 +107,8 @@ if __name__ == "__main__":
     if debug:
         logger.debug(f"{args=}")
 
-    asyncio.run(main(args=args, debug=debug))
+    asyncio.run(check_postgres(args=args, debug=debug))
+
+
+if __name__ == "__main__":
+    main()
