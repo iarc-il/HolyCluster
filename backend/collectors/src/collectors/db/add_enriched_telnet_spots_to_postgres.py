@@ -6,10 +6,10 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 import redis
 
-from misc import open_log_file
-from db.valkey_config import get_valkey_client
+from collectors.misc import open_log_file
+from collectors.db.valkey_config import get_valkey_client
 
-from settings import (
+from collectors.settings import (
     DEBUG,
     VALKEY_HOST,
     VALKEY_PORT,
@@ -17,7 +17,7 @@ from settings import (
     POSTGRES_DB_URL,
 )
 
-from postgres_classes import HolySpot2
+from collectors.db.postgres_classes import HolySpot2
 
 global valkey_client
 valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
@@ -97,9 +97,7 @@ async def postgres_spots_consumer(debug: bool = False):
 
     while True:
         # Block until a message arrives
-        resp = valkey_client.xreadgroup(
-            CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: last_id}, count=10, block=60000
-        )
+        resp = valkey_client.xreadgroup(CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: last_id}, count=10, block=60000)
         if not resp:
             continue
 
@@ -116,5 +114,9 @@ async def postgres_spots_consumer(debug: bool = False):
                 await add_spot_to_postgres(spot=spot, debug=debug)
 
 
-if __name__ == "__main__":
+def main():
     asyncio.run(postgres_spots_consumer(debug=DEBUG))
+
+
+if __name__ == "__main__":
+    main()

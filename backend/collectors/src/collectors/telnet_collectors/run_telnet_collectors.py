@@ -92,6 +92,10 @@ def run_concurrent_telnet_connections(debug: bool = False):
         logger.error(message)
 
 
-if __name__ == "__main__":
+def main():
     print(f"{DEBUG=}")
     run_concurrent_telnet_connections(debug=DEBUG)
+
+
+if __name__ == "__main__":
+    main()

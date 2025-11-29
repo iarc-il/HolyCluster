@@ -10,7 +10,7 @@ uv run run_telnet_collectors &
 uv run enrich_telnet_spots &
 
 # add enriched telnet spots to postgres
-uv run src/db/add_enriched_telnet_spots_to_postgres.py &
+uv run add_spots_to_db &
 
 # Wait for any background process to exit
 # wait -n
