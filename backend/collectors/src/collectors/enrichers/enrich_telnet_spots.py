@@ -6,12 +6,12 @@ import asyncio
 from loguru import logger
 import redis
 
-from misc import open_log_file
-from db.valkey_config import get_valkey_client
-from enrichers.frequencies import find_band_and_mode
-from enrichers.geo import get_geo_details
+from collectors.misc import open_log_file
+from collectors.db.valkey_config import get_valkey_client
+from collectors.enrichers.frequencies import find_band_and_mode
+from collectors.enrichers.geo import get_geo_details
 
-from settings import (
+from collectors.settings import (
     DEBUG,
     VALKEY_HOST,
     VALKEY_PORT,
@@ -22,7 +22,7 @@ from settings import (
     QRZ_SESSION_KEY_REFRESH,
 )
 
-from enrichers.qrz import get_qrz_session_key
+from collectors.enrichers.qrz import get_qrz_session_key
 
 global valkey_client
 valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
@@ -187,5 +187,9 @@ async def spots_consumer(debug: bool = False):
             logger.error(message)
 
 
-if __name__ == "__main__":
+def main():
     asyncio.run(spots_consumer(debug=DEBUG))
+
+
+if __name__ == "__main__":
+    main()

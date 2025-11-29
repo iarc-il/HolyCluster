@@ -4,10 +4,10 @@
 uv run check_postgres
 
 # telnet collectors
-uv run src/telnet_collectors/run_telnet_collectors.py &
+uv run run_telnet_collectors &
 
 # enricher for telnet spots
-uv run src/enrichers/enrich_telnet_spots.py &
+uv run enrich_telnet_spots &
 
 # add enriched telnet spots to postgres
 uv run src/db/add_enriched_telnet_spots_to_postgres.py &
