@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # database check/init script first.
-uv run src/db/check_postgres.py
+uv run check_postgres
 
 # telnet collectors
 uv run src/telnet_collectors/run_telnet_collectors.py &

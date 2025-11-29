@@ -1,24 +1,25 @@
 from environs import Env
-from misc import in_docker
 
 env = Env()
-env.read_env(".env", recurse=False)
+env.read_env()
 
 DEBUG = env.bool("DEBUG", default=False)
+RUNTIME_ENV = env.str("RUNTIME_ENV", default="local")
+
 POSTGRES_USER = env.str("POSTGRES_USER")
 POSTGRES_PASSWORD = env.str("POSTGRES_PASSWORD")
 POSTGRES_DB_NAME = env.str("POSTGRES_DB_NAME")
 
-if not in_docker():
-    POSTGRES_HOST = env.str("POSTGRES_HOST_LOCAL")
-    POSTGRES_PORT = env.str("POSTGRES_PORT_LOCAL")
-    VALKEY_HOST = env.str("VALKEY_HOST_LOCAL")
-    VALKEY_PORT = env.str("VALKEY_PORT_LOCAL")
-else:
+if RUNTIME_ENV == "docker":
     POSTGRES_HOST = env.str("POSTGRES_HOST")
     POSTGRES_PORT = env.str("POSTGRES_PORT")
     VALKEY_HOST = env.str("VALKEY_HOST")
     VALKEY_PORT = env.str("VALKEY_PORT")
+else:
+    POSTGRES_HOST = env.str("POSTGRES_HOST_LOCAL")
+    POSTGRES_PORT = env.str("POSTGRES_PORT_LOCAL")
+    VALKEY_HOST = env.str("VALKEY_HOST_LOCAL")
+    VALKEY_PORT = env.str("VALKEY_PORT_LOCAL")
 
 POSTGRES_GENERAL_DB_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}"
 POSTGRES_DB_URL = f"{POSTGRES_GENERAL_DB_URL}/{POSTGRES_DB_NAME}"

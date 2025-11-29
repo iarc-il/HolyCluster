@@ -6,10 +6,10 @@ import re
 import json
 from loguru import logger
 
-from misc import open_log_file2
-from db.valkey_config import get_valkey_client
+from collectors.misc import open_log_file2
+from collectors.db.valkey_config import get_valkey_client
 
-from settings import (
+from collectors.settings import (
     VALKEY_HOST,
     VALKEY_PORT,
     VALKEY_DB,

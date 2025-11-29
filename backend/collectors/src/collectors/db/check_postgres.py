@@ -5,10 +5,10 @@ from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from .postgres_classes import Base
-from misc import open_log_file
+from collectors.db.postgres_classes import Base
+from collectors.misc import open_log_file
 
-from settings import (
+from collectors.settings import (
     DEBUG,
     POSTGRES_DB_NAME,
     POSTGRES_GENERAL_DB_URL,

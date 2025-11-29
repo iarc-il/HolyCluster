@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "Collectors that provides the spot information from clusters"
 dependencies = []
 
+[project.scripts]
+check_postgres = "collectors.db.check_postgres:main"
+run_telnet_collectors = "collectors.telnet_collectors.run_telnet_collectors:run_concurrent_telnet_connections"
+
 [build-system]
-requires = ["setuptools >= 61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.9.13,<0.10.0"]
+build-backend = "uv_build"
