@@ -31,8 +31,4 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = [
-    "api",
-    "collectors",
-    "test",
-]
+members = ["api", "collectors"]
