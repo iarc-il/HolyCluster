@@ -110,13 +110,6 @@ export const ServerDataProvider = ({ children }) => {
                 if (spot.mode === "DIGITAL") {
                     spot.mode = "DIGI";
                 }
-                if (spot.band == 2) {
-                    spot.band = "VHF";
-                } else if (spot.band == 0.7) {
-                    spot.band = "UHF";
-                } else if (spot.band < 1) {
-                    spot.band = "SHF";
-                }
                 spot.dx_country = shorten_dxcc(spot.dx_country);
                 return spot;
             });
