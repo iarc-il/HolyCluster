@@ -2,30 +2,8 @@
 name = "api"
 version = "0.1.0"
 description = "Holy cluster API server"
-authors = [
-    { name = "Omer Sarig", email = "omer@sarig.co.il" }
-]
-requires-python = ">=3.13"
-dependencies = [
-    "aiohttp>=3.13.2",
-    "environs>=14.5.0",
-    "fastapi>=0.122.0",
-    "psycopg2>=2.9.11",
-    "redis>=7.1.0",
-    "sqlalchemy>=2.0.44",
-    "sqlmodel>=0.0.27",
-    "uvicorn[standard]>=0.38.0",
-]
-
-[project.scripts]
-api = "api:main"
+dependencies = []
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[dependency-groups]
-dev = [
-    "ipdb>=0.13.13",
-    "ipython>=9.7.0",
-]

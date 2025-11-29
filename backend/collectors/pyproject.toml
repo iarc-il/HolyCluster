@@ -1,26 +1,9 @@
+[project]
+name = "collectors"
+version = "0.1.0"
+description = "Collectors that provides the spot information from clusters"
+dependencies = []
+
 [build-system]
 requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
-
-[project]
-name = "holycluster"
-version = "0.1.0"
-dependencies = [
-    "httpx==0.23.2",
-    "loguru==0.7.2",
-    "environs==11.0.0",
-    "asyncio==3.4.3",
-    "aiohttp==3.10.5",
-    "sqlalchemy==2.0.31",
-    "asyncpg>=0.29.0",
-    # "psycopg>=3.2.9",
-    "redis>=6.4.0",
-    # "psycopg2>=2.9.10",
-    "greenlet>=3.0.0",
-    "psutil>=7.0.0",
-]
-
-[dependency-groups]
-dev = [
-    "ipdb>=0.13.13",
-]
