@@ -62,7 +62,7 @@ function Tabs({ tabs, active_color = null, local_storage_name = null, external_t
                             />
                             <div
                                 className="inline-flex items-center justify-center"
-                                style={{ color: text_color }}
+                                style={{ color: text_color, fontSize: tab.font_size ?? 14 }}
                             >
                                 {tab.icon != null ? (
                                     <svg
