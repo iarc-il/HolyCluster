@@ -122,10 +122,6 @@ export const ServerDataProvider = ({ children }) => {
                     return spot;
                 })
                 .filter(spot => {
-                    if (!bands.includes(spot.band)) {
-                        console.warn(`Dropping spot with unknown band: ${spot.band}`, spot);
-                        return false;
-                    }
                     if (!modes.includes(spot.mode)) {
                         console.warn(`Dropping spot with unknown mode: ${spot.mode}`, spot);
                         return false;
