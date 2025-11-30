@@ -72,10 +72,6 @@ async def enrich_telnet_spot(qrz_session_key: str, spot: dict, debug: bool = Fal
         if debug:
             logger.debug(f"{spot=}")
 
-        if "-" in spot["spotter_callsign"]:
-            logger.error(f"Changing {spot["spotter_callsign"]}")
-            spot["spotter_callsign"] = spot["spotter_callsign"].split("-")[0]
-
         # Enrich locator
         (
             spotter_geo_cache,

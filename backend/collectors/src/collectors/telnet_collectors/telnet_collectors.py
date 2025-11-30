@@ -16,52 +16,47 @@ from collectors.settings import (
     VALKEY_SPOT_EXPIRATION,
 )
 
-def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
-    spot = {
-        "spotter_callsign": None,
-        "frequency": None,
-        "dx_callsign": None,
-        "comment": None,
-        "dx_locator": None,
-        "time": None,
-        "spotter_locator": None,
-    }
-    try:
-        # cc-cluster & dx-cluster
-        DX_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
-        match = DX_RE.match(line.strip())
-        if match:
-            spot = {
-                "spotter_callsign": match.group(1),
-                "frequency": float(match.group(2)),
-                "dx_callsign": match.group(3),
-                "comment": match.group(4).strip(),
-                "dx_locator": match.group(5),
-                "time": match.group(6),
-                "spotter_locator": match.group(7),
-            }
 
-            return spot
-
-        # ar-cluster
-        # DX de K5TR-#:    14056.0  VE2PID/W8    CW 17 dB 22 WPM CQ             2010Z
-        # DX de KB8OTK:    18100.9  OD5ZZ                                       2053Z
-        DX_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+? (\d+Z)")
-        match = DX_RE.match(line.strip())
-        if match:
-            spot = {
-                "spotter_callsign": match.group(1),
-                "frequency": float(match.group(2)),
-                "dx_callsign": match.group(3),
-                "comment": match.group(4).strip(),
-                "time": match.group(5),
-            }
-            return spot
-
-    except Exception as e:
-        logger.error(f"Error parse_dx_line: {e}   {host=} {port=} {cluster_type=}")
-
+def parse_cc_dx_cluster_line(line: str) -> dict | None:
+    DX_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
+    match = DX_RE.match(line.strip())
+    if match:
+        return {
+            "spotter_callsign": match.group(1),
+            "frequency": float(match.group(2)),
+            "dx_callsign": match.group(3),
+            "comment": match.group(4).strip(),
+            "dx_locator": match.group(5),
+            "time": match.group(6),
+            "spotter_locator": match.group(7),
+        }
     return None
+
+
+def parse_ar_cluster_line(line: str) -> dict | None:
+    # DX de K5TR-#:    14056.0  VE2PID/W8    CW 17 dB 22 WPM CQ             2010Z
+    # DX de KB8OTK:    18100.9  OD5ZZ                                       2053Z
+    DX_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+? (\d+Z)")
+    match = DX_RE.match(line.strip())
+    if match:
+        return {
+            "spotter_callsign": match.group(1),
+            "frequency": float(match.group(2)),
+            "dx_callsign": match.group(3),
+            "comment": match.group(4).strip(),
+            "time": match.group(5),
+        }
+    return None
+
+
+def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
+    spot = parse_cc_dx_cluster_line(line)
+    if spot is None:
+        spot = parse_ar_cluster_line(line)
+
+    spot["spotter_callsign"] = re.sub(r"-\d+$", "", spot["spotter_callsign"])
+
+    return spot
 
 
 def parse_show_dx_line(line: str, host: str, port: int):
