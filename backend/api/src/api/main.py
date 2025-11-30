@@ -131,11 +131,18 @@ async def spots_broadcast_task(app):
 
 @asynccontextmanager
 async def lifespan(app: fastapi.FastAPI):
-    asyncio.get_running_loop().create_task(propagation_data_collector(app))
-    asyncio.get_running_loop().create_task(spots_broadcast_task(app))
-
     app.state.active_connections = set()
+
+    tasks = [
+        asyncio.create_task(propagation_data_collector(app)),
+        asyncio.create_task(spots_broadcast_task(app)),
+    ]
+
     yield
+
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 engine = create_async_engine(
@@ -247,13 +254,8 @@ async def spots_ws(websocket: fastapi.WebSocket):
 
         async with async_session() as session:
             if "initial" in message:
-                query = (
-                    select(DX)
-                    .where(DX.timestamp > (time.time() - 3600))
-                    .order_by(desc(DX.id))
-                    .limit(500)
-                )
-                initial_spots = (await session.exec(query)).all()
+                query = select(DX).where(DX.timestamp > (time.time() - 3600)).order_by(desc(DX.id)).limit(500)
+                initial_spots = (await session.execute(query)).scalars()
 
                 initial_spots = [cleanup_spot(dict(spot)) for spot in initial_spots]
                 await websocket.send_json({"type": "initial", "spots": initial_spots})
