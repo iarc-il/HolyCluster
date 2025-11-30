@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useFilters } from "../hooks/useFilters";
 import { get_base_url, is_matching_list, play_alert_sound, sort_spots } from "@/utils.js";
-import { bands, modes } from "@/filters_data.js";
+import { bands, modes, continents } from "@/filters_data.js";
 import { get_flag, shorten_dxcc } from "@/flags.js";
 import use_radio from "./useRadio";
 import { useSettings } from "./useSettings";
@@ -106,20 +106,46 @@ export const ServerDataProvider = ({ children }) => {
     useEffect(() => {
         if (lastJsonMessage) {
             const data = lastJsonMessage;
-            let new_spots = data.spots.map(spot => {
-                if (spot.mode === "DIGITAL") {
-                    spot.mode = "DIGI";
-                }
-                if (spot.band == 2) {
-                    spot.band = "VHF";
-                } else if (spot.band == 0.7) {
-                    spot.band = "UHF";
-                } else if (spot.band < 1) {
-                    spot.band = "SHF";
-                }
-                spot.dx_country = shorten_dxcc(spot.dx_country);
-                return spot;
-            });
+            let new_spots = data.spots
+                .map(spot => {
+                    if (spot.mode === "DIGITAL") {
+                        spot.mode = "DIGI";
+                    }
+                    if (spot.band == 2) {
+                        spot.band = "VHF";
+                    } else if (spot.band == 0.7) {
+                        spot.band = "UHF";
+                    } else if (spot.band < 1) {
+                        spot.band = "SHF";
+                    }
+                    spot.dx_country = shorten_dxcc(spot.dx_country);
+                    return spot;
+                })
+                .filter(spot => {
+                    if (!bands.includes(spot.band)) {
+                        console.warn(`Dropping spot with unknown band: ${spot.band}`, spot);
+                        return false;
+                    }
+                    if (!modes.includes(spot.mode)) {
+                        console.warn(`Dropping spot with unknown mode: ${spot.mode}`, spot);
+                        return false;
+                    }
+                    if (!continents.includes(spot.dx_continent)) {
+                        console.warn(
+                            `Dropping spot with unknown dx_continent: ${spot.dx_continent}`,
+                            spot,
+                        );
+                        return false;
+                    }
+                    if (!continents.includes(spot.spotter_continent)) {
+                        console.warn(
+                            `Dropping spot with unknown spotter_continent: ${spot.spotter_continent}`,
+                            spot,
+                        );
+                        return false;
+                    }
+                    return true;
+                });
 
             if (data.type === "update") {
                 const new_ids = new Set(new_spots.map(spot => spot.id));
