@@ -56,7 +56,11 @@ def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
 
     spot["spotter_callsign"] = re.sub(r"-\d+$", "", spot["spotter_callsign"])
 
-    return spot
+    # Ignore the crazy ham that publish skimmed spots
+    if spot["spotter_callsign"].upper() == "W3LPL":
+        return None
+    else:
+        return spot
 
 
 def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug: bool = False):
