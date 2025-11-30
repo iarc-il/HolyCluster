@@ -9,8 +9,6 @@ dependencies = [
     "redis>=7.1.0",
 
     "fastapi>=0.122.0",
-    # TODO: This is needed only by the api, which should by migrated to asyncpg
-    "psycopg2>=2.9.11",
     "sqlmodel>=0.0.27",
     "uvicorn[standard]>=0.38.0",
 ]

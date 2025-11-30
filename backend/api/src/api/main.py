@@ -13,7 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from sqlmodel import Field, SQLModel, select
 import redis.asyncio
 
 from . import propagation, settings, submit_spot
@@ -136,7 +138,7 @@ async def lifespan(app: fastapi.FastAPI):
     yield
 
 
-engine = create_engine(
+engine = create_async_engine(
     settings.DB_URL,
     pool_size=10,
     max_overflow=20,
@@ -144,6 +146,8 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_recycle=3600,
 )
+async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
 app = fastapi.FastAPI(lifespan=lifespan)
 
 app.add_middleware(
@@ -184,17 +188,17 @@ def cleanup_spot(spot):
 
 
 @app.get("/geocache/all")
-def geocache_all():
-    with Session(engine) as session:
-        geodata = session.exec(select(GeoCache)).all()
+async def geocache_all():
+    async with async_session() as session:
+        geodata = (await session.exec(select(GeoCache))).all()
         return [data.model_dump() for data in geodata]
 
 
 @app.get("/geocache/{callsign}")
-def geocache(callsign: str):
-    with Session(engine) as session:
+async def geocache(callsign: str):
+    async with async_session() as session:
         query = select(GeoCache).where(GeoCache.callsign == callsign.upper())
-        geodata = session.exec(query).one_or_none()
+        geodata = (await session.exec(query)).one_or_none()
         if geodata is not None:
             return geodata.model_dump()
         else:
@@ -202,9 +206,9 @@ def geocache(callsign: str):
 
 
 @app.get("/spots_with_issues")
-def spots_with_issues():
-    with Session(engine) as session:
-        spots = session.exec(select(SpotsWithIssues)).all()
+async def spots_with_issues():
+    async with async_session() as session:
+        spots = (await session.exec(select(SpotsWithIssues))).all()
         spots = [spot.model_dump() for spot in spots]
         return spots
 
@@ -241,7 +245,7 @@ async def spots_ws(websocket: fastapi.WebSocket):
     try:
         message = await websocket.receive_json()
 
-        with Session(engine) as session:
+        async with async_session() as session:
             if "initial" in message:
                 query = (
                     select(DX)
@@ -249,7 +253,7 @@ async def spots_ws(websocket: fastapi.WebSocket):
                     .order_by(desc(DX.id))
                     .limit(500)
                 )
-                initial_spots = session.exec(query).all()
+                initial_spots = (await session.exec(query)).all()
 
                 initial_spots = [cleanup_spot(dict(spot)) for spot in initial_spots]
                 await websocket.send_json({"type": "initial", "spots": initial_spots})

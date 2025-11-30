@@ -1,21 +1,20 @@
 #!/bin/bash
 
-# database check/init script first.
 uv run check_postgres
 
-# telnet collectors
+pids=()
+
+trap 'for pid in ${pids[*]}; do kill $pid done; exit' INT
+
 uv run run_telnet_collectors &
+pids+=($!)
 
-# enricher for telnet spots
 uv run enrich_telnet_spots &
+pids+=($!)
 
-# add enriched telnet spots to postgres
 uv run add_spots_to_db &
+pids+=($!)
 
-# Wait for any background process to exit
-# wait -n
-#
-# Exit with the status of the first process that exited
-# exit $?
+echo THE PIDS: $pids
 
 tail -f /dev/null

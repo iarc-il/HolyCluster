@@ -17,7 +17,7 @@ else:
     POSTGRES_PORT = env.str("POSTGRES_PORT_LOCAL")
 
 DATABASE = env.str("POSTGRES_DB_NAME", default="holy_cluster")
-GENERAL_DB_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}"
+GENERAL_DB_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}"
 DB_URL = f"{GENERAL_DB_URL}/{DATABASE}"
 
 # TODO: The defaults are copied from ../config/paths.env,
