@@ -20,7 +20,7 @@ function CallsignsView({ toggled_ui, set_cat_to_spot }) {
 
     const toggled_classes = toggled_ui.right
         ? "hidden"
-        : "max-2xl:absolute right-20 top-0 border-l border-slate-300";
+        : "max-2xl:absolute right-16 top-0 border-l border-slate-300";
     return (
         <div
             className={
