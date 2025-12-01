@@ -64,6 +64,7 @@ const dxcc_to_country_flag = {
     "Fernando de noronha": "Brazil",
     "Saba & St. Eustatius": "Caribbean Netherlands",
     Revillagigedo: "Mexico",
+    "Easter Island": "Chile",
 };
 
 const dxcc_to_short_dxcc = {
