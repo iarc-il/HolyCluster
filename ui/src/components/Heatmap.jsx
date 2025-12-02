@@ -25,12 +25,7 @@ function Heatmap() {
         const current_time = Math.floor(Date.now() / 1000);
         const one_hour_ago = current_time - 3600;
 
-        const filtered_spots = raw_spots.filter(
-            spot => spot.time >= one_hour_ago && spot.spotter_continent === selected_continent,
-        );
-
         const counts = {};
-        let max_count = 0;
 
         for (const band of visible_bands) {
             counts[band] = {};
@@ -39,15 +34,17 @@ function Heatmap() {
             }
         }
 
-        for (const spot of filtered_spots) {
-            if (counts[spot.band] && spot.dx_continent) {
-                counts[spot.band][spot.dx_continent] =
-                    (counts[spot.band][spot.dx_continent] || 0) + 1;
-                max_count = Math.max(max_count, counts[spot.band][spot.dx_continent]);
+        for (const spot of raw_spots) {
+            if (visible_bands.includes(spot.band)) {
+                if (spot.spotter_continent == selected_continent) {
+                    counts[spot.band][spot.dx_continent] += 1;
+                } else if (spot.dx_continent == selected_continent) {
+                    counts[spot.band][spot.spotter_continent] += 1;
+                }
             }
         }
 
-        return { counts, max_count };
+        return counts;
     }, [raw_spots, selected_continent, settings]);
 
     useEffect(() => {
@@ -71,11 +68,11 @@ function Heatmap() {
             heatmap_instance_ref.current = simpleheat(canvas_ref.current);
             heatmap_instance_ref.current.radius(25, 15);
             heatmap_instance_ref.current.gradient({
-                0: "blue",
-                0.25: "cyan",
-                0.5: "lime",
-                0.65: "yellow",
-                0.85: "orange",
+                0: "white",
+                0.2: "blue",
+                0.4: "cyan",
+                0.6: "lime",
+                0.8: "yellow",
                 1: "red",
             });
         }
@@ -83,18 +80,20 @@ function Heatmap() {
         const points = [];
         visible_bands.forEach((band, band_index) => {
             continents.forEach((continent, continent_index) => {
-                const value = heatmap_data.counts[band]?.[continent] || 0;
-                points.push([
+                const value = heatmap_data[band]?.[continent] || 0;
+                let point = [
                     left_margin + continent_index * cell_width + cell_width / 2,
                     top_margin + band_index * cell_height + cell_height / 2,
-                    value,
-                ]);
+                    Math.min(value, 20),
+                ];
+                points.push(point);
             });
         });
 
         heatmap_instance_ref.current.data(points);
-        heatmap_instance_ref.current.max(heatmap_data.max_count || 1);
-        heatmap_instance_ref.current.draw(0.05);
+        heatmap_instance_ref.current.max(20);
+        heatmap_instance_ref.current.radius(35, 25);
+        heatmap_instance_ref.current.draw(0);
 
         ctx.restore();
 
@@ -201,14 +200,17 @@ function Heatmap() {
             <div className="mt-4" style={{ color: colors.theme.text }}>
                 <div className="flex items-center justify-between text-xs mb-1">
                     <span>0</span>
-                    <span>{Math.round(heatmap_data.max_count / 2)}</span>
-                    <span>{heatmap_data.max_count}</span>
+                    <span>9</span>
+                    <span>11</span>
+                    <span>13</span>
+                    <span>19</span>
+                    <span>20</span>
                 </div>
                 <div
                     className="h-4 rounded"
                     style={{
                         background:
-                            "linear-gradient(to right, blue, cyan, lime, yellow, orange, red)",
+                            "linear-gradient(to right, white 0%, blue 20%, cyan 40%, lime 60%, yellow 80%, red 100%)",
                         border: `1px solid ${colors.theme.borders}`,
                     }}
                 />
