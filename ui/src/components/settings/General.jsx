@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import Input from "@/components/Input.jsx";
+import CallsignInput from "@/components/CallsignInput.jsx";
 import Select from "@/components/Select.jsx";
 import Toggle from "@/components/Toggle.jsx";
 import Popup from "@/components/Popup.jsx";
@@ -69,15 +70,14 @@ function General({ temp_settings, set_temp_settings, colors }) {
                     <tr>
                         <td>My callsign:</td>
                         <td>
-                            <Input
+                            <CallsignInput
                                 value={temp_settings.callsign}
                                 maxLength={11}
-                                className="uppercase"
                                 autoFocus={true}
                                 onChange={event => {
                                     set_temp_settings({
                                         ...temp_settings,
-                                        callsign: event.target.value.toUpperCase(),
+                                        callsign: event.target.value,
                                     });
                                 }}
                             />

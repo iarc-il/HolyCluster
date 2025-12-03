@@ -1,6 +1,7 @@
 import Modal from "@/components/Modal.jsx";
 import Select from "@/components/Select.jsx";
 import Input from "@/components/Input.jsx";
+import CallsignInput from "@/components/CallsignInput.jsx";
 import { useColors } from "../hooks/useColors";
 import entities from "@/assets/dxcc_entities.json";
 
@@ -185,14 +186,14 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                                         options={dxcc_entities}
                                     />
                                 ) : (
-                                    <Input
+                                    <CallsignInput
                                         value={temp_data.value}
                                         autoFocus={true}
-                                        className="uppercase h-10"
+                                        className="h-10"
                                         onChange={event => {
                                             set_temp_data({
                                                 ...temp_data,
-                                                value: event.target.value.toUpperCase(),
+                                                value: event.target.value,
                                             });
                                         }}
                                     />

@@ -3,6 +3,7 @@ import useWebSocket, { ReadyState } from "react-use-websocket";
 import { ToastContainer, toast } from "react-toastify";
 
 import Input from "@/components/Input.jsx";
+import CallsignInput from "@/components/CallsignInput.jsx";
 import Button from "@/components/Button.jsx";
 import Modal from "@/components/Modal.jsx";
 import Spinner from "@/components/Spinner.jsx";
@@ -201,15 +202,14 @@ function SubmitSpot({ dev_mode }) {
                         <tr>
                             <td>DX callsign:</td>
                             <td>
-                                <Input
+                                <CallsignInput
                                     value={temp_data.callsign}
                                     maxLength={11}
                                     autoFocus={true}
-                                    className="uppercase"
                                     onChange={event => {
                                         set_temp_data({
                                             ...temp_data,
-                                            callsign: event.target.value.toUpperCase(),
+                                            callsign: event.target.value,
                                         });
                                     }}
                                 />
