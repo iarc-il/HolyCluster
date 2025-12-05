@@ -1,16 +1,18 @@
+from pathlib import Path
+
 from environs import Env
 
 env = Env()
 env.read_env()
 
 DEBUG = env.bool("DEBUG", default=False)
-RUNTIME_ENV = env.str("RUNTIME_ENV", default="local")
+IN_DOCKER = Path("/.dockerenv").exists()
 
 POSTGRES_USER = env.str("POSTGRES_USER")
 POSTGRES_PASSWORD = env.str("POSTGRES_PASSWORD")
 POSTGRES_DB_NAME = env.str("POSTGRES_DB_NAME")
 
-if RUNTIME_ENV == "docker":
+if IN_DOCKER:
     POSTGRES_HOST = env.str("POSTGRES_HOST")
     POSTGRES_PORT = env.str("POSTGRES_PORT")
     VALKEY_HOST = env.str("VALKEY_HOST")

@@ -42,7 +42,7 @@ async def spots_broadcast_task(app):
     CONSUMER_GROUP = "api-group"
     CONSUMER_NAME = "consumer_1"
 
-    valkey_client = redis.asyncio.Redis(host="localhost", port=6379, db=0, decode_responses=True)
+    valkey_client = redis.asyncio.Redis(host=settings.VALKEY_HOST, port=settings.VALKEY_PORT, db=0, decode_responses=True)
 
     try:
         await valkey_client.xgroup_create(STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True)
