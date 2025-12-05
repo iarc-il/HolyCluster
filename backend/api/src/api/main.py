@@ -3,7 +3,6 @@ import datetime
 import logging
 import time
 from contextlib import asynccontextmanager
-from typing import Optional
 import os
 
 import fastapi
@@ -213,6 +212,12 @@ async def spots_ws(websocket: fastapi.WebSocket):
 
                 initial_spots = [cleanup_spot(dict(spot)) for spot in initial_spots]
                 await websocket.send_json({"type": "initial", "spots": initial_spots})
+            elif "last_time" in message:
+                query = select(HolySpot).where(HolySpot.timestamp > message["last_time"]).order_by(desc(HolySpot.timestamp)).limit(500)
+                missed_spots = (await session.execute(query)).scalars()
+
+                missed_spots = [cleanup_spot(dict(spot)) for spot in missed_spots]
+                await websocket.send_json({"type": "update", "spots": missed_spots})
 
         while True:
             await websocket.receive_text()
