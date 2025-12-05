@@ -19,7 +19,7 @@ dependencies = [
 
 [project.scripts]
 check_postgres = "collectors.db.check_postgres:main"
-run_telnet_collectors = "collectors.telnet_collectors.run_telnet_collectors:run_concurrent_telnet_connections"
+run_telnet_collectors = "collectors.telnet_collectors.run_telnet_collectors:main"
 enrich_telnet_spots = "collectors.enrichers.enrich_telnet_spots:main"
 add_spots_to_db = "collectors.db.add_enriched_telnet_spots_to_postgres:main"
 

@@ -1,7 +1,6 @@
-import socket
+import asyncio
 import argparse
 import os
-import time
 import re
 import json
 from loguru import logger
@@ -69,7 +68,7 @@ def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
         return spot
 
 
-def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug: bool = False):
+async def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug: bool = False):
     """
     Establishes a Telnet connection, sends a username, and collects spots.
     If the connection is lost, it attempts to reconnect with exponential backoff.
@@ -81,38 +80,36 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
     log_filename_prefix = os.path.join(telnet_log_dir, host)
     if debug:
         logger.debug(f"{log_filename_prefix=}")
-    thread_logger = open_log_file2(log_filename_prefix=log_filename_prefix, debug=debug)
+    task_logger = open_log_file2(log_filename_prefix=log_filename_prefix, debug=debug)
 
-    thread_logger.info(f"Start of telnet_and_collect for {host}. {debug=}")
+    task_logger.info(f"Start of telnet_and_collect for {host}. {debug=}")
     valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
     STREAM_NAME = "stream-telnet"
 
     while True:
-        sock = None
-        # Reset line_buffer for each new connection attempt
+        reader, writer = None, None
         line_buffer = b""
         try:
             logger.info(f"Attempting to connect to {host}:{port} ...")
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(10)
-            sock.connect((host, int(port)))
-            sock.settimeout(None)
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, int(port)),
+                timeout=10
+            )
 
             logger.info(f"{host}:{port}  Successfully connected")
             reconnect_attempts = 0
 
             if username:
-                # Wait for 2 seconds before sending username
-                time.sleep(2)
-                sock.sendall(f"{username}\n".encode("utf-8"))
+                await asyncio.sleep(2)
+                writer.write(f"{username}\n".encode("utf-8"))
+                await writer.drain()
                 if debug:
-                    thread_logger.debug(f"Sent username: {username}")
+                    task_logger.debug(f"Sent username: {username}")
 
-            # read live spots
             while True:
-                data = sock.recv(4096)
+                data = await reader.read(4096)
                 if not data:
-                    thread_logger.error("Connection closed by remote host.")
+                    task_logger.error("Connection closed by remote host.")
                     break
 
                 lines = (line_buffer + data).split(b"\n")
@@ -120,7 +117,7 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
 
                 for line_bytes in lines:
                     line = line_bytes.decode("utf-8", errors="ignore").replace("\r", "")
-                    thread_logger.info(line)
+                    task_logger.info(line)
                     if line.startswith("DX de"):
                         spot = parse_dx_line(line, cluster_type, host, port)
                         if spot:
@@ -128,7 +125,7 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                             spot.update({"cluster": cluster})
                             spot_data = json.dumps(spot)
                             if debug:
-                                thread_logger.debug(json.dumps(spot, indent=2))
+                                task_logger.debug(json.dumps(spot, indent=2))
                                 logger.debug(json.dumps(spot, indent=2))
 
                             try:
@@ -137,34 +134,35 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                                 if added:
                                     entry_id = valkey_client.xadd(STREAM_NAME, spot, "*")
                                     if debug:
-                                        thread_logger.debug(f"Spot stored in Valkey: {entry_id=}  {spot_data=}")
+                                        task_logger.debug(f"Spot stored in Valkey: {entry_id=}  {spot_data=}")
                                         logger.debug(f"spot stored in Valkey: {host}:{port}  {spot_data}")
                                 else:
                                     if debug:
-                                        thread_logger.debug(f"Duplicate spot not stored in Valkey: {spot_data}")
+                                        task_logger.debug(f"Duplicate spot not stored in Valkey: {spot_data}")
                                         logger.debug(f"duplicate spot not stored in Valkey: {host}:{port}  {spot_data}")
 
                             except Exception as e:
-                                thread_logger.error(f"**** Failed to store spot in Valkey: {e}")
+                                task_logger.error(f"**** Failed to store spot in Valkey: {e}")
                         else:
-                            thread_logger.error(f"Could not parse spot line: {line}")
+                            task_logger.error(f"Could not parse spot line: {line}")
 
-        except (socket.timeout, ConnectionRefusedError, OSError) as e:
-            thread_logger.exception(f"Connection failed: {host}:{port}  {e}")
+        except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
+            task_logger.exception(f"Connection failed: {host}:{port}  {e}")
             logger.exception(f"Connection failed: {host}:{port}  {e}")
 
-        except KeyboardInterrupt:
-            logger.info("Exiting due to user request (Ctrl+C).")
+        except asyncio.CancelledError:
+            logger.info(f"{host}:{port} Task cancelled, shutting down.")
             break
 
         except Exception as ex:
             message = f"**** ERROR telnet_and_collect **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
-            thread_logger.exception(message)
+            task_logger.exception(message)
             logger.exception(message)
 
         finally:
-            if sock:
-                sock.close()
+            if writer:
+                writer.close()
+                await writer.wait_closed()
 
         # Exponential backoff logic
         if reconnect_attempts < len(backoff_delays):
@@ -172,7 +170,7 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
         else:
             delay = backoff_delays[-1]
 
-        thread_logger.info(
+        task_logger.info(
             f"{host}:{port} Reconnection attempt {reconnect_attempts + 1}. Waiting for {delay // 60} minutes before retrying."
         )
         logger.info(
@@ -180,10 +178,10 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
         )
 
         try:
-            time.sleep(delay)
+            await asyncio.sleep(delay)
             reconnect_attempts += 1
-        except KeyboardInterrupt:
-            logger.info("Exiting during backoff due to user request (Ctrl+C).")
+        except asyncio.CancelledError:
+            logger.info(f"{host}:{port} Task cancelled during backoff.")
             break
 
 
@@ -193,8 +191,9 @@ if __name__ == "__main__":
     parser.add_argument("--port", required=True, type=int, help="The port to connect to.")
     parser.add_argument("--username", default="4X0IARC", help="The username to send after connecting.")
     parser.add_argument("--cluster-type", default="unknown", help="The type of the cluster.")
-    parser.add_argument("--debug", default=False, help="Debug mode.")
+    parser.add_argument("--telnet-log-dir", default=".", help="Directory for telnet logs.")
+    parser.add_argument("--debug", action="store_true", help="Debug mode.")
 
     args = parser.parse_args()
 
-    telnet_and_collect(args.host, args.port, args.username, args.cluster_type, args.debug)
+    asyncio.run(telnet_and_collect(args.host, args.port, args.username, args.cluster_type, args.telnet_log_dir, args.debug))

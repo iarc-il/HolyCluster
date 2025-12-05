@@ -1,7 +1,7 @@
+import asyncio
 import csv
 import sys
 import os
-import threading
 from loguru import logger
 
 from ..misc import open_log_file
@@ -27,10 +27,10 @@ def get_telnet_clusters_list(csv_path: str, debug: bool = False):
     return servers
 
 
-def run_concurrent_telnet_connections(debug: bool = False):
+async def run_concurrent_telnet_connections(debug: bool = False):
     """
     Reads a list of Telnet servers from a CSV file and launches a separate
-    thread to connect to each server concurrently.
+    async task to connect to each server concurrently.
     """
     if USERNAME_FOR_TELNET_CLUSTERS == "":
         logger.error("USERNAME_FOR_TELNET_CLUSTERS must not be empty")
@@ -60,12 +60,12 @@ def run_concurrent_telnet_connections(debug: bool = False):
         logger.info(f"Start of global_log_file. {debug=}")
 
         servers = get_telnet_clusters_list(csv_path, debug=debug)
-        threads = []
+        tasks = []
         for server in servers:
             host = server.get("hostname")
             port = int(server.get("port"))
             cluster_type = server.get("type", "unknown")
-            logger.info(f"Creating thread for server {host}:{port}  type:{cluster_type}")
+            logger.info(f"Creating task for server {host}:{port}  type:{cluster_type}")
             if not host or not port:
                 logger.error(f"Skipping server with missing host or port: {server}")
                 continue
@@ -75,18 +75,14 @@ def run_concurrent_telnet_connections(debug: bool = False):
                 logger.debug(f"{cluster_log_dir=}")
             os.makedirs(cluster_log_dir, exist_ok=True)
 
-            thread = threading.Thread(
-                target=telnet_and_collect,
+            task = asyncio.create_task(
+                telnet_and_collect(host, port, USERNAME_FOR_TELNET_CLUSTERS, cluster_type, cluster_log_dir, DEBUG),
                 name=host,
-                args=(host, port, USERNAME_FOR_TELNET_CLUSTERS, cluster_type, cluster_log_dir, DEBUG),
-                daemon=True,
             )
-            threads.append(thread)
-            thread.start()
+            tasks.append(task)
             logger.info(f"Starting connection to {host}:{port} , debug={DEBUG}")
 
-        for thread in threads:
-            thread.join()
+        await asyncio.gather(*tasks)
     except Exception as ex:
         message = f"**** ERROR run_concurrent_telnet_connections **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
         logger.error(message)
@@ -94,7 +90,7 @@ def run_concurrent_telnet_connections(debug: bool = False):
 
 def main():
     print(f"{DEBUG=}")
-    run_concurrent_telnet_connections(debug=DEBUG)
+    asyncio.run(run_concurrent_telnet_connections(debug=DEBUG))
 
 
 if __name__ == "__main__":
