@@ -27,10 +27,11 @@ def get_telnet_clusters_list(csv_path: str, debug: bool = False):
     return servers
 
 
-async def run_concurrent_telnet_connections(debug: bool = False):
+async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: bool = False):
     """
     Reads a list of Telnet servers from a CSV file and launches a separate
     async task to connect to each server concurrently.
+    All tasks push spots to the shared output_queue.
     """
     if USERNAME_FOR_TELNET_CLUSTERS == "":
         logger.error("USERNAME_FOR_TELNET_CLUSTERS must not be empty")
@@ -76,7 +77,7 @@ async def run_concurrent_telnet_connections(debug: bool = False):
             os.makedirs(cluster_log_dir, exist_ok=True)
 
             task = asyncio.create_task(
-                telnet_and_collect(host, port, USERNAME_FOR_TELNET_CLUSTERS, cluster_type, cluster_log_dir, DEBUG),
+                telnet_and_collect(host, port, USERNAME_FOR_TELNET_CLUSTERS, cluster_type, cluster_log_dir, output_queue, DEBUG),
                 name=host,
             )
             tasks.append(task)
@@ -90,7 +91,8 @@ async def run_concurrent_telnet_connections(debug: bool = False):
 
 def main():
     print(f"{DEBUG=}")
-    asyncio.run(run_concurrent_telnet_connections(debug=DEBUG))
+    spots_queue: asyncio.Queue = asyncio.Queue()
+    asyncio.run(run_concurrent_telnet_connections(output_queue=spots_queue, debug=DEBUG))
 
 
 if __name__ == "__main__":

@@ -68,11 +68,11 @@ def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
         return spot
 
 
-async def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug: bool = False):
+async def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, output_queue: asyncio.Queue, debug: bool = False):
     """
     Establishes a Telnet connection, sends a username, and collects spots.
     If the connection is lost, it attempts to reconnect with exponential backoff.
-    Push spots to Valkey database
+    Push spots to output_queue for processing.
     """
     reconnect_attempts = 0
     backoff_delays = [60, 300, 600, 1200, 2400, 3600]  # 1, 5, 10, 20, 40, 60 minutes
@@ -84,7 +84,6 @@ async def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir,
 
     task_logger.info(f"Start of telnet_and_collect for {host}. {debug=}")
     valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
-    STREAM_NAME = "stream-telnet"
 
     while True:
         reader, writer = None, None
@@ -132,17 +131,17 @@ async def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir,
                                 spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
                                 added = valkey_client.set(spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True)
                                 if added:
-                                    entry_id = valkey_client.xadd(STREAM_NAME, spot, "*")
+                                    await output_queue.put(spot)
                                     if debug:
-                                        task_logger.debug(f"Spot stored in Valkey: {entry_id=}  {spot_data=}")
-                                        logger.debug(f"spot stored in Valkey: {host}:{port}  {spot_data}")
+                                        task_logger.debug(f"Spot added to queue: {spot_data}")
+                                        logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
                                 else:
                                     if debug:
-                                        task_logger.debug(f"Duplicate spot not stored in Valkey: {spot_data}")
-                                        logger.debug(f"duplicate spot not stored in Valkey: {host}:{port}  {spot_data}")
+                                        task_logger.debug(f"Duplicate spot not queued: {spot_data}")
+                                        logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
                             except Exception as e:
-                                task_logger.error(f"**** Failed to store spot in Valkey: {e}")
+                                task_logger.error(f"**** Failed to queue spot: {e}")
                         else:
                             task_logger.error(f"Could not parse spot line: {line}")
 
@@ -196,4 +195,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    asyncio.run(telnet_and_collect(args.host, args.port, args.username, args.cluster_type, args.telnet_log_dir, args.debug))
+    test_queue: asyncio.Queue = asyncio.Queue()
+    asyncio.run(telnet_and_collect(args.host, args.port, args.username, args.cluster_type, args.telnet_log_dir, test_queue, args.debug))
