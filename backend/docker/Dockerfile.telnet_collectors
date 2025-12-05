@@ -14,6 +14,8 @@ RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
 
 # Copy workspace members
 COPY collectors/ ./collectors/
+# Copy api just for the workspace to be valid
+COPY api/ ./api/
 COPY db/ ./db/
 COPY pyproject.toml uv.lock ./
 

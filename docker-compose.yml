@@ -6,19 +6,18 @@ services:
       dockerfile: Dockerfile.postgres
     restart: unless-stopped
     env_file:
-      - ./backend/collectors/.env
+      - ./backend/.env
     volumes:
       - ./postgres/data:/var/lib/postgresql/data
-    ports:
-      - "15432:5432"
     healthcheck:
-      # test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
     environment:
         - TZ=Asia/Jerusalem
+    expose:
+      - "15432"
 
   valkey:
     container_name: valkey
@@ -34,7 +33,7 @@ services:
     # Password needs to be passed to the healthcheck command
       - VALKEY_PASSWORD=${VALKEY_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "valkey-cli -a ${VALKEY_PASSWORD} ping | grep PONG"]
+      test: ["CMD-SHELL", "valkey-cli ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -53,7 +52,7 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - ./backend/collectors/.env
+      - ./backend/.env
     volumes:
       - ./backend/collectors/logs/db:/app/collectors/logs/db
       - ./backend/collectors/logs/telnet_collectors:/app/collectors/logs/telnet_collectors
@@ -65,10 +64,14 @@ services:
       dockerfile: docker/Dockerfile.api
     working_dir: /app
     restart: unless-stopped
+    depends_on:
+      valkey:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     env_file:
-      - ./backend/api/.env
+      - ./backend/.env
     volumes:
-      - /opt/ui-dist:/opt/ui-dist
       - ./ui:/ui
     expose:
       - "8000"
