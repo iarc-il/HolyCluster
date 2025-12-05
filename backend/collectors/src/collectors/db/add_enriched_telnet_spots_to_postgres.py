@@ -102,15 +102,18 @@ async def postgres_spots_consumer(debug: bool = False):
 
         for stream_name, messages in resp:
             for msg_id, spot in messages:
-                if debug:
-                    logger.debug(f"{msg_id=}")
-                    logger.debug(f"spot={json.dumps(spot, indent=4)}")
-                valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
-                valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
+                try:
+                    if debug:
+                        logger.debug(f"{msg_id=}")
+                        logger.debug(f"spot={json.dumps(spot, indent=4)}")
+                    valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
+                    valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
 
-                # add spot to postgres
-                logger.info(f"{spot=}")
-                await add_spot_to_postgres(spot=spot, debug=debug)
+                    # add spot to postgres
+                    logger.info(f"{spot=}")
+                    await add_spot_to_postgres(spot=spot, debug=debug)
+                except Exception as _:
+                    logger.exception(f"Failed to add spot to db: {spot}")
 
 
 def main():
