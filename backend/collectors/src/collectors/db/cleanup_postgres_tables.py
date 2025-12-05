@@ -9,7 +9,7 @@ from sqlalchemy import func, select, delete
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.exc import SQLAlchemyError, ProgrammingError, OperationalError
 
-from postgres_classes import HolySpot, DxheatRaw, GeoCache
+from db import GeoCache, HolySpot
 from misc import string_to_boolean, open_log_file
 
 from settings import (
@@ -32,8 +32,7 @@ async def main(debug: bool = False):
     logger.info(f"cutoff_datetime (UTC) = {cutoff_datetime}")
 
     tables = [
-        ["dxheat_raw", DxheatRaw],
-        ["holy_spot", HolySpot],
+        ["holy_spots2", HolySpot],
         ["geo_cache", GeoCache]
     ]
 

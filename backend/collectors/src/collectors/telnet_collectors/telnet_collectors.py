@@ -144,8 +144,8 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
                             thread_logger.error(f"Could not parse spot line: {line}")
 
         except (socket.timeout, ConnectionRefusedError, OSError) as e:
-            thread_logger.error(f"Connection failed: {host}:{port}  {e}")
-            logger.error(f"Connection failed: {host}:{port}  {e}")
+            thread_logger.exception(f"Connection failed: {host}:{port}  {e}")
+            logger.exception(f"Connection failed: {host}:{port}  {e}")
 
         except KeyboardInterrupt:
             logger.info("Exiting due to user request (Ctrl+C).")
@@ -153,8 +153,8 @@ def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, debug
 
         except Exception as ex:
             message = f"**** ERROR telnet_and_collect **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
-            thread_logger.error(message)
-            logger.error(message)
+            thread_logger.exception(message)
+            logger.exception(message)
 
         finally:
             if sock:

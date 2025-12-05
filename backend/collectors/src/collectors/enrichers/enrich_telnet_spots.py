@@ -58,7 +58,7 @@ async def enrich_telnet_spot(qrz_session_key: str, spot: dict, debug: bool = Fal
         timestamp = get_timestamp(time_str=spot["time"], debug=debug)
         if debug:
             logger.debug(f"{timestamp=}")
-        spot.update({"timestamp": timestamp, "id": int(timestamp * 10) % 1000000000})
+        spot.update({"timestamp": timestamp})
 
         # Enrich band and mode
         if debug:

@@ -15,56 +15,11 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from sqlmodel import Field, SQLModel, select
+from sqlmodel import select
 import redis.asyncio
 
+from db import GeoCache, HolySpot, SpotsWithIssues
 from . import propagation, settings, submit_spot
-
-
-class DX(SQLModel, table=True):
-    __tablename__ = "holy_spots2"
-    id: Optional[int] = Field(default=None, primary_key=True)
-    timestamp: int
-    dx_callsign: str
-    dx_lat: str
-    dx_lon: str
-    dx_country: str
-    dx_continent: str
-    spotter_callsign: str
-    spotter_lat: str
-    spotter_lon: str
-    spotter_country: str
-    spotter_continent: str
-    frequency: str
-    band: str
-    mode: str
-    comment: str
-
-
-class SpotsWithIssues(SQLModel, table=True):
-    __tablename__ = "spots_with_issues"
-    id: Optional[int] = Field(default=None, primary_key=True)
-    time: datetime.time
-    date: datetime.date
-    band: str
-    frequency: str
-    spotter_callsign: str
-    spotter_locator: str
-    spotter_lat: str
-    spotter_lon: str
-    spotter_country: str
-    dx_callsign: str
-    dx_locator: str
-    dx_lat: str
-    dx_lon: str
-    dx_country: str
-    comment: str
-
-
-class GeoCache(SQLModel, table=True):
-    __tablename__ = "geo_cache"
-    callsign: str = Field(primary_key=True)
-    locator: str
 
 
 logger = logging.getLogger(__name__)
@@ -177,7 +132,6 @@ def cleanup_spot(spot):
         band = spot["band"]
 
     return {
-        "id": int(spot["id"]),
         "spotter_callsign": spot["spotter_callsign"],
         "spotter_loc": [float(spot["spotter_lon"]), float(spot["spotter_lat"])],
         "spotter_country": spot["spotter_country"],
@@ -254,7 +208,7 @@ async def spots_ws(websocket: fastapi.WebSocket):
 
         async with async_session() as session:
             if "initial" in message:
-                query = select(DX).where(DX.timestamp > (time.time() - 3600)).order_by(desc(DX.id)).limit(500)
+                query = select(HolySpot).where(HolySpot.timestamp > (time.time() - 3600)).order_by(desc(HolySpot.timestamp)).limit(500)
                 initial_spots = (await session.execute(query)).scalars()
 
                 initial_spots = [cleanup_spot(dict(spot)) for spot in initial_spots]

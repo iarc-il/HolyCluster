@@ -2,7 +2,11 @@
 name = "backend"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "api",
+    "collectors",
+    "uvicorn[standard]>=0.38.0",
+]
 
 [dependency-groups]
 dev = [
@@ -10,5 +14,14 @@ dev = [
     "ipython>=9.7.0",
 ]
 
+[tool.uv.sources]
+api = { workspace = true }
+collectors = { workspace = true }
+db = { workspace = true }
+
 [tool.uv.workspace]
-members = ["api", "collectors"]
+members = [
+    "api",
+    "collectors",
+    "db",
+]

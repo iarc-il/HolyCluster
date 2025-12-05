@@ -1,0 +1,15 @@
+[project]
+name = "db"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "sqlmodel>=0.0.27",
+]
+
+[project.scripts]
+db = "db:main"
+
+[build-system]
+requires = ["uv_build>=0.9.13,<0.10.0"]
+build-backend = "uv_build"

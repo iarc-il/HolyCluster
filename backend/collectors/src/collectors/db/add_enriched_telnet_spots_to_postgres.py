@@ -17,7 +17,7 @@ from collectors.settings import (
     POSTGRES_DB_URL,
 )
 
-from collectors.db.postgres_classes import HolySpot2
+from db import HolySpot
 
 global valkey_client
 valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
@@ -25,8 +25,7 @@ valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_
 
 async def convert_spot_to_record(spot: dict, debug: bool = False):
     dt = datetime.fromtimestamp(float(spot["timestamp"]))
-    record = HolySpot2(
-        id=int(spot["id"]),
+    record = HolySpot(
         cluster=spot["cluster"],
         time=dt.time(),
         timestamp=int(float(spot["timestamp"])),

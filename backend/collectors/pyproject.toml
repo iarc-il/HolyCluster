@@ -9,12 +9,12 @@ dependencies = [
     "redis>=7.1.0",
 
     "httpx>=0.28.1",
-    # TODO: This is needed only by the collectors, which should by migrated to sqlmodel
     "sqlalchemy>=2.0.44",
     "loguru>=0.7.3",
     "asyncio>=4.0.0",
     "greenlet>=3.2.4",
     "psutil>=7.1.3",
+    "db",
 ]
 
 [project.scripts]
