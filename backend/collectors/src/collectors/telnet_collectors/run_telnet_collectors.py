@@ -65,8 +65,7 @@ async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: 
         for server in servers:
             host = server.get("hostname")
             port = int(server.get("port"))
-            cluster_type = server.get("type", "unknown")
-            logger.info(f"Creating task for server {host}:{port}  type:{cluster_type}")
+            logger.info(f"Creating task for server {host}:{port}")
             if not host or not port:
                 logger.error(f"Skipping server with missing host or port: {server}")
                 continue
@@ -77,7 +76,7 @@ async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: 
             os.makedirs(cluster_log_dir, exist_ok=True)
 
             task = asyncio.create_task(
-                telnet_and_collect(host, port, USERNAME_FOR_TELNET_CLUSTERS, cluster_type, cluster_log_dir, output_queue, DEBUG),
+                telnet_and_collect(host, port, USERNAME_FOR_TELNET_CLUSTERS, cluster_log_dir, output_queue, DEBUG),
                 name=host,
             )
             tasks.append(task)
@@ -87,13 +86,3 @@ async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: 
     except Exception as ex:
         message = f"**** ERROR run_concurrent_telnet_connections **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
         logger.error(message)
-
-
-def main():
-    print(f"{DEBUG=}")
-    spots_queue: asyncio.Queue = asyncio.Queue()
-    asyncio.run(run_concurrent_telnet_connections(output_queue=spots_queue, debug=DEBUG))
-
-
-if __name__ == "__main__":
-    main()

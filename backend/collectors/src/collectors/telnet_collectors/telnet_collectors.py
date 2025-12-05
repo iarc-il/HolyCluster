@@ -1,5 +1,4 @@
 import asyncio
-import argparse
 import os
 import re
 import json
@@ -51,7 +50,7 @@ def parse_ar_cluster_line(line: str) -> dict | None:
     return None
 
 
-def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
+def parse_dx_line(line: str):
     spot = parse_cc_dx_cluster_line(line)
     if spot is None:
         spot = parse_ar_cluster_line(line)
@@ -61,14 +60,13 @@ def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
 
     spot["spotter_callsign"] = re.sub(r"-\d+$", "", spot["spotter_callsign"])
 
-    # Ignore the crazy ham that publish skimmed spots
     if spot["spotter_callsign"].upper() == "W3LPL":
         return None
     else:
         return spot
 
 
-async def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir, output_queue: asyncio.Queue, debug: bool = False):
+async def telnet_and_collect(host, port, username, telnet_log_dir, output_queue: asyncio.Queue, debug: bool = False):
     """
     Establishes a Telnet connection, sends a username, and collects spots.
     If the connection is lost, it attempts to reconnect with exponential backoff.
@@ -118,7 +116,7 @@ async def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir,
                     line = line_bytes.decode("utf-8", errors="ignore").replace("\r", "")
                     task_logger.info(line)
                     if line.startswith("DX de"):
-                        spot = parse_dx_line(line, cluster_type, host, port)
+                        spot = parse_dx_line(line)
                         if spot:
                             cluster = f"{host}:{port}"
                             spot.update({"cluster": cluster})
@@ -182,18 +180,3 @@ async def telnet_and_collect(host, port, username, cluster_type, telnet_log_dir,
         except asyncio.CancelledError:
             logger.info(f"{host}:{port} Task cancelled during backoff.")
             break
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Check telnet connection to a host and port.")
-    parser.add_argument("--host", required=True, help="The hostname or IP address to connect to.")
-    parser.add_argument("--port", required=True, type=int, help="The port to connect to.")
-    parser.add_argument("--username", default="4X0IARC", help="The username to send after connecting.")
-    parser.add_argument("--cluster-type", default="unknown", help="The type of the cluster.")
-    parser.add_argument("--telnet-log-dir", default=".", help="Directory for telnet logs.")
-    parser.add_argument("--debug", action="store_true", help="Debug mode.")
-
-    args = parser.parse_args()
-
-    test_queue: asyncio.Queue = asyncio.Queue()
-    asyncio.run(telnet_and_collect(args.host, args.port, args.username, args.cluster_type, args.telnet_log_dir, test_queue, args.debug))
