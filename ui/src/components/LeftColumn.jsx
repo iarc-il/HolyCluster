@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { get_base_url } from "@/utils.js";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
@@ -49,10 +50,43 @@ const mode_to_symbol = {
 };
 
 function SpotCount({ count }) {
+    const anchorRef = useRef(null);
+    const [position, setPosition] = useState({ top: 0, left: 0 });
+    const [isVisible, setIsVisible] = useState(false);
+
+    const updatePosition = useCallback(() => {
+        if (anchorRef.current) {
+            const rect = anchorRef.current.getBoundingClientRect();
+            setPosition({
+                top: rect.top - 4,
+                left: rect.left + 52,
+            });
+            setIsVisible(true);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (count === 0) {
+            setIsVisible(false);
+            return;
+        }
+
+        updatePosition();
+
+        const scrollContainer = anchorRef.current?.closest(".overflow-y-auto");
+        if (scrollContainer) {
+            scrollContainer.addEventListener("scroll", updatePosition);
+            window.addEventListener("resize", updatePosition);
+            return () => {
+                scrollContainer.removeEventListener("scroll", updatePosition);
+                window.removeEventListener("resize", updatePosition);
+            };
+        }
+    }, [updatePosition, count]);
+
     if (count === 0) return null;
 
     const classes = [
-        "relative",
         "inline-flex",
         "border",
         "border-gray-900",
@@ -69,9 +103,19 @@ function SpotCount({ count }) {
     ];
 
     return (
-        <span className="absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10">
-            <span className={classes.join(" ")}>{count}</span>
-        </span>
+        <>
+            <span ref={anchorRef} className="absolute invisible" />
+            {isVisible &&
+                createPortal(
+                    <span
+                        className="fixed flex w-5 z-[60] pointer-events-none"
+                        style={{ top: position.top, left: position.left }}
+                    >
+                        <span className={classes.join(" ")}>{count}</span>
+                    </span>,
+                    document.body,
+                )}
+        </>
     );
 }
 
@@ -97,7 +141,7 @@ function LeftColumn({ toggled_ui }) {
 
     return (
         <div
-            className={toggled_classes + "2xl:flex w-16 flex-col h-full items-center overflow-y-auto overflow-x-hidden shrink-0"}
+            className={toggled_classes + "2xl:flex w-16 flex-col h-full items-center overflow-y-auto shrink-0"}
             style={{
                 backgroundColor: colors.theme.columns,
                 borderColor: colors.theme.borders,
