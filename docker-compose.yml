@@ -41,31 +41,11 @@ services:
       start_period: 10s # Grace period for Valkey to start up
     restart: always
 
-  web_collectors:
-    container_name: web_collectors
-    profiles: ["dev"]
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.web_collectors
-    restart: unless-stopped
-    depends_on:
-      valkey:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    env_file:
-      - ./backend/collectors/.env
-    volumes:
-      - ./backend/collectors/logs/db:/app/collectors/logs/db
-      - ./backend/collectors/logs/web_collectors:/app/collectors/logs/web_collectors
-    environment:
-        - TZ=Asia/Jerusalem
-
   telnet_collectors:
     container_name: telnet_collectors
     build:
       context: ./backend
-      dockerfile: Dockerfile.telnet_collectors
+      dockerfile: docker/Dockerfile.telnet_collectors
     restart: unless-stopped
     depends_on:
       valkey:
@@ -82,7 +62,7 @@ services:
     container_name: api
     build:
       context: ./backend
-      dockerfile: Dockerfile.api
+      dockerfile: docker/Dockerfile.api
     working_dir: /app
     restart: unless-stopped
     env_file:

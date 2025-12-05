@@ -1,0 +1,28 @@
+FROM python:3.13-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install dependencies first (cached layer)
+RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-install-workspace
+
+# Copy workspace members
+COPY collectors/ ./collectors/
+COPY db/ ./db/
+COPY pyproject.toml uv.lock ./
+
+# Install project non-editably
+RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-editable --package collectors
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+CMD ["sh", "-c", "check_postgres && collector"]
+

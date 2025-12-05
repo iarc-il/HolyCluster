@@ -1,4 +1,4 @@
 #!/bin/bash
 
-uv run check_postgres
-uv run collector
+check_postgres
+collector
