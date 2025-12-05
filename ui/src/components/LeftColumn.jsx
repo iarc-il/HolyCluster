@@ -97,7 +97,7 @@ function LeftColumn({ toggled_ui }) {
 
     return (
         <div
-            className={toggled_classes + "2xl:flex w-16 flex-col h-full items-center"}
+            className={toggled_classes + "2xl:flex w-16 flex-col h-full items-center overflow-y-auto overflow-x-hidden shrink-0"}
             style={{
                 backgroundColor: colors.theme.columns,
                 borderColor: colors.theme.borders,
