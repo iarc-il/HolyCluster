@@ -17,9 +17,11 @@ from collectors.settings import (
 )
 
 
+DX_CC_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
+DX_AR_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\d+Z)")
+
 def parse_cc_dx_cluster_line(line: str) -> dict | None:
-    DX_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
-    match = DX_RE.match(line.strip())
+    match = DX_CC_RE.match(line.strip())
     if match:
         return {
             "spotter_callsign": match.group(1),
@@ -36,8 +38,7 @@ def parse_cc_dx_cluster_line(line: str) -> dict | None:
 def parse_ar_cluster_line(line: str) -> dict | None:
     # DX de K5TR-#:    14056.0  VE2PID/W8    CW 17 dB 22 WPM CQ             2010Z
     # DX de KB8OTK:    18100.9  OD5ZZ                                       2053Z
-    DX_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+? (\d+Z)")
-    match = DX_RE.match(line.strip())
+    match = DX_AR_RE.match(line.strip())
     if match:
         return {
             "spotter_callsign": match.group(1),
@@ -53,6 +54,9 @@ def parse_dx_line(line: str, cluster_type: str, host: str, port: int):
     spot = parse_cc_dx_cluster_line(line)
     if spot is None:
         spot = parse_ar_cluster_line(line)
+
+    if spot is None:
+        return None
 
     spot["spotter_callsign"] = re.sub(r"-\d+$", "", spot["spotter_callsign"])
 
