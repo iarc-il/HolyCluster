@@ -46,6 +46,8 @@ def parse_ar_cluster_line(line: str) -> dict | None:
             "dx_callsign": match.group(3),
             "comment": match.group(4).strip(),
             "time": match.group(5),
+            "dx_locator": "",
+            "spotter_locator": "",
         }
     return None
 
