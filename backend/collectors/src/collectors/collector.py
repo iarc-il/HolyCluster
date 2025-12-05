@@ -1,5 +1,4 @@
 import asyncio
-import time
 import json
 from datetime import datetime
 from loguru import logger
@@ -146,31 +145,42 @@ async def add_spot_to_postgres(engine, spot: dict, debug: bool = False):
         logger.exception(f"Failed to add spot to DB: {ex}")
 
 
-async def process_spots(input_queue: asyncio.Queue, debug: bool = False):
+class QrzSessionManager:
+    def __init__(self):
+        self.session_key: str = ""
+        self._lock = asyncio.Lock()
+
+    async def start(self):
+        self.session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)
+        logger.info("QRZ session initialized")
+
+    async def refresh_loop(self):
+        try:
+            while True:
+                await asyncio.sleep(QRZ_SESSION_KEY_REFRESH)
+                logger.info(f"Refreshing QRZ key (every {QRZ_SESSION_KEY_REFRESH} seconds)")
+                async with self._lock:
+                    self.session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)
+                logger.info("QRZ session refreshed")
+        except asyncio.CancelledError:
+            logger.info("QRZ refresh task cancelled")
+
+    def get_key(self) -> str:
+        return self.session_key
+
+
+async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManager, debug: bool = False):
     logger.info("Spot processor started")
 
     valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
     engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
 
-    qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)
-    last_qrz_refresh = time.time()
-
     try:
         while True:
-            now = time.time()
-            if now - last_qrz_refresh >= QRZ_SESSION_KEY_REFRESH:
-                logger.info(f"Refreshing QRZ key (every {QRZ_SESSION_KEY_REFRESH} seconds)")
-                await asyncio.sleep(5)
-                qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)
-                last_qrz_refresh = now
+            spot = await input_queue.get()
 
             try:
-                spot = await asyncio.wait_for(input_queue.get(), timeout=5.0)
-            except asyncio.TimeoutError:
-                continue
-
-            try:
-                enriched_spot = await enrich_spot(qrz_session_key=qrz_session_key, spot=spot, debug=debug)
+                enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot, debug=debug)
                 logger.info(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
 
                 await add_spot_to_postgres(engine, enriched_spot, debug=debug)
@@ -196,16 +206,21 @@ async def run_collector(debug: bool = False):
 
     spots_queue: asyncio.Queue = asyncio.Queue()
 
-    processor_task = asyncio.create_task(process_spots(spots_queue, debug=debug))
+    qrz_manager = QrzSessionManager()
+    await qrz_manager.start()
+
+    qrz_refresh_task = asyncio.create_task(qrz_manager.refresh_loop())
+    processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager, debug=debug))
     collector_task = asyncio.create_task(run_concurrent_telnet_connections(spots_queue, debug=debug))
 
     try:
-        await asyncio.gather(processor_task, collector_task)
+        await asyncio.gather(qrz_refresh_task, processor_task, collector_task)
     except asyncio.CancelledError:
         logger.info("Collector shutting down...")
+        qrz_refresh_task.cancel()
         processor_task.cancel()
         collector_task.cancel()
-        await asyncio.gather(processor_task, collector_task, return_exceptions=True)
+        await asyncio.gather(qrz_refresh_task, processor_task, collector_task, return_exceptions=True)
 
 
 def main():
