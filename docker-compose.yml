@@ -91,8 +91,8 @@ services:
       - ./certbot/www:/var/www/certbot
       - ./nginx/log:/var/log/nginx
       - ./nginx:/etc/nginx
-    environment:
-      - DOMAIN=${DOMAIN}
+    env_file:
+      - ./backend/.env
     depends_on:
       - api
     extra_hosts:

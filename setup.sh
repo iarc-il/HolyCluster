@@ -2,7 +2,7 @@
 set -e
 
 # Load environment variables
-export $(grep -v '^#' .env | xargs)
+export $(grep -v '^#' backend/.env | xargs)
 
 echo "🚀 Starting HolyCluster first-time setup for domain ${DOMAIN}"
 
