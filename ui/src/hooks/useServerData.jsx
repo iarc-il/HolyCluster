@@ -109,6 +109,7 @@ export const ServerDataProvider = ({ children }) => {
             const data = lastJsonMessage;
             let new_spots = data.spots
                 .map(spot => {
+                    spot.id = next_spot_id_ref.current++;
                     if (spot.mode === "DIGITAL") {
                         spot.mode = "DIGI";
                     }
