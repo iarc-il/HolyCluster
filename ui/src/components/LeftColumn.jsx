@@ -51,23 +51,23 @@ const mode_to_symbol = {
 
 function SpotCount({ count }) {
     const anchorRef = useRef(null);
-    const [position, setPosition] = useState({ top: 0, left: 0 });
-    const [isVisible, setIsVisible] = useState(false);
+    const [position, set_position] = useState({ top: 0, left: 0 });
+    const [isVisible, set_is_visible] = useState(false);
 
     const updatePosition = useCallback(() => {
         if (anchorRef.current) {
             const rect = anchorRef.current.getBoundingClientRect();
-            setPosition({
+            set_position({
                 top: rect.top - 4,
-                left: rect.left + 52,
+                left: rect.left + 22,
             });
-            setIsVisible(true);
+            set_is_visible(true);
         }
     }, []);
 
     useEffect(() => {
         if (count === 0) {
-            setIsVisible(false);
+            set_is_visible(false);
             return;
         }
 
@@ -108,7 +108,7 @@ function SpotCount({ count }) {
             {isVisible &&
                 createPortal(
                     <span
-                        className="fixed flex w-5 z-[60] pointer-events-none"
+                        className="fixed flex w-5 z-20 pointer-events-none"
                         style={{ top: position.top, left: position.left }}
                     >
                         <span className={classes.join(" ")}>{count}</span>
@@ -141,7 +141,10 @@ function LeftColumn({ toggled_ui }) {
 
     return (
         <div
-            className={toggled_classes + "2xl:flex w-16 flex-col h-full items-center overflow-y-auto shrink-0"}
+            className={
+                toggled_classes +
+                "2xl:flex w-18 flex-col h-full items-center overflow-y-auto shrink-0"
+            }
             style={{
                 backgroundColor: colors.theme.columns,
                 borderColor: colors.theme.borders,

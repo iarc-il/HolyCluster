@@ -6,50 +6,35 @@ import { useFilters } from "../hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/hooks/useSettings";
 
-function FilterOptions({ filter_key, filter_value, align, orientation, disabled, children }) {
+function FilterOptions({ filter_key, filter_value, orientation, disabled, children }) {
     const { setFilterKeys, setOnlyFilterKeys } = useFilters();
     const { colors } = useColors();
     const { settings } = useSettings();
 
     const [is_hovered, set_is_hovered] = useState(false);
-    const triggerRef = useRef(null);
-    const [position, setPosition] = useState({ top: 0, left: 0 });
+    const trigger_ref = useRef(null);
+    const [position, set_position] = useState(null);
 
     useEffect(() => {
-        if (is_hovered && triggerRef.current) {
-            const rect = triggerRef.current.getBoundingClientRect();
-            const popupWidth = 88;
-            const popupHeight = 100;
+        if (is_hovered && trigger_ref.current) {
+            const rect = trigger_ref.current.getBoundingClientRect();
 
-            let top = rect.top + rect.height / 2 - popupHeight / 2;
+            let top = rect.top - rect.height * 1.5;
             let left;
 
             if (orientation === "right") {
-                left = rect.right + 8;
+                left = rect.right;
             } else {
-                left = rect.left - popupWidth - 8;
+                left = rect.left - rect.width * 1.4;
             }
 
-            setPosition({ top, left });
+            set_position({ top, left });
         }
     }, [is_hovered, orientation]);
 
-    const popupClasses = [
-        "fixed",
-        "flex",
-        "flex-col",
-        "z-[100]",
-        "border",
-        "border-gray-500",
-        "shadow-xl",
-        "rounded-lg",
-        "p-3",
-        "w-22",
-    ].join(" ");
-
     return (
         <div
-            ref={triggerRef}
+            ref={trigger_ref}
             className="relative"
             onMouseEnter={() => {
                 if (disabled) return;
@@ -59,9 +44,10 @@ function FilterOptions({ filter_key, filter_value, align, orientation, disabled,
         >
             {children}
             {is_hovered &&
+                position &&
                 createPortal(
                     <div
-                        className={popupClasses}
+                        className="fixed flex flex-col z-[100] border border-gray-500 shadow-xl rounded-lg p-3 w-[5.6rem]"
                         style={{
                             backgroundColor: colors.theme.background,
                             top: position.top,

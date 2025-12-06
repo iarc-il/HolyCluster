@@ -51,7 +51,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
 
     return (
         <div
-            className="flex flex-row justify-between items-center h-[4rem] border-b-2"
+            className="flex flex-row z-30 justify-between items-center h-[4rem] border-b-2"
             style={{
                 backgroundColor: colors.theme.background,
                 borderColor: colors.theme.borders,
