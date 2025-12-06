@@ -11,9 +11,17 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
     const { colors } = useColors();
     const { settings } = useSettings();
 
-    const [is_hovered, set_is_hovered] = useState(false);
+    const [is_parent_hovered, set_is_parent_hovered] = useState(false);
+    const [is_popup_hovered, set_is_popup_hovered] = useState(false);
     const trigger_ref = useRef(null);
     const [position, set_position] = useState(null);
+
+    const is_hovered = is_parent_hovered || is_popup_hovered;
+
+    function close_popup() {
+        set_is_parent_hovered(false);
+        set_is_popup_hovered(false);
+    }
 
     useEffect(() => {
         if (is_hovered && trigger_ref.current) {
@@ -30,17 +38,18 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
 
             set_position({ top, left });
         }
-    }, [is_hovered, orientation]);
+    }, [is_parent_hovered, is_popup_hovered]);
 
     return (
         <div
             ref={trigger_ref}
             className="relative"
             onMouseEnter={() => {
-                if (disabled) return;
-                set_is_hovered(true);
+                if (!disabled) {
+                    set_is_parent_hovered(true);
+                }
             }}
-            onMouseLeave={() => set_is_hovered(false)}
+            onMouseLeave={() => set_is_parent_hovered(false)}
         >
             {children}
             {is_hovered &&
@@ -53,8 +62,8 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
                             top: position.top,
                             left: position.left,
                         }}
-                        onMouseEnter={() => set_is_hovered(true)}
-                        onMouseLeave={() => set_is_hovered(false)}
+                        onMouseEnter={() => set_is_popup_hovered(true)}
+                        onMouseLeave={() => set_is_popup_hovered(false)}
                     >
                         <div className="space-y-4">
                             <Button
@@ -62,7 +71,7 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
                                 className="w-16 px-2"
                                 on_click={() => {
                                     setOnlyFilterKeys(filter_key, filter_value);
-                                    set_is_hovered(false);
+                                    close_popup();
                                 }}
                             >
                                 ONLY
@@ -72,7 +81,7 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
                                 className="w-16 px-2"
                                 on_click={() => {
                                     setFilterKeys(filter_key, true, settings.disabled_bands);
-                                    set_is_hovered(false);
+                                    close_popup();
                                 }}
                             >
                                 ALL
