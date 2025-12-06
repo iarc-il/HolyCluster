@@ -63,7 +63,9 @@ async def spots_broadcast_task(app):
                     await valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
                     await valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
 
-                    spots.append(cleanup_spot(spot))
+                    spot = cleanup_spot(spot)
+                    if spot is not None:
+                        spots.append(spot)
 
                 message = {"type": "update", "spots": spots}
 
@@ -119,31 +121,41 @@ app.add_middleware(
 
 
 def cleanup_spot(spot):
-    if spot["mode"].upper() in ("SSB", "USB", "LSB"):
-        mode = "SSB"
-    else:
-        mode = spot["mode"].upper()
+    try:
+        if spot["mode"].upper() in ("SSB", "USB", "LSB"):
+            mode = "SSB"
+        else:
+            mode = spot["mode"].upper()
 
-    if spot["band"].upper() not in ("VHF", "UHF", "SHF"):
-        band = float(spot["band"])
-    else:
-        band = spot["band"]
+        if spot["band"].upper() not in ("VHF", "UHF", "SHF"):
+            band = float(spot["band"])
+        else:
+            band = spot["band"]
 
-    return {
-        "spotter_callsign": spot["spotter_callsign"],
-        "spotter_loc": [float(spot["spotter_lon"]), float(spot["spotter_lat"])],
-        "spotter_country": spot["spotter_country"],
-        "spotter_continent": spot["spotter_continent"],
-        "dx_callsign": spot["dx_callsign"],
-        "dx_loc": [float(spot["dx_lon"]), float(spot["dx_lat"])],
-        "dx_country": spot["dx_country"],
-        "dx_continent": spot["dx_continent"],
-        "freq": float(spot["frequency"]),
-        "band": band,
-        "mode": mode,
-        "time": float(spot["timestamp"]),
-        "comment": spot["comment"],
-    }
+        return {
+            "spotter_callsign": spot["spotter_callsign"],
+            "spotter_loc": [float(spot["spotter_lon"]), float(spot["spotter_lat"])],
+            "spotter_country": spot["spotter_country"],
+            "spotter_continent": spot["spotter_continent"],
+            "dx_callsign": spot["dx_callsign"],
+            "dx_loc": [float(spot["dx_lon"]), float(spot["dx_lat"])],
+            "dx_country": spot["dx_country"],
+            "dx_continent": spot["dx_continent"],
+            "freq": float(spot["frequency"]),
+            "band": band,
+            "mode": mode,
+            "time": float(spot["timestamp"]),
+            "comment": spot["comment"],
+        }
+    except KeyError:
+        logger.exception(f"Failed to process spot: {spot}")
+        return None
+
+
+def cleanup_spots(spots):
+    spots = [cleanup_spot(dict(spot)) for spot in spots]
+    spots = [spot for spot in spots if spot is not None]
+    return spots
 
 
 @app.get("/geocache/all")
@@ -209,13 +221,13 @@ async def spots_ws(websocket: fastapi.WebSocket):
                 query = select(HolySpot).where(HolySpot.timestamp > (time.time() - 3600)).order_by(desc(HolySpot.timestamp)).limit(500)
                 initial_spots = (await session.execute(query)).scalars()
 
-                initial_spots = [cleanup_spot(dict(spot)) for spot in initial_spots]
+                initial_spots = cleanup_spots(initial_spots)
                 await websocket.send_json({"type": "initial", "spots": initial_spots})
             elif "last_time" in message:
                 query = select(HolySpot).where(HolySpot.timestamp > message["last_time"]).order_by(desc(HolySpot.timestamp)).limit(500)
                 missed_spots = (await session.execute(query)).scalars()
 
-                missed_spots = [cleanup_spot(dict(spot)) for spot in missed_spots]
+                missed_spots = cleanup_spots(missed_spots)
                 await websocket.send_json({"type": "update", "spots": missed_spots})
 
         while True:

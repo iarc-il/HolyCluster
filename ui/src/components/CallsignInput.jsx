@@ -10,7 +10,6 @@ function CallsignInput({ className, onChange, ...props }) {
 
     const handleChange = event => {
         const sanitized = event.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-        console.log("Before:", event.target.value, "After:", sanitized);
         event.target.value = sanitized;
         if (onChange) {
             onChange(event);
