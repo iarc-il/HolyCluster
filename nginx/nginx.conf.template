@@ -1,6 +1,14 @@
 events {}
 
 http {
+    map $http_upgrade $connection_upgrade {
+      default upgrade;
+      ''      close;
+    }
+
+    # ===============================
+    # 1. Redirect HTTP to HTTPS
+    # ===============================
     server {
         listen 80;
         server_name ${DOMAIN};
@@ -12,12 +20,17 @@ http {
 
         # Redirect all other traffic to HTTPS
         location / {
-            return 301 https://$host$request_uri;
+            return 301 https://$host:$server_port$request_uri;
         }
     }
 
+    # ===============================
+    # 2. Main HTTPS server (API)
+    # ===============================
     server {
         listen 443 ssl;
+        http2 on;
+
         server_name ${DOMAIN};
 
         # Include Certbot recommended SSL options
@@ -28,7 +41,61 @@ http {
 
         # Proxy requests to FastAPI app
         location / {
-            proxy_pass http://api:8000;
+            proxy_set_header    Host                $host;
+            proxy_set_header    X-Real-IP           $remote_addr;
+            proxy_set_header    X-Forwarded-For     $proxy_add_x_forwarded_for;
+            proxy_set_header    X-Forwarded-Proto   $scheme;
+            proxy_set_header    Upgrade             $http_upgrade;
+            proxy_set_header    Connection          $connection_upgrade;
+            proxy_http_version  1.1;
+            proxy_pass          http://api:8000;
+        }
+    }
+
+    # ===============================
+    # 3. LOCAL ONLY — nginx-ui reverse proxy
+    #    http://localhost:9999/
+    # ===============================
+    server {
+        listen 9999 ssl;
+        server_name ${DOMAIN};
+
+        # Include Certbot recommended SSL options
+        include /etc/letsencrypt/options-ssl-nginx.conf;
+
+        ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+
+        # Proxy requests to nginx_ui
+        location / {
+            proxy_set_header    Host                $host;
+            proxy_set_header    X-Real-IP           $remote_addr;
+            proxy_set_header    X-Forwarded-For     $proxy_add_x_forwarded_for;
+            proxy_set_header    X-Forwarded-Proto   $scheme;
+            proxy_ssl_verify    off;
+            proxy_set_header    Upgrade             $http_upgrade;
+            proxy_set_header    Connection          $connection_upgrade;
+            proxy_http_version  1.1;
+            proxy_pass          http://nginx_ui:9000;
+        }
+    }
+
+    # ===============================
+    # 4. HTTPS passthrough to host:3000
+    # ===============================
+    server {
+        listen 3000 ssl;
+        server_name ${DOMAIN};
+
+        # Include Certbot recommended SSL options
+        include /etc/letsencrypt/options-ssl-nginx.conf;
+
+        ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+
+        # Proxy requests to docker host machine
+        location / {
+            proxy_pass http://host.docker.internal:3000;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

@@ -9,45 +9,70 @@ services:
       - ./backend/.env
     volumes:
       - ./postgres/data:/var/lib/postgresql/data
-    ports:
-      - "15432:5432"
     healthcheck:
-      # test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
     environment:
         - TZ=Asia/Jerusalem
+    expose:
+      - "15432"
 
-  web_collectors:
-    container_name: web_collectors
+  valkey:
+    container_name: valkey
+    build:
+      context: ./valkey
+      dockerfile: Dockerfile.valkey
+    ports:
+      - "6379:6379"
+    # Mount a volume for data persistence (optional, but recommended)
+    # volumes:
+    #   - valkey_data:/data
+    environment:
+    # Password needs to be passed to the healthcheck command
+      - VALKEY_PASSWORD=${VALKEY_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s # Grace period for Valkey to start up
+    restart: always
+
+  telnet_collectors:
+    container_name: telnet_collectors
     build:
       context: ./backend
-      dockerfile: Dockerfile.web_collectors
+      dockerfile: docker/Dockerfile.telnet_collectors
     restart: unless-stopped
     depends_on:
+      valkey:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     env_file:
       - ./backend/.env
     volumes:
       - ./backend/collectors/logs/db:/app/collectors/logs/db
-      - ./backend/collectors/logs/web_collectors:/app/collectors/logs/web_collectors
-    environment:
-        - TZ=Asia/Jerusalem
+      - ./backend/collectors/logs/telnet_collectors:/app/collectors/logs/telnet_collectors
 
   api:
     container_name: api
     build:
       context: ./backend
-      dockerfile: Dockerfile.api
+      dockerfile: docker/Dockerfile.api
     working_dir: /app
     restart: unless-stopped
+    depends_on:
+      valkey:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     env_file:
       - ./backend/.env
     volumes:
-      - /opt/ui-dist:/opt/ui-dist
+      - ./ui:/ui
     expose:
       - "8000"
 
@@ -60,12 +85,14 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "9999:9999"
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
       - ./nginx/log:/var/log/nginx
-    environment:
-      - DOMAIN=${DOMAIN}
+      - ./nginx:/etc/nginx
+    env_file:
+      - ./backend/.env
     depends_on:
       - api
     extra_hosts:
@@ -81,6 +108,21 @@ services:
       - ./certbot/log:/var/log
     entrypoint: >
       /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
-  
 
-
+  nginx_ui:
+      container_name: nginx_ui
+      profiles: ["dev"]
+      stdin_open: true
+      tty: true
+      image: uozi/nginx-ui:latest
+      restart: unless-stopped
+      ports:
+        - "8080:80"
+        - "8443:443"
+      volumes:
+        - ./nginx:/etc/nginx
+        - ./nginx-ui:/etc/nginx-ui
+        - ./certbot/conf:/etc/letsencrypt
+        - /var/run/docker.sock:/var/run/docker.sock
+      environment:
+        - TZ=Asia/Jerusalem

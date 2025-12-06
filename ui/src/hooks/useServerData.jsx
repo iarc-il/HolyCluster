@@ -87,7 +87,8 @@ export const ServerDataProvider = ({ children }) => {
     const websocket_url = get_base_url().replace(/^http(s)?:/, protocol) + "/spots_ws";
 
     const [is_first_connection, set_is_first_connection] = useState(true);
-    const last_spot_id_ref = useRef(0);
+    const last_spot_time_ref = useRef(0);
+    const next_spot_id_ref = useRef(0);
 
     const { lastJsonMessage, readyState, sendJsonMessage } = useWebSocket(websocket_url, {
         onOpen: () => {
@@ -95,7 +96,7 @@ export const ServerDataProvider = ({ children }) => {
                 sendJsonMessage({ initial: true });
                 set_is_first_connection(false);
             } else {
-                sendJsonMessage({ last_id: last_spot_id_ref.current });
+                sendJsonMessage({ last_time: last_spot_time_ref.current });
             }
         },
         reconnectAttempts: 10,
@@ -159,7 +160,7 @@ export const ServerDataProvider = ({ children }) => {
             set_spots(new_spots);
 
             if (new_spots.length > 0) {
-                last_spot_id_ref.current = Math.max(...new_spots.map(spot => spot.id));
+                last_spot_time_ref.current = Math.max(...new_spots.map(spot => spot.time));
             }
         }
     }, [lastJsonMessage]);

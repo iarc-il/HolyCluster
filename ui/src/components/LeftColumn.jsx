@@ -47,6 +47,7 @@ const mode_to_symbol = {
     FT8: Hex,
     FT4: Hex,
     DIGI: Hex,
+    RTTY: Hex,
 };
 
 function SpotCount({ count }) {
