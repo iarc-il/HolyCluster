@@ -147,7 +147,7 @@ def cleanup_spot(spot):
             "time": float(spot["timestamp"]),
             "comment": spot["comment"],
         }
-    except KeyError:
+    except (KeyError, ValueError):
         logger.exception(f"Failed to process spot: {spot}")
         return None
 
