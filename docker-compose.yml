@@ -17,15 +17,13 @@ services:
     environment:
         - TZ=Asia/Jerusalem
     expose:
-      - "15432"
+      - "${POSTGRES_PORT}"
 
   valkey:
     container_name: valkey
     build:
       context: ./valkey
       dockerfile: Dockerfile.valkey
-    ports:
-      - "6379:6379"
     # Mount a volume for data persistence (optional, but recommended)
     # volumes:
     #   - valkey_data:/data
@@ -56,6 +54,8 @@ services:
     volumes:
       - ./backend/collectors/logs/db:/app/collectors/logs/db
       - ./backend/collectors/logs/telnet_collectors:/app/collectors/logs/telnet_collectors
+    expose:
+      - "${VALKEY_PORT}"
 
   api:
     container_name: api
@@ -72,7 +72,7 @@ services:
     env_file:
       - ./backend/.env
     volumes:
-      - ./ui:/ui
+      - ${UI_DIST_PATH}:${UI_DIST_PATH}
     expose:
       - "8000"
 
