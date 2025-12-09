@@ -5,10 +5,11 @@ from pathlib import Path
 import json
 from loguru import logger
 
-def load_bands_from_file(filepath)->List:
+
+def load_bands_from_file(filepath) -> List:
     bands = []
     try:
-        with open(filepath, newline='', encoding='utf-8') as csvfile:
+        with open(filepath, newline="", encoding="utf-8") as csvfile:
             reader = csv.reader(csvfile)
             next(reader)  # skip header row
             for row in reader:
@@ -25,10 +26,11 @@ def load_bands_from_file(filepath)->List:
     finally:
         return bands
 
-def load_modes_from_file(file_path)->dict:
+
+def load_modes_from_file(file_path) -> dict:
     modes = {}
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             modes = json.load(f)
 
     except Exception as ex:
@@ -39,11 +41,12 @@ def load_modes_from_file(file_path)->dict:
         return modes
 
 
-bands = load_bands_from_file(Path(__file__).parent / 'bands.csv')
+bands = load_bands_from_file(Path(__file__).parent / "bands.csv")
 
-modes = load_modes_from_file(Path(__file__).parent / 'modes.json')
+modes = load_modes_from_file(Path(__file__).parent / "modes.json")
 
-def find_band(frequency:str, debug: bool=False) -> str:
+
+def find_band(frequency: str, debug: bool = False) -> str:
     band = ""
     try:
         if debug:
@@ -67,7 +70,7 @@ def find_band(frequency:str, debug: bool=False) -> str:
         return band
 
 
-def find_band_and_mode(frequency:str, comment:str, debug: bool=False)->List:
+def find_band_and_mode(frequency: str, comment: str, debug: bool = False) -> List:
     try:
         band = find_band(frequency=frequency, debug=debug)
         mode = ""
@@ -81,7 +84,7 @@ def find_band_and_mode(frequency:str, comment:str, debug: bool=False)->List:
                 mode = "CW"
                 mode_selection = "comment"
             elif re.search("FT8", comment.upper()):
-                mode = "FT8"    
+                mode = "FT8"
                 mode_selection = "comment"
             elif re.search("FT4", comment.upper()):
                 mode = "FT4"
@@ -96,8 +99,8 @@ def find_band_and_mode(frequency:str, comment:str, debug: bool=False)->List:
                 if debug:
                     logger.debug(f"{modes[band]=}")
                 for mode, start_end in modes[band].items():
-                    start = start_end['start']
-                    end = start_end['end']
+                    start = start_end["start"]
+                    end = start_end["end"]
                     if debug:
                         logger.debug(f"{mode=} {start=}  {end=}")
                     if start <= frequency_khz < end:
@@ -119,11 +122,10 @@ def find_band_and_mode(frequency:str, comment:str, debug: bool=False)->List:
             logger.debug(f"{mode=}   {mode_selection=}")
 
     except Exception as ex:
-        message = f"**** ERROR find_band_and_mode **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        message = (
+            f"**** ERROR find_band_and_mode **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
+        )
         logger.error(message)
 
     finally:
         return band, mode, mode_selection
-
-
-
