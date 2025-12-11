@@ -1,5 +1,3 @@
-# src/valkey_config.py
-import os
 import redis
 
 _valkey_client = None
