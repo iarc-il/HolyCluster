@@ -53,9 +53,14 @@ async def enrich_spot(qrz_session_key: str, spot: dict, debug: bool = False) -> 
         timestamp = get_timestamp(time_str=spot["time"], debug=debug)
         spot["timestamp"] = timestamp
 
-        band, mode, mode_selection = find_band_and_mode(
+        band_mode = find_band_and_mode(
             frequency=spot["frequency"], comment=spot["comment"], debug=debug
         )
+        if band_mode is None:
+            logger.debug(f"Dropping spot due to invalid band: {spot}")
+            return None
+
+        band, mode, mode_selection = band_mode
         spot.update({"band": band, "mode": mode, "mode_selection": mode_selection})
 
         (
@@ -181,6 +186,10 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
 
             try:
                 enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot, debug=debug)
+                if enriched_spot is None:
+                    logger.info(f"Dropping spot: {spot}")
+                    input_queue.task_done()
+                    continue
                 logger.info(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
 
                 await add_spot_to_postgres(engine, enriched_spot, debug=debug)

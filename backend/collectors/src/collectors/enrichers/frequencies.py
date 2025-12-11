@@ -1,6 +1,6 @@
 import re
 import csv
-from typing import List
+from typing import List, Optional, Tuple
 from pathlib import Path
 import json
 from loguru import logger
@@ -59,7 +59,7 @@ def find_band(frequency: str, debug: bool = False) -> str:
                 return band
         if debug:
             logger.debug(f"Band not found for {frequency=}")
-        band = ""  # frequency not found
+        band = ""
         return band
 
     except Exception as ex:
@@ -70,62 +70,59 @@ def find_band(frequency: str, debug: bool = False) -> str:
         return band
 
 
-def find_band_and_mode(frequency: str, comment: str, debug: bool = False) -> List:
+def find_band_and_mode(frequency: str, comment: str, debug: bool = False) -> Optional[Tuple[str, str, str]]:
     try:
         band = find_band(frequency=frequency, debug=debug)
+        if not band:
+            return None
+
         mode = ""
         mode_selection = ""
         frequency_khz = float(frequency)
         if debug:
             logger.debug(f"{band=}")
             logger.debug(f"{frequency_khz=}")
-        if band:
-            if re.search("CW", comment.upper()):
-                mode = "CW"
-                mode_selection = "comment"
-            elif re.search("FT8", comment.upper()):
-                mode = "FT8"
-                mode_selection = "comment"
-            elif re.search("FT4", comment.upper()):
-                mode = "FT4"
-                mode_selection = "comment"
-            elif re.search("RTTY", comment.upper()):
-                mode = "RTTY"
-                mode_selection = "comment"
-            elif re.search("DIGI", comment.upper()) or re.search("VARAC", comment.upper()):
-                mode = "DIGI"
-                mode_selection = "comment"
-            elif band in modes:
+        if re.search("CW", comment.upper()):
+            mode = "CW"
+            mode_selection = "comment"
+        elif re.search("FT8", comment.upper()):
+            mode = "FT8"
+            mode_selection = "comment"
+        elif re.search("FT4", comment.upper()):
+            mode = "FT4"
+            mode_selection = "comment"
+        elif re.search("RTTY", comment.upper()):
+            mode = "RTTY"
+            mode_selection = "comment"
+        elif re.search("DIGI", comment.upper()) or re.search("VARAC", comment.upper()):
+            mode = "DIGI"
+            mode_selection = "comment"
+        elif band in modes:
+            if debug:
+                logger.debug(f"{modes[band]=}")
+            for mode, start_end in modes[band].items():
+                start = start_end["start"]
+                end = start_end["end"]
                 if debug:
-                    logger.debug(f"{modes[band]=}")
-                for mode, start_end in modes[band].items():
-                    start = start_end["start"]
-                    end = start_end["end"]
+                    logger.debug(f"{mode=} {start=}  {end=}")
+                if start <= frequency_khz < end:
                     if debug:
-                        logger.debug(f"{mode=} {start=}  {end=}")
-                    if start <= frequency_khz < end:
-                        if debug:
-                            logger.debug(f"Frequency {frequency} mode is: {mode}")
-                        mode_selection = "range"
-                        break
-
-            else:
-                mode = ""
-                if debug:
-                    logger.debug(f"Mode not found for {band=}   {comment=}")
+                        logger.debug(f"Frequency {frequency} mode is: {mode}")
+                    mode_selection = "range"
+                    break
         else:
             mode = ""
             if debug:
-                logger.debug(f"Mode not found for {frequency=} since missign band")
+                logger.debug(f"Mode not found for {band=}   {comment=}")
 
         if debug:
             logger.debug(f"{mode=}   {mode_selection=}")
+
+        return band, mode, mode_selection
 
     except Exception as ex:
         message = (
             f"**** ERROR find_band_and_mode **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
         )
         logger.error(message)
-
-    finally:
-        return band, mode, mode_selection
+        return None

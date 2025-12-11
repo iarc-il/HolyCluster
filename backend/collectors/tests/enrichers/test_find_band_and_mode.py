@@ -20,7 +20,7 @@ def test_find_band_and_mode(debug : bool = False):
     # test for 7350.0
     test_frequency = "7350.0"
     result = find_band_and_mode(test_frequency, "", debug)
-    expected = ("", "", "")
+    expected = None
     assert result == expected, f"Expected {expected} for {test_frequency}, got {result}"
     
     # test for 21075.0
