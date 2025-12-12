@@ -165,7 +165,8 @@ function CanvasMap({
     auto_radius,
     set_auto_radius,
 }) {
-    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useServerData();
+    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
+        useServerData();
     const { settings } = useSettings();
 
     const map_canvas_ref = useRef(null);
@@ -256,6 +257,7 @@ function CanvasMap({
                 colors,
                 hovered_spot,
                 pinned_spot,
+                hovered_band,
                 dims,
                 dash_offset_ref.current,
                 transform,
@@ -351,6 +353,7 @@ function CanvasMap({
         center_lon,
         center_lat,
         hovered_spot,
+        hovered_band,
         width,
         height,
         map_controls,

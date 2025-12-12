@@ -291,6 +291,7 @@ export function draw_spots(
     colors,
     hovered_spot,
     pinned_spot,
+    hovered_band,
     dims,
     dash_offset,
     transform,
@@ -298,7 +299,6 @@ export function draw_spots(
 ) {
     const path_generator = d3.geoPath().projection(projection).context(context);
 
-    // Clear the map before rendering
     context.clearRect(0, 0, dims.width, dims.height);
 
     context.save();
@@ -311,8 +311,16 @@ export function draw_spots(
 
     let bold_spot;
     spots.forEach(spot => {
+        const is_band_highlighted = hovered_band != null && spot.band === hovered_band;
         if (hovered_spot.id == spot.id || pinned_spot == spot.id) {
             bold_spot = spot;
+        } else if (is_band_highlighted) {
+            draw_spot(context, spot, colors, dash_offset, {
+                is_bold: true,
+                transform,
+                path_generator,
+                projection,
+            });
         } else {
             draw_spot(context, spot, colors, dash_offset, {
                 is_bold: false,
