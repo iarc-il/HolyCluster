@@ -33,8 +33,7 @@ class SpotIdentifier:
         return (
             self.spotter_callsign == other.spotter_callsign
             and self.dx_callsign == other.dx_callsign
-            and self.freq == other.freq
-            and abs(self.time - other.time) <= 60.0
+            and round(self.freq, 3) == round(other.freq, 3)
         )
 
     def __hash__(self):
@@ -96,8 +95,6 @@ class ServerMonitor:
                     self.websocket = websocket
                     logger.info(f"[{self.name}] Connected successfully")
 
-                    await websocket.send(json.dumps({"initial": True}))
-
                     while self.running:
                         try:
                             message = await asyncio.wait_for(websocket.recv(), timeout=30.0)
@@ -116,7 +113,7 @@ class ServerMonitor:
                     await asyncio.sleep(5)
 
     async def _process_message(self, data: dict):
-        if data.get("type") in ("initial", "update"):
+        if data.get("type") == "update":
             spots = data.get("spots", [])
             arrival_time = time.time()
 
@@ -157,20 +154,17 @@ class SpotComparator:
     async def periodic_check(self):
         check_interval = 10
         check_delay = 180
-        cleanup_age = 300
 
         while self.running:
             await asyncio.sleep(check_interval)
 
             ref_spots = self.ref_monitor.get_spots_older_than(check_delay)
+            print(f"Ref spots: {len(ref_spots)}")
 
             for ref_spot in ref_spots:
                 if ref_spot.identifier not in self.target_monitor.spots:
                     self._print_missing_spot(ref_spot)
                     self.missing_count += 1
-
-            self.ref_monitor.cleanup_old_spots(cleanup_age)
-            self.target_monitor.cleanup_old_spots(cleanup_age)
 
     def _print_missing_spot(self, spot: FullSpot):
         spot_time = datetime.fromtimestamp(spot.identifier.time, tz=timezone.utc)
