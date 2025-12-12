@@ -80,12 +80,13 @@ class FullSpot:
 
 
 class ServerMonitor:
-    def __init__(self, name: str, url: str):
+    def __init__(self, name: str, url: str, on_spots_callback=None):
         self.name = name
         self.url = url
         self.spots: Dict[SpotIdentifier, FullSpot] = {}
         self.running = False
         self.websocket = None
+        self.on_spots_callback = on_spots_callback
 
     async def connect_and_monitor(self):
         while self.running:
@@ -116,26 +117,19 @@ class ServerMonitor:
         if data.get("type") == "update":
             spots = data.get("spots", [])
             arrival_time = time.time()
+            new_spots = []
 
             for spot_data in spots:
+                logger.debug(f"[{self.name}] Spot: {spot_data}")
                 try:
                     full_spot = FullSpot.from_json(spot_data, arrival_time)
                     self.spots[full_spot.identifier] = full_spot
+                    new_spots.append(full_spot)
                 except (KeyError, ValueError) as e:
                     logger.warning(f"[{self.name}] Failed to parse spot: {e}")
 
-    def get_spots_older_than(self, seconds: float) -> List[FullSpot]:
-        cutoff_time = time.time() - seconds
-        return [spot for spot in self.spots.values() if spot.arrival_time < cutoff_time]
-
-    def cleanup_old_spots(self, max_age_seconds: float):
-        cutoff_time = time.time() - max_age_seconds
-        to_remove = [identifier for identifier, spot in self.spots.items() if spot.arrival_time < cutoff_time]
-        for identifier in to_remove:
-            del self.spots[identifier]
-
-        if to_remove:
-            logger.debug(f"[{self.name}] Cleaned up {len(to_remove)} old spots")
+            if new_spots and self.on_spots_callback:
+                await self.on_spots_callback(new_spots)
 
     def start(self):
         self.running = True
@@ -150,21 +144,24 @@ class SpotComparator:
         self.target_monitor = target_monitor
         self.running = False
         self.missing_count = 0
+        self.check_delay = 180
+        self.checked_spots = set()
 
-    async def periodic_check(self):
-        check_interval = 10
-        check_delay = 180
+    async def on_ref_spots_received(self, spots: List[FullSpot]):
+        for spot in spots:
+            asyncio.create_task(self._check_spot_after_delay(spot))
 
-        while self.running:
-            await asyncio.sleep(check_interval)
+    async def _check_spot_after_delay(self, spot: FullSpot):
+        await asyncio.sleep(self.check_delay)
 
-            ref_spots = self.ref_monitor.get_spots_older_than(check_delay)
-            print(f"Ref spots: {len(ref_spots)}")
+        if spot.identifier in self.checked_spots:
+            return
 
-            for ref_spot in ref_spots:
-                if ref_spot.identifier not in self.target_monitor.spots:
-                    self._print_missing_spot(ref_spot)
-                    self.missing_count += 1
+        self.checked_spots.add(spot.identifier)
+
+        if spot.identifier not in self.target_monitor.spots:
+            self._print_missing_spot(spot)
+            self.missing_count += 1
 
     def _print_missing_spot(self, spot: FullSpot):
         spot_time = datetime.fromtimestamp(spot.identifier.time, tz=timezone.utc)
@@ -186,13 +183,13 @@ class SpotComparator:
 
     async def run(self):
         self.running = True
+        self.ref_monitor.on_spots_callback = self.on_ref_spots_received
         self.ref_monitor.start()
         self.target_monitor.start()
 
         tasks = [
             asyncio.create_task(self.ref_monitor.connect_and_monitor()),
             asyncio.create_task(self.target_monitor.connect_and_monitor()),
-            asyncio.create_task(self.periodic_check()),
         ]
 
         try:
