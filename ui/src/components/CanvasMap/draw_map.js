@@ -122,21 +122,21 @@ function draw_spot(
     context.stroke();
 }
 
-function rgb_triplet_to_color([red, green, blue]) {
-    return `rgb(${red}, ${green}, ${blue})`;
+const TYPE_OFFSET = { dx: 0, arc: 1, spotter: 2 };
+
+function spot_to_color(spot_id, type) {
+    const combined = spot_id * 3 + TYPE_OFFSET[type] + 1;
+    const r = (combined >> 16) & 0xff;
+    const g = (combined >> 8) & 0xff;
+    const b = combined & 0xff;
+    return `rgb(${r}, ${g}, ${b})`;
 }
 
-function draw_shadow_spot(
-    context,
-    spot,
-    shadow_palette,
-    { transform, path_generator, projection },
-) {
+function draw_shadow_spot(context, spot, { transform, path_generator, projection }) {
     const line = build_geojson_line(spot);
 
-    // Render the arc of the spot
     context.beginPath();
-    context.strokeStyle = rgb_triplet_to_color(shadow_palette.get(["arc", spot.id]));
+    context.strokeStyle = spot_to_color(spot.id, "arc");
     context.lineWidth = 8 / transform.k;
     path_generator(line);
     context.stroke();
@@ -144,15 +144,14 @@ function draw_shadow_spot(
     const dx_size = 12 / transform.k;
     const [dx_x, dx_y] = projection(spot.dx_loc);
 
-    // Render the dx rectangle
-    const dx_color = rgb_triplet_to_color(shadow_palette.get(["dx", spot.id]));
+    const dx_color = spot_to_color(spot.id, "dx");
     draw_spot_dx(context, spot, dx_color, dx_color, dx_x, dx_y, dx_size, transform);
 
     const [spotter_x, spotter_y] = projection(spot.spotter_loc);
     const spotter_radius = 7 / transform.k;
 
     context.beginPath();
-    context.fillStyle = rgb_triplet_to_color(shadow_palette.get(["spotter", spot.id]));
+    context.fillStyle = spot_to_color(spot.id, "spotter");
     context.lineWidth = 2 / transform.k;
     context.arc(spotter_x, spotter_y, spotter_radius, 0, 2 * Math.PI);
     context.fill();
@@ -369,20 +368,12 @@ export function draw_spots(
     context.restore();
 }
 
-export function draw_shadow_map(
-    shadow_context,
-    spots,
-    dims,
-    transform,
-    projection,
-    shadow_palette,
-) {
+export function draw_shadow_map(shadow_context, spots, dims, transform, projection) {
     const shadow_path_generator = d3.geoPath().projection(projection).context(shadow_context);
     shadow_context.clearRect(0, 0, dims.width, dims.height);
 
     shadow_context.save();
 
-    // Clip the map content to the circle
     shadow_context.beginPath();
     shadow_context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
     shadow_context.clip();
@@ -390,7 +381,7 @@ export function draw_shadow_map(
     apply_context_transform(shadow_context, transform);
 
     spots.forEach(spot => {
-        draw_shadow_spot(shadow_context, spot, shadow_palette, {
+        draw_shadow_spot(shadow_context, spot, {
             transform,
             path_generator: shadow_path_generator,
             projection,

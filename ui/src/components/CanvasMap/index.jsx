@@ -4,7 +4,6 @@ import * as d3 from "d3";
 import haversine from "haversine-distance";
 import Maidenhead from "maidenhead";
 import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
-import { HashMap } from "hashmap";
 
 import { mod, calculate_geographic_azimuth, km_to_miles } from "@/utils.js";
 import {
@@ -137,25 +136,14 @@ function apply_zoom_and_drag_behaviors(
     zoom.transform(selection, zoom_transform.current);
 }
 
-function random_color() {
-    const random_byte = () => Math.floor(Math.random() * 256);
-    return [random_byte(), random_byte(), random_byte()];
-}
-
-function generate_shadow_palette(spots) {
-    const shadow_palette = new HashMap(
-        spots
-            .map(spot => [
-                [["dx", spot.id], random_color()],
-                [["arc", spot.id], random_color()],
-                [["spotter", spot.id], random_color()],
-            ])
-            .flat(),
-    );
-    const reverse_shadow_palette = new HashMap(
-        shadow_palette.entries().map(([key, value]) => [value, key]),
-    );
-    return [shadow_palette, reverse_shadow_palette];
+function color_to_spot(r, g, b) {
+    const combined = (r << 16) | (g << 8) | b;
+    if (combined === 0) return null;
+    const index = combined - 1;
+    const spot_id = Math.floor(index / 3);
+    const type_index = index % 3;
+    const type = ["dx", "arc", "spotter"][type_index];
+    return [type, spot_id];
 }
 
 function build_canvas_storage(projection, canvas_map) {
@@ -214,8 +202,6 @@ function CanvasMap({
         shadow: shadow_canvas_ref,
     });
 
-    const [shadow_palette, reverse_shadow_palette] = generate_shadow_palette(spots);
-
     useEffect(() => {
         if (dims.width == null || dims.height == null) {
             return;
@@ -257,14 +243,7 @@ function CanvasMap({
                 cancelAnimationFrame(animation_id_ref.current);
             }
             draw_spots_inner(transform);
-            draw_shadow_map(
-                canvas_storage.shadow.context,
-                spots,
-                dims,
-                transform,
-                projection,
-                shadow_palette,
-            );
+            draw_shadow_map(canvas_storage.shadow.context, spots, dims, transform, projection);
         }
 
         draw_map_inner(zoom_transform.current);
@@ -281,11 +260,16 @@ function CanvasMap({
         });
 
         function get_data_from_shadow_canvas(x, y) {
-            const [red, green, blue] = canvas_storage.shadow.context
-                .getImageData(x, y, 1, 1)
-                .data.slice(0, 3);
-            const color = [red, green, blue];
-            return reverse_shadow_palette.get(color);
+            const [r, g, b] = canvas_storage.shadow.context.getImageData(x, y, 1, 1).data;
+            const result = color_to_spot(r, g, b);
+            if (result === null) {
+                return null;
+            };
+            const [type, spot_id] = result;
+            if (!spots.some(s => s.id === spot_id)) {
+                return null;
+            };
+            return [type, spot_id];
         }
 
         function on_mouse_move(event) {
