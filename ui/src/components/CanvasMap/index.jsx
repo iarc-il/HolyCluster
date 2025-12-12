@@ -171,9 +171,11 @@ function CanvasMap({
     const map_canvas_ref = useRef(null);
     const spots_canvas_ref = useRef(null);
     const shadow_canvas_ref = useRef(null);
+    const map_cache_canvas_ref = useRef(null);
 
     const animation_id_ref = useRef(null);
     const dash_offset_ref = useRef(0);
+    const map_cache_key_ref = useRef(null);
 
     const [div_ref, { width, height }] = useMeasure();
     const dims = new Dimensions(width, height, 50);
@@ -207,6 +209,46 @@ function CanvasMap({
             return;
         }
 
+        if (map_cache_canvas_ref.current == null) {
+            map_cache_canvas_ref.current = document.createElement("canvas");
+        }
+        const cache_canvas = map_cache_canvas_ref.current;
+        if (cache_canvas.width !== dims.width || cache_canvas.height !== dims.height) {
+            cache_canvas.width = dims.width;
+            cache_canvas.height = dims.height;
+            map_cache_key_ref.current = null;
+        }
+        const cache_context = cache_canvas.getContext("2d");
+
+        function get_map_cache_key(transform) {
+            const [rot_lon, rot_lat, rot_gamma] = projection.rotate();
+            const color_key = `${colors.map.background},${colors.map.land},${colors.map.graticule}`;
+            return `${rot_lon},${rot_lat},${rot_gamma},${transform.k},${transform.x},${transform.y},${map_controls.night},${settings.show_equator},${color_key}`;
+        }
+
+        function draw_map_to_cache(transform) {
+            const cache_key = get_map_cache_key(transform);
+            if (map_cache_key_ref.current === cache_key) {
+                return;
+            }
+            map_cache_key_ref.current = cache_key;
+            draw_map(
+                cache_context,
+                spots,
+                colors,
+                dims,
+                transform,
+                projection,
+                map_controls.night,
+                settings.show_equator,
+            );
+        }
+
+        function blit_map_cache() {
+            canvas_storage.map.context.clearRect(0, 0, dims.width, dims.height);
+            canvas_storage.map.context.drawImage(cache_canvas, 0, 0);
+        }
+
         function draw_spots_inner(transform) {
             draw_spots(
                 canvas_storage.spots.context,
@@ -220,7 +262,6 @@ function CanvasMap({
                 projection,
             );
 
-            // This recursion redraws the spot every frame with changing sash_offset to animate the alerted spots.
             dash_offset_ref.current -= 0.5;
             if (dash_offset_ref.current < -20) {
                 dash_offset_ref.current = 0;
@@ -229,16 +270,8 @@ function CanvasMap({
         }
 
         function draw_map_inner(transform) {
-            draw_map(
-                canvas_storage.map.context,
-                spots,
-                colors,
-                dims,
-                transform,
-                projection,
-                map_controls.night,
-                settings.show_equator,
-            );
+            draw_map_to_cache(transform);
+            blit_map_cache();
             if (animation_id_ref.current != null) {
                 cancelAnimationFrame(animation_id_ref.current);
             }
@@ -264,11 +297,11 @@ function CanvasMap({
             const result = color_to_spot(r, g, b);
             if (result === null) {
                 return null;
-            };
+            }
             const [type, spot_id] = result;
             if (!spots.some(s => s.id === spot_id)) {
                 return null;
-            };
+            }
             return [type, spot_id];
         }
 
@@ -313,7 +346,17 @@ function CanvasMap({
             canvas_storage.shadow.canvas.removeEventListener("click", on_click);
             cancelAnimationFrame(animation_id_ref.current);
         };
-    }, [spots, center_lon, center_lat, hovered_spot, width, height, map_controls]);
+    }, [
+        spots,
+        center_lon,
+        center_lat,
+        hovered_spot,
+        width,
+        height,
+        map_controls,
+        settings.show_equator,
+        colors,
+    ]);
 
     const hovered_spot_data = spots.find(spot => spot.id == hovered_spot.id);
     const pinned_spot_data = spots.find(spot => spot.id == pinned_spot);
