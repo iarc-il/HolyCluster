@@ -83,8 +83,7 @@ export const ServerDataProvider = ({ children }) => {
     });
     fetch_propagation_context.current.propagation = propagation;
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const websocket_url = get_base_url().replace(/^http(s)?:/, protocol) + "/spots_ws";
+    const websocket_url = get_base_url().replace(/^http(s)?:/, "wss:") + "/spots_ws";
 
     const [is_first_connection, set_is_first_connection] = useState(true);
     const last_spot_time_ref = useRef(0);
