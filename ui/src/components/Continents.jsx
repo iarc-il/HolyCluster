@@ -14,7 +14,7 @@ function ContinentColumn({ spot_type, colors }) {
     const color = colors.buttons[spot_type + "_continents"];
 
     return (
-        <>
+        <div className="flex flex-col gap-3 items-center p-1">
             <strong style={{ color: colors.theme.text }}>{title[spot_type]}</strong>
             {continents.map(continent => (
                 <FilterOptions
@@ -39,8 +39,45 @@ function ContinentColumn({ spot_type, colors }) {
                     />
                 </FilterOptions>
             ))}
-            <div className="h-8"></div>
-        </>
+        </div>
+    );
+}
+
+function SwapButton({ colors }) {
+    const { setFilters } = useFilters();
+
+    const swapContinents = () => {
+        setFilters(state => ({
+            ...state,
+            dx_continents: { ...state.spotter_continents },
+            spotter_continents: { ...state.dx_continents },
+        }));
+    };
+
+    return (
+        <div
+            onClick={swapContinents}
+            className="w-16 text-center rounded-full cursor-pointer select-none border border-slate-700 hover:brightness-110 flex justify-center py-0.5"
+            style={{ backgroundColor: colors.buttons.disabled_background }}
+            title="Swap DX and DE continent filters"
+        >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path
+                    d="M7 4L7 20M7 4L3 8M7 4L11 8"
+                    stroke="#000000"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+                <path
+                    d="M17 20L17 4M17 20L21 16M17 20L13 16"
+                    stroke="#000000"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+            </svg>
+        </div>
     );
 }
 
@@ -54,14 +91,16 @@ function Continents({ toggled_ui }) {
         <div
             className={
                 toggled_classes +
-                "flex flex-col w-18 p-2 text-center h-full gap-3 items-center bg-gray-100 z-50 overflow-y-auto shrink-0"
+                "flex flex-col gap-2 w-18 text-center h-full bg-gray-100 z-50 overflow-y-auto shrink-0"
             }
             style={{ backgroundColor: colors.theme.columns }}
         >
-            {["dx", "spotter"].map(spot_type => (
-                <ContinentColumn key={spot_type} spot_type={spot_type} colors={colors} />
-            ))}
-            <div className="mt-auto mb-2">
+            <ContinentColumn spot_type="dx" colors={colors} />
+            <div className="flex border-slate-300 border-t-2 border-b-2 py-4 justify-center">
+                <SwapButton colors={colors} />
+            </div>
+            <ContinentColumn spot_type="spotter" colors={colors} />
+            <div className="flex mt-auto mb-2 justify-center">
                 <UtilityButtons />
             </div>
         </div>
