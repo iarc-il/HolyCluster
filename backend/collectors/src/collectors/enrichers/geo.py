@@ -83,7 +83,11 @@ async def get_geo_details(qrz_session_key: str, callsign: str, debug: bool = Fal
             delay=0, 
             debug=debug
         )
-        locator = qrz_locator_dict['locator']
+        if qrz_locator_dict is None:
+            logger.error(f"get_locator_from_qrz returned None for {callsign}, falling back to prefix list")
+            qrz_locator_dict = {"locator": None, "error": "Function returned None"}
+
+        locator = qrz_locator_dict.get('locator')
         if locator:
             locator_source = "qrz"
         else:

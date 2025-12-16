@@ -34,6 +34,7 @@ def get_qrz_session_key(username: str, password: str, api_key: str):
     except Exception as ex:
         message = f"**** ERROR get_qrz_session_key **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
         logger.exception(message)
+        return None
 
 
 async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float = 0, debug: bool = False) -> dict:
@@ -81,3 +82,4 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float
     except Exception as ex:
         message = f"**** ERROR get_locator_from_qrz **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
         logger.error(message)
+        return {"locator": None, "error": f"Exception: {type(ex).__name__}"}
