@@ -164,9 +164,16 @@ class QrzSessionManager:
             while True:
                 await asyncio.sleep(QRZ_SESSION_KEY_REFRESH)
                 logger.info(f"Refreshing QRZ key (every {QRZ_SESSION_KEY_REFRESH} seconds)")
-                async with self._lock:
-                    self.session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)
-                logger.info("QRZ session refreshed")
+                try:
+                    async with self._lock:
+                        new_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)
+                        if new_key:
+                            self.session_key = new_key
+                            logger.info("QRZ session refreshed successfully")
+                        else:
+                            logger.error("QRZ refresh failed (got None), keeping old key")
+                except Exception:
+                    logger.exception("Failed to refresh QRZ key. Keeping old key")
         except asyncio.CancelledError:
             logger.info("QRZ refresh task cancelled")
 
@@ -203,6 +210,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
 
             except Exception as ex:
                 logger.exception(f"Error processing spot: {ex}")
+                input_queue.task_done()
 
     except asyncio.CancelledError:
         logger.info("Spot processor cancelled")
