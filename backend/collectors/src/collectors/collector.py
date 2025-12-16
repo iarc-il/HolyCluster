@@ -85,19 +85,19 @@ async def enrich_spot(qrz_session_key: str, spot: dict, debug: bool = False) -> 
 
         spot.update({
             "spotter_geo_cache": spotter_geo_cache,
-            "spotter_locator_source": spotter_locator_source,
-            "spotter_locator": spotter_locator,
+            "spotter_locator_source": spotter_locator_source or "",
+            "spotter_locator": spotter_locator or "",
             "spotter_lat": spotter_lat,
             "spotter_lon": spotter_lon,
-            "spotter_country": spotter_country,
-            "spotter_continent": spotter_continent,
+            "spotter_country": spotter_country or "",
+            "spotter_continent": spotter_continent or "",
             "dx_geo_cache": dx_geo_cache,
-            "dx_locator_source": dx_locator_source,
-            "dx_locator": dx_locator,
+            "dx_locator_source": dx_locator_source or "",
+            "dx_locator": dx_locator or "",
             "dx_lat": dx_lat,
             "dx_lon": dx_lon,
-            "dx_country": dx_country,
-            "dx_continent": dx_continent,
+            "dx_country": dx_country or "",
+            "dx_continent": dx_continent or "",
         })
 
         if debug:
