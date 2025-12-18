@@ -94,7 +94,7 @@ def find_band_and_mode(frequency: str, comment: str, debug: bool = False) -> Opt
         elif re.search("RTTY", comment.upper()):
             mode = "RTTY"
             mode_selection = "comment"
-        elif re.search("DIGI", comment.upper()) or re.search("VARAC", comment.upper() or re.serach("MSK", comment.upper())):
+        elif re.search("DIGI", comment.upper()) or re.search("VARAC", comment.upper() or re.search("MSK", comment.upper())):
             mode = "DIGI"
             mode_selection = "comment"
         elif band in modes:
