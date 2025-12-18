@@ -1,6 +1,6 @@
 import asyncio
+from datetime import datetime, timezone
 import json
-from datetime import datetime
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
@@ -29,125 +29,113 @@ STREAM_API = "stream-api"
 
 
 def get_timestamp(time_str: str, debug: bool = False):
-    try:
-        from datetime import timezone
-        now_utc = datetime.now(timezone.utc)
-        timestamp = (
-            datetime.now(timezone.utc)
-            .replace(
-                hour=int(time_str[:2]),
-                minute=int(time_str[2:4]),
-                second=now_utc.second,
-                microsecond=now_utc.microsecond,
-            )
-            .timestamp()
+    now_utc = datetime.now(timezone.utc)
+    timestamp = (
+        datetime.now(timezone.utc)
+        .replace(
+            hour=int(time_str[:2]),
+            minute=int(time_str[2:4]),
+            second=now_utc.second,
+            microsecond=now_utc.microsecond,
         )
-        return timestamp
-    except Exception as ex:
-        logger.error(f"get_timestamp error: {type(ex).__name__}: {ex.args}")
-        return None
+        .timestamp()
+    )
+    return timestamp
 
 
 async def enrich_spot(qrz_session_key: str, spot: dict, debug: bool = False) -> dict:
-    try:
-        timestamp = get_timestamp(time_str=spot["time"], debug=debug)
-        spot["timestamp"] = timestamp
+    timestamp = get_timestamp(time_str=spot["time"], debug=debug)
+    spot["timestamp"] = timestamp
 
-        band_mode = find_band_and_mode(
-            frequency=spot["frequency"], comment=spot["comment"], debug=debug
-        )
-        if band_mode is None:
-            logger.debug(f"Dropping spot due to invalid band: {spot}")
-            return None
+    band_mode = find_band_and_mode(
+        frequency=spot["frequency"], comment=spot["comment"], debug=debug
+    )
+    if band_mode is None:
+        logger.debug(f"Dropping spot due to invalid band: {spot}")
+        return None
 
-        band, mode, mode_selection = band_mode
-        spot.update({"band": band, "mode": mode, "mode_selection": mode_selection})
+    band, mode, mode_selection = band_mode
+    spot.update({"band": band, "mode": mode, "mode_selection": mode_selection})
 
-        (
-            spotter_geo_cache,
-            spotter_locator_source,
-            spotter_locator,
-            spotter_lat,
-            spotter_lon,
-            spotter_country,
-            spotter_continent,
-        ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"], debug=debug)
+    (
+        spotter_geo_cache,
+        spotter_locator_source,
+        spotter_locator,
+        spotter_lat,
+        spotter_lon,
+        spotter_country,
+        spotter_continent,
+    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"], debug=debug)
 
-        (
-            dx_geo_cache,
-            dx_locator_source,
-            dx_locator,
-            dx_lat,
-            dx_lon,
-            dx_country,
-            dx_continent,
-        ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"], debug=debug)
+    (
+        dx_geo_cache,
+        dx_locator_source,
+        dx_locator,
+        dx_lat,
+        dx_lon,
+        dx_country,
+        dx_continent,
+    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"], debug=debug)
 
-        spot.update({
-            "spotter_geo_cache": spotter_geo_cache,
-            "spotter_locator_source": spotter_locator_source or "",
-            "spotter_locator": spotter_locator or "",
-            "spotter_lat": spotter_lat,
-            "spotter_lon": spotter_lon,
-            "spotter_country": spotter_country or "",
-            "spotter_continent": spotter_continent or "",
-            "dx_geo_cache": dx_geo_cache,
-            "dx_locator_source": dx_locator_source or "",
-            "dx_locator": dx_locator or "",
-            "dx_lat": dx_lat,
-            "dx_lon": dx_lon,
-            "dx_country": dx_country or "",
-            "dx_continent": dx_continent or "",
-        })
+    spot.update({
+        "spotter_geo_cache": spotter_geo_cache,
+        "spotter_locator_source": spotter_locator_source or "",
+        "spotter_locator": spotter_locator or "",
+        "spotter_lat": spotter_lat,
+        "spotter_lon": spotter_lon,
+        "spotter_country": spotter_country or "",
+        "spotter_continent": spotter_continent or "",
+        "dx_geo_cache": dx_geo_cache,
+        "dx_locator_source": dx_locator_source or "",
+        "dx_locator": dx_locator or "",
+        "dx_lat": dx_lat,
+        "dx_lon": dx_lon,
+        "dx_country": dx_country or "",
+        "dx_continent": dx_continent or "",
+    })
 
-        if debug:
-            logger.debug(f"Enriched spot: {json.dumps(spot, indent=2)}")
+    if debug:
+        logger.debug(f"Enriched spot: {json.dumps(spot, indent=2)}")
 
-        return spot
+    return spot
 
-    except Exception as ex:
-        logger.error(f"enrich_spot error: {type(ex).__name__}: {ex.args}")
-        return spot
 
 
 async def add_spot_to_postgres(engine, spot: dict, debug: bool = False):
     """Add an enriched spot to PostgreSQL."""
-    try:
-        dt = datetime.fromtimestamp(float(spot["timestamp"]))
-        record = HolySpot(
-            cluster=spot["cluster"],
-            time=dt.time(),
-            timestamp=int(float(spot["timestamp"])),
-            frequency=str(spot["frequency"]),
-            band=spot["band"],
-            mode=spot["mode"],
-            mode_selection=spot["mode_selection"],
-            spotter_callsign=spot["spotter_callsign"],
-            spotter_locator=spot["spotter_locator"],
-            spotter_locator_source=spot["spotter_locator_source"],
-            spotter_lat=str(spot["spotter_lat"]),
-            spotter_lon=str(spot["spotter_lon"]),
-            spotter_country=spot["spotter_country"],
-            spotter_continent=spot["spotter_continent"],
-            dx_callsign=spot["dx_callsign"],
-            dx_locator=spot["dx_locator"],
-            dx_locator_source=spot["dx_locator_source"],
-            dx_lat=str(spot["dx_lat"]),
-            dx_lon=str(spot["dx_lon"]),
-            dx_country=spot["dx_country"],
-            dx_continent=spot["dx_continent"],
-            comment=spot["comment"],
-        )
+    dt = datetime.fromtimestamp(float(spot["timestamp"]))
+    record = HolySpot(
+        cluster=spot["cluster"],
+        time=dt.time(),
+        timestamp=int(float(spot["timestamp"])),
+        frequency=str(spot["frequency"]),
+        band=spot["band"],
+        mode=spot["mode"],
+        mode_selection=spot["mode_selection"],
+        spotter_callsign=spot["spotter_callsign"],
+        spotter_locator=spot["spotter_locator"],
+        spotter_locator_source=spot["spotter_locator_source"],
+        spotter_lat=str(spot["spotter_lat"]),
+        spotter_lon=str(spot["spotter_lon"]),
+        spotter_country=spot["spotter_country"],
+        spotter_continent=spot["spotter_continent"],
+        dx_callsign=spot["dx_callsign"],
+        dx_locator=spot["dx_locator"],
+        dx_locator_source=spot["dx_locator_source"],
+        dx_lat=str(spot["dx_lat"]),
+        dx_lon=str(spot["dx_lon"]),
+        dx_country=spot["dx_country"],
+        dx_continent=spot["dx_continent"],
+        comment=spot["comment"],
+    )
 
-        async with AsyncSession(engine) as session:
-            session.add(record)
-            await session.commit()
-            if debug:
-                await session.refresh(record)
-                logger.debug(f"Spot saved to DB: {record.id}")
+    async with AsyncSession(engine) as session:
+        session.add(record)
+        await session.commit()
+        if debug:
+            await session.refresh(record)
+            logger.debug(f"Spot saved to DB: {record.id}")
 
-    except Exception as ex:
-        logger.exception(f"Failed to add spot to DB: {ex}")
 
 
 class QrzSessionManager:
@@ -208,8 +196,8 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
 
                 input_queue.task_done()
 
-            except Exception as ex:
-                logger.exception(f"Error processing spot: {ex}")
+            except Exception:
+                logger.exception("Error processing spot")
                 input_queue.task_done()
 
     except asyncio.CancelledError:

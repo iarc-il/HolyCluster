@@ -17,43 +17,9 @@ global valkey_client
 try:
     if not socket.gethostbyname(VALKEY_HOST):
         pass
-except socket.gaierror as e:
+except socket.gaierror:
     VALKEY_HOST = "127.0.0.1"
 valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
-
-
-async def check_geo_cache(callsign: str, debug: bool = False):
-    geo_cache_details = None
-    try:
-        geo_cache_details = valkey_client.get(callsign)
-        if debug:
-            logger.debug(f"{geo_cache_details=}")
-
-    except Exception as ex:
-        message = (
-            f"**** ERROR check_geo_cache **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
-        )
-        logger.error(message)
-
-    finally:
-        return geo_cache_details
-
-
-async def add_geo_cache(callsign: str, geo_details_str: str, debug: bool = False):
-    if debug:
-        logger.debug(f"Adding to geo_cache: {geo_details_str=}")
-    #
-    try:
-        valkey_client.set(callsign, geo_details_str, ex=VALKEY_GEO_EXPIRATION)
-
-    except Exception as ex:
-        message = (
-            f"**** ERROR check_geo_cache **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
-        )
-        logger.error(message)
-
-    finally:
-        return
 
 
 async def get_geo_details(qrz_session_key: str, callsign: str, debug: bool = False):
@@ -65,7 +31,7 @@ async def get_geo_details(qrz_session_key: str, callsign: str, debug: bool = Fal
     continent = None
 
     # Get geo details from cache
-    geo_cache_details = await check_geo_cache(callsign=callsign, debug=debug)
+    geo_cache_details = valkey_client.get(callsign)
 
     if geo_cache_details:
         geo_cache = 1
@@ -115,7 +81,7 @@ async def get_geo_details(qrz_session_key: str, callsign: str, debug: bool = Fal
                 "continent": continent,
             }
             geo_details_str = json.dumps(geo_details_dict)
-            await add_geo_cache(callsign=callsign, geo_details_str=geo_details_str, debug=debug)
+            valkey_client.set(callsign, geo_details_str, ex=VALKEY_GEO_EXPIRATION)
 
     if debug:
         logger.debug(f"{callsign=}")
