@@ -44,9 +44,14 @@ function ContinentColumn({ spot_type, colors }) {
 }
 
 function SwapButton({ colors }) {
-    const { setFilters } = useFilters();
+    const { filters, setFilters } = useFilters();
+
+    const areFiltersEqual = continents.every(
+        continent => filters.dx_continents[continent] === filters.spotter_continents[continent],
+    );
 
     const swapContinents = () => {
+        if (areFiltersEqual) return;
         setFilters(state => ({
             ...state,
             dx_continents: { ...state.spotter_continents },
@@ -57,7 +62,11 @@ function SwapButton({ colors }) {
     return (
         <div
             onClick={swapContinents}
-            className="w-16 text-center rounded-full cursor-pointer select-none border border-slate-700 hover:brightness-110 flex justify-center py-0.5"
+            className={`w-16 text-center rounded-full select-none border border-slate-700 flex justify-center py-0.5 ${
+                areFiltersEqual
+                    ? "opacity-50 pointer-events-none"
+                    : "cursor-pointer hover:brightness-110"
+            }`}
             style={{ backgroundColor: colors.buttons.disabled_background }}
             title="Swap DX and DE continent filters"
         >
