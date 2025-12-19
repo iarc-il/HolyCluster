@@ -127,7 +127,7 @@ async def telnet_and_collect(host, port, username, telnet_log_dir, output_queue:
 
                             try:
                                 spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
-                                added = valkey_client.set(spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True)
+                                added = await valkey_client.set(spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True)
                                 if added:
                                     await output_queue.put(spot)
                                     if debug:

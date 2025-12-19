@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from collectors.db.valkey_config import get_valkey_client
 from collectors.enrichers.frequencies import find_band_and_mode
 from collectors.enrichers.geo import get_geo_details
-from collectors.enrichers.qrz import get_qrz_session_key
+from shared.qrz import QrzSessionManager
 from collectors.telnet_collectors.run_telnet_collectors import run_concurrent_telnet_connections
 
 from collectors.settings import (
@@ -47,9 +47,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, debug: bool = False) -> 
     timestamp = get_timestamp(time_str=spot["time"], debug=debug)
     spot["timestamp"] = timestamp
 
-    band_mode = find_band_and_mode(
-        frequency=spot["frequency"], comment=spot["comment"], debug=debug
-    )
+    band_mode = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"], debug=debug)
     if band_mode is None:
         logger.debug(f"Dropping spot due to invalid band: {spot}")
         return None
@@ -77,28 +75,29 @@ async def enrich_spot(qrz_session_key: str, spot: dict, debug: bool = False) -> 
         dx_continent,
     ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"], debug=debug)
 
-    spot.update({
-        "spotter_geo_cache": spotter_geo_cache,
-        "spotter_locator_source": spotter_locator_source or "",
-        "spotter_locator": spotter_locator or "",
-        "spotter_lat": spotter_lat,
-        "spotter_lon": spotter_lon,
-        "spotter_country": spotter_country or "",
-        "spotter_continent": spotter_continent or "",
-        "dx_geo_cache": dx_geo_cache,
-        "dx_locator_source": dx_locator_source or "",
-        "dx_locator": dx_locator or "",
-        "dx_lat": dx_lat,
-        "dx_lon": dx_lon,
-        "dx_country": dx_country or "",
-        "dx_continent": dx_continent or "",
-    })
+    spot.update(
+        {
+            "spotter_geo_cache": spotter_geo_cache,
+            "spotter_locator_source": spotter_locator_source or "",
+            "spotter_locator": spotter_locator or "",
+            "spotter_lat": spotter_lat,
+            "spotter_lon": spotter_lon,
+            "spotter_country": spotter_country or "",
+            "spotter_continent": spotter_continent or "",
+            "dx_geo_cache": dx_geo_cache,
+            "dx_locator_source": dx_locator_source or "",
+            "dx_locator": dx_locator or "",
+            "dx_lat": dx_lat,
+            "dx_lon": dx_lon,
+            "dx_country": dx_country or "",
+            "dx_continent": dx_continent or "",
+        }
+    )
 
     if debug:
         logger.debug(f"Enriched spot: {json.dumps(spot, indent=2)}")
 
     return spot
-
 
 
 async def add_spot_to_postgres(engine, spot: dict, debug: bool = False):
@@ -137,38 +136,6 @@ async def add_spot_to_postgres(engine, spot: dict, debug: bool = False):
             logger.debug(f"Spot saved to DB: {record.id}")
 
 
-
-class QrzSessionManager:
-    def __init__(self):
-        self.session_key: str = ""
-        self._lock = asyncio.Lock()
-
-    async def start(self):
-        self.session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)
-        logger.info("QRZ session initialized")
-
-    async def refresh_loop(self):
-        try:
-            while True:
-                await asyncio.sleep(QRZ_SESSION_KEY_REFRESH)
-                logger.info(f"Refreshing QRZ key (every {QRZ_SESSION_KEY_REFRESH} seconds)")
-                try:
-                    async with self._lock:
-                        new_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)
-                        if new_key:
-                            self.session_key = new_key
-                            logger.info("QRZ session refreshed successfully")
-                        else:
-                            logger.error("QRZ refresh failed (got None), keeping old key")
-                except Exception:
-                    logger.exception("Failed to refresh QRZ key. Keeping old key")
-        except asyncio.CancelledError:
-            logger.info("QRZ refresh task cancelled")
-
-    def get_key(self) -> str:
-        return self.session_key
-
-
 async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManager, debug: bool = False):
     logger.info("Spot processor started")
 
@@ -190,7 +157,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                 await add_spot_to_postgres(engine, enriched_spot, debug=debug)
 
                 if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
-                    valkey_client.xadd(STREAM_API, enriched_spot, "*")
+                    await valkey_client.xadd(STREAM_API, enriched_spot, "*")
                     if debug:
                         logger.debug(f"Published to {STREAM_API}")
 
@@ -211,7 +178,9 @@ async def run_collector(debug: bool = False):
 
     spots_queue: asyncio.Queue = asyncio.Queue()
 
-    qrz_manager = QrzSessionManager()
+    qrz_manager = QrzSessionManager(
+        username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY, refresh_interval=QRZ_SESSION_KEY_REFRESH
+    )
     await qrz_manager.start()
 
     qrz_refresh_task = asyncio.create_task(qrz_manager.refresh_loop())
@@ -235,4 +204,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

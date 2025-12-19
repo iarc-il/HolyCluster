@@ -15,6 +15,7 @@ dependencies = [
     "greenlet>=3.2.4",
     "psutil>=7.1.3",
     "db",
+    "shared",
 ]
 
 [project.scripts]

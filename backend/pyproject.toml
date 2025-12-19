@@ -18,10 +18,12 @@ dev = [
 api = { workspace = true }
 collectors = { workspace = true }
 db = { workspace = true }
+shared = { workspace = true }
 
 [tool.uv.workspace]
 members = [
     "api",
     "collectors",
     "db",
+    "shared",
 ]

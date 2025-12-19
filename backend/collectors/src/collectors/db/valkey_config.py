@@ -1,14 +1,15 @@
-import redis
+import redis.asyncio
 
 _valkey_client = None
 
-def get_valkey_client(host, port, db, decode_responses: bool=True):
+
+def get_valkey_client(host, port, db, decode_responses: bool = True):
     global _valkey_client
     if _valkey_client is None:
-        _valkey_client = redis.Redis(
+        _valkey_client = redis.asyncio.Redis(
             host=host,
             port=port,
             db=db,
-            decode_responses=decode_responses # Decodes responses to UTF-8 strings
+            decode_responses=decode_responses,  # Decodes responses to UTF-8 strings
         )
     return _valkey_client

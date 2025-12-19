@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -17,6 +18,8 @@ from sqlmodel import select
 import redis.asyncio
 
 from db import GeoCache, HolySpot, SpotsWithIssues
+from shared.qrz import QrzSessionManager
+from shared.geo import get_geo_details
 from . import propagation, settings, submit_spot
 
 
@@ -42,7 +45,9 @@ async def spots_broadcast_task(app):
     CONSUMER_GROUP = "api-group"
     CONSUMER_NAME = "consumer_1"
 
-    valkey_client = redis.asyncio.Redis(host=settings.VALKEY_HOST, port=settings.VALKEY_PORT, db=0, decode_responses=True)
+    valkey_client = redis.asyncio.Redis(
+        host=settings.VALKEY_HOST, port=settings.VALKEY_PORT, db=0, decode_responses=True
+    )
 
     try:
         await valkey_client.xgroup_create(STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True)
@@ -88,9 +93,22 @@ async def spots_broadcast_task(app):
 async def lifespan(app: fastapi.FastAPI):
     app.state.active_connections = set()
 
+    app.state.qrz_manager = QrzSessionManager(
+        username=settings.QRZ_USER,
+        password=settings.QRZ_PASSWORD,
+        api_key=settings.QRZ_API_KEY,
+        refresh_interval=settings.QRZ_SESSION_KEY_REFRESH,
+    )
+    await app.state.qrz_manager.start()
+
+    app.state.valkey_client = redis.asyncio.Redis(
+        host=settings.VALKEY_HOST, port=settings.VALKEY_PORT, db=int(settings.VALKEY_DB), decode_responses=True
+    )
+
     tasks = [
         asyncio.create_task(propagation_data_collector(app)),
         asyncio.create_task(spots_broadcast_task(app)),
+        asyncio.create_task(app.state.qrz_manager.refresh_loop()),
     ]
 
     yield
@@ -98,6 +116,7 @@ async def lifespan(app: fastapi.FastAPI):
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
+    await app.state.valkey_client.aclose()
 
 
 engine = create_async_engine(
@@ -156,6 +175,44 @@ def cleanup_spots(spots):
     spots = [cleanup_spot(dict(spot)) for spot in spots]
     spots = [spot for spot in spots if spot is not None]
     return spots
+
+
+@app.get("/qrz/{callsign}")
+async def get_qrz_location(callsign: str):
+    """
+    Get grid locator and coordinates for a callsign from QRZ.
+    Uses Valkey cache (same as collectors) for performance.
+
+    Returns:
+        {
+            "callsign": "W1ABC",
+            "locator": "FN42",
+            "lat": 42.5,
+            "lon": -71.5,
+            "source": "qrz" | "cache"
+        }
+    """
+    callsign = callsign.upper()
+    qrz_session_key = app.state.qrz_manager.get_key()
+
+    geo_cache, locator_source, locator, lat, lon, country, continent = await get_geo_details(
+        valkey_client=app.state.valkey_client,
+        qrz_session_key=qrz_session_key,
+        callsign=callsign,
+        geo_expiration=settings.VALKEY_GEO_EXPIRATION,
+        debug=False,
+    )
+
+    if locator and lat is not None and lon is not None:
+        return {
+            "callsign": callsign,
+            "locator": locator,
+            "lat": lat,
+            "lon": lon,
+            "source": "cache" if geo_cache else "qrz",
+        }
+    else:
+        return {"callsign": callsign, "error": "Callsign not found in QRZ database"}
 
 
 @app.get("/geocache/all")
@@ -218,13 +275,23 @@ async def spots_ws(websocket: fastapi.WebSocket):
 
         async with async_session() as session:
             if "initial" in message:
-                query = select(HolySpot).where(HolySpot.timestamp > (time.time() - 3600)).order_by(desc(HolySpot.timestamp)).limit(500)
+                query = (
+                    select(HolySpot)
+                    .where(HolySpot.timestamp > (time.time() - 3600))
+                    .order_by(desc(HolySpot.timestamp))
+                    .limit(500)
+                )
                 initial_spots = (await session.execute(query)).scalars()
 
                 initial_spots = cleanup_spots(initial_spots)
                 await websocket.send_json({"type": "initial", "spots": initial_spots})
             elif "last_time" in message:
-                query = select(HolySpot).where(HolySpot.timestamp > message["last_time"]).order_by(desc(HolySpot.timestamp)).limit(500)
+                query = (
+                    select(HolySpot)
+                    .where(HolySpot.timestamp > message["last_time"])
+                    .order_by(desc(HolySpot.timestamp))
+                    .limit(500)
+                )
                 missed_spots = (await session.execute(query)).scalars()
 
                 missed_spots = cleanup_spots(missed_spots)
