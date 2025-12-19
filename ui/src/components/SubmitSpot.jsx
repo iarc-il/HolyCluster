@@ -196,7 +196,11 @@ function SubmitSpot({ dev_mode }) {
                         <tr>
                             <td>Spotter callsign:</td>
                             <td>
-                                <Input value={settings.callsign} className="uppercase" disabled />
+                                <Input
+                                    value={settings.callsign}
+                                    className="uppercase w-32"
+                                    disabled
+                                />
                             </td>
                         </tr>
                         <tr>
@@ -204,6 +208,7 @@ function SubmitSpot({ dev_mode }) {
                             <td>
                                 <CallsignInput
                                     value={temp_data.callsign}
+                                    className="w-32"
                                     maxLength={11}
                                     autoFocus={true}
                                     onChange={event => {
@@ -220,10 +225,14 @@ function SubmitSpot({ dev_mode }) {
                             <td>
                                 <Input
                                     value={temp_data.freq}
+                                    className="w-32"
                                     onChange={event => {
                                         const value = event.target.value;
                                         if (/^\d*\.?\d{0,1}$/.test(value)) {
-                                            if (Number.parseFloat(value) <= 75000 || value == "") {
+                                            if (
+                                                Number.parseFloat(value) <= 1000000000 ||
+                                                value == ""
+                                            ) {
                                                 set_temp_data({
                                                     ...temp_data,
                                                     freq: value,
