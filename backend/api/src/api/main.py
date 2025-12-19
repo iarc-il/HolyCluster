@@ -179,19 +179,6 @@ def cleanup_spots(spots):
 
 @app.get("/locator/{callsign}")
 async def get_locator(callsign: str):
-    """
-    Get grid locator and coordinates for a callsign from QRZ.
-    Uses Valkey cache (same as collectors) for performance.
-
-    Returns:
-        {
-            "callsign": "W1ABC",
-            "locator": "FN42",
-            "lat": 42.5,
-            "lon": -71.5,
-            "source": "qrz" | "cache"
-        }
-    """
     callsign = callsign.upper()
     qrz_session_key = app.state.qrz_manager.get_key()
 

@@ -6,7 +6,7 @@ import Toggle from "@/components/Toggle.jsx";
 import Popup from "@/components/Popup.jsx";
 import HelpIcon from "@/components/HelpIcon.jsx";
 import { themes_names, useColors } from "@/hooks/useColors";
-import { play_alert_sound } from "@/utils.js";
+import { play_alert_sound, get_base_url } from "@/utils.js";
 import Maidenhead from "maidenhead";
 
 function PlayIcon({ size }) {
@@ -24,9 +24,21 @@ function PlayIcon({ size }) {
     );
 }
 
+async function fetch_locator(callsign) {
+    if (!callsign) return null;
+    try {
+        const response = await fetch(`${get_base_url()}/locator/${callsign}`);
+        const data = await response.json();
+        return data.locator || null;
+    } catch {
+        return null;
+    }
+}
+
 function General({ temp_settings, set_temp_settings, colors }) {
     const help_button_ref = useRef(null);
     const [show_help_popup, set_show_help_popup] = useState(false);
+    const [is_locator_queried, set_is_locator_queried] = useState(false);
     const is_locator_valid = Maidenhead.valid(temp_settings.locator);
     const is_default_radius_valid =
         temp_settings.default_radius >= 1000 &&
@@ -47,11 +59,23 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                 value={temp_settings.callsign}
                                 maxLength={11}
                                 autoFocus={true}
-                                onChange={event => {
+                                onChange={async event => {
+                                    const new_callsign = event.target.value;
                                     set_temp_settings({
                                         ...temp_settings,
-                                        callsign: event.target.value,
+                                        callsign: new_callsign,
                                     });
+
+                                    if (temp_settings.locator == "" || is_locator_queried) {
+                                        const locator = await fetch_locator(new_callsign);
+                                        if (locator) {
+                                            set_is_locator_queried(true);
+                                            set_temp_settings(prev => ({
+                                                ...prev,
+                                                locator: locator,
+                                            }));
+                                        }
+                                    }
                                 }}
                             />
                         </td>
@@ -63,6 +87,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                 value={temp_settings.locator}
                                 className={is_locator_valid ? "" : "bg-red-200"}
                                 onChange={event => {
+                                    set_is_locator_queried(false);
                                     set_temp_settings({
                                         ...temp_settings,
                                         locator: event.target.value,
