@@ -196,11 +196,7 @@ async def get_qrz_location(callsign: str):
     qrz_session_key = app.state.qrz_manager.get_key()
 
     geo_cache, locator_source, locator, lat, lon, country, continent = await get_geo_details(
-        valkey_client=app.state.valkey_client,
-        qrz_session_key=qrz_session_key,
-        callsign=callsign,
-        geo_expiration=settings.VALKEY_GEO_EXPIRATION,
-        debug=False,
+        app.state.valkey_client, qrz_session_key, callsign, settings.VALKEY_GEO_EXPIRATION
     )
 
     if locator and lat is not None and lon is not None:

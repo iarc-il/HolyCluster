@@ -1,5 +1,4 @@
 import socket
-from collectors.enrichers.locator import resolve_locator_from_list, resolve_country_and_continent_from_list
 from collectors.db.valkey_config import get_valkey_client
 from collectors.settings import (
     VALKEY_HOST,
@@ -18,14 +17,5 @@ except socket.gaierror:
 valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
 
 
-async def get_geo_details(qrz_session_key: str, callsign: str, debug: bool = False):
-    """Wrapper around shared get_geo_details with collector-specific dependencies."""
-    return await shared_get_geo_details(
-        valkey_client=valkey_client,
-        qrz_session_key=qrz_session_key,
-        callsign=callsign,
-        geo_expiration=VALKEY_GEO_EXPIRATION,
-        resolve_locator_from_list_func=resolve_locator_from_list,
-        resolve_country_and_continent_from_list_func=resolve_country_and_continent_from_list,
-        debug=debug,
-    )
+async def get_geo_details(qrz_session_key: str, callsign: str):
+    return await shared_get_geo_details(valkey_client, qrz_session_key, callsign, VALKEY_GEO_EXPIRATION)
