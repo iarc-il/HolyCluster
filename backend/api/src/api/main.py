@@ -177,8 +177,8 @@ def cleanup_spots(spots):
     return spots
 
 
-@app.get("/qrz/{callsign}")
-async def get_qrz_location(callsign: str):
+@app.get("/locator/{callsign}")
+async def get_locator(callsign: str):
     """
     Get grid locator and coordinates for a callsign from QRZ.
     Uses Valkey cache (same as collectors) for performance.
