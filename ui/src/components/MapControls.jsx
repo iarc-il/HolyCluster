@@ -26,7 +26,7 @@ function MapControls({
     const { settings } = useSettings();
 
     function reset_map() {
-        const locator = settings.locator == "" ? "JJ00AA" : settings.locator;
+        const locator = settings.locator || "JJ00AA";
         const [lat, lon] = Maidenhead.toLatLon(locator);
         set_map_controls(state => {
             if (!auto_toggle_radius) {
