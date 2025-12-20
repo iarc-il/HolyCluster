@@ -15,9 +15,7 @@ from collectors.settings import (
 )
 
 
-DX_CC_RE = re.compile(
-    r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)"
-)
+DX_CC_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
 DX_AR_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\d+Z)")
 
 
@@ -98,9 +96,7 @@ async def telnet_and_collect(
         line_buffer = b""
         try:
             logger.info(f"Attempting to connect to {host}:{port} ...")
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, int(port)), timeout=10
-            )
+            reader, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), timeout=10)
 
             logger.info(f"{host}:{port}  Successfully connected")
             reconnect_attempts = 0
@@ -136,26 +132,16 @@ async def telnet_and_collect(
 
                             try:
                                 spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
-                                added = await valkey_client.set(
-                                    spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True
-                                )
+                                added = await valkey_client.set(spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True)
                                 if added:
                                     await output_queue.put(spot)
                                     if debug:
-                                        task_logger.debug(
-                                            f"Spot added to queue: {spot_data}"
-                                        )
-                                        logger.debug(
-                                            f"Spot added to queue: {host}:{port}  {spot_data}"
-                                        )
+                                        task_logger.debug(f"Spot added to queue: {spot_data}")
+                                        logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
                                 else:
                                     if debug:
-                                        task_logger.debug(
-                                            f"Duplicate spot not queued: {spot_data}"
-                                        )
-                                        logger.debug(
-                                            f"Duplicate spot not queued: {host}:{port}  {spot_data}"
-                                        )
+                                        task_logger.debug(f"Duplicate spot not queued: {spot_data}")
+                                        logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
                             except Exception as e:
                                 task_logger.error(f"**** Failed to queue spot: {e}")

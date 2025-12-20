@@ -18,9 +18,7 @@ from collectors.src.settings import (
 
 
 async def main(callsign: str, debug: bool = False):
-    qrz_session_key = get_qrz_session_key(
-        username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY
-    )
+    qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)
 
     (
         geo_cache,
@@ -30,9 +28,7 @@ async def main(callsign: str, debug: bool = False):
         lon,
         country,
         continent,
-    ) = await get_geo_details(
-        qrz_session_key=qrz_session_key, callsign=callsign, debug=debug
-    )
+    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=callsign, debug=debug)
     logger.debug(f"{geo_cache=}")
     logger.debug(f"{locator_source=}")
     logger.debug(f"{locator=}")

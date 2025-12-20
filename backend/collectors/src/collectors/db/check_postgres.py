@@ -19,9 +19,7 @@ from collectors.settings import (
 
 async def check_database_exists(connection, db_name):
     try:
-        result = await connection.execute(
-            text(f"SELECT 1 FROM pg_database WHERE datname='{db_name}'")
-        )
+        result = await connection.execute(text(f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"))
         return result.scalar() is not None
     except Exception as ex:
         message = f"**** ERROR {sys._getframe(0).f_code.co_name} **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
@@ -100,15 +98,9 @@ async def check_postgres(args, debug: bool = False):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Check or initialize the PostgreSQL database."
-    )
-    parser.add_argument(
-        "--init", action="store_true", help="Drop and recreate the database and tables."
-    )
-    parser.add_argument(
-        "-d", "--debug", action="store_true", default=False, help="Debug mode"
-    )
+    parser = argparse.ArgumentParser(description="Check or initialize the PostgreSQL database.")
+    parser.add_argument("--init", action="store_true", help="Drop and recreate the database and tables.")
+    parser.add_argument("-d", "--debug", action="store_true", default=False, help="Debug mode")
     args = parser.parse_args()
     open_log_file("collectors/logs/db/check_postgres")
     debug = args.debug if args.debug else DEBUG

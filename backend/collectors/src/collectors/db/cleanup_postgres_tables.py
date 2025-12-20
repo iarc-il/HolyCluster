@@ -41,30 +41,20 @@ async def main(debug: bool = False):
                 model = item[1]
 
                 async with session.begin():
-                    result = await session.execute(
-                        select(func.count()).select_from(model)
-                    )
+                    result = await session.execute(select(func.count()).select_from(model))
                     record_count = result.scalar_one()
-                    logger.info(
-                        f"Before cleanup: Table: {table_name:12}   records: {record_count}"
-                    )
+                    logger.info(f"Before cleanup: Table: {table_name:12}   records: {record_count}")
 
                     delete_stmt = delete(model).where(model.date_time < cutoff_datetime)
                     delete_result = await session.execute(delete_stmt)
                     deleted_count = delete_result.rowcount
 
                     if debug:
-                        logger.debug(
-                            f"Deleted {deleted_count} records from {table_name}"
-                        )
+                        logger.debug(f"Deleted {deleted_count} records from {table_name}")
 
-                    result = await session.execute(
-                        select(func.count()).select_from(model)
-                    )
+                    result = await session.execute(select(func.count()).select_from(model))
                     record_count = result.scalar_one()
-                    logger.info(
-                        f"After  cleanup: Table: {table_name:12}   records: {record_count}"
-                    )
+                    logger.info(f"After  cleanup: Table: {table_name:12}   records: {record_count}")
 
     except (ProgrammingError, OperationalError) as e:
         logger.error(f"Database error: {e}")

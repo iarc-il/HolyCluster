@@ -20,11 +20,7 @@ class GeoCache(SQLModel, table=True):
 
 class HolySpot(SQLModel, table=True):
     __tablename__ = "holy_spots2"
-    __table_args__ = (
-        UniqueConstraint(
-            "time", "spotter_callsign", "dx_callsign", name="uc_holy_spots2"
-        ),
-    )
+    __table_args__ = (UniqueConstraint("time", "spotter_callsign", "dx_callsign", name="uc_holy_spots2"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     cluster: str
@@ -53,11 +49,7 @@ class HolySpot(SQLModel, table=True):
 
 class SpotsWithIssues(SQLModel, table=True):
     __tablename__ = "spots_with_issues2"
-    __table_args__ = (
-        UniqueConstraint(
-            "time", "spotter_callsign", "dx_callsign", name="uc_spots_with_issues2"
-        ),
-    )
+    __table_args__ = (UniqueConstraint("time", "spotter_callsign", "dx_callsign", name="uc_spots_with_issues2"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     cluster: str

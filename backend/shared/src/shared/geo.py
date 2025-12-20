@@ -44,9 +44,7 @@ async def get_geo_details(
             delay=0,
         )
         if qrz_locator_dict is None:
-            logger.error(
-                f"get_locator_from_qrz returned None for {callsign}, falling back to prefix list"
-            )
+            logger.error(f"get_locator_from_qrz returned None for {callsign}, falling back to prefix list")
             qrz_locator_dict = {"locator": None, "error": "Function returned None"}
 
         locator = qrz_locator_dict.get("locator")
@@ -59,9 +57,7 @@ async def get_geo_details(
 
         if locator:
             # Get country & continent from prefixed list (CSV file)
-            country, continent = resolve_country_and_continent_from_list(
-                callsign=callsign
-            )
+            country, continent = resolve_country_and_continent_from_list(callsign=callsign)
             # Calculate coordinates
             lat, lon = locator_to_coordinates(locator)
 

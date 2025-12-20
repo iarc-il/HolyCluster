@@ -80,9 +80,7 @@ async def expect_lines_inner(reader, valid_line, invalid_lines):
 
 async def expect_lines(reader, valid_line, invalid_lines, default_exception=None):
     try:
-        await asyncio.wait_for(
-            expect_lines_inner(reader, valid_line, invalid_lines), timeout=10
-        )
+        await asyncio.wait_for(expect_lines_inner(reader, valid_line, invalid_lines), timeout=10)
     except TimeoutError:
         logger.warning(f"Got timeout while waiting for: {valid_line}")
         if default_exception is not None:
@@ -97,9 +95,7 @@ async def connect_to_server():
         try:
             return await asyncio.wait_for(inner_connect(), timeout=3)
         except TimeoutError:
-            logger.error(
-                f"Failed to connect to cluster at {CLUSTER_HOST}:{CLUSTER_PORT}, {i} retry"
-            )
+            logger.error(f"Failed to connect to cluster at {CLUSTER_HOST}:{CLUSTER_PORT}, {i} retry")
     else:
         raise ClusterConnectionFailed()
 
@@ -134,15 +130,11 @@ async def handle_one_spot(websocket):
         else:
             command = "DX"
 
-        spot_command = (
-            f"{command} {float(data['freq'])} {data['dx_callsign']} {data['comment']}\n"
-        )
+        spot_command = f"{command} {float(data['freq'])} {data['dx_callsign']} {data['comment']}\n"
         logger.info(f"Command: {spot_command}")
         writer.write(spot_command.encode())
 
-        regex = re.compile(
-            rf"DX de\s*{data['spotter_callsign']}:\s*{float(data['freq'])}\s*{data['dx_callsign']}"
-        )
+        regex = re.compile(rf"DX de\s*{data['spotter_callsign']}:\s*{float(data['freq'])}\s*{data['dx_callsign']}")
         await expect_lines(
             reader,
             regex,

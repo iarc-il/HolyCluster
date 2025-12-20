@@ -166,9 +166,7 @@ class StressTest:
         self.running = False
 
     async def run(self):
-        self.logger.info(
-            f"Starting stress test with {self.num_connections} connections for {self.duration}s"
-        )
+        self.logger.info(f"Starting stress test with {self.num_connections} connections for {self.duration}s")
         self.logger.info(f"WebSocket URL: {self.websocket_url}")
         self.logger.info(f"API Container: {self.api_container}")
 
@@ -204,25 +202,17 @@ class StressTest:
         final = self.metrics_history[-1]
 
         print("\nConnection Statistics:")
-        print(
-            f"  Max Active Connections: {max(m.active_connections for m in self.metrics_history)}"
-        )
+        print(f"  Max Active Connections: {max(m.active_connections for m in self.metrics_history)}")
         print(f"  Total Messages Received: {final.messages_received}")
         print(f"  Total Errors: {final.errors}")
 
         if initial.memory_mb > 0 and final.memory_mb > 0:
             memory_increase = final.memory_mb - initial.memory_mb
-            memory_per_conn = (
-                memory_increase / self.num_connections
-                if self.num_connections > 0
-                else 0
-            )
+            memory_per_conn = memory_increase / self.num_connections if self.num_connections > 0 else 0
             print("\nMemory Usage:")
             print(f"  Initial: {initial.memory_mb:.1f} MB")
             print(f"  Final: {final.memory_mb:.1f} MB")
-            print(
-                f"  Increase: {memory_increase:.1f} MB ({memory_increase / initial.memory_mb * 100:.1f}%)"
-            )
+            print(f"  Increase: {memory_increase:.1f} MB ({memory_increase / initial.memory_mb * 100:.1f}%)")
             print(f"  Per Connection: ~{memory_per_conn:.2f} MB")
 
         if initial.db_connections > 0 and final.db_connections > 0:
@@ -255,9 +245,7 @@ class StressTest:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="WebSocket stress test for HolyCluster API"
-    )
+    parser = argparse.ArgumentParser(description="WebSocket stress test for HolyCluster API")
     parser.add_argument(
         "--url",
         default="ws://localhost:8000/spots_ws",

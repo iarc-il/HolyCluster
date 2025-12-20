@@ -63,9 +63,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
         spotter_lon,
         spotter_country,
         spotter_continent,
-    ) = await get_geo_details(
-        qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"]
-    )
+    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"])
 
     (
         dx_geo_cache,
@@ -75,9 +73,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
         dx_lon,
         dx_country,
         dx_continent,
-    ) = await get_geo_details(
-        qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"]
-    )
+    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"])
 
     spot.update(
         {
@@ -145,23 +141,16 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
             spot = await input_queue.get()
 
             try:
-                enriched_spot = await enrich_spot(
-                    qrz_session_key=qrz_manager.get_key(), spot=spot
-                )
+                enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot)
                 if enriched_spot is None:
                     logger.info(f"Dropping spot: {spot}")
                     input_queue.task_done()
                     continue
-                logger.info(
-                    f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}"
-                )
+                logger.info(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
 
                 await add_spot_to_postgres(engine, enriched_spot)
 
-                if all(
-                    enriched_spot.get(k)
-                    for k in ("spotter_locator", "dx_locator", "band", "mode")
-                ):
+                if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
                     await valkey_client.xadd(STREAM_API, enriched_spot, "*")
                 input_queue.task_done()
 
@@ -199,9 +188,7 @@ async def run_collector():
         qrz_refresh_task.cancel()
         processor_task.cancel()
         collector_task.cancel()
-        await asyncio.gather(
-            qrz_refresh_task, processor_task, collector_task, return_exceptions=True
-        )
+        await asyncio.gather(qrz_refresh_task, processor_task, collector_task, return_exceptions=True)
 
 
 def main():

@@ -37,9 +37,7 @@ def test_load_modes_from_file():
 
     # Optional summary of all distinct modes
     all_modes = {mode for band_modes in modes.values() for mode in band_modes}
-    print(
-        f"\nTotal distinct modes across all bands: {len(all_modes)} ({', '.join(sorted(all_modes))})"
-    )
+    print(f"\nTotal distinct modes across all bands: {len(all_modes)} ({', '.join(sorted(all_modes))})")
 
 
 if __name__ == "__main__":

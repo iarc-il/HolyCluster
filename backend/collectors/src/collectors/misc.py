@@ -21,9 +21,7 @@ def open_log_file2(log_filename_prefix: str, debug: bool = False):
 
     if not thread_logger.hasHandlers():
         handler = logging.FileHandler(log_file_path)
-        formatter = logging.Formatter(
-            "%(asctime)s - %(threadName)s - %(levelname)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s - %(threadName)s - %(levelname)s - %(message)s")
         handler.setFormatter(formatter)
         thread_logger.addHandler(handler)
         thread_logger.setLevel(logging.DEBUG)

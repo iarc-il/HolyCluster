@@ -18,6 +18,4 @@ valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_
 
 
 async def get_geo_details(qrz_session_key: str, callsign: str):
-    return await shared_get_geo_details(
-        valkey_client, qrz_session_key, callsign, VALKEY_GEO_EXPIRATION
-    )
+    return await shared_get_geo_details(valkey_client, qrz_session_key, callsign, VALKEY_GEO_EXPIRATION)
