@@ -28,7 +28,7 @@ from db import HolySpot
 STREAM_API = "stream-api"
 
 
-def get_timestamp(time_str: str, debug: bool = False):
+def get_timestamp(time_str: str):
     now_utc = datetime.now(timezone.utc)
     timestamp = (
         datetime.now(timezone.utc)
@@ -43,11 +43,11 @@ def get_timestamp(time_str: str, debug: bool = False):
     return timestamp
 
 
-async def enrich_spot(qrz_session_key: str, spot: dict, debug: bool = False) -> dict:
-    timestamp = get_timestamp(time_str=spot["time"], debug=debug)
+async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
+    timestamp = get_timestamp(time_str=spot["time"])
     spot["timestamp"] = timestamp
 
-    band_mode = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"], debug=debug)
+    band_mode = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"])
     if band_mode is None:
         logger.debug(f"Dropping spot due to invalid band: {spot}")
         return None
@@ -63,7 +63,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, debug: bool = False) -> 
         spotter_lon,
         spotter_country,
         spotter_continent,
-    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"], debug=debug)
+    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"])
 
     (
         dx_geo_cache,
@@ -73,7 +73,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, debug: bool = False) -> 
         dx_lon,
         dx_country,
         dx_continent,
-    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"], debug=debug)
+    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"])
 
     spot.update(
         {
@@ -94,13 +94,10 @@ async def enrich_spot(qrz_session_key: str, spot: dict, debug: bool = False) -> 
         }
     )
 
-    if debug:
-        logger.debug(f"Enriched spot: {json.dumps(spot, indent=2)}")
-
     return spot
 
 
-async def add_spot_to_postgres(engine, spot: dict, debug: bool = False):
+async def add_spot_to_postgres(engine, spot: dict):
     """Add an enriched spot to PostgreSQL."""
     dt = datetime.fromtimestamp(float(spot["timestamp"]))
     record = HolySpot(
@@ -131,36 +128,30 @@ async def add_spot_to_postgres(engine, spot: dict, debug: bool = False):
     async with AsyncSession(engine) as session:
         session.add(record)
         await session.commit()
-        if debug:
-            await session.refresh(record)
-            logger.debug(f"Spot saved to DB: {record.id}")
 
 
-async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManager, debug: bool = False):
+async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManager):
     logger.info("Spot processor started")
 
     valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
-    engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
+    engine = create_async_engine(POSTGRES_DB_URL)
 
     try:
         while True:
             spot = await input_queue.get()
 
             try:
-                enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot, debug=debug)
+                enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot)
                 if enriched_spot is None:
                     logger.info(f"Dropping spot: {spot}")
                     input_queue.task_done()
                     continue
                 logger.info(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
 
-                await add_spot_to_postgres(engine, enriched_spot, debug=debug)
+                await add_spot_to_postgres(engine, enriched_spot)
 
                 if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
                     await valkey_client.xadd(STREAM_API, enriched_spot, "*")
-                    if debug:
-                        logger.debug(f"Published to {STREAM_API}")
-
                 input_queue.task_done()
 
             except Exception:
@@ -173,7 +164,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
         await engine.dispose()
 
 
-async def run_collector(debug: bool = False):
+async def run_collector():
     logger.info("Starting collector...")
 
     spots_queue: asyncio.Queue = asyncio.Queue()
@@ -184,8 +175,8 @@ async def run_collector(debug: bool = False):
     await qrz_manager.start()
 
     qrz_refresh_task = asyncio.create_task(qrz_manager.refresh_loop())
-    processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager, debug=debug))
-    collector_task = asyncio.create_task(run_concurrent_telnet_connections(spots_queue, debug=debug))
+    processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager))
+    collector_task = asyncio.create_task(run_concurrent_telnet_connections(spots_queue))
 
     try:
         await asyncio.gather(qrz_refresh_task, processor_task, collector_task)
@@ -198,8 +189,7 @@ async def run_collector(debug: bool = False):
 
 
 def main():
-    print(f"{DEBUG=}")
-    asyncio.run(run_collector(debug=DEBUG))
+    asyncio.run(run_collector())
 
 
 if __name__ == "__main__":
