@@ -45,11 +45,16 @@ async def spots_broadcast_task(app):
     CONSUMER_NAME = "consumer_1"
 
     valkey_client = redis.asyncio.Redis(
-        host=settings.VALKEY_HOST, port=settings.VALKEY_PORT, db=0, decode_responses=True
+        host=settings.VALKEY_HOST,
+        port=settings.VALKEY_PORT,
+        db=0,
+        decode_responses=True,
     )
 
     try:
-        await valkey_client.xgroup_create(STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True)
+        await valkey_client.xgroup_create(
+            STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True
+        )
     except redis.exceptions.ResponseError:
         pass
 
@@ -65,7 +70,9 @@ async def spots_broadcast_task(app):
                 spots = []
                 for msg_id, spot in messages:
                     await valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
-                    await valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
+                    await valkey_client.xtrim(
+                        STREAM_NAME, minid=msg_id, approximate=False
+                    )
 
                     spot = cleanup_spot(spot)
                     if spot is not None:
@@ -101,7 +108,10 @@ async def lifespan(app: fastapi.FastAPI):
     await app.state.qrz_manager.start()
 
     app.state.valkey_client = redis.asyncio.Redis(
-        host=settings.VALKEY_HOST, port=settings.VALKEY_PORT, db=int(settings.VALKEY_DB), decode_responses=True
+        host=settings.VALKEY_HOST,
+        port=settings.VALKEY_PORT,
+        db=int(settings.VALKEY_DB),
+        decode_responses=True,
     )
 
     tasks = [
@@ -181,8 +191,19 @@ async def get_locator(callsign: str):
     callsign = callsign.upper()
     qrz_session_key = app.state.qrz_manager.get_key()
 
-    geo_cache, locator_source, locator, lat, lon, country, continent = await get_geo_details(
-        app.state.valkey_client, qrz_session_key, callsign, settings.VALKEY_GEO_EXPIRATION
+    (
+        geo_cache,
+        locator_source,
+        locator,
+        lat,
+        lon,
+        country,
+        continent,
+    ) = await get_geo_details(
+        app.state.valkey_client,
+        qrz_session_key,
+        callsign,
+        settings.VALKEY_GEO_EXPIRATION,
     )
 
     if locator and lat is not None and lon is not None:
@@ -309,13 +330,17 @@ def download_catserver():
         raise HTTPException(status_code=404, detail="File not found")
 
     return FileResponse(
-        str(file_to_serve), filename=filename.replace("catserver", "HolyCluster"), media_type="application/octet-stream"
+        str(file_to_serve),
+        filename=filename.replace("catserver", "HolyCluster"),
+        media_type="application/octet-stream",
     )
 
 
 @app.get("/")
 async def get_index():
-    response = FileResponse(f"{settings.UI_DIST_PATH}/index.html", media_type="text/html")
+    response = FileResponse(
+        f"{settings.UI_DIST_PATH}/index.html", media_type="text/html"
+    )
     response.headers["Cache-Control"] = "no-store"
     return response
 

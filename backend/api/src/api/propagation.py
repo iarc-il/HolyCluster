@@ -49,11 +49,11 @@ async def collect_propagation_data():
         }
 
 
-
 async def main():
     print(await collect_propagation_data())
 
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())
