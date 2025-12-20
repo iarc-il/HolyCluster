@@ -3,7 +3,10 @@ from loguru import logger
 
 from shared.qrz import get_locator_from_qrz
 from shared.coordinates import locator_to_coordinates
-from shared.locator import resolve_locator_from_list, resolve_country_and_continent_from_list
+from shared.locator import (
+    resolve_locator_from_list,
+    resolve_country_and_continent_from_list,
+)
 
 
 async def get_geo_details(
@@ -36,10 +39,14 @@ async def get_geo_details(
         geo_cache = 0
         # Get locator from qrz
         qrz_locator_dict = await get_locator_from_qrz(
-            qrz_session_key=qrz_session_key, callsign=callsign, delay=0,
+            qrz_session_key=qrz_session_key,
+            callsign=callsign,
+            delay=0,
         )
         if qrz_locator_dict is None:
-            logger.error(f"get_locator_from_qrz returned None for {callsign}, falling back to prefix list")
+            logger.error(
+                f"get_locator_from_qrz returned None for {callsign}, falling back to prefix list"
+            )
             qrz_locator_dict = {"locator": None, "error": "Function returned None"}
 
         locator = qrz_locator_dict.get("locator")
@@ -52,7 +59,9 @@ async def get_geo_details(
 
         if locator:
             # Get country & continent from prefixed list (CSV file)
-            country, continent = resolve_country_and_continent_from_list(callsign=callsign)
+            country, continent = resolve_country_and_continent_from_list(
+                callsign=callsign
+            )
             # Calculate coordinates
             lat, lon = locator_to_coordinates(locator)
 

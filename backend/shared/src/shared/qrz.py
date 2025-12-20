@@ -6,7 +6,9 @@ from loguru import logger
 
 
 class QrzSessionManager:
-    def __init__(self, username: str, password: str, api_key: str, refresh_interval: int):
+    def __init__(
+        self, username: str, password: str, api_key: str, refresh_interval: int
+    ):
         self.username = username
         self.password = password
         self.api_key = api_key
@@ -16,9 +18,7 @@ class QrzSessionManager:
 
     async def start(self):
         self.session_key = get_qrz_session_key(
-            username=self.username,
-            password=self.password,
-            api_key=self.api_key
+            username=self.username, password=self.password, api_key=self.api_key
         )
         logger.info("QRZ session initialized")
 
@@ -26,19 +26,23 @@ class QrzSessionManager:
         try:
             while True:
                 await asyncio.sleep(self.refresh_interval)
-                logger.info(f"Refreshing QRZ key (every {self.refresh_interval} seconds)")
+                logger.info(
+                    f"Refreshing QRZ key (every {self.refresh_interval} seconds)"
+                )
                 try:
                     async with self._lock:
                         new_key = get_qrz_session_key(
                             username=self.username,
                             password=self.password,
-                            api_key=self.api_key
+                            api_key=self.api_key,
                         )
                         if new_key:
                             self.session_key = new_key
                             logger.info("QRZ session refreshed successfully")
                         else:
-                            logger.error("QRZ refresh failed (got None), keeping old key")
+                            logger.error(
+                                "QRZ refresh failed (got None), keeping old key"
+                            )
                 except Exception:
                     logger.exception("Failed to refresh QRZ key. Keeping old key")
         except asyncio.CancelledError:
@@ -68,13 +72,17 @@ def get_qrz_session_key(username: str, password: str, api_key: str):
             logger.info(f"Received QRZ key in {attempts=}")
             return session_key
         else:
-            logger.error(f"**** Error: trying to get qrz session key {attempts=}: {response.status_code=}")
+            logger.error(
+                f"**** Error: trying to get qrz session key {attempts=}: {response.status_code=}"
+            )
         time.sleep(5)
     logger.error(f"**** Error: stopped attempting to get QRZ key after {attempts=}")
     return None
 
 
-async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float = 0) -> dict:
+async def get_locator_from_qrz(
+    qrz_session_key: str, callsign: str, delay: float = 0
+) -> dict:
     suffix_list = ["/M", "/P"]
     for suffix in suffix_list:
         if callsign.upper().endswith(suffix):
@@ -82,7 +90,9 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float
     if not qrz_session_key:
         return {"locator": None, "error": "No qrz_session_key"}
     await asyncio.sleep(delay)
-    url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
+    url = (
+        f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
+    )
     async with httpx.AsyncClient() as client:
         response = await client.get(url, timeout=30)
 
