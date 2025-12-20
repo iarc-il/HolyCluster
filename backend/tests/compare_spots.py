@@ -98,7 +98,9 @@ class ServerMonitor:
 
                     while self.running:
                         try:
-                            message = await asyncio.wait_for(websocket.recv(), timeout=30.0)
+                            message = await asyncio.wait_for(
+                                websocket.recv(), timeout=30.0
+                            )
                             data = json.loads(message)
                             await self._process_message(data)
                         except asyncio.TimeoutError:
@@ -177,7 +179,9 @@ class SpotComparator:
         print(f"  Time: {time_str}")
         print(f"  Mode: {spot.mode}, Band: {band_str}")
         print(f"  Comment: {spot.comment}")
-        print(f"  Spotter location: {spot.spotter_loc} ({spot.spotter_country}, {spot.spotter_continent})")
+        print(
+            f"  Spotter location: {spot.spotter_loc} ({spot.spotter_country}, {spot.spotter_continent})"
+        )
         print(f"  DX location: {spot.dx_loc} ({spot.dx_country}, {spot.dx_continent})")
         print("=" * 80)
 
@@ -214,7 +218,9 @@ class SpotComparator:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Compare spots between two HolyCluster API servers")
+    parser = argparse.ArgumentParser(
+        description="Compare spots between two HolyCluster API servers"
+    )
     parser.add_argument(
         "--ref-server",
         help="Reference server WebSocket URL (default: ws://localhost:8000/spots_ws)",
