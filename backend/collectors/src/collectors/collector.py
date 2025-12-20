@@ -7,7 +7,9 @@ from collectors.db.valkey_config import get_valkey_client
 from collectors.enrichers.frequencies import find_band_and_mode
 from collectors.enrichers.geo import get_geo_details
 from shared.qrz import QrzSessionManager
-from collectors.telnet_collectors.run_telnet_collectors import run_concurrent_telnet_connections
+from collectors.telnet_collectors.run_telnet_collectors import (
+    run_concurrent_telnet_connections,
+)
 
 from collectors.settings import (
     VALKEY_HOST,
@@ -61,7 +63,9 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
         spotter_lon,
         spotter_country,
         spotter_continent,
-    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"])
+    ) = await get_geo_details(
+        qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"]
+    )
 
     (
         dx_geo_cache,
@@ -71,7 +75,9 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
         dx_lon,
         dx_country,
         dx_continent,
-    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"])
+    ) = await get_geo_details(
+        qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"]
+    )
 
     spot.update(
         {
@@ -139,16 +145,23 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
             spot = await input_queue.get()
 
             try:
-                enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot)
+                enriched_spot = await enrich_spot(
+                    qrz_session_key=qrz_manager.get_key(), spot=spot
+                )
                 if enriched_spot is None:
                     logger.info(f"Dropping spot: {spot}")
                     input_queue.task_done()
                     continue
-                logger.info(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
+                logger.info(
+                    f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}"
+                )
 
                 await add_spot_to_postgres(engine, enriched_spot)
 
-                if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
+                if all(
+                    enriched_spot.get(k)
+                    for k in ("spotter_locator", "dx_locator", "band", "mode")
+                ):
                     await valkey_client.xadd(STREAM_API, enriched_spot, "*")
                 input_queue.task_done()
 
@@ -168,7 +181,10 @@ async def run_collector():
     spots_queue: asyncio.Queue = asyncio.Queue()
 
     qrz_manager = QrzSessionManager(
-        username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY, refresh_interval=QRZ_SESSION_KEY_REFRESH
+        username=QRZ_USER,
+        password=QRZ_PASSOWRD,
+        api_key=QRZ_API_KEY,
+        refresh_interval=QRZ_SESSION_KEY_REFRESH,
     )
     await qrz_manager.start()
 
@@ -183,7 +199,9 @@ async def run_collector():
         qrz_refresh_task.cancel()
         processor_task.cancel()
         collector_task.cancel()
-        await asyncio.gather(qrz_refresh_task, processor_task, collector_task, return_exceptions=True)
+        await asyncio.gather(
+            qrz_refresh_task, processor_task, collector_task, return_exceptions=True
+        )
 
 
 def main():

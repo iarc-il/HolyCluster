@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import asyncio
@@ -31,32 +32,39 @@ async def main(debug: bool = False):
     logger.info(f"now (UTC)             = {now_utc.replace(tzinfo=None)}")
     logger.info(f"cutoff_datetime (UTC) = {cutoff_datetime}")
 
-    tables = [
-        ["holy_spots2", HolySpot],
-        ["geo_cache", GeoCache]
-    ]
+    tables = [["holy_spots2", HolySpot], ["geo_cache", GeoCache]]
 
     try:
         async with AsyncSession() as session:
             for item in tables:
                 table_name = item[0]
                 model = item[1]
-                
+
                 async with session.begin():
-                    result = await session.execute(select(func.count()).select_from(model))
+                    result = await session.execute(
+                        select(func.count()).select_from(model)
+                    )
                     record_count = result.scalar_one()
-                    logger.info(f"Before cleanup: Table: {table_name:12}   records: {record_count}")
+                    logger.info(
+                        f"Before cleanup: Table: {table_name:12}   records: {record_count}"
+                    )
 
                     delete_stmt = delete(model).where(model.date_time < cutoff_datetime)
                     delete_result = await session.execute(delete_stmt)
                     deleted_count = delete_result.rowcount
 
                     if debug:
-                        logger.debug(f"Deleted {deleted_count} records from {table_name}")
+                        logger.debug(
+                            f"Deleted {deleted_count} records from {table_name}"
+                        )
 
-                    result = await session.execute(select(func.count()).select_from(model))
+                    result = await session.execute(
+                        select(func.count()).select_from(model)
+                    )
                     record_count = result.scalar_one()
-                    logger.info(f"After  cleanup: Table: {table_name:12}   records: {record_count}")
+                    logger.info(
+                        f"After  cleanup: Table: {table_name:12}   records: {record_count}"
+                    )
 
     except (ProgrammingError, OperationalError) as e:
         logger.error(f"Database error: {e}")

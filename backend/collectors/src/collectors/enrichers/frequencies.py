@@ -45,7 +45,9 @@ def find_band(frequency: str, debug: bool = False) -> str:
     return band
 
 
-def find_band_and_mode(frequency: str, comment: str, debug: bool = False) -> Optional[Tuple[str, str, str]]:
+def find_band_and_mode(
+    frequency: str, comment: str, debug: bool = False
+) -> Optional[Tuple[str, str, str]]:
     band = find_band(frequency=frequency, debug=debug)
     if not band:
         return None
@@ -68,7 +70,11 @@ def find_band_and_mode(frequency: str, comment: str, debug: bool = False) -> Opt
     elif re.search("RTTY", comment.upper()):
         mode = "RTTY"
         mode_selection = "comment"
-    elif re.search("DIGI", comment.upper()) or re.search("VARAC", comment.upper()) or re.search("MSK", comment.upper()):
+    elif (
+        re.search("DIGI", comment.upper())
+        or re.search("VARAC", comment.upper())
+        or re.search("MSK", comment.upper())
+    ):
         mode = "DIGI"
         mode_selection = "comment"
     elif band in modes:
@@ -93,4 +99,3 @@ def find_band_and_mode(frequency: str, comment: str, debug: bool = False) -> Opt
         logger.debug(f"{mode=}   {mode_selection=}")
 
     return band, mode, mode_selection
-
