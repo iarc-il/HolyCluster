@@ -3,11 +3,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import asyncio
-from datetime import datetime, timedelta, timezone, UTC
+from datetime import datetime, timedelta, UTC
 from loguru import logger
 from sqlalchemy import func, select, delete
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.exc import SQLAlchemyError, ProgrammingError, OperationalError
+from sqlalchemy.exc import ProgrammingError, OperationalError
 
 from db import GeoCache, HolySpot
 from misc import string_to_boolean, open_log_file

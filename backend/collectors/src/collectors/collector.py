@@ -1,6 +1,5 @@
 import asyncio
 from datetime import datetime, timezone
-import json
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
@@ -11,7 +10,6 @@ from shared.qrz import QrzSessionManager
 from collectors.telnet_collectors.run_telnet_collectors import run_concurrent_telnet_connections
 
 from collectors.settings import (
-    DEBUG,
     VALKEY_HOST,
     VALKEY_PORT,
     VALKEY_DB,

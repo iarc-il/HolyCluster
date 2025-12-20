@@ -1,6 +1,3 @@
-from loguru import logger
-
-
 class Position:
     def __init__(self, lat: float, lon: float):
         self.lat = lat
