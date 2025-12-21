@@ -21,7 +21,7 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                 >
                     <tbody>
                         <tr>
-                            <td>Report callsign at click:&nbsp;&nbsp;</td>
+                            <td>Enable logger integration:&nbsp;&nbsp;</td>
                             <td className="flex gap-2">
                                 <Toggle
                                     value={temp_settings.highlight_enabled}

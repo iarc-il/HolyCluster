@@ -230,7 +230,7 @@ function SubmitSpot({ dev_mode }) {
                                         const value = event.target.value;
                                         if (/^\d*\.?\d{0,1}$/.test(value)) {
                                             if (
-                                                Number.parseFloat(value) <= 1000000000 ||
+                                                Number.parseFloat(value) <= 990000000 ||
                                                 value == ""
                                             ) {
                                                 set_temp_data({
