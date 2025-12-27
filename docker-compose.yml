@@ -5,6 +5,10 @@ services:
       context: ./postgres
       dockerfile: Dockerfile.postgres
     restart: unless-stopped
+    ports:
+      # This is for local development only,
+      # It's OK to expose these ports on the server because they are accessible only from localhost.
+      - "127.0.0.1:15432:5432"
     env_file:
       - ./backend/.env
     volumes:
@@ -30,6 +34,10 @@ services:
     environment:
     # Password needs to be passed to the healthcheck command
       - VALKEY_PASSWORD=${VALKEY_PASSWORD}
+    ports:
+      # This is for local development only,
+      # It's OK to expose these ports on the server because they are accessible only from localhost.
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD-SHELL", "valkey-cli ping | grep PONG"]
       interval: 10s
