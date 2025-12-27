@@ -140,23 +140,18 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
         while True:
             spot = await input_queue.get()
 
-            try:
-                enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot)
-                if enriched_spot is None:
-                    logger.info(f"Dropping spot: {spot}")
-                    input_queue.task_done()
-                    continue
-                logger.info(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
-
-                await add_spot_to_postgres(engine, enriched_spot)
-
-                if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
-                    await valkey_client.xadd(STREAM_API, enriched_spot, "*")
+            enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot)
+            if enriched_spot is None:
+                logger.info(f"Dropping spot: {spot}")
                 input_queue.task_done()
+                continue
+            logger.info(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
 
-            except Exception:
-                logger.exception("Error processing spot")
-                input_queue.task_done()
+            await add_spot_to_postgres(engine, enriched_spot)
+
+            if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
+                await valkey_client.xadd(STREAM_API, enriched_spot, "*")
+            input_queue.task_done()
 
     except asyncio.CancelledError:
         logger.info("Spot processor cancelled")
