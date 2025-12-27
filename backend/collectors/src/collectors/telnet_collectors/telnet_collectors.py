@@ -15,8 +15,8 @@ from collectors.settings import (
 )
 
 
-DX_CC_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
-DX_AR_RE = re.compile(r"^DX de (\S+):\s+(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\d+Z)")
+DX_CC_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
+DX_AR_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\d+Z)")
 
 
 def parse_cc_dx_cluster_line(line: str) -> dict | None:
