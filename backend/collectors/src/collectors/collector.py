@@ -10,6 +10,7 @@ from shared.qrz import QrzSessionManager
 from collectors.telnet_collectors.run_telnet_collectors import (
     run_concurrent_telnet_connections,
 )
+from shared.geo import GeoException
 
 from collectors.settings import (
     VALKEY_HOST,
@@ -55,42 +56,27 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
     band, mode, mode_selection = band_mode
     spot.update({"band": band, "mode": mode, "mode_selection": mode_selection})
 
-    (
-        spotter_geo_cache,
-        spotter_locator_source,
-        spotter_locator,
-        spotter_lat,
-        spotter_lon,
-        spotter_country,
-        spotter_continent,
-    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"])
-
-    (
-        dx_geo_cache,
-        dx_locator_source,
-        dx_locator,
-        dx_lat,
-        dx_lon,
-        dx_country,
-        dx_continent,
-    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"])
+    spotter_geo = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"])
+    dx_geo = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"])
 
     spot.update(
         {
-            "spotter_geo_cache": spotter_geo_cache,
-            "spotter_locator_source": spotter_locator_source or "",
-            "spotter_locator": spotter_locator or "",
-            "spotter_lat": spotter_lat,
-            "spotter_lon": spotter_lon,
-            "spotter_country": spotter_country or "",
-            "spotter_continent": spotter_continent or "",
-            "dx_geo_cache": dx_geo_cache,
-            "dx_locator_source": dx_locator_source or "",
-            "dx_locator": dx_locator or "",
-            "dx_lat": dx_lat,
-            "dx_lon": dx_lon,
-            "dx_country": dx_country or "",
-            "dx_continent": dx_continent or "",
+            # Redis doesn't except bools
+            "spotter_geo_cache": 1 if spotter_geo.cached else 0,
+            "spotter_locator_source": spotter_geo.locator_source,
+            "spotter_locator": spotter_geo.locator,
+            "spotter_lat": spotter_geo.lat,
+            "spotter_lon": spotter_geo.lon,
+            "spotter_country": spotter_geo.country,
+            "spotter_continent": spotter_geo.continent,
+            # Redis doesn't except bools
+            "dx_geo_cache": 1 if dx_geo.cached else 0,
+            "dx_locator_source": dx_geo.locator_source,
+            "dx_locator": dx_geo.locator,
+            "dx_lat": dx_geo.lat,
+            "dx_lon": dx_geo.lon,
+            "dx_country": dx_geo.country,
+            "dx_continent": dx_geo.continent,
         }
     )
 
@@ -140,7 +126,11 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
         while True:
             spot = await input_queue.get()
 
-            enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot)
+            try:
+                enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot)
+            except GeoException:
+                logger.exception("Dropping spot due to geo exception")
+                continue
             if enriched_spot is None:
                 logger.info(f"Dropping spot: {spot}")
                 input_queue.task_done()

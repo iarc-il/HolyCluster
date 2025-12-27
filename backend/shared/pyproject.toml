@@ -5,6 +5,7 @@ description = "Shared utilities for HolyCluster backend services"
 dependencies = [
     "httpx>=0.28.1",
     "loguru>=0.7.3",
+    "pydantic>=2.12.5",
 ]
 
 [build-system]

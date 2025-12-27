@@ -132,7 +132,9 @@ async def telnet_and_collect(
                                 task_logger.debug(json.dumps(spot, indent=2))
                                 logger.debug(json.dumps(spot, indent=2))
 
-                            spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
+                            spot_key = (
+                                f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
+                            )
                             added = await valkey_client.set(spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True)
                             if added:
                                 await output_queue.put(spot)
