@@ -79,8 +79,18 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float
         return {"locator": None, "error": "No qrz_session_key"}
     await asyncio.sleep(delay)
     url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, timeout=30)
+
+    retries = 0
+    response = None
+    try:
+        while response is None:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, timeout=5)
+    except httpx.TimeoutException:
+        if retries == 5:
+            raise
+        else:
+            retries += 1
 
     if response.status_code != 200:
         print("Error:", response.status_code)
