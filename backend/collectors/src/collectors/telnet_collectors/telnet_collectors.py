@@ -130,23 +130,20 @@ async def telnet_and_collect(
                                 task_logger.debug(json.dumps(spot, indent=2))
                                 logger.debug(json.dumps(spot, indent=2))
 
-                            try:
-                                spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
-                                added = await valkey_client.set(spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True)
-                                if added:
-                                    await output_queue.put(spot)
-                                    if debug:
-                                        task_logger.debug(f"Spot added to queue: {spot_data}")
-                                        logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
-                                else:
-                                    if debug:
-                                        task_logger.debug(f"Duplicate spot not queued: {spot_data}")
-                                        logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
-
-                            except Exception as e:
-                                task_logger.error(f"**** Failed to queue spot: {e}")
+                            spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
+                            added = await valkey_client.set(spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True)
+                            if added:
+                                await output_queue.put(spot)
+                                if debug:
+                                    task_logger.debug(f"Spot added to queue: {spot_data}")
+                                    logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
+                            else:
+                                if debug:
+                                    task_logger.debug(f"Duplicate spot not queued: {spot_data}")
+                                    logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
                         else:
                             task_logger.error(f"Could not parse spot line: {line}")
+                            logger.error(f"Could not parse spot line: {line}")
 
         except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
             task_logger.exception(f"Connection failed: {host}:{port}  {e}")
@@ -155,11 +152,6 @@ async def telnet_and_collect(
         except asyncio.CancelledError:
             logger.info(f"{host}:{port} Task cancelled, shutting down.")
             break
-
-        except Exception as ex:
-            message = f"**** ERROR telnet_and_collect **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
-            task_logger.exception(message)
-            logger.exception(message)
 
         finally:
             if writer:
