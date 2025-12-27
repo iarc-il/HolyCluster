@@ -180,10 +180,6 @@ async def run_collector():
         await asyncio.gather(qrz_refresh_task, processor_task, collector_task)
     except asyncio.CancelledError:
         logger.info("Collector shutting down...")
-        qrz_refresh_task.cancel()
-        processor_task.cancel()
-        collector_task.cancel()
-        await asyncio.gather(qrz_refresh_task, processor_task, collector_task, return_exceptions=True)
 
 
 def main():
