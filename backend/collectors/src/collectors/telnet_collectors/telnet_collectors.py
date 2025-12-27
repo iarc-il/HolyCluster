@@ -61,10 +61,7 @@ def parse_dx_line(line: str):
 
     spot["spotter_callsign"] = re.sub(r"-\d+$", "", spot["spotter_callsign"])
 
-    if spot["spotter_callsign"].upper() == "W3LPL":
-        return None
-    else:
-        return spot
+    return spot
 
 
 async def telnet_and_collect(
@@ -122,6 +119,11 @@ async def telnet_and_collect(
                     task_logger.info(line)
                     if line.startswith("DX de"):
                         spot = parse_dx_line(line)
+
+                        if spot["spotter_callsign"].upper() == "W3LPL":
+                            logger.debug(f"Skipping W3LPL spot: {spot}")
+                            continue
+
                         if spot:
                             cluster = f"{host}:{port}"
                             spot.update({"cluster": cluster})
