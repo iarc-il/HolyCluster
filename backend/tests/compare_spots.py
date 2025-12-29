@@ -27,14 +27,14 @@ class SpotId:
     time: float
 
     def __eq__(self, other):
-        """Compare spots with 60-second time tolerance."""
+        """Compare spots with time diff tolerance."""
         if not isinstance(other, SpotId):
             return False
         return (
             self.spotter_callsign == other.spotter_callsign
             and self.dx_callsign == other.dx_callsign
             and round(self.freq, 3) == round(other.freq, 3)
-            and abs(self.time - other.time) < 60
+            and abs(self.time - other.time) < 120
         )
 
     def __hash__(self):
@@ -91,28 +91,21 @@ class ServerMonitor:
 
     async def connect_and_monitor(self):
         while self.running:
-            try:
-                logger.info(f"[{self.name}] Connecting to {self.url}")
-                async with websockets.connect(self.url) as websocket:
-                    self.websocket = websocket
-                    logger.info(f"[{self.name}] Connected successfully")
+            logger.info(f"[{self.name}] Connecting to {self.url}")
+            async with websockets.connect(self.url) as websocket:
+                self.websocket = websocket
+                logger.info(f"[{self.name}] Connected successfully")
 
-                    while self.running:
-                        try:
-                            message = await asyncio.wait_for(websocket.recv(), timeout=30.0)
-                            data = json.loads(message)
-                            await self._process_message(data)
-                        except asyncio.TimeoutError:
-                            continue
-                        except websockets.exceptions.ConnectionClosed:
-                            logger.warning(f"[{self.name}] Connection closed")
-                            break
-
-            except Exception as e:
-                logger.error(f"[{self.name}] Connection error: {e}")
-                if self.running:
-                    logger.info(f"[{self.name}] Reconnecting in 5 seconds...")
-                    await asyncio.sleep(5)
+                while self.running:
+                    try:
+                        message = await asyncio.wait_for(websocket.recv(), timeout=30.0)
+                        data = json.loads(message)
+                        await self._process_message(data)
+                    except asyncio.TimeoutError:
+                        continue
+                    except websockets.exceptions.ConnectionClosed:
+                        logger.warning(f"[{self.name}] Connection closed")
+                        break
 
     async def _process_message(self, data: dict):
         if data.get("type") == "update":
@@ -121,13 +114,13 @@ class ServerMonitor:
             new_spots = []
 
             for spot_data in spots:
-                logger.debug(f"[{self.name}] Spot: {spot_data}")
                 try:
                     full_spot = FullSpot.from_json(spot_data, arrival_time)
+                    logger.debug(f"[{self.name}] SpotId: {full_spot.id}")
                     self.spots[full_spot.id] = full_spot
                     new_spots.append(full_spot)
-                except (KeyError, ValueError) as e:
-                    logger.warning(f"[{self.name}] Failed to parse spot: {e}")
+                except (KeyError, ValueError):
+                    logger.exception(f"[{self.name}] Failed to parse spot: {spot_data}")
 
             if new_spots and self.on_spots_callback:
                 await self.on_spots_callback(new_spots)
@@ -175,6 +168,7 @@ class SpotComparator:
         print(f"  Frequency: {spot.id.freq} MHz")
         print(f"  Time:      {time_str}")
         print("=" * 80)
+        print("")
 
     async def run(self):
         self.running = True
@@ -211,14 +205,13 @@ class SpotComparator:
 def main():
     parser = argparse.ArgumentParser(description="Compare spots between two HolyCluster API servers")
     parser.add_argument(
-        "--ref-server",
-        help="Reference server WebSocket URL",
+        "--ref-server", help="Reference server WebSocket URL", default="wss://holycluster.iarc.org/spots_ws"
     )
     parser.add_argument(
-        "--target-server",
-        help="Target server WebSocket URL",
+        "--target-server", help="Target server WebSocket URL", default="wss://holycluster-dev.iarc.org/spots_ws"
     )
     parser.add_argument(
+        "-v",
         "--verbose",
         action="store_true",
         help="Enable verbose logging",
@@ -229,18 +222,8 @@ def main():
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
-    print("=" * 80)
-    print("SPOT COMPARISON MONITOR")
-    print("=" * 80)
-    print(f"Reference server: {args.ref_server}")
-    print(f"Target server: {args.target_server}")
-    print("Time tolerance: 60 seconds")
-    print("Check delay: 3 minutes")
-    print("=" * 80)
-    print("\nMonitoring for missing spots... (Press Ctrl+C to stop)\n")
-
-    ref_monitor = ServerMonitor("REF", f"wss://{args.ref_server}/spots_ws")
-    target_monitor = ServerMonitor("TARGET", f"ws://{args.target_server}/spots_ws")
+    ref_monitor = ServerMonitor("REF", args.ref_server)
+    target_monitor = ServerMonitor("TARGET", args.target_server)
     comparator = SpotComparator(ref_monitor, target_monitor)
 
     try:
