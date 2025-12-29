@@ -34,6 +34,7 @@ class SpotId:
             self.spotter_callsign == other.spotter_callsign
             and self.dx_callsign == other.dx_callsign
             and round(self.freq, 3) == round(other.freq, 3)
+            and abs(self.time - other.time) < 60
         )
 
     def __hash__(self):
