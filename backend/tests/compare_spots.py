@@ -167,18 +167,12 @@ class SpotComparator:
         spot_time = datetime.fromtimestamp(spot.identifier.time, tz=timezone.utc)
         time_str = spot_time.strftime("%Y-%m-%d %H:%M:%S UTC")
 
-        band_str = f"{spot.band}m" if isinstance(spot.band, (int, float)) else spot.band
-
         print("\n" + "=" * 80)
         print("Missing spot detected:")
-        print(f"  Spotter: {spot.identifier.spotter_callsign}")
-        print(f"  DX: {spot.identifier.dx_callsign}")
+        print(f"  DX:        {spot.identifier.dx_callsign}")
+        print(f"  Spotter:   {spot.identifier.spotter_callsign}")
         print(f"  Frequency: {spot.identifier.freq} MHz")
-        print(f"  Time: {time_str}")
-        print(f"  Mode: {spot.mode}, Band: {band_str}")
-        print(f"  Comment: {spot.comment}")
-        print(f"  Spotter location: {spot.spotter_loc} ({spot.spotter_country}, {spot.spotter_continent})")
-        print(f"  DX location: {spot.dx_loc} ({spot.dx_country}, {spot.dx_continent})")
+        print(f"  Time:      {time_str}")
         print("=" * 80)
 
     async def run(self):
@@ -217,11 +211,11 @@ def main():
     parser = argparse.ArgumentParser(description="Compare spots between two HolyCluster API servers")
     parser.add_argument(
         "--ref-server",
-        help="Reference server WebSocket URL (default: ws://localhost:8000/spots_ws)",
+        help="Reference server WebSocket URL",
     )
     parser.add_argument(
         "--target-server",
-        help="Target server WebSocket URL (default: ws://localhost:8001/spots_ws)",
+        help="Target server WebSocket URL",
     )
     parser.add_argument(
         "--verbose",
