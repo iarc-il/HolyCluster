@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class SpotIdentifier:
+class SpotId:
     spotter_callsign: str
     dx_callsign: str
     freq: float
@@ -28,7 +28,7 @@ class SpotIdentifier:
 
     def __eq__(self, other):
         """Compare spots with 60-second time tolerance."""
-        if not isinstance(other, SpotIdentifier):
+        if not isinstance(other, SpotId):
             return False
         return (
             self.spotter_callsign == other.spotter_callsign
@@ -43,7 +43,7 @@ class SpotIdentifier:
 
 @dataclass
 class FullSpot:
-    identifier: SpotIdentifier
+    id: SpotId
     spotter_loc: List[float]
     spotter_country: str
     spotter_continent: str
@@ -57,7 +57,7 @@ class FullSpot:
 
     @classmethod
     def from_json(cls, spot_data: dict, arrival_time: float) -> "FullSpot":
-        identifier = SpotIdentifier(
+        id = SpotId(
             spotter_callsign=spot_data["spotter_callsign"],
             dx_callsign=spot_data["dx_callsign"],
             freq=spot_data["freq"],
@@ -65,7 +65,7 @@ class FullSpot:
         )
 
         return cls(
-            identifier=identifier,
+            id=id,
             spotter_loc=spot_data["spotter_loc"],
             spotter_country=spot_data["spotter_country"],
             spotter_continent=spot_data["spotter_continent"],
@@ -83,7 +83,7 @@ class ServerMonitor:
     def __init__(self, name: str, url: str, on_spots_callback=None):
         self.name = name
         self.url = url
-        self.spots: Dict[SpotIdentifier, FullSpot] = {}
+        self.spots: Dict[SpotId, FullSpot] = {}
         self.running = False
         self.websocket = None
         self.on_spots_callback = on_spots_callback
@@ -123,7 +123,7 @@ class ServerMonitor:
                 logger.debug(f"[{self.name}] Spot: {spot_data}")
                 try:
                     full_spot = FullSpot.from_json(spot_data, arrival_time)
-                    self.spots[full_spot.identifier] = full_spot
+                    self.spots[full_spot.id] = full_spot
                     new_spots.append(full_spot)
                 except (KeyError, ValueError) as e:
                     logger.warning(f"[{self.name}] Failed to parse spot: {e}")
@@ -154,24 +154,24 @@ class SpotComparator:
     async def _check_spot_after_delay(self, spot: FullSpot):
         await asyncio.sleep(self.check_delay)
 
-        if spot.identifier in self.checked_spots:
+        if spot.id in self.checked_spots:
             return
 
-        self.checked_spots.add(spot.identifier)
+        self.checked_spots.add(spot.id)
 
-        if spot.identifier not in self.target_monitor.spots:
+        if spot.id not in self.target_monitor.spots:
             self._print_missing_spot(spot)
             self.missing_count += 1
 
     def _print_missing_spot(self, spot: FullSpot):
-        spot_time = datetime.fromtimestamp(spot.identifier.time, tz=timezone.utc)
+        spot_time = datetime.fromtimestamp(spot.id.time, tz=timezone.utc)
         time_str = spot_time.strftime("%Y-%m-%d %H:%M:%S UTC")
 
         print("\n" + "=" * 80)
         print("Missing spot detected:")
-        print(f"  DX:        {spot.identifier.dx_callsign}")
-        print(f"  Spotter:   {spot.identifier.spotter_callsign}")
-        print(f"  Frequency: {spot.identifier.freq} MHz")
+        print(f"  DX:        {spot.id.dx_callsign}")
+        print(f"  Spotter:   {spot.id.spotter_callsign}")
+        print(f"  Frequency: {spot.id.freq} MHz")
         print(f"  Time:      {time_str}")
         print("=" * 80)
 
