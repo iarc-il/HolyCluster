@@ -82,18 +82,17 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float
 
     retries = 0
     response = None
-    try:
-        while response is None:
+    while response is None:
+        try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(url, timeout=5)
-    except httpx.TimeoutException:
-        if retries == 5:
-            raise
-        else:
-            retries += 1
+        except httpx.TimeoutException:
+            if retries == 5:
+                raise
+            else:
+                retries += 1
 
     if response.status_code != 200:
-        print("Error:", response.status_code)
         return {"locator": None, "error": f"qrz response code {response.status_code}"}
 
     ns = {"qrz": "http://xmldata.qrz.com"}
