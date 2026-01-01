@@ -104,7 +104,7 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float
         return {"locator": None, "error": error}
 
     geoloc = root.find(".//qrz:geoloc", ns).text
-    if geoloc == "user" or geoloc == "grid":
+    if geoloc != "none":
         locator = root.find(".//qrz:grid", ns).text
         return {"locator": locator}
     else:
