@@ -65,6 +65,7 @@ const dxcc_to_country_flag = {
     "Saba & St. Eustatius": "Caribbean Netherlands",
     Revillagigedo: "Mexico",
     "Easter Island": "Chile",
+    "Desecheo Island": "Puerto Rico",
 };
 
 const dxcc_to_short_dxcc = {
