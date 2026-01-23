@@ -18,7 +18,7 @@ from collectors.settings import (
     VALKEY_DB,
     POSTGRES_DB_URL,
     QRZ_USER,
-    QRZ_PASSOWRD,
+    QRZ_PASSWORD,
     QRZ_API_KEY,
     QRZ_SESSION_KEY_REFRESH,
 )
@@ -140,7 +140,7 @@ async def run_collector():
 
     qrz_manager = QrzSessionManager(
         username=QRZ_USER,
-        password=QRZ_PASSOWRD,
+        password=QRZ_PASSWORD,
         api_key=QRZ_API_KEY,
         refresh_interval=QRZ_SESSION_KEY_REFRESH,
     )

@@ -12,13 +12,13 @@ from collectors.src.enrichers.geo import get_geo_details
 from collectors.src.enrichers.qrz import get_qrz_session_key
 from collectors.src.settings import (
     QRZ_USER,
-    QRZ_PASSOWRD,
+    QRZ_PASSWORD,
     QRZ_API_KEY,
 )
 
 
 async def main(callsign: str, debug: bool = False):
-    qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSOWRD, api_key=QRZ_API_KEY)
+    qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSWORD, api_key=QRZ_API_KEY)
 
     (
         geo_cache,
