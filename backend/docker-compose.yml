@@ -2,7 +2,7 @@ services:
   postgres:
     container_name: postgres
     build:
-      context: ./postgres
+      context: infra/postgres
       dockerfile: Dockerfile.postgres
     restart: unless-stopped
     ports:
@@ -10,9 +10,9 @@ services:
       # It's OK to expose these ports on the server because they are accessible only from localhost.
       - "127.0.0.1:15432:5432"
     env_file:
-      - ./backend/.env
+      - .env
     volumes:
-      - ./postgres/data:/var/lib/postgresql/data
+      - ./infra/postgres/data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "postgres"]
       interval: 5s
@@ -26,7 +26,7 @@ services:
   valkey:
     container_name: valkey
     build:
-      context: ./valkey
+      context: infra/valkey
       dockerfile: Dockerfile.valkey
     # Mount a volume for data persistence (optional, but recommended)
     # volumes:
@@ -49,7 +49,7 @@ services:
   telnet_collectors:
     container_name: telnet_collectors
     build:
-      context: ./backend
+      context: .
       dockerfile: docker/Dockerfile.telnet_collectors
     restart: unless-stopped
     depends_on:
@@ -58,17 +58,17 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - ./backend/.env
+      - .env
     volumes:
-      - ./backend/collectors/logs/db:/app/collectors/logs/db
-      - ./backend/collectors/logs/telnet_collectors:/app/collectors/logs/telnet_collectors
+      - ./collectors/logs/db:/app/collectors/logs/db
+      - ./collectors/logs/telnet_collectors:/app/collectors/logs/telnet_collectors
     expose:
       - "${VALKEY_PORT}"
 
   api:
     container_name: api
     build:
-      context: ./backend
+      context: .
       dockerfile: docker/Dockerfile.api
     working_dir: /app
     restart: unless-stopped
@@ -78,7 +78,7 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - ./backend/.env
+      - .env
     volumes:
       - ${UI_DIST_PATH}:${UI_DIST_PATH}
     expose:
@@ -87,20 +87,20 @@ services:
   nginx:
     container_name: nginx
     build:
-      context: ./nginx
+      context: infra/nginx
       dockerfile: Dockerfile.nginx
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-      - "9999:9999"
+      - "80"
+      - "443"
+      - "9999"
     volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-      - ./nginx/log:/var/log/nginx
-      - ./nginx:/etc/nginx
+      - ./infra/certbot/conf:/etc/letsencrypt
+      - ./infra/certbot/www:/var/www/certbot
+      - ./infra/nginx/log:/var/log/nginx
+      - ./infra/nginx:/etc/nginx
     env_file:
-      - ./backend/.env
+      - .env
     depends_on:
       - api
     extra_hosts:
@@ -111,9 +111,9 @@ services:
     restart: unless-stopped
     image: certbot/certbot:latest
     volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/log:/var/log
+      - ./infra/certbot/conf:/etc/letsencrypt
+      - ./infra/certbot/www:/var/www/certbot
+      - ./infra/certbot/log:/var/log
     entrypoint: >
       /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
 
@@ -128,9 +128,9 @@ services:
         - "8080:80"
         - "8443:443"
       volumes:
-        - ./nginx:/etc/nginx
-        - ./nginx-ui:/etc/nginx-ui
-        - ./certbot/conf:/etc/letsencrypt
+        - infra/nginx:/etc/nginx
+        - infra/nginx-ui:/etc/nginx-ui
+        - infra/certbot/conf:/etc/letsencrypt
         - /var/run/docker.sock:/var/run/docker.sock
       environment:
         - TZ=Asia/Jerusalem
