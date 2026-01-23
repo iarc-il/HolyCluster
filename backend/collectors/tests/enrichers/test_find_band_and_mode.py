@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[3]))
 
-from collectors.src.enrichers.frequencies import find_band_and_mode
+from collectors.enrichers.frequencies import find_band_and_mode
 
 
 def test_find_band_and_mode(debug: bool = False):

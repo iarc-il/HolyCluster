@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[3]))
 
-from collectors.src.enrichers.frequencies import load_modes_from_file
+from collectors.enrichers.frequencies import load_modes_from_file
 
 
 def test_load_modes_from_file():
