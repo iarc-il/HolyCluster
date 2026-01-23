@@ -6,9 +6,7 @@ from loguru import logger
 
 from ..misc import open_log_file
 from .telnet_collectors import telnet_and_collect
-from ..settings import (
-    USERNAME_FOR_TELNET_CLUSTERS,
-)
+from ..settings import settings
 
 
 def get_telnet_clusters_list(csv_path: str, debug: bool = False):
@@ -32,7 +30,7 @@ async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: 
     async task to connect to each server concurrently.
     All tasks push spots to the shared output_queue.
     """
-    if USERNAME_FOR_TELNET_CLUSTERS == "":
+    if settings.username_for_telnet_clusters == "":
         logger.error("USERNAME_FOR_TELNET_CLUSTERS must not be empty")
         sys.exit(1)
 
@@ -77,7 +75,7 @@ async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: 
             telnet_and_collect(
                 host,
                 port,
-                USERNAME_FOR_TELNET_CLUSTERS,
+                settings.username_for_telnet_clusters,
                 cluster_log_dir,
                 output_queue,
             ),
