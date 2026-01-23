@@ -9,12 +9,7 @@ from sqlmodel import SQLModel
 from shared.db import GeoCache, HolySpot, SpotsWithIssues  # noqa: F401
 from collectors.misc import open_log_file
 
-from collectors.settings import (
-    DEBUG,
-    POSTGRES_DB_NAME,
-    POSTGRES_GENERAL_DB_URL,
-    POSTGRES_DB_URL,
-)
+from collectors.settings import settings
 
 
 async def check_database_exists(connection, db_name):
@@ -49,51 +44,51 @@ async def create_new_database(connection, db_name):
 
 async def check_postgres(args, debug: bool = False):
     initialize = args.init
-    engine_name = POSTGRES_GENERAL_DB_URL + "/postgres"
+    engine_name = settings.general_db_url + "/postgres"
     if debug:
-        logger.debug(f"{POSTGRES_DB_NAME=}")
-        logger.debug(f"{POSTGRES_GENERAL_DB_URL=}")
-        logger.debug(f"{POSTGRES_DB_URL=}")
+        logger.debug(f"{settings.postgres_db_name=}")
+        logger.debug(f"{settings.general_db_url=}")
+        logger.debug(f"{settings.db_url=}")
         logger.debug(f"{engine_name=}")
     engine = create_async_engine(engine_name, echo=debug)
 
     db_exists = False
     async with engine.connect() as connection:
-        db_exists = await check_database_exists(connection, POSTGRES_DB_NAME)
+        db_exists = await check_database_exists(connection, settings.postgres_db_name)
 
     if initialize:
         logger.info("Initialization flag set. Forcing drop and recreate of database.")
         async with engine.connect() as connection:
             await connection.execution_options(isolation_level="AUTOCOMMIT")
-            await drop_database_if_exists(connection, POSTGRES_DB_NAME)
-            await create_new_database(connection, POSTGRES_DB_NAME)
+            await drop_database_if_exists(connection, settings.postgres_db_name)
+            await create_new_database(connection, settings.postgres_db_name)
 
         await engine.dispose()
         if debug:
             logger.debug("Creating tables")
-        new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
+        new_db_engine = create_async_engine(settings.db_url, echo=debug)
         async with new_db_engine.begin() as conn:
             await conn.run_sync(SQLModel.metadata.create_all)
         await new_db_engine.dispose()
         logger.info("Database initialization complete.")
 
     elif not db_exists:
-        logger.info(f"Database '{POSTGRES_DB_NAME}' does not exist. Creating it now.")
+        logger.info(f"Database '{settings.postgres_db_name}' does not exist. Creating it now.")
         async with engine.connect() as connection:
             await connection.execution_options(isolation_level="AUTOCOMMIT")
-            await create_new_database(connection, POSTGRES_DB_NAME)
+            await create_new_database(connection, settings.postgres_db_name)
 
         await engine.dispose()
         if debug:
             logger.debug("Creating tables")
-        new_db_engine = create_async_engine(POSTGRES_DB_URL, echo=debug)
+        new_db_engine = create_async_engine(settings.db_url, echo=debug)
         async with new_db_engine.begin() as conn:
             await conn.run_sync(SQLModel.metadata.create_all)
         await new_db_engine.dispose()
         logger.info("Database initialization complete.")
 
     else:
-        logger.info(f"Database '{POSTGRES_DB_NAME}' already exists. No action taken.")
+        logger.info(f"Database '{settings.postgres_db_name}' already exists. No action taken.")
         await engine.dispose()
 
 
@@ -103,7 +98,7 @@ def main():
     parser.add_argument("-d", "--debug", action="store_true", default=False, help="Debug mode")
     args = parser.parse_args()
     open_log_file("collectors/logs/db/check_postgres")
-    debug = args.debug if args.debug else DEBUG
+    debug = args.debug if args.debug else settings.debug
     logger.info(f"{debug=}")
     if debug:
         logger.debug(f"{args=}")

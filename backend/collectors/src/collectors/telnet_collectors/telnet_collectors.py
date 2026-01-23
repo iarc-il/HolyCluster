@@ -7,12 +7,7 @@ from loguru import logger
 from collectors.misc import open_log_file2
 from collectors.db.valkey_config import get_valkey_client
 
-from collectors.settings import (
-    VALKEY_HOST,
-    VALKEY_PORT,
-    VALKEY_DB,
-    VALKEY_SPOT_EXPIRATION,
-)
+from collectors.settings import settings
 
 
 DX_CC_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
@@ -86,7 +81,7 @@ async def telnet_and_collect(
     task_logger = open_log_file2(log_filename_prefix=log_filename_prefix, debug=debug)
 
     task_logger.info(f"Start of telnet_and_collect for {host}. {debug=}")
-    valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
+    valkey_client = get_valkey_client(host=settings.valkey_effective_host, port=settings.valkey_effective_port, db=settings.valkey_db)
 
     while True:
         reader, writer = None, None
@@ -135,7 +130,7 @@ async def telnet_and_collect(
                             spot_key = (
                                 f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
                             )
-                            added = await valkey_client.set(spot_key, 1, ex=VALKEY_SPOT_EXPIRATION, nx=True)
+                            added = await valkey_client.set(spot_key, 1, ex=settings.valkey_spot_expiration, nx=True)
                             if added:
                                 await output_queue.put(spot)
                                 if debug:

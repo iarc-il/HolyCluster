@@ -1,21 +1,17 @@
 import socket
 from collectors.db.valkey_config import get_valkey_client
-from collectors.settings import (
-    VALKEY_HOST,
-    VALKEY_PORT,
-    VALKEY_DB,
-    VALKEY_GEO_EXPIRATION,
-)
+from collectors.settings import settings
 from shared.geo import get_geo_details as shared_get_geo_details
 
 global valkey_client
+valkey_host = settings.valkey_effective_host
 try:
-    if not socket.gethostbyname(VALKEY_HOST):
+    if not socket.gethostbyname(valkey_host):
         pass
 except socket.gaierror:
-    VALKEY_HOST = "127.0.0.1"
-valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
+    valkey_host = "127.0.0.1"
+valkey_client = get_valkey_client(host=valkey_host, port=settings.valkey_effective_port, db=settings.valkey_db)
 
 
 async def get_geo_details(qrz_session_key: str, callsign: str):
-    return await shared_get_geo_details(valkey_client, qrz_session_key, callsign, VALKEY_GEO_EXPIRATION)
+    return await shared_get_geo_details(valkey_client, qrz_session_key, callsign, settings.valkey_geo_expiration)

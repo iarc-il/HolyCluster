@@ -12,16 +12,7 @@ from collectors.telnet_collectors.run_telnet_collectors import (
 )
 from shared.geo import GeoException
 
-from collectors.settings import (
-    VALKEY_HOST,
-    VALKEY_PORT,
-    VALKEY_DB,
-    POSTGRES_DB_URL,
-    QRZ_USER,
-    QRZ_PASSWORD,
-    QRZ_API_KEY,
-    QRZ_SESSION_KEY_REFRESH,
-)
+from collectors.settings import settings
 
 from shared.db import HolySpot
 
@@ -103,8 +94,8 @@ async def add_spot_to_postgres(engine, spot: dict):
 async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManager):
     logger.info("Spot processor started")
 
-    valkey_client = get_valkey_client(host=VALKEY_HOST, port=VALKEY_PORT, db=VALKEY_DB)
-    engine = create_async_engine(POSTGRES_DB_URL)
+    valkey_client = get_valkey_client(host=settings.valkey_effective_host, port=settings.valkey_effective_port, db=settings.valkey_db)
+    engine = create_async_engine(settings.db_url)
 
     try:
         while True:
@@ -139,10 +130,10 @@ async def run_collector():
     spots_queue: asyncio.Queue = asyncio.Queue()
 
     qrz_manager = QrzSessionManager(
-        username=QRZ_USER,
-        password=QRZ_PASSWORD,
-        api_key=QRZ_API_KEY,
-        refresh_interval=QRZ_SESSION_KEY_REFRESH,
+        username=settings.qrz_user,
+        password=settings.qrz_password,
+        api_key=settings.qrz_api_key,
+        refresh_interval=settings.qrz_session_key_refresh,
     )
     await qrz_manager.start()
 
