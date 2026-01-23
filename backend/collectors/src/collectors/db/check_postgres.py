@@ -6,7 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from sqlmodel import SQLModel
-from db import GeoCache, HolySpot, SpotsWithIssues  # noqa: F401
+from shared.db import GeoCache, HolySpot, SpotsWithIssues  # noqa: F401
 from collectors.misc import open_log_file
 
 from collectors.settings import (

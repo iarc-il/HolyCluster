@@ -23,7 +23,7 @@ from collectors.settings import (
     QRZ_SESSION_KEY_REFRESH,
 )
 
-from db import HolySpot
+from shared.db import HolySpot
 
 
 STREAM_API = "stream-api"

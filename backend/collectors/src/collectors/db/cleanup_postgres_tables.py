@@ -10,7 +10,7 @@ from sqlalchemy import func, select, delete
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.exc import ProgrammingError, OperationalError
 
-from db import GeoCache, HolySpot
+from shared.db import GeoCache, HolySpot
 from misc import string_to_boolean, open_log_file
 
 from settings import (

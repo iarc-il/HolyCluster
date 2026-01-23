@@ -16,7 +16,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
 import redis.asyncio
 
-from db import GeoCache, HolySpot, SpotsWithIssues
+from shared.db import GeoCache, HolySpot, SpotsWithIssues
 from shared.qrz import QrzSessionManager
 from shared.geo import get_geo_details
 from . import propagation, settings, submit_spot
