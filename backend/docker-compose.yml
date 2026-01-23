@@ -91,9 +91,9 @@ services:
       dockerfile: Dockerfile.nginx
     restart: unless-stopped
     ports:
-      - "80"
-      - "443"
-      - "9999"
+      - "80:80"
+      - "443:443"
+      - "9999:9999"
     volumes:
       - ./infra/certbot/conf:/etc/letsencrypt
       - ./infra/certbot/www:/var/www/certbot
@@ -103,6 +103,11 @@ services:
       - .env
     depends_on:
       - api
+    healthcheck:
+      test: ["CMD", "service", "nginx", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

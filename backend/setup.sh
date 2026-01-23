@@ -11,8 +11,8 @@ mkdir -p infra/certbot/www
 
 echo "Generating temporary self-signed certificate..."
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout certbot/conf/live/${DOMAIN}/privkey.pem \
-  -out certbot/conf/live/${DOMAIN}/fullchain.pem \
+  -keyout ./infra/certbot/conf/live/${DOMAIN}/privkey.pem \
+  -out ./infra/certbot/conf/live/${DOMAIN}/fullchain.pem \
   -subj "/CN=${DOMAIN}"
 
 echo "Building Docker containers..."
