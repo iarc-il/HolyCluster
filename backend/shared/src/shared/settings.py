@@ -33,18 +33,18 @@ class PostgresSettings(BaseSettings):
 
     @computed_field
     @property
-    def effective_host(self) -> str:
+    def postgres_effective_host(self) -> str:
         return self.postgres_host if self._in_docker else self.postgres_host_local
 
     @computed_field
     @property
-    def effective_port(self) -> str:
+    def postgres_effective_port(self) -> str:
         return self.postgres_port if self._in_docker else self.postgres_port_local
 
     @computed_field
     @property
     def general_db_url(self) -> str:
-        return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.effective_host}:{self.effective_port}"
+        return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_effective_host}:{self.postgres_effective_port}"
 
     @computed_field
     @property
@@ -80,12 +80,12 @@ class ValkeySettings(BaseSettings):
 
     @computed_field
     @property
-    def effective_host(self) -> str:
+    def valkey_effective_host(self) -> str:
         return self.valkey_host if self._in_docker else self.valkey_host_local
 
     @computed_field
     @property
-    def effective_port(self) -> int:
+    def valkey_effective_port(self) -> int:
         return self.valkey_port if self._in_docker else self.valkey_port_local
 
 

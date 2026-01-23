@@ -9,7 +9,7 @@ CLUSTER_PORT = 23
 
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter("%(asctime)s | %(name)s |  %(levelname)s: %(message)s")
-file_handler = logging.FileHandler(settings.SPOTS_LOG_PATH)
+file_handler = logging.FileHandler(settings.spots_log_path)
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)

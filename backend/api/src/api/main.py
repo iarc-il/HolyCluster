@@ -45,8 +45,8 @@ async def spots_broadcast_task(app):
     CONSUMER_NAME = "consumer_1"
 
     valkey_client = redis.asyncio.Redis(
-        host=settings.VALKEY_HOST,
-        port=settings.VALKEY_PORT,
+        host=settings.valkey_effective_host,
+        port=settings.valkey_effective_port,
         db=0,
         decode_responses=True,
     )
@@ -96,17 +96,17 @@ async def lifespan(app: fastapi.FastAPI):
     app.state.active_connections = set()
 
     app.state.qrz_manager = QrzSessionManager(
-        username=settings.QRZ_USER,
-        password=settings.QRZ_PASSWORD,
-        api_key=settings.QRZ_API_KEY,
-        refresh_interval=settings.QRZ_SESSION_KEY_REFRESH,
+        username=settings.qrz_user,
+        password=settings.qrz_password,
+        api_key=settings.qrz_api_key,
+        refresh_interval=settings.qrz_session_key_refresh,
     )
     await app.state.qrz_manager.start()
 
     app.state.valkey_client = redis.asyncio.Redis(
-        host=settings.VALKEY_HOST,
-        port=settings.VALKEY_PORT,
-        db=int(settings.VALKEY_DB),
+        host=settings.valkey_effective_host,
+        port=settings.valkey_effective_port,
+        db=int(settings.valkey_db),
         decode_responses=True,
     )
 
@@ -125,7 +125,7 @@ async def lifespan(app: fastapi.FastAPI):
 
 
 engine = create_async_engine(
-    settings.DB_URL,
+    settings.db_url,
     pool_size=10,
     max_overflow=20,
     pool_timeout=30,
@@ -199,7 +199,7 @@ async def get_locator(callsign: str):
         app.state.valkey_client,
         qrz_session_key,
         callsign,
-        settings.VALKEY_GEO_EXPIRATION,
+        settings.valkey_geo_expiration,
     )
 
     if locator and lat is not None and lon is not None:
@@ -306,7 +306,7 @@ async def spots_ws(websocket: fastapi.WebSocket):
 
 
 def get_latest_catserver_name():
-    latest_file_path = settings.CATSERVER_MSI_DIR / "latest"
+    latest_file_path = settings.catserver_msi_dir / "latest"
     if not latest_file_path.exists():
         raise HTTPException(status_code=404, detail="No latest version found")
 
@@ -321,7 +321,7 @@ def latest_catserver():
 @app.get("/catserver/download")
 def download_catserver():
     filename = get_latest_catserver_name()
-    file_to_serve = settings.CATSERVER_MSI_DIR / filename
+    file_to_serve = settings.catserver_msi_dir / filename
     if not file_to_serve.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -334,18 +334,18 @@ def download_catserver():
 
 @app.get("/")
 async def get_index():
-    response = FileResponse(f"{settings.UI_DIST_PATH}/index.html", media_type="text/html")
+    response = FileResponse(f"{settings.ui_dist_path}/index.html", media_type="text/html")
     response.headers["Cache-Control"] = "no-store"
     return response
 
 
-app.mount("/", StaticFiles(directory=settings.UI_DIST_PATH, html=True), name="static")
+app.mount("/", StaticFiles(directory=settings.ui_dist_path, html=True), name="static")
 
 
 @app.exception_handler(StarletteHTTPException)
 async def spa_fallback(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404 and request.url.path not in ("/favicon.ico",):
-        index_path = os.path.join(settings.UI_DIST_PATH, "index.html")
+        index_path = os.path.join(str(settings.ui_dist_path), "index.html")
         if os.path.exists(index_path):
             return FileResponse(index_path, media_type="text/html")
     raise exc
