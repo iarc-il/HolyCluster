@@ -8,12 +8,12 @@ sys.path.insert(0, str(Path(__file__).parents[3]))
 # grandparent_folder = Path(__file__).parents[2] # 2 directories up
 # sys.path.append(f"{grandparent_folder}")
 
-from collectors.src.enrichers.geo import get_geo_details
-from collectors.src.enrichers.qrz import get_qrz_session_key
-from collectors.src.settings import settings
+from collectors.enrichers.geo import get_geo_details
+from shared.qrz import get_qrz_session_key
+from collectors.settings import settings
 
 
-async def main(callsign: str, debug: bool = False):
+async def main(callsign: str):
     qrz_session_key = get_qrz_session_key(
         username=settings.qrz_user, password=settings.qrz_password, api_key=settings.qrz_api_key
     )
@@ -26,7 +26,7 @@ async def main(callsign: str, debug: bool = False):
         lon,
         country,
         continent,
-    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=callsign, debug=debug)
+    ) = await get_geo_details(qrz_session_key=qrz_session_key, callsign=callsign)
     logger.debug(f"{geo_cache=}")
     logger.debug(f"{locator_source=}")
     logger.debug(f"{locator=}")
@@ -37,6 +37,5 @@ async def main(callsign: str, debug: bool = False):
 
 
 if __name__ == "__main__":
-    debug = True
     callsign = "4X5BR/P"
-    asyncio.run(main(callsign=callsign, debug=debug))
+    asyncio.run(main(callsign=callsign))
