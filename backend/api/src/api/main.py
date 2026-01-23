@@ -19,7 +19,8 @@ import redis.asyncio
 from shared.db import GeoCache, HolySpot, SpotsWithIssues
 from shared.qrz import QrzSessionManager
 from shared.geo import get_geo_details
-from . import propagation, settings, submit_spot
+from . import propagation, submit_spot
+from .settings import settings
 
 
 logger = logging.getLogger(__name__)
