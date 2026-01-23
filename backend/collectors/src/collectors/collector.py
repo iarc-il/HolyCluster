@@ -29,24 +29,8 @@ from db import HolySpot
 STREAM_API = "stream-api"
 
 
-def get_timestamp(time_str: str):
-    now_utc = datetime.now(timezone.utc)
-    timestamp = (
-        datetime.now(timezone.utc)
-        .replace(
-            hour=int(time_str[:2]),
-            minute=int(time_str[2:4]),
-            second=now_utc.second,
-            microsecond=now_utc.microsecond,
-        )
-        .timestamp()
-    )
-    return timestamp
-
-
 async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
-    timestamp = get_timestamp(time_str=spot["time"])
-    spot["timestamp"] = timestamp
+    spot["timestamp"] = datetime.now(timezone.utc).timestamp()
 
     band_mode = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"])
     if band_mode is None:
