@@ -65,7 +65,6 @@ async def telnet_and_collect(
     username,
     telnet_log_dir,
     output_queue: asyncio.Queue,
-    debug: bool = False,
 ):
     """
     Establishes a Telnet connection, sends a username, and collects spots.
@@ -76,11 +75,9 @@ async def telnet_and_collect(
     backoff_delays = [60, 300, 600, 1200, 2400, 3600]  # 1, 5, 10, 20, 40, 60 minutes
 
     log_filename_prefix = os.path.join(telnet_log_dir, host)
-    if debug:
-        logger.debug(f"{log_filename_prefix=}")
-    task_logger = open_log_file2(log_filename_prefix=log_filename_prefix, debug=debug)
+    task_logger = open_log_file2(log_filename_prefix=log_filename_prefix, debug=False)
 
-    task_logger.info(f"Start of telnet_and_collect for {host}. {debug=}")
+    task_logger.info(f"Start of telnet_and_collect for {host}")
     valkey_client = get_valkey_client(
         host=settings.valkey_effective_host, port=settings.valkey_effective_port, db=settings.valkey_db
     )
@@ -99,8 +96,6 @@ async def telnet_and_collect(
                 await asyncio.sleep(2)
                 writer.write(f"{username}\n".encode("utf-8"))
                 await writer.drain()
-                if debug:
-                    task_logger.debug(f"Sent username: {username}")
 
             while True:
                 data = await reader.read(4096)
@@ -125,9 +120,8 @@ async def telnet_and_collect(
                             cluster = f"{host}:{port}"
                             spot.update({"cluster": cluster})
                             spot_data = json.dumps(spot)
-                            if debug:
-                                task_logger.debug(json.dumps(spot, indent=2))
-                                logger.debug(json.dumps(spot, indent=2))
+                            task_logger.debug(json.dumps(spot, indent=2))
+                            logger.debug(json.dumps(spot, indent=2))
 
                             spot_key = (
                                 f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
@@ -135,13 +129,11 @@ async def telnet_and_collect(
                             added = await valkey_client.set(spot_key, 1, ex=settings.valkey_spot_expiration, nx=True)
                             if added:
                                 await output_queue.put(spot)
-                                if debug:
-                                    task_logger.debug(f"Spot added to queue: {spot_data}")
-                                    logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
+                                task_logger.debug(f"Spot added to queue: {spot_data}")
+                                logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
                             else:
-                                if debug:
-                                    task_logger.debug(f"Duplicate spot not queued: {spot_data}")
-                                    logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
+                                task_logger.debug(f"Duplicate spot not queued: {spot_data}")
+                                logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
                         else:
                             task_logger.error(f"Could not parse spot line: {line}")
                             logger.error(f"Could not parse spot line: {line}")

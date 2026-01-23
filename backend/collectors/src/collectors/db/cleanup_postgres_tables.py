@@ -11,10 +11,9 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.exc import ProgrammingError, OperationalError
 
 from shared.db import GeoCache, HolySpot
-from misc import string_to_boolean, open_log_file
+from misc import open_log_file
 
 from settings import (
-    DEBUG,
     POSTGRES_DB_URL,
     POSTGRES_DB_RETENTION_DAYS,
 )
@@ -60,12 +59,3 @@ async def main(debug: bool = False):
         logger.error(f"Database error: {e}")
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-
-
-if __name__ == "__main__":
-    if string_to_boolean(DEBUG):
-        logger.info("DEBUG is True")
-        open_log_file("logs/db/cleanup")
-    else:
-        logger.info("DEBUG is False")
-    asyncio.run(main(debug=string_to_boolean(DEBUG)))

@@ -7,7 +7,6 @@ from loguru import logger
 from ..misc import open_log_file
 from .telnet_collectors import telnet_and_collect
 from ..settings import (
-    DEBUG,
     USERNAME_FOR_TELNET_CLUSTERS,
 )
 
@@ -81,11 +80,10 @@ async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: 
                 USERNAME_FOR_TELNET_CLUSTERS,
                 cluster_log_dir,
                 output_queue,
-                DEBUG,
             ),
             name=host,
         )
         tasks.append(task)
-        logger.info(f"Starting connection to {host}:{port} , debug={DEBUG}")
+        logger.info(f"Starting connection to {host}:{port}")
 
     await asyncio.gather(*tasks)
