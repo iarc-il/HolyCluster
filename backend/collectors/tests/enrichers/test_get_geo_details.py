@@ -10,15 +10,11 @@ sys.path.insert(0, str(Path(__file__).parents[3]))
 
 from collectors.src.enrichers.geo import get_geo_details
 from collectors.src.enrichers.qrz import get_qrz_session_key
-from collectors.src.settings import (
-    QRZ_USER,
-    QRZ_PASSWORD,
-    QRZ_API_KEY,
-)
+from collectors.src.settings import settings
 
 
 async def main(callsign: str, debug: bool = False):
-    qrz_session_key = get_qrz_session_key(username=QRZ_USER, password=QRZ_PASSWORD, api_key=QRZ_API_KEY)
+    qrz_session_key = get_qrz_session_key(username=settings.qrz_user, password=settings.qrz_password, api_key=settings.qrz_api_key)
 
     (
         geo_cache,
