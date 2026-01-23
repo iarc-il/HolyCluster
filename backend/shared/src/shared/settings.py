@@ -14,18 +14,12 @@ class PostgresSettings(BaseSettings):
 
     postgres_user: str = Field(..., description="PostgreSQL username")
     postgres_password: str = Field(..., description="PostgreSQL password")
-    postgres_db_name: str = Field(
-        default="holy_cluster", description="PostgreSQL database name"
-    )
+    postgres_db_name: str = Field(default="holy_cluster", description="PostgreSQL database name")
 
     postgres_host: str = Field(..., description="PostgreSQL host in Docker environment")
     postgres_port: str = Field(..., description="PostgreSQL port in Docker environment")
-    postgres_host_local: str = Field(
-        ..., description="PostgreSQL host in local environment"
-    )
-    postgres_port_local: str = Field(
-        ..., description="PostgreSQL port in local environment"
-    )
+    postgres_host_local: str = Field(..., description="PostgreSQL host in local environment")
+    postgres_port_local: str = Field(..., description="PostgreSQL port in local environment")
 
     @property
     def _in_docker(self) -> bool:
@@ -61,18 +55,12 @@ class ValkeySettings(BaseSettings):
     )
 
     valkey_db: str = Field(default="0", description="Valkey database number")
-    valkey_geo_expiration: int = Field(
-        default=3600, description="Valkey geo data expiration time in seconds"
-    )
+    valkey_geo_expiration: int = Field(default=3600, description="Valkey geo data expiration time in seconds")
 
     valkey_host: str = Field(..., description="Valkey host in Docker environment")
     valkey_port: int = Field(..., description="Valkey port in Docker environment")
-    valkey_host_local: str = Field(
-        ..., description="Valkey host in local environment"
-    )
-    valkey_port_local: int = Field(
-        ..., description="Valkey port in local environment"
-    )
+    valkey_host_local: str = Field(..., description="Valkey host in local environment")
+    valkey_port_local: int = Field(..., description="Valkey port in local environment")
 
     @property
     def _in_docker(self) -> bool:
@@ -100,6 +88,4 @@ class QrzSettings(BaseSettings):
     qrz_user: str = Field(..., description="QRZ.com username")
     qrz_password: str = Field(..., description="QRZ.com password")
     qrz_api_key: str = Field(..., description="QRZ.com API key")
-    qrz_session_key_refresh: int = Field(
-        default=3600, description="QRZ session key refresh interval in seconds"
-    )
+    qrz_session_key_refresh: int = Field(default=3600, description="QRZ session key refresh interval in seconds")

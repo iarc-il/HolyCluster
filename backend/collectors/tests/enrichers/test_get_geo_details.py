@@ -14,7 +14,9 @@ from collectors.src.settings import settings
 
 
 async def main(callsign: str, debug: bool = False):
-    qrz_session_key = get_qrz_session_key(username=settings.qrz_user, password=settings.qrz_password, api_key=settings.qrz_api_key)
+    qrz_session_key = get_qrz_session_key(
+        username=settings.qrz_user, password=settings.qrz_password, api_key=settings.qrz_api_key
+    )
 
     (
         geo_cache,

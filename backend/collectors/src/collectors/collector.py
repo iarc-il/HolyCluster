@@ -94,7 +94,9 @@ async def add_spot_to_postgres(engine, spot: dict):
 async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManager):
     logger.info("Spot processor started")
 
-    valkey_client = get_valkey_client(host=settings.valkey_effective_host, port=settings.valkey_effective_port, db=settings.valkey_db)
+    valkey_client = get_valkey_client(
+        host=settings.valkey_effective_host, port=settings.valkey_effective_port, db=settings.valkey_db
+    )
     engine = create_async_engine(settings.db_url)
 
     try:

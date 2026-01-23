@@ -12,15 +12,9 @@ class CollectorsSettings(PostgresSettings, ValkeySettings, QrzSettings, BaseSett
     )
 
     debug: bool = Field(default=False, description="Enable debug mode")
-    postgres_db_retention_days: int = Field(
-        default=14, description="PostgreSQL database retention period in days"
-    )
-    valkey_spot_expiration: int = Field(
-        default=60, description="Valkey spot expiration time in seconds"
-    )
-    username_for_telnet_clusters: str = Field(
-        ..., description="Username for telnet cluster connections"
-    )
+    postgres_db_retention_days: int = Field(default=14, description="PostgreSQL database retention period in days")
+    valkey_spot_expiration: int = Field(default=60, description="Valkey spot expiration time in seconds")
+    username_for_telnet_clusters: str = Field(..., description="Username for telnet cluster connections")
 
 
 settings = CollectorsSettings()
