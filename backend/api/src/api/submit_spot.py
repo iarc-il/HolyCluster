@@ -1,19 +1,13 @@
 import asyncio
-import logging
 import re
 
 from api.settings import settings
+from loguru import logger
 
 CLUSTER_HOST = "dxc.ve7cc.net"
 CLUSTER_PORT = 23
 
-
-logger = logging.getLogger(__name__)
-formatter = logging.Formatter("%(asctime)s | %(name)s |  %(levelname)s: %(message)s")
-file_handler = logging.FileHandler(settings.spots_log_path)
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
+logger.add(settings.spots_log_path, level="DEBUG")
 
 
 class InvalidSpotter(Exception):

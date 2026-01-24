@@ -1,4 +1,3 @@
-import logging
 import re
 from datetime import datetime
 
@@ -9,9 +8,6 @@ A_INDEX_REGEX = re.compile("(.*) {3,}(.*) {3,}(.*) {3,}(.*) {3,}")
 K_INDEX_ENDPOINT = "/products/noaa-planetary-k-index.json"
 A_INDEX_ENDPOINT = "/text/daily-geomagnetic-indices.txt"
 SFI_ENDPOINT = "/json/f107_cm_flux.json"
-
-
-logger = logging.getLogger(__name__)
 
 
 async def collect_propagation_data():

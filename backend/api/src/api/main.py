@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import os
 import time
 from contextlib import asynccontextmanager
@@ -10,6 +9,7 @@ from fastapi import HTTPException, Request, websockets
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+from loguru import logger
 from shared.db import GeoCache, HolySpot, SpotsWithIssues
 from shared.geo import get_geo_details
 from shared.qrz import QrzSessionManager
@@ -21,9 +21,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import propagation, submit_spot
 from .settings import settings
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.WARNING)
 
 
 async def propagation_data_collector(app):
