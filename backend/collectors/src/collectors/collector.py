@@ -1,5 +1,7 @@
+import argparse
 import asyncio
 from datetime import datetime, timezone
+import sys
 
 from loguru import logger
 from shared.db import HolySpot
@@ -148,7 +150,14 @@ async def run_collector():
 
 
 def main():
-    # logger.remove()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", action="store_true")
+    args = parser.parse_args()
+
+    if not args.verbose:
+        logger.remove()
+        logger.add(sys.stdout, level="INFO")
+
     asyncio.run(run_collector())
 
 
