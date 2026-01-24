@@ -11,7 +11,6 @@ from typing import Dict, List
 
 import websockets
 
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",

@@ -1,27 +1,26 @@
 import asyncio
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
-import os
 
 import fastapi
-from starlette.exceptions import HTTPException as StarletteHTTPException
+import redis.asyncio
 from fastapi import HTTPException, Request, websockets
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+from shared.db import GeoCache, HolySpot, SpotsWithIssues
+from shared.geo import get_geo_details
+from shared.qrz import QrzSessionManager
 from sqlalchemy import desc
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
-import redis.asyncio
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from shared.db import GeoCache, HolySpot, SpotsWithIssues
-from shared.qrz import QrzSessionManager
-from shared.geo import get_geo_details
 from . import propagation, submit_spot
 from .settings import settings
-
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING)

@@ -1,14 +1,14 @@
-import sys
 import argparse
 import asyncio
+import sys
+
 from loguru import logger
+from shared.db import GeoCache, HolySpot, SpotsWithIssues  # noqa: F401
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
-
 from sqlmodel import SQLModel
-from shared.db import GeoCache, HolySpot, SpotsWithIssues  # noqa: F401
-from collectors.misc import open_log_file
 
+from collectors.misc import open_log_file
 from collectors.settings import settings
 
 

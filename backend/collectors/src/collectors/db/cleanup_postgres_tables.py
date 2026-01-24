@@ -4,19 +4,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import asyncio
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
+
 from loguru import logger
-from sqlalchemy import func, select, delete
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.exc import ProgrammingError, OperationalError
-
-from shared.db import GeoCache, HolySpot
 from misc import open_log_file
-
 from settings import (
-    POSTGRES_DB_URL,
     POSTGRES_DB_RETENTION_DAYS,
+    POSTGRES_DB_URL,
 )
+from shared.db import GeoCache, HolySpot
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 
 async def main(debug: bool = False):

@@ -1,13 +1,13 @@
 import csv
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 
 from loguru import logger
 from pydantic import BaseModel
 
-from shared.qrz import get_locator_from_qrz
 from shared.coordinates import locator_to_coordinates
+from shared.qrz import get_locator_from_qrz
 
 
 class GeoException(Exception):

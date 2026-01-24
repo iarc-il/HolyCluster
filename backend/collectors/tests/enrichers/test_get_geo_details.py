@@ -1,6 +1,7 @@
-import sys
 import asyncio
+import sys
 from pathlib import Path
+
 from loguru import logger
 
 sys.path.insert(0, str(Path(__file__).parents[3]))
@@ -9,8 +10,8 @@ sys.path.insert(0, str(Path(__file__).parents[3]))
 # sys.path.append(f"{grandparent_folder}")
 
 from collectors.enrichers.geo import get_geo_details
-from shared.qrz import get_qrz_session_key
 from collectors.settings import settings
+from shared.qrz import get_qrz_session_key
 
 
 async def main(callsign: str):

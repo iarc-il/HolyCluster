@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[3]))
 
-from collectors.enrichers.frequencies import load_bands_from_file, find_band
+from collectors.enrichers.frequencies import find_band, load_bands_from_file
 
 
 def test_find_band():

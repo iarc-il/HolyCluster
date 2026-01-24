@@ -1,8 +1,8 @@
 import logging
-from datetime import datetime
 import re
-import aiohttp
+from datetime import datetime
 
+import aiohttp
 
 A_INDEX_REGEX = re.compile("(.*) {3,}(.*) {3,}(.*) {3,}(.*) {3,}")
 

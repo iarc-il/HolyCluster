@@ -1,8 +1,9 @@
-import re
 import csv
-from typing import List, Optional, Tuple
-from pathlib import Path
 import json
+import re
+from pathlib import Path
+from typing import List, Optional, Tuple
+
 from loguru import logger
 
 

@@ -1,12 +1,13 @@
 import asyncio
 import csv
-import sys
 import os
+import sys
+
 from loguru import logger
 
 from ..misc import open_log_file
-from .telnet_collectors import telnet_and_collect
 from ..settings import settings
+from .telnet_collectors import telnet_and_collect
 
 
 def get_telnet_clusters_list(csv_path: str, debug: bool = False):

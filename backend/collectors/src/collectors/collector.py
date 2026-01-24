@@ -1,21 +1,19 @@
 import asyncio
 from datetime import datetime, timezone
+
 from loguru import logger
+from shared.db import HolySpot
+from shared.geo import GeoException
+from shared.qrz import QrzSessionManager
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from collectors.db.valkey_config import get_valkey_client
 from collectors.enrichers.frequencies import find_band_and_mode
 from collectors.enrichers.geo import get_geo_details
-from shared.qrz import QrzSessionManager
+from collectors.settings import settings
 from collectors.telnet_collectors.run_telnet_collectors import (
     run_concurrent_telnet_connections,
 )
-from shared.geo import GeoException
-
-from collectors.settings import settings
-
-from shared.db import HolySpot
-
 
 STREAM_API = "stream-api"
 
@@ -150,6 +148,7 @@ async def run_collector():
 
 
 def main():
+    # logger.remove()
     asyncio.run(run_collector())
 
 

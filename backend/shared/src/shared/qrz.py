@@ -1,7 +1,8 @@
 import asyncio
 import time
-import httpx
 import xml.etree.ElementTree as ET
+
+import httpx
 from loguru import logger
 
 

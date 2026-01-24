@@ -1,6 +1,6 @@
-from datetime import datetime
 import logging
-import os
+from datetime import datetime
+
 from loguru import logger
 
 
@@ -27,18 +27,3 @@ def open_log_file2(log_filename_prefix: str, debug: bool = False):
         thread_logger.setLevel(logging.DEBUG)
 
     return thread_logger
-
-
-def in_docker() -> bool:
-    """Detect whether running inside Docker."""
-    try:
-        if os.path.exists("/.dockerenv"):
-            logger.info("In Docker")
-            return True
-        else:
-            logger.info("Not in Docker")
-            return False
-    except Exception as ex:
-        message = f"**** ERROR in_docker **** An exception of type {type(ex).__name__} occured. Arguments: {ex.args}"
-        logger.error(message)
-        return True
