@@ -50,10 +50,10 @@ const mode_to_symbol = {
     RTTY: Hex,
 };
 
-function SpotCount({ count }) {
+function SpotCount({ count, toggled_ui }) {
     const anchorRef = useRef(null);
     const [position, set_position] = useState({ top: 0, left: 0 });
-    const [isVisible, set_is_visible] = useState(false);
+    const [is_visible, set_is_visible] = useState(false);
 
     const updatePosition = useCallback(() => {
         if (anchorRef.current) {
@@ -85,7 +85,8 @@ function SpotCount({ count }) {
         }
     }, [updatePosition, count]);
 
-    if (count === 0) return null;
+    console.log(toggled_ui);
+    if (count === 0 || toggled_ui.left) return null;
 
     const classes = [
         "inline-flex",
@@ -106,10 +107,10 @@ function SpotCount({ count }) {
     return (
         <>
             <span ref={anchorRef} className="absolute invisible" />
-            {isVisible &&
+            {is_visible &&
                 createPortal(
                     <span
-                        className="fixed flex w-5 z-20 pointer-events-none"
+                        className="fixed flex w-5 z-50 pointer-events-none"
                         style={{ top: position.top, left: position.left }}
                     >
                         <span className={classes.join(" ")}>{count}</span>
@@ -164,7 +165,10 @@ function LeftColumn({ toggled_ui }) {
                             disabled={filters.radio_band}
                         >
                             {!filters.radio_band && (
-                                <SpotCount count={spots_per_band_count[band]} />
+                                <SpotCount
+                                    count={spots_per_band_count[band]}
+                                    toggled_ui={toggled_ui}
+                                />
                             )}
                             <FilterButton
                                 text={label}
@@ -196,7 +200,10 @@ function LeftColumn({ toggled_ui }) {
             {radio_status != "unavailable" || filters.radio_band ? (
                 <div className={filter_group_classes + "py-4 border-b-2 border-slate-300"}>
                     <div>
-                        <SpotCount count={spots_per_band_count[radio_band]} />
+                        <SpotCount
+                            count={spots_per_band_count[radio_band]}
+                            toggled_ui={toggled_ui}
+                        />
                         <FilterButton
                             text={"Radio"}
                             is_active={filters.radio_band}
@@ -220,7 +227,7 @@ function LeftColumn({ toggled_ui }) {
                             filter_value={mode}
                             orientation="right"
                         >
-                            <SpotCount count={spots_per_mode_count[mode]} />
+                            <SpotCount count={spots_per_mode_count[mode]} toggled_ui={toggled_ui} />
                             <FilterButton
                                 text={
                                     <>
