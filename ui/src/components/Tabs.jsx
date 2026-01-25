@@ -21,13 +21,11 @@ function Tabs({ tabs, active_color = null, local_storage_name = null, external_t
 
     const handlers = useSwipeable({
         onSwipedLeft: () => {
-            console.log("Left");
             if (active_tab < tabs.length - 1) {
                 set_active_tab(active_tab + 1);
             }
         },
         onSwipedRight: () => {
-            console.log("Right");
             if (active_tab > 0) {
                 set_active_tab(active_tab - 1);
             }

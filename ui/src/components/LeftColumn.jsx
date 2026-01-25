@@ -85,7 +85,6 @@ function SpotCount({ count, toggled_ui }) {
         }
     }, [updatePosition, count]);
 
-    console.log(toggled_ui);
     if (count === 0 || toggled_ui.left) return null;
 
     const classes = [
