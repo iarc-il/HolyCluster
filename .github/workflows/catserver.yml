@@ -96,3 +96,49 @@ jobs:
             --deploy-host ${{ secrets.DEPLOY_HOST_PROD }} \
             --local-msi-path catserver/target/$TARGET/release/HolyCluster.msi \
             --remote-msi-dir /opt/msi
+
+  verify-determinism:
+    name: Verify Deterministic Build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/iarc-il/catserver-ci:latest
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Fix git safe directory
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Build first MSI
+        working-directory: ./catserver
+        run: |
+          cargo build --target x86_64-pc-windows-gnu --release
+          su wix -c "./build_msi.sh in-docker"
+          cp target/x86_64-pc-windows-gnu/release/HolyCluster.msi /tmp/msi1.msi
+          sha256sum /tmp/msi1.msi | tee /tmp/checksum1.txt
+
+      - name: Clean and rebuild
+        working-directory: ./catserver
+        run: |
+          cargo clean
+          cargo build --target x86_64-pc-windows-gnu --release
+          su wix -c "./build_msi.sh in-docker"
+          cp target/x86_64-pc-windows-gnu/release/HolyCluster.msi /tmp/msi2.msi
+          sha256sum /tmp/msi2.msi | tee /tmp/checksum2.txt
+
+      - name: Verify determinism
+        run: |
+          echo "First build:"
+          cat /tmp/checksum1.txt
+          echo "Second build:"
+          cat /tmp/checksum2.txt
+          if cmp -s /tmp/msi1.msi /tmp/msi2.msi; then
+            echo "✓ SUCCESS: Builds are deterministic!"
+          else
+            echo "✗ FAILURE: Builds differ!"
+            cmp -l /tmp/msi1.msi /tmp/msi2.msi | head -20 || true
+            exit 1
+          fi
