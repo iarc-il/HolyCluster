@@ -12,7 +12,7 @@ import { useFilters } from "../hooks/useFilters";
 import { useServerData } from "@/hooks/useServerData";
 import useRadio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
-import { useLocalStorage } from "@uidotdev/usehooks";
+import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
 import Icon from "@/icon.png";
 import OpenMenu from "@/components/OpenMenu.jsx";
@@ -49,6 +49,16 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
 
     const { radio_freq } = use_radio();
 
+    // Reset the toggle state when resizing the screen
+    const is_max_2xl_device = useMediaQuery("only screen and (max-width : 96rem)");
+    useEffect(() => {
+        if (is_max_2xl_device) {
+            set_toggled_ui({ left_visible: false, right_visible: false });
+        } else {
+            set_toggled_ui({ left_visible: true, right_visible: true });
+        }
+    }, [is_max_2xl_device]);
+
     return (
         <div
             className="flex flex-row z-[60] justify-between items-center h-[4rem] border-b-2"
@@ -63,7 +73,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                     on_click={() =>
                         set_toggled_ui({
                             ...toggled_ui,
-                            left: !toggled_ui.left,
+                            left_visible: !toggled_ui.left_visible,
                         })
                     }
                 />
@@ -155,7 +165,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                         on_click={() =>
                             set_toggled_ui({
                                 ...toggled_ui,
-                                right: !toggled_ui.right,
+                                right_visible: !toggled_ui.right_visible,
                             })
                         }
                     />

@@ -55,7 +55,7 @@ function SpotCount({ count, toggled_ui }) {
     const [position, set_position] = useState({ top: 0, left: 0 });
 
     const updatePosition = useCallback(() => {
-        if (anchorRef.current && !toggled_ui.left) {
+        if (anchorRef.current && toggled_ui.left_visible) {
             const rect = anchorRef.current.getBoundingClientRect();
             set_position({
                 top: rect.top - 4,
@@ -94,7 +94,7 @@ function SpotCount({ count, toggled_ui }) {
         "text-[12px]",
     ];
 
-    const is_visible = !toggled_ui.left && count !== 0;
+    const is_visible = toggled_ui.left_visible && count !== 0;
 
     return (
         <>
@@ -120,9 +120,9 @@ function LeftColumn({ toggled_ui }) {
     const { settings } = useSettings();
 
     const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";
-    const toggled_classes = toggled_ui.left
-        ? "hidden "
-        : "max-2xl:absolute max-2xl:flex z-50 border-r border-slate-300 ";
+    const toggled_classes = toggled_ui.left_visible
+        ? "max-2xl:absolute max-2xl:flex z-50 border-r border-slate-300 "
+        : "hidden ";
 
     const { colors } = useColors();
 

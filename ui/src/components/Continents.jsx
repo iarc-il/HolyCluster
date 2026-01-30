@@ -93,9 +93,9 @@ function SwapButton({ colors }) {
 function Continents({ toggled_ui }) {
     const { colors } = useColors();
 
-    const toggled_classes = toggled_ui.right
-        ? "max-2xl:hidden "
-        : "max-2xl:absolute right-0 top-0 ";
+    const toggled_classes = toggled_ui.right_visible
+        ? "max-2xl:absolute right-0 top-0 "
+        : "max-2xl:hidden ";
     return (
         <div
             className={

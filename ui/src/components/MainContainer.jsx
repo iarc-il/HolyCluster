@@ -26,7 +26,7 @@ import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
 function MainContainer() {
     const { dev_mode, set_dev_mode } = useColors();
-    const [toggled_ui, set_toggled_ui] = useState({ left: true, right: true });
+    const [toggled_ui, set_toggled_ui] = useState({ left_visible: true, right_visible: true });
     const { local_version } = use_radio();
     const { settings, set_settings } = useSettings();
 
