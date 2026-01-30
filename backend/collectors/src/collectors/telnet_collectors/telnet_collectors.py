@@ -111,11 +111,11 @@ async def telnet_and_collect(
                     if line.startswith("DX de"):
                         spot = parse_dx_line(line)
 
-                        if spot["spotter_callsign"].upper() == "W3LPL":
-                            logger.debug(f"Skipping W3LPL spot: {spot}")
-                            continue
+                        if spot is not None:
+                            if spot["spotter_callsign"].upper() == "W3LPL":
+                                logger.debug(f"Skipping W3LPL spot: {spot}")
+                                continue
 
-                        if spot:
                             cluster = f"{host}:{port}"
                             spot.update({"cluster": cluster})
                             spot_data = json.dumps(spot)
@@ -148,7 +148,10 @@ async def telnet_and_collect(
         finally:
             if writer:
                 writer.close()
-                await writer.wait_closed()
+                try:
+                    await asyncio.wait_for(writer.wait_closed(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    logger.warning(f"{host}:{port} Timeout waiting for writer to close")
 
         # Exponential backoff logic
         if reconnect_attempts < len(backoff_delays):

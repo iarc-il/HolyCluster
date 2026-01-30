@@ -108,16 +108,16 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
             except GeoException:
                 logger.exception("Dropping spot due to geo exception")
                 continue
+
             if enriched_spot is None:
                 logger.info(f"Dropping spot: {spot}")
-                input_queue.task_done()
-                continue
-            logger.info(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
+            else:
+                logger.info(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
 
-            await add_spot_to_postgres(engine, enriched_spot)
+                await add_spot_to_postgres(engine, enriched_spot)
 
-            if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
-                await valkey_client.xadd(STREAM_API, enriched_spot, "*")
+                if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
+                    await valkey_client.xadd(STREAM_API, enriched_spot, "*")
             input_queue.task_done()
 
     except asyncio.CancelledError:
@@ -139,12 +139,16 @@ async def run_collector():
     )
     await qrz_manager.start()
 
-    qrz_refresh_task = asyncio.create_task(qrz_manager.refresh_loop())
-    processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager))
-    collector_task = asyncio.create_task(run_concurrent_telnet_connections(spots_queue))
+    qrz_refresh_task = asyncio.create_task(qrz_manager.refresh_loop(), name="qrz_refresh_task")
+    processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
+    collector_task = asyncio.create_task(run_concurrent_telnet_connections(spots_queue), name="collector_task")
 
+    tasks = [qrz_refresh_task, processor_task, collector_task]
     try:
-        await asyncio.gather(qrz_refresh_task, processor_task, collector_task)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for task, result in zip(tasks, results):
+            if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
+                logger.error(f"{task.get_name()} failed with exception: {result}")
     except asyncio.CancelledError:
         logger.info("Collector shutting down...")
 

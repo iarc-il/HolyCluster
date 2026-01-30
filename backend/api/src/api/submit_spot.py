@@ -141,7 +141,10 @@ async def handle_one_spot(websocket):
             },
         )
         writer.close()
-        await writer.wait_closed()
+        try:
+            await asyncio.wait_for(writer.wait_closed(), timeout=5.0)
+        except asyncio.TimeoutError:
+            logger.warning("Timeout waiting for writer to close")
 
         await websocket.send_json({"status": "success"})
         logger.info(f"Spot submitted sucessfully: {data}")
