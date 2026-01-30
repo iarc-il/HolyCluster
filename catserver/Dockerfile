@@ -3,7 +3,7 @@ FROM rust
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ARG WINE_VERSION=10.0.0.0
+ARG WINE_VERSION=11.0.0.0
 ARG DOTNET_VERSION=9.0.300
 # Version 5.0.2 is the latest version of WiX Toolset that does not require Open Source Maintenance Fee.
 ARG WIXTOOLSET_VERSION=5.0.2
