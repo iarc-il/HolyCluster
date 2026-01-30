@@ -117,7 +117,7 @@ async def lifespan(app: fastapi.FastAPI):
 
     for task in tasks:
         task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
+    await asyncio.gather(*tasks)
     await app.state.valkey_client.aclose()
 
 

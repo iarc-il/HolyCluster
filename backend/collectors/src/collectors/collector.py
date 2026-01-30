@@ -145,10 +145,7 @@ async def run_collector():
 
     tasks = [qrz_refresh_task, processor_task, collector_task]
     try:
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for task, result in zip(tasks, results):
-            if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
-                logger.error(f"{task.get_name()} failed with exception: {result}")
+        await asyncio.gather(*tasks)
     except asyncio.CancelledError:
         logger.info("Collector shutting down...")
 

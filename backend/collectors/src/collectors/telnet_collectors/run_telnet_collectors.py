@@ -85,7 +85,4 @@ async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: 
         tasks.append(task)
         logger.info(f"Starting connection to {host}:{port}")
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    for task, result in zip(tasks, results):
-        if isinstance(result, Exception):
-            logger.error(f"Task {task.get_name()} failed with exception: {result}")
+    await asyncio.gather(*tasks)
