@@ -53,25 +53,18 @@ const mode_to_symbol = {
 function SpotCount({ count, toggled_ui }) {
     const anchorRef = useRef(null);
     const [position, set_position] = useState({ top: 0, left: 0 });
-    const [is_visible, set_is_visible] = useState(false);
 
     const updatePosition = useCallback(() => {
-        if (anchorRef.current) {
+        if (anchorRef.current && !toggled_ui.left) {
             const rect = anchorRef.current.getBoundingClientRect();
             set_position({
                 top: rect.top - 4,
                 left: rect.left + 22,
             });
-            set_is_visible(true);
         }
-    }, []);
+    }, [anchorRef, toggled_ui]);
 
     useEffect(() => {
-        if (count === 0) {
-            set_is_visible(false);
-            return;
-        }
-
         updatePosition();
 
         const scrollContainer = anchorRef.current?.closest(".overflow-y-auto");
@@ -83,9 +76,7 @@ function SpotCount({ count, toggled_ui }) {
                 window.removeEventListener("resize", updatePosition);
             };
         }
-    }, [updatePosition, count]);
-
-    if (count === 0 || toggled_ui.left) return null;
+    }, [anchorRef, toggled_ui]);
 
     const classes = [
         "inline-flex",
@@ -102,6 +93,8 @@ function SpotCount({ count, toggled_ui }) {
         "text-center",
         "text-[12px]",
     ];
+
+    const is_visible = !toggled_ui.left && count !== 0;
 
     return (
         <>
