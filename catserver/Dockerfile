@@ -38,12 +38,7 @@ RUN set -ex \
        libxdo-dev \
        libappindicator3-dev \
        binutils-mingw-w64-x86-64 \
-       gcc-mingw-w64-x86-64-win32 \
-    # Python dependencies for MSI/PE normalization \
-    && apt-get install -y python3 python3-pip \
-    && curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && export PATH="/root/.local/bin:$PATH" \
-    && uv pip install --system pefile msilib2
+       gcc-mingw-w64-x86-64-win32
 
 USER wix
 WORKDIR /home/wix
