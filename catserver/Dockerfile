@@ -62,6 +62,13 @@ RUN set -ex \
 USER root
 WORKDIR /
 
+# Install Python dependencies for deterministic builds
+RUN set -ex \
+    && apt-get update -qq \
+    && apt-get install --no-install-recommends python3 python3-pip python3-venv msitools -qqy \
+    && pip3 install --break-system-packages pefile \
+    && apt-get clean autoclean && apt-get autoremove --yes && rm -rf /var/lib/{apt,dpkg,cache,log}/
+
 RUN set -ex \
     && apt-get purge -y curl xauth xvfb xz-utils p7zip-full unzip \
     && apt-get clean -y \
