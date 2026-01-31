@@ -7,7 +7,6 @@ WIX_NAME=main
 DIALOG_NAME=CustomInstallDirDlg
 OUTPUT_PATH=$BUILD_DIR/HolyCluster.msi
 
-# Extract version from git tag
 GIT_TAG=$(git describe --match 'catserver-v*')
 BASE_VERSION=$(echo $GIT_TAG | sed -rn 's/catserver-v([.0-9]*)(-.*)?/\1/p')
 BUGFIX_VERSION=$(echo $BASE_VERSION | sed -rn "s/[0-9]*\.[0-9]*\.([0-9]*)/\1/p")
@@ -28,17 +27,11 @@ echo "  Commit: $COMMIT_HASH"
 echo "  Timestamp: $COMMIT_TIMESTAMP ($(date -u -d @"$COMMIT_TIMESTAMP" '+%Y-%m-%d %H:%M:%S UTC'))"
 
 run_wix() {
-    # Normalize PE executable timestamp
-    if command -v python3 &> /dev/null && [ -f scripts/normalize_pe.py ]; then
-        python3 scripts/normalize_pe.py "$BUILD_DIR/catserver.exe"
-    else
-        echo "Warning: Cannot normalize PE timestamp (python3 or script missing)"
-    fi
+    # Erase exe timestamps
+    python3 scripts/normalize_pe.py "$BUILD_DIR/catserver.exe"
 
-    # Copy to final name
     cp "$BUILD_DIR/catserver.exe" "$BUILD_DIR/HolyCluster.exe"
 
-    # Build MSI with WiX
     wix build \
         -d Version=$VERSION \
         -d SourceDateEpoch=$SOURCE_DATE_EPOCH \
@@ -46,12 +39,8 @@ run_wix() {
         -ext WixToolset.UI.wixext \
         -o "$OUTPUT_PATH"
 
-    # Normalize MSI timestamps
-    if command -v python3 &> /dev/null && [ -f scripts/normalize_msi.py ]; then
-        python3 scripts/normalize_msi.py "$OUTPUT_PATH" "$SOURCE_DATE_EPOCH"
-    else
-        echo "Warning: Cannot normalize MSI timestamp (python3 or script missing)"
-    fi
+    # Erase msi timestamps
+    python3 scripts/normalize_msi.py "$OUTPUT_PATH" "$SOURCE_DATE_EPOCH"
 
     echo "MSI compiled successfully: $OUTPUT_PATH"
     sha256sum "$OUTPUT_PATH"

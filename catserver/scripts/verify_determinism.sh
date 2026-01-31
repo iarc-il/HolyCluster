@@ -27,13 +27,13 @@ echo ""
 
 # Compare
 if [ "$HASH1" = "$HASH2" ]; then
-    echo "✓ SUCCESS: MSI files are byte-for-byte identical!"
-    echo "  SHA256: $HASH1"
+    echo "SUCCESS: MSI files are byte-for-byte identical!"
+    echo "SHA256: $HASH1"
     exit 0
 else
-    echo "✗ FAILURE: MSI files differ!"
-    echo "  First:  $HASH1"
-    echo "  Second: $HASH2"
+    echo "FAILURE: MSI files differ!"
+    echo "First:  $HASH1"
+    echo "Second: $HASH2"
     echo ""
     echo "Binary diff (first 20 differences):"
     cmp -l /tmp/msi1.msi /tmp/msi2.msi | head -20
