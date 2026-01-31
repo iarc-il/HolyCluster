@@ -1,6 +1,10 @@
+import { forwardRef } from "react";
 import { useColors } from "@/hooks/useColors";
 
-function Input({ className, type = "text", disabled_text_color = null, ...props_without_classes }) {
+const Input = forwardRef(function Input(
+    { className, type = "text", disabled_text_color = null, ...props_without_classes },
+    ref,
+) {
     const { colors } = useColors();
 
     if (className == null) {
@@ -19,6 +23,7 @@ function Input({ className, type = "text", disabled_text_color = null, ...props_
 
     return (
         <input
+            ref={ref}
             style={{
                 backgroundColor: colors.theme.input_background,
                 borderColor: colors.theme.borders,
@@ -29,6 +34,6 @@ function Input({ className, type = "text", disabled_text_color = null, ...props_
             {...props_without_classes}
         />
     );
-}
+});
 
 export default Input;

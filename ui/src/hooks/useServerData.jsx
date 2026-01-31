@@ -258,7 +258,7 @@ export const ServerDataProvider = ({ children }) => {
 
                 const is_matching_search =
                     !search_query.trim() ||
-                    spot.dx_callsign.toLowerCase().includes(search_query.toLowerCase());
+                    spot.dx_callsign.toLowerCase().startsWith(search_query.toLowerCase());
 
                 const result =
                     is_in_time_limit &&

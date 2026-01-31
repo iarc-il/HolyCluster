@@ -560,6 +560,20 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                         set_search_open(false);
                         set_search_query("");
                     }}
+                    on_enter={query => {
+                        const newFilter = {
+                            action: "show_only",
+                            type: "prefix",
+                            value: query.toUpperCase(),
+                            spotter_or_dx: "dx",
+                        };
+                        setCallsignFilters({
+                            ...callsign_filters,
+                            filters: [...callsign_filters.filters, newFilter],
+                        });
+                        set_search_open(false);
+                        set_search_query("");
+                    }}
                 />
             </div>
             {context_menu.visible && (

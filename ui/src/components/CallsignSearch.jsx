@@ -3,7 +3,13 @@ import Input from "@/components/Input.jsx";
 import X from "@/components/X.jsx";
 import { useColors } from "@/hooks/useColors";
 
-export default function CallsignSearch({ is_open, search_text, set_search_text, on_close }) {
+export default function CallsignSearch({
+    is_open,
+    search_text,
+    set_search_text,
+    on_close,
+    on_enter,
+}) {
     const input_ref = useRef(null);
     const { colors } = useColors();
 
@@ -52,6 +58,11 @@ export default function CallsignSearch({ is_open, search_text, set_search_text, 
                 placeholder="Search callsign..."
                 value={search_text}
                 onChange={e => set_search_text(e.target.value)}
+                onKeyDown={e => {
+                    if (e.key === "Enter" && search_text.trim()) {
+                        on_enter(search_text.trim());
+                    }
+                }}
             />
 
             <X size="20" on_click={on_close} />
