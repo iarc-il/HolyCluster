@@ -18,14 +18,12 @@ function CallsignsView({ toggled_ui, set_cat_to_spot }) {
         </div>
     );
 
-    const toggled_classes = toggled_ui.right_visible
-        ? "max-2xl:absolute right-16 top-0 border-l border-slate-300"
-        : "hidden";
+    const toggled_classes = toggled_ui.right_visible ? "max-2xl:absolute right-16 top-0" : "hidden";
     return (
         <div
             className={
                 toggled_classes +
-                " 2xl:flex flex-col bg-white h-full divide-y divide-slate-300 w-56 2xl:w-[34rem] z-50"
+                " 2xl:flex flex-col h-full divide-y divide-slate-300 w-56 2xl:w-[34rem] z-50"
             }
             style={{ backgroundColor: colors.theme.background }}
         >
