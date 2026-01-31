@@ -4,7 +4,7 @@
 import sys
 import subprocess
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -21,7 +21,7 @@ def normalize_msi_timestamp(msi_path, timestamp):
     - Property ID 13: Last Save Time/Date (VT_FILETIME)
     """
     msi_path = Path(msi_path).resolve()
-    dt = datetime.utcfromtimestamp(int(timestamp))
+    dt = datetime.fromtimestamp(int(timestamp), tz=timezone.utc)
     timestamp_str = dt.strftime("%Y/%m/%d %H:%M:%S")
 
     print(f"Normalizing MSI timestamps to {timestamp_str} UTC in {msi_path}")
@@ -31,9 +31,17 @@ def normalize_msi_timestamp(msi_path, timestamp):
         idt_file = tmpdir / "_SummaryInformation.idt"
 
         print("Exporting _SummaryInformation table")
-        subprocess.run(
-            ["msiinfo", "export", str(msi_path), "_SummaryInformation"], cwd=tmpdir, check=True, capture_output=True
+        result = subprocess.run(
+            ["msiinfo", "export", str(msi_path), "_SummaryInformation"],
+            cwd=tmpdir,
+            check=True,
+            capture_output=True,
+            text=True
         )
+
+        # Write the exported table to the .idt file
+        with open(idt_file, "w", encoding="utf-8") as f:
+            f.write(result.stdout)
 
         print(f"Modifying timestamps to {timestamp_str}")
         with open(idt_file, "r", encoding="utf-8") as f:
