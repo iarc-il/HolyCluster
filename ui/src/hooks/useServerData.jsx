@@ -44,6 +44,8 @@ export const ServerDataProvider = ({ children }) => {
     let [hovered_spot, set_hovered_spot] = useState({ source: null, id: null });
     let [hovered_band, set_hovered_band] = useState(null);
     let [pinned_spot, set_pinned_spot_internal] = useState(null);
+    let [search_query, set_search_query] = useState("");
+    let [search_open, set_search_open] = useState(false);
 
     const { highlight_spot, is_radio_available } = use_radio();
     const { settings } = useSettings();
@@ -254,13 +256,18 @@ export const ServerDataProvider = ({ children }) => {
                 const is_spotter_continent_active =
                     filters.spotter_continents[spot.spotter_continent];
 
+                const is_matching_search =
+                    !search_query.trim() ||
+                    spot.dx_callsign.toLowerCase().includes(search_query.toLowerCase());
+
                 const result =
                     is_in_time_limit &&
                     is_dx_continent_active &&
                     is_spotter_continent_active &&
                     is_band_and_mode_active &&
                     are_filters_including &&
-                    are_filters_not_excluding;
+                    are_filters_not_excluding &&
+                    is_matching_search;
                 return result;
             })
             .slice(0, 100);
@@ -287,6 +294,7 @@ export const ServerDataProvider = ({ children }) => {
         radio_status,
         table_sort,
         settings.show_only_latest_spot,
+        search_query,
     ]);
 
     const spots_per_band_count = useMemo(() => {
@@ -352,6 +360,10 @@ export const ServerDataProvider = ({ children }) => {
                 propagation,
                 network_state,
                 current_freq_spots,
+                search_query,
+                set_search_query,
+                search_open,
+                set_search_open,
             }}
         >
             {children}

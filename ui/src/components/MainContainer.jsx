@@ -30,8 +30,13 @@ function MainContainer() {
     const { local_version } = use_radio();
     const { settings, set_settings } = useSettings();
 
-    const { spots, set_pinned_spot, filter_missing_flags, set_filter_missing_flags } =
-        useServerData();
+    const {
+        spots,
+        set_pinned_spot,
+        filter_missing_flags,
+        set_filter_missing_flags,
+        set_search_open,
+    } = useServerData();
 
     const [map_controls, set_map_controls_inner] = use_object_local_storage("map_controls", {
         night: false,
@@ -98,6 +103,12 @@ function MainContainer() {
     const [canvas, set_canvas] = useLocalStorage("canvas", false);
 
     function on_key_down(event) {
+        if (event.ctrlKey && event.key === "f") {
+            event.preventDefault();
+            set_search_open(true);
+            return;
+        }
+
         if (event.key == "Escape") {
             set_pinned_spot(null);
         }
