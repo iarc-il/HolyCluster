@@ -28,7 +28,7 @@ export default function CallsignSearch({ is_open, search_text, set_search_text, 
 
     return (
         <div
-            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg"
+            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center justify-around gap-4 px-4 py-2 rounded-xl shadow-lg"
             style={{
                 backgroundColor: colors.theme.background,
                 border: `2px solid ${colors.theme.borders}`,
