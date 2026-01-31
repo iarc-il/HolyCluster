@@ -63,6 +63,7 @@ export default function CallsignSearch({
                         on_enter(search_text.trim());
                     }
                 }}
+                onBlur={on_close}
             />
 
             <X size="20" on_click={on_close} />
