@@ -48,24 +48,27 @@ def parse_date_range(date_str: str) -> Optional[tuple[datetime, datetime]]:
                 for month in ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
             ):
                 end_date = datetime.strptime(f"{end_part} {year}", "%b %d %Y")
+                end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
             else:
                 start_month = start_date.strftime("%b")
                 end_date = datetime.strptime(f"{start_month} {end_part} {year}", "%b %d %Y")
+                end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
 
                 if end_date < start_date:
                     next_month = (start_date.month % 12) + 1
                     next_year = year if next_month > 1 else year + 1
                     end_date = datetime.strptime(f"{end_part} {next_month} {next_year}", "%d %m %Y")
+                    end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
 
-            end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc)
+            end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
         else:
             start_date = datetime.strptime(f"{date_part} {year}", "%b %d %Y")
             start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
-            end_date = start_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+            end_date = start_date.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc)
 
         return (start_date, end_date)
     except Exception as e:
-        logger.debug(f"Failed to parse date range '{date_str}': {e}")
+        logger.exception(f"Failed to parse date range '{date_str}'")
         return None
 
 
@@ -92,7 +95,7 @@ def parse_title(title: str) -> Optional[tuple[str, datetime, datetime]]:
 
         return (callsign, start_date, end_date)
     except Exception as e:
-        logger.debug(f"Failed to parse title '{title}': {e}")
+        logger.exception(f"Failed to parse title '{title}'")
         return None
 
 
@@ -104,6 +107,7 @@ async def fetch_dxpedition_data() -> list[dict]:
 
     root = ET.fromstring(xml_data)
     dxpeditions = []
+    now = datetime.now(timezone.utc)
 
     for item in root.findall(".//item"):
         title_elem = item.find("title")
@@ -116,9 +120,10 @@ async def fetch_dxpedition_data() -> list[dict]:
 
         if result:
             callsign, start_date, end_date = result
+            if end_date < now:
+                logger.info(f"Skipping expired DXpedition: {callsign} (ended {end_date.strftime('%Y-%m-%d')})")
+                continue
             dxpeditions.append({"callsign": callsign.upper(), "start_date": start_date, "end_date": end_date})
-        else:
-            logger.error(f"Failed to parse dxpedition data: {title}")
 
     return dxpeditions
 
@@ -146,7 +151,7 @@ def is_active_dxpedition(callsign: str) -> bool:
     for dxpedition in ACTIVE_DXPEDITIONS:
         if callsign.startswith(dxpedition["callsign"]):
             is_active = dxpedition["start_date"] <= now <= dxpedition["end_date"]
-            logger.info(f"Detected dxpedition: {callsign}, is active {is_active}")
+            logger.info(f"Detected dxpedition: {callsign}, is active: {is_active}")
             return is_active
 
     return False
