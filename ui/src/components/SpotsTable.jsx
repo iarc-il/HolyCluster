@@ -182,7 +182,7 @@ function Spot(
                 className={cell_classes.dx_callsign + " font-semibold"}
                 style={{
                     border: spot.is_dxpedition ? "4px solid #FFD700" : "none",
-                    padding: spot.is_dxpedition ? "2px" : "6px"
+                    padding: spot.is_dxpedition ? "2px" : "6px",
                 }}
                 onContextMenu={event => {
                     event.preventDefault();
@@ -190,7 +190,11 @@ function Spot(
                 }}
             >
                 <Callsign callsign={spot.dx_callsign} />
-                {spot.is_dxpedition && <span className="ml-1" title="DXpedition">⭐</span>}
+                {spot.is_dxpedition && (
+                    <span className="ml-1" title="DXpedition">
+                        ⭐
+                    </span>
+                )}
             </td>
             <td className={cell_classes.freq}>
                 <div
