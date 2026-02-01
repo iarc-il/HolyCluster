@@ -64,6 +64,8 @@ export function is_matching_list(list, spot) {
             is_value_matching = matched_value == filter.value;
         } else if (filter.type == "self_spotters") {
             is_value_matching = is_same_base_callsign(spot.dx_callsign, spot.spotter_callsign);
+        } else if (filter.type == "dxpeditions") {
+            is_value_matching = spot.is_dxpedition;
         }
         return is_value_matching;
     });

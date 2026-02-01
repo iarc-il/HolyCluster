@@ -99,7 +99,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                 }
             }}
             on_apply={() => {
-                if (temp_data.value.length > 0 || temp_data.type == "self_spotters") {
+                if (temp_data.value.length > 0 || temp_data.type == "self_spotters" || temp_data.type == "dxpeditions") {
                     on_apply(temp_data);
                     set_temp_data(empty_filter_data);
                     return true;
@@ -117,6 +117,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         { label: "Entity", value: "entity" },
                         { label: "Comment", value: "comment" },
                         { label: "Self Spotters", value: "self_spotters" },
+                        { label: "DXpeditions", value: "dxpeditions" },
                     ]}
                     field="type"
                     temp_data={temp_data}
@@ -129,7 +130,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         }
                     }}
                 />
-                {temp_data.type != "self_spotters" && temp_data.type != "comment" ? (
+                {temp_data.type != "self_spotters" && temp_data.type != "dxpeditions" && temp_data.type != "comment" ? (
                     <>
                         <SelectionLine
                             states={[

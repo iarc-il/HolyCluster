@@ -86,6 +86,14 @@ function FilterLine({ filter, id, is_dragging }) {
                 >
                     Self spotters
                 </div>
+            ) : filter.type == "dxpeditions" ? (
+                <div
+                    {...listeners}
+                    {...attributes}
+                    className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md mr-auto text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing"
+                >
+                    DXpeditions
+                </div>
             ) : (
                 <>
                     <div {...listeners} {...listeners}>
@@ -271,6 +279,10 @@ function Filters() {
                         {activeFilter.type == "self_spotters" ? (
                             <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md mr-auto text-xs font-bold bg-green-600 text-white">
                                 Self spotters
+                            </div>
+                        ) : activeFilter.type == "dxpeditions" ? (
+                            <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md mr-auto text-xs font-bold bg-green-600 text-white">
+                                DXpeditions
                             </div>
                         ) : (
                             <>
