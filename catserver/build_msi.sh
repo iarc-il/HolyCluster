@@ -21,9 +21,13 @@ COMMIT_HASH=$(git rev-parse HEAD)
 COMMIT_TIMESTAMP=$(git log -1 --format=%ct "$COMMIT_HASH")
 export SOURCE_DATE_EPOCH=$COMMIT_TIMESTAMP
 
+# Generate deterministic Package Code GUID from commit hash
+PACKAGE_CODE=$(python3 -c "import uuid; print(str(uuid.uuid5(uuid.NAMESPACE_DNS, '$COMMIT_HASH')).upper())")
+
 echo "Building deterministic MSI"
 echo "  Version: $VERSION"
 echo "  Commit: $COMMIT_HASH"
+echo "  Package Code: $PACKAGE_CODE"
 echo "  Timestamp: $COMMIT_TIMESTAMP ($(date -u -d @"$COMMIT_TIMESTAMP" '+%Y-%m-%d %H:%M:%S UTC'))"
 
 run_wix() {
@@ -34,6 +38,7 @@ run_wix() {
 
     wix build \
         -d Version=$VERSION \
+        -d PackageCode=$PACKAGE_CODE \
         -d SourceDateEpoch=$SOURCE_DATE_EPOCH \
         -d CargoTargetBinDir=$BUILD_DIR wix/$WIX_NAME.wxs \
         -ext WixToolset.UI.wixext \

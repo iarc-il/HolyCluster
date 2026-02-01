@@ -1,5 +1,6 @@
 ﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
     <Package
+        Id="$(var.PackageCode)"
         Name="Holy Cluster"
         Version="$(var.Version)"
         UpgradeCode="DD2C1F58-D922-4BEF-90BD-C01652EFD082"
