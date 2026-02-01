@@ -116,7 +116,7 @@ async def fetch_dxpedition_data() -> list[dict]:
 
         if result:
             callsign, start_date, end_date = result
-            dxpeditions.append({"callsign": callsign, "start_date": start_date, "end_date": end_date, "title": title})
+            dxpeditions.append({"callsign": callsign.upper(), "start_date": start_date, "end_date": end_date})
         else:
             logger.error(f"Failed to parse dxpedition data: {title}")
 
@@ -139,12 +139,14 @@ def is_active_dxpedition(callsign: str) -> bool:
     if not callsign:
         return False
 
+    callsign = callsign.upper()
+
     now = datetime.now(timezone.utc)
 
     for dxpedition in ACTIVE_DXPEDITIONS:
-        if dxpedition["callsign"].upper() == callsign.upper():
+        if callsign.startswith(dxpedition["callsign"]):
             is_active = dxpedition["start_date"] <= now <= dxpedition["end_date"]
-            logger.info(f"Detected dxpedition: {callsign}")
+            logger.info(f"Detected dxpedition: {callsign}, is active {is_active}")
             return is_active
 
     return False
