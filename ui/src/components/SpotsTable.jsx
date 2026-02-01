@@ -537,11 +537,11 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
 
                 {!search_open && (
                     <button
-                        className="absolute bottom-4 right-4 border-4 z-40 p-3 rounded-full shadow-lg hover:scale-110 transition-transform duration-200"
+                        className="absolute top-1 right-2 border-4 z-40 p-3 rounded-full shadow-lg hover:scale-110 transition-transform duration-200"
                         style={{
                             backgroundColor: colors.table.header,
                             color: colors.theme.text,
-                            borderColor: colors.theme.borders,
+                            borderColor: colors.table.header_arrow,
                         }}
                         onClick={() => set_search_open(true)}
                         title="Search (Ctrl+F)"
