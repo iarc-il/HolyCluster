@@ -167,6 +167,7 @@ def cleanup_spot(spot):
             "mode": mode,
             "time": float(spot["timestamp"]),
             "comment": spot["comment"],
+            "is_dxpedition": bool(int(spot.get("is_dxpedition", 0))),
         }
     except (KeyError, ValueError):
         logger.exception(f"Failed to process spot: {spot}")

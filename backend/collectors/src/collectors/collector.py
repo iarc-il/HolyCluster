@@ -10,6 +10,7 @@ from shared.qrz import QrzSessionManager
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from collectors.db.valkey_config import get_valkey_client
+from collectors.enrichers.dxpeditions import is_active_dxpedition
 from collectors.enrichers.frequencies import find_band_and_mode
 from collectors.enrichers.geo import get_geo_details
 from collectors.settings import settings
@@ -55,6 +56,10 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
         }
     )
 
+    spot.update({
+        "is_dxpedition": 1 if is_active_dxpedition(spot["dx_callsign"]) else 0,
+    })
+
     return spot
 
 
@@ -84,6 +89,7 @@ async def add_spot_to_postgres(engine, spot: dict):
         dx_country=spot["dx_country"],
         dx_continent=spot["dx_continent"],
         comment=spot["comment"],
+        is_dxpedition=spot["is_dxpedition"],
     )
 
     async with AsyncSession(engine) as session:
@@ -126,6 +132,20 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
         await engine.dispose()
 
 
+async def refresh_dxpedition_data():
+    from collectors.enrichers.dxpeditions import refresh_dxpedition_cache
+
+    while True:
+        sleep = 86400
+        try:
+            await refresh_dxpedition_cache()
+            logger.info("DXpedition data refreshed successfully")
+        except Exception:
+            sleep = 600
+            logger.exception("Failed to refresh DXpedition data")
+        await asyncio.sleep(sleep)
+
+
 async def run_collector():
     logger.info("Starting collector...")
 
@@ -140,10 +160,11 @@ async def run_collector():
     await qrz_manager.start()
 
     qrz_refresh_task = asyncio.create_task(qrz_manager.refresh_loop(), name="qrz_refresh_task")
+    dxpedition_refresh_task = asyncio.create_task(refresh_dxpedition_data(), name="dxpedition_refresh_task")
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
     collector_task = asyncio.create_task(run_concurrent_telnet_connections(spots_queue), name="collector_task")
 
-    tasks = [qrz_refresh_task, processor_task, collector_task]
+    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task, collector_task]
     try:
         await asyncio.gather(*tasks)
     except asyncio.CancelledError:

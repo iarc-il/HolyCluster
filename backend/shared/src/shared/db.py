@@ -45,6 +45,7 @@ class HolySpot(SQLModel, table=True):
     dx_country: str
     dx_continent: str
     comment: str
+    is_dxpedition: int
 
 
 class SpotsWithIssues(SQLModel, table=True):
@@ -75,3 +76,4 @@ class SpotsWithIssues(SQLModel, table=True):
     dx_continent: str
     comment: str
     issues: str
+    is_dxpedition: int
