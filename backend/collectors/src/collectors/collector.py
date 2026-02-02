@@ -45,6 +45,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
             "spotter_lon": spotter_geo.lon,
             "spotter_country": spotter_geo.country,
             "spotter_continent": spotter_geo.continent,
+            "spotter_state": spotter_geo.state,
             # Redis doesn't except bools
             "dx_geo_cache": 1 if dx_geo.cached else 0,
             "dx_locator_source": dx_geo.locator_source,
@@ -53,6 +54,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
             "dx_lon": dx_geo.lon,
             "dx_country": dx_geo.country,
             "dx_continent": dx_geo.continent,
+            "dx_state": dx_geo.state,
         }
     )
 
@@ -81,6 +83,7 @@ async def add_spot_to_postgres(engine, spot: dict):
         spotter_lon=str(spot["spotter_lon"]),
         spotter_country=spot["spotter_country"],
         spotter_continent=spot["spotter_continent"],
+        spotter_state=spot["spotter_state"],
         dx_callsign=spot["dx_callsign"],
         dx_locator=spot["dx_locator"],
         dx_locator_source=spot["dx_locator_source"],
@@ -88,6 +91,7 @@ async def add_spot_to_postgres(engine, spot: dict):
         dx_lon=str(spot["dx_lon"]),
         dx_country=spot["dx_country"],
         dx_continent=spot["dx_continent"],
+        dx_state=spot["dx_state"],
         comment=spot["comment"],
         is_dxpedition=spot["is_dxpedition"],
     )
@@ -117,6 +121,8 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
 
             if enriched_spot is None:
                 logger.info(f"Dropping spot: {spot}")
+                input_queue.task_done()
+                continue
             else:
                 logger.info(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
 

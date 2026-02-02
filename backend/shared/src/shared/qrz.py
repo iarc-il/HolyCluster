@@ -77,7 +77,7 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float
         if callsign.upper().endswith(suffix):
             callsign = callsign[: -len(suffix)]
     if not qrz_session_key:
-        return {"locator": None, "error": "No qrz_session_key"}
+        return {"locator": None, "state": None, "error": "No qrz_session_key"}
     await asyncio.sleep(delay)
     url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
 
@@ -94,18 +94,20 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float
                 retries += 1
 
     if response.status_code != 200:
-        return {"locator": None, "error": f"qrz response code {response.status_code}"}
+        return {"locator": None, "state": None, "error": f"qrz response code {response.status_code}"}
 
     ns = {"qrz": "http://xmldata.qrz.com"}
     root = ET.fromstring(response.text)
     xml_error = root.find(".//qrz:Error", ns)
     if xml_error is not None:
         error = root.find(".//qrz:Error", ns).text
-        return {"locator": None, "error": error}
+        return {"locator": None, "state": None, "error": error}
 
     geoloc = root.find(".//qrz:geoloc", ns).text
     if geoloc != "none":
         locator = root.find(".//qrz:grid", ns).text
-        return {"locator": locator}
+        state_elem = root.find(".//qrz:state", ns)
+        state = state_elem.text if state_elem is not None else None
+        return {"locator": locator, "state": state}
     else:
-        return {"locator": None, "error": "no user supplied grid"}
+        return {"locator": None, "state": None, "error": "no user supplied grid"}

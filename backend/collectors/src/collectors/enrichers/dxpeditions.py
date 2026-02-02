@@ -134,7 +134,7 @@ async def refresh_dxpedition_cache():
     try:
         dxpeditions = await fetch_dxpedition_data()
         ACTIVE_DXPEDITIONS = dxpeditions
-        logger.info(f"DXpedition cache refreshed with {len(dxpeditions)} entries:\n{dxpeditions}")
+        logger.info(f"DXpedition cache refreshed with {len(dxpeditions)} entries")
     except Exception as e:
         logger.error(f"Failed to refresh DXpedition cache: {e}")
         raise

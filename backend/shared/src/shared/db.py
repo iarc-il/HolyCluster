@@ -37,6 +37,7 @@ class HolySpot(SQLModel, table=True):
     spotter_lon: str
     spotter_country: str
     spotter_continent: str
+    spotter_state: str
     dx_callsign: str
     dx_locator: str
     dx_locator_source: str
@@ -44,6 +45,7 @@ class HolySpot(SQLModel, table=True):
     dx_lon: str
     dx_country: str
     dx_continent: str
+    dx_state: str
     comment: str
     is_dxpedition: int
 
@@ -67,6 +69,7 @@ class SpotsWithIssues(SQLModel, table=True):
     spotter_lon: str
     spotter_country: str
     spotter_continent: str
+    spotter_state: str
     dx_callsign: str
     dx_locator: str
     dx_locator_source: str
@@ -74,6 +77,7 @@ class SpotsWithIssues(SQLModel, table=True):
     dx_lon: str
     dx_country: str
     dx_continent: str
+    dx_state: str
     comment: str
     issues: str
     is_dxpedition: int
