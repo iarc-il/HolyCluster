@@ -68,7 +68,7 @@ function Spot(
     const is_pinned = spot.id == pinned_spot;
     const is_hovered = spot.id == hovered_spot.id || is_pinned || is_same_freq;
 
-    const { colors } = useColors();
+    const { colors, dev_mode } = useColors();
     let row_classes;
     if (spot.is_alerted) {
         row_classes = "outline-4 outline outline-dashed outline-offset-[-2px] border-white";
@@ -102,7 +102,7 @@ function Spot(
 
     let dx_column;
     let dx_state;
-    if (spot.dx_state) {
+    if (spot.dx_state && (spot.dx_country == "USA" || dev_mode)) {
         dx_state = `(${spot.dx_state})`;
     } else {
         dx_state = "";
