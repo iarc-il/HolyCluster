@@ -101,15 +101,28 @@ function Spot(
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
 
     let dx_column;
+    let dx_state;
+    if (spot.dx_state) {
+        dx_state = `(${spot.dx_state})`;
+    } else {
+        dx_state = "";
+    }
     if (settings.show_flags) {
         const flag = get_flag(spot.dx_country);
         dx_column = flag ? (
-            <img className="m-auto" width="16" src={`data:image/webp;base64, ${flag}`} />
+            <>
+                <img className="m-auto" width="16" src={`data:image/webp;base64, ${flag}`} />
+                {dx_state}
+            </>
         ) : (
             ""
         );
     } else {
-        dx_column = <small className="leading-none">{spot.dx_country}</small>;
+        dx_column = (
+            <small className="leading-none">
+                {spot.dx_country} {dx_state}
+            </small>
+        );
     }
 
     let popup_anchor = useRef(null);
@@ -159,7 +172,7 @@ function Spot(
                     onMouseEnter={_ => set_is_flag_hovered(true)}
                     onMouseLeave={_ => set_is_flag_hovered(false)}
                 >
-                    {dx_column}{" "}
+                    {dx_column}
                 </div>
                 {is_flag_hovered && settings.show_flags ? (
                     <Popup anchor_ref={popup_anchor}>
