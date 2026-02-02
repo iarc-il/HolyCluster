@@ -34,15 +34,15 @@ export default function CallsignSearch({
 
     return (
         <div
-            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center justify-around gap-4 px-4 py-2 rounded-xl shadow-lg"
+            className="flex items-center gap-2 px-3 py-1 rounded-lg"
             style={{
                 backgroundColor: colors.theme.background,
                 border: `2px solid ${colors.theme.borders}`,
             }}
         >
             <svg
-                width="18"
-                height="18"
+                width="16"
+                height="16"
                 viewBox="0 0 16 16"
                 fill="none"
                 stroke={colors.theme.text}
@@ -54,7 +54,7 @@ export default function CallsignSearch({
 
             <Input
                 ref={input_ref}
-                className="w-64"
+                className="w-48"
                 placeholder="Search callsign..."
                 value={search_text}
                 onChange={e => set_search_text(e.target.value)}
@@ -65,7 +65,7 @@ export default function CallsignSearch({
                 }}
             />
 
-            <X size="20" on_click={on_close} />
+            <X size="16" on_click={on_close} />
         </div>
     );
 }

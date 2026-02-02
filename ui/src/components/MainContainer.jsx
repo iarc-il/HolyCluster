@@ -29,6 +29,7 @@ function MainContainer() {
     const [toggled_ui, set_toggled_ui] = useState({ left_visible: true, right_visible: true });
     const { local_version } = use_radio();
     const { settings, set_settings } = useSettings();
+    const { callsign_filters, setCallsignFilters } = useFilters();
 
     const {
         spots,
@@ -36,6 +37,9 @@ function MainContainer() {
         filter_missing_flags,
         set_filter_missing_flags,
         set_search_open,
+        search_open,
+        search_query,
+        set_search_query,
     } = useServerData();
 
     const [map_controls, set_map_controls_inner] = use_object_local_storage("map_controls", {
@@ -185,6 +189,12 @@ function MainContainer() {
                 toggled_ui={toggled_ui}
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
+                search_open={search_open}
+                search_query={search_query}
+                set_search_query={set_search_query}
+                set_search_open={set_search_open}
+                callsign_filters={callsign_filters}
+                setCallsignFilters={setCallsignFilters}
             />
             <div className="flex relative h-[calc(100%-4rem)]">
                 <LeftColumn toggled_ui={toggled_ui} />

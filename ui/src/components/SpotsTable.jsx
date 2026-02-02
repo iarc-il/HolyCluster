@@ -2,7 +2,6 @@ import X from "@/components/X.jsx";
 import { useEffect, useState, forwardRef, useRef } from "react";
 import SpotContextMenu from "./SpotContextMenu";
 import Popup from "./Popup";
-import CallsignSearch from "./CallsignSearch";
 
 import { get_flag } from "@/flags.js";
 import { useColors } from "@/hooks/useColors";
@@ -291,9 +290,6 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         pinned_spot,
         set_pinned_spot,
         current_freq_spots,
-        search_query,
-        set_search_query,
-        search_open,
         set_search_open,
     } = useServerData();
     const { callsign_filters, setCallsignFilters } = useFilters();
@@ -544,46 +540,20 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     </table>
                 </div>
 
-                {!search_open && (
-                    <button
-                        className="absolute top-1 right-2 border-4 z-40 p-3 rounded-full shadow-lg hover:scale-110 transition-transform duration-200"
-                        style={{
-                            backgroundColor: colors.table.header,
-                            color: colors.theme.text,
-                            borderColor: colors.table.header_arrow,
-                        }}
-                        onClick={() => set_search_open(true)}
-                        title="Search (Ctrl+F)"
-                    >
-                        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
-                        </svg>
-                    </button>
-                )}
-
-                <CallsignSearch
-                    is_open={search_open}
-                    search_text={search_query}
-                    set_search_text={set_search_query}
-                    on_close={() => {
-                        set_search_open(false);
-                        set_search_query("");
+                <button
+                    className="absolute top-1 right-2 border-4 z-40 p-3 rounded-full shadow-lg hover:scale-110 transition-transform duration-200"
+                    style={{
+                        backgroundColor: colors.table.header,
+                        color: colors.theme.text,
+                        borderColor: colors.table.header_arrow,
                     }}
-                    on_enter={query => {
-                        const newFilter = {
-                            action: "show_only",
-                            type: "prefix",
-                            value: query.toUpperCase(),
-                            spotter_or_dx: "dx",
-                        };
-                        setCallsignFilters({
-                            ...callsign_filters,
-                            filters: [...callsign_filters.filters, newFilter],
-                        });
-                        set_search_open(false);
-                        set_search_query("");
-                    }}
-                />
+                    onClick={() => set_search_open(true)}
+                    title="Search (Ctrl+F)"
+                >
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
+                    </svg>
+                </button>
             </div>
             {context_menu.visible && (
                 <SpotContextMenu

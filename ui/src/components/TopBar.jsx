@@ -7,6 +7,7 @@ import ColorPicker from "@/components/ColorPicker.jsx";
 import Select from "@/components/Select.jsx";
 import Button from "@/components/Button.jsx";
 import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
+import CallsignSearch from "@/components/CallsignSearch.jsx";
 import { useColors } from "../hooks/useColors";
 import { useFilters } from "../hooks/useFilters";
 import { useServerData } from "@/hooks/useServerData";
@@ -28,7 +29,19 @@ const spots_time_limits = {
     "1 Hour": 3600,
 };
 
-function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui, dev_mode }) {
+function TopBar({
+    set_map_controls,
+    set_radius_in_km,
+    toggled_ui,
+    set_toggled_ui,
+    dev_mode,
+    search_open,
+    search_query,
+    set_search_query,
+    set_search_open,
+    callsign_filters,
+    setCallsignFilters,
+}) {
     const { filters, setFilters } = useFilters();
     const { network_state } = useServerData();
     const { set_rig, radio_status, rig } = use_radio();
@@ -87,6 +100,32 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
             >
                 The Holy Cluster
             </h1>
+
+            <div className="flex items-center h-full w-[280px]">
+                <CallsignSearch
+                    is_open={search_open}
+                    search_text={search_query}
+                    set_search_text={set_search_query}
+                    on_close={() => {
+                        set_search_open(false);
+                        set_search_query("");
+                    }}
+                    on_enter={query => {
+                        const newFilter = {
+                            action: "show_only",
+                            type: "prefix",
+                            value: query.toUpperCase(),
+                            spotter_or_dx: "dx",
+                        };
+                        setCallsignFilters({
+                            ...callsign_filters,
+                            filters: [...callsign_filters.filters, newFilter],
+                        });
+                        set_search_open(false);
+                        set_search_query("");
+                    }}
+                />
+            </div>
 
             <div className="flex items-center h-full p-2 gap-3">
                 {radio_status !== "unavailable" ? (
