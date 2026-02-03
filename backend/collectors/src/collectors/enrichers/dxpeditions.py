@@ -4,6 +4,7 @@ DXpedition enricher for spot detection.
 Fetches and caches active DXpeditions from NG3K ADXO XML feed.
 """
 
+import json
 import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ from loguru import logger
 ACTIVE_DXPEDITIONS: list[dict] = []
 
 NG3K_XML_URL = "https://www.ng3k.com/adxo.xml"
+REDIS_DXPEDITIONS_KEY = "dxpeditions:active"
 
 
 def parse_date_range(date_str: str) -> Optional[tuple[datetime, datetime]]:
@@ -128,13 +130,27 @@ async def fetch_dxpedition_data() -> list[dict]:
     return dxpeditions
 
 
-async def refresh_dxpedition_cache():
+async def refresh_dxpedition_cache(redis_client=None):
     global ACTIVE_DXPEDITIONS
 
     try:
         dxpeditions = await fetch_dxpedition_data()
         ACTIVE_DXPEDITIONS = dxpeditions
         logger.info(f"DXpedition cache refreshed with {len(dxpeditions)} entries")
+
+        if redis_client:
+            dxpeditions_json = json.dumps(
+                [
+                    {
+                        "callsign": d["callsign"],
+                        "start_date": d["start_date"].isoformat(),
+                        "end_date": d["end_date"].isoformat(),
+                    }
+                    for d in dxpeditions
+                ]
+            )
+            await redis_client.set(REDIS_DXPEDITIONS_KEY, dxpeditions_json)
+            logger.info(f"DXpedition data stored in Redis at {REDIS_DXPEDITIONS_KEY}")
     except Exception as e:
         logger.error(f"Failed to refresh DXpedition cache: {e}")
         raise

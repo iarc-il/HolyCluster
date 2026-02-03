@@ -1,8 +1,9 @@
 import asyncio
 import re
 
-from api.settings import settings
 from loguru import logger
+
+from api.settings import settings
 
 CLUSTER_HOST = "dxc.ve7cc.net"
 CLUSTER_PORT = 23

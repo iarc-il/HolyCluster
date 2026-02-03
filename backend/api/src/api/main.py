@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import time
 from contextlib import asynccontextmanager
@@ -232,6 +233,14 @@ async def spots_with_issues():
 @app.get("/propagation")
 def propagation_data():
     return app.state.propagation
+
+
+@app.get("/dxpeditions")
+async def get_dxpeditions():
+    dxpeditions_json = await app.state.valkey_client.get("dxpeditions:active")
+    if not dxpeditions_json:
+        return []
+    return json.loads(dxpeditions_json)
 
 
 @app.websocket("/radio")

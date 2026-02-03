@@ -1,7 +1,7 @@
 import argparse
 import asyncio
-from datetime import datetime, timezone
 import sys
+from datetime import datetime, timezone
 
 from loguru import logger
 from shared.db import HolySpot
@@ -58,9 +58,11 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
         }
     )
 
-    spot.update({
-        "is_dxpedition": 1 if is_active_dxpedition(spot["dx_callsign"]) else 0,
-    })
+    spot.update(
+        {
+            "is_dxpedition": 1 if is_active_dxpedition(spot["dx_callsign"]) else 0,
+        }
+    )
 
     return spot
 
@@ -138,13 +140,13 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
         await engine.dispose()
 
 
-async def refresh_dxpedition_data():
+async def refresh_dxpedition_data(valkey_client):
     from collectors.enrichers.dxpeditions import refresh_dxpedition_cache
 
     while True:
         sleep = 86400
         try:
-            await refresh_dxpedition_cache()
+            await refresh_dxpedition_cache(redis_client=valkey_client)
             logger.info("DXpedition data refreshed successfully")
         except Exception:
             sleep = 600
@@ -171,7 +173,9 @@ async def run_collector():
     await qrz_manager.start()
 
     qrz_refresh_task = asyncio.create_task(qrz_manager.refresh_loop(), name="qrz_refresh_task")
-    dxpedition_refresh_task = asyncio.create_task(refresh_dxpedition_data(), name="dxpedition_refresh_task")
+    dxpedition_refresh_task = asyncio.create_task(
+        refresh_dxpedition_data(valkey_client), name="dxpedition_refresh_task"
+    )
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
     collector_task = asyncio.create_task(run_concurrent_telnet_connections(spots_queue), name="collector_task")
 
