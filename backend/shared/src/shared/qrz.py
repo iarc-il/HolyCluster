@@ -1,23 +1,37 @@
 import asyncio
 import time
 import xml.etree.ElementTree as ET
+from typing import Optional
 
 import httpx
 from loguru import logger
 
 
 class QrzSessionManager:
-    def __init__(self, username: str, password: str, api_key: str, refresh_interval: int):
+    def __init__(
+        self,
+        username: str,
+        password: str,
+        api_key: str,
+        refresh_interval: int,
+        redis_client=None,
+        redis_key: str = "qrz:session_key",
+    ):
         self.username = username
         self.password = password
         self.api_key = api_key
         self.refresh_interval = refresh_interval
         self.session_key: str = ""
         self._lock = asyncio.Lock()
+        self.redis_client = redis_client
+        self.redis_key = redis_key
 
     async def start(self):
         self.session_key = get_qrz_session_key(username=self.username, password=self.password, api_key=self.api_key)
         logger.info("QRZ session initialized")
+        if self.redis_client:
+            await self.redis_client.set(self.redis_key, self.session_key)
+            logger.info(f"QRZ session key stored in Redis at {self.redis_key}")
 
     async def refresh_loop(self):
         try:
@@ -34,6 +48,9 @@ class QrzSessionManager:
                         if new_key:
                             self.session_key = new_key
                             logger.info("QRZ session refreshed successfully")
+                            if self.redis_client:
+                                await self.redis_client.set(self.redis_key, new_key)
+                                logger.info(f"QRZ session key updated in Redis at {self.redis_key}")
                         else:
                             logger.error("QRZ refresh failed (got None), keeping old key")
                 except Exception:

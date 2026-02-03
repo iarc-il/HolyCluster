@@ -157,11 +157,16 @@ async def run_collector():
 
     spots_queue: asyncio.Queue = asyncio.Queue()
 
+    valkey_client = get_valkey_client(
+        host=settings.valkey_effective_host, port=settings.valkey_effective_port, db=settings.valkey_db
+    )
+
     qrz_manager = QrzSessionManager(
         username=settings.qrz_user,
         password=settings.qrz_password,
         api_key=settings.qrz_api_key,
         refresh_interval=settings.qrz_session_key_refresh,
+        redis_client=valkey_client,
     )
     await qrz_manager.start()
 

@@ -12,7 +12,6 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from shared.db import GeoCache, HolySpot, SpotsWithIssues
 from shared.geo import get_geo_details
-from shared.qrz import QrzSessionManager
 from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -92,14 +91,6 @@ async def spots_broadcast_task(app):
 async def lifespan(app: fastapi.FastAPI):
     app.state.active_connections = set()
 
-    app.state.qrz_manager = QrzSessionManager(
-        username=settings.qrz_user,
-        password=settings.qrz_password,
-        api_key=settings.qrz_api_key,
-        refresh_interval=settings.qrz_session_key_refresh,
-    )
-    await app.state.qrz_manager.start()
-
     app.state.valkey_client = redis.asyncio.Redis(
         host=settings.valkey_effective_host,
         port=settings.valkey_effective_port,
@@ -110,7 +101,6 @@ async def lifespan(app: fastapi.FastAPI):
     tasks = [
         asyncio.create_task(propagation_data_collector(app)),
         asyncio.create_task(spots_broadcast_task(app)),
-        asyncio.create_task(app.state.qrz_manager.refresh_loop()),
     ]
 
     yield
@@ -182,33 +172,32 @@ def cleanup_spots(spots):
     return spots
 
 
+async def get_qrz_session_key_from_redis() -> str:
+    qrz_key = await app.state.valkey_client.get("qrz:session_key")
+    if not qrz_key:
+        raise HTTPException(status_code=503, detail="QRZ session key not available")
+    return qrz_key
+
+
 @app.get("/locator/{callsign}")
 async def get_locator(callsign: str):
     callsign = callsign.upper()
-    qrz_session_key = app.state.qrz_manager.get_key()
+    qrz_session_key = await get_qrz_session_key_from_redis()
 
-    (
-        geo_cache,
-        locator_source,
-        locator,
-        lat,
-        lon,
-        country,
-        continent,
-    ) = await get_geo_details(
+    geo_data = await get_geo_details(
         app.state.valkey_client,
         qrz_session_key,
         callsign,
         settings.valkey_geo_expiration,
     )
 
-    if locator and lat is not None and lon is not None:
+    if geo_data.locator and geo_data.lat is not None and geo_data.lon is not None:
         return {
             "callsign": callsign,
-            "locator": locator,
-            "lat": lat,
-            "lon": lon,
-            "source": "cache" if geo_cache else "qrz",
+            "locator": geo_data.locator,
+            "lat": geo_data.lat,
+            "lon": geo_data.lon,
+            "source": "cache" if geo_data.cached else "qrz",
         }
     else:
         return {"callsign": callsign, "error": "Callsign not found in QRZ database"}
