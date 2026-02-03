@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from shared.db import GeoCache, HolySpot, SpotsWithIssues
-from shared.geo import get_geo_details
+from shared.geo import get_geo_details, GeoException
 from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -185,14 +185,17 @@ async def get_locator(callsign: str):
     callsign = callsign.upper()
     qrz_session_key = await get_qrz_session_key_from_redis()
 
-    geo_data = await get_geo_details(
-        app.state.valkey_client,
-        qrz_session_key,
-        callsign,
-        settings.valkey_geo_expiration,
-    )
+    try:
+        geo_data = await get_geo_details(
+            app.state.valkey_client,
+            qrz_session_key,
+            callsign,
+            settings.valkey_geo_expiration,
+        )
+    except GeoException:
+        geo_data = None
 
-    if geo_data.locator and geo_data.lat is not None and geo_data.lon is not None:
+    if geo_data is not None and geo_data.locator and geo_data.lat is not None and geo_data.lon is not None:
         return {
             "callsign": callsign,
             "locator": geo_data.locator,
@@ -201,7 +204,7 @@ async def get_locator(callsign: str):
             "source": "cache" if geo_data.cached else "qrz",
         }
     else:
-        return {"callsign": callsign, "error": "Callsign not found in QRZ database"}
+        return {"callsign": callsign, "error": "not found"}
 
 
 @app.get("/geocache/all")
