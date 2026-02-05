@@ -106,34 +106,35 @@ async def telnet_and_collect(
                 for line_bytes in lines:
                     line = line_bytes.decode("utf-8", errors="ignore").replace("\r", "")
                     task_logger.info(line)
-                    if line.startswith("DX de"):
-                        spot = parse_dx_line(line)
 
-                        if spot is not None:
-                            if spot["spotter_callsign"].upper() == "W3LPL":
-                                logger.debug(f"Skipping W3LPL spot: {spot}")
-                                continue
+                    if not line.startswith("DX de"):
+                        continue
 
-                            cluster = f"{host}:{port}"
-                            spot.update({"cluster": cluster})
-                            spot_data = json.dumps(spot)
-                            task_logger.debug(json.dumps(spot, indent=2))
-                            logger.debug(json.dumps(spot, indent=2))
+                    spot = parse_dx_line(line)
+                    if spot is None:
+                        task_logger.error(f"Could not parse spot line: {line}")
+                        logger.error(f"Could not parse spot line: {line}")
+                        continue
 
-                            spot_key = (
-                                f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
-                            )
-                            added = await valkey_client.set(spot_key, 1, ex=settings.valkey_spot_expiration, nx=True)
-                            if added:
-                                await output_queue.put(spot)
-                                task_logger.debug(f"Spot added to queue: {spot_data}")
-                                logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
-                            else:
-                                task_logger.debug(f"Duplicate spot not queued: {spot_data}")
-                                logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
-                        else:
-                            task_logger.error(f"Could not parse spot line: {line}")
-                            logger.error(f"Could not parse spot line: {line}")
+                    if spot["spotter_callsign"].upper() == "W3LPL":
+                        logger.debug(f"Skipping W3LPL spot: {spot}")
+                        continue
+
+                    cluster = f"{host}:{port}"
+                    spot["cluster"] = cluster
+                    spot_data = json.dumps(spot)
+                    task_logger.debug(json.dumps(spot, indent=2))
+                    logger.debug(json.dumps(spot, indent=2))
+
+                    spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
+                    added = await valkey_client.set(spot_key, 1, ex=settings.valkey_spot_expiration, nx=True)
+                    if added:
+                        await output_queue.put(spot)
+                        task_logger.debug(f"Spot added to queue: {spot_data}")
+                        logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
+                    else:
+                        task_logger.debug(f"Duplicate spot not queued: {spot_data}")
+                        logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
         except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
             task_logger.exception(f"Connection failed: {host}:{port}  {e}")
