@@ -32,8 +32,10 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
     band, mode, mode_selection = band_mode
     spot.update({"band": band, "mode": mode, "mode_selection": mode_selection})
 
-    spotter_geo = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"])
-    dx_geo = await get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"])
+    spotter_geo, dx_geo = await asyncio.gather(
+        get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"]),
+        get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"]),
+    )
 
     spot.update(
         {
