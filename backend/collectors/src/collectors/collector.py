@@ -183,9 +183,11 @@ async def run_collector():
 
 async def run_collector_wrapper():
     import aiomonitor
+
     loop = asyncio.get_running_loop()
     with aiomonitor.start_monitor(loop):
         await run_collector()
+
 
 def main():
     parser = argparse.ArgumentParser()
