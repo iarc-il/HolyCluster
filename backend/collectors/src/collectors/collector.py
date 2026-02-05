@@ -30,7 +30,6 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
         return None
 
     band, mode, mode_selection = band_mode
-    spot.update({"band": band, "mode": mode, "mode_selection": mode_selection})
 
     spotter_geo, dx_geo = await asyncio.gather(
         get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"]),
@@ -39,7 +38,11 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
 
     spot.update(
         {
-            # Redis doesn't except bools
+            "band": band,
+            "mode": mode,
+            "mode_selection": mode_selection,
+            "is_dxpedition": 1 if is_active_dxpedition(spot["dx_callsign"]) else 0,
+            # Redis doesn't accept bools
             "spotter_geo_cache": 1 if spotter_geo.cached else 0,
             "spotter_locator_source": spotter_geo.locator_source,
             "spotter_locator": spotter_geo.locator,
@@ -48,7 +51,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
             "spotter_country": spotter_geo.country,
             "spotter_continent": spotter_geo.continent,
             "spotter_state": spotter_geo.state,
-            # Redis doesn't except bools
+            # Redis doesn't accept bools
             "dx_geo_cache": 1 if dx_geo.cached else 0,
             "dx_locator_source": dx_geo.locator_source,
             "dx_locator": dx_geo.locator,
@@ -57,12 +60,6 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
             "dx_country": dx_geo.country,
             "dx_continent": dx_geo.continent,
             "dx_state": dx_geo.state,
-        }
-    )
-
-    spot.update(
-        {
-            "is_dxpedition": 1 if is_active_dxpedition(spot["dx_callsign"]) else 0,
         }
     )
 
