@@ -64,6 +64,8 @@ services:
       - ./collectors/logs/collector:/app/collectors/logs/collector
     expose:
       - "${VALKEY_PORT}"
+    cap_add:
+      - SYS_PTRACE
 
   api:
     container_name: api

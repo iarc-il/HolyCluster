@@ -186,6 +186,12 @@ async def run_collector():
         logger.info("Collector shutting down...")
 
 
+async def run_collector_wrapper():
+    import aiomonitor
+    loop = asyncio.get_running_loop()
+    with aiomonitor.start_monitor(loop):
+        await run_collector()
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -195,7 +201,7 @@ def main():
         logger.remove()
         logger.add(sys.stdout, level="INFO")
 
-    asyncio.run(run_collector())
+    asyncio.run(run_collector_wrapper())
 
 
 if __name__ == "__main__":
