@@ -18,6 +18,8 @@ from collectors.telnet_collectors.run_telnet_collectors import (
     run_concurrent_telnet_connections,
 )
 
+import aiomonitor
+
 STREAM_API = "stream-api"
 
 
@@ -183,9 +185,7 @@ async def run_collector():
         logger.info("Collector shutting down...")
 
 
-async def run_collector_wrapper():
-    import aiomonitor
-
+async def run_collector_with_monitor():
     loop = asyncio.get_running_loop()
     with aiomonitor.start_monitor(loop):
         await run_collector()
@@ -200,7 +200,7 @@ def main():
         logger.remove()
         logger.add(sys.stdout, level="INFO")
 
-    asyncio.run(run_collector_wrapper())
+    asyncio.run(run_collector_with_monitor())
 
 
 if __name__ == "__main__":
