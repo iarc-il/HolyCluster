@@ -1,5 +1,4 @@
 import asyncio
-import time
 import xml.etree.ElementTree as ET
 
 import httpx
@@ -26,7 +25,9 @@ class QrzSessionManager:
         self.redis_key = redis_key
 
     async def start(self):
-        self.session_key = get_qrz_session_key(username=self.username, password=self.password, api_key=self.api_key)
+        self.session_key = await get_qrz_session_key(
+            username=self.username, password=self.password, api_key=self.api_key
+        )
         logger.info("QRZ session initialized")
         if self.redis_client:
             await self.redis_client.set(self.redis_key, self.session_key)
@@ -38,7 +39,7 @@ class QrzSessionManager:
                 logger.info(f"Refreshing QRZ key (every {self.refresh_interval} seconds)")
                 try:
                     async with self._lock:
-                        new_key = get_qrz_session_key(
+                        new_key = await get_qrz_session_key(
                             username=self.username,
                             password=self.password,
                             api_key=self.api_key,
@@ -59,7 +60,7 @@ class QrzSessionManager:
         return self.session_key
 
 
-def get_qrz_session_key(username: str, password: str, api_key: str):
+async def get_qrz_session_key(username: str, password: str, api_key: str):
     if username == "":
         raise ValueError("Username is empty")
     if password == "":
@@ -69,8 +70,8 @@ def get_qrz_session_key(username: str, password: str, api_key: str):
     while attempts <= 5:
         attempts += 1
         url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
-        with httpx.Client() as client:
-            response = client.get(url)
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
 
         if response.status_code == 200:
             root = ET.fromstring(response.text)
@@ -80,7 +81,7 @@ def get_qrz_session_key(username: str, password: str, api_key: str):
             return session_key
         else:
             logger.error(f"**** Error: trying to get qrz session key {attempts=}: {response.status_code=}")
-        time.sleep(5)
+        await asyncio.sleep(5)
     logger.error(f"**** Error: stopped attempting to get QRZ key after {attempts=}")
     return None
 
