@@ -46,11 +46,11 @@ services:
       start_period: 10s # Grace period for Valkey to start up
     restart: always
 
-  telnet_collectors:
-    container_name: telnet_collectors
+  collector:
+    container_name: collector
     build:
       context: .
-      dockerfile: docker/Dockerfile.telnet_collectors
+      dockerfile: docker/Dockerfile.collector
     restart: unless-stopped
     depends_on:
       valkey:
@@ -61,7 +61,7 @@ services:
       - .env
     volumes:
       - ./collectors/logs/db:/app/collectors/logs/db
-      - ./collectors/logs/telnet_collectors:/app/collectors/logs/telnet_collectors
+      - ./collectors/logs/collector:/app/collectors/logs/collector
     expose:
       - "${VALKEY_PORT}"
 
