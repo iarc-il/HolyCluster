@@ -77,9 +77,7 @@ async def telnet_and_collect(
     task_logger = open_log_file2(log_filename_prefix=log_filename_prefix, debug=False)
 
     task_logger.info(f"Start of telnet_and_collect for {host}")
-    valkey_client = get_valkey_client(
-        host=settings.valkey_effective_host, port=settings.valkey_effective_port, db=settings.valkey_db
-    )
+    valkey_client = get_valkey_client()
 
     while True:
         reader, writer = None, None
