@@ -17,8 +17,7 @@ def get_telnet_clusters_list(csv_path: str, debug: bool = False):
             filtered_lines = (line for line in f if not line.lstrip().startswith("#"))
             reader = csv.DictReader(filtered_lines)
             servers = list(reader)
-            if debug:
-                logger.debug(f"{servers=}")
+            logger.debug(f"{servers=}")
     except FileNotFoundError:
         logger.error(f"The file {csv_path} was not found.")
 
@@ -37,22 +36,19 @@ async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: 
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     csv_path = os.path.join(script_dir, "telnet_servers.csv")
-    if debug:
-        logger.debug(f"{script_dir=}")
-        logger.debug(f"{csv_path=}")
+    logger.debug(f"{script_dir=}")
+    logger.debug(f"{csv_path=}")
 
     global_log_filename = "all_clusters"
     log_dir = os.path.join(script_dir, "..", "..", "logs")
-    if debug:
-        logger.debug(f"{global_log_filename=}")
-        logger.debug(f"{log_dir=}")
+    logger.debug(f"{global_log_filename=}")
+    logger.debug(f"{log_dir=}")
     os.makedirs(log_dir, exist_ok=True)
     telnet_log_dir = os.path.join(log_dir, "telnet_collectors")
     os.makedirs(telnet_log_dir, exist_ok=True)
     global_log_file = os.path.join(telnet_log_dir, global_log_filename)
-    if debug:
-        logger.debug(f"{telnet_log_dir=}")
-        logger.debug(f"{global_log_file=}")
+    logger.debug(f"{telnet_log_dir=}")
+    logger.debug(f"{global_log_file=}")
 
     open_log_file(log_filename_prefix=global_log_file, debug=debug)
     logger.info(f"Start of global_log_file. {debug=}")
@@ -68,8 +64,7 @@ async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: 
             continue
 
         cluster_log_dir = os.path.join(telnet_log_dir, host)
-        if debug:
-            logger.debug(f"{cluster_log_dir=}")
+        logger.debug(f"{cluster_log_dir=}")
         os.makedirs(cluster_log_dir, exist_ok=True)
 
         task = asyncio.create_task(

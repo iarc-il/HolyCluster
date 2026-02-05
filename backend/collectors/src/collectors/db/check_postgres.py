@@ -54,11 +54,10 @@ async def create_new_database(connection, db_name):
 async def check_postgres(args, debug: bool = False):
     initialize = args.init
     engine_name = settings.general_db_url + "/postgres"
-    if debug:
-        logger.debug(f"{settings.postgres_db_name=}")
-        logger.debug(f"{settings.general_db_url=}")
-        logger.debug(f"{settings.db_url=}")
-        logger.debug(f"{engine_name=}")
+    logger.debug(f"{settings.postgres_db_name=}")
+    logger.debug(f"{settings.general_db_url=}")
+    logger.debug(f"{settings.db_url=}")
+    logger.debug(f"{engine_name=}")
     engine = create_async_engine(engine_name, echo=debug)
 
     db_exists = False
@@ -73,8 +72,7 @@ async def check_postgres(args, debug: bool = False):
             await create_new_database(connection, settings.postgres_db_name)
 
         await engine.dispose()
-        if debug:
-            logger.debug("Creating tables")
+        logger.debug("Creating tables")
         await _create_tables(debug=debug)
 
     elif not db_exists:
@@ -84,8 +82,7 @@ async def check_postgres(args, debug: bool = False):
             await create_new_database(connection, settings.postgres_db_name)
 
         await engine.dispose()
-        if debug:
-            logger.debug("Creating tables")
+        logger.debug("Creating tables")
         await _create_tables(debug=debug)
 
     else:
@@ -101,8 +98,7 @@ def main():
     open_log_file("collectors/logs/db/check_postgres")
     debug = args.debug if args.debug else settings.debug
     logger.info(f"{debug=}")
-    if debug:
-        logger.debug(f"{args=}")
+    logger.debug(f"{args=}")
 
     asyncio.run(check_postgres(args=args, debug=debug))
 

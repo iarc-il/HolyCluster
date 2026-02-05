@@ -31,32 +31,28 @@ bands = load_bands_from_file(Path(__file__).parent / "bands.csv")
 modes = load_modes_from_file(Path(__file__).parent / "modes.json")
 
 
-def find_band(frequency: str, debug: bool = False) -> str:
-    if debug:
-        logger.debug(f"{frequency=}")
+def find_band(frequency: str) -> str:
+    logger.debug(f"{frequency=}")
     frequency_khz = float(frequency)
     for band, start, end in bands:
         if start <= frequency_khz <= end:
-            if debug:
-                logger.debug(f"{band=}")
+            logger.debug(f"{band=}")
             return band
-    if debug:
-        logger.debug(f"Band not found for {frequency=}")
+    logger.debug(f"Band not found for {frequency=}")
     band = ""
     return band
 
 
-def find_band_and_mode(frequency: str, comment: str, debug: bool = False) -> Optional[Tuple[str, str, str]]:
-    band = find_band(frequency=frequency, debug=debug)
+def find_band_and_mode(frequency: str, comment: str) -> Optional[Tuple[str, str, str]]:
+    band = find_band(frequency=frequency)
     if not band:
         return None
 
     mode = ""
     mode_selection = ""
     frequency_khz = float(frequency)
-    if debug:
-        logger.debug(f"{band=}")
-        logger.debug(f"{frequency_khz=}")
+    logger.debug(f"{band=}")
+    logger.debug(f"{frequency_khz=}")
     if re.search("CW", comment.upper()):
         mode = "CW"
         mode_selection = "comment"
@@ -73,24 +69,19 @@ def find_band_and_mode(frequency: str, comment: str, debug: bool = False) -> Opt
         mode = "DIGI"
         mode_selection = "comment"
     elif band in modes:
-        if debug:
-            logger.debug(f"{modes[band]=}")
+        logger.debug(f"{modes[band]=}")
         for mode, start_end in modes[band].items():
             start = start_end["start"]
             end = start_end["end"]
-            if debug:
-                logger.debug(f"{mode=} {start=}  {end=}")
+            logger.debug(f"{mode=} {start=}  {end=}")
             if start <= frequency_khz < end:
-                if debug:
-                    logger.debug(f"Frequency {frequency} mode is: {mode}")
+                logger.debug(f"Frequency {frequency} mode is: {mode}")
                 mode_selection = "range"
                 break
     else:
         mode = ""
-        if debug:
-            logger.debug(f"Mode not found for {band=}   {comment=}")
+        logger.debug(f"Mode not found for {band=}   {comment=}")
 
-    if debug:
-        logger.debug(f"{mode=}   {mode_selection=}")
+    logger.debug(f"{mode=}   {mode_selection=}")
 
     return band, mode, mode_selection
