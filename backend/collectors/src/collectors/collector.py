@@ -172,9 +172,11 @@ async def run_collector():
         refresh_dxpedition_data(valkey_client), name="dxpedition_refresh_task"
     )
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
-    collector_task = asyncio.create_task(run_concurrent_telnet_connections(spots_queue), name="collector_task")
+    collector_tasks = run_concurrent_telnet_connections(spots_queue)
 
-    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task, collector_task]
+    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task]
+    tasks.extend(collector_tasks)
+
     try:
         await asyncio.gather(*tasks)
     except asyncio.CancelledError:

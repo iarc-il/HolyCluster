@@ -24,7 +24,7 @@ def get_telnet_clusters_list(csv_path: str, debug: bool = False):
     return servers
 
 
-async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: bool = False):
+def run_concurrent_telnet_connections(output_queue: asyncio.Queue):
     """
     Reads a list of Telnet servers from a CSV file and launches a separate
     async task to connect to each server concurrently.
@@ -50,10 +50,9 @@ async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: 
     logger.debug(f"{telnet_log_dir=}")
     logger.debug(f"{global_log_file=}")
 
-    open_log_file(log_filename_prefix=global_log_file, debug=debug)
-    logger.info(f"Start of global_log_file. {debug=}")
+    open_log_file(log_filename_prefix=global_log_file, debug=False)
 
-    servers = get_telnet_clusters_list(csv_path, debug=debug)
+    servers = get_telnet_clusters_list(csv_path, debug=False)
     tasks = []
     for server in servers:
         host = server.get("hostname")
@@ -80,4 +79,4 @@ async def run_concurrent_telnet_connections(output_queue: asyncio.Queue, debug: 
         tasks.append(task)
         logger.info(f"Starting connection to {host}:{port}")
 
-    await asyncio.gather(*tasks)
+    return tasks
