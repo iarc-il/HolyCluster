@@ -119,6 +119,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                 enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot)
             except GeoException:
                 logger.exception("Dropping spot due to geo exception")
+                input_queue.task_done()
                 continue
 
             if enriched_spot is None:
