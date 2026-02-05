@@ -12,6 +12,15 @@ from collectors.misc import open_log_file
 from collectors.settings import settings
 
 
+async def _create_tables(debug: bool = False):
+    """Create all tables in the database."""
+    engine = create_async_engine(settings.db_url, echo=debug)
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    await engine.dispose()
+    logger.info("Database initialization complete.")
+
+
 async def check_database_exists(connection, db_name):
     try:
         result = await connection.execute(text(f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"))
@@ -66,11 +75,7 @@ async def check_postgres(args, debug: bool = False):
         await engine.dispose()
         if debug:
             logger.debug("Creating tables")
-        new_db_engine = create_async_engine(settings.db_url, echo=debug)
-        async with new_db_engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.create_all)
-        await new_db_engine.dispose()
-        logger.info("Database initialization complete.")
+        await _create_tables(debug=debug)
 
     elif not db_exists:
         logger.info(f"Database '{settings.postgres_db_name}' does not exist. Creating it now.")
@@ -81,11 +86,7 @@ async def check_postgres(args, debug: bool = False):
         await engine.dispose()
         if debug:
             logger.debug("Creating tables")
-        new_db_engine = create_async_engine(settings.db_url, echo=debug)
-        async with new_db_engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.create_all)
-        await new_db_engine.dispose()
-        logger.info("Database initialization complete.")
+        await _create_tables(debug=debug)
 
     else:
         logger.info(f"Database '{settings.postgres_db_name}' already exists. No action taken.")
