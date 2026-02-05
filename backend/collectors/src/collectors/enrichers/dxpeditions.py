@@ -69,7 +69,7 @@ def parse_date_range(date_str: str) -> Optional[tuple[datetime, datetime]]:
             end_date = start_date.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc)
 
         return (start_date, end_date)
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to parse date range '{date_str}'")
         return None
 
@@ -96,7 +96,7 @@ def parse_title(title: str) -> Optional[tuple[str, datetime, datetime]]:
         start_date, end_date = dates
 
         return (callsign, start_date, end_date)
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to parse title '{title}'")
         return None
 
@@ -133,27 +133,23 @@ async def fetch_dxpedition_data() -> list[dict]:
 async def refresh_dxpedition_cache(redis_client=None):
     global ACTIVE_DXPEDITIONS
 
-    try:
-        dxpeditions = await fetch_dxpedition_data()
-        ACTIVE_DXPEDITIONS = dxpeditions
-        logger.info(f"DXpedition cache refreshed with {len(dxpeditions)} entries")
+    dxpeditions = await fetch_dxpedition_data()
+    ACTIVE_DXPEDITIONS = dxpeditions
+    logger.info(f"DXpedition cache refreshed with {len(dxpeditions)} entries")
 
-        if redis_client:
-            dxpeditions_json = json.dumps(
-                [
-                    {
-                        "callsign": d["callsign"],
-                        "start_date": d["start_date"].isoformat(),
-                        "end_date": d["end_date"].isoformat(),
-                    }
-                    for d in dxpeditions
-                ]
-            )
-            await redis_client.set(REDIS_DXPEDITIONS_KEY, dxpeditions_json)
-            logger.info(f"DXpedition data stored in Redis at {REDIS_DXPEDITIONS_KEY}")
-    except Exception as e:
-        logger.error(f"Failed to refresh DXpedition cache: {e}")
-        raise
+    if redis_client:
+        dxpeditions_json = json.dumps(
+            [
+                {
+                    "callsign": d["callsign"],
+                    "start_date": d["start_date"].isoformat(),
+                    "end_date": d["end_date"].isoformat(),
+                }
+                for d in dxpeditions
+            ]
+        )
+        await redis_client.set(REDIS_DXPEDITIONS_KEY, dxpeditions_json)
+        logger.info(f"DXpedition data stored in Redis at {REDIS_DXPEDITIONS_KEY}")
 
 
 def is_active_dxpedition(callsign: str) -> bool:
