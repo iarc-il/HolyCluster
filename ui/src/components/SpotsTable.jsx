@@ -197,8 +197,9 @@ function Spot(
             <td
                 className={cell_classes.dx_callsign + " font-semibold"}
                 style={{
-                    border: is_dxpedition_alerted ? "4px solid #FFD700" : "none",
-                    padding: is_dxpedition_alerted ? "2px" : "6px",
+                    outline: is_dxpedition_alerted ? "3px solid #FFD700" : "none",
+                    outlineOffset: "-3px",
+                    padding: "4px",
                 }}
                 onContextMenu={event => {
                     event.preventDefault();
