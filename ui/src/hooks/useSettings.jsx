@@ -21,6 +21,7 @@ export function SettingsProvider({ children }) {
         is_miles: false,
         propagation_displayed: true,
         show_flags: true,
+        show_state_abbreviations: true,
         show_equator: false,
         highlight_enabled: true,
         highlight_port: 2237,

@@ -107,7 +107,11 @@ function Spot(
 
     let dx_column;
     let dx_state;
-    if (spot.dx_state && (spot.dx_country == "USA" || dev_mode)) {
+    if (
+        settings.show_state_abbreviations &&
+        spot.dx_state &&
+        (spot.dx_country == "USA" || dev_mode)
+    ) {
         dx_state = `(${spot.dx_state})`;
     } else {
         dx_state = "";

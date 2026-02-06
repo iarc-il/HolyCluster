@@ -191,6 +191,21 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         </td>
                     </tr>
                     <tr>
+                        <td>Show state abbreviations:&nbsp;&nbsp;</td>
+                        <td>
+                            <Toggle
+                                value={temp_settings.show_state_abbreviations}
+                                on_click={() => {
+                                    set_temp_settings({
+                                        ...temp_settings,
+                                        show_state_abbreviations:
+                                            !temp_settings.show_state_abbreviations,
+                                    });
+                                }}
+                            />
+                        </td>
+                    </tr>
+                    <tr>
                         <td>Show equator:&nbsp;&nbsp;</td>
                         <td>
                             <Toggle
