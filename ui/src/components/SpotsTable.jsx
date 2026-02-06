@@ -4,6 +4,7 @@ import SpotContextMenu from "./SpotContextMenu";
 import Popup from "./Popup";
 
 import { get_flag } from "@/flags.js";
+import { US_STATES } from "@/us_states.js";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 import { useFilters } from "@/hooks/useFilters";
@@ -188,6 +189,9 @@ function Spot(
                             }}
                         >
                             {spot.dx_country}
+                            {spot.dx_state && spot.dx_country === "USA" && US_STATES[spot.dx_state]
+                                ? `, ${US_STATES[spot.dx_state]}`
+                                : ""}
                         </div>
                     </Popup>
                 ) : (
