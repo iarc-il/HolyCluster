@@ -73,60 +73,60 @@ function FilterLine({ filter, id, is_dragging }) {
     }
 
     return (
-        <div
-            ref={setNodeRef}
-            className="flex justify-around items-center mb-1 w-full"
-            style={style}
-        >
-            {filter.type == "self_spotters" ? (
-                <div
-                    {...listeners}
-                    {...attributes}
-                    className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md mr-auto text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing"
-                >
-                    Self spotters
-                </div>
-            ) : filter.type == "dxpeditions" ? (
-                <div
-                    {...listeners}
-                    {...attributes}
-                    className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md mr-auto text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing"
-                >
-                    DXpeditions
-                </div>
-            ) : (
-                <>
-                    <div {...listeners} {...listeners}>
-                        <Input
-                            className="h-7 text-sm mr-1 w-20 cursor-grab active:cursor-grabbing"
-                            disabled
-                            disabled_text_color={colors.theme.text}
-                            title={filter.value}
-                            value={filter.value}
-                        />
+        <div ref={setNodeRef} className="flex items-center mb-1 w-full" style={style}>
+            <div className="flex items-center flex-1 min-w-0">
+                {filter.type == "self_spotters" ? (
+                    <div
+                        {...listeners}
+                        {...attributes}
+                        className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing"
+                    >
+                        Self spotters
                     </div>
-                    <Indicator text={filter_type_label} />
-                    <Indicator text={spotter_or_dx_label} />
-                </>
-            )}
-            <FilterModal
-                initial_data={filter}
-                button={<EditSymbol size="24"></EditSymbol>}
-                on_apply={new_filter => {
-                    const new_filters = [...callsign_filters.filters];
-                    new_filters[id] = new_filter;
-                    setCallsignFilters({ ...callsign_filters, filters: new_filters });
-                }}
-            />
-            <X
-                className="cursor-pointer min-w-[24px]"
-                size="24"
-                on_click={() => {
-                    const new_filters = [...callsign_filters.filters];
-                    new_filters.splice(id, 1);
-                    setCallsignFilters({ ...callsign_filters, filters: new_filters });
-                }}
-            />
+                ) : filter.type == "dxpeditions" ? (
+                    <div
+                        {...listeners}
+                        {...attributes}
+                        className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing"
+                    >
+                        DXpedition
+                    </div>
+                ) : (
+                    <>
+                        <div {...listeners} {...listeners}>
+                            <Input
+                                className="h-7 text-sm mr-1 w-20 cursor-grab active:cursor-grabbing"
+                                disabled
+                                disabled_text_color={colors.theme.text}
+                                title={filter.value}
+                                value={filter.value}
+                            />
+                        </div>
+                        <Indicator text={filter_type_label} />
+                        <Indicator text={spotter_or_dx_label} />
+                    </>
+                )}
+            </div>
+            <div className="flex items-center gap-1 ml-2">
+                <FilterModal
+                    initial_data={filter}
+                    button={<EditSymbol size="24"></EditSymbol>}
+                    on_apply={new_filter => {
+                        const new_filters = [...callsign_filters.filters];
+                        new_filters[id] = new_filter;
+                        setCallsignFilters({ ...callsign_filters, filters: new_filters });
+                    }}
+                />
+                <X
+                    className="cursor-pointer min-w-[24px]"
+                    size="24"
+                    on_click={() => {
+                        const new_filters = [...callsign_filters.filters];
+                        new_filters.splice(id, 1);
+                        setCallsignFilters({ ...callsign_filters, filters: new_filters });
+                    }}
+                />
+            </div>
             <br />
         </div>
     );
@@ -268,7 +268,7 @@ function Filters() {
             <DragOverlay>
                 {active_id && activeFilter ? (
                     <div
-                        className="flex justify-around items-center mb-1 w-full opacity-90 shadow-lg"
+                        className="flex items-center mb-1 w-full opacity-90 shadow-lg"
                         style={{
                             color: colors.theme.text,
                             backgroundColor: colors.theme.background,
@@ -276,45 +276,47 @@ function Filters() {
                             borderRadius: "0.375rem",
                         }}
                     >
-                        {activeFilter.type == "self_spotters" ? (
-                            <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md mr-auto text-xs font-bold bg-green-600 text-white">
-                                Self spotters
-                            </div>
-                        ) : activeFilter.type == "dxpeditions" ? (
-                            <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md mr-auto text-xs font-bold bg-green-600 text-white">
-                                DXpeditions
-                            </div>
-                        ) : (
-                            <>
-                                <Input
-                                    className="h-7 text-sm mr-1 w-20"
-                                    disabled
-                                    disabled_text_color={colors.theme.text}
-                                    title={activeFilter.value}
-                                    value={activeFilter.value}
-                                />
-                                <Indicator
-                                    text={
-                                        activeFilter.type == "prefix"
-                                            ? "Pfx"
-                                            : activeFilter.type == "suffix"
-                                              ? "Sfx"
-                                              : activeFilter.type == "entity"
-                                                ? "Ent"
-                                                : ""
-                                    }
-                                />
-                                <Indicator
-                                    text={
-                                        activeFilter.spotter_or_dx == "spotter"
-                                            ? "DE"
-                                            : activeFilter.spotter_or_dx == "dx"
-                                              ? "DX"
-                                              : ""
-                                    }
-                                />
-                            </>
-                        )}
+                        <div className="flex items-center flex-1 min-w-0">
+                            {activeFilter.type == "self_spotters" ? (
+                                <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white">
+                                    Self spotters
+                                </div>
+                            ) : activeFilter.type == "dxpeditions" ? (
+                                <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white">
+                                    DXpeditions
+                                </div>
+                            ) : (
+                                <>
+                                    <Input
+                                        className="h-7 text-sm mr-1 w-20"
+                                        disabled
+                                        disabled_text_color={colors.theme.text}
+                                        title={activeFilter.value}
+                                        value={activeFilter.value}
+                                    />
+                                    <Indicator
+                                        text={
+                                            activeFilter.type == "prefix"
+                                                ? "Pfx"
+                                                : activeFilter.type == "suffix"
+                                                  ? "Sfx"
+                                                  : activeFilter.type == "entity"
+                                                    ? "Ent"
+                                                    : ""
+                                        }
+                                    />
+                                    <Indicator
+                                        text={
+                                            activeFilter.spotter_or_dx == "spotter"
+                                                ? "DE"
+                                                : activeFilter.spotter_or_dx == "dx"
+                                                  ? "DX"
+                                                  : ""
+                                        }
+                                    />
+                                </>
+                            )}
+                        </div>
                     </div>
                 ) : null}
             </DragOverlay>
