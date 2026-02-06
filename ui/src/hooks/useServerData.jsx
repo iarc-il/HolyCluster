@@ -39,7 +39,7 @@ function fetch_propagation() {
 }
 
 export const ServerDataProvider = ({ children }) => {
-    const [spots, set_spots] = useState([]);
+    const [raw_spots, set_spots] = useState([]);
     const [new_spot_ids, set_new_spot_ids] = useState(new Set());
     let [hovered_spot, set_hovered_spot] = useState({ source: null, id: null });
     let [hovered_band, set_hovered_band] = useState(null);
@@ -53,7 +53,7 @@ export const ServerDataProvider = ({ children }) => {
     function set_pinned_spot(spot_id) {
         if (spot_id && settings.highlight_enabled && is_radio_available()) {
             highlight_spot(
-                spots.find(spot => spot.id == spot_id),
+                raw_spots.find(spot => spot.id == spot_id),
                 settings.highlight_port,
             );
         }
@@ -154,7 +154,7 @@ export const ServerDataProvider = ({ children }) => {
                     set_new_spot_ids(new Set());
                 }, 3000);
 
-                new_spots = new_spots.concat(spots);
+                new_spots = new_spots.concat(raw_spots);
             }
 
             let current_time = Math.round(Date.now() / 1000);
@@ -193,7 +193,7 @@ export const ServerDataProvider = ({ children }) => {
         };
     }, []);
 
-    for (const spot of spots) {
+    for (const spot of raw_spots) {
         spot.is_alerted =
             is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active;
     }
@@ -204,7 +204,7 @@ export const ServerDataProvider = ({ children }) => {
             settings.alert_sound_enabled &&
             callsign_filters.is_alert_filters_active
         ) {
-            const alerted_count = spots.filter(
+            const alerted_count = raw_spots.filter(
                 spot => new_spot_ids.has(spot.id) && spot.is_alerted,
             ).length;
 
@@ -214,9 +214,9 @@ export const ServerDataProvider = ({ children }) => {
         }
     }, [new_spot_ids]);
 
-    const filtered_spots = useMemo(() => {
+    const spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;
-        let filtered = spots
+        let filtered = raw_spots
             .filter(spot => {
                 if (filter_missing_flags) {
                     if (
@@ -286,7 +286,7 @@ export const ServerDataProvider = ({ children }) => {
         // Sort the filtered spots
         return sort_spots(filtered, table_sort, radio_status, radio_band);
     }, [
-        spots,
+        raw_spots,
         filter_missing_flags,
         filters,
         callsign_filters,
@@ -299,7 +299,7 @@ export const ServerDataProvider = ({ children }) => {
 
     const spots_per_band_count = useMemo(() => {
         const spots_per_band_count = Object.fromEntries(
-            bands.map(band => [band, filtered_spots.filter(spot => spot.band == band).length]),
+            bands.map(band => [band, spots.filter(spot => spot.band == band).length]),
         );
 
         // Limit the count for 2 digit display
@@ -307,11 +307,11 @@ export const ServerDataProvider = ({ children }) => {
             spots_per_band_count[band] = Math.min(spots_per_band_count[band], 99);
         }
         return spots_per_band_count;
-    }, [filtered_spots]);
+    }, [spots]);
 
     const spots_per_mode_count = useMemo(() => {
         const spots_per_mode_count = Object.fromEntries(
-            modes.map(mode => [mode, filtered_spots.filter(spot => spot.mode === mode).length]),
+            modes.map(mode => [mode, spots.filter(spot => spot.mode === mode).length]),
         );
 
         // Limit the count for 2 digit display
@@ -319,7 +319,7 @@ export const ServerDataProvider = ({ children }) => {
             spots_per_mode_count[mode] = Math.min(spots_per_mode_count[mode], 99);
         }
         return spots_per_mode_count;
-    }, [filtered_spots]);
+    }, [spots]);
 
     // Max offset for the frequency error in kHz
     const freq_error_range = {
@@ -331,7 +331,7 @@ export const ServerDataProvider = ({ children }) => {
     };
 
     const current_freq_spots = useMemo(() => {
-        return filtered_spots
+        return spots
             .filter(spot => {
                 return (
                     radio_freq / 1000 >= spot.freq - freq_error_range[spot.mode] &&
@@ -339,13 +339,13 @@ export const ServerDataProvider = ({ children }) => {
                 );
             })
             .map(spot => spot.id);
-    }, [filtered_spots, radio_freq]);
+    }, [spots, radio_freq]);
 
     return (
         <ServerDataContext.Provider
             value={{
-                spots: filtered_spots,
-                raw_spots: spots,
+                spots,
+                raw_spots,
                 new_spot_ids,
                 hovered_spot,
                 set_hovered_spot,
