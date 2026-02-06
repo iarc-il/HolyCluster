@@ -10,6 +10,18 @@ import { get_base_url } from "@/utils.js";
 
 const RELEASES = [
     [
+        "",
+        [
+            "New DXpedition filters in Alert/Show Only/Hide area",
+            "Real time updating of new spots",
+            "Search feature for dx stations - available with the search button or ctrl+F",
+            "USA state information - full state name in flag popup, configurable state indicators, and state displayed in flags column",
+            "Swap button for the continents column",
+            "Added RTTY mode support",
+            "Autofill locator when inserting callsign in the settings",
+        ],
+    ],
+    [
         "3/12/2025",
         [
             "Added heatmap 🔥",
