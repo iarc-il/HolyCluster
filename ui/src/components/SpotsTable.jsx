@@ -70,7 +70,11 @@ function Spot(
 
     const { colors, dev_mode } = useColors();
     let row_classes;
-    if (spot.is_alerted) {
+
+    const is_regular_alerted = spot.is_alerted && !spot.is_dxpedition;
+    const is_dxpedition_alerted = spot.is_alerted && spot.is_dxpedition;
+
+    if (is_regular_alerted) {
         row_classes = "outline-4 outline outline-dashed outline-offset-[-2px] border-white";
     }
 
@@ -132,8 +136,8 @@ function Spot(
             ref={ref}
             style={{
                 backgroundColor: background_color,
-                outlineColor: spot.is_alerted ? colors.light_bands[spot.band] : "",
-                border: spot.is_alerted ? "3px solid white" : "",
+                outlineColor: is_regular_alerted ? colors.light_bands[spot.band] : "",
+                border: is_regular_alerted ? "3px solid white" : "",
                 color: text_color,
                 transition: is_new_spot
                     ? "background-color 2.5s ease-out, color 2.5s ease-out"
@@ -193,8 +197,8 @@ function Spot(
             <td
                 className={cell_classes.dx_callsign + " font-semibold"}
                 style={{
-                    border: spot.is_dxpedition ? "4px solid #FFD700" : "none",
-                    padding: spot.is_dxpedition ? "2px" : "6px",
+                    border: is_dxpedition_alerted ? "4px solid #FFD700" : "none",
+                    padding: is_dxpedition_alerted ? "2px" : "6px",
                 }}
                 onContextMenu={event => {
                     event.preventDefault();
@@ -202,7 +206,7 @@ function Spot(
                 }}
             >
                 <Callsign callsign={spot.dx_callsign} />
-                {spot.is_dxpedition && (
+                {is_dxpedition_alerted && (
                     <span className="ml-1" title="DXpedition">
                         ⭐
                     </span>
