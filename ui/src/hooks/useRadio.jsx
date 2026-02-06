@@ -251,6 +251,5 @@ export function RadioProvider({ children }) {
 }
 
 export default function useRadio() {
-    const context = useContext(RadioContext);
-    return { ...context };
+    return useContext(RadioContext);
 }

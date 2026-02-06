@@ -49,7 +49,7 @@ function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_dat
         };
     }
     return (
-        <div className="w-fit flex flex-wrap justify-start items-center gap-y-2">
+        <div className="flex flex-wrap justify-start items-center gap-y-2">
             {states.map(state => {
                 return (
                     <label key={state.value}>
@@ -113,7 +113,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
             }}
             on_cancel={() => set_temp_data(empty_filter_data)}
         >
-            <div className="space-y-2 p-2 pb-4">
+            <div className="space-y-2 p-2 pb-4 w-96">
                 <SelectionLine
                     states={[
                         { label: "Prefix", value: "prefix" },
@@ -134,10 +134,12 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         }
                     }}
                 />
+
                 {temp_data.type != "self_spotters" &&
                 temp_data.type != "dxpeditions" &&
                 temp_data.type != "comment" ? (
                     <>
+                        <hr />
                         <SelectionLine
                             states={[
                                 { label: "DX", value: "dx" },
@@ -147,7 +149,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                             temp_data={temp_data}
                             set_temp_data={set_temp_data}
                         />
-                        <div className="flex justify-start space-x-5 items-center w-full">
+                        <div className="flex justify-start space-x-5 items-center w-96">
                             <div>{temp_data.type}:</div>
                             <div>
                                 {temp_data.type == "entity" ? (
@@ -209,22 +211,25 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         </div>
                     </>
                 ) : temp_data.type == "comment" ? (
-                    <div className="flex justify-start space-x-5 items-center w-full">
-                        <div>text:</div>
-                        <div>
-                            <Input
-                                value={temp_data.value}
-                                autoFocus={true}
-                                className="h-10 w-40"
-                                onChange={event => {
-                                    set_temp_data({
-                                        ...temp_data,
-                                        value: event.target.value,
-                                    });
-                                }}
-                            />
+                    <>
+                        <hr />
+                        <div className="flex justify-start space-x-5 items-center w-full">
+                            <div>text:</div>
+                            <div>
+                                <Input
+                                    value={temp_data.value}
+                                    autoFocus={true}
+                                    className="h-10 w-40"
+                                    onChange={event => {
+                                        set_temp_data({
+                                            ...temp_data,
+                                            value: event.target.value,
+                                        });
+                                    }}
+                                />
+                            </div>
                         </div>
-                    </div>
+                    </>
                 ) : (
                     ""
                 )}
