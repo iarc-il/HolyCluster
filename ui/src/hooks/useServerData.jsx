@@ -11,31 +11,14 @@ import { use_object_local_storage } from "@/utils.js";
 const ServerDataContext = createContext(undefined);
 
 export function useServerData() {
-    const context = useContext(ServerDataContext);
-    return { ...context };
+    return useContext(ServerDataContext);
 }
 
-function fetch_propagation() {
-    let url = get_base_url() + "/propagation";
-
-    if (navigator.onLine) {
-        return fetch(url, { mode: "cors" })
-            .then(response => {
-                if (response == null || !response.ok) {
-                    return Promise.reject(response);
-                } else {
-                    return response.json();
-                }
-            })
-            .then(data => {
-                if (data == null) {
-                    return Promise.reject(response);
-                } else {
-                    this.set_propagation(data);
-                }
-            })
-            .catch(_ => {});
-    }
+function normalize_band(band) {
+    if (band == 2) return "VHF";
+    if (band == 0.7) return "UHF";
+    if (band < 1) return "SHF";
+    return band;
 }
 
 export const ServerDataProvider = ({ children }) => {
@@ -75,15 +58,18 @@ export const ServerDataProvider = ({ children }) => {
         ascending: false,
     });
 
-    let show_only_filters = callsign_filters.filters.filter(filter => filter.action == "show_only");
-    let hide_filters = callsign_filters.filters.filter(filter => filter.action == "hide");
-    let alerts = callsign_filters.filters.filter(filter => filter.action == "alert");
-
-    const fetch_propagation_context = useRef({
-        propagation,
-        set_propagation,
-    });
-    fetch_propagation_context.current.propagation = propagation;
+    const show_only_filters = useMemo(
+        () => callsign_filters.filters.filter(filter => filter.action == "show_only"),
+        [callsign_filters.filters],
+    );
+    const hide_filters = useMemo(
+        () => callsign_filters.filters.filter(filter => filter.action == "hide"),
+        [callsign_filters.filters],
+    );
+    const alerts = useMemo(
+        () => callsign_filters.filters.filter(filter => filter.action == "alert"),
+        [callsign_filters.filters],
+    );
 
     const websocket_url = get_base_url().replace(/^http(s)?:/, "wss:") + "/spots_ws";
 
@@ -111,16 +97,8 @@ export const ServerDataProvider = ({ children }) => {
             let new_spots = data.spots
                 .map(spot => {
                     spot.id = next_spot_id_ref.current++;
-                    if (spot.mode === "DIGITAL") {
-                        spot.mode = "DIGI";
-                    }
-                    if (spot.band == 2) {
-                        spot.band = "VHF";
-                    } else if (spot.band == 0.7) {
-                        spot.band = "UHF";
-                    } else if (spot.band < 1) {
-                        spot.band = "SHF";
-                    }
+                    if (spot.mode === "DIGITAL") spot.mode = "DIGI";
+                    spot.band = normalize_band(spot.band);
                     spot.dx_country = shorten_dxcc(spot.dx_country);
                     return spot;
                 })
@@ -182,21 +160,27 @@ export const ServerDataProvider = ({ children }) => {
     }, [readyState]);
 
     useEffect(() => {
-        const fetch_propagation_with_context = fetch_propagation.bind(
-            fetch_propagation_context.current,
-        );
-        fetch_propagation_with_context();
-        let propagation_interval_id = setInterval(fetch_propagation_with_context, 3600 * 1000);
+        const fetch_propagation = () => {
+            if (!navigator.onLine) return;
 
-        return () => {
-            clearInterval(propagation_interval_id);
+            const url = get_base_url() + "/propagation";
+            fetch(url, { mode: "cors" })
+                .then(response => (response.ok ? response.json() : Promise.reject(response)))
+                .then(data => data && set_propagation(data))
+                .catch(() => {});
         };
+
+        fetch_propagation();
+        const interval_id = setInterval(fetch_propagation, 3600 * 1000);
+        return () => clearInterval(interval_id);
     }, []);
 
-    for (const spot of raw_spots) {
-        spot.is_alerted =
-            is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active;
-    }
+    const spots_with_alerts = useMemo(() => {
+        return raw_spots.map(spot => ({
+            ...spot,
+            is_alerted: is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active,
+        }));
+    }, [raw_spots, alerts, callsign_filters.is_alert_filters_active]);
 
     useEffect(() => {
         if (
@@ -204,7 +188,7 @@ export const ServerDataProvider = ({ children }) => {
             settings.alert_sound_enabled &&
             callsign_filters.is_alert_filters_active
         ) {
-            const alerted_count = raw_spots.filter(
+            const alerted_count = spots_with_alerts.filter(
                 spot => new_spot_ids.has(spot.id) && spot.is_alerted,
             ).length;
 
@@ -212,11 +196,16 @@ export const ServerDataProvider = ({ children }) => {
                 play_alert_sound();
             }
         }
-    }, [new_spot_ids]);
+    }, [
+        new_spot_ids,
+        spots_with_alerts,
+        settings.alert_sound_enabled,
+        callsign_filters.is_alert_filters_active,
+    ]);
 
     const spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;
-        let filtered = raw_spots
+        let filtered = spots_with_alerts
             .filter(spot => {
                 if (filter_missing_flags) {
                     if (
@@ -286,10 +275,13 @@ export const ServerDataProvider = ({ children }) => {
         // Sort the filtered spots
         return sort_spots(filtered, table_sort, radio_status, radio_band);
     }, [
-        raw_spots,
+        spots_with_alerts,
         filter_missing_flags,
         filters,
-        callsign_filters,
+        show_only_filters,
+        hide_filters,
+        callsign_filters.is_show_only_filters_active,
+        callsign_filters.is_hide_filters_active,
         radio_band,
         radio_status,
         table_sort,
@@ -297,28 +289,20 @@ export const ServerDataProvider = ({ children }) => {
         search_query,
     ]);
 
-    const spots_per_band_count = useMemo(() => {
-        const spots_per_band_count = Object.fromEntries(
-            bands.map(band => [band, spots.filter(spot => spot.band == band).length]),
-        );
+    function limit_count(count) {
+        return Math.min(count, 99);
+    }
 
-        // Limit the count for 2 digit display
-        for (const band in spots_per_band_count) {
-            spots_per_band_count[band] = Math.min(spots_per_band_count[band], 99);
-        }
-        return spots_per_band_count;
+    const spots_per_band_count = useMemo(() => {
+        return Object.fromEntries(
+            bands.map(band => [band, limit_count(spots.filter(spot => spot.band == band).length)]),
+        );
     }, [spots]);
 
     const spots_per_mode_count = useMemo(() => {
-        const spots_per_mode_count = Object.fromEntries(
-            modes.map(mode => [mode, spots.filter(spot => spot.mode === mode).length]),
+        return Object.fromEntries(
+            modes.map(mode => [mode, limit_count(spots.filter(spot => spot.mode === mode).length)]),
         );
-
-        // Limit the count for 2 digit display
-        for (const mode in spots_per_mode_count) {
-            spots_per_mode_count[mode] = Math.min(spots_per_mode_count[mode], 99);
-        }
-        return spots_per_mode_count;
     }, [spots]);
 
     // Max offset for the frequency error in kHz
