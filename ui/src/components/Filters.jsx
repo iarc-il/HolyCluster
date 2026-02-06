@@ -79,7 +79,7 @@ function FilterLine({ filter, id, is_dragging }) {
                     <div
                         {...listeners}
                         {...attributes}
-                        className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing"
+                        className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing w-24"
                     >
                         Self spotters
                     </div>
@@ -87,7 +87,7 @@ function FilterLine({ filter, id, is_dragging }) {
                     <div
                         {...listeners}
                         {...attributes}
-                        className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing"
+                        className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing w-24"
                     >
                         DXpedition
                     </div>
@@ -95,7 +95,7 @@ function FilterLine({ filter, id, is_dragging }) {
                     <>
                         <div {...listeners} {...listeners}>
                             <Input
-                                className="h-7 text-sm mr-1 w-20 cursor-grab active:cursor-grabbing"
+                                className="h-7 text-sm mr-1 w-24 cursor-grab active:cursor-grabbing"
                                 disabled
                                 disabled_text_color={colors.theme.text}
                                 title={filter.value}
@@ -278,17 +278,17 @@ function Filters() {
                     >
                         <div className="flex items-center flex-1 min-w-0">
                             {activeFilter.type == "self_spotters" ? (
-                                <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white">
+                                <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white w-24">
                                     Self spotters
                                 </div>
                             ) : activeFilter.type == "dxpeditions" ? (
-                                <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white">
+                                <div className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white w-24">
                                     DXpeditions
                                 </div>
                             ) : (
                                 <>
                                     <Input
-                                        className="h-7 text-sm mr-1 w-20"
+                                        className="h-7 text-sm mr-1 w-24"
                                         disabled
                                         disabled_text_color={colors.theme.text}
                                         title={activeFilter.value}
