@@ -8,11 +8,7 @@ import Continents from "@/components/Continents.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import CallsignsView from "@/components/CallsignsView.jsx";
 import Tabs from "@/components/Tabs.jsx";
-import {
-    use_object_local_storage,
-    is_matching_list,
-    get_max_radius,
-} from "@/utils.js";
+import { use_object_local_storage, is_matching_list, get_max_radius } from "@/utils.js";
 import { bands, modes, continents } from "@/filters_data.js";
 import { useFilters } from "@/hooks/useFilters";
 import { useServerData } from "@/hooks/useServerData";
