@@ -1,7 +1,6 @@
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useState, useEffect, createContext, useContext } from "react";
 import { useSettings } from "./useSettings";
-import { get_base_url } from "@/utils.js";
 
 const band_plans = {
     160: {
@@ -94,7 +93,7 @@ export function useCatserverVersion(raw_local_version) {
             return;
         }
 
-        fetch(get_base_url() + "/catserver/latest")
+        fetch("/catserver/latest")
             .then(data => data.text())
             .then(data => {
                 set_filename(data);

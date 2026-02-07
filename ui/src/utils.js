@@ -131,14 +131,6 @@ export const get_max_radius = (center, spots) => {
     return max;
 };
 
-export function get_base_url() {
-    if (window.location.port == "5173") {
-        return "http://holycluster-dev.iarc.org";
-    } else {
-        return "";
-    }
-}
-
 export function play_alert_sound() {
     const audio_context = new (window.AudioContext || window.webkitAudioContext)();
     const oscillator = audio_context.createOscillator();

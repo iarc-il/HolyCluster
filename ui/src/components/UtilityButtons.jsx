@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { get_base_url } from "@/utils.js";
 import About from "@/components/About.jsx";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio.jsx";

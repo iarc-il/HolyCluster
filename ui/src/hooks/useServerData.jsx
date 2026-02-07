@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useFilters } from "../hooks/useFilters";
-import { get_base_url, is_matching_list, play_alert_sound, sort_spots } from "@/utils.js";
+import { is_matching_list, play_alert_sound, sort_spots } from "@/utils.js";
 import { bands, modes, continents } from "@/filters_data.js";
 import { get_flag, shorten_dxcc } from "@/flags.js";
 import use_radio from "./useRadio";
@@ -71,13 +71,11 @@ export const ServerDataProvider = ({ children }) => {
         [callsign_filters.filters],
     );
 
-    const websocket_url = get_base_url().replace(/^http(s)?:/, "wss:") + "/spots_ws";
-
     const [is_first_connection, set_is_first_connection] = useState(true);
     const last_spot_time_ref = useRef(0);
     const next_spot_id_ref = useRef(0);
 
-    const { lastJsonMessage, readyState, sendJsonMessage } = useWebSocket(websocket_url, {
+    const { lastJsonMessage, readyState, sendJsonMessage } = useWebSocket("/spots_ws", {
         onOpen: () => {
             if (is_first_connection) {
                 sendJsonMessage({ initial: true });
@@ -163,8 +161,7 @@ export const ServerDataProvider = ({ children }) => {
         const fetch_propagation = () => {
             if (!navigator.onLine) return;
 
-            const url = get_base_url() + "/propagation";
-            fetch(url, { mode: "cors" })
+            fetch("/propagation")
                 .then(response => (response.ok ? response.json() : Promise.reject(response)))
                 .then(data => data && set_propagation(data))
                 .catch(() => {});

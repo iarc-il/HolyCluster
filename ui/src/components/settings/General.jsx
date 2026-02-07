@@ -6,7 +6,7 @@ import Toggle from "@/components/Toggle.jsx";
 import Popup from "@/components/Popup.jsx";
 import HelpIcon from "@/components/HelpIcon.jsx";
 import { themes_names, useColors } from "@/hooks/useColors";
-import { play_alert_sound, get_base_url } from "@/utils.js";
+import { play_alert_sound } from "@/utils.js";
 import Maidenhead from "maidenhead";
 
 function PlayIcon({ size }) {
@@ -27,7 +27,7 @@ function PlayIcon({ size }) {
 async function fetch_locator(callsign) {
     if (!callsign) return null;
     try {
-        const response = await fetch(`${get_base_url()}/locator/${callsign}`);
+        const response = await fetch("/locator/${callsign}");
         const data = await response.json();
         return data.locator || null;
     } catch {

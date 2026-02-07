@@ -12,7 +12,6 @@ import {
     use_object_local_storage,
     is_matching_list,
     get_max_radius,
-    get_base_url,
 } from "@/utils.js";
 import { bands, modes, continents } from "@/filters_data.js";
 import { useFilters } from "@/hooks/useFilters";

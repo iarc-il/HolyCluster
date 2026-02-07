@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { get_base_url } from "@/utils.js";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
 import { bands, modes } from "@/filters_data.js";

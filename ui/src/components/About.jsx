@@ -6,7 +6,6 @@ import Tabs from "@/components/Tabs.jsx";
 import Button from "@/components/Button.jsx";
 import { useColors } from "@/hooks/useColors.jsx";
 import use_radio from "@/hooks/useRadio.jsx";
-import { get_base_url } from "@/utils.js";
 
 const RELEASES = [
     [
