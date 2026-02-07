@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 import fastapi
 import redis.asyncio
 from fastapi import HTTPException, Request, websockets
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
@@ -123,13 +122,6 @@ engine = create_async_engine(
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 app = fastapi.FastAPI(lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 def cleanup_spot(spot):
