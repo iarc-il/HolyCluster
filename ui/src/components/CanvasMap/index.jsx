@@ -205,6 +205,7 @@ function CanvasMap({
         shadow: shadow_canvas_ref,
     });
 
+    // canvas cache setup
     useEffect(() => {
         if (dims.width == null || dims.height == null) {
             return;
@@ -219,6 +220,15 @@ function CanvasMap({
             cache_canvas.height = dims.height;
             map_cache_key_ref.current = null;
         }
+    }, [dims.width, dims.height]);
+
+    // Rendering, animation, and zoom/drag behaviors
+    useEffect(() => {
+        if (dims.width == null || dims.height == null) {
+            return;
+        }
+
+        const cache_canvas = map_cache_canvas_ref.current;
         const cache_context = cache_canvas.getContext("2d");
 
         function get_map_cache_key(transform) {
@@ -294,6 +304,28 @@ function CanvasMap({
             center_lat,
         });
 
+        return () => {
+            cancelAnimationFrame(animation_id_ref.current);
+        };
+    }, [
+        spots,
+        center_lon,
+        center_lat,
+        hovered_spot,
+        hovered_band,
+        width,
+        height,
+        map_controls,
+        settings.show_equator,
+        colors,
+    ]);
+
+    // Event listeners for mouse interaction
+    useEffect(() => {
+        if (dims.width == null || dims.height == null) {
+            return;
+        }
+
         function get_data_from_shadow_canvas(x, y) {
             const [r, g, b] = canvas_storage.shadow.context.getImageData(x, y, 1, 1).data;
             const result = color_to_spot(r, g, b);
@@ -339,27 +371,14 @@ function CanvasMap({
             }
         }
 
-        // Add event listener for mousemove
         canvas_storage.shadow.canvas.addEventListener("mousemove", on_mouse_move);
         canvas_storage.shadow.canvas.addEventListener("click", on_click);
 
         return () => {
             canvas_storage.shadow.canvas.removeEventListener("mousemove", on_mouse_move);
             canvas_storage.shadow.canvas.removeEventListener("click", on_click);
-            cancelAnimationFrame(animation_id_ref.current);
         };
-    }, [
-        spots,
-        center_lon,
-        center_lat,
-        hovered_spot,
-        hovered_band,
-        width,
-        height,
-        map_controls,
-        settings.show_equator,
-        colors,
-    ]);
+    }, [spots, hovered_spot, set_hovered_spot, set_pinned_spot, set_cat_to_spot]);
 
     const hovered_spot_data = spots.find(spot => spot.id == hovered_spot.id);
     const pinned_spot_data = spots.find(spot => spot.id == pinned_spot);
