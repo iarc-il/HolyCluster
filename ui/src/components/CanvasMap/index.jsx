@@ -367,12 +367,12 @@ function CanvasMap({
     const hovered_spot_distance =
         hovered_spot_data != null
             ? (haversine(hovered_spot_data.dx_loc, hovered_spot_data.spotter_loc) / 1000).toFixed()
-            : "";
+            : null;
 
     const pinned_spot_distance =
-        hovered_spot_data != null
-            ? (haversine(hovered_spot_data.dx_loc, hovered_spot_data.spotter_loc) / 1000).toFixed()
-            : "";
+        pinned_spot_data != null
+            ? (haversine(pinned_spot_data.dx_loc, pinned_spot_data.spotter_loc) / 1000).toFixed()
+            : null;
 
     let azimuth = null;
     if (
