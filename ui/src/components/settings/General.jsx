@@ -27,7 +27,7 @@ function PlayIcon({ size }) {
 async function fetch_locator(callsign) {
     if (!callsign) return null;
     try {
-        const response = await fetch("/locator/${callsign}");
+        const response = await fetch(`/locator/${callsign}`);
         const data = await response.json();
         return data.locator || null;
     } catch {
