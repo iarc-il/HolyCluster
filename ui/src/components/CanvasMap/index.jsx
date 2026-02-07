@@ -439,7 +439,13 @@ function CanvasMap({
                         {settings.is_miles ? "Miles" : "KM"} | Auto
                     </text>
 
-                    <foreignObject x={text_x + 215} y={text_y - 18} width="67" height="40">
+                    <foreignObject
+                        x={text_x + 215}
+                        y={text_y - 18}
+                        width="67"
+                        height="40"
+                        className="pointer-events-auto"
+                    >
                         <div xmlns="http://www.w3.org/1999/xhtml">
                             <ToggleSVG
                                 auto_radius={auto_radius}
