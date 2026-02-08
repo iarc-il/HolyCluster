@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 
-import aiohttp
+from aiohttp_client_cache import CachedSession, SQLiteBackend
 
 A_INDEX_REGEX = re.compile("(.*) {3,}(.*) {3,}(.*) {3,}(.*) {3,}")
 
@@ -11,7 +11,8 @@ SFI_ENDPOINT = "/json/f107_cm_flux.json"
 
 
 async def collect_propagation_data():
-    async with aiohttp.ClientSession("https://services.swpc.noaa.gov") as session:
+    backend = SQLiteBackend("prop_cache", urls_expire_after={"*.noaa.gov": -1})
+    async with CachedSession("https://services.swpc.noaa.gov", cache=backend) as session:
         async with session.get(K_INDEX_ENDPOINT) as response:
             json_data = await response.json()
             k_time, k_index, _, _ = (json_data)[-1]

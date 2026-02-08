@@ -24,13 +24,13 @@ from .settings import settings
 
 async def propagation_data_collector(app):
     while True:
-        sleep = 3600
+        sleep = 1
         try:
             app.state.propagation = await propagation.collect_propagation_data()
             app.state.propagation["time"] = int(time.time())
             logger.info(f"Got propagation data: {app.state.propagation}")
         except Exception as e:
-            sleep = 10
+            sleep = 1
             logger.exception(f"Failed to fetch propagation data: {str(e)}")
         await asyncio.sleep(sleep)
 
