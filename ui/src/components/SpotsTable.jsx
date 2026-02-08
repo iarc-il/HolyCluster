@@ -205,7 +205,7 @@ function Spot(
             <td
                 className={cell_classes.dx_callsign + " font-semibold"}
                 style={{
-                    outline: is_dxpedition_alerted ? "3px solid #FFD700" : "none",
+                    outline: is_dxpedition_alerted ? "2px solid #FFD700" : "none",
                     outlineOffset: "-3px",
                     padding: "4px",
                 }}
