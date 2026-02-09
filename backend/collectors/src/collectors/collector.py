@@ -7,6 +7,7 @@ from loguru import logger
 from shared.db import HolySpot
 from shared.geo import GeoException
 from shared.qrz import QrzSessionManager
+from shared.trace_memory import tracemalloc_task
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from collectors.db.valkey_config import get_valkey_client
@@ -176,7 +177,7 @@ async def run_collector():
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
     collector_tasks = run_concurrent_telnet_connections(spots_queue)
 
-    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task]
+    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task, tracemalloc_task()]
     tasks.extend(collector_tasks)
 
     try:
