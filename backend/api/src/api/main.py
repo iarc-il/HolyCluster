@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from shared.db import GeoCache, HolySpot, SpotsWithIssues
 from shared.geo import get_geo_details, GeoException
+from shared.trace_memory import tracemalloc_task
 from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -24,11 +25,11 @@ from .settings import settings
 
 async def propagation_data_collector(app):
     while True:
-        sleep = 1
+        sleep = 10
         try:
             app.state.propagation = await propagation.collect_propagation_data()
             app.state.propagation["time"] = int(time.time())
-            logger.info(f"Got propagation data: {app.state.propagation}")
+            # logger.info(f"Got propagation data: {app.state.propagation}")
         except Exception as e:
             sleep = 1
             logger.exception(f"Failed to fetch propagation data: {str(e)}")
@@ -100,6 +101,7 @@ async def lifespan(app: fastapi.FastAPI):
 
     tasks = [
         asyncio.create_task(propagation_data_collector(app)),
+        asyncio.create_task(tracemalloc_task()),
         asyncio.create_task(spots_broadcast_task(app)),
     ]
 
