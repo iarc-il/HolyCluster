@@ -66,6 +66,7 @@ const dxcc_to_country_flag = {
     Revillagigedo: "Mexico",
     "Easter Island": "Chile",
     "Desecheo Island": "Puerto Rico",
+    "Glorioso Islands": "French Southern and Antarctic Lands",
 };
 
 const dxcc_to_short_dxcc = {
