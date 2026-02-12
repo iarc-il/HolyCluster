@@ -4,7 +4,7 @@ import MapControls from "@/components/MapControls.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
-import Continents from "@/components/Continents.jsx";
+import RightColumn from "@/components/RightColumn.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import CallsignsView from "@/components/CallsignsView.jsx";
 import Tabs from "@/components/Tabs.jsx";
@@ -100,12 +100,12 @@ function MainContainer() {
     }
 
     const [canvas, set_canvas] = useLocalStorage("canvas", false);
+    const [active_view, set_active_view] = useLocalStorage("active_view", null);
 
     function on_key_down(event) {
-        if (event.ctrlKey && event.key === "f") {
+        if (event.ctrlKey && !event.altKey && event.key === "f") {
             event.preventDefault();
             set_search_open(true);
-            return;
         }
 
         if (event.key == "Escape") {
@@ -219,8 +219,16 @@ function MainContainer() {
                         {table}
                     </>
                 )}
-                <CallsignsView toggled_ui={toggled_ui} set_cat_to_spot={set_cat_to_spot} />
-                <Continents toggled_ui={toggled_ui} />
+                <CallsignsView
+                    toggled_ui={toggled_ui}
+                    set_cat_to_spot={set_cat_to_spot}
+                    active_view={active_view}
+                />
+                <RightColumn
+                    toggled_ui={toggled_ui}
+                    active_view={active_view}
+                    set_active_view={set_active_view}
+                />
             </div>
         </div>
     );
