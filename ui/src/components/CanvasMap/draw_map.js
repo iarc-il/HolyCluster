@@ -3,6 +3,7 @@ import { century, equationOfTime, declination } from "solar-calculator";
 import geojsonRewind from "@mapbox/geojson-rewind";
 
 import { to_radian, calculate_geographic_azimuth } from "@/utils.js";
+import { get_mode_shape } from "@/mode_shapes.js";
 import dxcc_map_raw from "@/assets/dxcc_map.json";
 
 export const dxcc_map = geojsonRewind(dxcc_map_raw, true);
@@ -40,9 +41,10 @@ function draw_spot_dx(context, spot, color, stroke_color, dx_x, dx_y, dx_size, t
     context.strokeStyle = stroke_color;
     context.fillStyle = color;
     context.lineWidth = 1 / transform.k;
-    if (spot.mode === "SSB") {
+    const shape = get_mode_shape(spot.mode);
+    if (shape === "square") {
         context.rect(dx_x - dx_size / 2, dx_y - dx_size / 2, dx_size, dx_size);
-    } else if (spot.mode === "CW") {
+    } else if (shape === "triangle") {
         context.moveTo(dx_x, dx_y - dx_size / 2);
         context.lineTo(dx_x - dx_size / 2, dx_y + dx_size / 2);
         context.lineTo(dx_x + dx_size / 2, dx_y + dx_size / 2);

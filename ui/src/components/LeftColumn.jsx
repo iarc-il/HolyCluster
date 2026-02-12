@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
 import { bands, modes } from "@/filters_data.js";
+import { get_mode_shape } from "@/mode_shapes.js";
 import { useServerData } from "@/hooks/useServerData";
 import { useFilters } from "@/hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
@@ -40,14 +41,15 @@ function Square(color) {
     );
 }
 
-const mode_to_symbol = {
-    SSB: Square,
-    CW: Triangle,
-    FT8: Hex,
-    FT4: Hex,
-    DIGI: Hex,
-    RTTY: Hex,
+const shape_to_symbol = {
+    square: Square,
+    triangle: Triangle,
+    hexagon: Hex,
 };
+
+function mode_to_symbol(mode) {
+    return shape_to_symbol[get_mode_shape(mode)];
+}
 
 function SpotCount({ count, toggled_ui }) {
     const anchorRef = useRef(null);
@@ -224,7 +226,7 @@ function LeftColumn({ toggled_ui }) {
                                     <>
                                         {mode}
                                         <div className="ml-1">
-                                            {mode_to_symbol[mode](
+                                            {mode_to_symbol(mode)(
                                                 filters.modes[mode]
                                                     ? "#000000"
                                                     : colors.buttons.disabled,

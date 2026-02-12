@@ -4,6 +4,7 @@ import { useColors } from "../hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import use_radio from "../hooks/useRadio";
+import { get_mode_shape } from "@/mode_shapes.js";
 
 const ft8_color = "#FF0000";
 const ft4_color = "#0000FF";
@@ -432,7 +433,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                                 transform: "translateY(-10px)",
                                             }}
                                         >
-                                            {spot.mode.toUpperCase() == "SSB" && (
+                                            {get_mode_shape(spot.mode) === "square" && (
                                                 <rect
                                                     x={"55%"}
                                                     y={`${(i * 100) / sorted_spots.length + 3}%`}
@@ -444,7 +445,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                                 />
                                             )}
 
-                                            {spot.mode.toUpperCase() == "CW" && (
+                                            {get_mode_shape(spot.mode) === "triangle" && (
                                                 <svg
                                                     x={"55%"}
                                                     y={`${(i * 100) / sorted_spots.length + 3}%`}
@@ -458,9 +459,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                                 </svg>
                                             )}
 
-                                            {["FT8", "FT4", "DIGI"].includes(
-                                                spot.mode.toUpperCase(),
-                                            ) && (
+                                            {get_mode_shape(spot.mode) === "hexagon" && (
                                                 <svg
                                                     x={"54%"}
                                                     y={`${(i * 100) / sorted_spots.length + 3}%`}
