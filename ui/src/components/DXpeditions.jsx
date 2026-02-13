@@ -1,21 +1,27 @@
 import { useState, useEffect, useMemo } from "react";
 import { useColors } from "@/hooks/useColors";
 
-function format_time_remaining(end_date) {
-    const now = new Date();
-    const end = new Date(end_date);
-    const diff_ms = end - now;
-
-    if (diff_ms <= 0) return "Ended";
-
+function format_duration(diff_ms) {
     const days = Math.floor(diff_ms / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff_ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
 
-    if (days > 0) return `${days}d ${hours}h left`;
-    if (hours > 0) return `${hours}h left`;
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h`;
 
     const minutes = Math.floor((diff_ms % (1000 * 60 * 60)) / (1000 * 60));
-    return `${minutes}m left`;
+    return `${minutes}m`;
+}
+
+function format_time_remaining(end_date) {
+    const diff_ms = new Date(end_date) - new Date();
+    if (diff_ms <= 0) return "Ended";
+    return `${format_duration(diff_ms)} left`;
+}
+
+function format_time_until_start(start_date) {
+    const diff_ms = new Date(start_date) - new Date();
+    if (diff_ms <= 0) return null;
+    return `in ${format_duration(diff_ms)}`;
 }
 
 function format_date(date_string) {
@@ -42,8 +48,10 @@ function DXpeditionCard({ dxpedition, colors }) {
     const active = is_active(dxpedition);
     const fraction = progress_fraction(dxpedition.start_date, dxpedition.end_date);
     const time_remaining = format_time_remaining(dxpedition.end_date);
+    const time_until_start = format_time_until_start(dxpedition.start_date);
     const is_ended = time_remaining === "Ended";
     const is_urgent = fraction > 0.85 && !is_ended;
+    const badge_text = active ? time_remaining : time_until_start || time_remaining;
 
     return (
         <div
@@ -84,7 +92,7 @@ function DXpeditionCard({ dxpedition, colors }) {
                         color: "white",
                     }}
                 >
-                    {time_remaining}
+                    {badge_text}
                 </span>
             </div>
             <div
