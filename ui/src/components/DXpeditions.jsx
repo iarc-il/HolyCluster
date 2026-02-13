@@ -175,7 +175,9 @@ function DXpeditions() {
         <div className="p-2 flex flex-col gap-2 overflow-y-auto h-full">
             <div className="flex items-center justify-between px-1">
                 <div className="text-xs font-medium" style={{ color: colors.theme.text }}>
-                    {active_count} active{upcoming_count > 0 && `, ${upcoming_count} upcoming`}
+                    {active_count} active
+                    <br />
+                    {upcoming_count} upcoming
                 </div>
                 <div className="flex gap-1">
                     {sort_options.map(option => (
