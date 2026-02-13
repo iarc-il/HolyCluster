@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
 
@@ -129,9 +129,7 @@ function DXpeditionCard({ dxpedition, colors, is_spotted }) {
 
 function DXpeditions() {
     const { colors } = useColors();
-    const { raw_spots } = useServerData();
-    const [dxpeditions, set_dxpeditions] = useState([]);
-    const [loading, set_loading] = useState(true);
+    const { raw_spots, dxpeditions } = useServerData();
 
     const spotted_callsigns = useMemo(() => {
         const callsigns = new Set();
@@ -143,24 +141,6 @@ function DXpeditions() {
         return callsigns;
     }, [raw_spots]);
 
-    useEffect(() => {
-        const fetch_dxpeditions = () => {
-            if (!navigator.onLine) return;
-
-            fetch("/dxpeditions")
-                .then(response => (response.ok ? response.json() : Promise.reject(response)))
-                .then(data => {
-                    set_dxpeditions(data || []);
-                    set_loading(false);
-                })
-                .catch(() => set_loading(false));
-        };
-
-        fetch_dxpeditions();
-        const interval_id = setInterval(fetch_dxpeditions, 3600 * 1000);
-        return () => clearInterval(interval_id);
-    }, []);
-
     const sorted_dxpeditions = useMemo(() => {
         return [...dxpeditions].sort((a, b) => new Date(a.end_date) - new Date(b.end_date));
     }, [dxpeditions]);
@@ -170,14 +150,6 @@ function DXpeditions() {
         [sorted_dxpeditions],
     );
     const upcoming_count = sorted_dxpeditions.length - active_count;
-
-    if (loading) {
-        return (
-            <div className="p-4 text-center text-sm" style={{ color: colors.theme.text }}>
-                Loading...
-            </div>
-        );
-    }
 
     if (sorted_dxpeditions.length === 0) {
         return (

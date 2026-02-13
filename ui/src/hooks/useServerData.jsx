@@ -50,6 +50,7 @@ export const ServerDataProvider = ({ children }) => {
     const { filters, callsign_filters } = useFilters();
 
     const [propagation, set_propagation] = useState();
+    const [dxpeditions, set_dxpeditions] = useState([]);
 
     const [network_state, set_network_state] = useState("connecting");
 
@@ -169,6 +170,21 @@ export const ServerDataProvider = ({ children }) => {
 
         fetch_propagation();
         const interval_id = setInterval(fetch_propagation, 3600 * 1000);
+        return () => clearInterval(interval_id);
+    }, []);
+
+    useEffect(() => {
+        const fetch_dxpeditions = () => {
+            if (!navigator.onLine) return;
+
+            fetch("/dxpeditions")
+                .then(response => (response.ok ? response.json() : Promise.reject(response)))
+                .then(data => data && set_dxpeditions(data))
+                .catch(() => {});
+        };
+
+        fetch_dxpeditions();
+        const interval_id = setInterval(fetch_dxpeditions, 3600 * 1000);
         return () => clearInterval(interval_id);
     }, []);
 
@@ -339,6 +355,7 @@ export const ServerDataProvider = ({ children }) => {
                 spots_per_band_count,
                 spots_per_mode_count,
                 propagation,
+                dxpeditions,
                 network_state,
                 current_freq_spots,
                 search_query,
