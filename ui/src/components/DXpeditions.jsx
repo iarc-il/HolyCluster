@@ -6,13 +6,11 @@ import { useServerData } from "@/hooks/useServerData";
 const sort_options = [
     { key: "start", label: "Start" },
     { key: "end", label: "End" },
-    { key: "time_left", label: "Time left" },
 ];
 
 const sort_functions = {
     start: (a, b) => new Date(a.start_date) - new Date(b.start_date),
     end: (a, b) => new Date(a.end_date) - new Date(b.end_date),
-    time_left: (a, b) => new Date(a.end_date) - new Date(b.end_date),
 };
 
 function format_duration(diff_ms) {
