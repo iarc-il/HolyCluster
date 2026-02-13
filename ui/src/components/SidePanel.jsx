@@ -1,10 +1,11 @@
 import Filters from "@/components/Filters.jsx";
 import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Heatmap from "@/components/Heatmap.jsx";
+import DXpeditions from "@/components/DXpeditions.jsx";
 
 import { useColors } from "../hooks/useColors";
 
-function CallsignsView({ toggled_ui, set_cat_to_spot, active_view }) {
+function SidePanel({ toggled_ui, set_cat_to_spot, active_view }) {
     const { colors } = useColors();
 
     if (active_view === null) return null;
@@ -15,6 +16,7 @@ function CallsignsView({ toggled_ui, set_cat_to_spot, active_view }) {
         <div className="p-2">
             <Heatmap />
         </div>,
+        <DXpeditions />,
     ];
 
     const toggled_classes = toggled_ui.right_visible ? "max-2xl:absolute right-16 top-0" : "hidden";
@@ -31,4 +33,4 @@ function CallsignsView({ toggled_ui, set_cat_to_spot, active_view }) {
     );
 }
 
-export default CallsignsView;
+export default SidePanel;
