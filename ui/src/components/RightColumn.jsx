@@ -148,6 +148,10 @@ function ViewSelectorButtons({ active_view, set_active_view, colors }) {
     );
 }
 
+function Seperator() {
+    return <div className="border-t-2 border-slate-300 w-full" />;
+}
+
 function RightColumn({ toggled_ui, active_view, set_active_view }) {
     const { colors } = useColors();
 
@@ -163,11 +167,13 @@ function RightColumn({ toggled_ui, active_view, set_active_view }) {
             style={{ backgroundColor: colors.theme.columns }}
         >
             <ContinentColumn spot_type="dx" colors={colors} />
-            <div className="flex border-slate-300 border-t-2 border-b-2 py-4 justify-center">
+            <Seperator />
+            <div className="flex justify-center">
                 <SwapButton colors={colors} />
             </div>
+            <Seperator />
             <ContinentColumn spot_type="spotter" colors={colors} />
-            <div className="border-t-2 border-slate-300 w-full" />
+            <Seperator />
             <div className="flex flex-col items-center my-2 space-y-3">
                 <ViewSelectorButtons
                     active_view={active_view}
@@ -175,6 +181,7 @@ function RightColumn({ toggled_ui, active_view, set_active_view }) {
                     colors={colors}
                 />
             </div>
+            <Seperator />
             <div className="flex flex-col items-center mt-auto mb-2 space-y-3">
                 <UtilityButtons />
             </div>
