@@ -11,12 +11,13 @@ const RELEASES = [
     [
         "",
         [
+            "New DXpedition list with dates, sorting, duration tracking",
             "New DXpedition filters in Alert/Show Only/Hide area",
             "Real time updating of new spots",
             "Search feature for dx stations - available with the search button or ctrl+F",
             "USA state information - full state name in flag popup, configurable state indicators, and state displayed in flags column",
             "Swap button for the continents column",
-            "Added RTTY mode support",
+            "Added RTTY mode",
             "Autofill locator when inserting callsign in the settings",
         ],
     ],
