@@ -1,6 +1,19 @@
 import { useMemo } from "react";
+import { useLocalStorage } from "@uidotdev/usehooks";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
+
+const sort_options = [
+    { key: "start", label: "Start" },
+    { key: "end", label: "End" },
+    { key: "time_left", label: "Time left" },
+];
+
+const sort_functions = {
+    start: (a, b) => new Date(a.start_date) - new Date(b.start_date),
+    end: (a, b) => new Date(a.end_date) - new Date(b.end_date),
+    time_left: (a, b) => new Date(a.end_date) - new Date(b.end_date),
+};
 
 function format_duration(diff_ms) {
     const days = Math.floor(diff_ms / (1000 * 60 * 60 * 24));
@@ -131,6 +144,8 @@ function DXpeditions() {
     const { colors } = useColors();
     const { raw_spots, dxpeditions } = useServerData();
 
+    const [sort_key, set_sort_key] = useLocalStorage("dxpeditions_sort", "end");
+
     const spotted_callsigns = useMemo(() => {
         const callsigns = new Set();
         for (const spot of raw_spots) {
@@ -142,8 +157,9 @@ function DXpeditions() {
     }, [raw_spots]);
 
     const sorted_dxpeditions = useMemo(() => {
-        return [...dxpeditions].sort((a, b) => new Date(a.end_date) - new Date(b.end_date));
-    }, [dxpeditions]);
+        const sort_fn = sort_functions[sort_key] || sort_functions.end;
+        return [...dxpeditions].sort(sort_fn);
+    }, [dxpeditions, sort_key]);
 
     const active_count = useMemo(
         () => sorted_dxpeditions.filter(is_active).length,
@@ -161,8 +177,26 @@ function DXpeditions() {
 
     return (
         <div className="p-2 flex flex-col gap-2 overflow-y-auto h-full">
-            <div className="text-xs font-medium px-1" style={{ color: colors.theme.text }}>
-                {active_count} active{upcoming_count > 0 && `, ${upcoming_count} upcoming`}
+            <div className="flex items-center justify-between px-1">
+                <div className="text-xs font-medium" style={{ color: colors.theme.text }}>
+                    {active_count} active{upcoming_count > 0 && `, ${upcoming_count} upcoming`}
+                </div>
+                <div className="flex gap-1">
+                    {sort_options.map(option => (
+                        <button
+                            key={option.key}
+                            className="text-[10px] px-1.5 py-0.5 rounded cursor-pointer"
+                            style={{
+                                backgroundColor: sort_key === option.key ? "#6b7280" : "transparent",
+                                color: sort_key === option.key ? "white" : colors.theme.text,
+                                border: sort_key === option.key ? "none" : `1px solid ${colors.theme.border || "#e2e8f0"}`,
+                            }}
+                            onClick={() => set_sort_key(option.key)}
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                </div>
             </div>
             {sorted_dxpeditions.map(dxpedition => (
                 <DXpeditionCard
