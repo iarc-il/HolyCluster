@@ -33,7 +33,13 @@ function progress_fraction(start_date, end_date) {
     return Math.max(0, Math.min(1, elapsed / total));
 }
 
+function is_active(dxpedition) {
+    const now = new Date();
+    return now >= new Date(dxpedition.start_date) && now <= new Date(dxpedition.end_date);
+}
+
 function DXpeditionCard({ dxpedition, colors }) {
+    const active = is_active(dxpedition);
     const fraction = progress_fraction(dxpedition.start_date, dxpedition.end_date);
     const time_remaining = format_time_remaining(dxpedition.end_date);
     const is_ended = time_remaining === "Ended";
@@ -46,18 +52,35 @@ function DXpeditionCard({ dxpedition, colors }) {
                 backgroundColor: colors.theme.columns,
                 border: is_urgent
                     ? "1px solid #f59e0b"
-                    : `1px solid ${colors.theme.border || "#e2e8f0"}`,
-                opacity: is_ended ? 0.5 : 1,
+                    : active
+                      ? "1px solid #22c55e"
+                      : `1px solid ${colors.theme.border || "#e2e8f0"}`,
+                opacity: is_ended ? 0.5 : active ? 1 : 0.7,
             }}
         >
             <div className="flex items-center justify-between">
-                <span className="font-bold text-sm" style={{ color: colors.theme.text }}>
+                <span
+                    className="font-bold text-sm flex items-center gap-1.5"
+                    style={{ color: colors.theme.text }}
+                >
+                    {active && (
+                        <span
+                            className="inline-block w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: "#22c55e" }}
+                        />
+                    )}
                     {dxpedition.callsign}
                 </span>
                 <span
                     className="text-xs font-medium px-1.5 py-0.5 rounded"
                     style={{
-                        backgroundColor: is_ended ? "#6b7280" : is_urgent ? "#f59e0b" : "#22c55e",
+                        backgroundColor: is_ended
+                            ? "#6b7280"
+                            : is_urgent
+                              ? "#f59e0b"
+                              : active
+                                ? "#22c55e"
+                                : "#6b7280",
                         color: "white",
                     }}
                 >
@@ -70,18 +93,24 @@ function DXpeditionCard({ dxpedition, colors }) {
             >
                 {format_date(dxpedition.start_date)} – {format_date(dxpedition.end_date)}
             </div>
-            <div
-                className="w-full h-1.5 rounded-full overflow-hidden mt-0.5"
-                style={{ backgroundColor: colors.theme.background }}
-            >
+            {active && (
                 <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                        width: `${fraction * 100}%`,
-                        backgroundColor: is_ended ? "#6b7280" : is_urgent ? "#f59e0b" : "#FFD700",
-                    }}
-                />
-            </div>
+                    className="w-full h-1.5 rounded-full overflow-hidden mt-0.5"
+                    style={{ backgroundColor: colors.theme.background }}
+                >
+                    <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                            width: `${fraction * 100}%`,
+                            backgroundColor: is_ended
+                                ? "#6b7280"
+                                : is_urgent
+                                  ? "#f59e0b"
+                                  : "#FFD700",
+                        }}
+                    />
+                </div>
+            )}
         </div>
     );
 }
