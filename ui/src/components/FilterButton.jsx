@@ -24,7 +24,7 @@ function FilterButton({
         "w-16",
         `hover:brightness-${hover_brightness}`,
         "outline",
-        "outline-1",
+        "outline-2",
         "-outline-offset-1",
         "outline-slate-700",
         className ?? "",

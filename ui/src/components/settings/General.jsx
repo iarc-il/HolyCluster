@@ -46,7 +46,10 @@ function General({ temp_settings, set_temp_settings, colors }) {
         temp_settings.default_radius % 1000 == 0;
 
     return (
-        <div className="p-4 flex flex-col md:flex-row md:gap-8" style={{ color: colors.theme.text }}>
+        <div
+            className="p-4 flex flex-col md:flex-row md:gap-8"
+            style={{ color: colors.theme.text }}
+        >
             <table className="table-fixed border-separate border-spacing-y-2">
                 <tbody>
                     <tr>
