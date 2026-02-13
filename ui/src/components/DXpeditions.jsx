@@ -150,6 +150,12 @@ function DXpeditions() {
         return [...dxpeditions].sort((a, b) => new Date(a.end_date) - new Date(b.end_date));
     }, [dxpeditions]);
 
+    const active_count = useMemo(
+        () => sorted_dxpeditions.filter(is_active).length,
+        [sorted_dxpeditions],
+    );
+    const upcoming_count = sorted_dxpeditions.length - active_count;
+
     if (loading) {
         return (
             <div className="p-4 text-center text-sm" style={{ color: colors.theme.text }}>
@@ -169,8 +175,7 @@ function DXpeditions() {
     return (
         <div className="p-2 flex flex-col gap-2 overflow-y-auto h-full">
             <div className="text-xs font-medium px-1" style={{ color: colors.theme.text }}>
-                {sorted_dxpeditions.length} active DXpedition
-                {sorted_dxpeditions.length !== 1 && "s"}
+                {active_count} active{upcoming_count > 0 && `, ${upcoming_count} upcoming`}
             </div>
             {sorted_dxpeditions.map(dxpedition => (
                 <DXpeditionCard key={dxpedition.callsign} dxpedition={dxpedition} colors={colors} />
