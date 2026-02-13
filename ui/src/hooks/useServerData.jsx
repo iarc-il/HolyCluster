@@ -179,7 +179,9 @@ export const ServerDataProvider = ({ children }) => {
 
             fetch("/dxpeditions")
                 .then(response => (response.ok ? response.json() : Promise.reject(response)))
-                .then(data => data && set_dxpeditions(data))
+                .then(
+                    data => data && set_dxpeditions(data.map((item, id) => ({ id: id, ...item }))),
+                )
                 .catch(() => {});
         };
 

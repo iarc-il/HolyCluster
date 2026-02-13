@@ -202,7 +202,7 @@ function DXpeditions() {
             </div>
             {sorted_dxpeditions.map(dxpedition => (
                 <DXpeditionCard
-                    key={dxpedition.callsign}
+                    key={dxpedition.id}
                     dxpedition={dxpedition}
                     colors={colors}
                     is_spotted={spotted_callsigns.has(dxpedition.callsign)}
