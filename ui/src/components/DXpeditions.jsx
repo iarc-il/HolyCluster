@@ -127,11 +127,7 @@ function DXpeditionCard({ dxpedition, colors, is_spotted }) {
                         className="h-full rounded-full transition-all"
                         style={{
                             width: `${fraction * 100}%`,
-                            backgroundColor: is_ended
-                                ? "#6b7280"
-                                : is_urgent
-                                  ? "#f59e0b"
-                                  : "#FFD700",
+                            backgroundColor: "#FFD700",
                         }}
                     />
                 </div>
@@ -187,9 +183,13 @@ function DXpeditions() {
                             key={option.key}
                             className="text-[10px] px-1.5 py-0.5 rounded cursor-pointer"
                             style={{
-                                backgroundColor: sort_key === option.key ? "#6b7280" : "transparent",
+                                backgroundColor:
+                                    sort_key === option.key ? "#6b7280" : "transparent",
                                 color: sort_key === option.key ? "white" : colors.theme.text,
-                                border: sort_key === option.key ? "none" : `1px solid ${colors.theme.border || "#e2e8f0"}`,
+                                border:
+                                    sort_key === option.key
+                                        ? "none"
+                                        : `1px solid ${colors.theme.border || "#e2e8f0"}`,
                             }}
                             onClick={() => set_sort_key(option.key)}
                         >
