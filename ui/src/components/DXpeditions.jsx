@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useColors } from "@/hooks/useColors";
+import { useServerData } from "@/hooks/useServerData";
 
 function format_duration(diff_ms) {
     const days = Math.floor(diff_ms / (1000 * 60 * 60 * 24));
@@ -44,7 +45,7 @@ function is_active(dxpedition) {
     return now >= new Date(dxpedition.start_date) && now <= new Date(dxpedition.end_date);
 }
 
-function DXpeditionCard({ dxpedition, colors }) {
+function DXpeditionCard({ dxpedition, colors, is_spotted }) {
     const active = is_active(dxpedition);
     const fraction = progress_fraction(dxpedition.start_date, dxpedition.end_date);
     const time_remaining = format_time_remaining(dxpedition.end_date);
@@ -58,11 +59,13 @@ function DXpeditionCard({ dxpedition, colors }) {
             className="rounded-lg p-3 flex flex-col gap-1.5"
             style={{
                 backgroundColor: colors.theme.columns,
-                border: is_urgent
-                    ? "1px solid #f59e0b"
-                    : active
-                      ? "1px solid #22c55e"
-                      : `1px solid ${colors.theme.border || "#e2e8f0"}`,
+                border: is_spotted
+                    ? "2px solid #FFD700"
+                    : is_urgent
+                      ? "1px solid #f59e0b"
+                      : active
+                        ? "1px solid #22c55e"
+                        : `1px solid ${colors.theme.border || "#e2e8f0"}`,
                 opacity: is_ended ? 0.5 : active ? 1 : 0.7,
             }}
         >
@@ -71,7 +74,8 @@ function DXpeditionCard({ dxpedition, colors }) {
                     className="font-bold text-sm flex items-center gap-1.5"
                     style={{ color: colors.theme.text }}
                 >
-                    {active && (
+                    {is_spotted && <span title="Spotted now">⭐</span>}
+                    {!is_spotted && active && (
                         <span
                             className="inline-block w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: "#22c55e" }}
@@ -125,8 +129,19 @@ function DXpeditionCard({ dxpedition, colors }) {
 
 function DXpeditions() {
     const { colors } = useColors();
+    const { raw_spots } = useServerData();
     const [dxpeditions, set_dxpeditions] = useState([]);
     const [loading, set_loading] = useState(true);
+
+    const spotted_callsigns = useMemo(() => {
+        const callsigns = new Set();
+        for (const spot of raw_spots) {
+            if (spot.is_dxpedition) {
+                callsigns.add(spot.dx_callsign);
+            }
+        }
+        return callsigns;
+    }, [raw_spots]);
 
     useEffect(() => {
         const fetch_dxpeditions = () => {
@@ -178,7 +193,12 @@ function DXpeditions() {
                 {active_count} active{upcoming_count > 0 && `, ${upcoming_count} upcoming`}
             </div>
             {sorted_dxpeditions.map(dxpedition => (
-                <DXpeditionCard key={dxpedition.callsign} dxpedition={dxpedition} colors={colors} />
+                <DXpeditionCard
+                    key={dxpedition.callsign}
+                    dxpedition={dxpedition}
+                    colors={colors}
+                    is_spotted={spotted_callsigns.has(dxpedition.callsign)}
+                />
             ))}
         </div>
     );
