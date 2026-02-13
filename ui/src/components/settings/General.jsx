@@ -46,11 +46,8 @@ function General({ temp_settings, set_temp_settings, colors }) {
         temp_settings.default_radius % 1000 == 0;
 
     return (
-        <div className="p-4">
-            <table
-                className="table-fixed border-separate border-spacing-y-2"
-                style={{ color: colors.theme.text }}
-            >
+        <div className="p-4 flex flex-col md:flex-row gap-8" style={{ color: colors.theme.text }}>
+            <table className="table-fixed border-separate border-spacing-y-2">
                 <tbody>
                     <tr>
                         <td>My callsign:</td>
@@ -97,7 +94,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         </td>
                     </tr>
                     <tr>
-                        <td>Default map radius:</td>
+                        <td>Default map radius:&nbsp;&nbsp;</td>
                         <td>
                             <Input
                                 value={temp_settings.default_radius}
@@ -138,7 +135,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         </td>
                     </tr>
                     <tr>
-                        <td>Distance Units:&nbsp;&nbsp;</td>
+                        <td>Distance Units:</td>
                         <td>
                             <Select
                                 value={temp_settings.is_miles}
@@ -162,6 +159,10 @@ function General({ temp_settings, set_temp_settings, colors }) {
                             </Select>
                         </td>
                     </tr>
+                </tbody>
+            </table>
+            <table className="table-fixed border-separate border-spacing-y-2">
+                <tbody>
                     <tr>
                         <td>Propagation:&nbsp;&nbsp;</td>
                         <td>

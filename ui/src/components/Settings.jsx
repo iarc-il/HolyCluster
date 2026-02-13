@@ -185,7 +185,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             }}
             on_cancel={() => reset_temp_settings()}
         >
-            <div className="h-full w-[21rem]">
+            <div className="h-full w-[21rem] md:w-[42rem]">
                 <Tabs tabs={tabs} />
             </div>
         </Modal>
