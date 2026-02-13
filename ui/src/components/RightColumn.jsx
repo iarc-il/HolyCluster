@@ -160,13 +160,15 @@ function RightColumn({ toggled_ui, active_view, set_active_view }) {
                 <SwapButton colors={colors} />
             </div>
             <ContinentColumn spot_type="spotter" colors={colors} />
-            <div className="flex flex-col items-center mt-auto mb-2 space-y-3">
+            <div className="border-t-2 border-slate-300 w-full" />
+            <div className="flex flex-col items-center my-2 space-y-3">
                 <ViewSelectorButtons
                     active_view={active_view}
                     set_active_view={set_active_view}
                     colors={colors}
                 />
-                <div className="border-t-2 border-slate-300 w-full" />
+            </div>
+            <div className="flex flex-col items-center mt-auto mb-2 space-y-3">
                 <UtilityButtons />
             </div>
         </div>
