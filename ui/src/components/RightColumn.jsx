@@ -129,8 +129,12 @@ function ViewSelectorButtons({ active_view, set_active_view, colors }) {
                 return (
                     <div
                         key={option.label}
-                        onClick={() => set_active_view(is_active ? null : index)}
-                        className="cursor-pointer"
+                        onClick={() => {
+                            if (!is_active) {
+                                set_active_view(index);
+                            }
+                        }}
+                        className={!is_active ? "cursor-pointer" : ""}
                         title={option.label}
                     >
                         <svg

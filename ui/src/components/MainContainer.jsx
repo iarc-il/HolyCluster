@@ -100,7 +100,8 @@ function MainContainer() {
     }
 
     const [canvas, set_canvas] = useLocalStorage("canvas", false);
-    const [active_view, set_active_view] = useLocalStorage("active_view", null);
+    // The view with zero index is the Filters view
+    const [active_view, set_active_view] = useLocalStorage("active_view", 0);
 
     function on_key_down(event) {
         if (event.ctrlKey && !event.altKey && event.key === "f") {
