@@ -268,11 +268,11 @@ Spot = forwardRef(Spot);
 
 function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, sorting = true }) {
     const { colors } = useColors();
-    let direction = <span className="w-[0.8em] h-[0.8em]"></span>;
+    let direction = <span className="w-[0.8em] h-[1.5em]"></span>;
     if (table_sort.column == field && sorting) {
         if (table_sort.ascending) {
             direction = (
-                <svg className="w-[0.8em] h-[0.8em]" viewBox="0 0 16 16" fill="none">
+                <svg className="w-[0.8em] h-[1.5em]" viewBox="0 0 16 16" fill="none">
                     <path
                         d="M10 8L14 8V10L8 16L2 10V8H6V0L10 4.76995e-08V8Z"
                         fill={colors.table.header_arrow}
@@ -281,7 +281,7 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
             );
         } else {
             direction = (
-                <svg className="w-[0.8em] h-[0.8em]" viewBox="0 0 16 16" fill="none">
+                <svg className="w-[0.8em] h-[1.5em]" viewBox="0 0 16 16" fill="none">
                     <path
                         d="M6 8L2 8L2 6L8 5.24536e-07L14 6L14 8L10 8L10 16L6 16L6 8Z"
                         fill={colors.table.header_arrow}
@@ -300,18 +300,19 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
     return (
         <td
             className={
-                "sticky top-0 z-40 " + (sorting ? "cursor-pointer " : "") + cell_classes[field]
+                "sticky top-0 z-40 h-8 " + (sorting ? "cursor-pointer " : "") + cell_classes[field]
             }
             style={{
                 backgroundColor: colors.table.header,
                 color: colors.table.header_text,
+                borderBottom: `2px solid ${colors.table.header_arrow}`,
             }}
             onClick={() => (sorting ? set_sort() : "")}
         >
-            <span className="inline-flex items-center space-x-1">
+            <div className="flex justify-center items-center h-full font-bold">
                 {direction}
                 <span>{title}</span>
-            </span>
+            </div>
         </td>
     );
 }
@@ -504,13 +505,14 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     table_sort={table_sort}
                                     set_table_sort={set_table_sort}
                                 />
-                                <td
-                                    className={"sticky top-0 z-40 " + cell_classes.flag}
-                                    style={{
-                                        backgroundColor: colors.table.header,
-                                        color: colors.table.header_text,
-                                    }}
-                                ></td>
+                                <HeaderCell
+                                    title=""
+                                    field=""
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                    sorting={false}
+                                />
                                 <HeaderCell
                                     title="DX"
                                     field="dx_callsign"

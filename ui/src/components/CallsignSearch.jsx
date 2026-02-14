@@ -6,7 +6,6 @@ import { useServerData } from "@/hooks/useServerData";
 import { useFilters } from "@/hooks/useFilters";
 
 export default function CallsignSearch() {
-    const input_ref = useRef(null);
     const { colors } = useColors();
     const { search_query, set_search_query } = useServerData();
     const { callsign_filters, setCallsignFilters } = useFilters();
@@ -44,8 +43,8 @@ export default function CallsignSearch() {
                 <path d="M15 15L10 10" strokeLinecap="round" />
             </svg>
             <Input
-                ref={input_ref}
-                className="w-48 h-10 text-lg border-2 border-indigo-600"
+                className={`w-48 h-10 text-lg border-2`}
+                border_color={colors.table.header_arrow}
                 placeholder="Search callsign..."
                 value={search_query}
                 onChange={e => set_search_query(e.target.value)}
