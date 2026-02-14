@@ -131,7 +131,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                 await add_spot_to_postgres(engine, enriched_spot)
 
                 if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
-                    await valkey_client.xadd(STREAM_API, enriched_spot, "*")
+                    await valkey_client.xadd(STREAM_API, enriched_spot, "*", maxlen=10000)
             finally:
                 input_queue.task_done()
 
