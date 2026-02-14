@@ -104,7 +104,7 @@ function MainContainer() {
     const [active_view, set_active_view] = useLocalStorage("active_view", 0);
 
     function on_key_down(event) {
-        if (event.ctrlKey && !event.altKey && event.key === "f") {
+        if (event.ctrlKey && !event.altKey && event.key === "f" && !is_md_device) {
             event.preventDefault();
             set_search_open(true);
         }

@@ -569,7 +569,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                 </div>
 
                 <button
-                    className="absolute top-1 right-2 border-4 z-40 p-3 rounded-full shadow-lg hover:scale-110 transition-transform duration-200"
+                    className="hidden md:block absolute top-1 right-2 border-4 z-40 p-3 rounded-full shadow-lg hover:scale-110 transition-transform duration-200"
                     style={{
                         backgroundColor: colors.table.header,
                         color: colors.theme.text,

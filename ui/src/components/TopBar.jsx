@@ -95,13 +95,13 @@ function TopBar({
                 <img className="object-contain max-h-12 w-10 m-auto" src={Icon} />
             </div>
             <h1
-                className="hidden md:block text-3xl lg:text-4xl m-auto font-bold"
+                className="hidden lg:block md:text-2xl text-4xl m-auto w-fit font-bold"
                 style={{ color: colors.theme.text }}
             >
                 The Holy Cluster
             </h1>
 
-            <div className="flex items-center h-full w-[280px]">
+            <div className="hidden md:flex items-center h-full w-[280px]">
                 <CallsignSearch
                     is_open={search_open}
                     search_text={search_query}
