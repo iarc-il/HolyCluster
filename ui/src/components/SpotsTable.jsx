@@ -2,6 +2,7 @@ import X from "@/components/X.jsx";
 import { useEffect, useState, forwardRef, useRef } from "react";
 import SpotContextMenu from "./SpotContextMenu";
 import Popup from "./Popup";
+import CallsignSearch from "@/components/CallsignSearch.jsx";
 
 import { get_flag } from "@/flags.js";
 import { US_STATES } from "@/us_states.js";
@@ -318,7 +319,6 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         pinned_spot,
         set_pinned_spot,
         current_freq_spots,
-        set_search_open,
     } = useServerData();
     const { callsign_filters, setCallsignFilters } = useFilters();
     const row_refs = useRef({});
@@ -477,12 +477,13 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     return (
         <>
             <div
-                className="relative text-sm h-full overflow-x-visible border-x-4"
+                className="relative text-sm h-full overflow-x-visible border-x-4 flex flex-col"
                 style={{
                     borderColor: colors.theme.borders,
                     backgroundColor: colors.theme.background,
                 }}
             >
+                <CallsignSearch />
                 <div className="overflow-y-scroll h-full w-full">
                     <table
                         className="max-md:table-fixed max-md:w-full text-center border-collapse"
@@ -567,21 +568,6 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                         </tbody>
                     </table>
                 </div>
-
-                <button
-                    className="hidden md:block absolute top-1 right-2 border-4 z-40 p-3 rounded-full shadow-lg hover:scale-110 transition-transform duration-200"
-                    style={{
-                        backgroundColor: colors.table.header,
-                        color: colors.theme.text,
-                        borderColor: colors.table.header_arrow,
-                    }}
-                    onClick={() => set_search_open(true)}
-                    title="Search (Ctrl+F)"
-                >
-                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
-                    </svg>
-                </button>
             </div>
             {context_menu.visible && (
                 <SpotContextMenu

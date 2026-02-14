@@ -14,7 +14,7 @@ const Input = forwardRef(function Input(
         className += " w-24";
     }
     className +=
-        " shadow appearance-none border rounded-lg py-2 px-3 leading-tight focus:outline-none focus:shadow-outline";
+        " shadow appearance-none rounded-lg py-2 px-3 leading-tight focus:outline-none focus:shadow-outline";
 
     if (disabled_text_color == null) {
         disabled_text_color = colors.theme.disabled_text;
@@ -26,7 +26,6 @@ const Input = forwardRef(function Input(
             ref={ref}
             style={{
                 backgroundColor: colors.theme.input_background,
-                borderColor: colors.theme.borders,
                 color,
             }}
             className={className}
