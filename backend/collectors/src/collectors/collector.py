@@ -23,7 +23,7 @@ import aiomonitor
 STREAM_API = "stream-api"
 
 
-async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
+async def enrich_spot(qrz_session_key: str, spot: dict, http_client) -> dict:
     spot["timestamp"] = datetime.now(timezone.utc).timestamp()
 
     band_mode = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"])
@@ -34,8 +34,8 @@ async def enrich_spot(qrz_session_key: str, spot: dict) -> dict:
     band, mode, mode_selection = band_mode
 
     spotter_geo, dx_geo = await asyncio.gather(
-        get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"]),
-        get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"]),
+        get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"], http_client=http_client),
+        get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"], http_client=http_client),
     )
 
     spot.update(
@@ -115,7 +115,9 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
             spot = await input_queue.get()
             try:
                 try:
-                    enriched_spot = await enrich_spot(qrz_session_key=qrz_manager.get_key(), spot=spot)
+                    enriched_spot = await enrich_spot(
+                        qrz_session_key=qrz_manager.get_key(), spot=spot, http_client=qrz_manager.http_client
+                    )
                 except GeoException:
                     logger.exception("Dropping spot due to geo exception")
                     continue

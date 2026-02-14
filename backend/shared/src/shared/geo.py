@@ -57,6 +57,7 @@ async def get_geo_details(
     qrz_session_key: str,
     callsign: str,
     geo_expiration: int,
+    http_client,
 ) -> GeoData:
     # Get geo details from cache
     geo_data = await valkey_client.get(callsign)
@@ -70,6 +71,7 @@ async def get_geo_details(
             qrz_session_key=qrz_session_key,
             callsign=callsign,
             delay=0,
+            http_client=http_client,
         )
         if qrz_locator_dict is None:
             logger.error(f"get_locator_from_qrz returned None for {callsign}, falling back to prefix list")

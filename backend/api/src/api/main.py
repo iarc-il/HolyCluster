@@ -5,6 +5,7 @@ import time
 from contextlib import asynccontextmanager
 
 import fastapi
+import httpx
 import redis.asyncio
 from fastapi import HTTPException, Request, websockets
 from fastapi.responses import FileResponse, PlainTextResponse
@@ -98,6 +99,8 @@ async def lifespan(app: fastapi.FastAPI):
         decode_responses=True,
     )
 
+    app.state.http_client = httpx.AsyncClient()
+
     tasks = [
         asyncio.create_task(propagation_data_collector(app)),
         asyncio.create_task(spots_broadcast_task(app)),
@@ -108,6 +111,7 @@ async def lifespan(app: fastapi.FastAPI):
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks)
+    await app.state.http_client.aclose()
     await app.state.valkey_client.aclose()
 
 
@@ -183,6 +187,7 @@ async def get_locator(callsign: str):
             qrz_session_key,
             callsign,
             settings.valkey_geo_expiration,
+            app.state.http_client,
         )
     except GeoException:
         geo_data = None

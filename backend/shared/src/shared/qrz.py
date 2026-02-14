@@ -23,14 +23,21 @@ class QrzSessionManager:
         self._lock = asyncio.Lock()
         self.redis_client = redis_client
         self.redis_key = redis_key
+        self.http_client = httpx.AsyncClient()
 
     async def start(self):
         self.session_key = await get_qrz_session_key(
-            username=self.username, password=self.password, api_key=self.api_key
+            username=self.username,
+            password=self.password,
+            api_key=self.api_key,
+            http_client=self.http_client,
         )
         logger.info("QRZ session initialized")
         if self.redis_client:
             await self.redis_client.set(self.redis_key, self.session_key)
+
+    async def aclose(self):
+        await self.http_client.aclose()
 
     async def refresh_loop(self):
         try:
@@ -43,6 +50,7 @@ class QrzSessionManager:
                             username=self.username,
                             password=self.password,
                             api_key=self.api_key,
+                            http_client=self.http_client,
                         )
                         if new_key:
                             self.session_key = new_key
@@ -60,7 +68,7 @@ class QrzSessionManager:
         return self.session_key
 
 
-async def get_qrz_session_key(username: str, password: str, api_key: str):
+async def get_qrz_session_key(username: str, password: str, api_key: str, http_client: httpx.AsyncClient):
     if username == "":
         raise ValueError("Username is empty")
     if password == "":
@@ -70,8 +78,7 @@ async def get_qrz_session_key(username: str, password: str, api_key: str):
     while attempts <= 5:
         attempts += 1
         url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url)
+        response = await http_client.get(url)
 
         if response.status_code == 200:
             root = ET.fromstring(response.text)
@@ -86,7 +93,9 @@ async def get_qrz_session_key(username: str, password: str, api_key: str):
     return None
 
 
-async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float = 0) -> dict:
+async def get_locator_from_qrz(
+    qrz_session_key: str, callsign: str, http_client: httpx.AsyncClient, delay: float = 0
+) -> dict:
     suffix_list = ["/M", "/P"]
     for suffix in suffix_list:
         if callsign.upper().endswith(suffix):
@@ -100,8 +109,7 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, delay: float
     response = None
     while response is None:
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(url, timeout=5)
+            response = await http_client.get(url, timeout=5)
         except httpx.TimeoutException:
             if retries == 5:
                 raise
