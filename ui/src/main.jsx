@@ -32,7 +32,16 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                         </ColorsProvider>
                     }
                 />
-                <Route path="/addons" element={<Addons />} />
+                <Route
+                    path="/addons"
+                    element={
+                        <SettingsProvider>
+                            <RadioProvider>
+                                <Addons />
+                            </RadioProvider>
+                        </SettingsProvider>
+                    }
+                />
                 <Route path="/omnirig-error" element={<OmniRigError />} />
             </Routes>
         </BrowserRouter>
