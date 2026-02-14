@@ -89,12 +89,9 @@ const base_theme = {
         borders: "#000000",
     },
     dxpeditions: {
-        spotted: "#FFD700",
-        active: "#22c55e",
-        urgent: "#f59e0b",
         inactive: "#6b7280",
         badge_text: "white",
-        fallback_border: "#e2e8f0",
+        borders: "#94989e",
         progress_bar: "#2756ce",
         progress_track: "#8a94a3",
     },

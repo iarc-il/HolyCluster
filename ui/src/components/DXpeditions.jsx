@@ -17,8 +17,8 @@ function format_duration(diff_ms) {
     const days = Math.floor(diff_ms / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff_ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
 
-    if (days > 0) return `${days}d ${hours}h`;
-    if (hours > 0) return `${hours}h`;
+    if (days > 0) return `${days}D ${hours}H`;
+    if (hours > 0) return `${hours}H`;
 
     const minutes = Math.floor((diff_ms % (1000 * 60 * 60)) / (1000 * 60));
     return `${minutes}m`;
@@ -67,50 +67,32 @@ function DXpeditionCard({ dxpedition, colors, is_spotted }) {
 
     return (
         <div
-            className="rounded-lg p-3 flex flex-col gap-1.5"
+            className="rounded-lg p-3 flex flex-col gap-1.5 border border-2"
             style={{
                 backgroundColor: colors.theme.columns,
-                border: is_spotted
-                    ? `2px solid ${colors.dxpeditions.spotted}`
-                    : is_urgent
-                      ? `1px solid ${colors.dxpeditions.urgent}`
-                      : active
-                        ? `1px solid ${colors.dxpeditions.active}`
-                        : `1px solid ${colors.dxpeditions.fallback_border}`,
+                borderColor: colors.dxpeditions.borders,
                 opacity: is_ended ? 0.5 : active ? 1 : 0.7,
             }}
         >
             <div className="flex items-center justify-between">
                 <span
-                    className="font-bold text-sm flex items-center gap-1.5"
+                    className="font-bold text-md flex items-center gap-1.5"
                     style={{ color: colors.theme.text }}
                 >
                     {is_spotted && <span title="Spotted now">⭐</span>}
-                    {!is_spotted && active && (
-                        <span
-                            className="inline-block w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: colors.dxpeditions.active }}
-                        />
-                    )}
                     {dxpedition.callsign}
                 </span>
                 <span
-                    className="text-xs font-medium px-1.5 py-0.5 rounded"
+                    className="text-md font-medium px-1.5 py-0.5 rounded"
                     style={{
-                        backgroundColor: is_ended
-                            ? colors.dxpeditions.inactive
-                            : is_urgent
-                              ? colors.dxpeditions.urgent
-                              : active
-                                ? colors.dxpeditions.active
-                                : colors.dxpeditions.inactive,
-                        color: colors.dxpeditions.badge_text,
+                        backgroundColor: "#2a44a8",
+                        color: "white",
                     }}
                 >
                     {badge_text}
                 </span>
             </div>
-            <div className="text-xs" style={{ color: colors.theme.text }}>
+            <div className="text-sm" style={{ color: colors.theme.text }}>
                 {format_date(dxpedition.start_date)} – {format_date(dxpedition.end_date)}
             </div>
             {active && (
