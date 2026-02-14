@@ -236,7 +236,7 @@ export const ServerDataProvider = ({ children }) => {
 
                 const is_in_time_limit = current_time - spot.time < filters.time_limit;
                 // Alerted spots are displayed, no matter what.
-                if (spot.is_alerted && is_in_time_limit) {
+                if (spot.is_alerted && is_in_time_limit && search_query.length == 0) {
                     return true;
                 }
 
