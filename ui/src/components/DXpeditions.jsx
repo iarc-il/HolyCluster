@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
@@ -56,7 +56,7 @@ function is_active(dxpedition) {
     return now >= new Date(dxpedition.start_date) && now <= new Date(dxpedition.end_date);
 }
 
-function DXpeditionCard({ dxpedition, colors, is_spotted }) {
+function DXpeditionCard({ dxpedition, colors, is_spotted, is_highlighted, card_ref }) {
     const active = is_active(dxpedition);
     const fraction = progress_fraction(dxpedition.start_date, dxpedition.end_date);
     const time_remaining = format_time_remaining(dxpedition.end_date);
@@ -67,17 +67,19 @@ function DXpeditionCard({ dxpedition, colors, is_spotted }) {
 
     return (
         <div
-            className="rounded-lg p-3 flex flex-col gap-1.5 border border-2"
+            ref={card_ref}
+            className="rounded-lg p-3 flex flex-col gap-1.5 border-2 transition-all duration-200"
             style={{
-                backgroundColor: colors.theme.columns,
-                borderColor: colors.dxpeditions.borders,
-                opacity: is_ended ? 0.5 : active ? 1 : 0.7,
+                backgroundColor: is_highlighted ? "#2a44a8" : colors.theme.columns,
+                borderColor: is_highlighted ? "#4a6af5" : colors.dxpeditions.borders,
+                opacity: is_ended && !is_highlighted ? 0.5 : active || is_highlighted ? 1 : 0.7,
+                color: is_highlighted ? "white" : undefined,
             }}
         >
             <div className="flex items-center justify-between">
                 <span
                     className="font-bold text-md flex items-center gap-1.5"
-                    style={{ color: colors.theme.text }}
+                    style={{ color: is_highlighted ? "white" : colors.theme.text }}
                 >
                     {is_spotted && <span title="Spotted now">⭐</span>}
                     {dxpedition.callsign}
@@ -85,14 +87,17 @@ function DXpeditionCard({ dxpedition, colors, is_spotted }) {
                 <span
                     className="text-md font-medium px-1.5 py-0.5 rounded"
                     style={{
-                        backgroundColor: "#2a44a8",
+                        backgroundColor: is_highlighted ? "rgba(255,255,255,0.2)" : "#2a44a8",
                         color: "white",
                     }}
                 >
                     {badge_text}
                 </span>
             </div>
-            <div className="text-sm" style={{ color: colors.theme.text }}>
+            <div
+                className="text-sm"
+                style={{ color: is_highlighted ? "rgba(255,255,255,0.85)" : colors.theme.text }}
+            >
                 {format_date(dxpedition.start_date)} – {format_date(dxpedition.end_date)}
             </div>
             {active && (
@@ -115,9 +120,26 @@ function DXpeditionCard({ dxpedition, colors, is_spotted }) {
 
 function DXpeditions() {
     const { colors } = useColors();
-    const { raw_spots, dxpeditions } = useServerData();
+    const { raw_spots, dxpeditions, hovered_spot } = useServerData();
+    const card_refs = useRef({});
 
     const [sort_key, set_sort_key] = useLocalStorage("dxpeditions_sort", "end");
+
+    const hovered_dxpedition_callsign = useMemo(() => {
+        if (hovered_spot.id == null) return null;
+        const spot = raw_spots.find(s => s.id === hovered_spot.id);
+        if (!spot || !spot.is_dxpedition) return null;
+        const match = dxpeditions.find(d => spot.dx_callsign.startsWith(d.callsign));
+        return match ? match.callsign : null;
+    }, [hovered_spot.id, raw_spots, dxpeditions]);
+
+    useEffect(() => {
+        if (hovered_dxpedition_callsign == null) return;
+        const ref = card_refs.current[hovered_dxpedition_callsign];
+        if (ref) {
+            ref.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+    }, [hovered_dxpedition_callsign]);
 
     const spotted_callsigns = useMemo(() => {
         const callsigns = new Set();
@@ -189,6 +211,11 @@ function DXpeditions() {
                     dxpedition={dxpedition}
                     colors={colors}
                     is_spotted={spotted_callsigns.has(dxpedition.callsign)}
+                    is_highlighted={hovered_dxpedition_callsign === dxpedition.callsign}
+                    card_ref={el => {
+                        if (el) card_refs.current[dxpedition.callsign] = el;
+                        else delete card_refs.current[dxpedition.callsign];
+                    }}
                 />
             ))}
         </div>
