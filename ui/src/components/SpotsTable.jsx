@@ -299,7 +299,13 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
     }
     return (
         <td
-            className={(sorting ? "cursor-pointer " : "") + cell_classes[field]}
+            className={
+                "sticky top-0 z-40 " + (sorting ? "cursor-pointer " : "") + cell_classes[field]
+            }
+            style={{
+                backgroundColor: colors.table.header,
+                color: colors.table.header_text,
+            }}
             onClick={() => (sorting ? set_sort() : "")}
         >
             <span className="inline-flex items-center space-x-1">
@@ -486,17 +492,11 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                 <CallsignSearch />
                 <div className="overflow-y-scroll h-full w-full">
                     <table
-                        className="max-md:table-fixed max-md:w-full text-center border-collapse"
+                        className="max-md:table-fixed max-md:w-full text-center border-separate border-spacing-0"
                         onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
                     >
                         <tbody className="divide-y">
-                            <tr
-                                className="sticky top-0 z-40"
-                                style={{
-                                    backgroundColor: colors.table.header,
-                                    color: colors.table.header_text,
-                                }}
-                            >
+                            <tr>
                                 <HeaderCell
                                     title="Time"
                                     field="time"
@@ -504,7 +504,13 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     table_sort={table_sort}
                                     set_table_sort={set_table_sort}
                                 />
-                                <td className={cell_classes.flag}></td>
+                                <td
+                                    className={"sticky top-0 z-40 " + cell_classes.flag}
+                                    style={{
+                                        backgroundColor: colors.table.header,
+                                        color: colors.table.header_text,
+                                    }}
+                                ></td>
                                 <HeaderCell
                                     title="DX"
                                     field="dx_callsign"
