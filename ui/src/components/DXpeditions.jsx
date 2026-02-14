@@ -116,13 +116,13 @@ function DXpeditionCard({ dxpedition, colors, is_spotted }) {
             {active && (
                 <div
                     className="w-full h-1.5 rounded-full overflow-hidden mt-0.5"
-                    style={{ backgroundColor: colors.theme.background }}
+                    style={{ backgroundColor: colors.dxpeditions.progress_track }}
                 >
                     <div
                         className="h-full rounded-full transition-all"
                         style={{
                             width: `${fraction * 100}%`,
-                            backgroundColor: colors.dxpeditions.spotted,
+                            backgroundColor: colors.dxpeditions.progress_bar,
                         }}
                     />
                 </div>

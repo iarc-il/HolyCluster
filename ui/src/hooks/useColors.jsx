@@ -95,6 +95,8 @@ const base_theme = {
         inactive: "#6b7280",
         badge_text: "white",
         fallback_border: "#e2e8f0",
+        progress_bar: "#22c55e",
+        progress_track: "#4b5563",
     },
     spots: {
         alert_border: "white",
@@ -159,6 +161,9 @@ const themes = {
             header_arrow: "#475569",
             even_text: "#000000",
             odd_text: "#000000",
+        },
+        dxpeditions: {
+            progress_track: "#d1d5db",
         },
         seven_segment: {
             on: "#ef4444",
@@ -243,9 +248,9 @@ const themes = {
             highlighted_tab: "#000000",
         },
         buttons: {
-            modes: "#96FF9F",
-            dx_continents: "#BEDBFE",
-            spotter_continents: "#FECDD3",
+            modes: "#2e7a35",
+            dx_continents: "#2a44a8",
+            spotter_continents: "#7f1f2a",
             utility: "#a3a3a3",
             disabled_background: "#dbdbdc",
             disabled: "#1c1c1c",
