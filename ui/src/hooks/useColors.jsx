@@ -95,8 +95,8 @@ const base_theme = {
         inactive: "#6b7280",
         badge_text: "white",
         fallback_border: "#e2e8f0",
-        progress_bar: "#22c55e",
-        progress_track: "#4b5563",
+        progress_bar: "#2756ce",
+        progress_track: "#8a94a3",
     },
     spots: {
         alert_border: "white",
