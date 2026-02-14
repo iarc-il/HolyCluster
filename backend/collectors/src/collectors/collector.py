@@ -126,7 +126,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     logger.info(f"Dropping spot: {spot}")
                     continue
 
-                logger.info(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
+                logger.debug(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
 
                 await add_spot_to_postgres(engine, enriched_spot)
 
