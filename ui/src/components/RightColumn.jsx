@@ -57,6 +57,7 @@ function ContinentColumn({ spot_type, colors }) {
                     <FilterButton
                         color={color}
                         text={continent}
+                        text_color={colors.theme.text}
                         is_active={filters[filter_key][continent]}
                         on_click={_ => {
                             setFilters(state => ({
