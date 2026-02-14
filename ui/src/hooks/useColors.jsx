@@ -88,6 +88,18 @@ const base_theme = {
         night: "#000080",
         borders: "#000000",
     },
+    dxpeditions: {
+        spotted: "#FFD700",
+        active: "#22c55e",
+        urgent: "#f59e0b",
+        inactive: "#6b7280",
+        badge_text: "white",
+        fallback_border: "#e2e8f0",
+    },
+    spots: {
+        alert_border: "white",
+        dxpedition_alert: "#FFD700",
+    },
 };
 
 function merge_theme(overrides) {

@@ -71,12 +71,12 @@ function DXpeditionCard({ dxpedition, colors, is_spotted }) {
             style={{
                 backgroundColor: colors.theme.columns,
                 border: is_spotted
-                    ? "2px solid #FFD700"
+                    ? `2px solid ${colors.dxpeditions.spotted}`
                     : is_urgent
-                      ? "1px solid #f59e0b"
+                      ? `1px solid ${colors.dxpeditions.urgent}`
                       : active
-                        ? "1px solid #22c55e"
-                        : `1px solid ${colors.theme.border || "#e2e8f0"}`,
+                        ? `1px solid ${colors.dxpeditions.active}`
+                        : `1px solid ${colors.dxpeditions.fallback_border}`,
                 opacity: is_ended ? 0.5 : active ? 1 : 0.7,
             }}
         >
@@ -89,7 +89,7 @@ function DXpeditionCard({ dxpedition, colors, is_spotted }) {
                     {!is_spotted && active && (
                         <span
                             className="inline-block w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: "#22c55e" }}
+                            style={{ backgroundColor: colors.dxpeditions.active }}
                         />
                     )}
                     {dxpedition.callsign}
@@ -98,22 +98,19 @@ function DXpeditionCard({ dxpedition, colors, is_spotted }) {
                     className="text-xs font-medium px-1.5 py-0.5 rounded"
                     style={{
                         backgroundColor: is_ended
-                            ? "#6b7280"
+                            ? colors.dxpeditions.inactive
                             : is_urgent
-                              ? "#f59e0b"
+                              ? colors.dxpeditions.urgent
                               : active
-                                ? "#22c55e"
-                                : "#6b7280",
-                        color: "white",
+                                ? colors.dxpeditions.active
+                                : colors.dxpeditions.inactive,
+                        color: colors.dxpeditions.badge_text,
                     }}
                 >
                     {badge_text}
                 </span>
             </div>
-            <div
-                className="text-xs"
-                style={{ color: colors.theme.text_secondary || colors.theme.text }}
-            >
+            <div className="text-xs" style={{ color: colors.theme.text }}>
                 {format_date(dxpedition.start_date)} – {format_date(dxpedition.end_date)}
             </div>
             {active && (
@@ -125,7 +122,7 @@ function DXpeditionCard({ dxpedition, colors, is_spotted }) {
                         className="h-full rounded-full transition-all"
                         style={{
                             width: `${fraction * 100}%`,
-                            backgroundColor: "#FFD700",
+                            backgroundColor: colors.dxpeditions.spotted,
                         }}
                     />
                 </div>
@@ -184,12 +181,17 @@ function DXpeditions() {
                             className="text-[10px] px-1.5 py-0.5 rounded cursor-pointer"
                             style={{
                                 backgroundColor:
-                                    sort_key === option.key ? "#6b7280" : "transparent",
-                                color: sort_key === option.key ? "white" : colors.theme.text,
+                                    sort_key === option.key
+                                        ? colors.dxpeditions.inactive
+                                        : "transparent",
+                                color:
+                                    sort_key === option.key
+                                        ? colors.dxpeditions.badge_text
+                                        : colors.theme.text,
                                 border:
                                     sort_key === option.key
                                         ? "none"
-                                        : `1px solid ${colors.theme.border || "#e2e8f0"}`,
+                                        : `1px solid ${colors.dxpeditions.fallback_border}`,
                             }}
                             onClick={() => set_sort_key(option.key)}
                         >

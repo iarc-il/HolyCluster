@@ -142,7 +142,7 @@ function Spot(
             style={{
                 backgroundColor: background_color,
                 outlineColor: is_regular_alerted ? colors.light_bands[spot.band] : "",
-                border: is_regular_alerted ? "3px solid white" : "",
+                border: is_regular_alerted ? `3px solid ${colors.spots.alert_border}` : "",
                 color: text_color,
                 transition: is_new_spot
                     ? "background-color 2.5s ease-out, color 2.5s ease-out"
@@ -205,7 +205,9 @@ function Spot(
             <td
                 className={cell_classes.dx_callsign + " font-semibold"}
                 style={{
-                    outline: is_dxpedition_alerted ? "2px solid #FFD700" : "none",
+                    outline: is_dxpedition_alerted
+                        ? `2px solid ${colors.spots.dxpedition_alert}`
+                        : "none",
                     outlineOffset: "-3px",
                     padding: "4px",
                 }}
