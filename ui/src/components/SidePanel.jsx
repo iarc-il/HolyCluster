@@ -39,8 +39,10 @@ const view_options = [
 function ViewSelectorTabs({ active_view, set_active_view, colors }) {
     return (
         <div
-            className="flex shrink-0"
-            style={{ borderBottom: `1px solid ${colors.theme.borders}` }}
+            className="flex shrink-0 border-b-2"
+            style={{
+                borderColor: colors.table.header_arrow,
+            }}
         >
             {view_options.map((option, index) => {
                 const is_active = active_view === index;
