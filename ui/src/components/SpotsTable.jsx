@@ -318,6 +318,7 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
 }
 
 function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
+    const { colors } = useColors();
     const {
         spots,
         new_spot_ids,
@@ -329,7 +330,36 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     } = useServerData();
     const { callsign_filters, setCallsignFilters } = useFilters();
     const row_refs = useRef({});
-    const { colors } = useColors();
+
+    const parity_map = useRef(new Map());
+    const prev_sort = useRef(table_sort);
+
+    // The parity_map and prev_sort are use to maintain stable background of the spots
+    if (
+        prev_sort.current.column !== table_sort.column ||
+        prev_sort.current.ascending !== table_sort.ascending
+    ) {
+        parity_map.current.clear();
+        prev_sort.current = table_sort;
+    }
+
+    const current_ids = new Set(spots.map(s => s.id));
+    for (const id of parity_map.current.keys()) {
+        if (!current_ids.has(id)) parity_map.current.delete(id);
+    }
+
+    for (let i = 0; i < spots.length; i++) {
+        const id = spots[i].id;
+        if (!parity_map.current.has(id)) {
+            if (i > 0) {
+                parity_map.current.set(id, !parity_map.current.get(spots[i - 1].id));
+            } else if (spots.length > 1 && parity_map.current.has(spots[1].id)) {
+                parity_map.current.set(id, !parity_map.current.get(spots[1].id));
+            } else {
+                parity_map.current.set(id, true);
+            }
+        }
+    }
 
     const [context_menu, set_context_menu] = useState({
         visible: false,
@@ -557,12 +587,12 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     sorting={false}
                                 />
                             </tr>
-                            {spots.map((spot, index) => (
+                            {spots.map(spot => (
                                 <Spot
                                     ref={element => (row_refs.current[spot.id] = element)}
                                     key={spot.id}
                                     spot={spot}
-                                    is_even={index % 2 == 0}
+                                    is_even={parity_map.current.get(spot.id)}
                                     hovered_spot={hovered_spot}
                                     pinned_spot={pinned_spot}
                                     set_pinned_spot={set_pinned_spot}
