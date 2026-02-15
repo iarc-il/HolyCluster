@@ -201,12 +201,9 @@ function MainContainer() {
                     toggled_ui={toggled_ui}
                     set_cat_to_spot={set_cat_to_spot}
                     active_view={active_view}
-                />
-                <RightColumn
-                    toggled_ui={toggled_ui}
-                    active_view={active_view}
                     set_active_view={set_active_view}
                 />
+                <RightColumn toggled_ui={toggled_ui} />
             </div>
         </div>
     );
