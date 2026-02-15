@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useColors } from "@/hooks/useColors";
 import { useServerData } from "@/hooks/useServerData";
+import Popup from "@/components/Popup";
 
 const sort_options = [
     { key: "start", label: "Start" },
@@ -56,6 +57,36 @@ function is_active(dxpedition) {
     return now >= new Date(dxpedition.start_date) && now <= new Date(dxpedition.end_date);
 }
 
+function OnAirStar({ colors }) {
+    const star_ref = useRef(null);
+    const [is_hovered, set_is_hovered] = useState(false);
+
+    return (
+        <>
+            <span
+                ref={star_ref}
+                onMouseEnter={_ => set_is_hovered(true)}
+                onMouseLeave={_ => set_is_hovered(false)}
+            >
+                ⭐
+            </span>
+            {is_hovered && (
+                <Popup anchor_ref={star_ref}>
+                    <div
+                        className="py-0 px-2 h-[24px] whitespace-nowrap rounded shadow-lg"
+                        style={{
+                            color: colors.theme.text,
+                            background: colors.theme.background,
+                        }}
+                    >
+                        On Air
+                    </div>
+                </Popup>
+            )}
+        </>
+    );
+}
+
 function DXpeditionCard({ dxpedition, colors, is_spotted, is_highlighted, card_ref }) {
     const active = is_active(dxpedition);
     const fraction = progress_fraction(dxpedition.start_date, dxpedition.end_date);
@@ -81,7 +112,7 @@ function DXpeditionCard({ dxpedition, colors, is_spotted, is_highlighted, card_r
                     className="font-bold text-md flex items-center gap-1.5"
                     style={{ color: is_highlighted ? "white" : colors.theme.text }}
                 >
-                    {is_spotted && <span title="Spotted now">⭐</span>}
+                    {is_spotted && <OnAirStar colors={colors} />}
                     {dxpedition.callsign}
                 </span>
                 <span
