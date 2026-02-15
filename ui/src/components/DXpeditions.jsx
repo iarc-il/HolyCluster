@@ -72,7 +72,7 @@ function DXpeditionCard({ dxpedition, colors, is_spotted, is_highlighted, card_r
             style={{
                 backgroundColor: is_highlighted ? "#2a44a8" : colors.theme.columns,
                 borderColor: is_highlighted ? "#4a6af5" : colors.dxpeditions.borders,
-                opacity: is_ended && !is_highlighted ? 0.5 : active || is_highlighted ? 1 : 0.7,
+                opacity: active || is_highlighted ? 1 : 0.7,
                 color: is_highlighted ? "white" : undefined,
             }}
         >
@@ -152,8 +152,9 @@ function DXpeditions() {
     }, [raw_spots]);
 
     const sorted_dxpeditions = useMemo(() => {
+        const now = new Date();
         const sort_fn = sort_functions[sort_key] || sort_functions.end;
-        return [...dxpeditions].sort(sort_fn);
+        return [...dxpeditions].filter(d => new Date(d.end_date) >= now).sort(sort_fn);
     }, [dxpeditions, sort_key]);
 
     const active_count = useMemo(
