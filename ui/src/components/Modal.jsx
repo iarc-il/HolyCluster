@@ -74,10 +74,10 @@ function Modal({
             {show_modal &&
                 createPortal(
                     <div
-                        className="flex pt-24 fixed inset-0 z-[60] outline-none focus:outline-none"
+                        className="flex pt-24 fixed inset-0 z-[60] outline-none focus:outline-none overflow-y-auto"
                         style={{ color: colors.theme.text }}
                     >
-                        <div className="relative min-w-80 my-6 mx-auto">
+                        <div className="relative min-w-80 my-6 mx-auto pb-6">
                             <div className="absolute top-0 right-0 p-2 cursor-pointer z-[70]">
                                 <svg
                                     width="24"
