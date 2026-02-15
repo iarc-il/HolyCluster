@@ -235,8 +235,13 @@ export const ServerDataProvider = ({ children }) => {
                 }
 
                 const is_in_time_limit = current_time - spot.time < filters.time_limit;
+
+                const is_matching_search =
+                    !search_query.trim() ||
+                    spot.dx_callsign.toLowerCase().startsWith(search_query.toLowerCase());
+
                 // Alerted spots are displayed, no matter what.
-                if (spot.is_alerted && is_in_time_limit && search_query.length == 0) {
+                if ((spot.is_alerted || is_matching_search) && is_in_time_limit) {
                     return true;
                 }
 
@@ -260,18 +265,13 @@ export const ServerDataProvider = ({ children }) => {
                 const is_spotter_continent_active =
                     filters.spotter_continents[spot.spotter_continent];
 
-                const is_matching_search =
-                    !search_query.trim() ||
-                    spot.dx_callsign.toLowerCase().startsWith(search_query.toLowerCase());
-
                 const result =
                     is_in_time_limit &&
                     is_dx_continent_active &&
                     is_spotter_continent_active &&
                     is_band_and_mode_active &&
                     are_filters_including &&
-                    are_filters_not_excluding &&
-                    is_matching_search;
+                    are_filters_not_excluding;
                 return result;
             })
             .slice(0, 100);
