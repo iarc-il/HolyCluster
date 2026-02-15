@@ -60,7 +60,7 @@ function SpotCount({ count, toggled_ui }) {
             const rect = anchorRef.current.getBoundingClientRect();
             set_position({
                 top: rect.top - 4,
-                left: rect.left + 22,
+                left: rect.left + 20,
             });
         }
     }, [anchorRef, toggled_ui]);

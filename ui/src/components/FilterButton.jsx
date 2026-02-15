@@ -15,13 +15,12 @@ function FilterButton({
     const { colors } = useColors();
 
     const box_style = [
-        "max-w-18",
         "text-center",
         "text-base",
         "rounded-full",
         "cursor-pointer",
         "select-none",
-        "w-16",
+        "w-14",
         `hover:brightness-${hover_brightness}`,
         "outline",
         "outline-1",

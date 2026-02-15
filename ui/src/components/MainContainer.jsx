@@ -203,7 +203,6 @@ function MainContainer() {
                     active_view={active_view}
                     set_active_view={set_active_view}
                 />
-                <RightColumn toggled_ui={toggled_ui} />
             </div>
         </div>
     );
