@@ -537,7 +537,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                 />
                                 <HeaderCell
                                     title=""
-                                    field=""
+                                    field="flag"
                                     cell_classes={cell_classes}
                                     table_sort={table_sort}
                                     set_table_sort={set_table_sort}
