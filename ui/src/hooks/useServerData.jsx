@@ -236,12 +236,17 @@ export const ServerDataProvider = ({ children }) => {
 
                 const is_in_time_limit = current_time - spot.time < filters.time_limit;
 
-                const is_matching_search =
-                    !search_query.trim() ||
-                    spot.dx_callsign.toLowerCase().startsWith(search_query.toLowerCase());
+                const is_matching_search = spot.dx_callsign
+                    .toLowerCase()
+                    .startsWith(search_query.toLowerCase());
 
-                // Alerted spots are displayed, no matter what.
-                if ((spot.is_alerted || is_matching_search) && is_in_time_limit) {
+                // If the search is not empty, it override everything else
+                if (search_query.length > 0) {
+                    return is_matching_search && is_in_time_limit;
+                }
+
+                // Alerted spots are always displayed
+                if (spot.is_alerted && is_in_time_limit) {
                     return true;
                 }
 
