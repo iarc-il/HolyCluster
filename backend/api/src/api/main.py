@@ -256,6 +256,28 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
             break
 
 
+async def send_spots(websocket: fastapi.WebSocket, message: dict):
+    async with async_session() as session:
+        if "initial" in message:
+            query = (
+                select(HolySpot)
+                .where(HolySpot.timestamp > (time.time() - 3600))
+                .order_by(desc(HolySpot.timestamp))
+                .limit(500)
+            )
+            spots = cleanup_spots((await session.execute(query)).scalars())
+            await websocket.send_json({"type": "initial", "spots": spots})
+        elif "last_time" in message:
+            query = (
+                select(HolySpot)
+                .where(HolySpot.timestamp > message["last_time"])
+                .order_by(desc(HolySpot.timestamp))
+                .limit(500)
+            )
+            spots = cleanup_spots((await session.execute(query)).scalars())
+            await websocket.send_json({"type": "update", "spots": spots})
+
+
 @app.websocket("/spots_ws")
 async def spots_ws(websocket: fastapi.WebSocket):
     await websocket.accept()
@@ -264,30 +286,7 @@ async def spots_ws(websocket: fastapi.WebSocket):
 
     try:
         message = await websocket.receive_json()
-
-        async with async_session() as session:
-            if "initial" in message:
-                query = (
-                    select(HolySpot)
-                    .where(HolySpot.timestamp > (time.time() - 3600))
-                    .order_by(desc(HolySpot.timestamp))
-                    .limit(500)
-                )
-                initial_spots = (await session.execute(query)).scalars()
-
-                initial_spots = cleanup_spots(initial_spots)
-                await websocket.send_json({"type": "initial", "spots": initial_spots})
-            elif "last_time" in message:
-                query = (
-                    select(HolySpot)
-                    .where(HolySpot.timestamp > message["last_time"])
-                    .order_by(desc(HolySpot.timestamp))
-                    .limit(500)
-                )
-                missed_spots = (await session.execute(query)).scalars()
-
-                missed_spots = cleanup_spots(missed_spots)
-                await websocket.send_json({"type": "update", "spots": missed_spots})
+        await send_spots(websocket, message)
 
         while True:
             await websocket.receive_text()
