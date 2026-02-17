@@ -170,22 +170,24 @@ function DXpeditions() {
 
     const [sort_key, set_sort_key] = useLocalStorage("dxpeditions_sort", "end");
 
-    const hovered_dxpedition_callsign = useMemo(() => {
+    const hovered_dxpedition_id = useMemo(() => {
         if (hovered_spot.id == null) return null;
         const spot = raw_spots.find(s => s.id === hovered_spot.id);
         if (!spot || !spot.is_dxpedition) return null;
-        const match = dxpeditions.find(d => spot.dx_callsign.startsWith(d.callsign));
-        return match ? match.callsign : null;
+        const match = dxpeditions.find(
+            d => spot.dx_callsign.startsWith(d.callsign) && is_active(d),
+        );
+        return match ? match.id : null;
     }, [hovered_spot.id, raw_spots, dxpeditions]);
 
     useEffect(() => {
-        if (hovered_dxpedition_callsign == null) return;
+        if (hovered_dxpedition_id == null) return;
         if (hovered_spot.source === "dxpedition") return;
-        const ref = card_refs.current[hovered_dxpedition_callsign];
+        const ref = card_refs.current[hovered_dxpedition_id];
         if (ref) {
             ref.scrollIntoView({ block: "center", behavior: "smooth" });
         }
-    }, [hovered_dxpedition_callsign, hovered_spot.source]);
+    }, [hovered_dxpedition_id, hovered_spot.source]);
 
     const spotted_dxpedition_spots = useMemo(() => {
         const map = new Map();
@@ -193,7 +195,10 @@ function DXpeditions() {
             if (spot.is_dxpedition) {
                 for (const d of dxpeditions) {
                     if (spot.dx_callsign.startsWith(d.callsign)) {
-                        map.set(d.callsign, spot.id);
+                        const existing = map.get(d.callsign);
+                        if (existing == null || spot.time > existing.time) {
+                            map.set(d.callsign, { id: spot.id, time: spot.time });
+                        }
                         break;
                     }
                 }
@@ -263,11 +268,11 @@ function DXpeditions() {
                     dxpedition={dxpedition}
                     colors={colors}
                     is_spotted={spotted_dxpedition_spots.has(dxpedition.callsign)}
-                    is_highlighted={hovered_dxpedition_callsign === dxpedition.callsign}
+                    is_highlighted={hovered_dxpedition_id === dxpedition.id}
                     onMouseEnter={() => {
-                        const spot_id = spotted_dxpedition_spots.get(dxpedition.callsign);
-                        if (spot_id != null) {
-                            set_hovered_spot({ source: "dxpedition", id: spot_id });
+                        const entry = spotted_dxpedition_spots.get(dxpedition.callsign);
+                        if (entry != null) {
+                            set_hovered_spot({ source: "dxpedition", id: entry.id });
                         }
                     }}
                     onMouseLeave={() => {
@@ -275,9 +280,9 @@ function DXpeditions() {
                             set_hovered_spot({ source: null, id: null });
                         }
                     }}
-                    card_ref={el => {
-                        if (el) card_refs.current[dxpedition.callsign] = el;
-                        else delete card_refs.current[dxpedition.callsign];
+                    card_ref={element => {
+                        if (element) card_refs.current[dxpedition.id] = element;
+                        else delete card_refs.current[dxpedition.id];
                     }}
                 />
             ))}
