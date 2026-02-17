@@ -498,7 +498,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
 
         if (
             hovered_ref != undefined &&
-            ["spotter", "dx", "arc", "bar"].includes(hovered_spot.source) &&
+            ["spotter", "dx", "arc", "bar", "dxpedition"].includes(hovered_spot.source) &&
             pinned_spot == undefined
         ) {
             hovered_ref.scrollIntoView({ block: "center", behavior: "instant" });
