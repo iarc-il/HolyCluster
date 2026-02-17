@@ -4,7 +4,6 @@ import MapControls from "@/components/MapControls.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
-import RightColumn from "@/components/RightColumn.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import SidePanel from "@/components/SidePanel.jsx";
 import Tabs from "@/components/Tabs.jsx";
