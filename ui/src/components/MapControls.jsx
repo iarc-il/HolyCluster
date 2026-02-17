@@ -6,7 +6,7 @@ import Radio from "@/components/Radio.jsx";
 import Night from "@/components/Night.jsx";
 import PropagationBar from "@/components/PropagationBar.jsx";
 import { useColors } from "@/hooks/useColors";
-import { useServerData } from "@/hooks/useServerData";
+import { useRestData } from "@/hooks/useRestData";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 
@@ -21,7 +21,7 @@ function MapControls({
     undo_cat,
 }) {
     const { colors, dev_mode } = useColors();
-    const { propagation } = useServerData();
+    const { propagation } = useRestData();
     const { radio_status } = use_radio();
     const { settings } = useSettings();
 

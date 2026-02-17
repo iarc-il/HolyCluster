@@ -2,12 +2,12 @@ import { useRef } from "react";
 import Input from "@/components/Input.jsx";
 import X from "@/components/X.jsx";
 import { useColors } from "@/hooks/useColors";
-import { useServerData } from "@/hooks/useServerData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useFilters } from "@/hooks/useFilters";
 
 export default function CallsignSearch() {
     const { colors } = useColors();
-    const { search_query, set_search_query } = useServerData();
+    const { search_query, set_search_query } = useSpotInteraction();
     const { callsign_filters, setCallsignFilters } = useFilters();
 
     const handle_enter = query => {

@@ -4,7 +4,8 @@ import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
 import { bands, modes } from "@/filters_data.js";
 import { get_mode_shape } from "@/mode_shapes.js";
-import { useServerData } from "@/hooks/useServerData";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useFilters } from "@/hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/hooks/useSettings";
@@ -115,7 +116,8 @@ function SpotCount({ count, toggled_ui }) {
 }
 
 function LeftColumn({ toggled_ui }) {
-    const { spots_per_band_count, spots_per_mode_count, set_hovered_band } = useServerData();
+    const { spots_per_band_count, spots_per_mode_count } = useSpotData();
+    const { set_hovered_band } = useSpotInteraction();
     const { filters, setFilters, setRadioModeFilter } = useFilters();
     const { radio_band, radio_status } = use_radio();
     const { settings } = useSettings();

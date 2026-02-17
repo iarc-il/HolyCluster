@@ -4,7 +4,7 @@ import Triangle from "./components/Triangle.jsx";
 import { to_radian } from "@/utils.js";
 import { get_mode_shape } from "@/mode_shapes.js";
 import { useColors } from "@/hooks/useColors";
-import { useServerData } from "@/hooks/useServerData";
+import { useSpotData } from "@/hooks/useSpotData";
 
 function Spot({
     spot,
@@ -17,7 +17,7 @@ function Spot({
     set_pinned_spot,
     hovered_band,
 }) {
-    const { current_freq_spots } = useServerData();
+    const { current_freq_spots } = useSpotData();
     const { colors } = useColors();
     const line = {
         type: "LineString",

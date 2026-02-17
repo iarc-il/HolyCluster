@@ -1,7 +1,8 @@
 import Select from "@/components/Select.jsx";
 import { useRef, useMemo } from "react";
 import { useColors } from "../hooks/useColors";
-import { useServerData } from "@/hooks/useServerData";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import use_radio from "../hooks/useRadio";
 import { get_mode_shape } from "@/mode_shapes.js";
@@ -172,14 +173,8 @@ const band_plans = {
 
 export default function FrequencyBar({ className, set_cat_to_spot }) {
     const { colors } = useColors();
-    const {
-        spots,
-        hovered_spot,
-        set_hovered_spot,
-        pinned_spot,
-        set_pinned_spot,
-        current_freq_spots: freq_spots,
-    } = useServerData();
+    const { spots, current_freq_spots: freq_spots } = useSpotData();
+    const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useSpotInteraction();
     // Set to -1 to use the current band that the radio is on
     const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
 

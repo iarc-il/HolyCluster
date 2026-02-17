@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useColors } from "@/hooks/useColors";
-import { useServerData } from "@/hooks/useServerData";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { useRestData } from "@/hooks/useRestData";
 import Popup from "@/components/Popup";
 
 const sort_options = [
@@ -151,7 +153,9 @@ function DXpeditionCard({ dxpedition, colors, is_spotted, is_highlighted, card_r
 
 function DXpeditions() {
     const { colors } = useColors();
-    const { raw_spots, dxpeditions, hovered_spot } = useServerData();
+    const { raw_spots } = useSpotData();
+    const { hovered_spot } = useSpotInteraction();
+    const { dxpeditions } = useRestData();
     const card_refs = useRef({});
 
     const [sort_key, set_sort_key] = useLocalStorage("dxpeditions_sort", "end");

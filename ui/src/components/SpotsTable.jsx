@@ -7,7 +7,8 @@ import CallsignSearch from "@/components/CallsignSearch.jsx";
 import { get_flag } from "@/flags.js";
 import { US_STATES } from "@/us_states.js";
 import { useColors } from "@/hooks/useColors";
-import { useServerData } from "@/hooks/useServerData";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";
 
@@ -45,7 +46,7 @@ function Spot(
     },
     ref,
 ) {
-    const { current_freq_spots } = useServerData();
+    const { current_freq_spots } = useSpotData();
     const { settings } = useSettings();
     const [is_fading, set_is_fading] = useState(false);
 
@@ -319,15 +320,8 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
 
 function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const { colors } = useColors();
-    const {
-        spots,
-        new_spot_ids,
-        hovered_spot,
-        set_hovered_spot,
-        pinned_spot,
-        set_pinned_spot,
-        current_freq_spots,
-    } = useServerData();
+    const { spots, new_spot_ids, current_freq_spots } = useSpotData();
+    const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useSpotInteraction();
     const { callsign_filters, setCallsignFilters } = useFilters();
     const row_refs = useRef({});
 

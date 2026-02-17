@@ -5,7 +5,9 @@ import { BrowserRouter, Routes, Route } from "react-router";
 import MainContainer from "@/components/MainContainer.jsx";
 import Addons from "@/components/addons/Addons";
 import OmniRigError from "@/components/OmniRigError.jsx";
-import { ServerDataProvider } from "@/hooks/useServerData";
+import { SpotDataProvider } from "@/hooks/useSpotData";
+import { SpotInteractionProvider } from "@/hooks/useSpotInteraction";
+import { RestDataProvider } from "@/hooks/useRestData";
 import { FiltersProvider } from "@/hooks/useFilters";
 import { ColorsProvider } from "@/hooks/useColors";
 import { RadioProvider } from "@/hooks/useRadio";
@@ -23,9 +25,13 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                             <FiltersProvider>
                                 <SettingsProvider>
                                     <RadioProvider>
-                                        <ServerDataProvider>
-                                            <MainContainer />
-                                        </ServerDataProvider>
+                                        <RestDataProvider>
+                                            <SpotInteractionProvider>
+                                                <SpotDataProvider>
+                                                    <MainContainer />
+                                                </SpotDataProvider>
+                                            </SpotInteractionProvider>
+                                        </RestDataProvider>
                                     </RadioProvider>
                                 </SettingsProvider>
                             </FiltersProvider>

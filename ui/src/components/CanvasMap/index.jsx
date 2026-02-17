@@ -19,7 +19,8 @@ import SpotPopup from "@/components/SpotPopup.jsx";
 import MapAngles from "@/components/MapAngles.jsx";
 import ToggleSVG from "@/components/ToggleSVG";
 import { useColors } from "@/hooks/useColors";
-import { useServerData } from "@/hooks/useServerData";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useSettings } from "@/hooks/useSettings";
 
 export const ENABLE_PANNING = false;
@@ -165,8 +166,9 @@ function CanvasMap({
     auto_radius,
     set_auto_radius,
 }) {
-    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
-        useServerData();
+    const { spots } = useSpotData();
+    const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
+        useSpotInteraction();
     const { settings } = useSettings();
 
     const map_canvas_ref = useRef(null);

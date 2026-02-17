@@ -9,7 +9,7 @@ import Button from "@/components/Button.jsx";
 import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
 import { useColors } from "../hooks/useColors";
 import { useFilters } from "../hooks/useFilters";
-import { useServerData } from "@/hooks/useServerData";
+import { useSpotData } from "@/hooks/useSpotData";
 import useRadio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
@@ -30,7 +30,7 @@ const spots_time_limits = {
 
 function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui, dev_mode }) {
     const { filters, setFilters } = useFilters();
-    const { network_state } = useServerData();
+    const { network_state } = useSpotData();
     const { set_rig, radio_status, rig } = use_radio();
     const { settings, set_settings } = useSettings();
 
