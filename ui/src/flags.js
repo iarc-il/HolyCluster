@@ -67,6 +67,8 @@ const dxcc_to_country_flag = {
     "Easter Island": "Chile",
     "Desecheo Island": "Puerto Rico",
     "Glorioso Islands": "French Southern and Antarctic Lands",
+    "Ivory Coast": "Côte d'Ivoire (Ivory Coast)",
+    "St. Paul Island": "Canada",
 };
 
 const dxcc_to_short_dxcc = {
