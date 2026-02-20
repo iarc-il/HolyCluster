@@ -227,7 +227,7 @@ function LeftColumn({ toggled_ui }) {
                                 text={
                                     <>
                                         {mode}
-                                        <div className="ml-1">
+                                        <div>
                                             {mode_to_symbol(mode)(
                                                 filters.modes[mode]
                                                     ? "#000000"
@@ -247,6 +247,7 @@ function LeftColumn({ toggled_ui }) {
                                     }))
                                 }
                                 color={colors.buttons.modes}
+                                className="text-[0.94rem]"
                             />
                         </FilterOptions>
                     );

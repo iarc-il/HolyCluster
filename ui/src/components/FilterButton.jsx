@@ -15,8 +15,6 @@ function FilterButton({
     const { colors } = useColors();
 
     const box_style = [
-        "text-center",
-        "text-base",
         "rounded-full",
         "cursor-pointer",
         "select-none",
