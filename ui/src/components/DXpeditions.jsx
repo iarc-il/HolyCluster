@@ -170,15 +170,40 @@ function DXpeditions() {
 
     const [sort_key, set_sort_key] = useLocalStorage("dxpeditions_sort", "end");
 
+    const spotted_dxpedition_spots = useMemo(() => {
+        const map = new Map();
+        for (const spot of raw_spots) {
+            if (spot.is_dxpedition) {
+                for (const d of dxpeditions) {
+                    if (spot.dx_callsign.startsWith(d.callsign)) {
+                        const existing = map.get(d.id);
+                        if (existing == null || spot.time > existing.time) {
+                            map.set(d.id, { id: spot.id, time: spot.time });
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        return map;
+    }, [raw_spots, dxpeditions]);
+
+    const spot_to_dxpedition = useMemo(() => {
+        const map = new Map();
+        for (const [dxpedition_id, entry] of spotted_dxpedition_spots) {
+            map.set(entry.id, dxpedition_id);
+        }
+        return map;
+    }, [spotted_dxpedition_spots]);
+
     const hovered_dxpedition_id = useMemo(() => {
+        if (hovered_spot.dxpedition_id != null) return hovered_spot.dxpedition_id;
         if (hovered_spot.id == null) return null;
         const spot = raw_spots.find(s => s.id === hovered_spot.id);
         if (!spot || !spot.is_dxpedition) return null;
-        const match = dxpeditions.find(
-            d => spot.dx_callsign.startsWith(d.callsign) && is_active(d),
-        );
-        return match ? match.id : null;
-    }, [hovered_spot.id, raw_spots, dxpeditions]);
+        const match = spot_to_dxpedition.get(spot.id);
+        return match ?? null;
+    }, [hovered_spot, raw_spots, spot_to_dxpedition]);
 
     useEffect(() => {
         if (hovered_dxpedition_id == null) return;
@@ -188,24 +213,6 @@ function DXpeditions() {
             ref.scrollIntoView({ block: "center", behavior: "smooth" });
         }
     }, [hovered_dxpedition_id, hovered_spot.source]);
-
-    const spotted_dxpedition_spots = useMemo(() => {
-        const map = new Map();
-        for (const spot of raw_spots) {
-            if (spot.is_dxpedition) {
-                for (const d of dxpeditions) {
-                    if (spot.dx_callsign.startsWith(d.callsign)) {
-                        const existing = map.get(d.callsign);
-                        if (existing == null || spot.time > existing.time) {
-                            map.set(d.callsign, { id: spot.id, time: spot.time });
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-        return map;
-    }, [raw_spots, dxpeditions]);
 
     const sorted_dxpeditions = useMemo(() => {
         const now = new Date();
@@ -267,16 +274,20 @@ function DXpeditions() {
                     key={dxpedition.id}
                     dxpedition={dxpedition}
                     colors={colors}
-                    is_spotted={spotted_dxpedition_spots.has(dxpedition.callsign)}
+                    is_spotted={spotted_dxpedition_spots.has(dxpedition.id)}
                     is_highlighted={hovered_dxpedition_id === dxpedition.id}
                     onMouseEnter={() => {
-                        const entry = spotted_dxpedition_spots.get(dxpedition.callsign);
+                        const entry = spotted_dxpedition_spots.get(dxpedition.id);
                         if (entry != null) {
-                            set_hovered_spot({ source: "dxpedition", id: entry.id });
+                            set_hovered_spot({
+                                source: "dxpedition",
+                                id: entry.id,
+                                dxpedition_id: dxpedition.id,
+                            });
                         }
                     }}
                     onMouseLeave={() => {
-                        if (spotted_dxpedition_spots.has(dxpedition.callsign)) {
+                        if (spotted_dxpedition_spots.has(dxpedition.id)) {
                             set_hovered_spot({ source: null, id: null });
                         }
                     }}

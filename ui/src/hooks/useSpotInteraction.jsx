@@ -7,7 +7,11 @@ export function useSpotInteraction() {
 }
 
 export const SpotInteractionProvider = ({ children }) => {
-    let [hovered_spot, set_hovered_spot] = useState({ source: null, id: null });
+    let [hovered_spot, set_hovered_spot] = useState({
+        source: null,
+        id: null,
+        dxpedition_id: null,
+    });
     let [hovered_band, set_hovered_band] = useState(null);
     let [pinned_spot, set_pinned_spot] = useState(null);
     let [search_query, set_search_query] = useState("");
