@@ -125,7 +125,7 @@ engine = create_async_engine(
 )
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-app = fastapi.FastAPI(lifespan=lifespan)
+app = fastapi.FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
 
 
 def cleanup_spot(spot):
