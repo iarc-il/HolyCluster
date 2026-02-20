@@ -19,7 +19,16 @@ import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useSettings } from "@/hooks/useSettings";
 
 function redraw_all_canvases(dims, projection, render_state, refs) {
-    const { colors, map_controls, settings, spots, hovered_spot, pinned_spot, hovered_band, current_freq_spots } = render_state;
+    const {
+        colors,
+        map_controls,
+        settings,
+        spots,
+        hovered_spot,
+        pinned_spot,
+        hovered_band,
+        current_freq_spots,
+    } = render_state;
 
     // Map cache
     const cache_canvas = refs.map_cache_canvas_ref.current;
@@ -41,8 +50,16 @@ function redraw_all_canvases(dims, projection, render_state, refs) {
     if (spots_canvas) {
         const ctx = spots_canvas.getContext("2d");
         draw_spots(
-            ctx, spots, colors, hovered_spot, pinned_spot, hovered_band,
-            current_freq_spots, dims, refs.dash_offset_ref.current, projection,
+            ctx,
+            spots,
+            colors,
+            hovered_spot,
+            pinned_spot,
+            hovered_band,
+            current_freq_spots,
+            dims,
+            refs.dash_offset_ref.current,
+            projection,
         );
     }
 
@@ -79,7 +96,13 @@ function CanvasMapV2({
     const zoom_ref = useRef(null);
     const zoom_settle_timer_ref = useRef(null);
 
-    const canvas_refs = { map_canvas_ref, spots_canvas_ref, shadow_canvas_ref, map_cache_canvas_ref, dash_offset_ref };
+    const canvas_refs = {
+        map_canvas_ref,
+        spots_canvas_ref,
+        shadow_canvas_ref,
+        map_cache_canvas_ref,
+        dash_offset_ref,
+    };
 
     const [div_ref, { width, height }] = useMeasure();
 
@@ -111,8 +134,14 @@ function CanvasMapV2({
     // Render state ref - always fresh, read by imperative draw calls (zoom, drag, animation)
     const render_state_ref = useRef({});
     render_state_ref.current = {
-        spots, colors, hovered_spot, pinned_spot, hovered_band,
-        current_freq_spots, map_controls, settings,
+        spots,
+        colors,
+        hovered_spot,
+        pinned_spot,
+        hovered_band,
+        current_freq_spots,
+        map_controls,
+        settings,
     };
 
     // Cache canvas setup
@@ -152,9 +181,16 @@ function CanvasMapV2({
             const ctx = spots_canvas.getContext("2d");
             const rs = render_state_ref.current;
             draw_spots(
-                ctx, rs.spots, rs.colors, rs.hovered_spot, rs.pinned_spot,
-                rs.hovered_band, rs.current_freq_spots, dims,
-                dash_offset_ref.current, projection,
+                ctx,
+                rs.spots,
+                rs.colors,
+                rs.hovered_spot,
+                rs.pinned_spot,
+                rs.hovered_band,
+                rs.current_freq_spots,
+                dims,
+                dash_offset_ref.current,
+                projection,
             );
 
             if (has_alerted) {
@@ -172,15 +208,36 @@ function CanvasMapV2({
                 animation_id_ref.current = null;
             }
         };
-    }, [dims, projection, spots, colors, hovered_spot, pinned_spot, hovered_band, current_freq_spots]);
+    }, [
+        dims,
+        projection,
+        spots,
+        colors,
+        hovered_spot,
+        pinned_spot,
+        hovered_band,
+        current_freq_spots,
+    ]);
 
     // Main rendering effect (non-animated draws)
     useEffect(() => {
         if (!dims || !projection) return;
         redraw_all();
-    }, [redraw_all, spots, colors, hovered_spot, pinned_spot, hovered_band, current_freq_spots, map_controls.night, settings.show_equator]);
+    }, [
+        redraw_all,
+        spots,
+        colors,
+        hovered_spot,
+        pinned_spot,
+        hovered_band,
+        current_freq_spots,
+        map_controls.night,
+        settings.show_equator,
+    ]);
 
-    // Zoom behavior - re-projects on every frame for clean rendering
+    // Zoom behavior - exponential mapping: radius = max_radius / k
+    // Each wheel tick changes radius by the same proportion (feels natural).
+    // projection.scale = k * base_scale (since scale = max_radius/radius * base = k * base)
     useEffect(() => {
         if (!dims || !projection) return;
         const shadow_canvas = shadow_canvas_ref.current;
@@ -188,15 +245,13 @@ function CanvasMapV2({
 
         const selection = d3.select(shadow_canvas);
 
-        // Base scale: the projection scale when radius_in_km == max_radius
-        // Current scale = (max_radius / radius_in_km) * base_scale
-        // So: base_scale = current_scale * (radius_in_km / max_radius)
+        // base_scale = projection scale when k=1 (fully zoomed out, radius=max_radius)
         const base_scale = projection.scale() * (radius_in_km / max_radius);
         let is_drawing = false;
 
         const zoom = d3
             .zoom()
-            .scaleExtent([1, 20])
+            .scaleExtent([1, max_radius / 1000])
             .filter(event => {
                 if (
                     event.type === "wheel" ||
@@ -211,15 +266,17 @@ function CanvasMapV2({
                 if (!event.sourceEvent) return;
 
                 const k = event.transform.k;
-                const zoom_radius = (21 - Math.round(k)) * 1000;
-                const new_scale = (max_radius / zoom_radius) * base_scale;
-
-                projection.scale(new_scale);
+                projection.scale(k * base_scale);
 
                 if (!is_drawing) {
                     is_drawing = true;
                     requestAnimationFrame(() => {
-                        redraw_all_canvases(dims, projection, render_state_ref.current, canvas_refs);
+                        redraw_all_canvases(
+                            dims,
+                            projection,
+                            render_state_ref.current,
+                            canvas_refs,
+                        );
                         is_drawing = false;
                     });
                 }
@@ -227,15 +284,16 @@ function CanvasMapV2({
                 // Debounce settle to update React state + radius display
                 clearTimeout(zoom_settle_timer_ref.current);
                 zoom_settle_timer_ref.current = setTimeout(() => {
+                    const zoom_radius = Math.round(max_radius / k / 100) * 100;
                     set_auto_radius(false);
-                    set_radius_in_km(zoom_radius);
+                    set_radius_in_km(Math.max(zoom_radius, 100));
                 }, 150);
             });
 
         zoom_ref.current = zoom;
 
         // Sync d3 zoom to current radius
-        const k_from_radius = 21 - radius_in_km / 1000;
+        const k_from_radius = max_radius / radius_in_km;
         selection.call(zoom);
         selection.call(zoom.transform, d3.zoomIdentity.scale(k_from_radius));
 
