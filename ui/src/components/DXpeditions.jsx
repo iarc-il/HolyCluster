@@ -190,11 +190,18 @@ function DXpeditions() {
 
     const spot_to_dxpedition = useMemo(() => {
         const map = new Map();
-        for (const [dxpedition_id, entry] of spotted_dxpedition_spots) {
-            map.set(entry.id, dxpedition_id);
+        for (const spot of raw_spots) {
+            if (spot.is_dxpedition) {
+                for (const d of dxpeditions) {
+                    if (spot.dx_callsign.startsWith(d.callsign)) {
+                        map.set(spot.id, d.id);
+                        break;
+                    }
+                }
+            }
         }
         return map;
-    }, [spotted_dxpedition_spots]);
+    }, [raw_spots, dxpeditions]);
 
     const hovered_dxpedition_id = useMemo(() => {
         if (hovered_spot.dxpedition_id != null) return hovered_spot.dxpedition_id;
