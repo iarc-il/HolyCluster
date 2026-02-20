@@ -6,9 +6,16 @@ import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useRestData } from "@/hooks/useRestData";
 import Popup from "@/components/Popup";
 
+const filter_options = [
+    { key: "all", label: "All" },
+    { key: "active", label: "Active" },
+    { key: "upcoming", label: "Upcoming" },
+];
+
 const sort_options = [
     { key: "start", label: "Start" },
     { key: "end", label: "End" },
+    { key: "on_air", label: "On Air" },
 ];
 
 const sort_functions = {
@@ -169,6 +176,7 @@ function DXpeditions() {
     const card_refs = useRef({});
 
     const [sort_key, set_sort_key] = useLocalStorage("dxpeditions_sort", "end");
+    const [filter_key, set_filter_key] = useLocalStorage("dxpeditions_filter", "all");
 
     const spotted_dxpedition_spots = useMemo(() => {
         const map = new Map();
@@ -223,15 +231,31 @@ function DXpeditions() {
 
     const sorted_dxpeditions = useMemo(() => {
         const now = new Date();
-        const sort_fn = sort_functions[sort_key] || sort_functions.end;
-        return [...dxpeditions].filter(d => new Date(d.end_date) >= now).sort(sort_fn);
-    }, [dxpeditions, sort_key]);
+        let filtered = [...dxpeditions].filter(d => new Date(d.end_date) >= now);
+        if (filter_key === "active") {
+            filtered = filtered.filter(is_active);
+        } else if (filter_key === "upcoming") {
+            filtered = filtered.filter(d => !is_active(d));
+        }
+        if (sort_key === "on_air") {
+            filtered.sort((a, b) => {
+                const a_spotted = spotted_dxpedition_spots.has(a.id) ? 1 : 0;
+                const b_spotted = spotted_dxpedition_spots.has(b.id) ? 1 : 0;
+                if (a_spotted !== b_spotted) return b_spotted - a_spotted;
+                const a_active = is_active(a) ? 1 : 0;
+                const b_active = is_active(b) ? 1 : 0;
+                if (a_active !== b_active) return b_active - a_active;
+                return new Date(a.end_date) - new Date(b.end_date);
+            });
+        } else {
+            const sort_fn = sort_functions[sort_key] || sort_functions.end;
+            filtered.sort(sort_fn);
+        }
+        return filtered;
+    }, [dxpeditions, sort_key, filter_key, spotted_dxpedition_spots]);
 
-    const active_count = useMemo(
-        () => sorted_dxpeditions.filter(is_active).length,
-        [sorted_dxpeditions],
-    );
-    const upcoming_count = sorted_dxpeditions.length - active_count;
+    const active_count = useMemo(() => dxpeditions.filter(is_active).length, [dxpeditions]);
+    const upcoming_count = dxpeditions.length - active_count;
 
     if (sorted_dxpeditions.length === 0) {
         return (
@@ -242,39 +266,71 @@ function DXpeditions() {
     }
 
     return (
-        <div className="p-2 flex flex-col gap-2 overflow-y-auto h-full">
-            <div className="flex items-center justify-between px-1">
-                <div className="text-sm font-medium" style={{ color: colors.theme.text }}>
-                    {active_count} active
-                    <br />
-                    {upcoming_count} upcoming
+        <div className="p-2 text-sm flex flex-col gap-2 overflow-y-auto h-full">
+            <div className="flex flex-col gap-1 px-1">
+                <div className="flex items-center justify-between">
+                    <span style={{ color: colors.theme.text }}>
+                        {active_count} active, {upcoming_count} upcoming
+                    </span>
                 </div>
-                {/*
-                <div className="flex gap-1">
-                    {sort_options.map(option => (
-                        <button
-                            key={option.key}
-                            className="text-[10px] px-1.5 py-0.5 rounded cursor-pointer"
-                            style={{
-                                backgroundColor:
-                                    sort_key === option.key
-                                        ? colors.dxpeditions.inactive
-                                        : "transparent",
-                                color:
-                                    sort_key === option.key
-                                        ? colors.dxpeditions.badge_text
-                                        : colors.theme.text,
-                                border:
-                                    sort_key === option.key
-                                        ? "none"
-                                        : `1px solid ${colors.dxpeditions.fallback_border}`,
-                            }}
-                            onClick={() => set_sort_key(option.key)}
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                        <span
+                            style={{ color: colors.theme.text, opacity: 0.6 }}
                         >
-                            {option.label}
-                        </button>
-                    ))}
-                </div>*/}
+                            Filter:
+                        </span>
+                        <div className="flex gap-2">
+                            {filter_options.map(option => (
+                                <button
+                                    key={option.key}
+                                    className="px-1 py-0.5 rounded cursor-pointer"
+                                    style={{
+                                        backgroundColor:
+                                            filter_key === option.key ? "#2a44a8" : "transparent",
+                                        color:
+                                            filter_key === option.key ? "white" : colors.theme.text,
+                                        border:
+                                            filter_key === option.key
+                                                ? "1px solid #4a6af5"
+                                                : `1px solid ${colors.dxpeditions.borders}`,
+                                    }}
+                                    onClick={() => set_filter_key(option.key)}
+                                >
+                                    {option.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span
+                            style={{ color: colors.theme.text, opacity: 0.6 }}
+                        >
+                            Sort:
+                        </span>
+                        <div className="flex gap-2">
+                            {sort_options.map(option => (
+                                <button
+                                    key={option.key}
+                                    className="px-1 py-0.5 rounded cursor-pointer"
+                                    style={{
+                                        backgroundColor:
+                                            sort_key === option.key ? "#2a44a8" : "transparent",
+                                        color:
+                                            sort_key === option.key ? "white" : colors.theme.text,
+                                        border:
+                                            sort_key === option.key
+                                                ? "1px solid #4a6af5"
+                                                : `1px solid ${colors.dxpeditions.borders}`,
+                                    }}
+                                    onClick={() => set_sort_key(option.key)}
+                                >
+                                    {option.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             </div>
             {sorted_dxpeditions.map(dxpedition => (
                 <DXpeditionCard
