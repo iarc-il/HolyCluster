@@ -275,11 +275,7 @@ function DXpeditions() {
                 </div>
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                        <span
-                            style={{ color: colors.theme.text, opacity: 0.6 }}
-                        >
-                            Filter:
-                        </span>
+                        <span style={{ color: colors.theme.text, opacity: 0.6 }}>Filter:</span>
                         <div className="flex gap-2">
                             {filter_options.map(option => (
                                 <button
@@ -303,11 +299,7 @@ function DXpeditions() {
                         </div>
                     </div>
                     <div className="flex items-center justify-between">
-                        <span
-                            style={{ color: colors.theme.text, opacity: 0.6 }}
-                        >
-                            Sort:
-                        </span>
+                        <span style={{ color: colors.theme.text, opacity: 0.6 }}>Sort:</span>
                         <div className="flex gap-2">
                             {sort_options.map(option => (
                                 <button
