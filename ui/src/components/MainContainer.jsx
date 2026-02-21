@@ -1,5 +1,5 @@
 import SvgMap from "@/components/SvgMap.jsx";
-import CanvasMap from "@/components/CanvasMapV2/index.jsx";
+import CanvasMap from "@/components/CanvasMap/index.jsx";
 import MapControls from "@/components/MapControls.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
