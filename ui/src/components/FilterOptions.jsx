@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 
-import Button from "@/components/Button.jsx";
+import Button from "@/components/ui/Button.jsx";
 import { useFilters } from "../hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/hooks/useSettings";

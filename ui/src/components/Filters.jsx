@@ -1,7 +1,7 @@
-import Input from "@/components/Input.jsx";
-import Button from "@/components/Button.jsx";
-import Toggle from "@/components/Toggle.jsx";
-import X from "@/components/X.jsx";
+import Input from "@/components/ui/Input.jsx";
+import Button from "@/components/ui/Button.jsx";
+import Toggle from "@/components/ui/Toggle.jsx";
+import X from "@/components/ui/X.jsx";
 import { empty_filter_data, default as FilterModal } from "@/components/FilterModal.jsx";
 
 import { useColors } from "../hooks/useColors";

@@ -1,6 +1,6 @@
-import Modal from "@/components/Modal.jsx";
-import Select from "@/components/Select.jsx";
-import Input from "@/components/Input.jsx";
+import Modal from "@/components/ui/Modal.jsx";
+import Select from "@/components/ui/Select.jsx";
+import Input from "@/components/ui/Input.jsx";
 import CallsignInput from "@/components/CallsignInput.jsx";
 import { useColors } from "../hooks/useColors";
 import entities from "@/assets/dxcc_entities.json";

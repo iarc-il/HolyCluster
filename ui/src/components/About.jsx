@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
 
-import Modal from "@/components/Modal.jsx";
-import Tabs from "@/components/Tabs.jsx";
-import Button from "@/components/Button.jsx";
+import Modal from "@/components/ui/Modal.jsx";
+import Tabs from "@/components/ui/Tabs.jsx";
+import Button from "@/components/ui/Button.jsx";
 import { useColors } from "@/hooks/useColors.jsx";
 import use_radio from "@/hooks/useRadio.jsx";
 

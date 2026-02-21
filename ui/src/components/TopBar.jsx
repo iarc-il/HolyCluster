@@ -1,11 +1,11 @@
 import SubmitSpot from "@/components/SubmitSpot.jsx";
 import Clock from "@/components/Clock.jsx";
 import NetworkState from "@/components/NetworkState.jsx";
-import Spinner from "@/components/Spinner.jsx";
-import Settings from "@/components/Settings.jsx";
-import ColorPicker from "@/components/ColorPicker.jsx";
-import Select from "@/components/Select.jsx";
-import Button from "@/components/Button.jsx";
+import Spinner from "@/components/ui/Spinner.jsx";
+import Settings from "@/components/settings/Settings.jsx";
+import ColorPicker from "@/components/ui/ColorPicker.jsx";
+import Select from "@/components/ui/Select.jsx";
+import Button from "@/components/ui/Button.jsx";
 import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
 import { useColors } from "../hooks/useColors";
 import { useFilters } from "../hooks/useFilters";
@@ -17,7 +17,7 @@ import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 import Icon from "@/icon.png";
 import OpenMenu from "@/components/OpenMenu.jsx";
 
-import { modes } from "@/filters_data.js";
+import { modes } from "@/data/filters_data.js";
 import { useEffect } from "react";
 import use_radio from "../hooks/useRadio";
 

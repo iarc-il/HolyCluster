@@ -4,7 +4,7 @@ import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useRestData } from "@/hooks/useRestData";
-import Popup from "@/components/Popup";
+import Popup from "@/components/ui/Popup";
 
 const filter_options = [
     { key: "all", label: "All" },

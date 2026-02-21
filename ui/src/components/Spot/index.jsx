@@ -2,7 +2,7 @@ import Hexagon from "./components/Hexagon.jsx";
 import Square from "./components/Square.jsx";
 import Triangle from "./components/Triangle.jsx";
 import { to_radian } from "@/utils.js";
-import { get_mode_shape } from "@/mode_shapes.js";
+import { get_mode_shape } from "@/data/mode_shapes.js";
 import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 

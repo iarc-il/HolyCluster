@@ -4,8 +4,8 @@ import { useSettings } from "./useSettings";
 import use_radio from "./useRadio";
 import { useSpotInteraction } from "./useSpotInteraction";
 import { is_matching_list, sort_spots, use_object_local_storage } from "@/utils.js";
-import { bands, modes } from "@/filters_data.js";
-import { get_flag } from "@/flags.js";
+import { bands, modes } from "@/data/filters_data.js";
+import { get_flag } from "@/data/flags.js";
 
 const freq_error_range = {
     FT8: 0.2,

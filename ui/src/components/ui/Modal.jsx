@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import Button from "@/components/Button.jsx";
-import { useColors } from "../hooks/useColors";
+import Button from "@/components/ui/Button.jsx";
+import { useColors } from "@/hooks/useColors";
 
 function Modal({
     title = null,

@@ -1,5 +1,5 @@
-import Modal from "@/components/Modal.jsx";
-import Button from "@/components/Button.jsx";
+import Modal from "@/components/ui/Modal.jsx";
+import Button from "@/components/ui/Button.jsx";
 import { useColors } from "@/hooks/useColors";
 
 function Rainbow({ size }) {

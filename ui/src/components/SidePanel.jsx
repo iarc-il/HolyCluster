@@ -5,7 +5,7 @@ import DXpeditions from "@/components/DXpeditions.jsx";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
-import { continents } from "@/filters_data.js";
+import { continents } from "@/data/filters_data.js";
 import { useFilters } from "@/hooks/useFilters";
 import { useColors } from "../hooks/useColors";
 

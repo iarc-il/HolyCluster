@@ -1,4 +1,4 @@
-import { useColors } from "../hooks/useColors";
+import { useColors } from "@/hooks/useColors";
 
 function Select({ children, text_color, className, ...other_props }) {
     const { colors } = useColors();

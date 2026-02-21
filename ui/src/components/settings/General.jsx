@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
-import Input from "@/components/Input.jsx";
+import Input from "@/components/ui/Input.jsx";
 import CallsignInput from "@/components/CallsignInput.jsx";
-import Select from "@/components/Select.jsx";
-import Toggle from "@/components/Toggle.jsx";
-import Popup from "@/components/Popup.jsx";
-import HelpIcon from "@/components/HelpIcon.jsx";
+import Select from "@/components/ui/Select.jsx";
+import Toggle from "@/components/ui/Toggle.jsx";
+import Popup from "@/components/ui/Popup.jsx";
+import HelpIcon from "@/components/ui/HelpIcon.jsx";
 import { themes_names, useColors } from "@/hooks/useColors";
 import { play_alert_sound } from "@/utils.js";
 import Maidenhead from "maidenhead";

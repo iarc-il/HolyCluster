@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { ToastContainer, toast } from "react-toastify";
 
-import Input from "@/components/Input.jsx";
+import Input from "@/components/ui/Input.jsx";
 import CallsignInput from "@/components/CallsignInput.jsx";
-import Button from "@/components/Button.jsx";
-import Modal from "@/components/Modal.jsx";
-import Spinner from "@/components/Spinner.jsx";
+import Button from "@/components/ui/Button.jsx";
+import Modal from "@/components/ui/Modal.jsx";
+import Spinner from "@/components/ui/Spinner.jsx";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "../hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";

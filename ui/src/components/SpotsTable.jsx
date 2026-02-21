@@ -1,11 +1,11 @@
-import X from "@/components/X.jsx";
+import X from "@/components/ui/X.jsx";
 import { useEffect, useState, forwardRef, useRef } from "react";
 import SpotContextMenu from "./SpotContextMenu";
-import Popup from "./Popup";
+import Popup from "./ui/Popup";
 import CallsignSearch from "@/components/CallsignSearch.jsx";
 
-import { get_flag } from "@/flags.js";
-import { US_STATES } from "@/us_states.js";
+import { get_flag } from "@/data/flags.js";
+import { US_STATES } from "@/data/us_states.js";
 import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";

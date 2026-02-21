@@ -1,12 +1,12 @@
-import Select from "@/components/Select.jsx";
+import Select from "@/components/ui/Select.jsx";
 import { useRef, useMemo } from "react";
 import { useColors } from "../hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import use_radio from "../hooks/useRadio";
-import { get_mode_shape } from "@/mode_shapes.js";
-import { band_plans } from "@/band_plans.js";
+import { get_mode_shape } from "@/data/mode_shapes.js";
+import { band_plans } from "@/data/band_plans.js";
 
 function ModeShape({ mode, x, y, fill }) {
     const shape = get_mode_shape(mode);

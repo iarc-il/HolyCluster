@@ -1,6 +1,6 @@
 import { useRef } from "react";
-import Input from "@/components/Input.jsx";
-import X from "@/components/X.jsx";
+import Input from "@/components/ui/Input.jsx";
+import X from "@/components/ui/X.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useFilters } from "@/hooks/useFilters";

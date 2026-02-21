@@ -1,8 +1,8 @@
 import { useState } from "react";
-import Input from "@/components/Input.jsx";
-import Toggle from "@/components/Toggle.jsx";
-import Modal from "@/components/Modal.jsx";
-import HelpIcon from "@/components/HelpIcon.jsx";
+import Input from "@/components/ui/Input.jsx";
+import Toggle from "@/components/ui/Toggle.jsx";
+import Modal from "@/components/ui/Modal.jsx";
+import HelpIcon from "@/components/ui/HelpIcon.jsx";
 import use_radio from "@/hooks/useRadio";
 import log4omImage from "@/assets/log4om_integration.png";
 

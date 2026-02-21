@@ -12,7 +12,7 @@ import { draw_spots } from "./draw_spots.js";
 import { color_to_spot, draw_shadow_map } from "./hit_detection.js";
 import SpotPopup from "@/components/SpotPopup.jsx";
 import MapAngles from "@/components/MapAngles.jsx";
-import ToggleSVG from "@/components/ToggleSVG";
+import ToggleSVG from "@/components/ui/ToggleSVG";
 import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";

@@ -4,7 +4,7 @@ import simpleheat from "simpleheat";
 import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSettings } from "@/hooks/useSettings";
-import { bands, continents } from "@/filters_data.js";
+import { bands, continents } from "@/data/filters_data.js";
 
 function Heatmap() {
     const { colors } = useColors();

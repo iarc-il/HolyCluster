@@ -1,5 +1,5 @@
 import * as d3 from "d3";
-import { get_mode_shape } from "@/mode_shapes.js";
+import { get_mode_shape } from "@/data/mode_shapes.js";
 import { calculate_geographic_azimuth } from "@/utils.js";
 
 export function build_geojson_line(spot) {

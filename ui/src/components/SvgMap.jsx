@@ -14,7 +14,7 @@ import SpotPopup from "@/components/SpotPopup.jsx";
 import { km_to_miles, calculate_geographic_azimuth } from "@/utils.js";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/hooks/useSettings";
-import ToggleSVG from "./ToggleSVG";
+import ToggleSVG from "./ui/ToggleSVG";
 
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";

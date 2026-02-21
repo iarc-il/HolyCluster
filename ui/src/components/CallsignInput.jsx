@@ -1,4 +1,4 @@
-import Input from "@/components/Input.jsx";
+import Input from "@/components/ui/Input.jsx";
 
 function CallsignInput({ className, onChange, ...props }) {
     if (className == null) {

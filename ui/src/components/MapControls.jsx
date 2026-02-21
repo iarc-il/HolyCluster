@@ -1,8 +1,8 @@
 import { useMediaQuery } from "@uidotdev/usehooks";
 
-import Input from "@/components/Input.jsx";
-import Button from "@/components/Button.jsx";
-import Radio from "@/components/Radio.jsx";
+import Input from "@/components/ui/Input.jsx";
+import Button from "@/components/ui/Button.jsx";
+import Radio from "@/components/ui/Radio.jsx";
 import Night from "@/components/Night.jsx";
 import PropagationBar from "@/components/PropagationBar.jsx";
 import { useColors } from "@/hooks/useColors";
