@@ -18,6 +18,15 @@ import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useSettings } from "@/hooks/useSettings";
 
+const DPR = window.devicePixelRatio || 1;
+
+function with_dpr(ctx, fn) {
+    ctx.save();
+    ctx.scale(DPR, DPR);
+    fn(ctx);
+    ctx.restore();
+}
+
 function redraw_all_canvases(dims, projection, render_state, refs) {
     const {
         colors,
@@ -30,18 +39,28 @@ function redraw_all_canvases(dims, projection, render_state, refs) {
         current_freq_spots,
     } = render_state;
 
-    // Map cache
+    // Map cache (offscreen, already at DPR resolution)
     const cache_canvas = refs.map_cache_canvas_ref.current;
     if (cache_canvas) {
         const cache_ctx = cache_canvas.getContext("2d");
-        draw_map(cache_ctx, colors, dims, projection, map_controls.night, settings.show_equator);
+        cache_ctx.clearRect(0, 0, cache_canvas.width, cache_canvas.height);
+        with_dpr(cache_ctx, () => {
+            draw_map(
+                cache_ctx,
+                colors,
+                dims,
+                projection,
+                map_controls.night,
+                settings.show_equator,
+            );
+        });
     }
 
     // Blit map cache
     const map_canvas = refs.map_canvas_ref.current;
     if (map_canvas && cache_canvas) {
         const ctx = map_canvas.getContext("2d");
-        ctx.clearRect(0, 0, dims.width, dims.height);
+        ctx.clearRect(0, 0, map_canvas.width, map_canvas.height);
         ctx.drawImage(cache_canvas, 0, 0);
     }
 
@@ -49,25 +68,31 @@ function redraw_all_canvases(dims, projection, render_state, refs) {
     const spots_canvas = refs.spots_canvas_ref.current;
     if (spots_canvas) {
         const ctx = spots_canvas.getContext("2d");
-        draw_spots(
-            ctx,
-            spots,
-            colors,
-            hovered_spot,
-            pinned_spot,
-            hovered_band,
-            current_freq_spots,
-            dims,
-            refs.dash_offset_ref.current,
-            projection,
-        );
+        ctx.clearRect(0, 0, spots_canvas.width, spots_canvas.height);
+        with_dpr(ctx, () => {
+            draw_spots(
+                ctx,
+                spots,
+                colors,
+                hovered_spot,
+                pinned_spot,
+                hovered_band,
+                current_freq_spots,
+                dims,
+                refs.dash_offset_ref.current,
+                projection,
+            );
+        });
     }
 
-    // Shadow
+    // Shadow (no DPR scaling - needs exact pixel colors for hit detection)
     const shadow_canvas = refs.shadow_canvas_ref.current;
     if (shadow_canvas) {
         const ctx = shadow_canvas.getContext("2d");
-        draw_shadow_map(ctx, spots, dims, projection);
+        ctx.clearRect(0, 0, shadow_canvas.width, shadow_canvas.height);
+        with_dpr(ctx, () => {
+            draw_shadow_map(ctx, spots, dims, projection);
+        });
     }
 }
 
@@ -152,9 +177,11 @@ function CanvasMapV2({
             map_cache_canvas_ref.current = document.createElement("canvas");
         }
         const cache_canvas = map_cache_canvas_ref.current;
-        if (cache_canvas.width !== dims.width || cache_canvas.height !== dims.height) {
-            cache_canvas.width = dims.width;
-            cache_canvas.height = dims.height;
+        const dpr_width = dims.width * DPR;
+        const dpr_height = dims.height * DPR;
+        if (cache_canvas.width !== dpr_width || cache_canvas.height !== dpr_height) {
+            cache_canvas.width = dpr_width;
+            cache_canvas.height = dpr_height;
         }
     }, [dims]);
 
@@ -179,19 +206,22 @@ function CanvasMapV2({
             const spots_canvas = spots_canvas_ref.current;
             if (!spots_canvas) return;
             const ctx = spots_canvas.getContext("2d");
+            ctx.clearRect(0, 0, spots_canvas.width, spots_canvas.height);
             const rs = render_state_ref.current;
-            draw_spots(
-                ctx,
-                rs.spots,
-                rs.colors,
-                rs.hovered_spot,
-                rs.pinned_spot,
-                rs.hovered_band,
-                rs.current_freq_spots,
-                dims,
-                dash_offset_ref.current,
-                projection,
-            );
+            with_dpr(ctx, () => {
+                draw_spots(
+                    ctx,
+                    rs.spots,
+                    rs.colors,
+                    rs.hovered_spot,
+                    rs.pinned_spot,
+                    rs.hovered_band,
+                    rs.current_freq_spots,
+                    dims,
+                    dash_offset_ref.current,
+                    projection,
+                );
+            });
 
             if (has_alerted) {
                 animation_id_ref.current = requestAnimationFrame(animate);
@@ -361,7 +391,8 @@ function CanvasMapV2({
 
         function get_data_from_shadow_canvas(x, y) {
             const ctx = shadow_canvas.getContext("2d");
-            const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
+            // Shadow canvas is at DPR resolution, so scale coordinates
+            const [r, g, b] = ctx.getImageData(x * DPR, y * DPR, 1, 1).data;
             const result = color_to_spot(r, g, b);
             if (result === null) return null;
             const [type, spot_id] = result;
@@ -469,6 +500,10 @@ function CanvasMapV2({
     const text_x = is_max_xs_device ? 10 : 20;
     const text_y = is_max_xs_device ? 20 : 30;
 
+    const canvas_width = width ? width * DPR : 0;
+    const canvas_height = height ? height * DPR : 0;
+    const canvas_style = width && height ? { width: `${width}px`, height: `${height}px` } : {};
+
     return (
         <div
             ref={div_ref}
@@ -478,20 +513,23 @@ function CanvasMapV2({
             <canvas
                 className="absolute top-0 left-0"
                 ref={map_canvas_ref}
-                width={width}
-                height={height}
+                width={canvas_width}
+                height={canvas_height}
+                style={canvas_style}
             />
             <canvas
                 className="absolute top-0 left-0"
                 ref={spots_canvas_ref}
-                width={width}
-                height={height}
+                width={canvas_width}
+                height={canvas_height}
+                style={canvas_style}
             />
             <canvas
                 className="opacity-0 absolute top-0 left-0"
                 ref={shadow_canvas_ref}
-                width={width}
-                height={height}
+                width={canvas_width}
+                height={canvas_height}
+                style={canvas_style}
             />
             <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
                 <g className="font-medium text-lg select-none">

@@ -79,8 +79,6 @@ function draw_shadow_spot(context, spot, { path_generator, projection }) {
 
 export function draw_shadow_map(shadow_context, spots, dims, projection) {
     const shadow_path_generator = d3.geoPath().projection(projection).context(shadow_context);
-    shadow_context.clearRect(0, 0, dims.width, dims.height);
-
     shadow_context.save();
 
     shadow_context.beginPath();

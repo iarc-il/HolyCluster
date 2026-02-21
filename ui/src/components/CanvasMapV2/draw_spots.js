@@ -99,8 +99,6 @@ export function draw_spots(
 ) {
     const path_generator = d3.geoPath().projection(projection).context(context);
 
-    context.clearRect(0, 0, dims.width, dims.height);
-
     context.save();
 
     context.beginPath();
