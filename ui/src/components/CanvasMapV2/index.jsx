@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 
 import * as d3 from "d3";
 import haversine from "haversine-distance";
@@ -27,7 +27,9 @@ function with_dpr(ctx, fn) {
     ctx.restore();
 }
 
-function redraw_all_canvases(dims, projection, render_state, refs) {
+function do_redraw(dims, projection_ref, render_state_ref, canvas_refs) {
+    const projection = projection_ref.current;
+    if (!dims || !projection) return;
     const {
         colors,
         map_controls,
@@ -37,10 +39,10 @@ function redraw_all_canvases(dims, projection, render_state, refs) {
         pinned_spot,
         hovered_band,
         current_freq_spots,
-    } = render_state;
+    } = render_state_ref.current;
 
-    // Map cache (offscreen, already at DPR resolution)
-    const cache_canvas = refs.map_cache_canvas_ref.current;
+    // Map cache
+    const cache_canvas = canvas_refs.map_cache_canvas_ref.current;
     if (cache_canvas) {
         const cache_ctx = cache_canvas.getContext("2d");
         cache_ctx.clearRect(0, 0, cache_canvas.width, cache_canvas.height);
@@ -57,7 +59,7 @@ function redraw_all_canvases(dims, projection, render_state, refs) {
     }
 
     // Blit map cache
-    const map_canvas = refs.map_canvas_ref.current;
+    const map_canvas = canvas_refs.map_canvas_ref.current;
     if (map_canvas && cache_canvas) {
         const ctx = map_canvas.getContext("2d");
         ctx.clearRect(0, 0, map_canvas.width, map_canvas.height);
@@ -65,7 +67,7 @@ function redraw_all_canvases(dims, projection, render_state, refs) {
     }
 
     // Spots
-    const spots_canvas = refs.spots_canvas_ref.current;
+    const spots_canvas = canvas_refs.spots_canvas_ref.current;
     if (spots_canvas) {
         const ctx = spots_canvas.getContext("2d");
         ctx.clearRect(0, 0, spots_canvas.width, spots_canvas.height);
@@ -79,14 +81,14 @@ function redraw_all_canvases(dims, projection, render_state, refs) {
                 hovered_band,
                 current_freq_spots,
                 dims,
-                refs.dash_offset_ref.current,
+                canvas_refs.dash_offset_ref.current,
                 projection,
             );
         });
     }
 
-    // Shadow (no DPR scaling - needs exact pixel colors for hit detection)
-    const shadow_canvas = refs.shadow_canvas_ref.current;
+    // Shadow
+    const shadow_canvas = canvas_refs.shadow_canvas_ref.current;
     if (shadow_canvas) {
         const ctx = shadow_canvas.getContext("2d");
         ctx.clearRect(0, 0, shadow_canvas.width, shadow_canvas.height);
@@ -118,8 +120,10 @@ function CanvasMapV2({
 
     const animation_id_ref = useRef(null);
     const dash_offset_ref = useRef(0);
-    const zoom_ref = useRef(null);
     const zoom_settle_timer_ref = useRef(null);
+
+    const projection_ref = useRef(null);
+    const base_scale_ref = useRef(null);
 
     const canvas_refs = {
         map_canvas_ref,
@@ -143,20 +147,6 @@ function CanvasMapV2({
     const [center_lon, center_lat] = map_controls.location.location;
     const max_radius = 20000;
 
-    const projection = useMemo(() => {
-        if (!dims) return null;
-        const proj = d3
-            .geoAzimuthalEquidistant()
-            .precision(0.1)
-            .fitSize(dims.padded_size, dxcc_map)
-            .rotate([-center_lon, -center_lat, 0])
-            .translate([dims.center_x, dims.center_y]);
-
-        proj.scale((max_radius / radius_in_km) * proj.scale());
-        return proj;
-    }, [dims, center_lon, center_lat, radius_in_km]);
-
-    // Render state ref - always fresh, read by imperative draw calls (zoom, drag, animation)
     const render_state_ref = useRef({});
     render_state_ref.current = {
         spots,
@@ -168,6 +158,24 @@ function CanvasMapV2({
         map_controls,
         settings,
     };
+
+    useMemo(() => {
+        if (!dims) {
+            projection_ref.current = null;
+            base_scale_ref.current = null;
+            return;
+        }
+        const proj = d3
+            .geoAzimuthalEquidistant()
+            .precision(0.1)
+            .fitSize(dims.padded_size, dxcc_map)
+            .rotate([-center_lon, -center_lat, 0])
+            .translate([dims.center_x, dims.center_y]);
+
+        base_scale_ref.current = proj.scale();
+        proj.scale((max_radius / radius_in_km) * proj.scale());
+        projection_ref.current = proj;
+    }, [dims, center_lon, center_lat, radius_in_km]);
 
     // Cache canvas setup
     useEffect(() => {
@@ -185,17 +193,31 @@ function CanvasMapV2({
         }
     }, [dims]);
 
-    // Full redraw (React-driven, uses current projection from useMemo)
-    const redraw_all = useCallback(() => {
-        if (!dims || !projection) return;
-        redraw_all_canvases(dims, projection, render_state_ref.current, canvas_refs);
-    }, [dims, projection]);
+    // Main rendering effect — redraws all canvases when any visual state changes
+    useEffect(() => {
+        if (!dims || !projection_ref.current) return;
+        do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
+    }, [
+        dims,
+        center_lon,
+        center_lat,
+        radius_in_km,
+        spots,
+        colors,
+        hovered_spot,
+        pinned_spot,
+        hovered_band,
+        current_freq_spots,
+        map_controls.night,
+        settings.show_equator,
+    ]);
 
     // Animation loop for alerted spots
     useEffect(() => {
-        if (!dims || !projection) return;
+        if (!dims || !projection_ref.current) return;
 
         const has_alerted = spots.some(s => s.is_alerted);
+        if (!has_alerted) return;
 
         function animate() {
             dash_offset_ref.current -= 0.5;
@@ -204,7 +226,8 @@ function CanvasMapV2({
             }
 
             const spots_canvas = spots_canvas_ref.current;
-            if (!spots_canvas) return;
+            const projection = projection_ref.current;
+            if (!spots_canvas || !projection) return;
             const ctx = spots_canvas.getContext("2d");
             ctx.clearRect(0, 0, spots_canvas.width, spots_canvas.height);
             const rs = render_state_ref.current;
@@ -223,14 +246,10 @@ function CanvasMapV2({
                 );
             });
 
-            if (has_alerted) {
-                animation_id_ref.current = requestAnimationFrame(animate);
-            }
-        }
-
-        if (has_alerted) {
             animation_id_ref.current = requestAnimationFrame(animate);
         }
+
+        animation_id_ref.current = requestAnimationFrame(animate);
 
         return () => {
             if (animation_id_ref.current != null) {
@@ -238,80 +257,43 @@ function CanvasMapV2({
                 animation_id_ref.current = null;
             }
         };
-    }, [
-        dims,
-        projection,
-        spots,
-        colors,
-        hovered_spot,
-        pinned_spot,
-        hovered_band,
-        current_freq_spots,
-    ]);
+    }, [dims, center_lon, center_lat, radius_in_km, spots]);
 
-    // Main rendering effect (non-animated draws)
+    // Zoom behavior
     useEffect(() => {
-        if (!dims || !projection) return;
-        redraw_all();
-    }, [
-        redraw_all,
-        spots,
-        colors,
-        hovered_spot,
-        pinned_spot,
-        hovered_band,
-        current_freq_spots,
-        map_controls.night,
-        settings.show_equator,
-    ]);
-
-    // Zoom behavior - exponential mapping: radius = max_radius / k
-    // Each wheel tick changes radius by the same proportion (feels natural).
-    // projection.scale = k * base_scale (since scale = max_radius/radius * base = k * base)
-    useEffect(() => {
-        if (!dims || !projection) return;
+        if (!dims || !projection_ref.current) return;
         const shadow_canvas = shadow_canvas_ref.current;
         if (!shadow_canvas) return;
 
         const selection = d3.select(shadow_canvas);
-
-        // base_scale = projection scale when k=1 (fully zoomed out, radius=max_radius)
-        const base_scale = projection.scale() * (radius_in_km / max_radius);
         let is_drawing = false;
 
         const zoom = d3
             .zoom()
             .scaleExtent([1, max_radius / 1000])
             .filter(event => {
-                if (
+                return (
                     event.type === "wheel" ||
                     event.type === "touchstart" ||
                     event.type === "touchmove"
-                ) {
-                    return true;
-                }
-                return false;
+                );
             })
             .on("zoom", event => {
                 if (!event.sourceEvent) return;
 
                 const k = event.transform.k;
-                projection.scale(k * base_scale);
+                const projection = projection_ref.current;
+                if (!projection) return;
+                projection.scale(k * base_scale_ref.current);
 
                 if (!is_drawing) {
                     is_drawing = true;
                     requestAnimationFrame(() => {
-                        redraw_all_canvases(
-                            dims,
-                            projection,
-                            render_state_ref.current,
-                            canvas_refs,
-                        );
+                        do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
                         is_drawing = false;
                     });
                 }
 
-                // Debounce settle to update React state + radius display
                 clearTimeout(zoom_settle_timer_ref.current);
                 zoom_settle_timer_ref.current = setTimeout(() => {
                     const zoom_radius = Math.round(max_radius / k / 100) * 100;
@@ -319,8 +301,6 @@ function CanvasMapV2({
                     set_radius_in_km(Math.max(zoom_radius, 100));
                 }, 150);
             });
-
-        zoom_ref.current = zoom;
 
         // Sync d3 zoom to current radius
         const k_from_radius = max_radius / radius_in_km;
@@ -333,9 +313,9 @@ function CanvasMapV2({
         };
     }, [dims, radius_in_km]);
 
-    // Drag behavior for map rotation
+    // Drag behavior
     useEffect(() => {
-        if (!dims || !projection) return;
+        if (!dims || !projection_ref.current) return;
         const shadow_canvas = shadow_canvas_ref.current;
         if (!shadow_canvas) return;
 
@@ -350,14 +330,17 @@ function CanvasMapV2({
             })
             .on("start", event => {
                 drag_start = [event.x, event.y];
-                lon_start = projection.rotate()[0];
+                const projection = projection_ref.current;
+                if (projection) lon_start = projection.rotate()[0];
             })
             .on("drag", event => {
+                const projection = projection_ref.current;
+                if (!projection || lon_start == null) return;
                 const dx = event.x - drag_start[0];
                 current_lon = mod(lon_start + dx + 180, 360) - 180;
 
                 projection.rotate([current_lon, -center_lat, 0]);
-                redraw_all_canvases(dims, projection, render_state_ref.current, canvas_refs);
+                do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
             })
             .on("end", () => {
                 if (current_lon != null) {
@@ -381,17 +364,16 @@ function CanvasMapV2({
         return () => {
             selection.on(".drag", null);
         };
-    }, [dims, projection, center_lat, set_map_controls]);
+    }, [dims, center_lat, set_map_controls]);
 
     // Mouse interaction: hover and click
     useEffect(() => {
-        if (!dims || !projection) return;
+        if (!dims || !projection_ref.current) return;
         const shadow_canvas = shadow_canvas_ref.current;
         if (!shadow_canvas) return;
 
         function get_data_from_shadow_canvas(x, y) {
             const ctx = shadow_canvas.getContext("2d");
-            // Shadow canvas is at DPR resolution, so scale coordinates
             const [r, g, b] = ctx.getImageData(x * DPR, y * DPR, 1, 1).data;
             const result = color_to_spot(r, g, b);
             if (result === null) return null;
@@ -427,6 +409,8 @@ function CanvasMapV2({
                     if (spot) set_cat_to_spot(spot);
                 }
             } else if (event.detail === 2) {
+                const projection = projection_ref.current;
+                if (!projection) return;
                 const distance_from_center = Math.sqrt(
                     (dims.center_x - offsetX) ** 2 + (dims.center_y - offsetY) ** 2,
                 );
@@ -462,7 +446,6 @@ function CanvasMapV2({
         };
     }, [
         dims,
-        projection,
         spots,
         hovered_spot,
         set_hovered_spot,
