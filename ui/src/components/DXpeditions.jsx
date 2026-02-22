@@ -170,7 +170,7 @@ function DXpeditionCard({
 
 function DXpeditions() {
     const { colors } = useColors();
-    const { raw_spots } = useSpotData();
+    const { spots } = useSpotData();
     const { hovered_spot, set_hovered_spot } = useSpotInteraction();
     const { dxpeditions } = useRestData();
     const card_refs = useRef({});
@@ -180,7 +180,7 @@ function DXpeditions() {
 
     const spotted_dxpedition_spots = useMemo(() => {
         const map = new Map();
-        for (const spot of raw_spots) {
+        for (const spot of spots) {
             if (spot.is_dxpedition) {
                 for (const d of dxpeditions) {
                     if (spot.dx_callsign.startsWith(d.callsign)) {
@@ -194,11 +194,11 @@ function DXpeditions() {
             }
         }
         return map;
-    }, [raw_spots, dxpeditions]);
+    }, [spots, dxpeditions]);
 
     const spot_to_dxpedition = useMemo(() => {
         const map = new Map();
-        for (const spot of raw_spots) {
+        for (const spot of spots) {
             if (spot.is_dxpedition) {
                 for (const d of dxpeditions) {
                     if (spot.dx_callsign.startsWith(d.callsign)) {
@@ -209,16 +209,16 @@ function DXpeditions() {
             }
         }
         return map;
-    }, [raw_spots, dxpeditions]);
+    }, [spots, dxpeditions]);
 
     const hovered_dxpedition_id = useMemo(() => {
         if (hovered_spot.dxpedition_id != null) return hovered_spot.dxpedition_id;
         if (hovered_spot.id == null) return null;
-        const spot = raw_spots.find(s => s.id === hovered_spot.id);
+        const spot = spots.find(s => s.id === hovered_spot.id);
         if (!spot || !spot.is_dxpedition) return null;
         const match = spot_to_dxpedition.get(spot.id);
         return match ?? null;
-    }, [hovered_spot, raw_spots, spot_to_dxpedition]);
+    }, [hovered_spot, spots, spot_to_dxpedition]);
 
     useEffect(() => {
         if (hovered_dxpedition_id == null) return;
