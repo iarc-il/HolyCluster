@@ -23,6 +23,7 @@ function FilterButton({
         "outline",
         "outline-1",
         "outline-slate-700",
+        "text-center",
         className ?? "",
     ];
 

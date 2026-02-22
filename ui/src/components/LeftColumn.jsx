@@ -92,7 +92,6 @@ function SpotCount({ count, toggled_ui }) {
         "rounded-full",
         "h-5",
         "w-5",
-        "text-center",
         "text-[12px]",
     ];
 

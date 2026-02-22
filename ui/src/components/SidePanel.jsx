@@ -66,7 +66,7 @@ function SwapButton({ colors }) {
     return (
         <div
             onClick={swapContinents}
-            className={`w-16 text-center rounded-full select-none border border-slate-700 flex justify-center py-0.5 ${
+            className={`w-16 rounded-full select-none border border-slate-700 flex justify-center py-0.5 ${
                 areFiltersEqual
                     ? "opacity-50 pointer-events-none"
                     : "cursor-pointer hover:brightness-110"
@@ -101,7 +101,7 @@ function Separator() {
 function RightColumnContent({ colors }) {
     return (
         <div
-            className="flex flex-col gap-2 w-16 text-center h-full overflow-y-auto shrink-0"
+            className="flex flex-col gap-2 w-16 h-full overflow-y-auto shrink-0"
             style={{
                 backgroundColor: colors.theme.columns,
                 borderLeft: `1px solid ${colors.theme.borders}`,
