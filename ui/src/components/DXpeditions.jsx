@@ -291,7 +291,12 @@ function DXpeditions() {
                                                 ? "1px solid #4a6af5"
                                                 : `1px solid ${colors.dxpeditions.borders}`,
                                     }}
-                                    onClick={() => set_filter_key(option.key)}
+                                    onClick={() => {
+                                        set_filter_key(option.key);
+                                        if (option.key === "upcoming" && sort_key === "on_air") {
+                                            set_sort_key("start");
+                                        }
+                                    }}
                                 >
                                     {option.label}
                                 </button>
@@ -315,7 +320,12 @@ function DXpeditions() {
                                                 ? "1px solid #4a6af5"
                                                 : `1px solid ${colors.dxpeditions.borders}`,
                                     }}
-                                    onClick={() => set_sort_key(option.key)}
+                                    onClick={() => {
+                                        set_sort_key(option.key);
+                                        if (option.key === "on_air" && filter_key === "upcoming") {
+                                            set_filter_key("all");
+                                        }
+                                    }}
                                 >
                                     {option.label}
                                 </button>
