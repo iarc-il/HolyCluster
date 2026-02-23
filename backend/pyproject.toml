@@ -5,6 +5,7 @@ requires-python = ">=3.13"
 dependencies = [
     "api",
     "collectors",
+    "monitor",
     "uvicorn[standard]>=0.38.0",
 ]
 
@@ -18,12 +19,14 @@ dev = [
 [tool.uv.sources]
 api = { workspace = true }
 collectors = { workspace = true }
+monitor = { workspace = true }
 shared = { workspace = true }
 
 [tool.uv.workspace]
 members = [
     "api",
     "collectors",
+    "monitor",
     "shared",
 ]
 

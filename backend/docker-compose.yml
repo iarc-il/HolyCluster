@@ -86,6 +86,22 @@ services:
     expose:
       - "8000"
 
+  monitor:
+    container_name: monitor
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.monitor
+    restart: unless-stopped
+    depends_on:
+      valkey:
+        condition: service_healthy
+      api:
+        condition: service_started
+    env_file:
+      - .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
   nginx:
     container_name: nginx
     build:

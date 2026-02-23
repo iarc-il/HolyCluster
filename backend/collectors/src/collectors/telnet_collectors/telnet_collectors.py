@@ -4,6 +4,7 @@ import os
 import re
 
 from loguru import logger
+from shared.metrics import push_drop_event, push_exception_event, set_value
 
 from collectors.db.valkey_config import get_valkey_client
 from collectors.misc import open_log_file2
@@ -88,6 +89,7 @@ async def telnet_and_collect(
 
             logger.info(f"{host}:{port}  Successfully connected")
             reconnect_attempts = 0
+            await set_value(valkey_client, f"collector:telnet:{host}:connected", 1)
 
             if username:
                 await asyncio.sleep(2)
@@ -98,6 +100,7 @@ async def telnet_and_collect(
                 data = await reader.read(4096)
                 if not data:
                     task_logger.error("Connection closed by remote host.")
+                    await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
                     break
 
                 lines = (line_buffer + data).split(b"\n")
@@ -114,6 +117,7 @@ async def telnet_and_collect(
                     if spot is None:
                         task_logger.error(f"Could not parse spot line: {line}")
                         logger.error(f"Could not parse spot line: {line}")
+                        await push_drop_event(valkey_client, "parse_error", line)
                         continue
 
                     if spot["spotter_callsign"].upper() == "W3LPL":
@@ -139,6 +143,8 @@ async def telnet_and_collect(
         except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
             task_logger.exception(f"Connection failed: {host}:{port}  {e}")
             logger.exception(f"Connection failed: {host}:{port}  {e}")
+            await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
+            await push_exception_event(valkey_client, "collector", f"telnet {host}:{port}: {e}")
 
         except asyncio.CancelledError:
             logger.info(f"{host}:{port} Task cancelled, shutting down.")

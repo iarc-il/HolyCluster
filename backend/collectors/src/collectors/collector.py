@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from loguru import logger
 from shared.db import HolySpot
 from shared.geo import GeoException
+from shared.metrics import push_drop_event, push_exception_event, set_timestamp
 from shared.qrz import QrzSessionManager
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
@@ -113,6 +114,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
     try:
         while True:
             spot = await input_queue.get()
+            await set_timestamp(valkey_client, "collector:heartbeat")
             try:
                 try:
                     enriched_spot = await enrich_spot(
@@ -120,15 +122,22 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     )
                 except GeoException:
                     logger.exception("Dropping spot due to geo exception")
+                    await push_drop_event(valkey_client, "geo_exception", str(spot))
+                    continue
+                except Exception as e:
+                    logger.exception("Unexpected error enriching spot")
+                    await push_exception_event(valkey_client, "collector", str(e))
                     continue
 
                 if enriched_spot is None:
                     logger.info(f"Dropping spot: {spot}")
+                    await push_drop_event(valkey_client, "invalid_band", str(spot))
                     continue
 
                 logger.debug(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
 
                 await add_spot_to_postgres(engine, enriched_spot)
+                await set_timestamp(valkey_client, "collector:last_spot_time")
 
                 if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
                     await valkey_client.xadd(STREAM_API, enriched_spot, "*", maxlen=10000)
@@ -149,9 +158,10 @@ async def refresh_dxpedition_data(valkey_client):
         try:
             await refresh_dxpedition_cache(redis_client=valkey_client)
             logger.info("DXpedition data refreshed successfully")
-        except Exception:
+        except Exception as e:
             sleep = 600
             logger.exception("Failed to refresh DXpedition data")
+            await push_exception_event(valkey_client, "collector", f"dxpedition refresh: {e}")
         await asyncio.sleep(sleep)
 
 

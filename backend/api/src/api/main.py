@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from shared.db import GeoCache, HolySpot, SpotsWithIssues
 from shared.geo import get_geo_details, GeoException
+from shared.metrics import push_exception_event, set_timestamp, set_value
 from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -33,6 +34,7 @@ async def propagation_data_collector(app):
         except Exception as e:
             sleep = 10
             logger.exception(f"Failed to fetch propagation data: {str(e)}")
+            await push_exception_event(app.state.valkey_client, "api", f"propagation: {e}")
         await asyncio.sleep(sleep)
 
 
@@ -54,6 +56,8 @@ async def spots_broadcast_task(app):
         pass
 
     while True:
+        await set_timestamp(valkey_client, "api:heartbeat")
+
         response = await valkey_client.xreadgroup(
             CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: ">"}, count=10, block=60000
         )
@@ -84,8 +88,12 @@ async def spots_broadcast_task(app):
                 for websocket in disconnected:
                     app.state.active_connections.discard(websocket)
 
+                await set_timestamp(valkey_client, "api:last_broadcast_time")
+                await set_value(valkey_client, "api:ws_clients", len(app.state.active_connections))
+
         except Exception as e:
             logger.exception(f"Error in spots broadcast task: {e}")
+            await push_exception_event(valkey_client, "api", f"broadcast: {e}")
 
 
 @asynccontextmanager

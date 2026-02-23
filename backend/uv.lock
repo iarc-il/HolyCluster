@@ -7,6 +7,7 @@ members = [
     "api",
     "backend",
     "collectors",
+    "monitor",
     "shared",
 ]
 
@@ -253,6 +254,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "api" },
     { name = "collectors" },
+    { name = "monitor" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -267,6 +269,7 @@ dev = [
 requires-dist = [
     { name = "api", editable = "api" },
     { name = "collectors", editable = "collectors" },
+    { name = "monitor", editable = "monitor" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.38.0" },
 ]
 
@@ -723,6 +726,29 @@ wheels = [
 ]
 
 [[package]]
+name = "monitor"
+version = "0.1.0"
+source = { editable = "monitor" }
+dependencies = [
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "pydantic-settings" },
+    { name = "redis" },
+    { name = "shared" },
+    { name = "websockets" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "pydantic-settings", specifier = ">=2.7.1" },
+    { name = "redis", specifier = ">=7.1.0" },
+    { name = "shared", editable = "shared" },
+    { name = "websockets", specifier = ">=14.0" },
+]
+
+[[package]]
 name = "multidict"
 version = "6.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1129,6 +1155,7 @@ dependencies = [
     { name = "loguru" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "redis" },
     { name = "sqlmodel" },
 ]
 
@@ -1138,6 +1165,7 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.7.1" },
+    { name = "redis", specifier = ">=7.1.0" },
     { name = "sqlmodel", specifier = ">=0.0.27" },
 ]
 
