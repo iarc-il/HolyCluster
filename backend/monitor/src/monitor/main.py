@@ -8,7 +8,7 @@ from monitor.checks.containers import check_containers
 from monitor.checks.metrics import check_metrics
 from monitor.checks.spot_flow import check_websocket
 from monitor.settings import settings
-from monitor.state import CheckState
+from monitor.state import Alert, CheckState
 
 
 async def run_monitor():
@@ -36,7 +36,7 @@ async def run_monitor():
     container_states: dict[str, CheckState] = {}
 
     while True:
-        all_alerts: list[str] = []
+        all_alerts: list[Alert] = []
 
         try:
             metric_alerts = await check_metrics(
@@ -68,10 +68,10 @@ async def run_monitor():
         if all_alerts:
             logger.warning(f"{len(all_alerts)} alert(s) this cycle")
             for alert in all_alerts:
-                logger.warning(alert)
+                logger.warning(alert.message)
                 for notifier in notifiers:
                     try:
-                        await notifier.send_alert("HolyCluster Monitor", alert)
+                        await notifier.send_alert(alert)
                     except Exception:
                         logger.exception("Failed to send alert")
         else:

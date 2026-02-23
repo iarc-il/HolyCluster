@@ -1,6 +1,8 @@
 import httpx
 from loguru import logger
 
+from monitor.state import Alert
+
 from .base import AlertNotifier
 
 
@@ -10,9 +12,10 @@ class TelegramNotifier(AlertNotifier):
         self.chat_id = chat_id
         self.client = httpx.AsyncClient(timeout=10)
 
-    async def send_alert(self, subject: str, body: str):
+    async def send_alert(self, alert: Alert):
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-        text = f"\U0001f534 {subject}\n{body}"
+        emoji = "\U0001f7e2" if alert.healthy else "\U0001f534"
+        text = f"{emoji} {alert.message}"
         try:
             resp = await self.client.post(
                 url,

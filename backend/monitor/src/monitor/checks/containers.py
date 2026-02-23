@@ -3,13 +3,13 @@ import json
 
 from loguru import logger
 
-from monitor.state import CheckState, HealthStatus
+from monitor.state import Alert, CheckState, HealthStatus
 
 
 async def check_containers(
     compose_project_dir: str,
     states: dict[str, CheckState],
-) -> list[str]:
+) -> list[Alert]:
     alerts = []
     try:
         proc = await asyncio.create_subprocess_exec(

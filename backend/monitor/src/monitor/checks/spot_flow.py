@@ -4,10 +4,10 @@ import json
 import websockets
 from loguru import logger
 
-from monitor.state import CheckState, HealthStatus
+from monitor.state import Alert, CheckState, HealthStatus
 
 
-async def check_websocket(ws_url: str, state: CheckState, timeout: float = 30) -> str | None:
+async def check_websocket(ws_url: str, state: CheckState, timeout: float = 30) -> Alert | None:
     try:
         async with asyncio.timeout(timeout):
             async with websockets.connect(ws_url) as ws:

@@ -4,7 +4,7 @@ import time
 import redis.asyncio
 from loguru import logger
 
-from monitor.state import CheckState, HealthStatus
+from monitor.state import Alert, CheckState, HealthStatus
 
 PREFIX = "monitor"
 
@@ -14,7 +14,7 @@ async def check_timestamp_key(
     key: str,
     max_age: int,
     state: CheckState,
-) -> str | None:
+) -> Alert | None:
     raw = await valkey.get(f"{PREFIX}:{key}")
     if raw is None:
         return state.update(HealthStatus.UNKNOWN, f"Key {key} not found")
@@ -29,7 +29,7 @@ async def check_timestamp_key(
 async def check_telnet_connections(
     valkey: redis.asyncio.Redis,
     states: dict[str, CheckState],
-) -> list[str]:
+) -> list[Alert]:
     alerts = []
     cursor = "0"
     while True:
@@ -75,7 +75,7 @@ async def check_metrics(
     api_heartbeat_state: CheckState,
     spot_flow_state: CheckState,
     telnet_states: dict[str, CheckState],
-) -> list[str]:
+) -> list[Alert]:
     alerts = []
 
     for key, max_age, state in [
@@ -92,10 +92,10 @@ async def check_metrics(
 
     exception_events = await drain_events(valkey, f"{PREFIX}:exception_events")
     for event in exception_events:
-        alerts.append(f"EXCEPTION in {event.get('service', '?')}: {event.get('error', '?')}")
+        alerts.append(Alert(f"EXCEPTION in {event.get('service', '?')}: {event.get('error', '?')}", healthy=False))
 
     drop_events = await drain_events(valkey, f"{PREFIX}:collector:drop_events")
     for event in drop_events:
-        alerts.append(f"DROPPED SPOT ({event.get('reason', '?')}): {event.get('raw_spot', '?')}")
+        alerts.append(Alert(f"DROPPED SPOT ({event.get('reason', '?')}): {event.get('raw_spot', '?')}", healthy=False))
 
     return alerts
