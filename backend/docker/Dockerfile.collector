@@ -10,12 +10,17 @@ RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=api/pyproject.toml,target=api/pyproject.toml \
+    --mount=type=bind,source=collectors/pyproject.toml,target=collectors/pyproject.toml \
+    --mount=type=bind,source=monitor/pyproject.toml,target=monitor/pyproject.toml \
+    --mount=type=bind,source=shared/pyproject.toml,target=shared/pyproject.toml \
     uv sync --frozen --no-install-workspace
 
 # Copy workspace members
 COPY collectors/ ./collectors/
-# Copy api just for the workspace to be valid
+# Copy other members for workspace validity
 COPY api/ ./api/
+COPY monitor/ ./monitor/
 COPY shared/ ./shared/
 COPY pyproject.toml uv.lock ./
 
