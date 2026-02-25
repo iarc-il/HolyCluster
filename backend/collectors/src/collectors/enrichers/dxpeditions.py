@@ -103,7 +103,10 @@ def parse_title(title: str) -> Optional[tuple[str, datetime, datetime]]:
 
 async def fetch_dxpedition_data() -> list[dict]:
     async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(NG3K_XML_URL)
+        try:
+            response = await client.get(NG3K_XML_URL)
+        except httpx.TransportError as e:
+            raise type(e)(f"www.ng3k.com: {e}") from e
         response.raise_for_status()
         xml_data = response.content
 

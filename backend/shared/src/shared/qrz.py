@@ -78,7 +78,10 @@ async def get_qrz_session_key(username: str, password: str, api_key: str, http_c
     while attempts <= 5:
         attempts += 1
         url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
-        response = await http_client.get(url)
+        try:
+            response = await http_client.get(url)
+        except httpx.TransportError as e:
+            raise type(e)(f"xmldata.qrz.com: {e}") from e
 
         if response.status_code == 200:
             root = ET.fromstring(response.text)
@@ -115,6 +118,8 @@ async def get_locator_from_qrz(
                 raise
             else:
                 retries += 1
+        except httpx.TransportError as e:
+            raise type(e)(f"xmldata.qrz.com: {e}") from e
 
     if response.status_code != 200:
         return {"locator": None, "state": None, "error": f"qrz response code {response.status_code}"}
