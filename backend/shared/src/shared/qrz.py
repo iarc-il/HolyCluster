@@ -110,16 +110,23 @@ async def get_locator_from_qrz(
 
     retries = 0
     response = None
+    max_retries = 5
     while response is None:
         try:
             response = await http_client.get(url, timeout=5)
-        except httpx.TimeoutException:
-            if retries == 5:
-                raise
+            response.raise_for_error()
+        except httpx.TimeoutException as e:
+            if retries == max_retries:
+                raise type(e)(f"xmldata.qrz.com timeout: {e}") from e
+            else:
+                retries += 1
+        except httpx.NetworkError as e:
+            if retries == max_retries:
+                raise type(e)(f"xmldata.qrz.com network: {e}") from e
             else:
                 retries += 1
         except httpx.TransportError as e:
-            raise type(e)(f"xmldata.qrz.com: {e}") from e
+            raise type(e)(f"xmldata.qrz.com transport: {e}") from e
 
     if response.status_code != 200:
         return {"locator": None, "state": None, "error": f"qrz response code {response.status_code}"}

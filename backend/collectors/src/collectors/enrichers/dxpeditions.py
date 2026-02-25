@@ -166,7 +166,6 @@ def is_active_dxpedition(callsign: str) -> bool:
     for dxpedition in ACTIVE_DXPEDITIONS:
         if callsign.startswith(dxpedition["callsign"]):
             is_active = dxpedition["start_date"] <= now <= dxpedition["end_date"]
-            logger.info(f"Detected dxpedition: {callsign}, is active: {is_active}")
             return is_active
 
     return False
