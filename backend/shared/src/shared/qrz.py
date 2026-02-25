@@ -112,7 +112,7 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client:
     while response is None:
         try:
             response = await http_client.get(url, timeout=5)
-            response.raise_for_error()
+            response.raise_for_status()
         except httpx.TimeoutException as e:
             if retries == max_retries:
                 raise type(e)(f"xmldata.qrz.com timeout: {e}") from e
