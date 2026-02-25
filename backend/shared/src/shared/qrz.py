@@ -96,16 +96,14 @@ async def get_qrz_session_key(username: str, password: str, api_key: str, http_c
     return None
 
 
-async def get_locator_from_qrz(
-    qrz_session_key: str, callsign: str, http_client: httpx.AsyncClient, delay: float = 0
-) -> dict:
+async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client: httpx.AsyncClient) -> dict:
     suffix_list = ["/M", "/P"]
     for suffix in suffix_list:
         if callsign.upper().endswith(suffix):
             callsign = callsign[: -len(suffix)]
     if not qrz_session_key:
         return {"locator": None, "state": None, "error": "No qrz_session_key"}
-    await asyncio.sleep(delay)
+
     url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
 
     retries = 0

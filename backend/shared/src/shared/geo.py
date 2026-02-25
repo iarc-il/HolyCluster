@@ -3,7 +3,6 @@ import json
 import re
 from pathlib import Path
 
-from loguru import logger
 from pydantic import BaseModel
 
 from shared.coordinates import locator_to_coordinates
@@ -36,7 +35,7 @@ callsign_to_locator_filename = f"{current_folder}/prefixes_list.csv"
 PREFIXES_TO_LOCATORS = read_csv_to_list_of_tuples(filename=callsign_to_locator_filename)
 
 
-def resolve_locator_from_list(callsign: str, debug: bool = False) -> str:
+def resolve_locator_from_list(callsign: str, debug: bool = False) -> str | None:
     callsign = callsign.upper()
     for regex, locator, country, continent in PREFIXES_TO_LOCATORS:
         if re.match(regex + ".*", callsign):
@@ -65,41 +64,34 @@ async def get_geo_details(
     if geo_data:
         geo_data = json.loads(geo_data)
         geo_data["cached"] = True
+        return GeoData(**geo_data)
+
+    qrz_locator_dict = await get_locator_from_qrz(qrz_session_key, callsign, http_client)
+
+    locator = qrz_locator_dict.get("locator")
+    state = qrz_locator_dict.get("state")
+    if locator:
+        locator_source = "qrz"
     else:
-        # Get locator from qrz
-        qrz_locator_dict = await get_locator_from_qrz(
-            qrz_session_key=qrz_session_key,
-            callsign=callsign,
-            delay=0,
-            http_client=http_client,
-        )
-
-        locator = qrz_locator_dict.get("locator")
-        state = qrz_locator_dict.get("state")
+        locator = resolve_locator_from_list(callsign=callsign)
         if locator:
-            locator_source = "qrz"
-        else:
-            locator = resolve_locator_from_list(callsign=callsign)
-            if locator:
-                locator_source = "prefixes list"
-
-        if locator:
-            # Get country & continent from prefixed list (CSV file)
-            country, continent = resolve_country_and_continent_from_list(callsign=callsign)
-            lat, lon = locator_to_coordinates(locator)
-
-            # Add geo details to cache
-            geo_data = {
-                "locator_source": locator_source,
-                "locator": locator,
-                "lat": lat,
-                "lon": lon,
-                "country": country,
-                "continent": continent,
-                "state": state or "",
-            }
-            await valkey_client.set(callsign, json.dumps(geo_data), ex=geo_expiration)
-            geo_data["cached"] = False
+            locator_source = "prefixes list"
         else:
             raise GeoException(f"Missing locator for callsign {callsign}")
+
+    country, continent = resolve_country_and_continent_from_list(callsign=callsign)
+    lat, lon = locator_to_coordinates(locator)
+
+    geo_data = {
+        "locator_source": locator_source,
+        "locator": locator,
+        "lat": lat,
+        "lon": lon,
+        "country": country,
+        "continent": continent,
+        "state": state or "",
+    }
+    await valkey_client.set(callsign, json.dumps(geo_data), ex=geo_expiration)
+    geo_data["cached"] = False
+
     return GeoData(**geo_data)
