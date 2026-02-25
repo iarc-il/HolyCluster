@@ -1,9 +1,11 @@
 import asyncio
 import re
 
+import redis.asyncio
 from loguru import logger
 
 from api.settings import settings
+from shared.metrics import push_exception_event
 
 CLUSTER_HOST = "dxc.ve7cc.net"
 CLUSTER_PORT = 23
@@ -96,7 +98,7 @@ async def connect_to_server():
         raise ClusterConnectionFailed()
 
 
-async def handle_one_spot(websocket):
+async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
     data = await websocket.receive_json()
 
     try:
@@ -156,4 +158,5 @@ async def handle_one_spot(websocket):
             "error_data": str(e),
         }
         logger.exception(f"Failed to submit spot: {data}, Response: {response}")
+        await push_exception_event(valkey, "submit_spot", f"{e.__class__.__name__}: {e}, Spot: {data}")
         await websocket.send_json(response)

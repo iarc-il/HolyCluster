@@ -264,7 +264,7 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
     await websocket.accept()
     while True:
         try:
-            await submit_spot.handle_one_spot(websocket)
+            await submit_spot.handle_one_spot(websocket, app.state.valkey_client)
         except websockets.WebSocketDisconnect:
             break
 
