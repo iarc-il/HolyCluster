@@ -69,11 +69,11 @@ async def run_monitor():
             logger.warning(f"{len(all_alerts)} alert(s) this cycle")
             for alert in all_alerts:
                 logger.warning(alert.message)
-                for notifier in notifiers:
-                    try:
-                        await notifier.send_alert(alert)
-                    except Exception:
-                        logger.exception("Failed to send alert")
+            for notifier in notifiers:
+                try:
+                    await notifier.send_alerts(all_alerts)
+                except Exception:
+                    logger.exception("Failed to send alert")
         else:
             logger.info("All checks passed")
 

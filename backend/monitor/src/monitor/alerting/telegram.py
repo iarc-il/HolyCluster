@@ -12,10 +12,13 @@ class TelegramNotifier(AlertNotifier):
         self.chat_id = chat_id
         self.client = httpx.AsyncClient(timeout=10)
 
-    async def send_alert(self, alert: Alert):
+    async def send_alerts(self, alerts: list[Alert]):
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-        emoji = "\U0001f7e2" if alert.healthy else "\U0001f534"
-        text = f"{emoji} {alert.message}"
+        lines = []
+        for alert in alerts:
+            emoji = "\U0001f7e2" if alert.healthy else "\U0001f534"
+            lines.append(f"{emoji} {alert.message}")
+        text = "\n".join(lines)
         try:
             resp = await self.client.post(
                 url,
