@@ -49,11 +49,11 @@ jobs:
         if: github.ref == 'refs/heads/dev'
         run: |
           ssh ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }} \
-            "cd ${{ secrets.REPO_ROOT_DEV }}/backend && git fetch && git checkout dev && git reset --hard origin/dev && docker compose up -d --build"
+            "cd ${{ secrets.REPO_ROOT_DEV }}/backend && git fetch && git checkout dev && git reset --hard origin/dev && docker compose stop monitor && docker compose up -d --build"
 
       - name: Deploy to Production Server
         if: startsWith(github.ref, 'refs/tags/backend-v')
         run: |
           TAG=${GITHUB_REF#refs/tags/}
           ssh ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }} \
-            "cd ${{ secrets.REPO_ROOT_PROD }}/backend && git fetch --tags && git checkout $TAG && docker compose up -d --build"
+            "cd ${{ secrets.REPO_ROOT_PROD }}/backend && git fetch --tags && git checkout $TAG && docker compose stop monitor && docker compose up -d --build"
