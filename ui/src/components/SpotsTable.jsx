@@ -23,6 +23,17 @@ const cell_classes = {
     comment: "w-[40rem] text-left hidden xl:table-cell",
 };
 
+const columns = [
+    { title: "Time", field: "time" },
+    { title: "", field: "flag", sorting: false },
+    { title: "DX", field: "dx_callsign" },
+    { title: "Freq", field: "freq" },
+    { title: "Band", field: "band" },
+    { title: "Spotter", field: "spotter_callsign" },
+    { title: "Mode", field: "mode" },
+    { title: "Comment", field: "comment", sorting: false },
+];
+
 function Callsign({ callsign }) {
     return (
         <a href={"https://www.qrz.com/db/" + callsign} target="_blank">
@@ -513,64 +524,17 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     >
                         <tbody className="divide-y">
                             <tr>
-                                <HeaderCell
-                                    title="Time"
-                                    field="time"
-                                    cell_classes={cell_classes}
-                                    table_sort={table_sort}
-                                    set_table_sort={set_table_sort}
-                                />
-                                <HeaderCell
-                                    title=""
-                                    field="flag"
-                                    cell_classes={cell_classes}
-                                    table_sort={table_sort}
-                                    set_table_sort={set_table_sort}
-                                    sorting={false}
-                                />
-                                <HeaderCell
-                                    title="DX"
-                                    field="dx_callsign"
-                                    cell_classes={cell_classes}
-                                    table_sort={table_sort}
-                                    set_table_sort={set_table_sort}
-                                />
-                                <HeaderCell
-                                    title="Freq"
-                                    field="freq"
-                                    cell_classes={cell_classes}
-                                    table_sort={table_sort}
-                                    set_table_sort={set_table_sort}
-                                />
-                                <HeaderCell
-                                    title="Band"
-                                    field="band"
-                                    cell_classes={cell_classes}
-                                    table_sort={table_sort}
-                                    set_table_sort={set_table_sort}
-                                />
-                                <HeaderCell
-                                    title="Spotter"
-                                    field="spotter_callsign"
-                                    cell_classes={cell_classes}
-                                    table_sort={table_sort}
-                                    set_table_sort={set_table_sort}
-                                />
-                                <HeaderCell
-                                    title="Mode"
-                                    field="mode"
-                                    cell_classes={cell_classes}
-                                    table_sort={table_sort}
-                                    set_table_sort={set_table_sort}
-                                />
-                                <HeaderCell
-                                    title="Comment"
-                                    field="comment"
-                                    cell_classes={cell_classes}
-                                    table_sort={table_sort}
-                                    set_table_sort={set_table_sort}
-                                    sorting={false}
-                                />
+                                {columns.map(col => (
+                                    <HeaderCell
+                                        key={col.field}
+                                        title={col.title}
+                                        field={col.field}
+                                        cell_classes={cell_classes}
+                                        table_sort={table_sort}
+                                        set_table_sort={set_table_sort}
+                                        sorting={col.sorting}
+                                    />
+                                ))}
                             </tr>
                             {spots.map(spot => (
                                 <Spot
