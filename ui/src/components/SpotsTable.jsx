@@ -369,19 +369,34 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                 {
                     label: spot => `Create Alert for ${spot.dx_country}`,
                     onClick: spot => {
-                        add_country_filter(spot, "alert");
+                        add_filter({
+                            action: "alert",
+                            type: "entity",
+                            value: spot.dx_country,
+                            spotter_or_dx: "dx",
+                        });
                     },
                 },
                 {
                     label: spot => `Show Only ${spot.dx_country}`,
                     onClick: spot => {
-                        add_country_filter(spot, "show_only");
+                        add_filter({
+                            action: "show_only",
+                            type: "entity",
+                            value: spot.dx_country,
+                            spotter_or_dx: "dx",
+                        });
                     },
                 },
                 {
                     label: spot => `Hide ${spot.dx_country}`,
                     onClick: spot => {
-                        add_country_filter(spot, "hide");
+                        add_filter({
+                            action: "hide",
+                            type: "entity",
+                            value: spot.dx_country,
+                            spotter_or_dx: "dx",
+                        });
                     },
                 },
             ];
@@ -405,19 +420,37 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                 {
                     label: spot => "Create Alert",
                     onClick: spot => {
-                        add_callsign_filter(spot, "alert", context_menu.is_spotter);
+                        const is_spotter = context_menu.is_spotter;
+                        add_filter({
+                            action: "alert",
+                            type: "prefix",
+                            value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+                            spotter_or_dx: is_spotter ? "spotter" : "dx",
+                        });
                     },
                 },
                 {
                     label: spot => "Create Show Only Filter",
                     onClick: spot => {
-                        add_callsign_filter(spot, "show_only", context_menu.is_spotter);
+                        const is_spotter = context_menu.is_spotter;
+                        add_filter({
+                            action: "show_only",
+                            type: "prefix",
+                            value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+                            spotter_or_dx: is_spotter ? "spotter" : "dx",
+                        });
                     },
                 },
                 {
                     label: spot => "Create Hide Filter",
                     onClick: spot => {
-                        add_callsign_filter(spot, "hide", context_menu.is_spotter);
+                        const is_spotter = context_menu.is_spotter;
+                        add_filter({
+                            action: "hide",
+                            type: "prefix",
+                            value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+                            spotter_or_dx: is_spotter ? "spotter" : "dx",
+                        });
                     },
                 },
             ];
@@ -445,29 +478,10 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         });
     };
 
-    const add_callsign_filter = (spot, action, is_spotter) => {
-        const newFilter = {
-            action,
-            type: "prefix",
-            value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
-            spotter_or_dx: is_spotter ? "spotter" : "dx",
-        };
+    const add_filter = filter => {
         setCallsignFilters({
             ...callsign_filters,
-            filters: [...callsign_filters.filters, newFilter],
-        });
-    };
-
-    const add_country_filter = (spot, action) => {
-        const newFilter = {
-            action,
-            type: "entity",
-            value: spot.dx_country,
-            spotter_or_dx: "dx",
-        };
-        setCallsignFilters({
-            ...callsign_filters,
-            filters: [...callsign_filters.filters, newFilter],
+            filters: [...callsign_filters.filters, filter],
         });
     };
 
