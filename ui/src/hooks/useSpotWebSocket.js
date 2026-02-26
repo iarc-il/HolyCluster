@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { modes, continents } from "@/data/filters_data.js";
 import { shorten_dxcc } from "@/data/flags.js";
@@ -19,19 +19,22 @@ export default function useSpotWebSocket() {
     const last_spot_time_ref = useRef(0);
     const next_spot_id_ref = useRef(0);
 
-    const { lastJsonMessage, readyState, sendJsonMessage } = useWebSocket("/spots_ws", {
-        onOpen: () => {
-            if (is_first_connection) {
-                sendJsonMessage({ initial: true });
-                set_is_first_connection(false);
-            } else {
-                sendJsonMessage({ last_time: last_spot_time_ref.current });
-            }
+    const { lastJsonMessage, readyState, sendJsonMessage, getWebSocket } = useWebSocket(
+        "/spots_ws",
+        {
+            onOpen: () => {
+                if (is_first_connection) {
+                    sendJsonMessage({ initial: true });
+                    set_is_first_connection(false);
+                } else {
+                    sendJsonMessage({ last_time: last_spot_time_ref.current });
+                }
+            },
+            reconnectAttempts: Infinity,
+            reconnectInterval: attemptNumber => 5,
+            shouldReconnect: () => true,
         },
-        reconnectAttempts: 10,
-        reconnectInterval: 5000,
-        shouldReconnect: () => navigator.onLine,
-    });
+    );
 
     useEffect(() => {
         if (lastJsonMessage) {
