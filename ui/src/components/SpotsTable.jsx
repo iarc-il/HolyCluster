@@ -266,6 +266,34 @@ function Spot(
 
 Spot = forwardRef(Spot);
 
+function update_parity_map(parity, prev_sort, table_sort, spots) {
+    if (
+        prev_sort.current.column !== table_sort.column ||
+        prev_sort.current.ascending !== table_sort.ascending
+    ) {
+        parity.clear();
+        prev_sort.current = table_sort;
+    }
+
+    const current_ids = new Set(spots.map(s => s.id));
+    for (const id of parity.keys()) {
+        if (!current_ids.has(id)) parity.delete(id);
+    }
+
+    for (let i = 0; i < spots.length; i++) {
+        const id = spots[i].id;
+        if (!parity.has(id)) {
+            if (i > 0) {
+                parity.set(id, !parity.get(spots[i - 1].id));
+            } else if (spots.length > 1 && parity.has(spots[1].id)) {
+                parity.set(id, !parity.get(spots[1].id));
+            } else {
+                parity.set(id, true);
+            }
+        }
+    }
+}
+
 function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, sorting = true }) {
     const { colors } = useColors();
     let direction = <span className="w-[0.8em] h-[1.5em]"></span>;
@@ -326,33 +354,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
 
     const parity_map = useRef(new Map());
     const prev_sort = useRef(table_sort);
-
-    // The parity_map and prev_sort are use to maintain stable background of the spots
-    if (
-        prev_sort.current.column !== table_sort.column ||
-        prev_sort.current.ascending !== table_sort.ascending
-    ) {
-        parity_map.current.clear();
-        prev_sort.current = table_sort;
-    }
-
-    const current_ids = new Set(spots.map(s => s.id));
-    for (const id of parity_map.current.keys()) {
-        if (!current_ids.has(id)) parity_map.current.delete(id);
-    }
-
-    for (let i = 0; i < spots.length; i++) {
-        const id = spots[i].id;
-        if (!parity_map.current.has(id)) {
-            if (i > 0) {
-                parity_map.current.set(id, !parity_map.current.get(spots[i - 1].id));
-            } else if (spots.length > 1 && parity_map.current.has(spots[1].id)) {
-                parity_map.current.set(id, !parity_map.current.get(spots[1].id));
-            } else {
-                parity_map.current.set(id, true);
-            }
-        }
-    }
+    update_parity_map(parity_map.current, prev_sort, table_sort, spots);
 
     const [context_menu, set_context_menu] = useState({
         visible: false,
