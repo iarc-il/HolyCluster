@@ -7,25 +7,22 @@ from monitor.state import Alert, CheckState, HealthStatus
 
 
 async def check_containers(
-    compose_project_dir: str,
     states: dict[str, CheckState],
 ) -> list[Alert]:
     alerts = []
     try:
         proc = await asyncio.create_subprocess_exec(
             "docker",
-            "compose",
             "ps",
             "--format",
-            "json",
-            cwd=compose_project_dir,
+            "{{json .}}",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
 
         if proc.returncode != 0:
-            logger.error(f"docker compose ps failed: {stderr.decode()}")
+            logger.error(f"docker ps failed: {stderr.decode()}")
             return alerts
 
         for line in stdout.decode().strip().splitlines():
@@ -34,17 +31,17 @@ async def check_containers(
             except json.JSONDecodeError:
                 continue
 
-            name = container.get("Name", container.get("Service", "unknown"))
+            name = container.get("Names", "unknown")
             state = container.get("State", "")
-            health = container.get("Health", "")
+            status = container.get("Status", "")
 
             if name not in states:
                 states[name] = CheckState(f"container:{name}")
 
             if state != "running":
                 alert = states[name].update(HealthStatus.UNHEALTHY, f"Container {name} state={state}")
-            elif health and health != "healthy":
-                alert = states[name].update(HealthStatus.UNHEALTHY, f"Container {name} health={health}")
+            elif "unhealthy" in status.lower():
+                alert = states[name].update(HealthStatus.UNHEALTHY, f"Container {name} status={status}")
             else:
                 alert = states[name].update(HealthStatus.HEALTHY, f"Container {name} running")
 
@@ -52,7 +49,7 @@ async def check_containers(
                 alerts.append(alert)
 
     except TimeoutError:
-        logger.error("docker compose ps timed out")
+        logger.error("docker ps timed out")
     except FileNotFoundError:
         logger.warning("docker command not found, skipping container check")
     except Exception:

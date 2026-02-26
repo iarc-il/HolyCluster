@@ -7,7 +7,6 @@ class MonitorSettings(ValkeySettings):
     spot_flow_timeout: int = Field(default=300, description="Max age in seconds for last_spot_time before unhealthy")
     heartbeat_timeout: int = Field(default=120, description="Max age in seconds for heartbeat before unhealthy")
     ws_url: str = Field(default="ws://api:8000/spots_ws", description="WebSocket URL for synthetic client check")
-    compose_project_dir: str = Field(description="Directory containing docker-compose.yml")
 
     telegram_bot_token: str = Field(description="Telegram Bot API token")
     telegram_chat_id: str = Field(description="Telegram chat ID for alerts")

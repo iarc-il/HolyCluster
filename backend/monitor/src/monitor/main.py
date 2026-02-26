@@ -60,7 +60,7 @@ async def run_monitor():
             logger.exception("WebSocket check failed")
 
         try:
-            container_alerts = await check_containers(settings.compose_project_dir, container_states)
+            container_alerts = await check_containers(container_states)
             all_alerts.extend(container_alerts)
         except Exception:
             logger.exception("Container check failed")
