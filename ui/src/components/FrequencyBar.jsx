@@ -8,6 +8,25 @@ import use_radio from "@/hooks/useRadio";
 import { get_mode_shape } from "@/data/mode_shapes.js";
 import { band_plans } from "@/data/band_plans.js";
 
+function useBandSpots(spots, band) {
+    const sorted = useMemo(() => {
+        return spots
+            .filter(spot => spot.band == band)
+            .slice(0, 30)
+            .sort((a, b) => a.freq - b.freq);
+    }, [spots, band]);
+
+    return useMemo(() => {
+        return sorted.reduce((acc, spot) => {
+            const existing = acc.find(s => s.dx_callsign === spot.dx_callsign);
+            if (!existing || existing.time < spot.time) {
+                return acc.filter(s => s.dx_callsign !== spot.dx_callsign).concat(spot);
+            }
+            return acc;
+        }, []);
+    }, [sorted]);
+}
+
 function ModeShape({ mode, x, y, fill }) {
     const shape = get_mode_shape(mode);
     if (shape === "square") {
@@ -53,6 +72,32 @@ function ModeShape({ mode, x, y, fill }) {
                 className="group-hover:fill-blue-500"
                 fill={fill}
             />
+        </svg>
+    );
+}
+
+function FrequencyBracket({ radio_freq, freq_spots, bracket_y, bracket_height, stroke }) {
+    if (radio_freq == 0 || radio_freq === undefined) return null;
+
+    if (freq_spots.length >= 1) {
+        return (
+            <svg
+                width="100%"
+                height={`${bracket_height}%`}
+                x="0"
+                y={`${bracket_y}%`}
+                style={{ position: "absolute", pointerEvents: "none" }}
+            >
+                <line x1="50%" y1="0" x2="50%" y2="100%" stroke={stroke} strokeWidth="2" />
+                <line x1="50%" y1="0" x2="53%" y2="0" stroke={stroke} strokeWidth="2" />
+                <line x1="50%" y1="100%" x2="53%" y2="100%" stroke={stroke} strokeWidth="2" />
+            </svg>
+        );
+    }
+
+    return (
+        <svg viewBox="0 0 50 90" height="8%" width="5%" y={`${bracket_y - 2.5}%`} x="47.5%">
+            <polygon points="0 0, 50 45, 0 90" fill="transparent" stroke="red" strokeWidth={5} />
         </svg>
     );
 }
@@ -153,14 +198,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
 
     let band = selected_band == -1 ? radio_band : selected_band;
 
-    // Sort spots by frequency
-    let sorted_spots = useMemo(() => {
-        return spots
-            .filter(spot => spot.band == band)
-            .slice(0, 30)
-            .sort((a, b) => a.freq - b.freq);
-    }, [spots, band]);
-
+    const sorted_spots = useBandSpots(spots, band);
     const callsign_refs = useRef([]);
 
     let freq_offset, max_freq, min_freq, features, ranges;
@@ -173,15 +211,6 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
         features = band_plans[band].features;
         ranges = band_plans[band].ranges;
     }
-
-    // Remove all spots with duplicate dx_callsign keeping only the most recent one
-    sorted_spots = sorted_spots.reduce((acc, spot) => {
-        const existingSpot = acc.find(s => s.dx_callsign === spot.dx_callsign);
-        if (!existingSpot || existingSpot.time < spot.time) {
-            return acc.filter(s => s.dx_callsign !== spot.dx_callsign).concat(spot);
-        }
-        return acc;
-    }, []);
 
     function dx_handle_click(spot_id, spot) {
         if (pinned_spot === spot_id) {
@@ -361,62 +390,13 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                             );
                         })}
 
-                        {radio_freq != 0 && radio_freq !== undefined && freq_spots.length >= 1 && (
-                            <svg
-                                width="100%"
-                                height={`${bracket_height}%`}
-                                x="0"
-                                y={`${bracket_y}%`}
-                                style={{
-                                    position: "absolute",
-                                    pointerEvents: "none",
-                                }}
-                            >
-                                {/* Left vertical */}
-                                <line
-                                    x1={`50%`}
-                                    y1="0"
-                                    x2={`50%`}
-                                    y2={"100%"}
-                                    stroke={colors.theme.text}
-                                    strokeWidth="2"
-                                />
-                                {/* Top horizontal */}
-                                <line
-                                    x1={`50%`}
-                                    y1="0"
-                                    x2={`53%`}
-                                    y2="0"
-                                    stroke={colors.theme.text}
-                                    strokeWidth="2"
-                                />
-                                {/* Bottom horizontal */}
-                                <line
-                                    x1={`50%`}
-                                    y1={"100%"}
-                                    x2={`53%`}
-                                    y2={"100%"}
-                                    stroke={colors.theme.text}
-                                    strokeWidth="2"
-                                />
-                            </svg>
-                        )}
-                        {radio_freq != 0 && radio_freq !== undefined && freq_spots.length == 0 && (
-                            <svg
-                                viewBox="0 0 50 90"
-                                height="8%"
-                                width="5%"
-                                y={`${bracket_y - 2.5}%`}
-                                x="47.5%"
-                            >
-                                <polygon
-                                    points="0 0, 50 45, 0 90"
-                                    fill="transparent"
-                                    stroke="red"
-                                    strokeWidth={5}
-                                />
-                            </svg>
-                        )}
+                        <FrequencyBracket
+                            radio_freq={radio_freq}
+                            freq_spots={freq_spots}
+                            bracket_y={bracket_y}
+                            bracket_height={bracket_height}
+                            stroke={colors.theme.text}
+                        />
                     </svg>
                     <div className="h-[4%] w-full flex justify-center items-center bg-gray-100 rounded-full border border-gray-300">
                         {ranges.concat(features).map(legend => (
