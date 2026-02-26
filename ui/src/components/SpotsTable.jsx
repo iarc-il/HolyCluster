@@ -224,17 +224,14 @@ function Spot(
                     </span>
                 )}
             </td>
-            <td className={cell_classes.freq}>
+            <td className={cell_classes.freq} onClick={() => set_cat_to_spot(spot)}>
                 <div
-                    onClick={() => set_cat_to_spot(spot)}
-                    className="px-1 rounded-full cursor-pointer"
-                    style={{
-                        backgroundColor: `${window.matchMedia("(max-width: 767px)").matches ? color : "transparent"}`,
-                        color: `${window.matchMedia("(max-width: 767px)").matches ? colors.text[spot.band] : ""}`,
-                    }}
+                    className="px-1 rounded-full cursor-pointer md:hidden"
+                    style={{ backgroundColor: color, color: colors.text[spot.band] }}
                 >
                     {spot.freq}
                 </div>
+                <div className="px-1 rounded-full cursor-pointer hidden md:block">{spot.freq}</div>
             </td>
             <td className={cell_classes.band + " flex justify-center items-center"}>
                 <p
