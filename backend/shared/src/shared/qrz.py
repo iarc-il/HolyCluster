@@ -117,14 +117,38 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client:
             if retries == max_retries:
                 raise type(e)(f"xmldata.qrz.com timeout: {e}") from e
             else:
+                logger.warning("Timeout error, retrying")
                 retries += 1
         except httpx.NetworkError as e:
             if retries == max_retries:
                 raise type(e)(f"xmldata.qrz.com network: {e}") from e
             else:
+                logger.warning("Network error, retrying")
+                retries += 1
+        except httpx.ProtocolError as e:
+            if retries == max_retries:
+                raise type(e)(f"xmldata.qrz.com protocol: {e}") from e
+            else:
+                logger.warning("Protocol error, retrying")
+                retries += 1
+        except httpx.ProxyError as e:
+            if retries == max_retries:
+                raise type(e)(f"xmldata.qrz.com proxy: {e}") from e
+            else:
+                logger.warning("Proxy error, retrying")
+                retries += 1
+        except httpx.UnsupportedProtocol as e:
+            if retries == max_retries:
+                raise type(e)(f"xmldata.qrz.com unsupported protocol: {e}") from e
+            else:
+                logger.warning("Unsupported protocol error, retrying")
                 retries += 1
         except httpx.TransportError as e:
-            raise type(e)(f"xmldata.qrz.com transport: {e}") from e
+            if retries == max_retries:
+                raise type(e)(f"xmldata.qrz.com transport: {e}") from e
+            else:
+                logger.warning("Transport error, retrying")
+                retries += 1
 
     if response.status_code != 200:
         return {"locator": None, "state": None, "error": f"qrz response code {response.status_code}"}
