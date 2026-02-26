@@ -10,8 +10,8 @@ from collectors.db.valkey_config import get_valkey_client
 from collectors.misc import open_log_file2
 from collectors.settings import settings
 
-DX_CC_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
-DX_AR_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d)\s+(\S+)\s+(.*?)\s+?(\d+Z)")
+DX_CC_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
+DX_AR_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\d+Z)")
 
 
 def parse_cc_dx_cluster_line(line: str) -> dict | None:
