@@ -8,7 +8,7 @@ import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import Spinner from "@/components/ui/Spinner.jsx";
 import { useColors } from "@/hooks/useColors";
-import use_radio from "../hooks/useRadio";
+import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { is_same_base_callsign } from "@/utils.js";
 

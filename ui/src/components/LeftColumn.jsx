@@ -9,7 +9,7 @@ import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useFilters } from "@/hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/hooks/useSettings";
-import use_radio from "../hooks/useRadio";
+import use_radio from "@/hooks/useRadio";
 
 function Hex(color) {
     return (

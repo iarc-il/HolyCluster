@@ -10,7 +10,7 @@ import Tabs from "@/components/ui/Tabs.jsx";
 import { use_object_local_storage, is_matching_list, get_max_radius } from "@/utils.js";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { useColors } from "../hooks/useColors";
+import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 

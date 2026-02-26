@@ -7,10 +7,9 @@ import ColorPicker from "@/components/ui/ColorPicker.jsx";
 import Select from "@/components/ui/Select.jsx";
 import Button from "@/components/ui/Button.jsx";
 import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
-import { useColors } from "../hooks/useColors";
-import { useFilters } from "../hooks/useFilters";
+import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
 import { useSpotData } from "@/hooks/useSpotData";
-import useRadio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
@@ -19,7 +18,7 @@ import OpenMenu from "@/components/OpenMenu.jsx";
 
 import { modes } from "@/data/filters_data.js";
 import { useEffect } from "react";
-import use_radio from "../hooks/useRadio";
+import use_radio from "@/hooks/useRadio";
 
 const spots_time_limits = {
     "5 Minutes": 300,

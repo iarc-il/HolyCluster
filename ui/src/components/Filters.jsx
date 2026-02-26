@@ -4,8 +4,8 @@ import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
 import { empty_filter_data, default as FilterModal } from "@/components/FilterModal.jsx";
 
-import { useColors } from "../hooks/useColors";
-import { useFilters } from "../hooks/useFilters";
+import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
 import { useState } from "react";
 import { DndContext, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";

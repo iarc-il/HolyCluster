@@ -1,10 +1,10 @@
 import Select from "@/components/ui/Select.jsx";
 import { useRef, useMemo } from "react";
-import { useColors } from "../hooks/useColors";
+import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useLocalStorage } from "@uidotdev/usehooks";
-import use_radio from "../hooks/useRadio";
+import use_radio from "@/hooks/useRadio";
 import { get_mode_shape } from "@/data/mode_shapes.js";
 import { band_plans } from "@/data/band_plans.js";
 

@@ -7,7 +7,7 @@ import FilterButton from "@/components/FilterButton.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
 import { continents } from "@/data/filters_data.js";
 import { useFilters } from "@/hooks/useFilters";
-import { useColors } from "../hooks/useColors";
+import { useColors } from "@/hooks/useColors";
 
 const continent_title = { dx: "DX", spotter: "DE" };
 
