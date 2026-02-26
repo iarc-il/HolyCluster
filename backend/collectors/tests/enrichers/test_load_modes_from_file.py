@@ -10,20 +10,9 @@ def test_load_modes_from_file():
     # Path to the modes.json file
     file_path = Path(__file__).parent / "../../src/enrichers/modes.json"
     modes = load_modes_from_file(file_path)
-    # print(json.dumps(modes, indent=4))
 
-    # Assert that bands is a list
     assert isinstance(modes, dict)
 
-    # Assert that each item is a tuple of (str, float, float)
-    # for band in bands:
-    #     assert isinstance(band, tuple)
-    #     assert len(band) == 3
-    #     assert isinstance(band[0], str)
-    #     assert isinstance(band[1], float)
-    #     assert isinstance(band[2], float)
-
-    # Assert specific values, e.g., first band
     assert modes["40"] == {
         "CW": {"start": 7000, "end": 7040},
         "RTTY": {"start": 7040, "end": 7100},
