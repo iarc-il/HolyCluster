@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from datetime import UTC, datetime, timedelta
 
 from loguru import logger
-from misc import open_log_file
+from logging_setup import open_log_file
 from settings import (
     POSTGRES_DB_RETENTION_DAYS,
     POSTGRES_DB_URL,

@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 
-from collectors.misc import open_log_file
+from collectors.logging_setup import open_log_file
 from collectors.settings import settings
 
 

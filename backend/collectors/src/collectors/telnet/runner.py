@@ -5,9 +5,9 @@ import sys
 
 from loguru import logger
 
-from ..misc import open_log_file
+from ..logging_setup import open_log_file
 from ..settings import settings
-from .telnet_collectors import telnet_and_collect
+from .client import telnet_and_collect
 
 
 def get_telnet_clusters_list(csv_path: str, debug: bool = False):

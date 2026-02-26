@@ -7,7 +7,7 @@ from loguru import logger
 from shared.metrics import push_drop_event, push_exception_event, set_value
 
 from collectors.db.valkey_config import get_valkey_client
-from collectors.misc import open_log_file2
+from collectors.logging_setup import open_log_file2
 from collectors.settings import settings
 
 DX_CC_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")

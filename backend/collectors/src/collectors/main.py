@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from loguru import logger
 from shared.db import HolySpot
-from shared.geo import GeoException
+from shared.geo import GeoException, get_geo_details as shared_get_geo_details
 from shared.metrics import push_drop_event, push_exception_event, set_timestamp
 from shared.qrz import QrzSessionManager
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -13,9 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from collectors.db.valkey_config import get_valkey_client
 from collectors.enrichers.dxpeditions import is_active_dxpedition
 from collectors.enrichers.frequencies import find_band_and_mode
-from collectors.enrichers.geo import get_geo_details
 from collectors.settings import settings
-from collectors.telnet_collectors.run_telnet_collectors import (
+from collectors.telnet.runner import (
     run_concurrent_telnet_connections,
 )
 
@@ -24,7 +23,7 @@ import aiomonitor
 STREAM_API = "stream-api"
 
 
-async def enrich_spot(qrz_session_key: str, spot: dict, http_client) -> dict:
+async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_client) -> dict:
     spot["timestamp"] = datetime.now(timezone.utc).timestamp()
 
     band_mode = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"])
@@ -35,8 +34,12 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client) -> dict:
     band, mode, mode_selection = band_mode
 
     spotter_geo, dx_geo = await asyncio.gather(
-        get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["spotter_callsign"], http_client=http_client),
-        get_geo_details(qrz_session_key=qrz_session_key, callsign=spot["dx_callsign"], http_client=http_client),
+        shared_get_geo_details(
+            valkey_client, qrz_session_key, spot["spotter_callsign"], settings.valkey_geo_expiration, http_client
+        ),
+        shared_get_geo_details(
+            valkey_client, qrz_session_key, spot["dx_callsign"], settings.valkey_geo_expiration, http_client
+        ),
     )
 
     spot.update(
@@ -118,7 +121,10 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
             try:
                 try:
                     enriched_spot = await enrich_spot(
-                        qrz_session_key=qrz_manager.get_key(), spot=spot, http_client=qrz_manager.http_client
+                        qrz_session_key=qrz_manager.get_key(),
+                        spot=spot,
+                        http_client=qrz_manager.http_client,
+                        valkey_client=valkey_client,
                     )
                 except GeoException:
                     logger.exception("Dropping spot due to geo exception")

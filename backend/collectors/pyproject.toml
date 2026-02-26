@@ -19,7 +19,7 @@ dependencies = [
 
 [project.scripts]
 check_postgres = "collectors.db.check_postgres:main"
-collector = "collectors.collector:main"
+collector = "collectors.main:main"
 
 [build-system]
 requires = ["uv_build>=0.9.13,<0.10.0"]
