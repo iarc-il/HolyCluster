@@ -18,6 +18,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
     environment:
         - TZ=Asia/Jerusalem
     expose:
@@ -85,6 +86,12 @@ services:
       - ${UI_DIST_PATH}:${UI_DIST_PATH}
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   monitor:
     container_name: monitor
@@ -96,7 +103,7 @@ services:
       valkey:
         condition: service_healthy
       api:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - .env
     volumes:
@@ -120,7 +127,8 @@ services:
     env_file:
       - .env
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "service", "nginx", "status"]
       interval: 5s

@@ -337,6 +337,11 @@ def download_catserver():
     )
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 @app.get("/")
 async def get_index():
     response = FileResponse(f"{settings.ui_dist_path}/index.html", media_type="text/html")
