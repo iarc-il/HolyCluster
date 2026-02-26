@@ -40,8 +40,7 @@ function Spot(
         set_pinned_spot,
         set_hovered_spot,
         set_cat_to_spot,
-        on_callsign_context_menu,
-        on_flag_context_menu,
+        on_context_menu,
         is_new_spot,
     },
     ref,
@@ -173,7 +172,7 @@ function Spot(
             <td
                 onContextMenu={event => {
                     event.preventDefault();
-                    on_flag_context_menu(event, spot);
+                    on_context_menu(event, spot, "flag");
                 }}
                 className={cell_classes.flag}
             >
@@ -215,7 +214,7 @@ function Spot(
                 }}
                 onContextMenu={event => {
                     event.preventDefault();
-                    on_callsign_context_menu(event, spot, false);
+                    on_context_menu(event, spot, "callsign", false);
                 }}
             >
                 <Callsign callsign={spot.dx_callsign} />
@@ -252,7 +251,7 @@ function Spot(
                 className={cell_classes.spotter_callsign}
                 onContextMenu={event => {
                     event.preventDefault();
-                    on_callsign_context_menu(event, spot, true);
+                    on_context_menu(event, spot, "callsign", true);
                 }}
             >
                 <Callsign callsign={spot.spotter_callsign} />
@@ -425,14 +424,14 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         }
     };
 
-    const handle_callsign_context_menu = (event, spot, is_spotter) => {
+    const handle_context_menu = (event, spot, menu_type, is_spotter = false) => {
         event.preventDefault();
         const x = event.clientX;
         const y = event.clientY;
 
         const menuWidth = 200;
-        const callsign_actions = get_context_menu_actions("callsign");
-        const menuHeight = callsign_actions.length * 43;
+        const actions = get_context_menu_actions(menu_type);
+        const menuHeight = actions.length * 43;
         const adjustedX = Math.min(x, window.innerWidth - menuWidth);
         const adjustedY = Math.min(y, window.innerHeight - menuHeight);
 
@@ -442,28 +441,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
             y: adjustedY,
             spot,
             is_spotter,
-            menu_type: "callsign",
-        });
-    };
-
-    const handle_flag_context_menu = (event, spot) => {
-        event.preventDefault();
-        const x = event.clientX;
-        const y = event.clientY;
-
-        const menuWidth = 200;
-        const flag_actions = get_context_menu_actions("flag");
-        const menuHeight = flag_actions.length * 43;
-        const adjustedX = Math.min(x, window.innerWidth - menuWidth);
-        const adjustedY = Math.min(y, window.innerHeight - menuHeight);
-
-        set_context_menu({
-            visible: true,
-            x: adjustedX,
-            y: adjustedY,
-            spot,
-            is_spotter: false,
-            menu_type: "flag",
+            menu_type,
         });
     };
 
@@ -592,8 +570,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     set_pinned_spot={set_pinned_spot}
                                     set_hovered_spot={set_hovered_spot}
                                     set_cat_to_spot={set_cat_to_spot}
-                                    on_callsign_context_menu={handle_callsign_context_menu}
-                                    on_flag_context_menu={handle_flag_context_menu}
+                                    on_context_menu={handle_context_menu}
                                     is_new_spot={new_spot_ids.has(spot.id)}
                                 ></Spot>
                             ))}
