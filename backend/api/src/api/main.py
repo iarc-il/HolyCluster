@@ -1,13 +1,12 @@
 import asyncio
 import json
-import os
 import time
 from contextlib import asynccontextmanager
 
 import fastapi
 import httpx
 import redis.asyncio
-from fastapi import HTTPException, Request, websockets
+from fastapi import HTTPException, websockets
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
@@ -18,7 +17,6 @@ from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import propagation, submit_spot
 from .settings import settings
@@ -349,13 +347,11 @@ async def get_index():
     return response
 
 
-app.mount("/", StaticFiles(directory=settings.ui_dist_path, html=True), name="static")
+app.mount("/assets", StaticFiles(directory=f"{settings.ui_dist_path}/assets"), name="static")
 
 
-@app.exception_handler(StarletteHTTPException)
-async def spa_fallback(request: Request, exc: StarletteHTTPException):
-    if exc.status_code == 404 and request.url.path not in ("/favicon.ico",):
-        index_path = os.path.join(str(settings.ui_dist_path), "index.html")
-        if os.path.exists(index_path):
-            return FileResponse(index_path, media_type="text/html")
-    raise exc
+@app.get("/{path:path}")
+async def spa(path: str):
+    response = FileResponse(f"{settings.ui_dist_path}/index.html", media_type="text/html")
+    response.headers["Cache-Control"] = "no-store"
+    return response

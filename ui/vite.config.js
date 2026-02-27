@@ -14,6 +14,7 @@ export default defineConfig({
         proxy: {
             "/propagation": "https://holycluster-dev.iarc.org",
             "/locator": "https://holycluster-dev.iarc.org",
+            "/catserver": "https://holycluster-dev.iarc.org",
             "/dxpeditions": "https://holycluster-dev.iarc.org",
             "/spots_ws": {
                 target: "wss://holycluster-dev.iarc.org",
