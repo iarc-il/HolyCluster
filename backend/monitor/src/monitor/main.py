@@ -21,12 +21,8 @@ async def run_monitor():
         decode_responses=True,
     )
 
-    notifiers = []
-    if settings.telegram_bot_token and settings.telegram_chat_id:
-        notifiers.append(TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id))
-        logger.info("Telegram alerting enabled")
-    else:
-        logger.error("No Telegram credentials configured, alerting disabled")
+    notifiers = [TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)]
+    logger.info("Telegram alerting enabled")
 
     collector_heartbeat = CheckState("collector:heartbeat")
     api_heartbeat = CheckState("api:heartbeat")
