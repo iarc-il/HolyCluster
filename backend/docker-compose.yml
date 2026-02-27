@@ -84,6 +84,7 @@ services:
       - .env
     volumes:
       - ${UI_DIST_PATH}:${UI_DIST_PATH}
+      - ${CATSERVER_MSI_DIR}:${CATSERVER_MSI_DIR}
     expose:
       - "8000"
     healthcheck:
