@@ -216,7 +216,7 @@ def main():
 
     if not args.verbose:
         logger.remove()
-        logger.add(sys.stdout, level="INFO")
+        logger.add(sys.stdout, level="INFO", filter=lambda record: "task" not in record["extra"])
 
     asyncio.run(run_collector_with_monitor())
 

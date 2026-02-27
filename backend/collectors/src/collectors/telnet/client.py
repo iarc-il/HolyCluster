@@ -7,7 +7,7 @@ from loguru import logger
 from shared.metrics import push_drop_event, push_exception_event, set_value
 
 from collectors.db.valkey_config import get_valkey_client
-from collectors.logging_setup import open_log_file2
+from collectors.logging_setup import open_task_log_file
 from collectors.settings import settings
 
 DX_CC_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
@@ -75,7 +75,7 @@ async def telnet_and_collect(
     backoff_delays = [60, 300, 600, 1200, 2400, 3600]  # 1, 5, 10, 20, 40, 60 minutes
 
     log_filename_prefix = os.path.join(telnet_log_dir, host)
-    task_logger = open_log_file2(log_filename_prefix=log_filename_prefix, debug=False)
+    task_logger = open_task_log_file(log_filename_prefix=log_filename_prefix)
 
     task_logger.info(f"Start of telnet_and_collect for {host}")
     valkey_client = get_valkey_client()
@@ -84,7 +84,7 @@ async def telnet_and_collect(
         reader, writer = None, None
         line_buffer = b""
         try:
-            logger.info(f"Attempting to connect to {host}:{port} ...")
+            logger.debug(f"Attempting to connect to {host}:{port} ...")
             reader, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), timeout=10)
 
             logger.info(f"{host}:{port}  Successfully connected")

@@ -10,7 +10,7 @@ from ..settings import settings
 from .client import telnet_and_collect
 
 
-def get_telnet_clusters_list(csv_path: str, debug: bool = False):
+def get_telnet_clusters_list(csv_path: str):
     servers = None
     try:
         with open(csv_path, "r") as f:
@@ -50,14 +50,13 @@ def run_concurrent_telnet_connections(output_queue: asyncio.Queue):
     logger.debug(f"{telnet_log_dir=}")
     logger.debug(f"{global_log_file=}")
 
-    open_log_file(log_filename_prefix=global_log_file, debug=False)
+    open_log_file(log_filename_prefix=global_log_file)
 
-    servers = get_telnet_clusters_list(csv_path, debug=False)
+    servers = get_telnet_clusters_list(csv_path)
     tasks = []
     for server in servers:
         host = server.get("hostname")
         port = int(server.get("port"))
-        logger.info(f"Creating task for server {host}:{port}")
         if not host or not port:
             logger.error(f"Skipping server with missing host or port: {server}")
             continue
@@ -77,6 +76,6 @@ def run_concurrent_telnet_connections(output_queue: asyncio.Queue):
             name=host,
         )
         tasks.append(task)
-        logger.info(f"Starting connection to {host}:{port}")
+        logger.debug(f"Starting connection to {host}:{port}")
 
     return tasks
