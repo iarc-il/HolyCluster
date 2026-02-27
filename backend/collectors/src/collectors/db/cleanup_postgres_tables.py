@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from logging_setup import open_log_file
 from settings import (
     POSTGRES_DB_RETENTION_DAYS,
     POSTGRES_DB_URL,
+    settings,
 )
 from shared.db import GeoCache, HolySpot
 from sqlalchemy import delete, func, select
@@ -18,7 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 
 async def main(debug: bool = False):
-    open_log_file("logs/cleanup_database")
+    open_log_file(os.path.join(settings.log_dir, "collectors", "db", "cleanup_database"))
     engine = create_async_engine(POSTGRES_DB_URL, echo=False)
     AsyncSession = async_sessionmaker(bind=engine)
 

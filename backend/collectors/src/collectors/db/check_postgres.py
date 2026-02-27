@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import os
 import sys
 
 from loguru import logger
@@ -95,7 +96,7 @@ def main():
     parser.add_argument("--init", action="store_true", help="Drop and recreate the database and tables.")
     parser.add_argument("-d", "--debug", action="store_true", default=False, help="Debug mode")
     args = parser.parse_args()
-    open_log_file("collectors/logs/db/check_postgres")
+    open_log_file(os.path.join(settings.log_dir, "collectors", "db", "check_postgres"))
     debug = args.debug if args.debug else settings.debug
     logger.info(f"{debug=}")
     logger.debug(f"{args=}")
