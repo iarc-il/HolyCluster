@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+if [ ! -f .env ]; then
+    echo "Error: .env file not found"
+    exit 1
+fi
+
 # Load environment variables
 export $(grep -v '^#' .env | xargs)
 
