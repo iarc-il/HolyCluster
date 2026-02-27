@@ -4,6 +4,11 @@ set -e
 # Load environment variables
 export $(grep -v '^#' .env | xargs)
 
+if [ -z "$DOMAIN" ] || [ -z "$EMAIL" ]; then
+    echo "Error: DOMAIN and EMAIL must be set in .env"
+    exit 1
+fi
+
 echo "Starting HolyCluster first-time setup for domain ${DOMAIN}"
 
 mkdir -p infra/certbot/conf/live/${DOMAIN}
