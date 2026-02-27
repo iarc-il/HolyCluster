@@ -1,30 +1,23 @@
+import asyncio
 import os
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from datetime import UTC, datetime, timedelta
 
 from loguru import logger
-from logging_setup import open_log_file
-from settings import (
-    POSTGRES_DB_RETENTION_DAYS,
-    POSTGRES_DB_URL,
-    settings,
-)
 from shared.db import GeoCache, HolySpot
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from collectors.logging_setup import open_log_file
+from collectors.settings import settings
 
-async def main(debug: bool = False):
+
+async def cleanup(debug: bool = False):
     open_log_file(os.path.join(settings.log_dir, "collectors", "db", "cleanup_database"))
-    engine = create_async_engine(POSTGRES_DB_URL, echo=False)
+    engine = create_async_engine(settings.db_url, echo=False)
     AsyncSession = async_sessionmaker(bind=engine)
 
-    hours = 24 * POSTGRES_DB_RETENTION_DAYS
+    hours = 24 * settings.postgres_db_retention_days
     now_utc = datetime.now(UTC)
     cutoff_datetime = (now_utc - timedelta(hours=hours)).replace(tzinfo=None)
     logger.info(f"Delete records older than {hours} hours")
@@ -59,3 +52,11 @@ async def main(debug: bool = False):
         logger.error(f"Database error: {e}")
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
+
+
+def main():
+    asyncio.run(cleanup())
+
+
+if __name__ == "__main__":
+    main()
