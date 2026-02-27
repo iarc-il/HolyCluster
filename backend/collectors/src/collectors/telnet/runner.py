@@ -40,11 +40,11 @@ def run_concurrent_telnet_connections(output_queue: asyncio.Queue):
     logger.debug(f"{csv_path=}")
 
     global_log_filename = "all_clusters"
-    log_dir = os.path.join(script_dir, "..", "..", "logs")
+    log_dir = os.path.join(settings.log_dir, "collectors")
     logger.debug(f"{global_log_filename=}")
     logger.debug(f"{log_dir=}")
     os.makedirs(log_dir, exist_ok=True)
-    telnet_log_dir = os.path.join(log_dir, "telnet_collectors")
+    telnet_log_dir = os.path.join(log_dir, "telnet")
     os.makedirs(telnet_log_dir, exist_ok=True)
     global_log_file = os.path.join(telnet_log_dir, global_log_filename)
     logger.debug(f"{telnet_log_dir=}")

@@ -77,6 +77,17 @@ class ValkeySettings(BaseSettings):
         return self.valkey_port if self._in_docker else self.valkey_port_local
 
 
+class LogSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    log_dir: str = Field(default="/var/log/holy", description="Root directory for all log files")
+
+
 class QrzSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",

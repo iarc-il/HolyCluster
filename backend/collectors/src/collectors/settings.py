@@ -1,9 +1,9 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from shared.settings import PostgresSettings, QrzSettings, ValkeySettings
+from shared.settings import LogSettings, PostgresSettings, QrzSettings, ValkeySettings
 
 
-class CollectorsSettings(PostgresSettings, ValkeySettings, QrzSettings, BaseSettings):
+class CollectorsSettings(PostgresSettings, ValkeySettings, QrzSettings, LogSettings, BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
