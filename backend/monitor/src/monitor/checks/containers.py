@@ -37,7 +37,8 @@ async def check_containers(
             state = container.get("State", "")
             status = container.get("Status", "")
 
-            missing_states.remove(name)
+            if name in missing_states:
+                missing_states.remove(name)
 
             if name not in states:
                 states[name] = CheckState(f"container:{name}")
@@ -54,7 +55,8 @@ async def check_containers(
 
         for name in missing_states:
             alert = states[name].update(HealthStatus.UNHEALTHY, f"Container {name} missing")
-            alerts.append(alert)
+            if alert:
+                alerts.append(alert)
 
     except TimeoutError:
         logger.error("docker ps timed out")
