@@ -25,6 +25,8 @@ async def check_containers(
             logger.error(f"docker ps failed: {stderr.decode()}")
             return alerts
 
+        missing_states = [name for name in states]
+
         for line in stdout.decode().strip().splitlines():
             try:
                 container = json.loads(line)
@@ -34,6 +36,8 @@ async def check_containers(
             name = container.get("Names", "unknown")
             state = container.get("State", "")
             status = container.get("Status", "")
+
+            missing_states.remove(name)
 
             if name not in states:
                 states[name] = CheckState(f"container:{name}")
@@ -47,6 +51,10 @@ async def check_containers(
 
             if alert:
                 alerts.append(alert)
+
+        for name in missing_states:
+            alert = states[name].update(HealthStatus.UNHEALTHY, f"Container {name} missing")
+            alerts.append(alert)
 
     except TimeoutError:
         logger.error("docker ps timed out")

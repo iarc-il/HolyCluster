@@ -32,8 +32,7 @@ async def run_monitor():
 
     container_states = ["postgres", "valkey", "collector", "api", "nginx"]
     container_states: dict[str, CheckState] = {
-        name: CheckState(f"Container {name} state=UNKNOWN")
-        for name in container_states
+        name: CheckState(f"Container {name} state=UNKNOWN") for name in container_states
     }
 
     while True:
