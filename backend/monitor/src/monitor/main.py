@@ -29,7 +29,12 @@ async def run_monitor():
     spot_flow = CheckState("spot_flow:last_spot_time")
     ws_state = CheckState("websocket")
     telnet_states: dict[str, CheckState] = {}
-    container_states: dict[str, CheckState] = {}
+
+    container_states = ["postgres", "valkey", "collector", "api", "nginx"]
+    container_states: dict[str, CheckState] = {
+        name: CheckState(f"Container {name} state=UNKNOWN")
+        for name in container_states
+    }
 
     while True:
         all_alerts: list[Alert] = []
