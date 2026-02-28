@@ -96,6 +96,9 @@ async def spots_broadcast_task(app):
 
 @asynccontextmanager
 async def lifespan(app: fastapi.FastAPI):
+    if not settings.ui_dist_path.is_dir():
+        raise RuntimeError(f"UI directory does not exist: {settings.ui_dist_path}")
+
     app.state.active_connections = set()
 
     app.state.valkey_client = redis.asyncio.Redis(
