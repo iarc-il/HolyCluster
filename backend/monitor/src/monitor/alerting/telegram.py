@@ -25,7 +25,6 @@ class TelegramNotifier(AlertNotifier):
                 json={
                     "chat_id": self.chat_id,
                     "text": text,
-                    "parse_mode": "HTML",
                 },
             )
             if resp.status_code != 200:
