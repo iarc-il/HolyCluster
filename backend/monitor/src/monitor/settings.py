@@ -3,6 +3,7 @@ from shared.settings import ValkeySettings
 
 
 class MonitorSettings(ValkeySettings):
+    instance_name: str = Field(description="Instance name prepended to every alert")
     check_interval: int = Field(default=60, description="Seconds between check cycles")
     spot_flow_timeout: int = Field(default=300, description="Max age in seconds for last_spot_time before unhealthy")
     heartbeat_timeout: int = Field(default=120, description="Max age in seconds for heartbeat before unhealthy")

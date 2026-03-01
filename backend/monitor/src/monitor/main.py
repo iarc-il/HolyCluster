@@ -21,7 +21,7 @@ async def run_monitor():
         decode_responses=True,
     )
 
-    notifiers = [TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)]
+    notifiers = [TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id, settings.instance_name)]
     logger.info("Telegram alerting enabled")
 
     collector_heartbeat = CheckState("collector:heartbeat")

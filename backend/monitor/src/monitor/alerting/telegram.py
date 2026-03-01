@@ -7,14 +7,15 @@ from .base import AlertNotifier
 
 
 class TelegramNotifier(AlertNotifier):
-    def __init__(self, bot_token: str, chat_id: str):
+    def __init__(self, bot_token: str, chat_id: str, instance_name: str):
         self.bot_token = bot_token
         self.chat_id = chat_id
+        self.instance_name = instance_name
         self.client = httpx.AsyncClient(timeout=10)
 
     async def send_alerts(self, alerts: list[Alert]):
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-        lines = []
+        lines = [f"[{self.instance_name}]"]
         for alert in alerts:
             emoji = "\U0001f7e2" if alert.healthy else "\U0001f534"
             lines.append(f"{emoji} {alert.message}")
