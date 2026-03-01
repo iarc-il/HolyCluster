@@ -31,7 +31,8 @@ export default function useSpotWebSocket() {
                 }
             },
             reconnectAttempts: Infinity,
-            reconnectInterval: attemptNumber => 5,
+            reconnectInterval: attemptNumber =>
+                Math.min(5000 * Math.pow(2, attemptNumber - 1), 30000),
             shouldReconnect: () => true,
         },
     );
