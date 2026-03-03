@@ -2,13 +2,13 @@ import { useMemo, useEffect, useRef } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import simpleheat from "simpleheat";
 import { useColors } from "@/hooks/useColors";
-import { useServerData } from "@/hooks/useServerData";
+import { useSpotData } from "@/hooks/useSpotData";
 import { useSettings } from "@/hooks/useSettings";
-import { bands, continents } from "@/filters_data.js";
+import { bands, continents } from "@/data/filters_data.js";
 
 function Heatmap() {
     const { colors } = useColors();
-    const { raw_spots } = useServerData();
+    const { raw_spots } = useSpotData();
     const { settings } = useSettings();
     const [selected_continent, set_selected_continent] = useLocalStorage("heatmap_continent", "EU");
     const canvas_ref = useRef(null);

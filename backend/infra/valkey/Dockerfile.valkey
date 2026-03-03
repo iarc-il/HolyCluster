@@ -1,0 +1,12 @@
+# Use the official Valkey 8.1.4 image as the base
+FROM valkey/valkey:8.1.4
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy a custom Valkey configuration file from your local directory to the container
+COPY valkey.conf /usr/local/etc/valkey/valkey.conf
+
+# Define the command to run the Valkey server with the custom config file
+CMD ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
+

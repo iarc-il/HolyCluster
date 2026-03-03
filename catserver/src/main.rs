@@ -160,7 +160,7 @@ fn main() -> Result<()> {
         tracing::info!("Using dev server");
         ServerConfig {
             dns: "holycluster-dev.iarc.org".into(),
-            is_using_ssl: false,
+            is_using_ssl: true,
             local_port,
         }
     } else {

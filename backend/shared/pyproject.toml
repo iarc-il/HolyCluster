@@ -1,0 +1,16 @@
+[project]
+name = "shared"
+version = "0.1.0"
+description = "Shared utilities for HolyCluster backend services"
+dependencies = [
+    "httpx>=0.28.1",
+    "loguru>=0.7.3",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.7.1",
+    "redis>=7.1.0",
+    "sqlmodel>=0.0.27",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.13,<0.10.0"]
+build-backend = "uv_build"

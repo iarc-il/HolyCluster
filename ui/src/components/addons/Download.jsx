@@ -23,8 +23,8 @@ export default function Download() {
                                 <p className="text-sm text-gray-600 mb-3">Windows 10/11 (64-bit)</p>
                                 <a
                                     className="w-full text-white bg-addons-secondary hover:bg-addons-primary p-4 rounded-lg"
-                                    rel="external"
                                     href="/catserver/download"
+                                    download
                                 >
                                     Download .msi
                                 </a>

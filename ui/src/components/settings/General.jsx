@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
-import Input from "@/components/Input.jsx";
+import Input from "@/components/ui/Input.jsx";
 import CallsignInput from "@/components/CallsignInput.jsx";
-import Select from "@/components/Select.jsx";
-import Toggle from "@/components/Toggle.jsx";
-import Popup from "@/components/Popup.jsx";
+import Select from "@/components/ui/Select.jsx";
+import Toggle from "@/components/ui/Toggle.jsx";
+import Popup from "@/components/ui/Popup.jsx";
+import HelpIcon from "@/components/ui/HelpIcon.jsx";
 import { themes_names, useColors } from "@/hooks/useColors";
 import { play_alert_sound } from "@/utils.js";
 import Maidenhead from "maidenhead";
@@ -23,37 +24,21 @@ function PlayIcon({ size }) {
     );
 }
 
-function HelpIcon({ size }) {
-    const { colors } = useColors();
-
-    return (
-        <svg height={size} width={size} viewBox="0 0 512 512">
-            <path
-                fill={colors.buttons.utility}
-                d="M396.138,85.295c-13.172-25.037-33.795-45.898-59.342-61.03C311.26,9.2,280.435,0.001,246.98,0.001
-                c-41.238-0.102-75.5,10.642-101.359,25.521c-25.962,14.826-37.156,32.088-37.156,32.088c-4.363,3.786-6.824,9.294-6.721,15.056
-                c0.118,5.77,2.775,11.186,7.273,14.784l35.933,28.78c7.324,5.864,17.806,5.644,24.875-0.518c0,0,4.414-7.978,18.247-15.88
-                c13.91-7.85,31.945-14.173,58.908-14.258c23.517-0.051,44.022,8.725,58.016,20.717c6.952,5.941,12.145,12.594,15.328,18.68
-                c3.208,6.136,4.379,11.5,4.363,15.574c-0.068,13.766-2.742,22.77-6.603,30.442c-2.945,5.729-6.789,10.813-11.738,15.744
-                c-7.384,7.384-17.398,14.207-28.634,20.479c-11.245,6.348-23.365,11.932-35.612,18.68c-13.978,7.74-28.77,18.858-39.701,35.544
-                c-5.449,8.249-9.71,17.686-12.416,27.641c-2.742,9.964-3.98,20.412-3.98,31.071c0,11.372,0,20.708,0,20.708
-                c0,10.719,8.69,19.41,19.41,19.41h46.762c10.719,0,19.41-8.691,19.41-19.41c0,0,0-9.336,0-20.708c0-4.107,0.467-6.755,0.917-8.436
-                c0.773-2.512,1.206-3.14,2.47-4.668c1.29-1.452,3.895-3.674,8.698-6.331c7.019-3.946,18.298-9.276,31.07-16.176
-                c19.121-10.456,42.367-24.646,61.972-48.062c9.752-11.686,18.374-25.758,24.323-41.968c6.001-16.21,9.242-34.431,9.226-53.96
-                C410.243,120.761,404.879,101.971,396.138,85.295z"
-            />
-            <path
-                fill={colors.buttons.utility}
-                d="M228.809,406.44c-29.152,0-52.788,23.644-52.788,52.788c0,29.136,23.637,52.772,52.788,52.772
-                c29.136,0,52.763-23.636,52.763-52.772C281.572,430.084,257.945,406.44,228.809,406.44z"
-            />
-        </svg>
-    );
+async function fetch_locator(callsign) {
+    if (!callsign) return null;
+    try {
+        const response = await fetch(`/locator/${callsign}`);
+        const data = await response.json();
+        return data.locator || null;
+    } catch {
+        return null;
+    }
 }
 
 function General({ temp_settings, set_temp_settings, colors }) {
     const help_button_ref = useRef(null);
     const [show_help_popup, set_show_help_popup] = useState(false);
+    const [is_locator_queried, set_is_locator_queried] = useState(false);
     const is_locator_valid = Maidenhead.valid(temp_settings.locator);
     const is_default_radius_valid =
         temp_settings.default_radius >= 1000 &&
@@ -61,11 +46,11 @@ function General({ temp_settings, set_temp_settings, colors }) {
         temp_settings.default_radius % 1000 == 0;
 
     return (
-        <div className="p-4">
-            <table
-                className="table-fixed border-separate border-spacing-y-2"
-                style={{ color: colors.theme.text }}
-            >
+        <div
+            className="p-4 flex flex-col md:flex-row md:gap-8"
+            style={{ color: colors.theme.text }}
+        >
+            <table className="table-fixed border-separate border-spacing-y-2">
                 <tbody>
                     <tr>
                         <td>My callsign:</td>
@@ -74,11 +59,23 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                 value={temp_settings.callsign}
                                 maxLength={11}
                                 autoFocus={true}
-                                onChange={event => {
+                                onChange={async event => {
+                                    const new_callsign = event.target.value;
                                     set_temp_settings({
                                         ...temp_settings,
-                                        callsign: event.target.value,
+                                        callsign: new_callsign,
                                     });
+
+                                    if (temp_settings.locator == "" || is_locator_queried) {
+                                        const locator = await fetch_locator(new_callsign);
+                                        if (locator) {
+                                            set_is_locator_queried(true);
+                                            set_temp_settings(prev => ({
+                                                ...prev,
+                                                locator: locator,
+                                            }));
+                                        }
+                                    }
                                 }}
                             />
                         </td>
@@ -90,6 +87,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                 value={temp_settings.locator}
                                 className={is_locator_valid ? "" : "bg-red-200"}
                                 onChange={event => {
+                                    set_is_locator_queried(false);
                                     set_temp_settings({
                                         ...temp_settings,
                                         locator: event.target.value,
@@ -99,7 +97,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         </td>
                     </tr>
                     <tr>
-                        <td>Default map radius:</td>
+                        <td>Default map radius:&nbsp;&nbsp;</td>
                         <td>
                             <Input
                                 value={temp_settings.default_radius}
@@ -140,7 +138,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         </td>
                     </tr>
                     <tr>
-                        <td>Distance Units:&nbsp;&nbsp;</td>
+                        <td>Distance Units:</td>
                         <td>
                             <Select
                                 value={temp_settings.is_miles}
@@ -164,6 +162,10 @@ function General({ temp_settings, set_temp_settings, colors }) {
                             </Select>
                         </td>
                     </tr>
+                </tbody>
+            </table>
+            <table className="table-fixed border-separate border-spacing-y-2">
+                <tbody>
                     <tr>
                         <td>Propagation:&nbsp;&nbsp;</td>
                         <td>
@@ -187,6 +189,21 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                     set_temp_settings({
                                         ...temp_settings,
                                         show_flags: !temp_settings.show_flags,
+                                    });
+                                }}
+                            />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Show state abbreviations:&nbsp;&nbsp;</td>
+                        <td>
+                            <Toggle
+                                value={temp_settings.show_state_abbreviations}
+                                on_click={() => {
+                                    set_temp_settings({
+                                        ...temp_settings,
+                                        show_state_abbreviations:
+                                            !temp_settings.show_state_abbreviations,
                                     });
                                 }}
                             />

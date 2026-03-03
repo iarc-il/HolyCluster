@@ -1,0 +1,18 @@
+# Use official NGINX image
+FROM nginx:stable-bookworm
+
+# Install envsubst for variable substitution, network utilities
+RUN apt-get update && apt-get install -y gettext-base net-tools iputils-ping dnsutils procps && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /etc/nginx
+
+# Copy the template NGINX config
+COPY nginx.conf.template .
+
+# Expose HTTP and HTTPS ports
+EXPOSE 80 443 9999
+
+# Use envsubst to replace environment variables at container start
+CMD envsubst '${DOMAIN}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+

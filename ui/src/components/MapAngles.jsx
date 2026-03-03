@@ -1,6 +1,6 @@
 import { to_radian } from "@/utils.js";
 import { useMediaQuery } from "@uidotdev/usehooks";
-import { useColors } from "../hooks/useColors";
+import { useColors } from "@/hooks/useColors";
 
 function MapAngles({ radius, center_x, center_y, degrees_diff, hovered_azimuth }) {
     const { colors } = useColors();

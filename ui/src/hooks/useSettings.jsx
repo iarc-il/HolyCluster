@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import { use_object_local_storage } from "@/utils.js";
-import { bands } from "@/filters_data.js";
+import { bands } from "@/data/filters_data.js";
 
 const SettingsContext = createContext(undefined);
 
@@ -14,13 +14,14 @@ export function useSettings() {
 
 export function SettingsProvider({ children }) {
     const [settings, set_settings] = use_object_local_storage("settings", {
-        locator: "JJ00AA",
+        locator: "",
         default_radius: 20000,
         theme: "Light",
         callsign: "",
         is_miles: false,
         propagation_displayed: true,
         show_flags: true,
+        show_state_abbreviations: true,
         show_equator: false,
         highlight_enabled: true,
         highlight_port: 2237,

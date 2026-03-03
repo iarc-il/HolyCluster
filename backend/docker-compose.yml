@@ -1,0 +1,168 @@
+services:
+  postgres:
+    container_name: postgres
+    build:
+      context: infra/postgres
+      dockerfile: Dockerfile.postgres
+    restart: unless-stopped
+    ports:
+      # This is for local development only,
+      # It's OK to expose these ports on the server because they are accessible only from localhost.
+      - "127.0.0.1:15432:5432"
+    env_file:
+      - .env
+    volumes:
+      - ./infra/postgres/data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    environment:
+        - TZ=Asia/Jerusalem
+    expose:
+      - "${POSTGRES_PORT}"
+
+  valkey:
+    container_name: valkey
+    build:
+      context: infra/valkey
+      dockerfile: Dockerfile.valkey
+    # Mount a volume for data persistence (optional, but recommended)
+    # volumes:
+    #   - valkey_data:/data
+    environment:
+    # Password needs to be passed to the healthcheck command
+      - VALKEY_PASSWORD=${VALKEY_PASSWORD}
+    ports:
+      # This is for local development only,
+      # It's OK to expose these ports on the server because they are accessible only from localhost.
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s # Grace period for Valkey to start up
+    restart: always
+
+  collector:
+    container_name: collector
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.collector
+    restart: unless-stopped
+    depends_on:
+      valkey:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./collectors/logs/db:/app/collectors/logs/db
+      - ./collectors/logs/collector:/app/collectors/logs/collector
+    expose:
+      - "${VALKEY_PORT}"
+    cap_add:
+      - SYS_PTRACE
+
+  api:
+    container_name: api
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    working_dir: /app
+    restart: unless-stopped
+    depends_on:
+      valkey:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ${UI_DIST_PATH}:${UI_DIST_PATH}
+      - ${CATSERVER_MSI_DIR}:${CATSERVER_MSI_DIR}
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  monitor:
+    container_name: monitor
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.monitor
+    restart: unless-stopped
+    depends_on:
+      valkey:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  nginx:
+    container_name: nginx
+    build:
+      context: infra/nginx
+      dockerfile: Dockerfile.nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "9999:9999"
+    volumes:
+      - ./infra/certbot/conf:/etc/letsencrypt
+      - ./infra/certbot/www:/var/www/certbot
+      - ./infra/nginx/log:/var/log/nginx
+      - ./infra/nginx:/etc/nginx
+    env_file:
+      - .env
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "service", "nginx", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  certbot:
+    container_name: certbot
+    restart: unless-stopped
+    image: certbot/certbot:latest
+    volumes:
+      - ./infra/certbot/conf:/etc/letsencrypt
+      - ./infra/certbot/www:/var/www/certbot
+      - ./infra/certbot/log:/var/log
+    entrypoint: >
+      /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
+
+  nginx_ui:
+      container_name: nginx_ui
+      profiles: ["dev"]
+      stdin_open: true
+      tty: true
+      image: uozi/nginx-ui:latest
+      restart: unless-stopped
+      ports:
+        - "8080:80"
+        - "8443:443"
+      volumes:
+        - infra/nginx:/etc/nginx
+        - infra/nginx-ui:/etc/nginx-ui
+        - infra/certbot/conf:/etc/letsencrypt
+        - /var/run/docker.sock:/var/run/docker.sock
+      environment:
+        - TZ=Asia/Jerusalem

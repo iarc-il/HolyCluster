@@ -1,6 +1,6 @@
 import { useState } from "react";
-import Button from "@/components/Button.jsx";
-import Toggle from "@/components/Toggle.jsx";
+import Button from "@/components/ui/Button.jsx";
+import Toggle from "@/components/ui/Toggle.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";

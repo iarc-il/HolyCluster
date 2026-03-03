@@ -2,8 +2,9 @@ import Hexagon from "./components/Hexagon.jsx";
 import Square from "./components/Square.jsx";
 import Triangle from "./components/Triangle.jsx";
 import { to_radian } from "@/utils.js";
+import { get_mode_shape } from "@/data/mode_shapes.js";
 import { useColors } from "@/hooks/useColors";
-import { useServerData } from "@/hooks/useServerData";
+import { useSpotData } from "@/hooks/useSpotData";
 
 function Spot({
     spot,
@@ -16,7 +17,7 @@ function Spot({
     set_pinned_spot,
     hovered_band,
 }) {
-    const { current_freq_spots } = useServerData();
+    const { current_freq_spots } = useSpotData();
     const { colors } = useColors();
     const line = {
         type: "LineString",
@@ -79,8 +80,9 @@ function Spot({
         }
     }
 
+    const shape = get_mode_shape(spot.mode);
     let symbol_component;
-    if (spot.mode === "SSB") {
+    if (shape === "square") {
         symbol_component = (
             <rect
                 x={dx_x - dx_size / 2}
@@ -93,7 +95,7 @@ function Spot({
                 onClick={() => set_cat_to_spot(spot)}
             />
         );
-    } else if (spot.mode === "CW") {
+    } else if (shape === "triangle") {
         symbol_component = (
             <Triangle
                 dx_x={dx_x}

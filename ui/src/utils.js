@@ -64,6 +64,8 @@ export function is_matching_list(list, spot) {
             is_value_matching = matched_value == filter.value;
         } else if (filter.type == "self_spotters") {
             is_value_matching = is_same_base_callsign(spot.dx_callsign, spot.spotter_callsign);
+        } else if (filter.type == "dxpeditions") {
+            is_value_matching = spot.is_dxpedition;
         }
         return is_value_matching;
     });
@@ -129,14 +131,6 @@ export const get_max_radius = (center, spots) => {
     return max;
 };
 
-export function get_base_url() {
-    if (window.location.port == "5173") {
-        return "http://holycluster-dev.iarc.org";
-    } else {
-        return "";
-    }
-}
-
 export function play_alert_sound() {
     const audio_context = new (window.AudioContext || window.webkitAudioContext)();
     const oscillator = audio_context.createOscillator();
@@ -155,6 +149,18 @@ export function play_alert_sound() {
     oscillator.stop(audio_context.currentTime + 0.3);
 }
 
+function band_to_number(band) {
+    if (band == "VHF") {
+        return 2;
+    } else if (band == "UHF") {
+        return 0.7;
+    } else if (band == "SHF") {
+        return 0.23;
+    } else {
+        return band;
+    }
+}
+
 export function sort_spots(spots, table_sort, radio_status = null, radio_band = null) {
     return [...spots].sort((spot_a, spot_b) => {
         // If sorting by frequency or band and CAT control is active, prioritize active band
@@ -171,8 +177,8 @@ export function sort_spots(spots, table_sort, radio_status = null, radio_band = 
 
         if (table_sort.column === "band") {
             const band_comparison = table_sort.ascending
-                ? spot_a.band - spot_b.band
-                : spot_b.band - spot_a.band;
+                ? band_to_number(spot_a.band) - band_to_number(spot_b.band)
+                : band_to_number(spot_b.band) - band_to_number(spot_a.band);
 
             if (band_comparison !== 0) {
                 return band_comparison;

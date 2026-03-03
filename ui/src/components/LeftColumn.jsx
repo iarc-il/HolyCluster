@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react";
-import { get_base_url } from "@/utils.js";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
-import { bands, modes } from "@/filters_data.js";
-import { useServerData } from "@/hooks/useServerData";
+import { bands, modes } from "@/data/filters_data.js";
+import { get_mode_shape } from "@/data/mode_shapes.js";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useFilters } from "@/hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/hooks/useSettings";
-import use_radio from "../hooks/useRadio";
+import use_radio from "@/hooks/useRadio";
 
 function Hex(color) {
     return (
@@ -40,19 +42,45 @@ function Square(color) {
     );
 }
 
-const mode_to_symbol = {
-    SSB: Square,
-    CW: Triangle,
-    FT8: Hex,
-    FT4: Hex,
-    DIGI: Hex,
+const shape_to_symbol = {
+    square: Square,
+    triangle: Triangle,
+    hexagon: Hex,
 };
 
-function SpotCount({ count }) {
-    if (count === 0) return null;
+function mode_to_symbol(mode) {
+    return shape_to_symbol[get_mode_shape(mode)];
+}
+
+function SpotCount({ count, toggled_ui }) {
+    const anchorRef = useRef(null);
+    const [position, set_position] = useState({ top: 0, left: 0 });
+
+    const updatePosition = useCallback(() => {
+        if (anchorRef.current && toggled_ui.left_visible) {
+            const rect = anchorRef.current.getBoundingClientRect();
+            set_position({
+                top: rect.top - 4,
+                left: rect.left + 20,
+            });
+        }
+    }, [anchorRef, toggled_ui]);
+
+    useEffect(() => {
+        updatePosition();
+
+        const scrollContainer = anchorRef.current?.closest(".overflow-y-auto");
+        if (scrollContainer) {
+            scrollContainer.addEventListener("scroll", updatePosition);
+            window.addEventListener("resize", updatePosition);
+            return () => {
+                scrollContainer.removeEventListener("scroll", updatePosition);
+                window.removeEventListener("resize", updatePosition);
+            };
+        }
+    }, [anchorRef, toggled_ui]);
 
     const classes = [
-        "relative",
         "inline-flex",
         "border",
         "border-gray-900",
@@ -64,27 +92,39 @@ function SpotCount({ count }) {
         "rounded-full",
         "h-5",
         "w-5",
-        "text-center",
         "text-[12px]",
     ];
 
+    const is_visible = toggled_ui.left_visible && count !== 0;
+
     return (
-        <span className="absolute left-12 flex w-5 -translate-y-1 translate-x-1 z-10">
-            <span className={classes.join(" ")}>{count}</span>
-        </span>
+        <>
+            <span ref={anchorRef} className="absolute invisible" />
+            {is_visible &&
+                createPortal(
+                    <span
+                        className="fixed flex w-5 z-50 pointer-events-none"
+                        style={{ top: position.top, left: position.left }}
+                    >
+                        <span className={classes.join(" ")}>{count}</span>
+                    </span>,
+                    document.body,
+                )}
+        </>
     );
 }
 
 function LeftColumn({ toggled_ui }) {
-    const { spots_per_band_count, spots_per_mode_count, set_hovered_band } = useServerData();
+    const { spots_per_band_count, spots_per_mode_count } = useSpotData();
+    const { set_hovered_band } = useSpotInteraction();
     const { filters, setFilters, setRadioModeFilter } = useFilters();
     const { radio_band, radio_status } = use_radio();
     const { settings } = useSettings();
 
     const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";
-    const toggled_classes = toggled_ui.left
-        ? "hidden "
-        : "max-2xl:absolute max-2xl:flex z-50 border-r border-slate-300 ";
+    const toggled_classes = toggled_ui.left_visible
+        ? "max-2xl:absolute max-2xl:flex z-50 border-r border-slate-300 "
+        : "hidden ";
 
     const { colors } = useColors();
 
@@ -97,7 +137,10 @@ function LeftColumn({ toggled_ui }) {
 
     return (
         <div
-            className={toggled_classes + "2xl:flex w-16 flex-col h-full items-center"}
+            className={
+                toggled_classes +
+                "2xl:flex w-18 flex-col h-full items-center overflow-y-auto shrink-0"
+            }
             style={{
                 backgroundColor: colors.theme.columns,
                 borderColor: colors.theme.borders,
@@ -116,7 +159,10 @@ function LeftColumn({ toggled_ui }) {
                             disabled={filters.radio_band}
                         >
                             {!filters.radio_band && (
-                                <SpotCount count={spots_per_band_count[band]} />
+                                <SpotCount
+                                    count={spots_per_band_count[band]}
+                                    toggled_ui={toggled_ui}
+                                />
                             )}
                             <FilterButton
                                 text={label}
@@ -148,7 +194,10 @@ function LeftColumn({ toggled_ui }) {
             {radio_status != "unavailable" || filters.radio_band ? (
                 <div className={filter_group_classes + "py-4 border-b-2 border-slate-300"}>
                     <div>
-                        <SpotCount count={spots_per_band_count[radio_band]} />
+                        <SpotCount
+                            count={spots_per_band_count[radio_band]}
+                            toggled_ui={toggled_ui}
+                        />
                         <FilterButton
                             text={"Radio"}
                             is_active={filters.radio_band}
@@ -172,13 +221,13 @@ function LeftColumn({ toggled_ui }) {
                             filter_value={mode}
                             orientation="right"
                         >
-                            <SpotCount count={spots_per_mode_count[mode]} />
+                            <SpotCount count={spots_per_mode_count[mode]} toggled_ui={toggled_ui} />
                             <FilterButton
                                 text={
                                     <>
                                         {mode}
-                                        <div className="ml-1">
-                                            {mode_to_symbol[mode](
+                                        <div>
+                                            {mode_to_symbol(mode)(
                                                 filters.modes[mode]
                                                     ? "#000000"
                                                     : colors.buttons.disabled,
@@ -197,6 +246,7 @@ function LeftColumn({ toggled_ui }) {
                                     }))
                                 }
                                 color={colors.buttons.modes}
+                                className="text-[0.94rem]"
                             />
                         </FilterOptions>
                     );

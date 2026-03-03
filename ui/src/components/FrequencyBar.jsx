@@ -1,184 +1,194 @@
-import Select from "@/components/Select.jsx";
+import Select from "@/components/ui/Select.jsx";
 import { useRef, useMemo } from "react";
-import { useColors } from "../hooks/useColors";
-import { useServerData } from "@/hooks/useServerData";
+import { useColors } from "@/hooks/useColors";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useLocalStorage } from "@uidotdev/usehooks";
-import use_radio from "../hooks/useRadio";
+import use_radio from "@/hooks/useRadio";
+import { get_mode_shape } from "@/data/mode_shapes.js";
+import { band_plans } from "@/data/band_plans.js";
 
-const ft8_color = "#FF0000";
-const ft4_color = "#0000FF";
-const ssb_color = "#189f18";
-const cw_color = "#ff8e23";
+function useBandSpots(spots, band) {
+    const sorted = useMemo(() => {
+        return spots
+            .filter(spot => spot.band == band)
+            .slice(0, 30)
+            .sort((a, b) => a.freq - b.freq);
+    }, [spots, band]);
 
-const band_plans = {
-    160: {
-        min: 1800,
-        max: 2000,
-        ranges: [
-            { name: "cw", min: 1800, max: 1840, color: cw_color },
-            { name: "ssb", min: 1840, max: 2000, color: ssb_color },
-        ],
-        features: [{ name: "FT8", freq: 1840, color: ft8_color }],
-    },
-    80: {
-        min: 3500,
-        max: 4000,
-        ranges: [
-            { name: "cw", min: 3500, max: 3600, color: cw_color },
-            { name: "ssb", min: 3600, max: 4000, color: ssb_color },
-        ],
-        features: [
-            { name: "FT8", freq: 3573, color: ft8_color },
-            { name: "FT4", freq: 3575, color: ft4_color },
-        ],
-    },
-    60: {
-        min: 5351,
-        max: 5366,
-        ranges: [
-            { name: "cw", min: 5351, max: 5354, color: cw_color },
-            { name: "ssb", min: 5354, max: 5366, color: ssb_color },
-        ],
-        features: [{ name: "FT8", freq: 5375, color: ft8_color }],
-    },
-    40: {
-        min: 7000,
-        max: 7300,
-        ranges: [
-            { name: "cw", min: 7000, max: 7040, color: cw_color },
-            { name: "ssb", min: 7040, max: 7300, color: ssb_color },
-        ],
-        features: [
-            { name: "FT8", freq: 7074, color: ft8_color },
-            { name: "FT4", freq: 7047, color: ft4_color },
-        ],
-    },
-    30: {
-        min: 10100,
-        max: 10150,
-        ranges: [
-            { name: "cw", min: 10100, max: 10130, color: cw_color },
-            { name: "ssb", min: 10130, max: 10150, color: ssb_color },
-        ],
-        features: [
-            { name: "FT8", freq: 10136, color: ft8_color },
-            { name: "FT4", freq: 10140, color: ft4_color },
-        ],
-    },
-    20: {
-        min: 14000,
-        max: 14350,
-        ranges: [
-            { name: "cw", min: 14000, max: 14101, color: cw_color },
-            { name: "ssb", min: 14101, max: 14350, color: ssb_color },
-        ],
-        features: [
-            { name: "FT8", freq: 14074, color: ft8_color },
-            { name: "FT4", freq: 14080, color: ft4_color },
-        ],
-    },
-    17: {
-        min: 18068,
-        max: 18168,
-        ranges: [
-            { name: "cw", min: 18068, max: 18111, color: cw_color },
-            { name: "ssb", min: 18111, max: 18168, color: ssb_color },
-        ],
-        features: [
-            { name: "FT8", freq: 18100, color: ft8_color },
-            { name: "FT4", freq: 18104, color: ft4_color },
-        ],
-    },
-    15: {
-        min: 21000,
-        max: 21450,
-        ranges: [
-            { name: "cw", min: 21000, max: 21151, color: cw_color },
-            { name: "ssb", min: 21151, max: 21450, color: ssb_color },
-        ],
-        features: [
-            { name: "FT8", freq: 21074, color: ft8_color },
-            { name: "FT4", freq: 21140, color: ft4_color },
-        ],
-    },
-    12: {
-        min: 24890,
-        max: 24990,
-        ranges: [
-            { name: "cw", min: 24890, max: 24931, color: cw_color },
-            { name: "ssb", min: 24931, max: 24990, color: ssb_color },
-        ],
-        features: [
-            { name: "FT8", freq: 24915, color: ft8_color },
-            { name: "FT4", freq: 24919, color: ft4_color },
-        ],
-    },
-    10: {
-        min: 28000,
-        max: 29700,
-        ranges: [
-            { name: "cw", min: 28000, max: 28320, color: cw_color },
-            { name: "ssb", min: 28320, max: 29700, color: ssb_color },
-        ],
-        features: [
-            { name: "FT8", freq: 28074, color: ft8_color },
-            { name: "FT4", freq: 28180, color: ft4_color },
-        ],
-    },
-    6: {
-        min: 50000,
-        max: 52000,
-        ranges: [
-            { name: "cw", min: 50000, max: 50100, color: cw_color },
-            { name: "ssb", min: 50100, max: 52000, color: ssb_color },
-        ],
-        features: [
-            { name: "FT8", freq: 50313, color: ft8_color },
-            { name: "FT4", freq: 50318, color: ft4_color },
-        ],
-    },
-    4: {
-        min: 70000,
-        max: 70500,
-        ranges: [
-            { name: "cw", min: 70100, max: 70250, color: cw_color },
-            { name: "ssb", min: 70250, max: 70500, color: ssb_color },
-        ],
-        features: [{ name: "FT8", freq: 70100, color: ft8_color }],
-    },
-    VHF: {
-        min: 144000,
-        max: 144300,
-        ranges: [
-            { name: "cw", min: 144000, max: 144100, color: cw_color },
-            { name: "ssb", min: 144100, max: 144300, color: ssb_color },
-        ],
-        features: [
-            { name: "FT8", freq: 144175.5, color: ft8_color },
-            { name: "FT4", freq: 144171.5, color: ft4_color },
-        ],
-    },
-    UHF: {
-        min: 432000,
-        max: 433000,
-        ranges: [
-            { name: "cw", min: 432000, max: 432100, color: cw_color },
-            { name: "ssb", min: 432100, max: 433000, color: ssb_color },
-        ],
-        features: [{ name: "FT4", freq: 432175.5, color: ft4_color }],
-    },
-};
+    return useMemo(() => {
+        return sorted.reduce((acc, spot) => {
+            const existing = acc.find(s => s.dx_callsign === spot.dx_callsign);
+            if (!existing || existing.time < spot.time) {
+                return acc.filter(s => s.dx_callsign !== spot.dx_callsign).concat(spot);
+            }
+            return acc;
+        }, []);
+    }, [sorted]);
+}
+
+function ModeShape({ mode, x, y, fill }) {
+    const shape = get_mode_shape(mode);
+    if (shape === "square") {
+        return (
+            <rect
+                x={x}
+                y={y}
+                height={10}
+                width={10}
+                strokeWidth={1}
+                fill={fill}
+                className="group-hover:fill-blue-500"
+            />
+        );
+    }
+    if (shape === "triangle") {
+        return (
+            <svg
+                x={x}
+                y={y}
+                height={12}
+                width={12}
+                viewBox="0 0 100 100"
+                fill={fill}
+                className="group-hover:fill-blue-500"
+            >
+                <polygon points="50 5, 100 90, 0 90" />
+            </svg>
+        );
+    }
+    return (
+        <svg
+            x={"54%"}
+            y={y}
+            height={15}
+            width={15}
+            viewBox="0 0 280 360"
+            className="group-hover:fill-blue-500"
+        >
+            <polygon
+                points="150,15 258,77 258,202 150,265 42,202 42,77"
+                strokeWidth={1}
+                className="group-hover:fill-blue-500"
+                fill={fill}
+            />
+        </svg>
+    );
+}
+
+function FrequencyBracket({ radio_freq, freq_spots, bracket_y, bracket_height, stroke }) {
+    if (radio_freq == 0 || radio_freq === undefined) return null;
+
+    if (freq_spots.length >= 1) {
+        return (
+            <svg
+                width="100%"
+                height={`${bracket_height}%`}
+                x="0"
+                y={`${bracket_y}%`}
+                style={{ position: "absolute", pointerEvents: "none" }}
+            >
+                <line x1="50%" y1="0" x2="50%" y2="100%" stroke={stroke} strokeWidth="2" />
+                <line x1="50%" y1="0" x2="53%" y2="0" stroke={stroke} strokeWidth="2" />
+                <line x1="50%" y1="100%" x2="53%" y2="100%" stroke={stroke} strokeWidth="2" />
+            </svg>
+        );
+    }
+
+    return (
+        <svg viewBox="0 0 50 90" height="8%" width="5%" y={`${bracket_y - 2.5}%`} x="47.5%">
+            <polygon points="0 0, 50 45, 0 90" fill="transparent" stroke="red" strokeWidth={5} />
+        </svg>
+    );
+}
+
+function calculate_bracket_position(
+    radio_freq,
+    freq_spots,
+    sorted_spots,
+    min_freq,
+    max_freq,
+    band,
+) {
+    const has_freq_spots = Array.isArray(freq_spots) && freq_spots.length > 0;
+    const group_freq = has_freq_spots
+        ? (sorted_spots.find(s => s.id === freq_spots[0])?.freq ?? radio_freq)
+        : radio_freq;
+
+    const lower_spot = [...sorted_spots]
+        .reverse()
+        .find(s => s.freq < group_freq && !(has_freq_spots && freq_spots.includes(s.id)));
+    const upper_spot = sorted_spots.find(
+        s => s.freq > group_freq && !(has_freq_spots && freq_spots.includes(s.id)),
+    );
+
+    const lower_idx = lower_spot ? sorted_spots.findIndex(s => s.id === lower_spot.id) : -1;
+    const upper_idx = upper_spot ? sorted_spots.findIndex(s => s.id === upper_spot.id) : -1;
+
+    const y_lower = lower_idx !== -1 ? (lower_idx * 100) / sorted_spots.length + 3 : 3;
+    const y_upper =
+        upper_idx !== -1
+            ? (upper_idx * 100) / sorted_spots.length + 3
+            : ((sorted_spots.length - 1) * 100) / sorted_spots.length + 3;
+
+    const c_bracket_y = (y_lower + y_upper) / 2;
+
+    let bracket_y = c_bracket_y - 0.5;
+    let bracket_height = 1;
+
+    if (has_freq_spots && freq_spots.length === 1) {
+        const idx = sorted_spots.findIndex(s => s.id === freq_spots[0]);
+        bracket_y = (idx * 100) / sorted_spots.length + 1;
+        const last_y = (idx * 100) / sorted_spots.length + 3.7;
+        bracket_height = last_y - bracket_y;
+    } else if (has_freq_spots && freq_spots.length > 1) {
+        const indices = freq_spots
+            .map(id => sorted_spots.findIndex(s => s.id === id))
+            .filter(idx => idx !== -1)
+            .sort((a, b) => a - b);
+
+        if (indices.length > 0) {
+            const first_y = (indices[0] * 100) / sorted_spots.length + 1;
+            const last_y = (indices[indices.length - 1] * 100) / sorted_spots.length + 3.7;
+            bracket_y = first_y;
+            bracket_height = last_y - first_y;
+        }
+    }
+
+    if (!has_freq_spots) {
+        const lower = [...sorted_spots].reverse().find(s => s.freq < radio_freq);
+        const upper = sorted_spots.find(s => s.freq > radio_freq);
+
+        if (lower && upper) {
+            const li = sorted_spots.findIndex(s => s.id === lower.id);
+            const ui = sorted_spots.findIndex(s => s.id === upper.id);
+            const yl = (li * 100) / sorted_spots.length + 0.5;
+            const yu = (ui * 100) / sorted_spots.length + 0.5;
+            const freq_pos = (radio_freq - lower.freq) / (upper.freq - lower.freq);
+            bracket_y = yl + (yu - yl) * freq_pos;
+        } else if (lower) {
+            const li = sorted_spots.findIndex(s => s.id === lower.id);
+            const yl = (li * 100) / sorted_spots.length + 0.5;
+            const freq_pos = (radio_freq - lower.freq) / (band_plans[band].max - lower.freq);
+            bracket_y = yl + (100 + 0.5 - yl) * freq_pos;
+        } else if (upper) {
+            const ui = sorted_spots.findIndex(s => s.id === upper.id);
+            const yu = (ui * 100) / sorted_spots.length + 0.5;
+            const freq_pos =
+                (radio_freq - band_plans[band].min) / (upper.freq - band_plans[band].min);
+            bracket_y = 0.5 + (yu - 0.5) * freq_pos;
+        } else {
+            bracket_y = ((radio_freq - min_freq) / (max_freq - min_freq)) * 100 - 4;
+        }
+    }
+
+    return { bracket_y, bracket_height };
+}
 
 export default function FrequencyBar({ className, set_cat_to_spot }) {
     const { colors } = useColors();
-    const {
-        spots,
-        hovered_spot,
-        set_hovered_spot,
-        pinned_spot,
-        set_pinned_spot,
-        current_freq_spots: freq_spots,
-    } = useServerData();
+    const { spots, current_freq_spots: freq_spots } = useSpotData();
+    const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useSpotInteraction();
     // Set to -1 to use the current band that the radio is on
     const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
 
@@ -188,14 +198,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
 
     let band = selected_band == -1 ? radio_band : selected_band;
 
-    // Sort spots by frequency
-    let sorted_spots = useMemo(() => {
-        return spots
-            .filter(spot => spot.band == band)
-            .slice(0, 30)
-            .sort((a, b) => a.freq - b.freq);
-    }, [spots, band]);
-
+    const sorted_spots = useBandSpots(spots, band);
     const callsign_refs = useRef([]);
 
     let freq_offset, max_freq, min_freq, features, ranges;
@@ -208,15 +211,6 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
         features = band_plans[band].features;
         ranges = band_plans[band].ranges;
     }
-
-    // Remove all spots with duplicate dx_callsign keeping only the most recent one
-    sorted_spots = sorted_spots.reduce((acc, spot) => {
-        const existingSpot = acc.find(s => s.dx_callsign === spot.dx_callsign);
-        if (!existingSpot || existingSpot.time < spot.time) {
-            return acc.filter(s => s.dx_callsign !== spot.dx_callsign).concat(spot);
-        }
-        return acc;
-    }, []);
 
     function dx_handle_click(spot_id, spot) {
         if (pinned_spot === spot_id) {
@@ -234,102 +228,14 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
     let bracket_y, bracket_height;
 
     if (radio_freq) {
-        // If freq_spots is undefined or empty, use radio_freq as the only "spot"
-        const has_freq_spots = Array.isArray(freq_spots) && freq_spots.length > 0;
-        const group_freq = has_freq_spots
-            ? (sorted_spots.find(s => s.id === freq_spots[0])?.freq ?? radio_freq)
-            : radio_freq;
-
-        // Find nearest lower and upper spot frequencies (not in the group)
-        const lower_spot = [...sorted_spots]
-            .reverse()
-            .find(s => s.freq < group_freq && !(has_freq_spots && freq_spots.includes(s.id)));
-        const upper_spot = sorted_spots.find(
-            s => s.freq > group_freq && !(has_freq_spots && freq_spots.includes(s.id)),
-        );
-
-        // Calculate their indices (for Y position)
-        const lower_idx = lower_spot ? sorted_spots.findIndex(s => s.id === lower_spot.id) : -1;
-        const upper_idx = upper_spot ? sorted_spots.findIndex(s => s.id === upper_spot.id) : -1;
-
-        // Calculate Y positions for lower and upper
-        const y_lower = lower_idx !== -1 ? (lower_idx * 100) / sorted_spots.length + 3 : 3;
-        const y_upper =
-            upper_idx !== -1
-                ? (upper_idx * 100) / sorted_spots.length + 3
-                : ((sorted_spots.length - 1) * 100) / sorted_spots.length + 3;
-
-        // Place the C bracket in the middle between lower and upper
-        const c_bracket_y = (y_lower + y_upper) / 2;
-
-        bracket_y = c_bracket_y - 0.5; // default for 0 spots: minimal height
-        bracket_height = 1; // minimal height
-
-        if (has_freq_spots && freq_spots.length === 1) {
-            // Find the index of the spot
-            const idx = sorted_spots.findIndex(s => s.id === freq_spots[0]);
-
-            bracket_y = (idx * 100) / sorted_spots.length + 1;
-            const last_y = (idx * 100) / sorted_spots.length + 3.7;
-            bracket_height = last_y - bracket_y;
-        } else if (has_freq_spots && freq_spots.length > 1) {
-            // Find indices of all spots at this frequency
-            const indices = freq_spots
-                .map(id => sorted_spots.findIndex(s => s.id === id))
-                .filter(idx => idx !== -1)
-                .sort((a, b) => a - b);
-
-            if (indices.length > 0) {
-                const first_y = (indices[0] * 100) / sorted_spots.length + 1;
-                const last_y = (indices[indices.length - 1] * 100) / sorted_spots.length + 3.7;
-                bracket_y = first_y;
-                bracket_height = last_y - first_y;
-            }
-        }
-
-        if (!has_freq_spots) {
-            const lower_spot = [...sorted_spots].reverse().find(s => s.freq < radio_freq);
-            const upper_spot = sorted_spots.find(s => s.freq > radio_freq);
-
-            if (lower_spot && upper_spot) {
-                // Find their indices in the sorted_spots array
-                const lower_idx = sorted_spots.findIndex(s => s.id === lower_spot.id);
-                const upper_idx = sorted_spots.findIndex(s => s.id === upper_spot.id);
-
-                // Y positions by index (matching your spot rendering)
-                const y_lower = (lower_idx * 100) / sorted_spots.length + 0.5;
-                const y_upper = (upper_idx * 100) / sorted_spots.length + 0.5;
-
-                // Interpolate by frequency
-                const freq_range = upper_spot.freq - lower_spot.freq;
-                const freq_pos = (radio_freq - lower_spot.freq) / freq_range;
-
-                bracket_y = y_lower + (y_upper - y_lower) * freq_pos;
-            } else if (lower_spot) {
-                // Only lower spot: interpolate between lower spot and band max
-                const lower_idx = sorted_spots.findIndex(s => s.id === lower_spot.id);
-                const y_lower = (lower_idx * 100) / sorted_spots.length + 0.5;
-                const y_max = 100 + 0.5; // bottom of the bar
-
-                const freq_range = band_plans[band].max - lower_spot.freq;
-                const freq_pos = (radio_freq - lower_spot.freq) / freq_range;
-
-                bracket_y = y_lower + (y_max - y_lower) * freq_pos;
-            } else if (upper_spot) {
-                // Only upper spot: interpolate between band min and upper spot
-                const upper_idx = sorted_spots.findIndex(s => s.id === upper_spot.id);
-                const y_upper = (upper_idx * 100) / sorted_spots.length + 0.5;
-                const y_min = 0.5; // top of the bar
-
-                const freq_range = upper_spot.freq - band_plans[band].min;
-                const freq_pos = (radio_freq - band_plans[band].min) / freq_range;
-
-                bracket_y = y_min + (y_upper - y_min) * freq_pos;
-            } else {
-                // No spots at all
-                bracket_y = ((radio_freq - min_freq) / (max_freq - min_freq)) * 100 - 4;
-            }
-        }
+        ({ bracket_y, bracket_height } = calculate_bracket_position(
+            radio_freq,
+            freq_spots,
+            sorted_spots,
+            min_freq,
+            max_freq,
+            band,
+        ));
     }
 
     return (
@@ -386,6 +292,8 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                 (radio_status !== "connected" && spot.id == pinned_spot) ||
                                 spot.id === hovered_spot.id;
 
+                            const spot_y_pct = `${(i * 100) / sorted_spots.length + 3}%`;
+
                             return (
                                 <g
                                     className="group group-hover:stroke-blue-500 group-hover:fill-blue-500"
@@ -427,62 +335,19 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                         }}
                                         className="hover:cursor-pointer w-full"
                                     >
-                                        <g
-                                            style={{
-                                                transform: "translateY(-10px)",
-                                            }}
-                                        >
-                                            {spot.mode.toUpperCase() == "SSB" && (
-                                                <rect
-                                                    x={"55%"}
-                                                    y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                                    height={10}
-                                                    width={10}
-                                                    strokeWidth={1}
-                                                    fill={colors.theme.text}
-                                                    className="group-hover:fill-blue-500"
-                                                />
-                                            )}
-
-                                            {spot.mode.toUpperCase() == "CW" && (
-                                                <svg
-                                                    x={"55%"}
-                                                    y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                                    height={12}
-                                                    width={12}
-                                                    viewBox="0 0 100 100"
-                                                    fill={colors.theme.text}
-                                                    className="group-hover:fill-blue-500"
-                                                >
-                                                    <polygon points="50 5, 100 90, 0 90" />
-                                                </svg>
-                                            )}
-
-                                            {["FT8", "FT4", "DIGI"].includes(
-                                                spot.mode.toUpperCase(),
-                                            ) && (
-                                                <svg
-                                                    x={"54%"}
-                                                    y={`${(i * 100) / sorted_spots.length + 3}%`}
-                                                    height={15}
-                                                    width={15}
-                                                    viewBox="0 0 280 360"
-                                                    className="group-hover:fill-blue-500"
-                                                >
-                                                    <polygon
-                                                        points="150,15 258,77 258,202 150,265 42,202 42,77"
-                                                        strokeWidth={1}
-                                                        className="group-hover:fill-blue-500"
-                                                        fill={colors.theme.text}
-                                                    />
-                                                </svg>
-                                            )}
+                                        <g style={{ transform: "translateY(-10px)" }}>
+                                            <ModeShape
+                                                mode={spot.mode}
+                                                x={"55%"}
+                                                y={spot_y_pct}
+                                                fill={colors.theme.text}
+                                            />
                                         </g>
 
                                         <text
                                             x={"61%"}
                                             ref={el => (callsign_refs.current[i] = el)}
-                                            y={`${(i * 100) / sorted_spots.length + 3}%`}
+                                            y={spot_y_pct}
                                             fontSize="14"
                                             fill={colors.theme.text}
                                             className="group-hover:fill-blue-500 border-2 border-black border-solid"
@@ -503,7 +368,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                     {highlight_spot && (
                                         <rect
                                             x={"54%"}
-                                            y={`${(i * 100) / sorted_spots.length + 3}%`}
+                                            y={spot_y_pct}
                                             height={20}
                                             width={
                                                 callsign_refs.current[i]
@@ -525,62 +390,13 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                             );
                         })}
 
-                        {radio_freq != 0 && radio_freq !== undefined && freq_spots.length >= 1 && (
-                            <svg
-                                width="100%"
-                                height={`${bracket_height}%`}
-                                x="0"
-                                y={`${bracket_y}%`}
-                                style={{
-                                    position: "absolute",
-                                    pointerEvents: "none",
-                                }}
-                            >
-                                {/* Left vertical */}
-                                <line
-                                    x1={`50%`}
-                                    y1="0"
-                                    x2={`50%`}
-                                    y2={"100%"}
-                                    stroke={colors.theme.text}
-                                    strokeWidth="2"
-                                />
-                                {/* Top horizontal */}
-                                <line
-                                    x1={`50%`}
-                                    y1="0"
-                                    x2={`53%`}
-                                    y2="0"
-                                    stroke={colors.theme.text}
-                                    strokeWidth="2"
-                                />
-                                {/* Bottom horizontal */}
-                                <line
-                                    x1={`50%`}
-                                    y1={"100%"}
-                                    x2={`53%`}
-                                    y2={"100%"}
-                                    stroke={colors.theme.text}
-                                    strokeWidth="2"
-                                />
-                            </svg>
-                        )}
-                        {radio_freq != 0 && radio_freq !== undefined && freq_spots.length == 0 && (
-                            <svg
-                                viewBox="0 0 50 90"
-                                height="8%"
-                                width="5%"
-                                y={`${bracket_y - 2.5}%`}
-                                x="47.5%"
-                            >
-                                <polygon
-                                    points="0 0, 50 45, 0 90"
-                                    fill="transparent"
-                                    stroke="red"
-                                    strokeWidth={5}
-                                />
-                            </svg>
-                        )}
+                        <FrequencyBracket
+                            radio_freq={radio_freq}
+                            freq_spots={freq_spots}
+                            bracket_y={bracket_y}
+                            bracket_height={bracket_height}
+                            stroke={colors.theme.text}
+                        />
                     </svg>
                     <div className="h-[4%] w-full flex justify-center items-center bg-gray-100 rounded-full border border-gray-300">
                         {ranges.concat(features).map(legend => (

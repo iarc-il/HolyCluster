@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { ToastContainer, toast } from "react-toastify";
 
-import Input from "@/components/Input.jsx";
+import Input from "@/components/ui/Input.jsx";
 import CallsignInput from "@/components/CallsignInput.jsx";
-import Button from "@/components/Button.jsx";
-import Modal from "@/components/Modal.jsx";
-import Spinner from "@/components/Spinner.jsx";
+import Button from "@/components/ui/Button.jsx";
+import Modal from "@/components/ui/Modal.jsx";
+import Spinner from "@/components/ui/Spinner.jsx";
 import { useColors } from "@/hooks/useColors";
-import use_radio from "../hooks/useRadio";
+import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { is_same_base_callsign } from "@/utils.js";
 
@@ -196,7 +196,11 @@ function SubmitSpot({ dev_mode }) {
                         <tr>
                             <td>Spotter callsign:</td>
                             <td>
-                                <Input value={settings.callsign} className="uppercase" disabled />
+                                <Input
+                                    value={settings.callsign}
+                                    className="uppercase w-32"
+                                    disabled
+                                />
                             </td>
                         </tr>
                         <tr>
@@ -204,6 +208,7 @@ function SubmitSpot({ dev_mode }) {
                             <td>
                                 <CallsignInput
                                     value={temp_data.callsign}
+                                    className="w-32"
                                     maxLength={11}
                                     autoFocus={true}
                                     onChange={event => {
@@ -220,10 +225,14 @@ function SubmitSpot({ dev_mode }) {
                             <td>
                                 <Input
                                     value={temp_data.freq}
+                                    className="w-32"
                                     onChange={event => {
                                         const value = event.target.value;
                                         if (/^\d*\.?\d{0,1}$/.test(value)) {
-                                            if (Number.parseFloat(value) <= 75000 || value == "") {
+                                            if (
+                                                Number.parseFloat(value) <= 990000000 ||
+                                                value == ""
+                                            ) {
                                                 set_temp_data({
                                                     ...temp_data,
                                                     freq: value,

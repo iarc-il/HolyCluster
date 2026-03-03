@@ -1,14 +1,26 @@
 import { useEffect, useState } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
 
-import Modal from "@/components/Modal.jsx";
-import Tabs from "@/components/Tabs.jsx";
-import Button from "@/components/Button.jsx";
+import Modal from "@/components/ui/Modal.jsx";
+import Tabs from "@/components/ui/Tabs.jsx";
+import Button from "@/components/ui/Button.jsx";
 import { useColors } from "@/hooks/useColors.jsx";
 import use_radio from "@/hooks/useRadio.jsx";
-import { get_base_url } from "@/utils.js";
 
 const RELEASES = [
+    [
+        "3/3/2026",
+        [
+            "New DXpedition list with dates, sorting, duration tracking",
+            "New DXpedition filters in Alert/Show Only/Hide area",
+            "Real time updating of new spots",
+            "Search feature for dx stations - available with the search button or ctrl+F",
+            "USA state information - full state name in flag popup, configurable state indicators, and state displayed in flags column",
+            "Swap button for the continents column",
+            "Added RTTY mode",
+            "Autofill locator when inserting callsign in the settings",
+        ],
+    ],
     [
         "3/12/2025",
         [

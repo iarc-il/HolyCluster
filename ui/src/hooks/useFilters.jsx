@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect } from "react";
 import { use_object_local_storage } from "@/utils.js";
-import { bands, modes, continents } from "@/filters_data.js";
+import { bands, modes, continents } from "@/data/filters_data.js";
 
 const FiltersContext = createContext(undefined);
 

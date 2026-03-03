@@ -4,20 +4,13 @@ import MapControls from "@/components/MapControls.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
-import Continents from "@/components/Continents.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
-import CallsignsView from "@/components/CallsignsView.jsx";
-import Tabs from "@/components/Tabs.jsx";
-import {
-    use_object_local_storage,
-    is_matching_list,
-    get_max_radius,
-    get_base_url,
-} from "@/utils.js";
-import { bands, modes, continents } from "@/filters_data.js";
-import { useFilters } from "@/hooks/useFilters";
-import { useServerData } from "@/hooks/useServerData";
-import { useColors } from "../hooks/useColors";
+import SidePanel from "@/components/SidePanel.jsx";
+import Tabs from "@/components/ui/Tabs.jsx";
+import { use_object_local_storage, is_matching_list, get_max_radius } from "@/utils.js";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 
@@ -26,12 +19,11 @@ import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
 function MainContainer() {
     const { dev_mode, set_dev_mode } = useColors();
-    const [toggled_ui, set_toggled_ui] = useState({ left: true, right: true });
+    const [toggled_ui, set_toggled_ui] = useState({ left_visible: true, right_visible: true });
     const { local_version } = use_radio();
     const { settings, set_settings } = useSettings();
-
-    const { spots, set_pinned_spot, filter_missing_flags, set_filter_missing_flags } =
-        useServerData();
+    const { spots, filter_missing_flags, set_filter_missing_flags } = useSpotData();
+    const { set_pinned_spot } = useSpotInteraction();
 
     const [map_controls, set_map_controls_inner] = use_object_local_storage("map_controls", {
         night: false,
@@ -96,6 +88,8 @@ function MainContainer() {
     }
 
     const [canvas, set_canvas] = useLocalStorage("canvas", false);
+    // The view with zero index is the Filters view
+    const [active_view, set_active_view] = useLocalStorage("active_view", 0);
 
     function on_key_down(event) {
         if (event.key == "Escape") {
@@ -203,8 +197,12 @@ function MainContainer() {
                         {table}
                     </>
                 )}
-                <CallsignsView toggled_ui={toggled_ui} set_cat_to_spot={set_cat_to_spot} />
-                <Continents toggled_ui={toggled_ui} />
+                <SidePanel
+                    toggled_ui={toggled_ui}
+                    set_cat_to_spot={set_cat_to_spot}
+                    active_view={active_view}
+                    set_active_view={set_active_view}
+                />
             </div>
         </div>
     );

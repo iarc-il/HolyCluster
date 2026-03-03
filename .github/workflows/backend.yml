@@ -1,0 +1,59 @@
+name: Build and Deploy Backend
+
+on:
+  push:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+    branches:
+      - "dev"
+    tags:
+      - "backend-v*"
+
+jobs:
+  build-and-deploy-backend:
+    name: Lint and Deploy Backend
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/backend-v')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run Ruff linting
+        working-directory: backend
+        run: uv run ruff check .
+
+      - name: Run Ruff formatting check
+        working-directory: backend
+        run: uv run ruff format --check .
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_DEV }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_PROD }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Development Server
+        if: github.ref == 'refs/heads/dev'
+        run: |
+          ssh ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }} \
+            "cd ${{ secrets.REPO_ROOT_DEV }}/backend && git fetch && git checkout dev && git reset --hard origin/dev && docker compose stop monitor && docker compose up -d --build"
+
+      - name: Deploy to Production Server
+        if: startsWith(github.ref, 'refs/tags/backend-v')
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          ssh ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }} \
+            "cd ${{ secrets.REPO_ROOT_PROD }}/backend && git fetch --tags && git checkout $TAG && docker compose stop monitor && docker compose up -d --build"

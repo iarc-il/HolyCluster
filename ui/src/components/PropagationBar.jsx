@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import Bar from "@/components/Bar.jsx";
-import Popup from "@/components/Popup.jsx";
+import Popup from "@/components/ui/Popup.jsx";
 import { useColors } from "@/hooks/useColors";
 
 function PropagationBar({

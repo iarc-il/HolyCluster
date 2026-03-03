@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
 
 import { use_object_local_storage } from "@/utils.js";
-import { bands, modes, continents } from "@/filters_data.js";
+import { bands, modes, continents } from "@/data/filters_data.js";
 
 const ColorsContext = createContext(undefined);
 
@@ -43,27 +43,78 @@ function pSBC(p,c0,c1,l) {
 }
 pSBC = pSBC.bind({});
 
+const base_theme = {
+    bands: {
+        SHF: "#A07CFF",
+        UHF: "#5ECFFF",
+        VHF: "#5EFFA0",
+        4: "#666062",
+        6: "#FF61EA",
+        10: "#E87421",
+        12: "#47DFF0",
+        15: "#1515CB",
+        17: "#751F6B",
+        20: "#DC2828",
+        30: "#FAFA00",
+        40: "#18A018",
+        60: "#152F47",
+        80: "#903727",
+        160: "#156184",
+    },
+    bright_text: "white",
+    dark_text: "black",
+    text: {
+        SHF: "black",
+        UHF: "black",
+        VHF: "black",
+        4: "white",
+        6: "black",
+        10: "black",
+        12: "black",
+        15: "white",
+        17: "white",
+        20: "white",
+        30: "black",
+        40: "black",
+        60: "white",
+        80: "white",
+        160: "white",
+    },
+    map: {
+        background: "#FFFFFF",
+        land: "#D7D7D7",
+        land_borders: "#777777",
+        graticule: "#c4c4c4",
+        night: "#000080",
+        borders: "#000000",
+    },
+    dxpeditions: {
+        inactive: "#6b7280",
+        badge_text: "white",
+        borders: "#94989e",
+        progress_bar: "#2756ce",
+        progress_track: "#8a94a3",
+    },
+    spots: {
+        alert_border: "white",
+        dxpedition_alert: "#FFD700",
+    },
+};
+
+function merge_theme(overrides) {
+    const merged = { ...base_theme };
+    for (const key of Object.keys(overrides)) {
+        if (typeof overrides[key] === "object" && typeof base_theme[key] === "object") {
+            merged[key] = { ...base_theme[key], ...overrides[key] };
+        } else {
+            merged[key] = overrides[key];
+        }
+    }
+    return merged;
+}
+
 const themes = {
-    Light: {
-        bands: {
-            SHF: "#A07CFF",
-            UHF: "#5ECFFF",
-            VHF: "#5EFFA0",
-            4: "#666062",
-            6: "#FF61EA",
-            10: "#E87421",
-            12: "#47DFF0",
-            15: "#1515CB",
-            17: "#751F6B",
-            20: "#DC2828",
-            30: "#FAFA00",
-            40: "#18A018",
-            60: "#152F47",
-            80: "#903727",
-            160: "#156184",
-        },
-        bright_text: "white",
-        dark_text: "black",
+    Light: merge_theme({
         text: {
             SHF: "default_dark",
             UHF: "default_dark",
@@ -96,6 +147,7 @@ const themes = {
             dx_continents: "#BEDBFE",
             spotter_continents: "#FECDD3",
             utility: "#484848",
+            active_tab: "#E2E8F0",
             disabled_background: "#F3F4F6",
             disabled: "#484848",
         },
@@ -104,59 +156,19 @@ const themes = {
             even_row: "#F1F5F9",
             odd_row: "#FFFFFF",
             header_text: "#000000",
+            header_arrow: "#475569",
             even_text: "#000000",
             odd_text: "#000000",
         },
-        map: {
-            background: "#FFFFFF",
-            land: "#D7D7D7",
-            land_borders: "#777777",
-            graticule: "#c4c4c4",
-            night: "#000080",
-            borders: "#000000",
+        dxpeditions: {
+            progress_track: "#d1d5db",
         },
         seven_segment: {
             on: "#ef4444",
             off: "#e2e8f0",
         },
-    },
-    Dark: {
-        bands: {
-            SHF: "#A07CFF",
-            UHF: "#5ECFFF",
-            VHF: "#5EFFA0",
-            4: "#666062",
-            6: "#FF61EA",
-            10: "#E87421",
-            12: "#47DFF0",
-            15: "#1515CB",
-            17: "#751F6B",
-            20: "#DC2828",
-            30: "#FAFA00",
-            40: "#18A018",
-            60: "#152F47",
-            80: "#903727",
-            160: "#156184",
-        },
-        bright_text: "white",
-        dark_text: "black",
-        text: {
-            SHF: "black",
-            UHF: "black",
-            VHF: "black",
-            4: "white",
-            6: "black",
-            10: "black",
-            12: "black",
-            15: "white",
-            17: "white",
-            20: "white",
-            30: "black",
-            40: "black",
-            60: "white",
-            80: "white",
-            160: "white",
-        },
+    }),
+    Dark: merge_theme({
         theme: {
             background: "#0b141a",
             columns: "#031421",
@@ -172,6 +184,7 @@ const themes = {
             dx_continents: "#2a44a8",
             spotter_continents: "#7f1f2a",
             utility: "#f4f0f0",
+            active_tab: "#334155",
             disabled_background: "#f4f0f0",
             disabled: "#484848",
         },
@@ -180,59 +193,16 @@ const themes = {
             even_row: "#182229",
             odd_row: "#2a3942",
             header_text: "#f4f0f0",
+            header_arrow: "#22d3ee",
             even_text: "#eae7ec",
             odd_text: "#f4f0f0",
-        },
-        map: {
-            background: "#FFFFFF",
-            land: "#D7D7D7",
-            land_borders: "#777777",
-            graticule: "#c4c4c4",
-            night: "#000080",
-            borders: "#000000",
         },
         seven_segment: {
             on: "#ef4444",
             off: "#414141",
         },
-    },
-    Blue: {
-        bands: {
-            SHF: "#A07CFF",
-            UHF: "#5ECFFF",
-            VHF: "#5EFFA0",
-            4: "#666062",
-            6: "#FF61EA",
-            10: "#E87421",
-            12: "#47DFF0",
-            15: "#1515CB",
-            17: "#751F6B",
-            20: "#DC2828",
-            30: "#FAFA00",
-            40: "#18A018",
-            60: "#152F47",
-            80: "#903727",
-            160: "#156184",
-        },
-        bright_text: "white",
-        dark_text: "black",
-        text: {
-            SHF: "black",
-            UHF: "black",
-            VHF: "black",
-            4: "white",
-            6: "black",
-            10: "black",
-            12: "black",
-            15: "white",
-            17: "white",
-            20: "white",
-            30: "black",
-            40: "black",
-            60: "white",
-            80: "white",
-            160: "white",
-        },
+    }),
+    Blue: merge_theme({
         theme: {
             background: "#031421",
             columns: "#031421",
@@ -248,6 +218,7 @@ const themes = {
             dx_continents: "#2a44a8",
             spotter_continents: "#7f1f2a",
             utility: "#f4f0f0",
+            active_tab: "#1e3a6e",
             disabled_background: "#f4f0f0",
             disabled: "#484848",
         },
@@ -256,59 +227,16 @@ const themes = {
             even_row: "#303031",
             odd_row: "#000000",
             header_text: "#f4f0f0",
+            header_arrow: "#fbbf24",
             even_text: "#eae7ec",
             odd_text: "#f4f0f0",
-        },
-        map: {
-            background: "#FFFFFF",
-            land: "#D7D7D7",
-            land_borders: "#777777",
-            graticule: "#c4c4c4",
-            night: "#000080",
-            borders: "#000000",
         },
         seven_segment: {
             on: "#ef4444",
             off: "#414141",
         },
-    },
-    Gray: {
-        bands: {
-            SHF: "#A07CFF",
-            UHF: "#5ECFFF",
-            VHF: "#5EFFA0",
-            4: "#666062",
-            6: "#FF61EA",
-            10: "#E87421",
-            12: "#47DFF0",
-            15: "#1515CB",
-            17: "#751F6B",
-            20: "#DC2828",
-            30: "#FAFA00",
-            40: "#18A018",
-            60: "#152F47",
-            80: "#903727",
-            160: "#156184",
-        },
-        bright_text: "white",
-        dark_text: "black",
-        text: {
-            SHF: "black",
-            UHF: "black",
-            VHF: "black",
-            4: "white",
-            6: "black",
-            10: "black",
-            12: "black",
-            15: "white",
-            17: "white",
-            20: "white",
-            30: "black",
-            40: "black",
-            60: "white",
-            80: "white",
-            160: "white",
-        },
+    }),
+    Gray: merge_theme({
         theme: {
             background: "#1f1f1f",
             columns: "#545454",
@@ -320,10 +248,11 @@ const themes = {
             highlighted_tab: "#000000",
         },
         buttons: {
-            modes: "#96FF9F",
-            dx_continents: "#BEDBFE",
-            spotter_continents: "#FECDD3",
+            modes: "#2e7a35",
+            dx_continents: "#2a44a8",
+            spotter_continents: "#7f1f2a",
             utility: "#a3a3a3",
+            active_tab: "#4a4a4a",
             disabled_background: "#dbdbdc",
             disabled: "#1c1c1c",
         },
@@ -332,6 +261,7 @@ const themes = {
             even_row: "#969696",
             odd_row: "#575757",
             header_text: "#e3e3e3",
+            header_arrow: "#60a5fa",
             even_text: "#000000",
             odd_text: "#000000",
         },
@@ -347,7 +277,7 @@ const themes = {
             on: "#ef4444",
             off: "#505050",
         },
-    },
+    }),
 };
 
 export const themes_names = Object.entries(themes).map(([name, theme]) => name);

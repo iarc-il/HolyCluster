@@ -1,4 +1,4 @@
-import { useColors } from "../hooks/useColors";
+import { useColors } from "@/hooks/useColors";
 
 function OpenMenu({ size, on_click }) {
     const { colors } = useColors();

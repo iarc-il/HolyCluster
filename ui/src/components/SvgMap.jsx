@@ -14,9 +14,10 @@ import SpotPopup from "@/components/SpotPopup.jsx";
 import { km_to_miles, calculate_geographic_azimuth } from "@/utils.js";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/hooks/useSettings";
-import ToggleSVG from "./ToggleSVG";
+import ToggleSVG from "./ui/ToggleSVG";
 
-import { useServerData } from "@/hooks/useServerData";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 
 const dxcc_map = geojsonRewind(dxcc_map_raw, true);
 
@@ -73,8 +74,9 @@ function SvgMap({
     auto_radius,
     set_auto_radius,
 }) {
-    const { spots, hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
-        useServerData();
+    const { spots } = useSpotData();
+    const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
+        useSpotInteraction();
     const { settings } = useSettings();
 
     const svg_ref = useRef(null);

@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""
+DXpedition enricher for spot detection.
+Fetches and caches active DXpeditions from NG3K ADXO XML feed.
+"""
+
+import json
+import re
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+from typing import Optional
+
+import httpx
+from loguru import logger
+
+ACTIVE_DXPEDITIONS: list[dict] = []
+
+NG3K_XML_URL = "https://www.ng3k.com/adxo.xml"
+REDIS_DXPEDITIONS_KEY = "dxpeditions:active"
+
+
+def parse_date_range(date_str: str) -> Optional[tuple[datetime, datetime]]:
+    """
+    Parse date range from format like:
+    - "Jan 1-Feb 16, 2026"
+    - "Feb 7-14, 2026"
+    - "Jan 1, 2026"
+
+    Returns: (start_date, end_date) as datetime objects or None if parsing fails
+    End date is set to 23:59:59 to include the full day
+    """
+    try:
+        year_match = re.search(r",\s*(\d{4})", date_str)
+        if not year_match:
+            return None
+        year = int(year_match.group(1))
+
+        date_part = date_str[: year_match.start()].strip()
+
+        if "-" in date_part:
+            parts = date_part.split("-")
+            start_part = parts[0].strip()
+            end_part = parts[1].strip()
+
+            start_date = datetime.strptime(f"{start_part} {year}", "%b %d %Y")
+            start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+
+            if any(
+                month in end_part
+                for month in ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            ):
+                end_date = datetime.strptime(f"{end_part} {year}", "%b %d %Y")
+                end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+            else:
+                start_month = start_date.strftime("%b")
+                end_date = datetime.strptime(f"{start_month} {end_part} {year}", "%b %d %Y")
+                end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+
+                if end_date < start_date:
+                    next_month = (start_date.month % 12) + 1
+                    next_year = year if next_month > 1 else year + 1
+                    end_date = datetime.strptime(f"{end_part} {next_month} {next_year}", "%d %m %Y")
+                    end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+
+            end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        else:
+            start_date = datetime.strptime(f"{date_part} {year}", "%b %d %Y")
+            start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+            end_date = start_date.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc)
+
+        return (start_date, end_date)
+    except Exception:
+        logger.exception(f"Failed to parse date range '{date_str}'")
+        return None
+
+
+def parse_title(title: str) -> Optional[tuple[str, datetime, datetime]]:
+    try:
+        parts = [p.strip() for p in title.split("--")]
+
+        if len(parts) < 2:
+            return None
+
+        location_date = parts[0]
+        callsign = parts[1].strip()
+
+        if ":" not in location_date:
+            return None
+
+        date_str = location_date.split(":", 1)[1].strip()
+
+        dates = parse_date_range(date_str)
+        if not dates:
+            return None
+
+        start_date, end_date = dates
+
+        return (callsign, start_date, end_date)
+    except Exception:
+        logger.exception(f"Failed to parse title '{title}'")
+        return None
+
+
+async def fetch_dxpedition_data() -> list[dict]:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            response = await client.get(NG3K_XML_URL)
+        except httpx.TransportError as e:
+            raise type(e)(f"www.ng3k.com: {e}") from e
+        response.raise_for_status()
+        xml_data = response.content
+
+    root = ET.fromstring(xml_data)
+    dxpeditions = []
+    now = datetime.now(timezone.utc)
+
+    for item in root.findall(".//item"):
+        title_elem = item.find("title")
+
+        if title_elem is None or not title_elem.text:
+            continue
+
+        title = title_elem.text
+        result = parse_title(title)
+
+        if result:
+            callsign, start_date, end_date = result
+            if end_date < now:
+                logger.info(f"Skipping expired DXpedition: {callsign} (ended {end_date.strftime('%Y-%m-%d')})")
+                continue
+            dxpeditions.append({"callsign": callsign.upper(), "start_date": start_date, "end_date": end_date})
+
+    return dxpeditions
+
+
+async def refresh_dxpedition_cache(redis_client=None):
+    global ACTIVE_DXPEDITIONS
+
+    dxpeditions = await fetch_dxpedition_data()
+    ACTIVE_DXPEDITIONS = dxpeditions
+    logger.info(f"DXpedition cache refreshed with {len(dxpeditions)} entries")
+
+    if redis_client:
+        dxpeditions_json = json.dumps(
+            [
+                {
+                    "callsign": d["callsign"],
+                    "start_date": d["start_date"].isoformat(),
+                    "end_date": d["end_date"].isoformat(),
+                }
+                for d in dxpeditions
+            ]
+        )
+        await redis_client.set(REDIS_DXPEDITIONS_KEY, dxpeditions_json)
+        logger.info(f"DXpedition data stored in Redis at {REDIS_DXPEDITIONS_KEY}")
+
+
+def is_active_dxpedition(callsign: str) -> bool:
+    if not callsign:
+        return False
+
+    callsign = callsign.upper()
+
+    now = datetime.now(timezone.utc)
+
+    for dxpedition in ACTIVE_DXPEDITIONS:
+        if callsign.startswith(dxpedition["callsign"]):
+            is_active = dxpedition["start_date"] <= now <= dxpedition["end_date"]
+            return is_active
+
+    return False

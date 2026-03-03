@@ -1,25 +1,24 @@
 import SubmitSpot from "@/components/SubmitSpot.jsx";
 import Clock from "@/components/Clock.jsx";
 import NetworkState from "@/components/NetworkState.jsx";
-import Spinner from "@/components/Spinner.jsx";
-import Settings from "@/components/Settings.jsx";
-import ColorPicker from "@/components/ColorPicker.jsx";
-import Select from "@/components/Select.jsx";
-import Button from "@/components/Button.jsx";
+import Spinner from "@/components/ui/Spinner.jsx";
+import Settings from "@/components/settings/Settings.jsx";
+import ColorPicker from "@/components/ui/ColorPicker.jsx";
+import Select from "@/components/ui/Select.jsx";
+import Button from "@/components/ui/Button.jsx";
 import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
-import { useColors } from "../hooks/useColors";
-import { useFilters } from "../hooks/useFilters";
-import { useServerData } from "@/hooks/useServerData";
-import useRadio from "@/hooks/useRadio";
+import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
+import { useSpotData } from "@/hooks/useSpotData";
 import { useSettings } from "@/hooks/useSettings";
-import { useLocalStorage } from "@uidotdev/usehooks";
+import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
 import Icon from "@/icon.png";
 import OpenMenu from "@/components/OpenMenu.jsx";
 
-import { modes } from "@/filters_data.js";
+import { modes } from "@/data/filters_data.js";
 import { useEffect } from "react";
-import use_radio from "../hooks/useRadio";
+import use_radio from "@/hooks/useRadio";
 
 const spots_time_limits = {
     "5 Minutes": 300,
@@ -30,7 +29,7 @@ const spots_time_limits = {
 
 function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui, dev_mode }) {
     const { filters, setFilters } = useFilters();
-    const { network_state } = useServerData();
+    const { network_state } = useSpotData();
     const { set_rig, radio_status, rig } = use_radio();
     const { settings, set_settings } = useSettings();
 
@@ -49,9 +48,19 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
 
     const { radio_freq } = use_radio();
 
+    // Reset the toggle state when resizing the screen
+    const is_max_2xl_device = useMediaQuery("only screen and (max-width : 96rem)");
+    useEffect(() => {
+        if (is_max_2xl_device) {
+            set_toggled_ui({ left_visible: false, right_visible: false });
+        } else {
+            set_toggled_ui({ left_visible: true, right_visible: true });
+        }
+    }, [is_max_2xl_device]);
+
     return (
         <div
-            className="flex flex-row justify-between items-center h-[4rem] border-b-2"
+            className="flex flex-row z-[60] justify-between items-center h-[4rem] border-b-2"
             style={{
                 backgroundColor: colors.theme.background,
                 borderColor: colors.theme.borders,
@@ -63,7 +72,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                     on_click={() =>
                         set_toggled_ui({
                             ...toggled_ui,
-                            left: !toggled_ui.left,
+                            left_visible: !toggled_ui.left_visible,
                         })
                     }
                 />
@@ -72,7 +81,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                 <img className="object-contain max-h-12 w-10 m-auto" src={Icon} />
             </div>
             <h1
-                className="hidden md:block text-3xl lg:text-4xl m-auto font-bold"
+                className="hidden lg:block md:text-2xl text-4xl m-auto w-fit font-bold"
                 style={{ color: colors.theme.text }}
             >
                 The Holy Cluster
@@ -155,7 +164,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                         on_click={() =>
                             set_toggled_ui({
                                 ...toggled_ui,
-                                right: !toggled_ui.right,
+                                right_visible: !toggled_ui.right_visible,
                             })
                         }
                     />

@@ -1,6 +1,6 @@
 import React from "react";
 
-import { useColors } from "../hooks/useColors";
+import { useColors } from "@/hooks/useColors";
 
 const Bar = ({
     value,

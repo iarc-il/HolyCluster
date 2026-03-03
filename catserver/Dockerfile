@@ -3,7 +3,7 @@ FROM rust
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ARG WINE_VERSION=10.0.0.0~bookworm-1
+ARG WINE_VERSION=10.0.0.0
 ARG DOTNET_VERSION=9.0.300
 # Version 5.0.2 is the latest version of WiX Toolset that does not require Open Source Maintenance Fee.
 ARG WIXTOOLSET_VERSION=5.0.2
@@ -23,7 +23,7 @@ RUN set -ex \
     && apt-get install --no-install-recommends ca-certificates curl xauth xvfb xz-utils p7zip-full unzip -qqy \
     && curl -sSfLo /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key \
     && curl -sSfLo /etc/apt/sources.list.d/winehq.sources https://dl.winehq.org/wine-builds/debian/dists/$VERSION_CODENAME/winehq-$VERSION_CODENAME.sources \
-    && apt-get update -qq && apt-get install --no-install-recommends winehq-stable=${WINE_VERSION} -qqy \
+    && apt-get update -qq && apt-get install --no-install-recommends winehq-stable=$WINE_VERSION\~$VERSION_CODENAME-1 -qqy \
     && curl -sSfLo /usr/local/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks \
     && chmod +x /usr/local/bin/winetricks \
     && useradd -m wix \
