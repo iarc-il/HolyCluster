@@ -25,7 +25,7 @@ if [ "$PREVIOUS_HEAD" = "$CURRENT_HEAD" ]; then
     exit 0
 fi
 
-CHANGED_FILES=$(git diff --name-only "$PREVIOUS_HEAD" "$CURRENT_HEAD" -- .)
+CHANGED_FILES=$(git diff --name-only --relative "$PREVIOUS_HEAD" "$CURRENT_HEAD" -- .)
 
 if [ -z "$CHANGED_FILES" ]; then
     echo "No files changed in backend/. Nothing to deploy."
@@ -45,7 +45,7 @@ add_service() {
 
 while IFS= read -r file; do
     case "$file" in
-        docker-compose.yml)
+        docker-compose.yml|deploy.sh)
             add_service api
             add_service collector
             add_service monitor
