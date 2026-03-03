@@ -7,8 +7,8 @@ from loguru import logger
 from api.settings import settings
 from shared.metrics import push_exception_event
 
-CLUSTER_HOST = "dxc.ve7cc.net"
-CLUSTER_PORT = 23
+CLUSTER_HOST = "dxc.ai9t.com"
+CLUSTER_PORT = 7300
 
 logger.add(settings.spots_log_path, level="DEBUG")
 
