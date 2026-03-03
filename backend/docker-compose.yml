@@ -89,10 +89,10 @@ services:
       - "8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 10s
+      interval: 3s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 5s
 
   monitor:
     container_name: monitor
