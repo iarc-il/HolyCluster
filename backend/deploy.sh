@@ -100,9 +100,12 @@ if [[ -v SERVICES[api] || -v SERVICES[monitor] ]]; then
 fi
 
 echo "Building: $SERVICE_LIST"
-docker compose build $SERVICE_LIST
+docker compose build --parallel $SERVICE_LIST
 
 echo "Starting: $SERVICE_LIST"
-docker compose up -d --no-deps $SERVICE_LIST
+for svc in $SERVICE_LIST; do
+    docker compose up -d --no-deps "$svc" &
+done
+wait
 
 echo "Deploy complete."
