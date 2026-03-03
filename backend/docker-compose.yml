@@ -61,8 +61,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./collectors/logs/db:/app/collectors/logs/db
-      - ./collectors/logs/collector:/app/collectors/logs/collector
+      - ${LOG_DIR}:${LOG_DIR}
     expose:
       - "${VALKEY_PORT}"
     cap_add:
@@ -85,6 +84,7 @@ services:
     volumes:
       - ${UI_DIST_PATH}:${UI_DIST_PATH}
       - ${CATSERVER_MSI_DIR}:${CATSERVER_MSI_DIR}
+      - ${LOG_DIR}:${LOG_DIR}
     expose:
       - "8000"
     healthcheck:
