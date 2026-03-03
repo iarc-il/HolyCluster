@@ -116,6 +116,10 @@ services:
       context: infra/nginx
       dockerfile: Dockerfile.nginx
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
     ports:
       - "80:80"
       - "443:443"
