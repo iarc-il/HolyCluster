@@ -10,7 +10,6 @@ REF="$1"
 
 PREVIOUS_HEAD=$(git rev-parse HEAD)
 
-git fetch --tags
 git checkout "$REF" 2>/dev/null || git checkout -b "$REF" "origin/$REF" 2>/dev/null || true
 # For branches like origin/dev, detach or reset
 if [[ "$REF" == origin/* ]]; then
