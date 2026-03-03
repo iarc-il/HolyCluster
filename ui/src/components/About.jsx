@@ -9,7 +9,7 @@ import use_radio from "@/hooks/useRadio.jsx";
 
 const RELEASES = [
     [
-        "",
+        "3/3/2026",
         [
             "New DXpedition list with dates, sorting, duration tracking",
             "New DXpedition filters in Alert/Show Only/Hide area",
