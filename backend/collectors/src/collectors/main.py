@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import sys
+import re
 from datetime import datetime, timezone
 
 from loguru import logger
@@ -23,12 +24,27 @@ import aiomonitor
 STREAM_API = "stream-api"
 
 
-async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_client) -> dict:
+# Not a perfect validation, but it filters out many useless requests to QRZ.
+def validate_callsign(callsign):
+    has_number = re.search(r"\d", callsign) is not None
+    has_letter = re.search(r"[a-zA-Z]", callsign) is not None
+    has_number and has_letter
+
+
+async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_client) -> dict | None:
     spot["timestamp"] = datetime.now(timezone.utc).timestamp()
 
     band_mode = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"])
     if band_mode is None:
         logger.debug(f"Dropping spot due to invalid band: {spot}")
+        return None
+
+    if not validate_callsign(spot["spotter_callsign"]):
+        logger.info(f"Dropping spot due to invalid spotter callsign: {spot}")
+        return None
+
+    if not validate_callsign(spot["dx_callsign"]):
+        logger.info(f"Dropping spot due to invalid dx callsign: {spot}")
         return None
 
     band, mode, mode_selection = band_mode
