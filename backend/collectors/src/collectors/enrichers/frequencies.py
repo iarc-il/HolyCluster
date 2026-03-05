@@ -32,11 +32,9 @@ modes = load_modes_from_file(Path(__file__).parent / "modes.json")
 
 
 def find_band(frequency: str) -> str:
-    logger.debug(f"{frequency=}")
     frequency_khz = float(frequency)
     for band, start, end in bands:
         if start <= frequency_khz <= end:
-            logger.debug(f"{band=}")
             return band
     logger.debug(f"Band not found for {frequency=}")
     band = ""
@@ -44,7 +42,7 @@ def find_band(frequency: str) -> str:
 
 
 def find_band_and_mode(frequency: str, comment: str) -> Optional[Tuple[str, str, str]]:
-    band = find_band(frequency=frequency)
+    band = find_band(frequency)
     if not band:
         return None
 
@@ -81,7 +79,5 @@ def find_band_and_mode(frequency: str, comment: str) -> Optional[Tuple[str, str,
     else:
         mode = ""
         logger.debug(f"Mode not found for {band=}   {comment=}")
-
-    logger.debug(f"{mode=}   {mode_selection=}")
 
     return band, mode, mode_selection
