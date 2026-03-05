@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from collectors.db.valkey_config import get_valkey_client
 from collectors.enrichers.dxpeditions import is_active_dxpedition
-from collectors.enrichers.frequencies import find_band_and_mode
+from collectors.enrichers.frequencies import InvalidBandError, find_band_and_mode
 from collectors.settings import settings
 from collectors.telnet.runner import (
     run_concurrent_telnet_connections,
@@ -24,30 +24,25 @@ import aiomonitor
 STREAM_API = "stream-api"
 
 
+class InvalidCallsignError(Exception):
+    pass
+
+
 # Not a perfect validation, but it filters out many useless requests to QRZ.
-def validate_callsign(callsign):
+def validate_callsign(callsign, role):
     has_number = re.search(r"\d", callsign) is not None
     has_letter = re.search(r"[a-zA-Z]", callsign) is not None
-    has_number and has_letter
+    if not (has_number and has_letter):
+        raise InvalidCallsignError(f"Invalid {role} callsign: {callsign}")
 
 
-async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_client) -> dict | None:
+async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_client) -> dict:
     spot["timestamp"] = datetime.now(timezone.utc).timestamp()
 
-    band_mode = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"])
-    if band_mode is None:
-        logger.debug(f"Dropping spot due to invalid band: {spot}")
-        return None
+    band, mode, mode_selection = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"])
 
-    if not validate_callsign(spot["spotter_callsign"]):
-        logger.info(f"Dropping spot due to invalid spotter callsign: {spot}")
-        return None
-
-    if not validate_callsign(spot["dx_callsign"]):
-        logger.info(f"Dropping spot due to invalid dx callsign: {spot}")
-        return None
-
-    band, mode, mode_selection = band_mode
+    validate_callsign(spot["spotter_callsign"], "spotter")
+    validate_callsign(spot["dx_callsign"], "dx")
 
     spotter_geo, dx_geo = await asyncio.gather(
         shared_get_geo_details(
@@ -142,6 +137,14 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                         http_client=qrz_manager.http_client,
                         valkey_client=valkey_client,
                     )
+                except InvalidBandError:
+                    logger.debug(f"Dropping spot due to invalid band: {spot}")
+                    await push_drop_event(valkey_client, "invalid_band", str(spot))
+                    continue
+                except InvalidCallsignError as e:
+                    logger.info(f"Dropping spot due to {e}: {spot}")
+                    await push_drop_event(valkey_client, f"invalid_callsign: {e}", str(spot))
+                    continue
                 except GeoException:
                     logger.exception("Dropping spot due to geo exception")
                     await push_drop_event(valkey_client, "geo_exception", str(spot))
@@ -149,11 +152,6 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                 except Exception as e:
                     logger.exception("Unexpected error enriching spot")
                     await push_exception_event(valkey_client, "collector", str(e))
-                    continue
-
-                if enriched_spot is None:
-                    logger.info(f"Dropping spot: {spot}")
-                    await push_drop_event(valkey_client, "invalid_band", str(spot))
                     continue
 
                 logger.debug(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")

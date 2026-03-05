@@ -2,7 +2,7 @@ import csv
 import json
 import re
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from loguru import logger
 
@@ -41,10 +41,14 @@ def find_band(frequency: str) -> str:
     return band
 
 
-def find_band_and_mode(frequency: str, comment: str) -> Optional[Tuple[str, str, str]]:
+class InvalidBandError(Exception):
+    pass
+
+
+def find_band_and_mode(frequency: str, comment: str) -> Tuple[str, str, str]:
     band = find_band(frequency)
     if not band:
-        return None
+        raise InvalidBandError(f"Band not found for frequency={frequency}")
 
     mode = ""
     mode_selection = ""
