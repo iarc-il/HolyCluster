@@ -2,7 +2,7 @@ import csv
 import json
 import re
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from loguru import logger
 
@@ -32,21 +32,23 @@ modes = load_modes_from_file(Path(__file__).parent / "modes.json")
 
 
 def find_band(frequency: str) -> str:
-    logger.debug(f"{frequency=}")
     frequency_khz = float(frequency)
     for band, start, end in bands:
         if start <= frequency_khz <= end:
-            logger.debug(f"{band=}")
             return band
     logger.debug(f"Band not found for {frequency=}")
     band = ""
     return band
 
 
-def find_band_and_mode(frequency: str, comment: str) -> Optional[Tuple[str, str, str]]:
-    band = find_band(frequency=frequency)
+class InvalidBandError(Exception):
+    pass
+
+
+def find_band_and_mode(frequency: str, comment: str) -> Tuple[str, str, str]:
+    band = find_band(frequency)
     if not band:
-        return None
+        raise InvalidBandError(f"Band not found for frequency={frequency}")
 
     mode = ""
     mode_selection = ""
@@ -81,7 +83,5 @@ def find_band_and_mode(frequency: str, comment: str) -> Optional[Tuple[str, str,
     else:
         mode = ""
         logger.debug(f"Mode not found for {band=}   {comment=}")
-
-    logger.debug(f"{mode=}   {mode_selection=}")
 
     return band, mode, mode_selection
