@@ -53,7 +53,7 @@ export default function useSpotWebSocket() {
                         console.warn(`Dropping spot with unknown mode: ${spot.mode}`, spot);
                         return false;
                     }
-                    if (!continents.includes(spot.dx_continent)) {
+                    if (!continents.includes(spot.dx_continent) && spot.dx_callsign != "3Y0K") {
                         console.warn(
                             `Dropping spot with unknown dx_continent: ${spot.dx_continent}`,
                             spot,
