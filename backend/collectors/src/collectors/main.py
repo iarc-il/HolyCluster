@@ -156,7 +156,9 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     continue
                 except GeoException as e:
                     logger.exception("Dropping spot due to geo exception")
-                    await push_drop_event(valkey_client, f"geo_exception ({e.callsign_type}, {e.data_type})", e.callsign)
+                    await push_drop_event(
+                        valkey_client, f"geo_exception ({e.callsign_type}, {e.data_type})", e.callsign
+                    )
                     continue
                 except Exception as e:
                     logger.exception("Unexpected error enriching spot")
@@ -164,6 +166,12 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     continue
 
                 logger.debug(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
+
+                if enriched_spot["spotter_locator"].startswith("AA00") or enriched_spot["dx_locator"].startswith(
+                    "AA00"
+                ):
+                    logger.info(f"Dropping spot with South Pole locator: {enriched_spot.get('dx_callsign')}")
+                    continue
 
                 await add_spot_to_postgres(engine, enriched_spot)
                 await set_timestamp(valkey_client, "collector:last_spot_time")
