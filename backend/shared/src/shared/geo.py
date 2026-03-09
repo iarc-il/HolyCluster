@@ -10,7 +10,10 @@ from shared.qrz import get_locator_from_qrz
 
 
 class GeoException(Exception):
-    pass
+    def __init__(self, callsign: str, callsign_type: str, data_type: str):
+        self.callsign = callsign
+        self.callsign_type = callsign_type
+        self.data_type = data_type
 
 
 class GeoData(BaseModel):
@@ -35,7 +38,7 @@ callsign_to_locator_filename = f"{current_folder}/prefixes_list.csv"
 PREFIXES_TO_LOCATORS = read_csv_to_list_of_tuples(filename=callsign_to_locator_filename)
 
 
-def resolve_locator_from_list(callsign: str, debug: bool = False) -> str | None:
+def resolve_locator_from_list(callsign: str) -> str | None:
     callsign = callsign.upper()
     for regex, locator, country, continent in PREFIXES_TO_LOCATORS:
         if re.match(regex + ".*", callsign):
@@ -43,12 +46,12 @@ def resolve_locator_from_list(callsign: str, debug: bool = False) -> str | None:
     return None
 
 
-def resolve_country_and_continent_from_list(callsign: str, debug: bool = False) -> tuple[str, str]:
+def resolve_country_and_continent_from_list(callsign: str, callsign_type: str) -> tuple[str, str]:
     callsign = callsign.upper()
     for regex, locator, country, continent in PREFIXES_TO_LOCATORS:
         if re.match(regex + ".*", callsign):
             return country, continent
-    raise GeoException(f"Failed to resolve country and continent for {callsign}")
+    raise GeoException(callsign, callsign_type, "country_and_continent")
 
 
 async def get_geo_details(
@@ -57,6 +60,7 @@ async def get_geo_details(
     callsign: str,
     geo_expiration: int,
     http_client,
+    callsign_type,
 ) -> GeoData:
     # Get geo details from cache
     geo_data = await valkey_client.get(callsign)
@@ -73,13 +77,13 @@ async def get_geo_details(
     if locator:
         locator_source = "qrz"
     else:
-        locator = resolve_locator_from_list(callsign=callsign)
+        locator = resolve_locator_from_list(callsign)
         if locator:
             locator_source = "prefixes list"
         else:
-            raise GeoException(f"Missing locator for callsign {callsign}")
+            raise GeoException(callsign, callsign_type, "locator")
 
-    country, continent = resolve_country_and_continent_from_list(callsign=callsign)
+    country, continent = resolve_country_and_continent_from_list(callsign, callsign_type)
     lat, lon = locator_to_coordinates(locator)
 
     geo_data = {

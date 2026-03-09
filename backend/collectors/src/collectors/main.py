@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from loguru import logger
 from shared.db import HolySpot
-from shared.geo import GeoException, get_geo_details as shared_get_geo_details
+from shared.geo import GeoException, get_geo_details
 from shared.metrics import push_drop_event, push_exception_event, set_timestamp
 from shared.qrz import QrzSessionManager
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -45,11 +45,21 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
     validate_callsign(spot["dx_callsign"], "dx")
 
     spotter_geo, dx_geo = await asyncio.gather(
-        shared_get_geo_details(
-            valkey_client, qrz_session_key, spot["spotter_callsign"], settings.valkey_geo_expiration, http_client
+        get_geo_details(
+            valkey_client,
+            qrz_session_key,
+            spot["spotter_callsign"],
+            settings.valkey_geo_expiration,
+            http_client,
+            "spotter",
         ),
-        shared_get_geo_details(
-            valkey_client, qrz_session_key, spot["dx_callsign"], settings.valkey_geo_expiration, http_client
+        get_geo_details(
+            valkey_client,
+            qrz_session_key,
+            spot["dx_callsign"],
+            settings.valkey_geo_expiration,
+            http_client,
+            "dx_callsign",
         ),
     )
 
@@ -145,9 +155,9 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     logger.info(f"Dropping spot due to {e}: {spot}")
                     await push_drop_event(valkey_client, f"invalid_callsign: {e}", str(spot))
                     continue
-                except GeoException:
+                except GeoException as e:
                     logger.exception("Dropping spot due to geo exception")
-                    await push_drop_event(valkey_client, "geo_exception", str(spot))
+                    await push_drop_event(valkey_client, f"geo_exception ({e.callsign_type}, {e.data_type})", e.callsign)
                     continue
                 except Exception as e:
                     logger.exception("Unexpected error enriching spot")
