@@ -153,7 +153,6 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     continue
                 except InvalidCallsignError as e:
                     logger.info(f"Dropping spot due to {e}: {spot}")
-                    await push_drop_event(valkey_client, f"invalid_callsign: {e}", str(spot))
                     continue
                 except GeoException as e:
                     logger.exception("Dropping spot due to geo exception")
