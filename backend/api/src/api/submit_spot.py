@@ -13,9 +13,23 @@ CLUSTER_PORT = 7300
 logger.add(settings.spots_log_path, level="DEBUG")
 
 
-class InvalidSpotter(Exception):
+class UserInputError(Exception):
+    pass
+
+
+class InvalidSpotter(UserInputError):
     def __str__(self):
         return "Invalid spotter"
+
+
+class InvalidDXCallsign(UserInputError):
+    def __str__(self):
+        return "Invalid dx callsign"
+
+
+class InvalidFrequency(UserInputError):
+    def __str__(self):
+        return "Invalid frequency"
 
 
 class InitialConnectionFailed(Exception):
@@ -39,16 +53,6 @@ class CommandError(Exception):
 class OtherError(Exception):
     def __str__(self):
         return "Other error"
-
-
-class InvalidFrequency(Exception):
-    def __str__(self):
-        return "Invalid frequency"
-
-
-class InvalidDXCallsign(Exception):
-    def __str__(self):
-        return "Invalid dx callsign"
 
 
 class ClusterConnectionFailed(Exception):
@@ -107,6 +111,11 @@ async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
         if data["dx_callsign"] == "":
             raise InvalidDXCallsign()
 
+        try:
+            freq = float(data["freq"])
+        except (ValueError, TypeError):
+            raise InvalidFrequency()
+
         reader, writer = await connect_to_server()
         await expect_lines(
             reader,
@@ -128,11 +137,11 @@ async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
         else:
             command = "DX"
 
-        spot_command = f"{command} {float(data['freq'])} {data['dx_callsign']} {data['comment']}\n"
+        spot_command = f"{command} {freq} {data['dx_callsign']} {data['comment']}\n"
         logger.info(f"Command: {spot_command}")
         writer.write(spot_command.encode())
 
-        regex = re.compile(rf"DX de\s*{data['spotter_callsign']}:\s*{float(data['freq'])}\s*{data['dx_callsign']}")
+        regex = re.compile(rf"DX de\s*{data['spotter_callsign']}:\s*{freq}\s*{data['dx_callsign']}")
         await expect_lines(
             reader,
             regex,
@@ -151,6 +160,14 @@ async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
 
         await websocket.send_json({"status": "success"})
         logger.info(f"Spot submitted sucessfully: {data}")
+    except UserInputError as e:
+        response = {
+            "status": "failure",
+            "type": e.__class__.__name__,
+            "error_data": str(e),
+        }
+        logger.info(f"Invalid user input for spot: {data}, Response: {response}")
+        await websocket.send_json(response)
     except Exception as e:
         response = {
             "status": "failure",
