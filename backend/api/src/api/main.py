@@ -197,6 +197,7 @@ async def get_locator(callsign: str):
             callsign,
             settings.valkey_geo_expiration,
             app.state.http_client,
+            "user_request",
         )
     except GeoException:
         geo_data = None
