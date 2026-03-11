@@ -46,6 +46,7 @@ export default function useSpotWebSocket() {
                     if (spot.mode === "DIGITAL") spot.mode = "DIGI";
                     spot.band = normalize_band(spot.band);
                     spot.dx_country = shorten_dxcc(spot.dx_country);
+                    spot.spotter_country = shorten_dxcc(spot.spotter_country);
                     return spot;
                 })
                 .filter(spot => {
