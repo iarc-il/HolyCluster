@@ -72,7 +72,8 @@ async def telnet_and_collect(
     Push spots to output_queue for processing.
     """
     reconnect_attempts = 0
-    backoff_delays = [60, 300, 600, 1200, 2400, 3600]  # 1, 5, 10, 20, 40, 60 minutes
+    INITIAL_BACKOFF = 60
+    MAX_BACKOFF = 86400  # 1 day
 
     log_filename_prefix = os.path.join(telnet_log_dir, host)
     task_logger = open_task_log_file(log_filename_prefix=log_filename_prefix)
@@ -158,11 +159,7 @@ async def telnet_and_collect(
                 except asyncio.TimeoutError:
                     logger.warning(f"{host}:{port} Timeout waiting for writer to close")
 
-        # Exponential backoff logic
-        if reconnect_attempts < len(backoff_delays):
-            delay = backoff_delays[reconnect_attempts]
-        else:
-            delay = backoff_delays[-1]
+        delay = min(INITIAL_BACKOFF * (2 ** reconnect_attempts), MAX_BACKOFF)
 
         task_logger.info(
             f"{host}:{port} Reconnection attempt {reconnect_attempts + 1}. Waiting for {delay // 60} minutes before retrying."
