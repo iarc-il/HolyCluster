@@ -159,7 +159,7 @@ async def telnet_and_collect(
                 except asyncio.TimeoutError:
                     logger.warning(f"{host}:{port} Timeout waiting for writer to close")
 
-        delay = min(INITIAL_BACKOFF * (2 ** reconnect_attempts), MAX_BACKOFF)
+        delay = min(INITIAL_BACKOFF * (2**reconnect_attempts), MAX_BACKOFF)
 
         task_logger.info(
             f"{host}:{port} Reconnection attempt {reconnect_attempts + 1}. Waiting for {delay // 60} minutes before retrying."
