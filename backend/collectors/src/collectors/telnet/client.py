@@ -98,7 +98,12 @@ async def telnet_and_collect(
                 await writer.drain()
 
             while True:
-                data = await asyncio.wait_for(reader.read(4096), timeout=200)
+                try:
+                    data = await asyncio.wait_for(reader.read(4096), timeout=30)
+                except asyncio.TimeoutError:
+                    writer.write(b"\n")
+                    data = await asyncio.wait_for(reader.read(4096), timeout=5)
+
                 if not data:
                     task_logger.error("Connection closed by remote host.")
                     await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
