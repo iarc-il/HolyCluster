@@ -12,6 +12,10 @@ from monitor.state import Alert, CheckState
 
 
 async def run_monitor():
+    if not settings.monitor_enabled:
+        logger.info("Monitor is disabled, exiting...")
+        return
+
     logger.info("Starting monitor...")
 
     valkey = redis.asyncio.Redis(
