@@ -336,7 +336,10 @@ function CanvasMapV2({
             .on("drag", event => {
                 const projection = projection_ref.current;
                 if (!projection || lon_start == null) return;
-                const dx = event.x - drag_start[0];
+                const scale_factor = base_scale_ref.current
+                    ? projection.scale() / base_scale_ref.current
+                    : 1;
+                const dx = (event.x - drag_start[0]) / scale_factor;
                 current_lon = mod(lon_start + dx + 180, 360) - 180;
 
                 projection.rotate([current_lon, -center_lat, 0]);
