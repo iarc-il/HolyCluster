@@ -27,7 +27,13 @@ function with_dpr(ctx, fn) {
     ctx.restore();
 }
 
-function do_redraw(dims, projection_ref, render_state_ref, canvas_refs) {
+function do_redraw(
+    dims,
+    projection_ref,
+    render_state_ref,
+    canvas_refs,
+    { skip_shadow = false } = {},
+) {
     const projection = projection_ref.current;
     if (!dims || !projection) return;
     const {
@@ -87,14 +93,16 @@ function do_redraw(dims, projection_ref, render_state_ref, canvas_refs) {
         });
     }
 
-    // Shadow
-    const shadow_canvas = canvas_refs.shadow_canvas_ref.current;
-    if (shadow_canvas) {
-        const ctx = shadow_canvas.getContext("2d");
-        ctx.clearRect(0, 0, shadow_canvas.width, shadow_canvas.height);
-        with_dpr(ctx, () => {
-            draw_shadow_map(ctx, spots, dims, projection);
-        });
+    // Shadow (skip during drag for performance — only needed for hover hit detection)
+    if (!skip_shadow) {
+        const shadow_canvas = canvas_refs.shadow_canvas_ref.current;
+        if (shadow_canvas) {
+            const ctx = shadow_canvas.getContext("2d");
+            ctx.clearRect(0, 0, shadow_canvas.width, shadow_canvas.height);
+            with_dpr(ctx, () => {
+                draw_shadow_map(ctx, spots, dims, projection);
+            });
+        }
     }
 }
 
@@ -322,6 +330,7 @@ function CanvasMapV2({
         let rot_start = null;
         let drag_start = null;
         let current_rot = null;
+        let is_drawing = false;
 
         const drag = d3
             .drag()
@@ -344,9 +353,18 @@ function CanvasMapV2({
                 current_rot = [new_lon, new_lat, 0];
 
                 projection.rotate(current_rot);
-                do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
+                if (!is_drawing) {
+                    is_drawing = true;
+                    requestAnimationFrame(() => {
+                        do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
+                            skip_shadow: true,
+                        });
+                        is_drawing = false;
+                    });
+                }
             })
             .on("end", () => {
+                do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
                 if (current_rot != null) {
                     const final_lon = -current_rot[0];
                     const final_lat = -current_rot[1];
