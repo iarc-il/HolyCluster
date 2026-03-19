@@ -1,10 +1,8 @@
 import * as d3 from "d3";
 import { century, equationOfTime, declination } from "solar-calculator";
-import geojsonRewind from "@mapbox/geojson-rewind";
+import dxcc_map from "@/assets/dxcc_map.json";
 
-import dxcc_map_raw from "@/assets/dxcc_map.json";
-
-export const dxcc_map = geojsonRewind(dxcc_map_raw, true);
+export { dxcc_map };
 
 function generate_concentric_circles(center_x, center_y, radius, circle_count = 6) {
     const circles = [];

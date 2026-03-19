@@ -7,7 +7,7 @@ import Maidenhead from "maidenhead";
 import geojsonRewind from "@mapbox/geojson-rewind";
 import { century, equationOfTime, declination } from "solar-calculator";
 
-import dxcc_map_raw from "@/assets/dxcc_map.json";
+import dxcc_map from "@/assets/dxcc_map.json";
 import MapAngles from "@/components/MapAngles.jsx";
 import Spot from "@/components/Spot/index.jsx";
 import SpotPopup from "@/components/SpotPopup.jsx";
@@ -18,8 +18,6 @@ import ToggleSVG from "./ui/ToggleSVG";
 
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-
-const dxcc_map = geojsonRewind(dxcc_map_raw, true);
 
 const map_angles_diff = 15;
 
