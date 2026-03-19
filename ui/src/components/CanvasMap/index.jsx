@@ -106,7 +106,7 @@ function do_redraw(
     }
 }
 
-function CanvasMapV2({
+function CanvasMap({
     map_controls,
     set_map_controls,
     set_cat_to_spot,
@@ -267,133 +267,87 @@ function CanvasMapV2({
         };
     }, [dims, center_lon, center_lat, radius_in_km, spots]);
 
-    // Zoom behavior
+    // Wheel zoom (desktop)
     useEffect(() => {
         if (!dims || !projection_ref.current) return;
         const shadow_canvas = shadow_canvas_ref.current;
         if (!shadow_canvas) return;
 
-        const selection = d3.select(shadow_canvas);
         let is_drawing = false;
 
-        const zoom = d3
-            .zoom()
-            .scaleExtent([1, max_radius / 1000])
-            .filter(event => {
-                return (
-                    event.type === "wheel" ||
-                    event.type === "touchstart" ||
-                    event.type === "touchmove"
-                );
-            })
-            .on("zoom", event => {
-                if (!event.sourceEvent) return;
+        function on_wheel(event) {
+            event.preventDefault();
+            const projection = projection_ref.current;
+            if (!projection) return;
 
-                const k = event.transform.k;
-                const projection = projection_ref.current;
-                if (!projection) return;
-                projection.scale(k * base_scale_ref.current);
+            const zoom_factor = event.deltaY > 0 ? 0.9 : 1.1;
+            const current_k = projection.scale() / base_scale_ref.current;
+            const new_k = Math.max(1, Math.min(max_radius / 1000, current_k * zoom_factor));
+            projection.scale(new_k * base_scale_ref.current);
 
-                if (!is_drawing) {
-                    is_drawing = true;
-                    requestAnimationFrame(() => {
-                        do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
-                        is_drawing = false;
-                    });
-                }
+            if (!is_drawing) {
+                is_drawing = true;
+                requestAnimationFrame(() => {
+                    do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
+                    is_drawing = false;
+                });
+            }
 
-                clearTimeout(zoom_settle_timer_ref.current);
-                zoom_settle_timer_ref.current = setTimeout(() => {
-                    const zoom_radius = Math.round(max_radius / k / 100) * 100;
-                    set_auto_radius(false);
-                    set_radius_in_km(Math.max(zoom_radius, 100));
-                }, 150);
-            });
+            clearTimeout(zoom_settle_timer_ref.current);
+            zoom_settle_timer_ref.current = setTimeout(() => {
+                const zoom_radius = Math.round(max_radius / new_k / 100) * 100;
+                set_auto_radius(false);
+                set_radius_in_km(Math.max(zoom_radius, 100));
+            }, 150);
+        }
 
-        // Sync d3 zoom to current radius
-        const k_from_radius = max_radius / radius_in_km;
-        selection.call(zoom);
-        selection.call(zoom.transform, d3.zoomIdentity.scale(k_from_radius));
+        shadow_canvas.addEventListener("wheel", on_wheel, { passive: false });
 
         return () => {
             clearTimeout(zoom_settle_timer_ref.current);
-            selection.on(".zoom", null);
+            shadow_canvas.removeEventListener("wheel", on_wheel);
         };
-    }, [dims, radius_in_km]);
+    }, [dims]);
 
-    // Drag behavior
+    // Pointer interaction: drag, pinch-zoom, hover, tap, click
     useEffect(() => {
         if (!dims || !projection_ref.current) return;
         const shadow_canvas = shadow_canvas_ref.current;
         if (!shadow_canvas) return;
 
+        // Gesture state machine: idle | pending | dragging | pinching
+        let gesture_state = "idle";
+        const pointers = new Map();
+
+        // Drag state
         let rot_start = null;
         let drag_start = null;
         let current_rot = null;
         let is_drawing = false;
 
-        const drag = d3
-            .drag()
-            .filter(event => {
-                return event.button === 0 && !event.ctrlKey && !event.metaKey;
-            })
-            .on("start", event => {
-                drag_start = [event.x, event.y];
-                const projection = projection_ref.current;
-                if (projection) rot_start = projection.rotate();
-            })
-            .on("drag", event => {
-                const projection = projection_ref.current;
-                if (!projection || rot_start == null) return;
-                const deg_per_px = 180 / (Math.PI * projection.scale());
-                const dx = (event.x - drag_start[0]) * deg_per_px;
-                const dy = (event.y - drag_start[1]) * deg_per_px;
-                const new_lon = mod(rot_start[0] + dx + 180, 360) - 180;
-                const new_lat = Math.max(-90, Math.min(90, rot_start[1] - dy));
-                current_rot = [new_lon, new_lat, 0];
+        // Tap detection
+        let pending_start_pos = null;
+        let pending_start_time = null;
 
-                projection.rotate(current_rot);
-                if (!is_drawing) {
-                    is_drawing = true;
-                    requestAnimationFrame(() => {
-                        do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
-                            skip_shadow: true,
-                        });
-                        is_drawing = false;
-                    });
-                }
-            })
-            .on("end", () => {
-                do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
-                if (current_rot != null) {
-                    const final_lon = -current_rot[0];
-                    const final_lat = -current_rot[1];
-                    const displayed_locator = new Maidenhead(final_lat, final_lon).locator.slice(
-                        0,
-                        6,
-                    );
-                    set_map_controls(state => {
-                        state.location = {
-                            displayed_locator,
-                            location: [final_lon, final_lat],
-                        };
-                    });
-                }
-            });
+        // Pinch state
+        let pinch_start_distance = null;
+        let pinch_start_radius = null;
 
-        const selection = d3.select(shadow_canvas);
-        selection.call(drag);
+        const TAP_THRESHOLD_PX = 5;
+        const TAP_THRESHOLD_MS = 300;
 
-        return () => {
-            selection.on(".drag", null);
-        };
-    }, [dims, set_map_controls]);
+        function get_offset(event) {
+            const rect = shadow_canvas.getBoundingClientRect();
+            return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+        }
 
-    // Mouse interaction: hover and click
-    useEffect(() => {
-        if (!dims || !projection_ref.current) return;
-        const shadow_canvas = shadow_canvas_ref.current;
-        if (!shadow_canvas) return;
+        function get_pointer_distance() {
+            const pts = Array.from(pointers.values());
+            if (pts.length < 2) return 0;
+            const dx = pts[1].x - pts[0].x;
+            const dy = pts[1].y - pts[0].y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
 
         function get_data_from_shadow_canvas(x, y) {
             const ctx = shadow_canvas.getContext("2d");
@@ -405,40 +359,231 @@ function CanvasMapV2({
             return [type, spot_id];
         }
 
-        function on_mouse_move(event) {
-            const { offsetX, offsetY } = event;
-            const searched = get_data_from_shadow_canvas(offsetX, offsetY);
-            if (searched != null) {
-                const [type, spot_id] = searched;
-                if (hovered_spot.source !== type || hovered_spot.id !== spot_id) {
-                    set_hovered_spot({ source: type, id: spot_id });
+        function perform_drag(x, y) {
+            const projection = projection_ref.current;
+            if (!projection || rot_start == null) return;
+            const deg_per_px = 180 / (Math.PI * projection.scale());
+            const dx = (x - drag_start[0]) * deg_per_px;
+            const dy = (y - drag_start[1]) * deg_per_px;
+            const new_lon = mod(rot_start[0] + dx + 180, 360) - 180;
+            const new_lat = Math.max(-90, Math.min(90, rot_start[1] - dy));
+            current_rot = [new_lon, new_lat, 0];
+
+            projection.rotate(current_rot);
+            if (!is_drawing) {
+                is_drawing = true;
+                requestAnimationFrame(() => {
+                    do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
+                        skip_shadow: true,
+                    });
+                    is_drawing = false;
+                });
+            }
+        }
+
+        function finalize_drag() {
+            do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
+            if (current_rot != null) {
+                const final_lon = -current_rot[0];
+                const final_lat = -current_rot[1];
+                const displayed_locator = new Maidenhead(final_lat, final_lon).locator.slice(0, 6);
+                set_map_controls(state => {
+                    state.location = {
+                        displayed_locator,
+                        location: [final_lon, final_lat],
+                    };
+                });
+            }
+            rot_start = null;
+            drag_start = null;
+            current_rot = null;
+        }
+
+        function start_drag(x, y) {
+            drag_start = [x, y];
+            const projection = projection_ref.current;
+            if (projection) rot_start = projection.rotate();
+        }
+
+        function handle_tap(x, y, event) {
+            const searched = get_data_from_shadow_canvas(x, y);
+            if (event.pointerType === "mouse") {
+                if (searched != null) {
+                    const [, spot_id] = searched;
+                    set_pinned_spot(spot_id);
+                } else {
+                    // Single click on empty area does nothing on mouse (double-click re-centers)
                 }
             } else {
-                if (hovered_spot.source != null || hovered_spot.id != null) {
-                    set_hovered_spot({ source: null, id: null });
+                // Touch: tap to pin/unpin
+                if (searched != null) {
+                    const [, spot_id] = searched;
+                    if (pinned_spot === spot_id) {
+                        set_pinned_spot(null);
+                    } else {
+                        set_pinned_spot(spot_id);
+                    }
+                } else {
+                    if (pinned_spot != null) {
+                        set_pinned_spot(null);
+                    }
                 }
             }
         }
 
-        function on_click(event) {
-            const { offsetX, offsetY } = event;
-            const searched = get_data_from_shadow_canvas(offsetX, offsetY);
+        function on_pointer_down(event) {
+            const pos = get_offset(event);
+            pointers.set(event.pointerId, pos);
+            shadow_canvas.setPointerCapture(event.pointerId);
+
+            if (pointers.size === 1) {
+                // Single pointer — enter pending state
+                gesture_state = "pending";
+                pending_start_pos = pos;
+                pending_start_time = event.timeStamp;
+            } else if (pointers.size === 2) {
+                // Second pointer — enter pinch mode
+                gesture_state = "pinching";
+                pending_start_pos = null;
+                pending_start_time = null;
+                pinch_start_distance = get_pointer_distance();
+                pinch_start_radius = radius_in_km;
+            }
+        }
+
+        function on_pointer_move(event) {
+            const pos = get_offset(event);
+            pointers.set(event.pointerId, pos);
+
+            if (gesture_state === "pending") {
+                const dx = pos.x - pending_start_pos.x;
+                const dy = pos.y - pending_start_pos.y;
+                if (Math.sqrt(dx * dx + dy * dy) > TAP_THRESHOLD_PX) {
+                    gesture_state = "dragging";
+                    start_drag(pending_start_pos.x, pending_start_pos.y);
+                    pending_start_pos = null;
+                    pending_start_time = null;
+                    perform_drag(pos.x, pos.y);
+                }
+            } else if (gesture_state === "dragging") {
+                perform_drag(pos.x, pos.y);
+            } else if (gesture_state === "pinching") {
+                const new_distance = get_pointer_distance();
+                if (pinch_start_distance > 0 && new_distance > 0) {
+                    const scale_ratio = new_distance / pinch_start_distance;
+                    const new_radius = Math.round(pinch_start_radius / scale_ratio / 100) * 100;
+                    const clamped_radius = Math.max(100, Math.min(max_radius, new_radius));
+
+                    const projection = projection_ref.current;
+                    if (projection) {
+                        const new_k = max_radius / clamped_radius;
+                        projection.scale(new_k * base_scale_ref.current);
+                        if (!is_drawing) {
+                            is_drawing = true;
+                            requestAnimationFrame(() => {
+                                do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
+                                    skip_shadow: true,
+                                });
+                                is_drawing = false;
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Mouse hover (desktop only)
+            if (event.pointerType === "mouse" && gesture_state !== "dragging") {
+                const searched = get_data_from_shadow_canvas(pos.x, pos.y);
+                if (searched != null) {
+                    const [type, spot_id] = searched;
+                    if (hovered_spot.source !== type || hovered_spot.id !== spot_id) {
+                        set_hovered_spot({ source: type, id: spot_id });
+                    }
+                } else {
+                    if (hovered_spot.source != null || hovered_spot.id != null) {
+                        set_hovered_spot({ source: null, id: null });
+                    }
+                }
+            }
+        }
+
+        function on_pointer_up(event) {
+            const was_state = gesture_state;
+            pointers.delete(event.pointerId);
+
+            if (was_state === "pending") {
+                const elapsed = event.timeStamp - pending_start_time;
+                if (elapsed < TAP_THRESHOLD_MS) {
+                    handle_tap(pending_start_pos.x, pending_start_pos.y, event);
+                }
+                pending_start_pos = null;
+                pending_start_time = null;
+                gesture_state = "idle";
+            } else if (was_state === "dragging") {
+                finalize_drag();
+                gesture_state = "idle";
+            } else if (was_state === "pinching") {
+                if (pointers.size === 1) {
+                    // Transition pinching -> dragging with remaining pointer
+                    const remaining = Array.from(pointers.values())[0];
+                    start_drag(remaining.x, remaining.y);
+                    // Settle the pinch zoom radius
+                    const projection = projection_ref.current;
+                    if (projection) {
+                        const current_k = projection.scale() / base_scale_ref.current;
+                        const zoom_radius = Math.round(max_radius / current_k / 100) * 100;
+                        set_auto_radius(false);
+                        set_radius_in_km(Math.max(zoom_radius, 100));
+                    }
+                    gesture_state = "dragging";
+                } else {
+                    // Both pointers lifted — full redraw with shadow
+                    const projection = projection_ref.current;
+                    if (projection) {
+                        const current_k = projection.scale() / base_scale_ref.current;
+                        const zoom_radius = Math.round(max_radius / current_k / 100) * 100;
+                        set_auto_radius(false);
+                        set_radius_in_km(Math.max(zoom_radius, 100));
+                    }
+                    do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
+                    gesture_state = "idle";
+                }
+                pinch_start_distance = null;
+                pinch_start_radius = null;
+            }
+        }
+
+        function on_pointer_leave(event) {
+            pointers.delete(event.pointerId);
+            if (event.pointerType === "mouse") {
+                if (hovered_spot.source != null || hovered_spot.id != null) {
+                    set_hovered_spot({ source: null, id: null });
+                }
+            }
+            if (pointers.size === 0) {
+                if (gesture_state === "dragging") {
+                    finalize_drag();
+                }
+                gesture_state = "idle";
+            }
+        }
+
+        // Desktop double-click (mouse only)
+        function on_dblclick(event) {
+            const pos = get_offset(event);
+            const searched = get_data_from_shadow_canvas(pos.x, pos.y);
             if (searched != null) {
                 const [, spot_id] = searched;
-                if (event.detail === 1) {
-                    set_pinned_spot(spot_id);
-                } else if (event.detail === 2) {
-                    const spot = spots.find(s => s.id === spot_id);
-                    if (spot) set_cat_to_spot(spot);
-                }
-            } else if (event.detail === 2) {
+                const spot = spots.find(s => s.id === spot_id);
+                if (spot) set_cat_to_spot(spot);
+            } else {
                 const projection = projection_ref.current;
                 if (!projection) return;
                 const distance_from_center = Math.sqrt(
-                    (dims.center_x - offsetX) ** 2 + (dims.center_y - offsetY) ** 2,
+                    (dims.center_x - pos.x) ** 2 + (dims.center_y - pos.y) ** 2,
                 );
                 if (distance_from_center <= dims.radius) {
-                    const inverted = projection.invert([offsetX, offsetY]);
+                    const inverted = projection.invert([pos.x, pos.y]);
                     if (!inverted) return;
                     const [lon, lat] = inverted;
                     const displayed_locator = new Maidenhead(lat, lon).locator.slice(0, 6);
@@ -452,25 +597,27 @@ function CanvasMapV2({
             }
         }
 
-        function on_mouse_leave() {
-            if (hovered_spot.source != null || hovered_spot.id != null) {
-                set_hovered_spot({ source: null, id: null });
-            }
-        }
-
-        shadow_canvas.addEventListener("mousemove", on_mouse_move);
-        shadow_canvas.addEventListener("click", on_click);
-        shadow_canvas.addEventListener("mouseleave", on_mouse_leave);
+        shadow_canvas.addEventListener("pointerdown", on_pointer_down);
+        shadow_canvas.addEventListener("pointermove", on_pointer_move);
+        shadow_canvas.addEventListener("pointerup", on_pointer_up);
+        shadow_canvas.addEventListener("pointerleave", on_pointer_leave);
+        shadow_canvas.addEventListener("pointercancel", on_pointer_leave);
+        shadow_canvas.addEventListener("dblclick", on_dblclick);
 
         return () => {
-            shadow_canvas.removeEventListener("mousemove", on_mouse_move);
-            shadow_canvas.removeEventListener("click", on_click);
-            shadow_canvas.removeEventListener("mouseleave", on_mouse_leave);
+            shadow_canvas.removeEventListener("pointerdown", on_pointer_down);
+            shadow_canvas.removeEventListener("pointermove", on_pointer_move);
+            shadow_canvas.removeEventListener("pointerup", on_pointer_up);
+            shadow_canvas.removeEventListener("pointerleave", on_pointer_leave);
+            shadow_canvas.removeEventListener("pointercancel", on_pointer_leave);
+            shadow_canvas.removeEventListener("dblclick", on_dblclick);
         };
     }, [
         dims,
+        radius_in_km,
         spots,
         hovered_spot,
+        pinned_spot,
         set_hovered_spot,
         set_pinned_spot,
         set_cat_to_spot,
@@ -514,7 +661,11 @@ function CanvasMapV2({
         <div
             ref={div_ref}
             className="relative h-full w-full"
-            style={{ backgroundColor: colors.theme.background }}
+            style={{
+                backgroundColor: colors.theme.background,
+                touchAction: "none",
+                userSelect: "none",
+            }}
         >
             <canvas
                 className="absolute top-0 left-0"
@@ -535,7 +686,7 @@ function CanvasMapV2({
                 ref={shadow_canvas_ref}
                 width={canvas_width}
                 height={canvas_height}
-                style={canvas_style}
+                style={{ ...canvas_style, touchAction: "none", userSelect: "none" }}
             />
             <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
                 <g className="font-medium text-lg select-none">
@@ -592,4 +743,4 @@ function CanvasMapV2({
     );
 }
 
-export default CanvasMapV2;
+export default CanvasMap;
