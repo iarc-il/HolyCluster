@@ -69,6 +69,7 @@ const dxcc_to_country_flag = {
     "Glorioso Islands": "French Southern and Antarctic Lands",
     "Ivory Coast": "Côte d'Ivoire (Ivory Coast)",
     "St. Paul Island": "Canada",
+    "Sable Island": "Canada",
 };
 
 const dxcc_to_short_dxcc = {
