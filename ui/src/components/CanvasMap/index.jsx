@@ -319,9 +319,9 @@ function CanvasMapV2({
         const shadow_canvas = shadow_canvas_ref.current;
         if (!shadow_canvas) return;
 
-        let lon_start = null;
+        let rot_start = null;
         let drag_start = null;
-        let current_lon = null;
+        let current_rot = null;
 
         const drag = d3
             .drag()
@@ -331,31 +331,33 @@ function CanvasMapV2({
             .on("start", event => {
                 drag_start = [event.x, event.y];
                 const projection = projection_ref.current;
-                if (projection) lon_start = projection.rotate()[0];
+                if (projection) rot_start = projection.rotate();
             })
             .on("drag", event => {
                 const projection = projection_ref.current;
-                if (!projection || lon_start == null) return;
-                const scale_factor = base_scale_ref.current
-                    ? projection.scale() / base_scale_ref.current
-                    : 1;
-                const dx = (event.x - drag_start[0]) / scale_factor;
-                current_lon = mod(lon_start + dx + 180, 360) - 180;
+                if (!projection || rot_start == null) return;
+                const deg_per_px = 180 / (Math.PI * projection.scale());
+                const dx = (event.x - drag_start[0]) * deg_per_px;
+                const dy = (event.y - drag_start[1]) * deg_per_px;
+                const new_lon = mod(rot_start[0] + dx + 180, 360) - 180;
+                const new_lat = Math.max(-90, Math.min(90, rot_start[1] - dy));
+                current_rot = [new_lon, new_lat, 0];
 
-                projection.rotate([current_lon, -center_lat, 0]);
+                projection.rotate(current_rot);
                 do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
             })
             .on("end", () => {
-                if (current_lon != null) {
-                    const final_lon = -current_lon;
-                    const displayed_locator = new Maidenhead(center_lat, final_lon).locator.slice(
+                if (current_rot != null) {
+                    const final_lon = -current_rot[0];
+                    const final_lat = -current_rot[1];
+                    const displayed_locator = new Maidenhead(final_lat, final_lon).locator.slice(
                         0,
                         6,
                     );
                     set_map_controls(state => {
                         state.location = {
                             displayed_locator,
-                            location: [final_lon, center_lat],
+                            location: [final_lon, final_lat],
                         };
                     });
                 }
@@ -367,7 +369,7 @@ function CanvasMapV2({
         return () => {
             selection.on(".drag", null);
         };
-    }, [dims, center_lat, set_map_controls]);
+    }, [dims, set_map_controls]);
 
     // Mouse interaction: hover and click
     useEffect(() => {
