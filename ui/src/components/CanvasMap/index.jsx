@@ -132,6 +132,13 @@ function CanvasMap({
 
     const projection_ref = useRef(null);
     const base_scale_ref = useRef(null);
+    const callbacks_ref = useRef({});
+    callbacks_ref.current = {
+        set_map_controls,
+        set_cat_to_spot,
+        set_hovered_spot,
+        set_pinned_spot,
+    };
 
     const canvas_refs = {
         map_canvas_ref,
@@ -165,6 +172,7 @@ function CanvasMap({
         current_freq_spots,
         map_controls,
         settings,
+        radius_in_km,
     };
 
     useMemo(() => {
@@ -355,6 +363,7 @@ function CanvasMap({
             const result = color_to_spot(r, g, b);
             if (result === null) return null;
             const [type, spot_id] = result;
+            const { spots } = render_state_ref.current;
             if (!spots.some(s => s.id === spot_id)) return null;
             return [type, spot_id];
         }
@@ -387,7 +396,7 @@ function CanvasMap({
                 const final_lon = -current_rot[0];
                 const final_lat = -current_rot[1];
                 const displayed_locator = new Maidenhead(final_lat, final_lon).locator.slice(0, 6);
-                set_map_controls(state => {
+                callbacks_ref.current.set_map_controls(state => {
                     state.location = {
                         displayed_locator,
                         location: [final_lon, final_lat],
@@ -410,22 +419,23 @@ function CanvasMap({
             if (event.pointerType === "mouse") {
                 if (searched != null) {
                     const [, spot_id] = searched;
-                    set_pinned_spot(spot_id);
+                    callbacks_ref.current.set_pinned_spot(spot_id);
                 } else {
                     // Single click on empty area does nothing on mouse (double-click re-centers)
                 }
             } else {
                 // Touch: tap to pin/unpin
+                const { pinned_spot: current_pinned } = render_state_ref.current;
                 if (searched != null) {
                     const [, spot_id] = searched;
-                    if (pinned_spot === spot_id) {
-                        set_pinned_spot(null);
+                    if (current_pinned === spot_id) {
+                        callbacks_ref.current.set_pinned_spot(null);
                     } else {
-                        set_pinned_spot(spot_id);
+                        callbacks_ref.current.set_pinned_spot(spot_id);
                     }
                 } else {
-                    if (pinned_spot != null) {
-                        set_pinned_spot(null);
+                    if (current_pinned != null) {
+                        callbacks_ref.current.set_pinned_spot(null);
                     }
                 }
             }
@@ -447,7 +457,7 @@ function CanvasMap({
                 pending_start_pos = null;
                 pending_start_time = null;
                 pinch_start_distance = get_pointer_distance();
-                pinch_start_radius = radius_in_km;
+                pinch_start_radius = render_state_ref.current.radius_in_km;
             }
         }
 
@@ -494,14 +504,15 @@ function CanvasMap({
             // Mouse hover (desktop only)
             if (event.pointerType === "mouse" && gesture_state !== "dragging") {
                 const searched = get_data_from_shadow_canvas(pos.x, pos.y);
+                const { hovered_spot: current_hovered } = render_state_ref.current;
                 if (searched != null) {
                     const [type, spot_id] = searched;
-                    if (hovered_spot.source !== type || hovered_spot.id !== spot_id) {
-                        set_hovered_spot({ source: type, id: spot_id });
+                    if (current_hovered.source !== type || current_hovered.id !== spot_id) {
+                        callbacks_ref.current.set_hovered_spot({ source: type, id: spot_id });
                     }
                 } else {
-                    if (hovered_spot.source != null || hovered_spot.id != null) {
-                        set_hovered_spot({ source: null, id: null });
+                    if (current_hovered.source != null || current_hovered.id != null) {
+                        callbacks_ref.current.set_hovered_spot({ source: null, id: null });
                     }
                 }
             }
@@ -556,8 +567,9 @@ function CanvasMap({
         function on_pointer_leave(event) {
             pointers.delete(event.pointerId);
             if (event.pointerType === "mouse") {
-                if (hovered_spot.source != null || hovered_spot.id != null) {
-                    set_hovered_spot({ source: null, id: null });
+                const { hovered_spot: current_hovered } = render_state_ref.current;
+                if (current_hovered.source != null || current_hovered.id != null) {
+                    callbacks_ref.current.set_hovered_spot({ source: null, id: null });
                 }
             }
             if (pointers.size === 0) {
@@ -574,8 +586,9 @@ function CanvasMap({
             const searched = get_data_from_shadow_canvas(pos.x, pos.y);
             if (searched != null) {
                 const [, spot_id] = searched;
+                const { spots } = render_state_ref.current;
                 const spot = spots.find(s => s.id === spot_id);
-                if (spot) set_cat_to_spot(spot);
+                if (spot) callbacks_ref.current.set_cat_to_spot(spot);
             } else {
                 const projection = projection_ref.current;
                 if (!projection) return;
@@ -587,7 +600,7 @@ function CanvasMap({
                     if (!inverted) return;
                     const [lon, lat] = inverted;
                     const displayed_locator = new Maidenhead(lat, lon).locator.slice(0, 6);
-                    set_map_controls(state => {
+                    callbacks_ref.current.set_map_controls(state => {
                         state.location = {
                             displayed_locator,
                             location: [lon, lat],
@@ -612,17 +625,7 @@ function CanvasMap({
             shadow_canvas.removeEventListener("pointercancel", on_pointer_leave);
             shadow_canvas.removeEventListener("dblclick", on_dblclick);
         };
-    }, [
-        dims,
-        radius_in_km,
-        spots,
-        hovered_spot,
-        pinned_spot,
-        set_hovered_spot,
-        set_pinned_spot,
-        set_cat_to_spot,
-        set_map_controls,
-    ]);
+    }, [dims]);
 
     // Compute azimuth for hovered/pinned spot
     const hovered_spot_data = spots.find(spot => spot.id == hovered_spot.id);
