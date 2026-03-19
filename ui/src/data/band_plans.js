@@ -118,6 +118,15 @@ export const band_plans = {
             { name: "FT4", freq: 28180, color: ft4_color },
         ],
     },
+    8: {
+        min: 40650,
+        max: 40700,
+        ranges: [
+            { name: "cw", min: 40650, max: 40670, color: cw_color },
+            { name: "ssb", min: 40670, max: 40700, color: ssb_color },
+        ],
+        features: [{ name: "FT8", freq: 40680, color: ft8_color }],
+    },
     6: {
         min: 50000,
         max: 52000,

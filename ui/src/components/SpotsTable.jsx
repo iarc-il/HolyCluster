@@ -298,6 +298,8 @@ function update_parity_map(parity, prev_sort, table_sort, spots) {
             } else {
                 parity.set(id, true);
             }
+        } else if (i > 0 && parity.get(id) === parity.get(spots[i - 1].id)) {
+            parity.set(id, !parity.get(spots[i - 1].id));
         }
     }
 }

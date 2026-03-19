@@ -64,6 +64,9 @@ def find_band_and_mode(frequency: str, comment: str) -> Tuple[str, str, str]:
     elif re.search("FT4", comment.upper()):
         mode = "FT4"
         mode_selection = "comment"
+    elif re.search("FT2", comment.upper()):
+        mode = "FT2"
+        mode_selection = "comment"
     elif re.search("RTTY", comment.upper()):
         mode = "RTTY"
         mode_selection = "comment"

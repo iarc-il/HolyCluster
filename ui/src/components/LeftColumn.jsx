@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
@@ -52,66 +52,128 @@ function mode_to_symbol(mode) {
     return shape_to_symbol[get_mode_shape(mode)];
 }
 
-function SpotCount({ count, toggled_ui }) {
-    const anchorRef = useRef(null);
-    const [position, set_position] = useState({ top: 0, left: 0 });
+function SpotCount({ count, toggled_ui, overlay_el }) {
+    const anchor_ref = useRef(null);
+    const badge_ref = useRef(null);
 
-    const updatePosition = useCallback(() => {
-        if (anchorRef.current && toggled_ui.left_visible) {
-            const rect = anchorRef.current.getBoundingClientRect();
-            set_position({
-                top: rect.top - 4,
-                left: rect.left + 20,
-            });
-        }
-    }, [anchorRef, toggled_ui]);
+    const update_position = useCallback(() => {
+        const anchor = anchor_ref.current;
+        const badge = badge_ref.current;
+        if (!anchor || !badge) return;
+
+        const scroll_container = anchor.closest(".overflow-y-auto");
+        if (!scroll_container) return;
+
+        const anchor_rect = anchor.getBoundingClientRect();
+        const container_rect = scroll_container.getBoundingClientRect();
+
+        badge.style.top =
+            anchor_rect.top - container_rect.top + scroll_container.scrollTop - 4 + "px";
+        badge.style.left = anchor_rect.left - container_rect.left + 20 + "px";
+    }, []);
 
     useEffect(() => {
-        updatePosition();
+        update_position();
 
-        const scrollContainer = anchorRef.current?.closest(".overflow-y-auto");
-        if (scrollContainer) {
-            scrollContainer.addEventListener("scroll", updatePosition);
-            window.addEventListener("resize", updatePosition);
-            return () => {
-                scrollContainer.removeEventListener("scroll", updatePosition);
-                window.removeEventListener("resize", updatePosition);
-            };
-        }
-    }, [anchorRef, toggled_ui]);
+        const scroll_container = anchor_ref.current?.closest(".overflow-y-auto");
+        if (!scroll_container) return;
 
-    const classes = [
-        "inline-flex",
-        "border",
-        "border-gray-900",
-        "bg-red-600",
-        "text-white",
-        "font-medium",
-        "justify-center",
-        "items-center",
-        "rounded-full",
-        "h-5",
-        "w-5",
-        "text-[12px]",
-    ];
+        window.addEventListener("resize", update_position);
+
+        const observer = new MutationObserver(update_position);
+        observer.observe(scroll_container, { childList: true, subtree: true });
+
+        return () => {
+            window.removeEventListener("resize", update_position);
+            observer.disconnect();
+        };
+    }, [update_position, toggled_ui.left_visible, count]);
 
     const is_visible = toggled_ui.left_visible && count !== 0;
 
     return (
         <>
-            <span ref={anchorRef} className="absolute invisible" />
+            <span ref={anchor_ref} className="absolute invisible" />
             {is_visible &&
+                overlay_el &&
                 createPortal(
-                    <span
-                        className="fixed flex w-5 z-50 pointer-events-none"
-                        style={{ top: position.top, left: position.left }}
-                    >
-                        <span className={classes.join(" ")}>{count}</span>
+                    <span ref={badge_ref} className="absolute flex w-5 pointer-events-none">
+                        <span className="inline-flex border border-gray-900 bg-red-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-[12px]">
+                            {count}
+                        </span>
                     </span>,
-                    document.body,
+                    overlay_el,
                 )}
         </>
     );
+}
+
+function use_scroll_sync(scroll_ref, overlay_el) {
+    useEffect(() => {
+        const scroll_el = scroll_ref.current;
+        if (!scroll_el || !overlay_el) return;
+
+        let animation = null;
+        let animation_frame_id = null;
+        const has_scroll_timeline = "ScrollTimeline" in window;
+
+        function sync_animation() {
+            if (animation) animation.cancel();
+            animation = null;
+
+            const maxScroll = scroll_el.scrollHeight - scroll_el.clientHeight;
+            if (maxScroll <= 0) {
+                overlay_el.style.transform = "";
+                return;
+            }
+
+            try {
+                animation = overlay_el.animate(
+                    [{ transform: "translateY(0)" }, { transform: `translateY(${-maxScroll}px)` }],
+                    {
+                        fill: "both",
+                        timeline: new ScrollTimeline({
+                            source: scroll_el,
+                            axis: "block",
+                        }),
+                    },
+                );
+            } catch {
+                animation = null;
+            }
+        }
+
+        if (has_scroll_timeline) sync_animation();
+
+        const mutation_observer = new MutationObserver(() => {
+            if (animation_frame_id) cancelAnimationFrame(animation_frame_id);
+            animation_frame_id = requestAnimationFrame(() => {
+                if (has_scroll_timeline) sync_animation();
+                else overlay_el.style.transform = `translateY(${-scroll_el.scrollTop}px)`;
+            });
+        });
+        mutation_observer.observe(scroll_el, { childList: true, subtree: true });
+
+        function on_scroll() {
+            overlay_el.style.transform = `translateY(${-scroll_el.scrollTop}px)`;
+        }
+        if (!has_scroll_timeline) {
+            scroll_el.addEventListener("scroll", on_scroll, { passive: true });
+        }
+
+        function on_resize() {
+            if (has_scroll_timeline) sync_animation();
+        }
+        window.addEventListener("resize", on_resize);
+
+        return () => {
+            if (animation) animation.cancel();
+            if (animation_frame_id) cancelAnimationFrame(animation_frame_id);
+            mutation_observer.disconnect();
+            scroll_el.removeEventListener("scroll", on_scroll);
+            window.removeEventListener("resize", on_resize);
+        };
+    }, [scroll_ref, overlay_el]);
 }
 
 function LeftColumn({ toggled_ui }) {
@@ -120,6 +182,11 @@ function LeftColumn({ toggled_ui }) {
     const { filters, setFilters, setRadioModeFilter } = useFilters();
     const { radio_band, radio_status } = use_radio();
     const { settings } = useSettings();
+
+    const scroll_ref = useRef(null);
+    const [overlay_el, setOverlayEl] = useState(null);
+
+    use_scroll_sync(scroll_ref, overlay_el);
 
     const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";
     const toggled_classes = toggled_ui.left_visible
@@ -137,120 +204,131 @@ function LeftColumn({ toggled_ui }) {
 
     return (
         <div
-            className={
-                toggled_classes +
-                "2xl:flex w-18 flex-col h-full items-center overflow-y-auto shrink-0"
-            }
+            className={toggled_classes + "2xl:flex w-18 flex-col h-full shrink-0 relative"}
             style={{
                 backgroundColor: colors.theme.columns,
                 borderColor: colors.theme.borders,
             }}
         >
-            <div className={filter_group_classes + "pb-4 border-b-2 border-slate-300"}>
-                {visible_bands.map(band => {
-                    const color = colors.bands[band];
-                    let label = Number.isInteger(band) ? band + "m" : band;
-                    return (
-                        <FilterOptions
-                            key={band}
-                            filter_key="bands"
-                            filter_value={band}
-                            orientation="right"
-                            disabled={filters.radio_band}
-                        >
-                            {!filters.radio_band && (
-                                <SpotCount
-                                    count={spots_per_band_count[band]}
-                                    toggled_ui={toggled_ui}
+            <div ref={scroll_ref} className="flex flex-col h-full items-center overflow-y-auto">
+                <div className={filter_group_classes + "pb-4 border-b-2 border-slate-300"}>
+                    {visible_bands.map(band => {
+                        const color = colors.bands[band];
+                        let label = Number.isInteger(band) ? band + "m" : band;
+                        return (
+                            <FilterOptions
+                                key={band}
+                                filter_key="bands"
+                                filter_value={band}
+                                orientation="right"
+                                disabled={filters.radio_band}
+                            >
+                                {!filters.radio_band && (
+                                    <SpotCount
+                                        count={spots_per_band_count[band]}
+                                        toggled_ui={toggled_ui}
+                                        overlay_el={overlay_el}
+                                    />
+                                )}
+                                <FilterButton
+                                    text={label}
+                                    is_active={filters.bands[band]}
+                                    color={color}
+                                    text_color={colors.text[band]}
+                                    on_click={_ => {
+                                        if (!filters.radio_band)
+                                            setFilters(_filters => ({
+                                                ..._filters,
+                                                bands: {
+                                                    ..._filters.bands,
+                                                    [band]: !_filters.bands[band],
+                                                },
+                                            }));
+                                    }}
+                                    className={filters.radio_band && "opacity-50"}
+                                    on_mouse_enter={_ => {
+                                        if (!filters.radio_band) set_hovered_band(band);
+                                    }}
+                                    on_mouse_leave={_ => set_hovered_band(null)}
+                                    hover_brightness="125"
                                 />
-                            )}
+                            </FilterOptions>
+                        );
+                    })}
+                </div>
+
+                {radio_status != "unavailable" || filters.radio_band ? (
+                    <div className={filter_group_classes + "py-4 border-b-2 border-slate-300"}>
+                        <div>
+                            <SpotCount
+                                count={spots_per_band_count[radio_band]}
+                                toggled_ui={toggled_ui}
+                                overlay_el={overlay_el}
+                            />
                             <FilterButton
-                                text={label}
-                                is_active={filters.bands[band]}
-                                color={color}
-                                text_color={colors.text[band]}
-                                on_click={_ => {
-                                    if (!filters.radio_band)
-                                        setFilters(_filters => ({
-                                            ..._filters,
-                                            bands: {
-                                                ..._filters.bands,
-                                                [band]: !_filters.bands[band],
-                                            },
-                                        }));
-                                }}
-                                className={filters.radio_band && "opacity-50"}
-                                on_mouse_enter={_ => {
-                                    if (!filters.radio_band) set_hovered_band(band);
-                                }}
-                                on_mouse_leave={_ => set_hovered_band(null)}
+                                text={"Radio"}
+                                is_active={filters.radio_band}
+                                color={colors.bands[radio_band] ?? "black"}
+                                text_color={colors.text[radio_band] ?? "white"}
+                                on_click={_ => setRadioModeFilter(!filters.radio_band)}
                                 hover_brightness="125"
                             />
-                        </FilterOptions>
-                    );
-                })}
-            </div>
-
-            {radio_status != "unavailable" || filters.radio_band ? (
-                <div className={filter_group_classes + "py-4 border-b-2 border-slate-300"}>
-                    <div>
-                        <SpotCount
-                            count={spots_per_band_count[radio_band]}
-                            toggled_ui={toggled_ui}
-                        />
-                        <FilterButton
-                            text={"Radio"}
-                            is_active={filters.radio_band}
-                            color={colors.bands[radio_band] ?? "black"}
-                            text_color={colors.text[radio_band] ?? "white"}
-                            on_click={_ => setRadioModeFilter(!filters.radio_band)}
-                            hover_brightness="125"
-                        />
+                        </div>
                     </div>
-                </div>
-            ) : (
-                ""
-            )}
+                ) : (
+                    ""
+                )}
 
-            <div className={filter_group_classes + " pt-4"}>
-                {modes.map(mode => {
-                    return (
-                        <FilterOptions
-                            key={mode}
-                            filter_key="modes"
-                            filter_value={mode}
-                            orientation="right"
-                        >
-                            <SpotCount count={spots_per_mode_count[mode]} toggled_ui={toggled_ui} />
-                            <FilterButton
-                                text={
-                                    <>
-                                        {mode}
-                                        <div>
-                                            {mode_to_symbol(mode)(
-                                                filters.modes[mode]
-                                                    ? "#000000"
-                                                    : colors.buttons.disabled,
-                                            )}
-                                        </div>
-                                    </>
-                                }
-                                is_active={filters.modes[mode]}
-                                on_click={() =>
-                                    setFilters(_filters => ({
-                                        ..._filters,
-                                        modes: {
-                                            ..._filters.modes,
-                                            [mode]: !_filters.modes[mode],
-                                        },
-                                    }))
-                                }
-                                color={colors.buttons.modes}
-                                className="text-[0.94rem]"
-                            />
-                        </FilterOptions>
-                    );
-                })}
+                <div className={filter_group_classes + " pt-4"}>
+                    {modes.map(mode => {
+                        return (
+                            <FilterOptions
+                                key={mode}
+                                filter_key="modes"
+                                filter_value={mode}
+                                orientation="right"
+                            >
+                                <SpotCount
+                                    count={spots_per_mode_count[mode]}
+                                    toggled_ui={toggled_ui}
+                                    overlay_el={overlay_el}
+                                />
+                                <FilterButton
+                                    text={
+                                        <>
+                                            {mode}
+                                            <div>
+                                                {mode_to_symbol(mode)(
+                                                    filters.modes[mode]
+                                                        ? "#000000"
+                                                        : colors.buttons.disabled,
+                                                )}
+                                            </div>
+                                        </>
+                                    }
+                                    is_active={filters.modes[mode]}
+                                    on_click={() =>
+                                        setFilters(_filters => ({
+                                            ..._filters,
+                                            modes: {
+                                                ..._filters.modes,
+                                                [mode]: !_filters.modes[mode],
+                                            },
+                                        }))
+                                    }
+                                    color={colors.buttons.modes}
+                                    className="text-[0.94rem]"
+                                />
+                            </FilterOptions>
+                        );
+                    })}
+                </div>
+            </div>
+            <div
+                className="absolute inset-0 pointer-events-none z-50"
+                style={{ overflowY: "clip", overflowX: "visible" }}
+            >
+                <div ref={setOverlayEl} />
             </div>
         </div>
     );

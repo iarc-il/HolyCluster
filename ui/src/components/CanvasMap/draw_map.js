@@ -1,10 +1,8 @@
 import * as d3 from "d3";
 import { century, equationOfTime, declination } from "solar-calculator";
-import geojsonRewind from "@mapbox/geojson-rewind";
+import dxcc_map from "@/assets/dxcc_map.json";
 
-import dxcc_map_raw from "@/assets/dxcc_map.json";
-
-export const dxcc_map = geojsonRewind(dxcc_map_raw, true);
+export { dxcc_map };
 
 function generate_concentric_circles(center_x, center_y, radius, circle_count = 6) {
     const circles = [];
@@ -60,8 +58,11 @@ export function draw_map(context, colors, dims, projection, night_displayed, sho
 
     context.lineWidth = 1;
 
-    // Concentric circles
-    generate_concentric_circles(dims.center_x, dims.center_y, dims.radius).forEach(circle => {
+    // Full globe radius in pixels
+    const full_globe_radius = projection.scale() * Math.PI;
+
+    // Concentric circles at fixed geographic intervals
+    generate_concentric_circles(dims.center_x, dims.center_y, full_globe_radius).forEach(circle => {
         context.beginPath();
         context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
         context.strokeStyle = colors.map.graticule;
@@ -69,7 +70,7 @@ export function draw_map(context, colors, dims, projection, night_displayed, sho
     });
 
     // Radial lines
-    generate_radial_lines(dims.center_x, dims.center_y, dims.radius, 15).forEach(line => {
+    generate_radial_lines(dims.center_x, dims.center_y, full_globe_radius, 15).forEach(line => {
         context.beginPath();
         context.moveTo(line.x1, line.y1);
         context.lineTo(line.x2, line.y2);
