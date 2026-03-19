@@ -99,9 +99,10 @@ async def telnet_and_collect(
 
             while True:
                 try:
-                    data = await asyncio.wait_for(reader.read(4096), timeout=30)
+                    data = await asyncio.wait_for(reader.read(4096), timeout=60)
                 except asyncio.TimeoutError:
-                    writer.write(b"\n")
+                    # This is just universal command that is used as kind of "ping"
+                    writer.write(b"help\n")
                     data = await asyncio.wait_for(reader.read(4096), timeout=5)
 
                 if not data:
