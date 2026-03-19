@@ -62,31 +62,32 @@ export function draw_map(context, colors, dims, projection, night_displayed, sho
     const full_globe_radius = projection.scale() * Math.PI;
 
     // Concentric circles at fixed geographic intervals
+    context.beginPath();
     generate_concentric_circles(dims.center_x, dims.center_y, full_globe_radius).forEach(circle => {
-        context.beginPath();
+        context.moveTo(circle.cx + circle.r, circle.cy);
         context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
-        context.strokeStyle = colors.map.graticule;
-        context.stroke();
     });
+    context.strokeStyle = colors.map.graticule;
+    context.stroke();
 
     // Radial lines
+    context.beginPath();
     generate_radial_lines(dims.center_x, dims.center_y, full_globe_radius, 15).forEach(line => {
-        context.beginPath();
         context.moveTo(line.x1, line.y1);
         context.lineTo(line.x2, line.y2);
-        context.strokeStyle = colors.map.graticule;
-        context.stroke();
     });
+    context.strokeStyle = colors.map.graticule;
+    context.stroke();
 
-    // DXCC country paths
+    // DXCC country paths (batched into a single path for performance)
+    context.beginPath();
     dxcc_map.features.forEach(feature => {
-        context.beginPath();
         path_generator(feature);
-        context.fillStyle = colors.map.land;
-        context.strokeStyle = colors.map.land_borders;
-        context.fill();
-        context.stroke();
     });
+    context.fillStyle = colors.map.land;
+    context.strokeStyle = colors.map.land_borders;
+    context.fill();
+    context.stroke();
 
     // Night circle
     if (night_displayed) {
