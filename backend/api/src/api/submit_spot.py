@@ -151,6 +151,7 @@ async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
                 "Error - invalid frequency": InvalidFrequency(),
                 "Error - Invalid Dx Call": InvalidDXCallsign(),
             },
+            OtherError(),
         )
         writer.close()
         try:
