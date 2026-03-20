@@ -52,6 +52,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.collector
+      additional_contexts:
+        - band_plans=../shared
     restart: unless-stopped
     depends_on:
       valkey:
