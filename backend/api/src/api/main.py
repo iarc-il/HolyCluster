@@ -198,6 +198,7 @@ async def compute_cluster_stats(valkey_client, hours: int | None = None):
 
     for entry_id, fields in entries:
         cluster = fields["cluster"]
+        cluster = cluster.split(":")[0]
         spot_key = fields["spot_key"]
         ts_ms = int(entry_id.split("-")[0])
         day = ts_ms // 86_400_000

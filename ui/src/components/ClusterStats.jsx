@@ -52,7 +52,6 @@ function OverviewTable({ data, colors }) {
                     <th style={header_style}>Cluster</th>
                     <th style={{ ...header_style, textAlign: "right" }}>Total</th>
                     <th style={{ ...header_style, textAlign: "right" }}>Exclusive</th>
-                    <th style={{ ...header_style, textAlign: "right" }}>Exclusive %</th>
                     <th style={{ ...header_style, textAlign: "right" }}>Overlap</th>
                 </tr>
             </thead>
@@ -65,9 +64,6 @@ function OverviewTable({ data, colors }) {
                         </td>
                         <td style={{ ...cell_style, textAlign: "right" }}>
                             {cluster.exclusive.toLocaleString()}
-                        </td>
-                        <td style={{ ...cell_style, textAlign: "right" }}>
-                            {cluster.exclusive_pct}%
                         </td>
                         <td style={{ ...cell_style, textAlign: "right" }}>
                             {cluster.overlap.toLocaleString()}
@@ -84,7 +80,7 @@ function PairwiseTable({ data, colors }) {
     const overlap = data.pairwise_overlap;
     const totals = Object.fromEntries(data.clusters.map(c => [c.name, c.total]));
 
-    const max_pct = Math.max(
+    const max_percent = Math.max(
         1,
         ...clusters.flatMap(c1 =>
             clusters.map(c2 => {
@@ -139,13 +135,13 @@ function PairwiseTable({ data, colors }) {
                                         </td>
                                     );
                                 }
-                                const value = (overlap[row] && overlap[row][col]) || 0;
-                                const pct = totals[row] > 0 ? (value / totals[row]) * 100 : 0;
-                                const intensity = max_pct > 0 ? pct / max_pct : 0;
+                                const value = (overlap[col] && overlap[col][row]) || 0;
+                                const percent = totals[col] > 0 ? (value / totals[col]) * 100 : 0;
+                                const intensity = max_percent > 0 ? percent / max_percent : 0;
                                 const bg = `rgba(59, 130, 246, ${intensity * 0.5})`;
                                 return (
                                     <td key={col} style={{ ...cell_style, backgroundColor: bg }}>
-                                        {pct > 0 ? `${pct.toFixed(1)}%` : "0%"}
+                                        {percent > 0 ? `${percent.toFixed(1)}%` : "0%"}
                                     </td>
                                 );
                             })}
