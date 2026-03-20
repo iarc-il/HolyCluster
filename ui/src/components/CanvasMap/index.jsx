@@ -60,6 +60,7 @@ function do_redraw(
                 projection,
                 map_controls.night,
                 settings.show_equator,
+                map_controls.is_globe,
             );
         });
     }
@@ -89,6 +90,7 @@ function do_redraw(
                 dims,
                 canvas_refs.dash_offset_ref.current,
                 projection,
+                map_controls.is_globe,
             );
         });
     }
@@ -100,7 +102,7 @@ function do_redraw(
             const ctx = shadow_canvas.getContext("2d");
             ctx.clearRect(0, 0, shadow_canvas.width, shadow_canvas.height);
             with_dpr(ctx, () => {
-                draw_shadow_map(ctx, spots, dims, projection);
+                draw_shadow_map(ctx, spots, dims, projection, map_controls.is_globe);
             });
         }
     }
@@ -191,17 +193,18 @@ function CanvasMap({
             return;
         }
 
-        const proj = d3
-            .geoAzimuthalEquidistant()
-            .precision(0.1)
-            .fitSize(dims.padded_size, dxcc_map)
+        const proj = map_controls.is_globe
+            ? d3.geoOrthographic().precision(0.1).clipAngle(90)
+            : d3.geoAzimuthalEquidistant().precision(0.1);
+
+        proj.fitSize(dims.padded_size, dxcc_map)
             .rotate([-center_lon, -center_lat, 0])
             .translate([dims.center_x, dims.center_y]);
 
         base_scale_ref.current = proj.scale();
         proj.scale((max_radius / radius_in_km) * proj.scale());
         projection_ref.current = proj;
-    }, [dims, center_lon, center_lat, radius_in_km]);
+    }, [dims, center_lon, center_lat, radius_in_km, map_controls.is_globe]);
 
     // Off-screen canvas setup (cache + shadow)
     useEffect(() => {
@@ -246,6 +249,7 @@ function CanvasMap({
         hovered_band,
         current_freq_spots,
         map_controls.night,
+        map_controls.is_globe,
         settings.show_equator,
     ]);
 
@@ -283,6 +287,7 @@ function CanvasMap({
                     dims,
                     dash_offset_ref.current,
                     projection,
+                    rs.map_controls.is_globe,
                 );
             });
         }
@@ -358,6 +363,7 @@ function CanvasMap({
         let rot_start = null;
         let drag_start = null;
         let current_rot = null;
+        let last_drag_pos = null;
         let is_drawing = false;
 
         // Tap detection
@@ -422,6 +428,32 @@ function CanvasMap({
             }
         }
 
+        function perform_globe_drag(x, y) {
+            const projection = projection_ref.current;
+            if (!projection || !last_drag_pos) return;
+            const scale = 360 / (2 * Math.PI * projection.scale());
+            const dx = (x - last_drag_pos[0]) * scale;
+            const dy = (y - last_drag_pos[1]) * scale;
+            const cur = current_rot || projection.rotate();
+            current_rot = [cur[0] + dx, Math.max(-90, Math.min(90, cur[1] - dy)), cur[2]];
+            last_drag_pos = [x, y];
+
+            projection.rotate(current_rot);
+            if (!is_drawing) {
+                is_drawing = true;
+                requestAnimationFrame(() => {
+                    const cur_proj = projection_ref.current;
+                    if (cur_proj && current_rot) {
+                        cur_proj.rotate(current_rot);
+                    }
+                    do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
+                        skip_shadow: true,
+                    });
+                    is_drawing = false;
+                });
+            }
+        }
+
         function finalize_drag() {
             do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
             if (current_rot != null) {
@@ -438,10 +470,12 @@ function CanvasMap({
             rot_start = null;
             drag_start = null;
             current_rot = null;
+            last_drag_pos = null;
         }
 
         function start_drag(x, y) {
             drag_start = [x, y];
+            last_drag_pos = [x, y];
             const projection = projection_ref.current;
             if (projection) rot_start = projection.rotate();
         }
@@ -497,6 +531,9 @@ function CanvasMap({
             const pos = get_offset(event);
             pointers.set(event.pointerId, pos);
 
+            const is_globe = render_state_ref.current.map_controls.is_globe;
+            const do_drag = is_globe ? perform_globe_drag : perform_drag;
+
             if (gesture_state === "pending") {
                 const dx = pos.x - pending_start_pos.x;
                 const dy = pos.y - pending_start_pos.y;
@@ -505,10 +542,10 @@ function CanvasMap({
                     start_drag(pending_start_pos.x, pending_start_pos.y);
                     pending_start_pos = null;
                     pending_start_time = null;
-                    perform_drag(pos.x, pos.y);
+                    do_drag(pos.x, pos.y);
                 }
             } else if (gesture_state === "dragging") {
-                perform_drag(pos.x, pos.y);
+                do_drag(pos.x, pos.y);
             } else if (gesture_state === "pinching") {
                 const new_distance = get_pointer_distance();
                 if (pinch_start_distance > 0 && new_distance > 0) {
@@ -749,7 +786,7 @@ function CanvasMap({
                         Spots: {spots.length}
                     </text>
                 </g>
-                {dims && (
+                {dims && !map_controls.is_globe && (
                     <MapAngles
                         radius={dims.radius + 25 * dims.scale}
                         center_x={dims.center_x}

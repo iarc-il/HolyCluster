@@ -40,7 +40,15 @@ function draw_night_circle(context, path_generator) {
     context.fill();
 }
 
-export function draw_map(context, colors, dims, projection, night_displayed, show_equator) {
+export function draw_map(
+    context,
+    colors,
+    dims,
+    projection,
+    night_displayed,
+    show_equator,
+    is_globe,
+) {
     const path_generator = d3.geoPath().projection(projection).context(context);
 
     context.save();
@@ -58,26 +66,32 @@ export function draw_map(context, colors, dims, projection, night_displayed, sho
 
     context.lineWidth = 1;
 
-    // Full globe radius in pixels
-    const full_globe_radius = projection.scale() * Math.PI;
+    if (is_globe) {
+        context.beginPath();
+        path_generator(d3.geoGraticule10());
+        context.strokeStyle = colors.map.graticule;
+        context.stroke();
+    } else {
+        const full_globe_radius = projection.scale() * Math.PI;
 
-    // Concentric circles at fixed geographic intervals
-    context.beginPath();
-    generate_concentric_circles(dims.center_x, dims.center_y, full_globe_radius).forEach(circle => {
-        context.moveTo(circle.cx + circle.r, circle.cy);
-        context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
-    });
-    context.strokeStyle = colors.map.graticule;
-    context.stroke();
+        context.beginPath();
+        generate_concentric_circles(dims.center_x, dims.center_y, full_globe_radius).forEach(
+            circle => {
+                context.moveTo(circle.cx + circle.r, circle.cy);
+                context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
+            },
+        );
+        context.strokeStyle = colors.map.graticule;
+        context.stroke();
 
-    // Radial lines
-    context.beginPath();
-    generate_radial_lines(dims.center_x, dims.center_y, full_globe_radius, 15).forEach(line => {
-        context.moveTo(line.x1, line.y1);
-        context.lineTo(line.x2, line.y2);
-    });
-    context.strokeStyle = colors.map.graticule;
-    context.stroke();
+        context.beginPath();
+        generate_radial_lines(dims.center_x, dims.center_y, full_globe_radius, 15).forEach(line => {
+            context.moveTo(line.x1, line.y1);
+            context.lineTo(line.x2, line.y2);
+        });
+        context.strokeStyle = colors.map.graticule;
+        context.stroke();
+    }
 
     // DXCC country paths (batched into a single path for performance)
     context.beginPath();
@@ -111,9 +125,11 @@ export function draw_map(context, colors, dims, projection, night_displayed, sho
     context.strokeStyle = colors.map.borders;
     context.stroke();
 
-    // Center red dot
-    context.beginPath();
-    context.arc(dims.center_x, dims.center_y, 4, 0, 2 * Math.PI);
-    context.fillStyle = "#FF0000";
-    context.fill();
+    if (!is_globe) {
+        // Center red dot
+        context.beginPath();
+        context.arc(dims.center_x, dims.center_y, 4, 0, 2 * Math.PI);
+        context.fillStyle = "#FF0000";
+        context.fill();
+    }
 }
