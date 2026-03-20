@@ -127,8 +127,9 @@ async def telnet_and_collect(
                         await push_drop_event(valkey_client, "parse_error", line)
                         continue
 
-                    if spot["spotter_callsign"].upper() == "W3LPL":
-                        logger.debug(f"Skipping W3LPL spot: {spot}")
+                    # W3LPL is a spammer and J9AQ is a pirate
+                    if spot["spotter_callsign"].upper() in ["W3LPL", "J9AQ"]:
+                        logger.debug(f"Skipping banned spot: {spot}")
                         continue
 
                     cluster = f"{host}:{port}"
