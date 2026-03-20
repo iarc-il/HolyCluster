@@ -117,6 +117,19 @@ export function km_to_miles(km) {
     return Math.round(miles);
 }
 
+export function get_spots_center(spots) {
+    if (spots.length === 0) return null;
+    let sum_lon = 0;
+    let sum_lat = 0;
+    let count = 0;
+    spots.forEach(spot => {
+        sum_lon += spot.spotter_loc[0] + spot.dx_loc[0];
+        sum_lat += spot.spotter_loc[1] + spot.dx_loc[1];
+        count += 2;
+    });
+    return [sum_lon / count, sum_lat / count];
+}
+
 export const get_max_radius = (center, spots) => {
     const center_maiden = new Maidenhead(center[1], center[0]);
     let max = 0;
