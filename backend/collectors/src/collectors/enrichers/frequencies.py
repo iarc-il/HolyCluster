@@ -1,20 +1,19 @@
 import json
 import re
-import subprocess
 from pathlib import Path
 from typing import List, Tuple
 
 from loguru import logger
 
 
-def _find_repo_root() -> Path:
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return Path(result.stdout.strip())
+def _find_band_plans() -> Path:
+    path = Path(__file__).resolve().parent
+    while path != path.parent:
+        candidate = path / "shared" / "band_plans.json"
+        if candidate.exists():
+            return candidate
+        path = path.parent
+    raise FileNotFoundError("Could not find shared/band_plans.json")
 
 
 def load_band_plans(filepath) -> Tuple[List, dict]:
@@ -30,7 +29,7 @@ def load_band_plans(filepath) -> Tuple[List, dict]:
     return bands, modes
 
 
-bands, modes = load_band_plans(_find_repo_root() / "shared" / "band_plans.json")
+bands, modes = load_band_plans(_find_band_plans())
 
 
 def find_band(frequency: str) -> str:
