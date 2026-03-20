@@ -190,6 +190,7 @@ function SubmitSpot({ dev_mode }) {
                 }}
                 on_cancel={() => {
                     set_is_open(false);
+                    set_submit_status({ status: "pending", reason: "" });
                 }}
                 apply_text={
                     submit_status.status == "sending" ? (
