@@ -179,7 +179,7 @@ function SubmitSpot({ dev_mode }) {
                     set_is_open(false);
                 }}
                 apply_text={
-                    submit_status.status == "Sending" ? (
+                    submit_status.status == "sending" ? (
                         <Spinner size="20" color="lightblue" />
                     ) : (
                         "Submit"
