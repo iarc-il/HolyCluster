@@ -125,6 +125,7 @@ function CanvasMap({
     const spots_canvas_ref = useRef(null);
     const shadow_canvas_ref = useRef(null);
     const map_cache_canvas_ref = useRef(null);
+    const container_ref = useRef(null);
 
     const animation_id_ref = useRef(null);
     const dash_offset_ref = useRef(0);
@@ -132,6 +133,7 @@ function CanvasMap({
 
     const projection_ref = useRef(null);
     const base_scale_ref = useRef(null);
+    const gesture_active_ref = useRef(false);
     const callbacks_ref = useRef({});
     callbacks_ref.current = {
         set_map_controls,
@@ -181,6 +183,14 @@ function CanvasMap({
             base_scale_ref.current = null;
             return;
         }
+
+        // During active gesture, only update scale — don't replace the projection
+        // (replacing it resets the drag rotation and causes a flicker)
+        if (gesture_active_ref.current && projection_ref.current && base_scale_ref.current) {
+            projection_ref.current.scale((max_radius / radius_in_km) * base_scale_ref.current);
+            return;
+        }
+
         const proj = d3
             .geoAzimuthalEquidistant()
             .precision(0.1)
@@ -193,25 +203,36 @@ function CanvasMap({
         projection_ref.current = proj;
     }, [dims, center_lon, center_lat, radius_in_km]);
 
-    // Cache canvas setup
+    // Off-screen canvas setup (cache + shadow)
     useEffect(() => {
         if (!dims) return;
+
+        const dpr_width = dims.width * DPR;
+        const dpr_height = dims.height * DPR;
 
         if (!map_cache_canvas_ref.current) {
             map_cache_canvas_ref.current = document.createElement("canvas");
         }
         const cache_canvas = map_cache_canvas_ref.current;
-        const dpr_width = dims.width * DPR;
-        const dpr_height = dims.height * DPR;
         if (cache_canvas.width !== dpr_width || cache_canvas.height !== dpr_height) {
             cache_canvas.width = dpr_width;
             cache_canvas.height = dpr_height;
+        }
+
+        if (!shadow_canvas_ref.current) {
+            shadow_canvas_ref.current = document.createElement("canvas");
+        }
+        const shadow_canvas = shadow_canvas_ref.current;
+        if (shadow_canvas.width !== dpr_width || shadow_canvas.height !== dpr_height) {
+            shadow_canvas.width = dpr_width;
+            shadow_canvas.height = dpr_height;
         }
     }, [dims]);
 
     // Main rendering effect — redraws all canvases when any visual state changes
     useEffect(() => {
         if (!dims || !projection_ref.current) return;
+        if (gesture_active_ref.current) return;
         do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
     }, [
         dims,
@@ -230,12 +251,16 @@ function CanvasMap({
 
     // Animation loop for alerted spots
     useEffect(() => {
-        if (!dims || !projection_ref.current) return;
-
-        const has_alerted = spots.some(s => s.is_alerted);
-        if (!has_alerted) return;
+        if (!dims) return;
 
         function animate() {
+            animation_id_ref.current = requestAnimationFrame(animate);
+
+            if (gesture_active_ref.current) return;
+
+            const rs = render_state_ref.current;
+            if (!rs.spots.some(s => s.is_alerted)) return;
+
             dash_offset_ref.current -= 0.5;
             if (dash_offset_ref.current < -20) {
                 dash_offset_ref.current = 0;
@@ -246,7 +271,6 @@ function CanvasMap({
             if (!spots_canvas || !projection) return;
             const ctx = spots_canvas.getContext("2d");
             ctx.clearRect(0, 0, spots_canvas.width, spots_canvas.height);
-            const rs = render_state_ref.current;
             with_dpr(ctx, () => {
                 draw_spots(
                     ctx,
@@ -261,8 +285,6 @@ function CanvasMap({
                     projection,
                 );
             });
-
-            animation_id_ref.current = requestAnimationFrame(animate);
         }
 
         animation_id_ref.current = requestAnimationFrame(animate);
@@ -273,13 +295,13 @@ function CanvasMap({
                 animation_id_ref.current = null;
             }
         };
-    }, [dims, center_lon, center_lat, radius_in_km, spots]);
+    }, [dims]);
 
     // Wheel zoom (desktop)
     useEffect(() => {
         if (!dims || !projection_ref.current) return;
-        const shadow_canvas = shadow_canvas_ref.current;
-        if (!shadow_canvas) return;
+        const container = container_ref.current;
+        if (!container) return;
 
         let is_drawing = false;
 
@@ -309,22 +331,27 @@ function CanvasMap({
             }, 150);
         }
 
-        shadow_canvas.addEventListener("wheel", on_wheel, { passive: false });
+        container.addEventListener("wheel", on_wheel, { passive: false });
 
         return () => {
             clearTimeout(zoom_settle_timer_ref.current);
-            shadow_canvas.removeEventListener("wheel", on_wheel);
+            container.removeEventListener("wheel", on_wheel);
         };
     }, [dims]);
 
     // Pointer interaction: drag, pinch-zoom, hover, tap, click
     useEffect(() => {
         if (!dims || !projection_ref.current) return;
+        const container = container_ref.current;
         const shadow_canvas = shadow_canvas_ref.current;
-        if (!shadow_canvas) return;
+        if (!container || !shadow_canvas) return;
 
         // Gesture state machine: idle | pending | dragging | pinching
         let gesture_state = "idle";
+        function set_gesture(state) {
+            gesture_state = state;
+            gesture_active_ref.current = state === "dragging" || state === "pinching";
+        }
         const pointers = new Map();
 
         // Drag state
@@ -345,7 +372,7 @@ function CanvasMap({
         const TAP_THRESHOLD_MS = 300;
 
         function get_offset(event) {
-            const rect = shadow_canvas.getBoundingClientRect();
+            const rect = container.getBoundingClientRect();
             return { x: event.clientX - rect.left, y: event.clientY - rect.top };
         }
 
@@ -382,6 +409,11 @@ function CanvasMap({
             if (!is_drawing) {
                 is_drawing = true;
                 requestAnimationFrame(() => {
+                    // Re-apply drag rotation in case useMemo replaced the projection
+                    const cur_proj = projection_ref.current;
+                    if (cur_proj && current_rot) {
+                        cur_proj.rotate(current_rot);
+                    }
                     do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
                         skip_shadow: true,
                     });
@@ -444,16 +476,16 @@ function CanvasMap({
         function on_pointer_down(event) {
             const pos = get_offset(event);
             pointers.set(event.pointerId, pos);
-            shadow_canvas.setPointerCapture(event.pointerId);
+            container.setPointerCapture(event.pointerId);
 
             if (pointers.size === 1) {
                 // Single pointer — enter pending state
-                gesture_state = "pending";
+                set_gesture("pending");
                 pending_start_pos = pos;
                 pending_start_time = event.timeStamp;
             } else if (pointers.size === 2) {
                 // Second pointer — enter pinch mode
-                gesture_state = "pinching";
+                set_gesture("pinching");
                 pending_start_pos = null;
                 pending_start_time = null;
                 pinch_start_distance = get_pointer_distance();
@@ -469,7 +501,7 @@ function CanvasMap({
                 const dx = pos.x - pending_start_pos.x;
                 const dy = pos.y - pending_start_pos.y;
                 if (Math.sqrt(dx * dx + dy * dy) > TAP_THRESHOLD_PX) {
-                    gesture_state = "dragging";
+                    set_gesture("dragging");
                     start_drag(pending_start_pos.x, pending_start_pos.y);
                     pending_start_pos = null;
                     pending_start_time = null;
@@ -529,10 +561,10 @@ function CanvasMap({
                 }
                 pending_start_pos = null;
                 pending_start_time = null;
-                gesture_state = "idle";
+                set_gesture("idle");
             } else if (was_state === "dragging") {
                 finalize_drag();
-                gesture_state = "idle";
+                set_gesture("idle");
             } else if (was_state === "pinching") {
                 if (pointers.size === 1) {
                     // Transition pinching -> dragging with remaining pointer
@@ -546,7 +578,7 @@ function CanvasMap({
                         set_auto_radius(false);
                         set_radius_in_km(Math.max(zoom_radius, 100));
                     }
-                    gesture_state = "dragging";
+                    set_gesture("dragging");
                 } else {
                     // Both pointers lifted — full redraw with shadow
                     const projection = projection_ref.current;
@@ -557,7 +589,7 @@ function CanvasMap({
                         set_radius_in_km(Math.max(zoom_radius, 100));
                     }
                     do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
-                    gesture_state = "idle";
+                    set_gesture("idle");
                 }
                 pinch_start_distance = null;
                 pinch_start_radius = null;
@@ -576,7 +608,7 @@ function CanvasMap({
                 if (gesture_state === "dragging") {
                     finalize_drag();
                 }
-                gesture_state = "idle";
+                set_gesture("idle");
             }
         }
 
@@ -610,20 +642,20 @@ function CanvasMap({
             }
         }
 
-        shadow_canvas.addEventListener("pointerdown", on_pointer_down);
-        shadow_canvas.addEventListener("pointermove", on_pointer_move);
-        shadow_canvas.addEventListener("pointerup", on_pointer_up);
-        shadow_canvas.addEventListener("pointerleave", on_pointer_leave);
-        shadow_canvas.addEventListener("pointercancel", on_pointer_leave);
-        shadow_canvas.addEventListener("dblclick", on_dblclick);
+        container.addEventListener("pointerdown", on_pointer_down);
+        container.addEventListener("pointermove", on_pointer_move);
+        container.addEventListener("pointerup", on_pointer_up);
+        container.addEventListener("pointerleave", on_pointer_leave);
+        container.addEventListener("pointercancel", on_pointer_leave);
+        container.addEventListener("dblclick", on_dblclick);
 
         return () => {
-            shadow_canvas.removeEventListener("pointerdown", on_pointer_down);
-            shadow_canvas.removeEventListener("pointermove", on_pointer_move);
-            shadow_canvas.removeEventListener("pointerup", on_pointer_up);
-            shadow_canvas.removeEventListener("pointerleave", on_pointer_leave);
-            shadow_canvas.removeEventListener("pointercancel", on_pointer_leave);
-            shadow_canvas.removeEventListener("dblclick", on_dblclick);
+            container.removeEventListener("pointerdown", on_pointer_down);
+            container.removeEventListener("pointermove", on_pointer_move);
+            container.removeEventListener("pointerup", on_pointer_up);
+            container.removeEventListener("pointerleave", on_pointer_leave);
+            container.removeEventListener("pointercancel", on_pointer_leave);
+            container.removeEventListener("dblclick", on_dblclick);
         };
     }, [dims]);
 
@@ -662,7 +694,10 @@ function CanvasMap({
 
     return (
         <div
-            ref={div_ref}
+            ref={node => {
+                container_ref.current = node;
+                div_ref(node);
+            }}
             className="relative h-full w-full"
             style={{
                 backgroundColor: colors.theme.background,
@@ -683,13 +718,6 @@ function CanvasMap({
                 width={canvas_width}
                 height={canvas_height}
                 style={canvas_style}
-            />
-            <canvas
-                className="opacity-0 absolute top-0 left-0"
-                ref={shadow_canvas_ref}
-                width={canvas_width}
-                height={canvas_height}
-                style={{ ...canvas_style, touchAction: "none", userSelect: "none" }}
             />
             <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
                 <g className="font-medium text-lg select-none">
