@@ -11,6 +11,7 @@ const mode_colors = {
 };
 
 const range_modes = new Set(["CW", "SSB", "RTTY", "FM"]);
+const hidden_modes = new Set(["FT2", "FM"]);
 
 export const band_plans = Object.fromEntries(
     Object.entries(raw_band_plans).map(([band, info]) => {
@@ -18,6 +19,7 @@ export const band_plans = Object.fromEntries(
         const features = [];
 
         for (const [mode, freq] of Object.entries(info.modes)) {
+            if (hidden_modes.has(mode)) continue;
             const color = mode_colors[mode] || "#888888";
             if (range_modes.has(mode)) {
                 ranges.push({ name: mode.toLowerCase(), min: freq.start, max: freq.end, color });
