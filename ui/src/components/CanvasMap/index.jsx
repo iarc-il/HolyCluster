@@ -508,6 +508,8 @@ function CanvasMap({
         }
 
         function on_pointer_down(event) {
+            // To allow clicking on the auto zoom toggle button
+            if (event.target.tagName !== "CANVAS") return;
             const pos = get_offset(event);
             pointers.set(event.pointerId, pos);
             container.setPointerCapture(event.pointerId);
