@@ -47,16 +47,19 @@ function draw_spot_dx(context, spot, color, stroke_color, dx_x, dx_y, dx_size) {
 
 function draw_spot(context, spot, colors, dash_offset, { is_bold, path_generator, projection }) {
     const line = build_geojson_line(spot);
+    let color;
 
-    // Arc
     context.beginPath();
     if (is_bold) {
-        context.strokeStyle = colors.light_bands[spot.band];
+        color = colors.light_bands[spot.band];
         context.lineWidth = 6;
     } else {
-        context.strokeStyle = colors.bands[spot.band];
+        color = colors.bands[spot.band];
         context.lineWidth = 2;
     }
+
+    context.strokeStyle = color;
+
     if (spot.is_alerted) {
         context.setLineDash([10, 10]);
         context.lineDashOffset = dash_offset;
@@ -66,19 +69,17 @@ function draw_spot(context, spot, colors, dash_offset, { is_bold, path_generator
     path_generator(line);
     context.stroke();
 
-    // DX marker
     const dx_size = is_bold ? 12 : 10;
     const [dx_x, dx_y] = projection(spot.dx_loc);
 
-    draw_spot_dx(context, spot, colors.light_bands[spot.band], "grey", dx_x, dx_y, dx_size);
+    draw_spot_dx(context, spot, color, "grey", dx_x, dx_y, dx_size);
 
-    // Spotter circle
     const [spotter_x, spotter_y] = projection(spot.spotter_loc);
     const spotter_radius = is_bold ? 5 : 3;
 
     context.beginPath();
     context.strokeStyle = "grey";
-    context.fillStyle = colors.light_bands[spot.band];
+    context.fillStyle = color;
     context.lineWidth = 1;
     context.arc(spotter_x, spotter_y, spotter_radius, 0, 2 * Math.PI);
     context.fill();
