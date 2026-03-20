@@ -1,34 +1,34 @@
-import csv
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import List, Tuple
 
 from loguru import logger
 
 
-def load_bands_from_file(filepath) -> List:
+def _find_repo_root() -> Path:
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True, text=True, check=True,
+    )
+    return Path(result.stdout.strip())
+
+
+def load_band_plans(filepath) -> Tuple[List, dict]:
+    with open(filepath, "r") as f:
+        data = json.load(f)
+
     bands = []
-    with open(filepath, newline="", encoding="utf-8") as csvfile:
-        reader = csv.reader(csvfile)
-        next(reader)  # skip header row
-        for row in reader:
-            if row and len(row) >= 3:
-                band = row[0]
-                freq_start = float(row[1])
-                freq_end = float(row[2])
-                bands.append((band, freq_start, freq_end))
-    return bands
+    modes = {}
+    for band, info in data.items():
+        bands.append((band, info["freq_start"], info["freq_end"]))
+        modes[band] = info["modes"]
+
+    return bands, modes
 
 
-def load_modes_from_file(file_path) -> dict:
-    with open(file_path, "r") as f:
-        return json.load(f)
-
-
-bands = load_bands_from_file(Path(__file__).parent / "bands.csv")
-
-modes = load_modes_from_file(Path(__file__).parent / "modes.json")
+bands, modes = load_band_plans(_find_repo_root() / "shared" / "band_plans.json")
 
 
 def find_band(frequency: str) -> str:
