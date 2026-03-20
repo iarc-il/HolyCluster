@@ -160,7 +160,7 @@ async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
             logger.warning("Timeout waiting for writer to close")
 
         await websocket.send_json({"status": "success"})
-        logger.info(f"Spot submitted sucessfully: {data}")
+        logger.info(f"Spot submitted successfully: {data}")
     except UserInputError as e:
         response = {
             "status": "failure",
