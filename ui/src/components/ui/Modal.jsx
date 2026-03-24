@@ -15,6 +15,7 @@ function Modal({
     external_open = null,
     external_close = null,
     apply_disabled = false,
+    modal_style = null,
     children,
 }) {
     const [show_modal, set_show_modal] = useState(false);
@@ -101,6 +102,7 @@ function Modal({
                                 style={{
                                     backgroundColor: colors.theme.modals,
                                     borderColor: colors.theme.borders,
+                                    ...modal_style,
                                 }}
                             >
                                 {title != null ? (

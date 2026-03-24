@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocalStorage } from "@uidotdev/usehooks";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { ToastContainer, toast } from "react-toastify";
 
@@ -155,15 +156,47 @@ function SubmitSpot({ dev_mode }) {
     function find_base_callsign(callsign) {
         return callsign.split("/").reduce((a, b) => (a.length > b.length ? a : b));
     }
+    const is_stuart_mode = find_base_callsign(settings.callsign || "") === "VE9CF";
+    const [stuart_less_noise, set_stuart_less_noise] = useLocalStorage("stuart_less_noise", false);
     let is_self_spotting = is_same_base_callsign(settings.callsign, temp_data.callsign);
 
     return (
         <>
+            {is_stuart_mode && is_open && (
+                <style>{`
+                    @keyframes stuart-color {
+                        0% { color: #c084fc; border-color: #c084fc; }
+                        25% { color: #22d3ee; border-color: #22d3ee; }
+                        50% { color: #f472b6; border-color: #f472b6; }
+                        75% { color: #facc15; border-color: #facc15; }
+                        100% { color: #c084fc; border-color: #c084fc; }
+                    }
+                    @keyframes stuart-glow {
+                        0%, 100% { box-shadow: 0 0 15px rgba(192, 132, 252, 0.5), 0 0 30px rgba(192, 132, 252, 0.2); border-color: #c084fc; }
+                        25% { box-shadow: 0 0 15px rgba(34, 211, 238, 0.5), 0 0 30px rgba(34, 211, 238, 0.2); border-color: #22d3ee; }
+                        50% { box-shadow: 0 0 15px rgba(244, 114, 182, 0.5), 0 0 30px rgba(244, 114, 182, 0.2); border-color: #f472b6; }
+                        75% { box-shadow: 0 0 15px rgba(250, 204, 21, 0.5), 0 0 30px rgba(250, 204, 21, 0.2); border-color: #facc15; }
+                    }
+                `}</style>
+            )}
             <Modal
                 title={
-                    <h3 className="text-3xl" style={{ color: colors.theme.text }}>
-                        Submit a new spot
-                    </h3>
+                    is_stuart_mode ? (
+                        <h3
+                            className="text-3xl"
+                            style={
+                                stuart_less_noise
+                                    ? { color: colors.theme.text }
+                                    : { animation: "stuart-color 3s linear infinite" }
+                            }
+                        >
+                            Stuart Mode Activated
+                        </h3>
+                    ) : (
+                        <h3 className="text-3xl" style={{ color: colors.theme.text }}>
+                            Submit a new spot
+                        </h3>
+                    )
                 }
                 button={<SubmitIcon size="32"></SubmitIcon>}
                 on_open={() => {
@@ -187,6 +220,14 @@ function SubmitSpot({ dev_mode }) {
                 }
                 apply_disabled={readyState !== ReadyState.OPEN}
                 external_close={external_close}
+                modal_style={
+                    is_stuart_mode && !stuart_less_noise
+                        ? {
+                              animation: "stuart-glow 3s linear infinite",
+                              borderWidth: "2px",
+                          }
+                        : null
+                }
             >
                 <table
                     className="mt-3 mx-2 w-full border-separate border-spacing-y-2"
@@ -275,9 +316,23 @@ function SubmitSpot({ dev_mode }) {
                         ) : (
                             ""
                         )}
+                        {is_stuart_mode ? (
+                            <tr>
+                                <td colSpan="2">
+                                    Less noise: &nbsp;
+                                    <input
+                                        type="checkbox"
+                                        checked={stuart_less_noise}
+                                        onChange={_ => set_stuart_less_noise(!stuart_less_noise)}
+                                    />
+                                </td>
+                            </tr>
+                        ) : (
+                            ""
+                        )}
                     </tbody>
                 </table>
-                {is_self_spotting ? (
+                {is_self_spotting && !is_stuart_mode ? (
                     <p
                         className="pb-2 px-2 text-center text-lg"
                         style={{ color: colors.theme.text }}
