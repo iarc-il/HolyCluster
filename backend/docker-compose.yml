@@ -47,6 +47,17 @@ services:
       start_period: 10s # Grace period for Valkey to start up
     restart: always
 
+  migrate:
+    container_name: migrate
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.migrate
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   collector:
     container_name: collector
     build:
@@ -58,8 +69,8 @@ services:
     depends_on:
       valkey:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     env_file:
       - .env
     volumes:
@@ -79,8 +90,8 @@ services:
     depends_on:
       valkey:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     env_file:
       - .env
     volumes:

@@ -1179,6 +1179,8 @@ name = "shared"
 version = "0.1.0"
 source = { editable = "shared" }
 dependencies = [
+    { name = "alembic" },
+    { name = "asyncpg" },
     { name = "httpx" },
     { name = "loguru" },
     { name = "pydantic" },
@@ -1189,6 +1191,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "alembic", specifier = ">=1.18.4" },
+    { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pydantic", specifier = ">=2.12.5" },
