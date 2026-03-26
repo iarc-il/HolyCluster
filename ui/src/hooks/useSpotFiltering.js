@@ -3,6 +3,7 @@ import { useFilters } from "./useFilters";
 import { useSettings } from "./useSettings";
 import use_radio from "./useRadio";
 import { useSpotInteraction } from "./useSpotInteraction";
+import { useReplay } from "./useReplay";
 import { is_matching_list, sort_spots, use_object_local_storage } from "@/utils.js";
 import { bands, modes } from "@/data/filters_data.js";
 import { get_flag } from "@/data/flags.js";
@@ -24,6 +25,7 @@ export default function useSpotFiltering(raw_spots) {
     const { settings } = useSettings();
     const { radio_band, radio_freq, radio_status } = use_radio();
     const { search_query } = useSpotInteraction();
+    const { is_replay_active, current_frame_start, replay_config } = useReplay();
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
@@ -68,7 +70,11 @@ export default function useSpotFiltering(raw_spots) {
                     }
                 }
 
-                const is_in_time_limit = current_time - spot.time < filters.time_limit;
+                const is_in_time_limit =
+                    is_replay_active && replay_config
+                        ? spot.time >= current_frame_start &&
+                          spot.time < current_frame_start + replay_config.window_duration
+                        : current_time - spot.time < filters.time_limit;
 
                 const is_matching_search = spot.dx_callsign
                     .toLowerCase()
@@ -141,6 +147,9 @@ export default function useSpotFiltering(raw_spots) {
         table_sort,
         settings.show_only_latest_spot,
         search_query,
+        is_replay_active,
+        current_frame_start,
+        replay_config,
     ]);
 
     const spots_per_band_count = useMemo(() => {

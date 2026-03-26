@@ -12,22 +12,26 @@ export default defineConfig({
     },
     server: {
         proxy: {
-            "/propagation": "https://holycluster-dev.iarc.org",
-            "/locator": "https://holycluster-dev.iarc.org",
-            "/catserver": "https://holycluster-dev.iarc.org",
-            "/dxpeditions": "https://holycluster-dev.iarc.org",
-            "/cluster_stats": "https://holycluster-dev.iarc.org",
+            "/propagation": { target: "https://holycluster-dev.iarc.org", secure: false },
+            "/locator": { target: "https://holycluster-dev.iarc.org", secure: false },
+            "/catserver": { target: "https://holycluster-dev.iarc.org", secure: false },
+            "/dxpeditions": { target: "https://holycluster-dev.iarc.org", secure: false },
+            "/cluster_stats": { target: "https://holycluster-dev.iarc.org", secure: false },
+            "/spots": { target: "https://holycluster-dev.iarc.org", secure: false },
             "/spots_ws": {
                 target: "wss://holycluster-dev.iarc.org",
                 ws: true,
+                secure: false,
             },
             "/radio": {
                 target: "wss://holycluster-dev.iarc.org",
                 ws: true,
+                secure: false,
             },
             "/submit_spot": {
                 target: "wss://holycluster-dev.iarc.org",
                 ws: true,
+                secure: false,
             },
         },
     },

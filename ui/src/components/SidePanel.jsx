@@ -2,6 +2,7 @@ import Filters from "@/components/Filters.jsx";
 import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Heatmap from "@/components/Heatmap.jsx";
 import DXpeditions from "@/components/DXpeditions.jsx";
+import ReplayControls from "@/components/ReplayControls.jsx";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
@@ -156,12 +157,12 @@ const view_options = [
         is_disabled: false,
     },
     {
-        label: "",
-        bg: "",
-        icon: "",
+        label: "Replay",
+        bg: "#22c55e",
+        icon: "M8 5v14l11-7z",
         viewbox: "0 0 24 24",
         size: 32,
-        is_disabled: true,
+        is_disabled: false,
     },
 ];
 
@@ -222,6 +223,7 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
             <Heatmap />
         </div>,
         <DXpeditions />,
+        <ReplayControls />,
     ];
 
     const toggled_classes = toggled_ui.right_visible
