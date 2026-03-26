@@ -30,4 +30,4 @@ RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["alembic", "upgrade", "head"]
+CMD ["sh", "-c", "ensure_db && alembic upgrade head"]

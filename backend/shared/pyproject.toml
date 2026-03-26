@@ -13,6 +13,9 @@ dependencies = [
     "sqlmodel>=0.0.27",
 ]
 
+[project.scripts]
+ensure_db = "shared.ensure_db:main"
+
 [build-system]
 requires = ["uv_build>=0.9.13,<0.10.0"]
 build-backend = "uv_build"
