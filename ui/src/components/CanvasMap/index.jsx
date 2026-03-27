@@ -17,6 +17,7 @@ import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useSettings } from "@/hooks/useSettings";
+import { useReplay } from "@/hooks/useReplay";
 
 const DPR = window.devicePixelRatio || 1;
 
@@ -45,6 +46,7 @@ function do_redraw(
         pinned_spot,
         hovered_band,
         current_freq_spots,
+        display_time,
     } = render_state_ref.current;
 
     // Map cache
@@ -61,6 +63,7 @@ function do_redraw(
                 map_controls.night,
                 settings.show_equator,
                 map_controls.is_globe,
+                display_time,
             );
         });
     }
@@ -122,6 +125,10 @@ function CanvasMap({
         useSpotInteraction();
     const { settings } = useSettings();
     const { colors } = useColors();
+    const { is_replay_active, current_frame_start, replay_config } = useReplay();
+    const display_time = is_replay_active && current_frame_start !== null
+        ? new Date((current_frame_start + (replay_config?.window_duration ?? 0) / 2) * 1000)
+        : new Date();
 
     const map_canvas_ref = useRef(null);
     const spots_canvas_ref = useRef(null);
@@ -177,6 +184,7 @@ function CanvasMap({
         map_controls,
         settings,
         radius_in_km,
+        display_time,
     };
 
     useMemo(() => {

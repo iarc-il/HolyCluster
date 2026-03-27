@@ -157,7 +157,7 @@ const view_options = [
         is_disabled: false,
     },
     {
-        label: "Replay",
+        label: "Playback",
         bg: "#22c55e",
         icon: "M8 5v14l11-7z",
         viewbox: "0 0 24 24",

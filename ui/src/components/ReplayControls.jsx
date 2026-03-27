@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useReplay } from "@/hooks/useReplay";
 import { useColors } from "@/hooks/useColors";
 import Select from "@/components/ui/Select.jsx";
@@ -58,16 +58,16 @@ function SettingsPanel({ config, setConfig, on_close }) {
     return (
         <div
             className="flex flex-col gap-2 p-3 border-b shrink-0"
-            style={{ borderColor: colors.theme.borders }}
+            style={{ borderColor: colors.theme.borders, position: 'relative', zIndex: 20, marginTop: '52px' }}
         >
             <div className="flex justify-between items-center">
-                <span className="font-semibold text-sm" style={text}>Settings</span>
-                <button onClick={on_close} style={text} className="text-lg leading-none hover:opacity-60">✕</button>
+                <span className="font-semibold text-lg" style={text}>Settings</span>
+                <button onClick={on_close} className="text-2xl font-bold leading-none hover:opacity-60" style={{ color: "white", marginRight: '4px' }}>✕</button>
             </div>
 
             <div className="flex gap-2 items-center">
-                <label className="text-xs w-14 shrink-0" style={text}>Window</label>
-                <Select value={config.window_duration} onChange={e => setConfig(c => ({ ...c, window_duration: Number(e.target.value) }))} className="flex-1">
+                <label className="text-lg w-20 shrink-0" style={text}>Window</label>
+                <Select value={config.window_duration} onChange={e => setConfig(c => ({ ...c, window_duration: Number(e.target.value) }))} className="w-24">
                     {Object.entries(window_options).map(([label, val]) => (
                         <option key={val} value={val}>{label}</option>
                     ))}
@@ -75,8 +75,8 @@ function SettingsPanel({ config, setConfig, on_close }) {
             </div>
 
             <div className="flex gap-2 items-center">
-                <label className="text-xs w-14 shrink-0" style={text}>Step</label>
-                <Select value={config.step_size} onChange={e => setConfig(c => ({ ...c, step_size: Number(e.target.value) }))} className="flex-1">
+                <label className="text-lg w-20 shrink-0" style={text}>Step</label>
+                <Select value={config.step_size} onChange={e => setConfig(c => ({ ...c, step_size: Number(e.target.value) }))} className="w-24">
                     {Object.entries(step_options).map(([label, val]) => (
                         <option key={val} value={val}>{label}</option>
                     ))}
@@ -84,8 +84,8 @@ function SettingsPanel({ config, setConfig, on_close }) {
             </div>
 
             <div className="flex gap-2 items-center">
-                <label className="text-xs w-14 shrink-0" style={text}>Speed</label>
-                <Select value={config.playback_speed} onChange={e => setConfig(c => ({ ...c, playback_speed: Number(e.target.value) }))} className="flex-1">
+                <label className="text-lg w-20 shrink-0" style={text}>Speed</label>
+                <Select value={config.playback_speed} onChange={e => setConfig(c => ({ ...c, playback_speed: Number(e.target.value) }))} className="w-24">
                     {Object.entries(speed_options).map(([label, val]) => (
                         <option key={val} value={val}>{label}</option>
                     ))}
@@ -252,7 +252,7 @@ export default function ReplayControls() {
         <div className="flex flex-col h-full relative" style={{ minHeight: "300px", marginLeft: "-8px" }}>
 
             {/* Gear icon — floating top-right */}
-            <div className="absolute" style={{ top: '18px', right: '10px' }}>
+            <div className="absolute" style={{ top: '18px', right: '10px', zIndex: 20 }}>
                 <button onClick={() => set_settings_open(o => !o)} title="Settings"
                     className="hover:opacity-70 transition-opacity"
                     style={{ color: settings_open ? "#22c55e" : colors.theme.text }}>
@@ -321,19 +321,36 @@ export default function ReplayControls() {
                     transform: "translateY(50%)"
                 }} />
 
-                {/* Hour ticks */}
-                {ticks.map((pct, i) => (
-                    <div key={i} className="absolute" style={{
-                        right: `${AXIS_RIGHT + 4}px`,
-                        bottom: `${pct}%`,
-                        width: i === 0 || i === ticks.length - 1 ? "18px" : "10px",
-                        height: i === 0 || i === ticks.length - 1 ? "2.5px" : "2px",
-                        backgroundColor: "#fff",
-                        opacity: 1,
-                        borderRadius: "2px",
-                        transform: "translateY(50%)",
-                    }} />
-                ))}
+                {/* Hour ticks + labels */}
+                {ticks.map((pct, i) => {
+                    const hour_label = from_h - i;
+                    return (
+                        <React.Fragment key={i}>
+                            <div className="absolute" style={{
+                                right: `${AXIS_RIGHT + 4}px`,
+                                bottom: `${pct}%`,
+                                width: i === 0 || i === ticks.length - 1 ? "18px" : "10px",
+                                height: i === 0 || i === ticks.length - 1 ? "2.5px" : "2px",
+                                backgroundColor: "#fff",
+                                opacity: 1,
+                                borderRadius: "2px",
+                                transform: "translateY(50%)",
+                            }} />
+                            <div className="absolute" style={{
+                                right: `${AXIS_RIGHT + 26}px`,
+                                bottom: `${pct}%`,
+                                transform: "translateY(50%)",
+                                color: "#fff",
+                                fontSize: "1rem",
+                                fontWeight: 600,
+                                whiteSpace: "nowrap",
+                                opacity: 0.85,
+                            }}>
+                                -{hour_label}h
+                            </div>
+                        </React.Fragment>
+                    );
+                })}
 
                 {/* Highlighted window segment */}
                 {is_replay_active && (
@@ -388,23 +405,27 @@ export default function ReplayControls() {
                             : <div className="flex items-center gap-2 px-6" style={{ color: colors.theme.text, pointerEvents: 'auto' }}>
                                 <button
                                     onClick={handle_play_pause}
+                                    title="Start Playback"
                                     className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-base hover:opacity-80 active:opacity-60 transition-opacity"
                                     style={{ backgroundColor: "#22c55e", color: "white" }}>▶</button>
                                 <span style={{ fontSize: "1.5rem", fontWeight: 700 }}>to start</span>
                               </div>
-                    ) : (
-                        <div className="flex items-center gap-2 px-6" style={{ pointerEvents: 'auto' }}>
-                            <button
-                                onClick={exit_replay}
-                                title="Exit replay"
-                                className="inline-flex items-center justify-center px-6 py-3 rounded-lg text-2xl font-bold hover:opacity-80 active:opacity-60 transition-opacity"
-                                style={{ backgroundColor: "#ef4444", color: "white" }}>
-                                Exit
-                            </button>
-                        </div>
-                    )}
+                    ) : null}
                     {error && <div className="text-red-500 text-xs px-3 text-center">{error}</div>}
                 </div>
+
+                {/* Exit button — below Until row */}
+                {is_replay_active && (
+                    <div className="absolute left-0" style={{ top: '90px', paddingLeft: '24px', zIndex: 10 }}>
+                        <button
+                            onClick={exit_replay}
+                            title="Exit replay"
+                            className="inline-flex items-center justify-center px-6 py-1 rounded-lg text-2xl font-bold hover:opacity-80 active:opacity-60 transition-opacity"
+                            style={{ backgroundColor: "#ef4444", color: "white" }}>
+                            Exit
+                        </button>
+                    </div>
+                )}
                 {/* FROM — pinned to bottom */}
                 <div className="absolute left-0 right-0" style={{ bottom: '8px' }}>
                     <HoursRow
@@ -423,7 +444,7 @@ export default function ReplayControls() {
                 style={{ borderColor: colors.theme.borders }}>
                 <ControlButton onClick={go_to_start} title="Go to start" color="#374151">⏮</ControlButton>
                 <ControlButton onClick={step_backward} title="Step back">⏪</ControlButton>
-                <ControlButton onClick={handle_play_pause} title={is_playing ? "Pause" : "Play"}
+                <ControlButton onClick={handle_play_pause} title={is_playing ? "Pause" : "Start Playback"}
                     color={is_playing ? "#f59e0b" : "#22c55e"}>
                     {is_playing ? "⏸" : "▶"}
                 </ControlButton>

@@ -17,7 +17,7 @@ export default defineConfig({
             "/catserver": { target: "https://holycluster-dev.iarc.org", secure: false },
             "/dxpeditions": { target: "https://holycluster-dev.iarc.org", secure: false },
             "/cluster_stats": { target: "https://holycluster-dev.iarc.org", secure: false },
-            "/spots": { target: "https://holycluster-dev.iarc.org", secure: false },
+            "/spots": { target: "http://localhost:8001" },
             "/spots_ws": {
                 target: "wss://holycluster-dev.iarc.org",
                 ws: true,

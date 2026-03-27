@@ -18,6 +18,7 @@ import ToggleSVG from "./ui/ToggleSVG";
 
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { useReplay } from "@/hooks/useReplay";
 
 const map_angles_diff = 15;
 
@@ -50,17 +51,17 @@ function generate_concentric_circles(center_x, center_y, max_radius, circle_coun
     return circles;
 }
 
-function get_sun_coordinates() {
-    const now = new Date();
+function get_sun_coordinates(display_time) {
+    const now = display_time || new Date();
     const day = new Date(+now).setUTCHours(0, 0, 0, 0);
     const t = century(now);
     const longitude = ((day - now) / 864e5) * 360 - 180;
     return [longitude - equationOfTime(t) / 4, declination(t)];
 }
 
-function get_night_circle() {
+function get_night_circle(display_time) {
     const antipode = ([longitude, latitude]) => [longitude + 180, -latitude];
-    return d3.geoCircle().radius(90).center(antipode(get_sun_coordinates()))();
+    return d3.geoCircle().radius(90).center(antipode(get_sun_coordinates(display_time)))();
 }
 
 function SvgMap({
@@ -76,6 +77,10 @@ function SvgMap({
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
+    const { is_replay_active, current_frame_start, replay_config } = useReplay();
+    const display_time = is_replay_active && current_frame_start !== null
+        ? new Date((current_frame_start + (replay_config?.window_duration ?? 0) / 2) * 1000)
+        : new Date();
 
     const svg_ref = useRef(null);
     const [svg_box_ref, { width, height }] = useMeasure();
@@ -382,7 +387,7 @@ function SvgMap({
                             pointerEvents="none"
                             fill={colors.map.night}
                             opacity="0.2"
-                            d={path_generator(get_night_circle())}
+                            d={path_generator(get_night_circle(display_time))}
                         />
                     ) : (
                         ""
