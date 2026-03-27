@@ -40,6 +40,7 @@ const dxcc_to_country_flag = {
     "The Gambia": "Gambia",
     "Eastern Kiribati": "Kiribati",
     "Western Kiribati": "Kiribati",
+    "Central Kiribati": "Kiribati",
     "Minami Torishima": "Japan",
     Dodecanese: "Greece",
     "Banaba Island": "Kiribati",
