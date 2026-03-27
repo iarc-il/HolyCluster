@@ -251,18 +251,19 @@ export default function ReplayControls() {
     return (
         <div className="flex flex-col h-full relative" style={{ minHeight: "300px", marginLeft: "-8px" }}>
 
-            {/* Gear icon — floating top-right */}
-            <div className="absolute" style={{ top: '18px', right: '10px', zIndex: 20 }}>
-                <button onClick={() => set_settings_open(o => !o)} title="Settings"
-                    className="hover:opacity-70 transition-opacity"
-                    style={{ color: settings_open ? "#22c55e" : colors.theme.text }}>
-                    <GearIcon size={32} color="currentColor" />
-                </button>
-            </div>
-
+            {/* Gear icon — floating top-right, hidden during playback */}
+            {!is_replay_active && (
+                <div className="absolute" style={{ top: '18px', right: '10px', zIndex: 20 }}>
+                    <button onClick={() => set_settings_open(o => !o)} title="Settings"
+                        className="hover:opacity-70 transition-opacity"
+                        style={{ color: settings_open ? "#22c55e" : colors.theme.text }}>
+                        <GearIcon size={32} color="currentColor" />
+                    </button>
+                </div>
+            )}
 
             {/* Settings panel */}
-            {settings_open && (
+            {settings_open && !is_replay_active && (
                 <SettingsPanel
                     config={config}
                     setConfig={set_config}
@@ -274,15 +275,17 @@ export default function ReplayControls() {
             <div className="flex-1 relative overflow-hidden" style={{ minHeight: "100px" }}>
 
                 {/* UNTIL — pinned to top */}
-                <div className="absolute left-0 right-0" style={{ top: '8px' }}>
-                    <HoursRow
-                        label="Until"
-                        value={until_h}
-                        onChange={handleUntilChange}
-                        colors={colors}
-                        max={from_h}
-                    />
-                </div>
+                {!is_replay_active && (
+                    <div className="absolute left-0 right-0" style={{ top: '8px' }}>
+                        <HoursRow
+                            label="Until"
+                            value={until_h}
+                            onChange={handleUntilChange}
+                            colors={colors}
+                            max={from_h}
+                        />
+                    </div>
+                )}
 
 
 
@@ -365,25 +368,47 @@ export default function ReplayControls() {
                     }} />
                 )}
 
-                {/* Arrow */}
-                {is_replay_active && (
-                    <div className="absolute flex items-center" style={{
-                        bottom: `${arrow_pct}%`,
-                        left: "130px", // close to right edge of drop-down
-                        right: `${AXIS_RIGHT + 24}px`,
-                        transform: "translateY(50%)",
-                        transition: "bottom 0.3s ease",
-                    }}>
-                        <div style={{ flex: 1, height: "2px", backgroundColor: arrow_color, opacity: 0.7 }} />
-                        <div style={{
-                            width: 0, height: 0,
-                            borderTop: "5px solid transparent",
-                            borderBottom: "5px solid transparent",
-                            borderLeft: `8px solid ${arrow_color}`,
-                            opacity: 0.9,
-                        }} />
-                    </div>
-                )}
+                {/* Arrow + UTC time label */}
+                {is_replay_active && (() => {
+                    const mid_time = current_frame_start + (replay_config?.window_duration ?? 0) / 2;
+                    const d = new Date(mid_time * 1000);
+                    const date_label = d.toUTCString().slice(5, 16); // "27 Mar 2026"
+                    const time_label = d.toUTCString().slice(17, 22) + " UTC"; // "14:30 UTC"
+                    return (
+                        <>
+                            <div className="absolute" style={{
+                                bottom: `${arrow_pct}%`,
+                                left: "24px",
+                                transform: "translateY(50%)",
+                                transition: "bottom 0.3s ease",
+                                color: "#fff",
+                                fontSize: "1rem",
+                                fontWeight: 600,
+                                opacity: 0.85,
+                                lineHeight: 1.2,
+                            }}>
+                                <div>{date_label}</div>
+                                <div>{time_label}</div>
+                            </div>
+                            <div className="absolute flex items-center" style={{
+                                bottom: `${arrow_pct}%`,
+                                left: "130px",
+                                right: `${AXIS_RIGHT + 24}px`,
+                                transform: "translateY(50%)",
+                                transition: "bottom 0.3s ease",
+                            }}>
+                                <div style={{ flex: 1, height: "2px", backgroundColor: arrow_color, opacity: 0.7 }} />
+                                <div style={{
+                                    width: 0, height: 0,
+                                    borderTop: "5px solid transparent",
+                                    borderBottom: "5px solid transparent",
+                                    borderLeft: `8px solid ${arrow_color}`,
+                                    opacity: 0.9,
+                                }} />
+                            </div>
+                        </>
+                    );
+                })()}
 
                 {/* Spots count */}
                 {is_replay_active && (
@@ -414,28 +439,30 @@ export default function ReplayControls() {
                     {error && <div className="text-red-500 text-xs px-3 text-center">{error}</div>}
                 </div>
 
-                {/* Exit button — below Until row */}
+                {/* Exit button — right of axis */}
                 {is_replay_active && (
-                    <div className="absolute left-0" style={{ top: '90px', paddingLeft: '24px', zIndex: 10 }}>
+                    <div className="absolute" style={{ top: '50%', right: '4px', transform: 'translateY(-50%)', zIndex: 10 }}>
                         <button
                             onClick={exit_replay}
-                            title="Exit replay"
-                            className="inline-flex items-center justify-center px-6 py-1 rounded-lg text-2xl font-bold hover:opacity-80 active:opacity-60 transition-opacity"
+                            title="Exit playback"
+                            className="inline-flex items-center justify-center px-2 py-1 rounded-lg text-base font-bold hover:opacity-80 active:opacity-60 transition-opacity"
                             style={{ backgroundColor: "#ef4444", color: "white" }}>
                             Exit
                         </button>
                     </div>
                 )}
                 {/* FROM — pinned to bottom */}
-                <div className="absolute left-0 right-0" style={{ bottom: '8px' }}>
-                    <HoursRow
-                        label="From"
-                        value={from_h}
-                        onChange={handleFromChange}
-                        colors={colors}
-                        min={until_h}
-                    />
-                </div>
+                {!is_replay_active && (
+                    <div className="absolute left-0 right-0" style={{ bottom: '8px' }}>
+                        <HoursRow
+                            label="From"
+                            value={from_h}
+                            onChange={handleFromChange}
+                            colors={colors}
+                            min={until_h}
+                        />
+                    </div>
+                )}
 
             </div>
 
