@@ -62,8 +62,8 @@ function SettingsPanel({ config, setConfig, on_close }) {
             style={{ borderColor: colors.theme.borders, position: 'relative', zIndex: 20, marginTop: '52px' }}
         >
             <div className="flex justify-between items-center">
-                <span className="font-semibold text-lg" style={text}>Settings</span>
-                <button onClick={on_close} className="text-2xl font-bold leading-none hover:opacity-60" style={{ color: "white", marginRight: '4px' }}>✕</button>
+                <span className="text-lg" style={text}>Settings</span>
+                <button onClick={on_close} className="text-2xl leading-none hover:opacity-60" style={{ color: "white", marginRight: '4px' }}>✕</button>
             </div>
 
             <div className="flex gap-2 items-center">
@@ -105,7 +105,7 @@ function HoursRow({ label, value, onChange, colors, min, max }) {
             style={{ paddingLeft: '12px', borderColor: colors.theme.borders }}
         >
             <span
-                className="font-bold"
+                className=""
                 style={{ color: colors.theme.text, fontSize: "1.25rem", marginBottom: "0.15em" }}
             >
                 {label}
@@ -120,11 +120,11 @@ function HoursRow({ label, value, onChange, colors, min, max }) {
                     borderRadius: "0.5rem",
                     padding: "0.25rem 0.5rem",
                     fontSize: "1.125rem",
-                    fontWeight: "600",
+                    fontWeight: "normal",
                 }}
             >
                 {filtered_options.map(h => (
-                    <option key={h} value={h}>{h === 0 ? "now" : `${h}h ago`}</option>
+                    <option key={h} value={h}>{h === 0 ? "Now" : `${h}h ago`}</option>
                 ))}
             </select>
         </div>
@@ -135,7 +135,6 @@ export default function ReplayControls() {
     const { colors } = useColors();
     const {
         is_replay_active,
-        replay_spots,
         replay_config,
         current_frame_start,
         is_playing,
@@ -156,6 +155,8 @@ export default function ReplayControls() {
     const paused_for_hover_ref = useRef(false);
     const axis_container_ref = useRef(null);
     const drag_data_ref = useRef(null);
+    const window_segment_ref = useRef(null);
+    const circle_el_ref = useRef(null);
     const [config, set_config] = use_object_local_storage("playback_config", {
         from_hours: 20,
         until_hours: 7,
@@ -275,6 +276,27 @@ export default function ReplayControls() {
         set_is_dragging(true);
     }
 
+    function on_hover_enter() {
+        set_is_hovering_circle(true);
+        if (is_playing) {
+            paused_for_hover_ref.current = true;
+            pause();
+        }
+    }
+
+    function on_hover_leave(e) {
+        // Ignore transitions between the window segment and the circle
+        if (
+            (window_segment_ref.current && window_segment_ref.current.contains(e.relatedTarget)) ||
+            (circle_el_ref.current && circle_el_ref.current.contains(e.relatedTarget))
+        ) return;
+        set_is_hovering_circle(false);
+        if (paused_for_hover_ref.current && !is_dragging) {
+            paused_for_hover_ref.current = false;
+            play(replay_config, current_frame_start);
+        }
+    }
+
     const axis_color    = "#6b7280";  // light gray like YouTube
     const segment_color = "rgba(255,255,255,0.25)"; // transparent white for window
     const played_color  = "#ff0000"; // YouTube red for played bar
@@ -372,7 +394,7 @@ export default function ReplayControls() {
 
                 {/* Window segment — transparent white rectangle, draggable */}
                 {is_replay_active && (
-                    <div className="absolute" style={{
+                    <div ref={window_segment_ref} className="absolute" style={{
                         right: `${AXIS_RIGHT - 3}px`,
                         bottom: `${segment_bottom_pct}%`,
                         height: `${Math.max(segment_height_pct, 1)}%`,
@@ -383,20 +405,8 @@ export default function ReplayControls() {
                         cursor: is_dragging ? "grabbing" : "grab",
                         zIndex: 9,
                     }}
-                        onMouseEnter={() => {
-                            set_is_hovering_circle(true);
-                            if (is_playing) {
-                                paused_for_hover_ref.current = true;
-                                pause();
-                            }
-                        }}
-                        onMouseLeave={() => {
-                            set_is_hovering_circle(false);
-                            if (paused_for_hover_ref.current && !is_dragging) {
-                                paused_for_hover_ref.current = false;
-                                play(replay_config, current_frame_start);
-                            }
-                        }}
+                        onMouseEnter={on_hover_enter}
+                        onMouseLeave={on_hover_leave}
                         onMouseDown={handle_arrow_mouse_down}
                     />
                 )}
@@ -404,6 +414,7 @@ export default function ReplayControls() {
                 {/* Red circle — at center of window, draggable */}
                 {is_replay_active && (
                     <div
+                        ref={circle_el_ref}
                         className="absolute"
                         style={{
                             right: `${AXIS_RIGHT - (CIRCLE_SIZE / 2) + 2}px`,
@@ -418,6 +429,8 @@ export default function ReplayControls() {
                             zIndex: 10,
                             boxShadow: "0 0 4px rgba(0,0,0,0.5)",
                         }}
+                        onMouseEnter={on_hover_enter}
+                        onMouseLeave={on_hover_leave}
                         onMouseDown={handle_arrow_mouse_down}
                     />
                 )}
@@ -509,7 +522,7 @@ export default function ReplayControls() {
                                 transform: "translateY(50%)",
                                 color: "#fff",
                                 fontSize: "1rem",
-                                fontWeight: 600,
+                                fontWeight: "normal",
                                 whiteSpace: "nowrap",
                                 opacity: 0.85,
                             }}>
@@ -519,24 +532,12 @@ export default function ReplayControls() {
                     );
                 })}
 
-                {/* Highlighted window segment */}
-                {is_replay_active && (
-                    <div className="absolute" style={{
-                        right: `${AXIS_RIGHT - 3}px`,
-                        bottom: `${segment_bottom_pct}%`,
-                        height: `${Math.max(segment_height_pct, 1)}%`,
-                        width: "10px",
-                        backgroundColor: segment_color,
-                        borderRadius: "3px",
-                        transition: "bottom 0.3s ease",
-                    }} />
-                )}
 
                 {/* UTC time label — next to circle */}
                 {is_replay_active && (() => {
                     const d = new Date(current_frame_start * 1000);
                     const date_label = d.toUTCString().slice(5, 16);
-                    const time_label = d.toUTCString().slice(17, 22) + " UTC";
+                    const time_digits = d.toUTCString().slice(17, 22);
                     return (
                         <div className="absolute" style={{
                             bottom: `${circle_pct}%`,
@@ -545,27 +546,19 @@ export default function ReplayControls() {
                             transition: is_dragging ? "none" : "bottom 0.3s ease",
                             color: "#fff",
                             fontSize: "1rem",
-                            fontWeight: 600,
+                            fontWeight: "normal",
                             opacity: 0.85,
                             lineHeight: 1.2,
                         }}>
                             <div>{date_label}</div>
-                            <div>{time_label}</div>
+                            <div style={{ display: "flex", gap: "0.3em" }}>
+                                <span style={{ fontVariantNumeric: "tabular-nums", minWidth: "3.2ch" }}>{time_digits}</span>
+                                <span>UTC</span>
+                            </div>
                         </div>
                     );
                 })()}
 
-                {/* Spots count */}
-                {is_replay_active && (
-                    <div className="absolute text-xs opacity-40" style={{
-                        bottom: "4px",
-                        right: `${AXIS_RIGHT + 12}px`,
-                        color: colors.theme.text,
-                        fontSize: "0.65rem",
-                    }}>
-                        {replay_spots.length} spots
-                    </div>
-                )}
 
                 {/* Prompt / error when not active */}
                 <div className="absolute inset-0 flex flex-col items-start justify-center gap-2" style={{ pointerEvents: 'none' }}>
@@ -577,14 +570,14 @@ export default function ReplayControls() {
                                         <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" strokeOpacity="0.3" />
                                         <path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" />
                                     </svg>
-                                    <div className="font-bold text-lg leading-tight" style={{ color: "white" }}>
+                                    <div className="text-lg leading-tight" style={{ color: "white" }}>
                                         <div>Loading</div>
                                         <div>spots…</div>
                                     </div>
                                 </div>
                               </div>
                             : <div className="flex flex-col items-start gap-3" style={{ color: colors.theme.text, pointerEvents: 'auto', paddingLeft: '12px', maxWidth: `calc(100% - ${AXIS_RIGHT + 35}px)` }}>
-                                <div className="text-left px-2 py-1 rounded-lg font-bold text-lg leading-tight"
+                                <div className="text-left px-2 py-1 rounded-lg text-lg leading-tight"
                                     style={{ backgroundColor: "#1d4ed8", color: "white" }}>
                                     <div>Past Spots</div>
                                     <div>Motion View</div>
@@ -595,7 +588,7 @@ export default function ReplayControls() {
                                         title="Start Playback"
                                         className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-base hover:opacity-80 active:opacity-60 transition-opacity"
                                         style={{ backgroundColor: "#22c55e", color: "white" }}>▶</button>
-                                    <span style={{ fontSize: "1.5rem", fontWeight: 700 }}>to start</span>
+                                    <span style={{ fontSize: "1.5rem" }}>to start</span>
                                 </div>
                               </div>
                     ) : null}

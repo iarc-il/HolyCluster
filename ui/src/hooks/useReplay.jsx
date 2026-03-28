@@ -44,8 +44,10 @@ export function ReplayProvider({ children, live_spots = [] }) {
     const [is_loading, set_is_loading] = useState(false);
     const [error, set_error] = useState(null);
     const interval_ref = useRef(null);
+    const paused_ref = useRef(false);
 
     const stop_interval = useCallback(() => {
+        paused_ref.current = true;
         if (interval_ref.current) {
             clearInterval(interval_ref.current);
             interval_ref.current = null;
@@ -60,10 +62,13 @@ export function ReplayProvider({ children, live_spots = [] }) {
     const play = useCallback((config, frame_start) => {
         const cfg = config;
         const frame = frame_start;
+        paused_ref.current = false;
         set_is_playing(true);
         stop_interval();
+        paused_ref.current = false;
         let current = frame;
         interval_ref.current = setInterval(() => {
+            if (paused_ref.current) return;
             const next = current + cfg.step_size;
             const max_frame = cfg.end_time - cfg.window_duration;
             if (next >= max_frame) {
