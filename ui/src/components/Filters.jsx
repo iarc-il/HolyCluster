@@ -161,6 +161,7 @@ function FilterSection({ title, filters, action, toggle_field, active_filter_id 
         padding: "0.5rem",
         margin: "-0.5rem",
         transition: "all 0.2s ease",
+        minHeight: "2.5rem",
     };
 
     const toggle_active = () => {
@@ -171,6 +172,17 @@ function FilterSection({ title, filters, action, toggle_field, active_filter_id 
     };
 
     const add_filter = new_filter => {
+        const special_types = ["self_spotters", "dxpeditions", "missing_dxcc"];
+        const is_duplicate = callsign_filters.filters.some(f => {
+            if (special_types.includes(new_filter.type)) {
+                return f.type === new_filter.type && f.action === new_filter.action;
+            }
+            return f.type === new_filter.type &&
+                f.value === new_filter.value &&
+                f.spotter_or_dx === new_filter.spotter_or_dx &&
+                f.action === new_filter.action;
+        });
+        if (is_duplicate) return;
         setCallsignFilters({
             ...callsign_filters,
             filters: [...callsign_filters.filters, new_filter],
@@ -228,9 +240,29 @@ function Filters() {
         if (!over) return;
 
         const { filterId, currentAction } = active.data.current;
-        const newAction = over.id;
+        // If dropped on a filter item rather than the section itself,
+        // use that filter's action as the target section
+        let newAction = over.id;
+        if (String(over.id).startsWith("filter-")) {
+            const overIndex = Number.parseInt(String(over.id).replace("filter-", ""));
+            newAction = callsign_filters.filters[overIndex]?.action ?? over.id;
+        }
 
         if (currentAction !== newAction) {
+            const special_types = ["self_spotters", "dxpeditions", "missing_dxcc"];
+            const dragged = active.data.current.filter;
+            if (!dragged) return;
+            const is_duplicate = callsign_filters.filters.some((f, i) => {
+                if (i === filterId) return false;
+                if (special_types.includes(dragged.type)) {
+                    return f.type === dragged.type && f.action === newAction;
+                }
+                return f.type === dragged.type &&
+                    f.value === dragged.value &&
+                    f.spotter_or_dx === dragged.spotter_or_dx &&
+                    f.action === newAction;
+            });
+            if (is_duplicate) return;
             const new_filters = [...callsign_filters.filters];
             new_filters[filterId] = { ...new_filters[filterId], action: newAction };
             setCallsignFilters({ ...callsign_filters, filters: new_filters });

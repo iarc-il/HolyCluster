@@ -124,7 +124,7 @@ function HoursRow({ label, value, onChange, colors, min, max }) {
                 }}
             >
                 {filtered_options.map(h => (
-                    <option key={h} value={h}>{h}h ago</option>
+                    <option key={h} value={h}>{h === 0 ? "now" : `${h}h ago`}</option>
                 ))}
             </select>
         </div>
@@ -152,6 +152,7 @@ export default function ReplayControls() {
 
     const [settings_open, set_settings_open] = useState(false);
     const [is_dragging, set_is_dragging] = useState(false);
+    const [is_hovering_circle, set_is_hovering_circle] = useState(false);
     const paused_for_hover_ref = useRef(false);
     const axis_container_ref = useRef(null);
     const drag_data_ref = useRef(null);
@@ -200,7 +201,6 @@ export default function ReplayControls() {
 
     let segment_bottom_pct = MARGIN;
     let segment_height_pct = AXIS_RANGE;
-    let arrow_pct = 50;
 
     if (replay_config && current_frame_start !== null) {
         const total = replay_config.end_time - replay_config.start_time;
@@ -208,7 +208,6 @@ export default function ReplayControls() {
         const raw_top = (current_frame_start + replay_config.window_duration - replay_config.start_time) / total;
         segment_bottom_pct = MARGIN + raw_bottom * AXIS_RANGE;
         segment_height_pct = (raw_top - raw_bottom) * AXIS_RANGE;
-        arrow_pct = MARGIN + ((raw_bottom + raw_top) / 2) * AXIS_RANGE;
     }
 
     // Hour tick marks
@@ -276,9 +275,12 @@ export default function ReplayControls() {
         set_is_dragging(true);
     }
 
-    const axis_color    = "#22c55e";
-    const segment_color = "#22c55e";
-    const arrow_color   = colors.theme.text;
+    const axis_color    = "#6b7280";  // light gray like YouTube
+    const segment_color = "rgba(255,255,255,0.25)"; // transparent white for window
+    const played_color  = "#ff0000"; // YouTube red for played bar
+    const circle_color  = "#ff0000"; // YouTube red circle
+    const CIRCLE_SIZE   = 14;        // px diameter
+    const circle_pct    = segment_bottom_pct + segment_height_pct / 2; // center of window
 
     // Handlers to enforce until_hours <= from_hours
     function handleUntilChange(v) {
@@ -345,7 +347,7 @@ export default function ReplayControls() {
 
 
 
-                {/* Axis track */}
+                {/* Axis track — gray */}
                 <div className="absolute" style={{
                     right: `${AXIS_RIGHT}px`,
                     top: `${MARGIN}%`,
@@ -353,8 +355,93 @@ export default function ReplayControls() {
                     width: "4px",
                     backgroundColor: axis_color,
                     borderRadius: "2px",
-                    opacity: 1,
                 }} />
+
+                {/* Played bar — solid red from bottom of axis to center of window */}
+                {is_replay_active && (
+                    <div className="absolute" style={{
+                        right: `${AXIS_RIGHT}px`,
+                        bottom: `${MARGIN}%`,
+                        height: `${Math.max(circle_pct - MARGIN, 0)}%`,
+                        width: "4px",
+                        backgroundColor: played_color,
+                        borderRadius: "2px",
+                        transition: is_dragging ? "none" : "height 0.3s ease",
+                    }} />
+                )}
+
+                {/* Window segment — transparent white rectangle, draggable */}
+                {is_replay_active && (
+                    <div className="absolute" style={{
+                        right: `${AXIS_RIGHT - 3}px`,
+                        bottom: `${segment_bottom_pct}%`,
+                        height: `${Math.max(segment_height_pct, 1)}%`,
+                        width: "10px",
+                        backgroundColor: segment_color,
+                        borderRadius: "3px",
+                        transition: is_dragging ? "none" : "bottom 0.3s ease",
+                        cursor: is_dragging ? "grabbing" : "grab",
+                        zIndex: 9,
+                    }}
+                        onMouseEnter={() => {
+                            set_is_hovering_circle(true);
+                            if (is_playing) {
+                                paused_for_hover_ref.current = true;
+                                pause();
+                            }
+                        }}
+                        onMouseLeave={() => {
+                            set_is_hovering_circle(false);
+                            if (paused_for_hover_ref.current && !is_dragging) {
+                                paused_for_hover_ref.current = false;
+                                play(replay_config, current_frame_start);
+                            }
+                        }}
+                        onMouseDown={handle_arrow_mouse_down}
+                    />
+                )}
+
+                {/* Red circle — at center of window, draggable */}
+                {is_replay_active && (
+                    <div
+                        className="absolute"
+                        style={{
+                            right: `${AXIS_RIGHT - (CIRCLE_SIZE / 2) + 2}px`,
+                            bottom: `${circle_pct}%`,
+                            width: `${CIRCLE_SIZE}px`,
+                            height: `${CIRCLE_SIZE}px`,
+                            borderRadius: "50%",
+                            backgroundColor: circle_color,
+                            transform: "translateY(50%)",
+                            cursor: is_dragging ? "grabbing" : "grab",
+                            transition: is_dragging ? "none" : "bottom 0.3s ease",
+                            zIndex: 10,
+                            boxShadow: "0 0 4px rgba(0,0,0,0.5)",
+                        }}
+                        onMouseDown={handle_arrow_mouse_down}
+                    />
+                )}
+
+                {/* Play/Pause icon — fixed at vertical center, a few px right of axis */}
+                {is_replay_active && (
+                    <div
+                        className="absolute"
+                        style={{
+                            right: `${AXIS_RIGHT - CIRCLE_SIZE - 31}px`,
+                            top: "50%",
+                            transform: "translateY(-50%) rotate(-90deg)",
+                            cursor: "pointer",
+                            zIndex: 10,
+                        }}
+                        onClick={handle_play_pause}
+                        title={is_playing ? "Pause" : "Play"}
+                    >
+                        <div className="flex items-center justify-center w-9 h-9 rounded-lg hover:opacity-80 active:opacity-60 transition-opacity select-none text-base"
+                            style={{ backgroundColor: is_playing && !is_hovering_circle ? "#f59e0b" : "#22c55e", color: "white" }}>
+                            {is_playing && !is_hovering_circle ? "⏸" : "▶"}
+                        </div>
+                    </div>
+                )}
 
                 {/* Top white tick (longer) */}
                 <div className="absolute" style={{
@@ -445,62 +532,26 @@ export default function ReplayControls() {
                     }} />
                 )}
 
-                {/* Arrow + UTC time label */}
+                {/* UTC time label — next to circle */}
                 {is_replay_active && (() => {
-                    const mid_time = current_frame_start + (replay_config?.window_duration ?? 0) / 2;
-                    const d = new Date(mid_time * 1000);
-                    const date_label = d.toUTCString().slice(5, 16); // "27 Mar 2026"
-                    const time_label = d.toUTCString().slice(17, 22) + " UTC"; // "14:30 UTC"
+                    const d = new Date(current_frame_start * 1000);
+                    const date_label = d.toUTCString().slice(5, 16);
+                    const time_label = d.toUTCString().slice(17, 22) + " UTC";
                     return (
-                        <>
-                            <div className="absolute" style={{
-                                bottom: `${arrow_pct}%`,
-                                left: "24px",
-                                transform: "translateY(50%)",
-                                transition: is_dragging ? "none" : "bottom 0.3s ease",
-                                color: "#fff",
-                                fontSize: "1rem",
-                                fontWeight: 600,
-                                opacity: 0.85,
-                                lineHeight: 1.2,
-                            }}>
-                                <div>{date_label}</div>
-                                <div>{time_label}</div>
-                            </div>
-                            <div className="absolute flex items-center" style={{
-                                bottom: `${arrow_pct}%`,
-                                left: "130px",
-                                right: `${AXIS_RIGHT + 24}px`,
-                                transform: "translateY(50%)",
-                                transition: is_dragging ? "none" : "bottom 0.3s ease",
-                                cursor: is_dragging ? "grabbing" : "grab",
-                                paddingTop: "12px",
-                                paddingBottom: "12px",
-                            }}
-                                onMouseEnter={() => {
-                                    if (is_playing) {
-                                        paused_for_hover_ref.current = true;
-                                        pause();
-                                    }
-                                }}
-                                onMouseLeave={() => {
-                                    if (paused_for_hover_ref.current && !is_dragging) {
-                                        paused_for_hover_ref.current = false;
-                                        play(replay_config, current_frame_start);
-                                    }
-                                }}
-                                onMouseDown={handle_arrow_mouse_down}
-                            >
-                                <div style={{ flex: 1, height: "4px", backgroundColor: arrow_color, opacity: 0.7 }} />
-                                <div style={{
-                                    width: 0, height: 0,
-                                    borderTop: "5px solid transparent",
-                                    borderBottom: "5px solid transparent",
-                                    borderLeft: `8px solid ${arrow_color}`,
-                                    opacity: 0.9,
-                                }} />
-                            </div>
-                        </>
+                        <div className="absolute" style={{
+                            bottom: `${circle_pct}%`,
+                            left: "24px",
+                            transform: "translateY(50%)",
+                            transition: is_dragging ? "none" : "bottom 0.3s ease",
+                            color: "#fff",
+                            fontSize: "1rem",
+                            fontWeight: 600,
+                            opacity: 0.85,
+                            lineHeight: 1.2,
+                        }}>
+                            <div>{date_label}</div>
+                            <div>{time_label}</div>
+                        </div>
                     );
                 })()}
 
