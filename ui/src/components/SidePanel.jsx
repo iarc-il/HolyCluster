@@ -9,11 +9,13 @@ import UtilityButtons from "@/components/UtilityButtons";
 import { continents } from "@/data/filters_data.js";
 import { useFilters } from "@/hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
+import { useReplay } from "@/hooks/useReplay";
 
 const continent_title = { dx: "DX", spotter: "DE" };
 
 function ContinentColumn({ spot_type, colors }) {
     const { filters, setFilters } = useFilters();
+    const { is_replay_active } = useReplay();
     const filter_key = `${spot_type}_continents`;
     const color = colors.buttons[spot_type + "_continents"];
 
@@ -26,6 +28,7 @@ function ContinentColumn({ spot_type, colors }) {
                     filter_key={filter_key}
                     filter_value={continent}
                     orientation="left"
+                    disabled={is_replay_active}
                 >
                     <FilterButton
                         color={color}
@@ -158,10 +161,11 @@ const view_options = [
     },
     {
         label: "Playback",
-        bg: "#22c55e",
+        bg: "#00FF00",
+        icon_color: "#00FF00",
         icon: "M8 5v14l11-7z",
         viewbox: "0 0 24 24",
-        size: 32,
+        size: 44,
         is_disabled: false,
     },
 ];
@@ -199,7 +203,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                             width={option.size}
                             height={option.size}
                             viewBox={option.viewbox}
-                            fill={is_active ? option.bg : colors.buttons.utility}
+                            fill={is_active ? option.bg : (option.icon_color || colors.buttons.utility)}
                         >
                             <path d={option.icon} />
                         </svg>

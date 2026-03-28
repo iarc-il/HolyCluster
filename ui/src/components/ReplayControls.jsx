@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { use_object_local_storage } from "@/utils.js";
 import { useReplay } from "@/hooks/useReplay";
 import { useColors } from "@/hooks/useColors";
 import Select from "@/components/ui/Select.jsx";
@@ -100,8 +101,8 @@ function HoursRow({ label, value, onChange, colors, min, max }) {
     const filtered_options = hour_options.filter(h => (min === undefined || h >= min) && (max === undefined || h <= max));
     return (
         <div
-            className="flex flex-col items-start px-6 py-1 shrink-0"
-            style={{ borderColor: colors.theme.borders }}
+            className="flex flex-col items-start py-1 shrink-0"
+            style={{ paddingLeft: '12px', borderColor: colors.theme.borders }}
         >
             <span
                 className="font-bold"
@@ -150,7 +151,11 @@ export default function ReplayControls() {
     } = useReplay();
 
     const [settings_open, set_settings_open] = useState(false);
-    const [config, set_config] = useState({
+    const [is_dragging, set_is_dragging] = useState(false);
+    const paused_for_hover_ref = useRef(false);
+    const axis_container_ref = useRef(null);
+    const drag_data_ref = useRef(null);
+    const [config, set_config] = use_object_local_storage("playback_config", {
         from_hours: 20,
         until_hours: 7,
         window_duration: 900,
@@ -227,6 +232,50 @@ export default function ReplayControls() {
     const from_h  = replay_config ? Math.round((now - replay_config.start_time) / 3600) : config.from_hours;
     const until_h = replay_config ? Math.round((now - replay_config.end_time)   / 3600) : config.until_hours;
 
+    // Update drag ref with latest values — merge to preserve drag_start_y/drag_start_frame set on mousedown
+    drag_data_ref.current = { ...drag_data_ref.current, axis_total, replay_config };
+
+    // Drag effect — attach/detach global mouse listeners
+    useEffect(() => {
+        if (!is_dragging) return;
+        function on_move(e) {
+            const { axis_total, replay_config, drag_start_y, drag_start_frame } = drag_data_ref.current;
+            if (!axis_container_ref.current || !replay_config) return;
+            const rect = axis_container_ref.current.getBoundingClientRect();
+            const axis_height_px = rect.height * AXIS_RANGE / 100;
+            const time_per_px = axis_total / axis_height_px;
+            // Moving mouse up = towards more recent time = increasing frame_start
+            const dy = drag_start_y - e.clientY;
+            const new_frame = drag_start_frame + dy * time_per_px;
+            const clamped = Math.max(
+                replay_config.start_time,
+                Math.min(new_frame, replay_config.end_time - replay_config.window_duration),
+            );
+            seek(clamped);
+        }
+        function on_up() { set_is_dragging(false); }
+        document.addEventListener("mousemove", on_move);
+        document.addEventListener("mouseup", on_up);
+        return () => {
+            document.removeEventListener("mousemove", on_move);
+            document.removeEventListener("mouseup", on_up);
+        };
+    }, [is_dragging, seek]);
+
+    function handle_arrow_mouse_down(e) {
+        if (!is_replay_active || !replay_config) return;
+        e.preventDefault();
+        paused_for_hover_ref.current = false;
+        pause();
+        // Store drag start position and current frame so motion is relative
+        drag_data_ref.current = {
+            ...drag_data_ref.current,
+            drag_start_y: e.clientY,
+            drag_start_frame: current_frame_start,
+        };
+        set_is_dragging(true);
+    }
+
     const axis_color    = "#22c55e";
     const segment_color = "#22c55e";
     const arrow_color   = colors.theme.text;
@@ -272,7 +321,7 @@ export default function ReplayControls() {
             )}
 
             {/* Time axis area */}
-            <div className="flex-1 relative overflow-hidden" style={{ minHeight: "100px" }}>
+            <div ref={axis_container_ref} className="flex-1 relative overflow-hidden" style={{ minHeight: "100px", cursor: is_dragging ? "grabbing" : "default" }}>
 
                 {/* UNTIL — pinned to top */}
                 {!is_replay_active && (
@@ -324,6 +373,27 @@ export default function ReplayControls() {
                     transform: "translateY(50%)"
                 }} />
 
+                {/* Half-hour ticks */}
+                {axis_total > 0 && (() => {
+                    const total_hours = axis_total / 3600;
+                    const half_ticks = [];
+                    for (let h = 0.5; h < total_hours; h += 1) {
+                        half_ticks.push(MARGIN + (h / total_hours) * AXIS_RANGE);
+                    }
+                    return half_ticks.map((pct, i) => (
+                        <div key={`half_${i}`} className="absolute" style={{
+                            right: `${AXIS_RIGHT + 4}px`,
+                            bottom: `${pct}%`,
+                            width: "10px",
+                            height: "2px",
+                            backgroundColor: "#fff",
+                            opacity: 1,
+                            borderRadius: "2px",
+                            transform: "translateY(50%)",
+                        }} />
+                    ));
+                })()}
+
                 {/* Hour ticks + labels */}
                 {ticks.map((pct, i) => {
                     const hour_label = from_h - i;
@@ -332,8 +402,8 @@ export default function ReplayControls() {
                             <div className="absolute" style={{
                                 right: `${AXIS_RIGHT + 4}px`,
                                 bottom: `${pct}%`,
-                                width: i === 0 || i === ticks.length - 1 ? "18px" : "10px",
-                                height: i === 0 || i === ticks.length - 1 ? "2.5px" : "2px",
+                                width: i === 0 || i === ticks.length - 1 ? "18px" : "16px",
+                                height: "2.5px",
                                 backgroundColor: "#fff",
                                 opacity: 1,
                                 borderRadius: "2px",
@@ -380,7 +450,7 @@ export default function ReplayControls() {
                                 bottom: `${arrow_pct}%`,
                                 left: "24px",
                                 transform: "translateY(50%)",
-                                transition: "bottom 0.3s ease",
+                                transition: is_dragging ? "none" : "bottom 0.3s ease",
                                 color: "#fff",
                                 fontSize: "1rem",
                                 fontWeight: 600,
@@ -395,8 +465,25 @@ export default function ReplayControls() {
                                 left: "130px",
                                 right: `${AXIS_RIGHT + 24}px`,
                                 transform: "translateY(50%)",
-                                transition: "bottom 0.3s ease",
-                            }}>
+                                transition: is_dragging ? "none" : "bottom 0.3s ease",
+                                cursor: is_dragging ? "grabbing" : "grab",
+                                paddingTop: "12px",
+                                paddingBottom: "12px",
+                            }}
+                                onMouseEnter={() => {
+                                    if (is_playing) {
+                                        paused_for_hover_ref.current = true;
+                                        pause();
+                                    }
+                                }}
+                                onMouseLeave={() => {
+                                    if (paused_for_hover_ref.current && !is_dragging) {
+                                        paused_for_hover_ref.current = false;
+                                        play(replay_config, current_frame_start);
+                                    }
+                                }}
+                                onMouseDown={handle_arrow_mouse_down}
+                            >
                                 <div style={{ flex: 1, height: "2px", backgroundColor: arrow_color, opacity: 0.7 }} />
                                 <div style={{
                                     width: 0, height: 0,
@@ -427,13 +514,20 @@ export default function ReplayControls() {
                     {!is_replay_active ? (
                         is_loading
                             ? <div className="text-lg opacity-80" style={{ color: colors.theme.text }}>Loading...</div>
-                            : <div className="flex items-center gap-2 px-6" style={{ color: colors.theme.text, pointerEvents: 'auto' }}>
-                                <button
-                                    onClick={handle_play_pause}
-                                    title="Start Playback"
-                                    className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-base hover:opacity-80 active:opacity-60 transition-opacity"
-                                    style={{ backgroundColor: "#22c55e", color: "white" }}>▶</button>
-                                <span style={{ fontSize: "1.5rem", fontWeight: 700 }}>to start</span>
+                            : <div className="flex flex-col items-start gap-3" style={{ color: colors.theme.text, pointerEvents: 'auto', paddingLeft: '12px', maxWidth: `calc(100% - ${AXIS_RIGHT + 35}px)` }}>
+                                <div className="text-left px-2 py-1 rounded-lg font-bold text-lg leading-tight"
+                                    style={{ backgroundColor: "#1d4ed8", color: "white" }}>
+                                    <div>Past Spots</div>
+                                    <div>Motion View</div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={handle_play_pause}
+                                        title="Start Playback"
+                                        className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-base hover:opacity-80 active:opacity-60 transition-opacity"
+                                        style={{ backgroundColor: "#22c55e", color: "white" }}>▶</button>
+                                    <span style={{ fontSize: "1.5rem", fontWeight: 700 }}>to start</span>
+                                </div>
                               </div>
                     ) : null}
                     {error && <div className="text-red-500 text-xs px-3 text-center">{error}</div>}
