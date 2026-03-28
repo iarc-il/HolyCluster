@@ -353,7 +353,7 @@ export default function ReplayControls() {
                     width: "4px",
                     backgroundColor: axis_color,
                     borderRadius: "2px",
-                    opacity: 0.5,
+                    opacity: 1,
                 }} />
 
                 {/* Top white tick (longer) */}
@@ -520,7 +520,18 @@ export default function ReplayControls() {
                 <div className="absolute inset-0 flex flex-col items-start justify-center gap-2" style={{ pointerEvents: 'none' }}>
                     {!is_replay_active ? (
                         is_loading
-                            ? <div className="text-lg opacity-80" style={{ color: colors.theme.text }}>Loading...</div>
+                            ? <div style={{ paddingLeft: '12px' }}>
+                                <div className="inline-flex flex-col items-center gap-2 px-6 py-2 rounded-lg" style={{ backgroundColor: "#1d4ed8" }}>
+                                    <svg className="animate-spin" width="28" height="28" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" strokeOpacity="0.3" />
+                                        <path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" />
+                                    </svg>
+                                    <div className="font-bold text-lg leading-tight" style={{ color: "white" }}>
+                                        <div>Loading</div>
+                                        <div>spots…</div>
+                                    </div>
+                                </div>
+                              </div>
                             : <div className="flex flex-col items-start gap-3" style={{ color: colors.theme.text, pointerEvents: 'auto', paddingLeft: '12px', maxWidth: `calc(100% - ${AXIS_RIGHT + 35}px)` }}>
                                 <div className="text-left px-2 py-1 rounded-lg font-bold text-lg leading-tight"
                                     style={{ backgroundColor: "#1d4ed8", color: "white" }}>

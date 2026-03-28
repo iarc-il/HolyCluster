@@ -78,8 +78,8 @@ def cleanup_spot(spot):
 async def get_spots(start_time: float, end_time: float):
     if end_time <= start_time:
         raise HTTPException(status_code=400, detail="end_time must be after start_time")
-    if end_time - start_time > 86400:
-        raise HTTPException(status_code=400, detail="Time range cannot exceed 24 hours")
+    if end_time - start_time > 86400 * 3:
+        raise HTTPException(status_code=400, detail="Time range cannot exceed 72 hours")
 
     async with async_session() as session:
         result = await session.execute(
@@ -91,7 +91,7 @@ async def get_spots(start_time: float, end_time: float):
                 FROM holy_spots2
                 WHERE timestamp >= :start_time AND timestamp <= :end_time
                 ORDER BY timestamp DESC
-                LIMIT 5000
+                LIMIT 75000
             """),
             {"start_time": start_time, "end_time": end_time},
         )
