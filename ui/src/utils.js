@@ -34,8 +34,15 @@ export function is_same_base_callsign(callsign1, callsign2) {
     return find_base_callsign(callsign1) == find_base_callsign(callsign2) && callsign1.length > 0;
 }
 
-export function is_matching_list(list, spot) {
+export function is_matching_list(list, spot, dxcc_extra = null) {
     return list.some(filter => {
+        if (filter.type === "missing_dxcc") {
+            if (!dxcc_extra?.needed_countries || !dxcc_extra?.lookup_cty_country) return false;
+            const cty_country = dxcc_extra.lookup_cty_country(spot.dx_callsign);
+            if (!cty_country) return false;
+            return dxcc_extra.needed_countries.has(cty_country);
+        }
+
         let matched_value;
         if (filter.type == "comment") {
             matched_value = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">").toLowerCase();

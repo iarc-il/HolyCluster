@@ -3,10 +3,11 @@ import Select from "@/components/ui/Select.jsx";
 import Input from "@/components/ui/Input.jsx";
 import CallsignInput from "@/components/CallsignInput.jsx";
 import { useColors } from "@/hooks/useColors";
+import { useDxcc } from "@/hooks/useDxcc";
 import entities from "@/assets/dxcc_entities.json";
 
 import { default as SearchSelect } from "react-select";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 const dxcc_entities = entities.map(entity => ({ value: entity, label: entity }));
 
@@ -69,6 +70,98 @@ function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_dat
     );
 }
 
+function MissingDxccPanel() {
+    const { cty_ready, cty_error, dxcc_state, load_adif, clear_dxcc } = useDxcc();
+    const adif_input_ref = useRef(null);
+
+    function trigger_adif_load() {
+        adif_input_ref.current.click();
+    }
+
+    function handle_adif_change(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => load_adif(ev.target.result, file.name);
+        reader.readAsText(file, "utf-8");
+        e.target.value = "";
+    }
+
+    if (cty_error) {
+        return (
+            <div className="text-sm text-red-400 mt-2">
+                Failed to load DXCC database (cty.dat not found).
+            </div>
+        );
+    }
+
+    if (!cty_ready) {
+        return <div className="text-sm text-gray-400 mt-2">Loading DXCC database…</div>;
+    }
+
+    return (
+        <div className="mt-3 space-y-3">
+            <input
+                ref={adif_input_ref}
+                type="file"
+                accept=".adi,.adif"
+                style={{ display: "none" }}
+                onChange={handle_adif_change}
+            />
+            {!dxcc_state ? (
+                <div className="space-y-2">
+                    <p className="text-base font-semibold text-white">
+                        Load your ADIF log to find unworked DXCC countries.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={trigger_adif_load}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                        📂 Load ADIF Log
+                    </button>
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    <div className="text-base font-semibold text-white">
+                        <span className="text-red-400 font-bold">{dxcc_state.needed_list.length}</span>
+                        {" needed · "}
+                        <span className="text-green-400 font-bold">{dxcc_state.worked_list.length}</span>
+                        {" worked"}
+                        {dxcc_state.station_call ? (
+                            <span className="text-white"> · {dxcc_state.station_call}</span>
+                        ) : null}
+                    </div>
+                    <div className="text-sm text-white flex flex-col gap-0.5">
+                        {dxcc_state.loaded_files.map((f, i) => (
+                            <div key={i} className="flex gap-2">
+                                <span className="shrink-0 w-4">{i + 1})</span>
+                                <span className="min-w-0 break-all" style={{marginLeft: "-4px"}}>{f}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={trigger_adif_load}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                            📂 Update Log
+                        </button>
+                        <button
+                            type="button"
+                            onClick={clear_dxcc}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold bg-red-700 hover:bg-red-800 text-white"
+                        >
+                            ✕ Clear
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function FilterModal({ initial_data = null, on_apply, button }) {
     const [temp_data, set_temp_data] = useState(empty_filter_data);
     const { colors } = useColors();
@@ -102,7 +195,8 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                 if (
                     temp_data.value.length > 0 ||
                     temp_data.type == "self_spotters" ||
-                    temp_data.type == "dxpeditions"
+                    temp_data.type == "dxpeditions" ||
+                    temp_data.type == "missing_dxcc"
                 ) {
                     on_apply(temp_data);
                     set_temp_data(empty_filter_data);
@@ -122,6 +216,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         { label: "Comment", value: "comment" },
                         { label: "Self Spotters", value: "self_spotters" },
                         { label: "DXpeditions", value: "dxpeditions" },
+                        { label: "Missing DXCC", value: "missing_dxcc" },
                     ]}
                     field="type"
                     temp_data={temp_data}
@@ -135,7 +230,9 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                     }}
                 />
 
-                {temp_data.type != "self_spotters" &&
+                {temp_data.type === "missing_dxcc" ? (
+                    <MissingDxccPanel />
+                ) : temp_data.type != "self_spotters" &&
                 temp_data.type != "dxpeditions" &&
                 temp_data.type != "comment" ? (
                     <>

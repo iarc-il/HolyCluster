@@ -12,6 +12,7 @@ import { FiltersProvider } from "@/hooks/useFilters";
 import { ColorsProvider } from "@/hooks/useColors";
 import { RadioProvider } from "@/hooks/useRadio";
 import { SettingsProvider } from "@/hooks/useSettings";
+import { DxccProvider } from "@/hooks/useDxcc";
 import "@/index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -23,17 +24,19 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                     element={
                         <ColorsProvider>
                             <FiltersProvider>
-                                <SettingsProvider>
-                                    <RadioProvider>
-                                        <RestDataProvider>
-                                            <SpotInteractionProvider>
-                                                <SpotDataProvider>
-                                                    <MainContainer />
-                                                </SpotDataProvider>
-                                            </SpotInteractionProvider>
-                                        </RestDataProvider>
-                                    </RadioProvider>
-                                </SettingsProvider>
+                                <DxccProvider>
+                                    <SettingsProvider>
+                                        <RadioProvider>
+                                            <RestDataProvider>
+                                                <SpotInteractionProvider>
+                                                    <SpotDataProvider>
+                                                        <MainContainer />
+                                                    </SpotDataProvider>
+                                                </SpotInteractionProvider>
+                                            </RestDataProvider>
+                                        </RadioProvider>
+                                    </SettingsProvider>
+                                </DxccProvider>
                             </FiltersProvider>
                         </ColorsProvider>
                     }

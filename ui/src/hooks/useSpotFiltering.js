@@ -4,6 +4,7 @@ import { useSettings } from "./useSettings";
 import use_radio from "./useRadio";
 import { useSpotInteraction } from "./useSpotInteraction";
 import { useReplay } from "./useReplay";
+import { useDxcc } from "./useDxcc";
 import { is_matching_list, sort_spots, use_object_local_storage } from "@/utils.js";
 import { bands, modes } from "@/data/filters_data.js";
 import { get_flag } from "@/data/flags.js";
@@ -26,6 +27,14 @@ export default function useSpotFiltering(raw_spots) {
     const { radio_band, radio_freq, radio_status } = use_radio();
     const { search_query } = useSpotInteraction();
     const { is_replay_active, current_frame_start, replay_config } = useReplay();
+    const { needed_countries, lookup_cty_country } = useDxcc();
+    const dxcc_extra = useMemo(
+        () =>
+            needed_countries && lookup_cty_country
+                ? { needed_countries, lookup_cty_country }
+                : null,
+        [needed_countries, lookup_cty_country],
+    );
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
@@ -50,9 +59,11 @@ export default function useSpotFiltering(raw_spots) {
     const spots_with_alerts = useMemo(() => {
         return raw_spots.map(spot => ({
             ...spot,
-            is_alerted: is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active,
+            is_alerted:
+                is_matching_list(alerts, spot, dxcc_extra) &&
+                callsign_filters.is_alert_filters_active,
         }));
-    }, [raw_spots, alerts, callsign_filters.is_alert_filters_active]);
+    }, [raw_spots, alerts, callsign_filters.is_alert_filters_active, dxcc_extra]);
 
     const spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;
@@ -98,11 +109,11 @@ export default function useSpotFiltering(raw_spots) {
                 const are_include_filters_empty = show_only_filters.length == 0;
                 const are_exclude_filters_empty = hide_filters.length == 0;
                 const are_filters_including =
-                    is_matching_list(show_only_filters, spot) ||
+                    is_matching_list(show_only_filters, spot, dxcc_extra) ||
                     are_include_filters_empty ||
                     !callsign_filters.is_show_only_filters_active;
                 const are_filters_not_excluding =
-                    !is_matching_list(hide_filters, spot) ||
+                    !is_matching_list(hide_filters, spot, dxcc_extra) ||
                     are_exclude_filters_empty ||
                     !callsign_filters.is_hide_filters_active;
 
@@ -150,6 +161,7 @@ export default function useSpotFiltering(raw_spots) {
         is_replay_active,
         current_frame_start,
         replay_config,
+        dxcc_extra,
     ]);
 
     const spots_per_band_count = useMemo(() => {

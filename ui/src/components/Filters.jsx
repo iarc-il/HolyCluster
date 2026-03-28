@@ -24,6 +24,7 @@ const SPOTTER_DX_LABELS = {
 const SPECIAL_FILTER_LABELS = {
     self_spotters: "Self spotters",
     dxpeditions: "DXpedition",
+    missing_dxcc: "Needed DXCC",
 };
 
 function Indicator({ text }) {
@@ -71,7 +72,10 @@ function SpecialFilterBadge({ type, listeners, attributes }) {
 }
 
 function FilterContent({ filter, listeners, attributes, colors }) {
-    const is_special_filter = filter.type === "self_spotters" || filter.type === "dxpeditions";
+    const is_special_filter =
+        filter.type === "self_spotters" ||
+        filter.type === "dxpeditions" ||
+        filter.type === "missing_dxcc";
 
     if (is_special_filter) {
         return (
