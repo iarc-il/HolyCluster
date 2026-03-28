@@ -28,7 +28,6 @@ function ContinentColumn({ spot_type, colors }) {
                     filter_key={filter_key}
                     filter_value={continent}
                     orientation="left"
-                    disabled={is_replay_active}
                 >
                     <FilterButton
                         color={color}

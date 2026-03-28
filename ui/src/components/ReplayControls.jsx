@@ -311,6 +311,13 @@ export default function ReplayControls() {
                 </div>
             )}
 
+            {/* Exit button — top-right, shown during playback in place of gear */}
+            {is_replay_active && (
+                <div className="absolute" style={{ top: '18px', right: '10px', zIndex: 20 }}>
+                    <ControlButton onClick={exit_replay} title="Exit playback" color="#ef4444">✕</ControlButton>
+                </div>
+            )}
+
             {/* Settings panel */}
             {settings_open && !is_replay_active && (
                 <SettingsPanel
@@ -428,12 +435,12 @@ export default function ReplayControls() {
                 {/* Highlighted window segment */}
                 {is_replay_active && (
                     <div className="absolute" style={{
-                        right: `${AXIS_RIGHT}px`,
+                        right: `${AXIS_RIGHT - 3}px`,
                         bottom: `${segment_bottom_pct}%`,
                         height: `${Math.max(segment_height_pct, 1)}%`,
-                        width: "4px",
+                        width: "10px",
                         backgroundColor: segment_color,
-                        borderRadius: "2px",
+                        borderRadius: "3px",
                         transition: "bottom 0.3s ease",
                     }} />
                 )}
@@ -484,7 +491,7 @@ export default function ReplayControls() {
                                 }}
                                 onMouseDown={handle_arrow_mouse_down}
                             >
-                                <div style={{ flex: 1, height: "2px", backgroundColor: arrow_color, opacity: 0.7 }} />
+                                <div style={{ flex: 1, height: "4px", backgroundColor: arrow_color, opacity: 0.7 }} />
                                 <div style={{
                                     width: 0, height: 0,
                                     borderTop: "5px solid transparent",
@@ -533,18 +540,6 @@ export default function ReplayControls() {
                     {error && <div className="text-red-500 text-xs px-3 text-center">{error}</div>}
                 </div>
 
-                {/* Exit button — right of axis */}
-                {is_replay_active && (
-                    <div className="absolute" style={{ top: '50%', right: '4px', transform: 'translateY(-50%)', zIndex: 10 }}>
-                        <button
-                            onClick={exit_replay}
-                            title="Exit playback"
-                            className="inline-flex items-center justify-center px-2 py-1 rounded-lg text-base font-bold hover:opacity-80 active:opacity-60 transition-opacity"
-                            style={{ backgroundColor: "#ef4444", color: "white" }}>
-                            Exit
-                        </button>
-                    </div>
-                )}
                 {/* FROM — pinned to bottom */}
                 {!is_replay_active && (
                     <div className="absolute left-0 right-0" style={{ bottom: '8px' }}>
@@ -571,6 +566,9 @@ export default function ReplayControls() {
                 </ControlButton>
                 <ControlButton onClick={step_forward} title="Step forward">⏩</ControlButton>
                 <ControlButton onClick={go_to_end} title="Go to end" color="#374151">⏭</ControlButton>
+                {is_replay_active && (
+                    <ControlButton onClick={exit_replay} title="Exit playback" color="#ef4444">✕</ControlButton>
+                )}
             </div>
         </div>
     );
