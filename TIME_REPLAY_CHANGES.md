@@ -1,149 +1,326 @@
-# Time Replay Feature — Change Summary
+# Playback Feature — Technical Change Summary
 
 **Author:** Dani
-**Date:** 2026-03-26
 **Branch:** `Dani`
-**Status:** Local development — pending team review before deployment
+**Last updated:** 2026-03-28
+**Status:** Local development complete — pending team review and deployment
 
 ---
 
 ## Overview
 
-This change introduces a **Time Replay** feature to HolyCluster. It allows operators to replay historical spot activity like a movie: a fixed-width time window slides through a user-defined historical period, showing exactly what was spotted at any past moment. All existing filters (band, mode, continent, callsign) continue to work normally during replay.
+This change introduces a **Playback** feature (also referred to as "Past Spots Motion View") to HolyCluster. It allows operators to replay historical DX spot activity like a movie: a fixed-width time window slides through a user-selected historical period, showing exactly what was spotted at any past moment.
 
-No live server was touched. All changes are local and require team review before merging.
+Key properties:
+- Supports up to **72 hours** of history
+- All existing filters (band, mode, continent, callsign) work normally during playback
+- The user can scrub to any point by dragging the timeline arrow
+- No live data or existing functionality is affected when not in playback mode
+
+---
+
+## Architecture
+
+### Data flow in playback mode
+
+```
+User presses ▶
+    → handle_load() computes start_time / end_time from "From" / "Until" settings
+    → fetch GET /spots?start_time=X&end_time=Y
+    → spots stored in replay_spots (separate from live WebSocket spots)
+    → setInterval advances current_frame_start by step_size every playback_speed seconds
+    → useSpotFiltering filters replay_spots to [current_frame_start, current_frame_start + window_duration]
+    → map and table update normally via existing rendering pipeline
+```
+
+### Fallback (for local dev without backend deployment)
+If `/spots` returns HTML (endpoint not yet deployed), `useReplay` automatically filters the already-loaded live WebSocket spots by the requested time range. This allows UI development without a running backend.
 
 ---
 
 ## Files Changed
 
-### 1. `ui/vite.config.js`
-- Added `secure: false` to all existing proxy entries to fix SSL certificate mismatch during local development against `holycluster-dev.iarc.org`.
-- Added a new proxy entry for `/spots` pointing to `https://holycluster-dev.iarc.org`, so the frontend can reach the new historical spots endpoint when the backend is deployed.
+### 1. `backend/api/src/api/main.py`
+
+Added one new REST endpoint — no existing endpoints were modified:
+
+```
+GET /spots?start_time=<unix_float>&end_time=<unix_float>
+```
+
+- Returns up to **75,000 spots** within the requested time range, ordered newest first.
+- Validates that `end_time > start_time` and that the range does not exceed **72 hours**.
+- Reuses the existing `cleanup_spots()` helper and `HolySpot` SQLModel — no schema changes.
+
+```python
+@app.get("/spots")
+async def get_spots(start_time: float, end_time: float):
+    if end_time <= start_time:
+        raise HTTPException(400, "end_time must be after start_time")
+    if end_time - start_time > 86400 * 3:
+        raise HTTPException(400, "Time range cannot exceed 72 hours")
+    async with async_session() as session:
+        query = (
+            select(HolySpot)
+            .where(HolySpot.timestamp >= start_time, HolySpot.timestamp <= end_time)
+            .order_by(desc(HolySpot.timestamp))
+            .limit(75000)
+        )
+        return cleanup_spots((await session.execute(query)).scalars())
+```
 
 ---
 
-### 2. `backend/api/src/api/main.py`
-Added one new REST endpoint:
+### 2. `ui/vite.config.js`
 
-```
-GET /spots?start_time=<unix>&end_time=<unix>
+Added proxy entry for `/spots` for local development. Points to `spots_server.py` running on `localhost:8001`:
+
+```js
+"/spots": { target: "http://localhost:8001" },
 ```
 
-- Returns up to 5,000 spots within the requested time range, ordered by newest first.
-- Validates that the range does not exceed 24 hours.
-- Reuses the existing `cleanup_spots` helper and `HolySpot` model — no schema changes.
-- No existing endpoints were modified.
+> **Deployment note:** Once the backend endpoint is deployed to the production server, this proxy entry should be changed to point to the production server, identical to the other proxy entries.
 
 ---
 
-### 3. `ui/src/hooks/useReplay.jsx` *(new file)*
-A new React context (`ReplayContext` / `ReplayProvider`) that owns all replay state and playback logic.
+### 3. `backend/spots_server.py` *(new file)*
 
-**State managed:**
-| State | Description |
+A minimal standalone FastAPI server for local development only. Connects directly to PostgreSQL (either local Docker or via SSH tunnel) and serves only the `/spots` endpoint. This allows full playback testing without running the full API stack.
+
+**Setup:**
+```
+pip install fastapi uvicorn asyncpg sqlmodel python-dotenv
+python spots_server.py   # runs on http://localhost:8001
+```
+
+Reads `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST_LOCAL` (default: `localhost`), `POSTGRES_PORT_LOCAL` (default: `15432`) from `.env`.
+
+---
+
+### 4. `ui/src/hooks/useReplay.jsx` *(new file)*
+
+A React context (`ReplayContext` / `ReplayProvider`) that owns all playback state and logic.
+
+**State:**
+
+| State | Type | Description |
+|---|---|---|
+| `is_replay_active` | bool | Whether playback mode is on |
+| `replay_spots` | array | All spots fetched for the selected range |
+| `replay_config` | object | `{ start_time, end_time, window_duration, step_size, playback_speed }` |
+| `current_frame_start` | number | Unix timestamp of the current window start |
+| `is_playing` | bool | Whether the interval is running |
+| `is_loading` | bool | Whether a fetch is in progress |
+| `error` | string\|null | Error message if fetch failed |
+
+**Actions:**
+
+| Action | Description |
 |---|---|
-| `is_replay_active` | Whether replay mode is currently on |
-| `replay_spots` | All spots fetched for the selected time range |
-| `replay_config` | `{ start_time, end_time, window_duration, step_size, playback_speed }` |
-| `current_frame_start` | Unix timestamp of the current window's leading edge |
-| `is_playing` | Whether the interval is running |
-| `is_loading` | Whether a fetch is in progress |
-| `error` | Error message string if fetch failed |
+| `load_replay(config)` | Fetches `/spots`, normalizes data, initializes state |
+| `play(config, frame_start)` | Starts `setInterval` playback engine |
+| `pause()` | Stops the interval |
+| `step_forward()` | Advances one step, pauses |
+| `step_backward()` | Retreats one step, pauses |
+| `seek(timestamp)` | Jumps to any frame, pauses |
+| `exit_replay()` | Clears all state, returns to live mode |
 
-**Actions exposed:**
-- `load_replay(config)` — fetches spots from `/spots`, normalizes them, sets state
-- `play(config, frame_start)` — starts the `setInterval` playback engine
-- `pause()` — stops the interval
-- `step_forward()` / `step_backward()` — single-frame advance/retreat
-- `seek(timestamp)` — jump to any frame
-- `exit_replay()` — clears all replay state, returns to live mode
+**Spot normalization on load:**
+- Band values mapped to labels: `2` → `"VHF"`, `0.7` → `"UHF"`, `<1` → `"SHF"`
+- Mode `"DIGITAL"` normalized to `"DIGI"`
+- DXCC country names shortened via `shorten_dxcc()`
+- Replay spots assigned unique IDs starting at `1,000,000` (avoids collisions with live spot IDs)
+- Spots with unknown modes or continents are filtered out
 
-**Fallback:** If the `/spots` endpoint is not yet deployed (backend returns HTML), the hook automatically falls back to filtering the already-loaded live WebSocket spots by the requested time range. This allows full local testing without a running backend.
-
-**Spot normalization:** Band values are mapped to human-readable labels (e.g. `2` → `"VHF"`), mode `"DIGITAL"` is normalized to `"DIGI"`, DXCC country names are shortened, and replay spots receive unique IDs starting at `1,000,000` to avoid collisions with live spot IDs.
+**Integration:** `ReplayProvider` is mounted inside `SpotDataProvider` (in `useSpotData.jsx`) and receives `raw_spots` (live WebSocket spots) for the fallback mechanism.
 
 ---
 
-### 4. `ui/src/hooks/useSpotData.jsx`
-Restructured to integrate the replay provider cleanly:
+### 5. `ui/src/hooks/useSpotData.jsx`
 
-- The outer `SpotDataProvider` now wraps its children in `<ReplayProvider live_spots={raw_spots}>`, giving the replay hook access to live spots for the fallback mechanism.
-- A new inner component `SpotDataInner` consumes `useReplay` and switches the spot source:
-  - **Live mode:** uses `raw_spots` from the WebSocket
-  - **Replay mode:** uses `replay_spots` from the replay hook
+Restructured to integrate the replay provider:
+
+- `SpotDataProvider` wraps children in `<ReplayProvider live_spots={raw_spots}>`
+- New inner component `SpotDataInner` switches the spot source:
+  - **Live mode:** `raw_spots` from WebSocket
+  - **Playback mode:** `replay_spots` from `useReplay`
 
 No changes to the public API of `useSpotData`.
 
 ---
 
-### 5. `ui/src/hooks/useSpotFiltering.js`
-Updated the time-window filter condition:
+### 6. `ui/src/hooks/useSpotFiltering.js`
 
-- **Live mode (unchanged):** `current_time - spot.time < filters.time_limit`
-- **Replay mode (new):** `spot.time >= current_frame_start && spot.time < current_frame_start + window_duration`
+Updated the time-window filter condition to handle playback mode:
 
-Added `is_replay_active`, `current_frame_start`, and `replay_config` to the `useMemo` dependency array.
+```js
+// Live mode (unchanged):
+const is_in_time_limit = current_time - spot.time < filters.time_limit;
 
----
+// Playback mode (new):
+const is_in_time_limit =
+    spot.time >= current_frame_start &&
+    spot.time < current_frame_start + window_duration;
+```
 
-### 6. `ui/src/components/SidePanel.jsx`
-- Added a **Replay** tab (green play-triangle icon) to the existing tab bar alongside Filters, Band Bar, Heatmap, and DXpeditions.
-- Renders `<ReplayControls />` when the Replay tab is active.
-
----
-
-### 7. `ui/src/components/ReplayControls.jsx` *(new file)*
-A self-contained sidebar panel for the replay feature.
-
-**Layout (top to bottom):**
-
-| Area | Description |
-|---|---|
-| Floating top-right | Gear icon (settings toggle) + Exit button (shown during active replay) |
-| Settings panel (collapsible) | Dropdowns for Window duration, Step size, and Playback speed |
-| "Until" row | Pinned to top of axis area — dropdown to select how many hours ago the replay ends |
-| Time axis | Vertical green line with white hourly tick marks |
-| Window segment | Bright green highlight on the axis showing the current window position |
-| Arrow | Horizontal line + arrowhead pointing to the current window midpoint |
-| "Press ▶ to start" | Shown when replay is not yet loaded; large, left-aligned, with inline ▶ icon |
-| "From" row | Pinned to bottom of axis area — dropdown to select how many hours ago the replay begins |
-| Playback controls | ⏮ ⏪ ▶/⏸ ⏩ ⏭ buttons at the bottom |
-
-**Key behavior:**
-- Pressing ▶ automatically fetches data and starts playback — no separate "Load" button required.
-- ⏮/⏩ (go to start/end) also auto-load if replay is not yet active, then pause at the target frame.
-- The time axis segment and arrow animate smoothly as the window advances.
-- "From" and "Until" dropdowns are disabled (display only) once replay is active, showing the loaded range.
+`is_replay_active`, `current_frame_start`, and `replay_config` added to the `useMemo` dependency array.
 
 ---
 
-### 8. `ui/src/main.jsx`
-- Removed a standalone `ReplayProvider` wrapper that was added early in development; the provider now lives inside `SpotDataProvider` (see §4 above), which is the correct location since it needs access to `raw_spots`.
+### 7. `ui/src/components/SidePanel.jsx`
+
+- Added a **Playback** tab (large green play-triangle icon, color `#00FF00`) to the tab bar alongside Filters, Band Bar, Heatmap, and DXpeditions.
+- Renders `<ReplayControls />` when the Playback tab is active.
+- Imports `useReplay` to pass replay state to child components.
+
+---
+
+### 8. `ui/src/components/ReplayControls.jsx` *(new file)*
+
+The main UI panel for the playback feature. Fully self-contained.
+
+**Layout:**
+
+```
+┌─────────────────────────────────────┐
+│  [Gear icon]  or  [✕ Exit]  (top-right, floating)
+│                                     │
+│  [Settings panel - collapsible]     │
+│    Window / Step / Speed dropdowns  │
+│                                     │
+│  Until: [dropdown]                  │  ← hidden during playback
+│                                     │
+│  ┌─ Time axis area ──────────────┐  │
+│  │  [Past Spots / Motion View]   │  │  ← shown before load
+│  │  [▶ to start]                 │  │  ← shown before load
+│  │                               │  │
+│  │  [Loading spinner + text]     │  │  ← shown while loading
+│  │                               │  │
+│  │  [UTC date/time label] ────►  │  │  ← shown during playback
+│  │                          │    │  │
+│  │  Green vertical axis  ◄──┤    │  │
+│  │  (with bright segment     │    │  │
+│  │   for current window)     │    │  │
+│  └───────────────────────────────┘  │
+│                                     │
+│  From: [dropdown]                   │  ← hidden during playback
+│                                     │
+│  [⏮] [⏪] [▶/⏸] [⏩] [⏭] [✕]    │  ← controls bar
+└─────────────────────────────────────┘
+```
+
+**Settings (persisted to localStorage):**
+
+| Setting | Options | Default | Description |
+|---|---|---|---|
+| From | 0–168h ago | 20h | How far back the playback range starts |
+| Until | 0–168h ago | 7h | How far back the playback range ends |
+| Window | 5/15/30/60 min | 15 min | Width of the sliding time window |
+| Step | 1/5/15/30 min | 5 min | How much to advance per frame |
+| Speed | 0.5/1/2/5 s | 1 s | Time between frames |
+
+All settings survive page refresh via `use_object_local_storage`.
+
+**Time axis:**
+- Vertical green line (`#22c55e`, full opacity) with white tick marks at every hour and half-hour
+- Hour labels in `-Nh` format (e.g. `-7h`, `-8h`, ...)
+- Bright green segment (10px wide) shows the current window position on the axis
+- Horizontal arrow line (4px) with arrowhead points to the window midpoint
+- UTC date and time displayed next to the arrow
+
+**Arrow drag scrubbing:**
+- Hovering over the arrow **pauses playback** so it holds still (resumes if mouse leaves without clicking)
+- Click and drag the arrow up/down to seek to any point in time
+- Drag is offset-based: the arrow stays in place at mousedown and moves relative to drag distance
+- Releasing the mouse leaves playback paused at the new position
+- Pressing ▶ resumes from the dragged position
+
+**Loading state:**
+- While fetching, shows an animated spinner with "Loading / spots…" text on a blue background badge, matching the app's visual style
+
+**Exit:**
+- Red ✕ button at top-right of the panel (replaces gear icon during playback)
+- Red ✕ button also in the bottom controls bar
+- Both call `exit_replay()` which returns to live mode
+
+---
+
+### 9. `ui/src/components/SvgMap.jsx` and `ui/src/components/CanvasMap/`
+
+Updated the **day/night solar terminator** to follow playback time:
+
+- During playback, the terminator is calculated at the **midpoint of the current frame window**
+- During live mode, uses `new Date()` as before
+- Prevents the night shadow from being stuck at the time playback was loaded
+
+```js
+const display_time = is_replay_active && current_frame_start !== null
+    ? new Date((current_frame_start + (replay_config?.window_duration ?? 0) / 2 * 1000))
+    : new Date();
+```
 
 ---
 
 ## What Was NOT Changed
+
 - No database schema changes
 - No WebSocket logic
 - No existing API endpoints modified
-- No UI outside the SidePanel/ReplayControls
-- No deployment configuration
+- No UI outside SidePanel / ReplayControls
+- No deployment configuration (nginx, Docker, etc.)
+- No changes to any collector logic
 
 ---
 
-## Testing (Local)
-1. `cd ui && npm run dev`
-2. Open SidePanel → Replay tab (green ▶ icon)
-3. Set "From" = 20h ago, "Until" = 7h ago
-4. Press ▶ — data loads (from live WebSocket fallback locally) and playback begins
-5. Pause, step forward/back, seek via axis — all work independently
-6. Press Exit — live spot data returns normally
-7. All existing band / mode / continent / callsign filters continue to work during replay
+## Local Development Setup
+
+Three terminals are required:
+
+**Terminal 1 — Docker (local database + collector):**
+```
+cd backend
+docker compose up postgres valkey collector
+```
+
+**Terminal 2 — Spots server:**
+```
+cd backend
+python spots_server.py
+```
+
+**Terminal 3 — Vite dev server:**
+```
+cd ui
+npm run dev
+# Open http://localhost:5173
+```
+
+> The local PostgreSQL database accumulates spots from the moment Docker starts. Do not restart Docker — each restart resets the accumulated history. After ~24h of continuous running, 24h of history is available for playback.
 
 ---
 
-## Deployment Notes (for the team)
-- The `/spots` backend endpoint in `main.py` needs to be deployed before the feature fetches real historical data. Until then, the fallback (live WebSocket spots filtered by time) is active automatically.
-- The `vite.config.js` proxy changes are dev-only and have no effect in production builds.
-- Recommend testing the backend endpoint independently: `GET /spots?start_time=X&end_time=Y` should return JSON array of spots.
+## Deployment Checklist (for the team)
+
+- [ ] Deploy `backend/api/src/api/main.py` — contains the new `/spots` endpoint
+- [ ] Update `ui/vite.config.js` `/spots` proxy to point to the production server (same as other proxy entries)
+- [ ] Verify `GET /spots?start_time=X&end_time=Y` returns a JSON array (not HTML)
+- [ ] Confirm the production database has sufficient history (retention is currently 14 days)
+- [ ] `backend/spots_server.py` is a local dev tool only — **do not deploy**
+- [ ] No database migrations required
+
+---
+
+## Testing
+
+1. Open SidePanel → Playback tab (green ▶ icon)
+2. Set From = `24h ago`, Until = `0h ago`, Window = `15 min`, Step = `5 min`, Speed = `1s`
+3. Press ▶ — loading spinner appears, then playback begins automatically
+4. Verify the map updates every second showing different spots
+5. Hover over the arrow — playback freezes; move mouse away — playback resumes
+6. Click and drag the arrow — verify scrubbing works and playback stays paused on release
+7. Press ⏪ / ⏩ — verify single-frame step works
+8. Press ⏮ / ⏭ — verify jump to start / end works
+9. Press ✕ (top-right or controls bar) — verify live spots return to normal
+10. During playback, toggle band / mode / continent filters — verify they apply immediately
+11. During playback, verify the day/night terminator moves with the playback time
+12. Set From = `72h ago` and press ▶ — verify load completes and 72h of data is available
