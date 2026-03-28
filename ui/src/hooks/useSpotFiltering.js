@@ -57,13 +57,28 @@ export default function useSpotFiltering(raw_spots) {
     );
 
     const spots_with_alerts = useMemo(() => {
-        return raw_spots.map(spot => ({
-            ...spot,
-            is_alerted:
-                is_matching_list(alerts, spot, dxcc_extra) &&
-                callsign_filters.is_alert_filters_active,
-        }));
-    }, [raw_spots, alerts, callsign_filters.is_alert_filters_active, dxcc_extra]);
+        return raw_spots.map(spot => {
+            const has_missing_dxcc_filter = callsign_filters.filters.some(
+                f => f.type === "missing_dxcc",
+            );
+            const is_dxcc_needed = has_missing_dxcc_filter && (
+                !dxcc_extra?.needed_countries
+                    ? true
+                    : !!dxcc_extra?.lookup_cty_country &&
+                      (() => {
+                          const cty_country = dxcc_extra.lookup_cty_country(spot.dx_callsign);
+                          return cty_country ? dxcc_extra.needed_countries.has(cty_country) : false;
+                      })()
+            );
+            return {
+                ...spot,
+                is_alerted:
+                    is_matching_list(alerts, spot, dxcc_extra) &&
+                    callsign_filters.is_alert_filters_active,
+                is_dxcc_needed,
+            };
+        });
+    }, [raw_spots, alerts, callsign_filters.is_alert_filters_active, callsign_filters.filters, dxcc_extra]);
 
     const spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;

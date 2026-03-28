@@ -7,7 +7,7 @@ import { useDxcc } from "@/hooks/useDxcc";
 import entities from "@/assets/dxcc_entities.json";
 
 import { default as SearchSelect } from "react-select";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const dxcc_entities = entities.map(entity => ({ value: entity, label: entity }));
 
@@ -70,6 +70,47 @@ function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_dat
     );
 }
 
+function CountryDropdown({ list, color }) {
+    const [open, set_open] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        if (!open) return;
+        function handle_click_outside(e) {
+            if (ref.current && !ref.current.contains(e.target)) {
+                set_open(false);
+            }
+        }
+        document.addEventListener("mousedown", handle_click_outside);
+        return () => document.removeEventListener("mousedown", handle_click_outside);
+    }, [open]);
+
+    if (!list || list.length === 0) return null;
+    return (
+        <span ref={ref} className="relative inline-block">
+            <span
+                className="cursor-pointer underline decoration-dotted text-xl font-bold"
+                style={{ color }}
+                onClick={() => set_open(o => !o)}
+            >
+                {list.length} ▾
+            </span>
+            {open && (
+                <div
+                    className="absolute z-50 mt-1 left-0 rounded-md shadow-lg overflow-y-auto"
+                    style={{ backgroundColor: "#1e293b", border: "1px solid #334155", maxHeight: "220px", minWidth: "200px" }}
+                >
+                    {list.map((c, i) => (
+                        <div key={i} className="px-3 py-0.5 text-sm text-white hover:bg-slate-700">
+                            {c}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </span>
+    );
+}
+
 function MissingDxccPanel() {
     const { cty_ready, cty_error, dxcc_state, load_adif, clear_dxcc } = useDxcc();
     const adif_input_ref = useRef(null);
@@ -111,7 +152,7 @@ function MissingDxccPanel() {
             {!dxcc_state ? (
                 <div className="space-y-2">
                     <p className="text-base font-semibold text-white">
-                        Load your ADIF log to find unworked DXCC countries.
+                        Load your ADIF log to find unworked DXCC entities.
                     </p>
                     <button
                         type="button"
@@ -124,9 +165,9 @@ function MissingDxccPanel() {
             ) : (
                 <div className="space-y-2">
                     <div className="text-base font-semibold text-white">
-                        <span className="text-red-400 font-bold">{dxcc_state.needed_list.length}</span>
+                        <CountryDropdown list={dxcc_state.needed_list} color="#f87171" />
                         {" needed · "}
-                        <span className="text-green-400 font-bold">{dxcc_state.worked_list.length}</span>
+                        <CountryDropdown list={dxcc_state.worked_list} color="#4ade80" />
                         {" worked"}
                         {dxcc_state.station_call ? (
                             <span className="text-white"> · {dxcc_state.station_call}</span>

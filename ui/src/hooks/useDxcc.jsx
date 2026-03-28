@@ -96,7 +96,28 @@ export const DxccProvider = ({ children }) => {
                 if (!r.ok) throw new Error("HTTP " + r.status);
                 return r.text();
             })
-            .then(text => set_cty_data(parseCty(text)))
+            .then(text => {
+                const parsed = parseCty(text);
+                set_cty_data(parsed);
+
+                // Auto-detect new DXCC entities added since last ADIF load
+                set_dxcc_state(prev => {
+                    if (!prev?.cty_countries) return prev;
+                    const prev_set = new Set(prev.cty_countries);
+                    const new_countries = Object.keys(parsed.countryPrefixes).filter(
+                        c => !prev_set.has(c),
+                    );
+                    if (new_countries.length === 0) return prev;
+                    // Add new countries to needed_list (user can't have worked them yet)
+                    const updated_needed = [...new Set([...prev.needed_list, ...new_countries])].sort();
+                    const all_countries = Object.keys(parsed.countryPrefixes);
+                    return {
+                        ...prev,
+                        needed_list: updated_needed,
+                        cty_countries: all_countries,
+                    };
+                });
+            })
             .catch(() => set_cty_error(true));
     }, []);
 
@@ -154,6 +175,7 @@ export const DxccProvider = ({ children }) => {
                 loaded_files: files,
                 station_call: stationCall || dxcc_state?.station_call || "",
                 worked_prefixes,
+                cty_countries: all,
             });
         },
         [cty_data, dxcc_state, set_dxcc_state],

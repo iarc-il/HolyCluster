@@ -29,7 +29,7 @@ const SPECIAL_FILTER_LABELS = {
 
 function Indicator({ text }) {
     return (
-        <div className="flex border border-gray-700 items-center justify-center p-2 w-7 h-7 rounded-md mr-2 text-xs font-bold bg-green-600 text-white">
+        <div className="flex border border-gray-700 items-center justify-center px-1.5 py-2 h-7 rounded-md mr-1 text-base bg-green-600 text-white">
             {text}
         </div>
     );
@@ -64,7 +64,7 @@ function SpecialFilterBadge({ type, listeners, attributes }) {
         <div
             {...listeners}
             {...attributes}
-            className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing w-24"
+            className="flex border border-gray-700 items-center justify-center px-2 h-7 rounded-md text-base bg-green-600 text-white cursor-grab active:cursor-grabbing"
         >
             {label}
         </div>
@@ -87,7 +87,7 @@ function FilterContent({ filter, listeners, attributes, colors }) {
         <>
             <div {...listeners} {...attributes}>
                 <Input
-                    className="h-7 text-sm mr-1 w-24 cursor-grab active:cursor-grabbing"
+                    className="h-7 text-base mr-1 w-24 cursor-grab active:cursor-grabbing"
                     disabled
                     disabled_text_color={colors.theme.text}
                     title={filter.value}
