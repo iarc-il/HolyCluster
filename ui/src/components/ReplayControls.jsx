@@ -158,8 +158,8 @@ export default function ReplayControls() {
     const window_segment_ref = useRef(null);
     const circle_el_ref = useRef(null);
     const [config, set_config] = use_object_local_storage("playback_config", {
-        from_hours: 20,
-        until_hours: 7,
+        from_hours: 24,
+        until_hours: 0,
         window_duration: 900,
         step_size: 300,
         playback_speed: 1,

@@ -46,6 +46,10 @@ export function ReplayProvider({ children, live_spots = [] }) {
     const interval_ref = useRef(null);
     const paused_ref = useRef(false);
 
+    const [search_spots, set_search_spots] = useState([]);
+    const [is_search_active, set_is_search_active] = useState(false);
+    const [is_search_loading, set_is_search_loading] = useState(false);
+
     const stop_interval = useCallback(() => {
         paused_ref.current = true;
         if (interval_ref.current) {
@@ -154,6 +158,33 @@ export function ReplayProvider({ children, live_spots = [] }) {
         set_error(null);
     }, [pause]);
 
+    const load_search_spots = useCallback(async (from_hours) => {
+        set_is_search_loading(true);
+        try {
+            const now = Math.floor(Date.now() / 1000);
+            const start_time = now - from_hours * 3600;
+            const resp = await fetch(`/spots?start_time=${start_time}&end_time=${now}`);
+            const text = await resp.text();
+            let spots;
+            if (!resp.ok || text.trimStart().startsWith("<")) {
+                spots = live_spots.filter(s => s.time >= start_time && s.time <= now);
+            } else {
+                spots = normalize_spots(JSON.parse(text));
+            }
+            set_search_spots(spots);
+            set_is_search_active(true);
+        } catch (e) {
+            // silently fail
+        } finally {
+            set_is_search_loading(false);
+        }
+    }, [live_spots]);
+
+    const clear_search_spots = useCallback(() => {
+        set_is_search_active(false);
+        set_search_spots([]);
+    }, []);
+
     useEffect(() => () => stop_interval(), [stop_interval]);
 
     return (
@@ -173,6 +204,11 @@ export function ReplayProvider({ children, live_spots = [] }) {
                 step_forward,
                 step_backward,
                 seek,
+                search_spots,
+                is_search_active,
+                is_search_loading,
+                load_search_spots,
+                clear_search_spots,
             }}
         >
             {children}

@@ -26,7 +26,7 @@ export default function useSpotFiltering(raw_spots) {
     const { settings } = useSettings();
     const { radio_band, radio_freq, radio_status } = use_radio();
     const { search_query } = useSpotInteraction();
-    const { is_replay_active, current_frame_start, replay_config } = useReplay();
+    const { is_replay_active, current_frame_start, replay_config, is_search_active, search_spots } = useReplay();
     const { needed_countries, lookup_cty_country } = useDxcc();
     const dxcc_extra = useMemo(
         () =>
@@ -57,7 +57,8 @@ export default function useSpotFiltering(raw_spots) {
     );
 
     const spots_with_alerts = useMemo(() => {
-        return raw_spots.map(spot => {
+        const source = is_search_active ? search_spots : raw_spots;
+        return source.map(spot => {
             const has_missing_dxcc_filter = callsign_filters.filters.some(
                 f => f.type === "missing_dxcc",
             );
@@ -78,7 +79,7 @@ export default function useSpotFiltering(raw_spots) {
                 is_dxcc_needed,
             };
         });
-    }, [raw_spots, alerts, callsign_filters.is_alert_filters_active, callsign_filters.filters, dxcc_extra]);
+    }, [raw_spots, search_spots, is_search_active, alerts, callsign_filters.is_alert_filters_active, callsign_filters.filters, dxcc_extra]);
 
     const spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;
@@ -97,10 +98,12 @@ export default function useSpotFiltering(raw_spots) {
                 }
 
                 const is_in_time_limit =
-                    is_replay_active && replay_config
-                        ? spot.time >= current_frame_start &&
-                          spot.time < current_frame_start + replay_config.window_duration
-                        : current_time - spot.time < filters.time_limit;
+                    is_search_active
+                        ? true
+                        : is_replay_active && replay_config
+                            ? spot.time >= current_frame_start &&
+                              spot.time < current_frame_start + replay_config.window_duration
+                            : current_time - spot.time < filters.time_limit;
 
                 const is_matching_search = spot.dx_callsign
                     .toLowerCase()
@@ -176,6 +179,7 @@ export default function useSpotFiltering(raw_spots) {
         is_replay_active,
         current_frame_start,
         replay_config,
+        is_search_active,
         dxcc_extra,
     ]);
 
