@@ -324,3 +324,102 @@ npm run dev
 10. During playback, toggle band / mode / continent filters — verify they apply immediately
 11. During playback, verify the day/night terminator moves with the playback time
 12. Set From = `72h ago` and press ▶ — verify load completes and 72h of data is available
+
+---
+
+## Additional Changes — 2026-03-29
+
+The following features were added in the session following the initial playback release (commit `3a21698`).
+
+---
+
+### 1. Historical Callsign Search
+
+A toggle and "From" range selector were added to the search bar, enabling operators to search for all spots of a specific callsign over a historical time range (not just the current live window).
+
+**How it works:**
+- A **toggle** next to the search box enables historical mode; the **From** dropdown selects how far back to look (options: 6h / 12h / 24h / 2D / 3D)
+- While the toggle is off, the dropdown is grayed out and the search box works as before (live filter only)
+- When enabled and a callsign is typed, a fetch is issued to `GET /spots?callsign=<prefix>&start_time=...` with a 300ms debounce
+- Results bypass the normal 1-hour time window filter — all fetched spots are shown
+- A spinner overlays the right side of the search box while loading
+- Pressing ✕ clears the query and exits search mode
+- Parsing of large responses is done in a **Web Worker** (`ui/src/workers/spotsParser.js`) to avoid blocking the main thread
+
+**Backend change (`backend/api/src/api/main.py`):**
+- Added optional `callsign` parameter to `GET /spots` — performs a prefix `ilike` filter on `dx_callsign`
+- Added optional `limit` parameter (default and max: 75,000)
+
+**Files changed:** `CallsignSearch.jsx`, `useReplay.jsx`, `useSpotFiltering.js`, `workers/spotsParser.js` (new), `backend/api/src/api/main.py`
+
+---
+
+### 2. My Modes Settings Tab
+
+A new **"My Modes"** tab was added to the Settings panel, mirroring the existing "My Bands" tab.
+
+- Operators can individually **disable modes** (SSB, CW, FT8, FT4, DIGI, RTTY)
+- Disabled modes are hidden from the mode buttons in the left column
+- A **"Show disabled modes"** toggle re-displays them without re-enabling them
+- Disabled modes are **excluded from alert sounds** (see alert fix below)
+
+**Files changed:** `settings/Modes.jsx` (new), `settings/Settings.jsx`, `useSettings.jsx`, `LeftColumn.jsx`
+
+---
+
+### 3. Alert Sound Fix — Settings-Disabled Bands and Modes Never Alert
+
+Previously, a spot matching an alert filter would trigger the alert sound even if its band or mode was disabled in Settings.
+
+**Fix:** Alert gate added in `useSpotFiltering.js`:
+```js
+&& !settings.disabled_bands[spot.band]
+&& !settings.disabled_modes?.[spot.mode]
+```
+Settings-disabled bands/modes are fully excluded from alerts. Band-bar-unchecked bands still alert (that is deliberate — the band bar is a display filter, not a preference setting).
+
+**File changed:** `useSpotFiltering.js`
+
+---
+
+### 4. Per-Spot Independent New-Spot Highlight
+
+New arriving spots are highlighted in the table. Previously the highlight used a shared data structure that caused the **entire visible list to highlight simultaneously** when any spots arrived.
+
+**Fix:** Each spot object now carries its own `arrival_time` field, stamped at creation:
+- `null` for spots from the initial load (no highlight)
+- `Date.now()` for spots arriving via live WebSocket updates
+
+Each table row independently runs its own timers:
+- **Instant** solid highlight on arrival (no fade-in transition)
+- **2 seconds** solid
+- **5-second ease-out fade** to normal
+- **Off at 7 seconds**
+
+The CSS transition (`background-color 5s ease-out`) is only applied during the fade phase (`is_fading === true`), so the highlight snaps on immediately and fades out slowly.
+
+**Files changed:** `useSpotWebSocket.js`, `useSpotData.jsx`, `SpotsTable.jsx`
+
+---
+
+### 5. DXpeditions — QRZ.com Links
+
+Clicking a callsign in the DXpeditions panel now opens the operator's QRZ.com page in a new tab.
+
+**File changed:** `DXpeditions.jsx`
+
+---
+
+### 6. "Single Spot per Station" Toggle Moved to Search Bar
+
+The **"Single spot per station"** toggle was moved from Settings → General to the search bar (far right, always visible). The two-line label "Single spot / per station" makes it compact enough to fit.
+
+**Files changed:** `CallsignSearch.jsx`, `settings/General.jsx`
+
+---
+
+### Deployment Notes (2026-03-29 additions)
+
+- The `callsign` prefix filter on `/spots` requires the updated `backend/api/src/api/main.py` — same file as the original playback endpoint, no new files needed on the backend
+- `ui/src/workers/spotsParser.js` is a frontend-only Web Worker — no backend deployment required
+- No database schema changes
