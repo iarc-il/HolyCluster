@@ -12,6 +12,8 @@ export const useDxcc = () => {
 // ── CTY.DAT PARSER ───────────────────────────────────────────────────────────
 function parseCty(text) {
     const countryPrefixes = {};
+    const cqZoneMap = new Map(); // country name → CQ zone number
+    const ituZoneMap = new Map(); // country name → ITU zone number
     let current = null;
 
     for (const line of text.split("\n")) {
@@ -22,8 +24,12 @@ function parseCty(text) {
                 let name = parts[0].trim();
                 if (name.startsWith("*")) name = name.slice(1).trim();
                 const mainPrefix = parts[7].trim().replace("*", "").toUpperCase();
+                const cqZone = parseInt(parts[1].trim(), 10);
+                const ituZone = parseInt(parts[2].trim(), 10);
                 countryPrefixes[name] = { prefixes: [], exactCalls: [] };
                 if (mainPrefix) countryPrefixes[name].prefixes.push(mainPrefix);
+                if (!isNaN(cqZone)) cqZoneMap.set(name, cqZone);
+                if (!isNaN(ituZone)) ituZoneMap.set(name, ituZone);
                 current = name;
             }
         } else if (current) {
@@ -52,7 +58,7 @@ function parseCty(text) {
     }
     prefixMap.sort((a, b) => b.prefix.length - a.prefix.length || a.prefix.localeCompare(b.prefix));
 
-    return { countryPrefixes, prefixMap };
+    return { countryPrefixes, prefixMap, cqZoneMap, ituZoneMap };
 }
 
 // ── ADIF PARSER ──────────────────────────────────────────────────────────────
@@ -138,6 +144,36 @@ export const DxccProvider = ({ children }) => {
         [cty_data],
     );
 
+    // Look up a callsign in cty.dat and return its CQ zone number (or null)
+    const lookup_cq_zone = useCallback(
+        callsign => {
+            if (!cty_data) return null;
+            for (const entry of cty_data.prefixMap) {
+                const matched = entry.exact
+                    ? callsign === entry.prefix
+                    : callsign.startsWith(entry.prefix);
+                if (matched) return cty_data.cqZoneMap.get(entry.country) ?? null;
+            }
+            return null;
+        },
+        [cty_data],
+    );
+
+    // Look up a callsign in cty.dat and return its ITU zone number (or null)
+    const lookup_itu_zone = useCallback(
+        callsign => {
+            if (!cty_data) return null;
+            for (const entry of cty_data.prefixMap) {
+                const matched = entry.exact
+                    ? callsign === entry.prefix
+                    : callsign.startsWith(entry.prefix);
+                if (matched) return cty_data.ituZoneMap.get(entry.country) ?? null;
+            }
+            return null;
+        },
+        [cty_data],
+    );
+
     const load_adif = useCallback(
         (text, filename) => {
             if (!cty_data) return;
@@ -191,6 +227,8 @@ export const DxccProvider = ({ children }) => {
                 dxcc_state,
                 needed_countries,
                 lookup_cty_country,
+                lookup_cq_zone,
+                lookup_itu_zone,
                 load_adif,
                 clear_dxcc,
             }}

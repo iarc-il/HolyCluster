@@ -58,8 +58,8 @@ function EditSymbol({ size }) {
     );
 }
 
-function SpecialFilterBadge({ type, listeners, attributes }) {
-    const label = SPECIAL_FILTER_LABELS[type];
+function SpecialFilterBadge({ type, value, listeners, attributes }) {
+    const label = type === "cq_zone" ? `CQ ${value}` : type === "itu_zone" ? `ITU ${value}` : SPECIAL_FILTER_LABELS[type];
     return (
         <div
             {...listeners}
@@ -80,6 +80,17 @@ function FilterContent({ filter, listeners, attributes, colors }) {
     if (is_special_filter) {
         return (
             <SpecialFilterBadge type={filter.type} listeners={listeners} attributes={attributes} />
+        );
+    }
+
+    if (filter.type === "cq_zone" || filter.type === "itu_zone") {
+        return (
+            <SpecialFilterBadge
+                type={filter.type}
+                value={filter.value}
+                listeners={listeners}
+                attributes={attributes}
+            />
         );
     }
 
@@ -172,9 +183,9 @@ function FilterSection({ title, filters, action, toggle_field, active_filter_id 
     };
 
     const add_filter = new_filter => {
-        const special_types = ["self_spotters", "dxpeditions", "missing_dxcc"];
+        const unique_by_type_only = ["self_spotters", "dxpeditions", "missing_dxcc"];
         const is_duplicate = callsign_filters.filters.some(f => {
-            if (special_types.includes(new_filter.type)) {
+            if (unique_by_type_only.includes(new_filter.type)) {
                 return f.type === new_filter.type && f.action === new_filter.action;
             }
             return f.type === new_filter.type &&
@@ -249,12 +260,12 @@ function Filters() {
         }
 
         if (currentAction !== newAction) {
-            const special_types = ["self_spotters", "dxpeditions", "missing_dxcc"];
+            const unique_by_type_only = ["self_spotters", "dxpeditions", "missing_dxcc"];
             const dragged = active.data.current.filter;
             if (!dragged) return;
             const is_duplicate = callsign_filters.filters.some((f, i) => {
                 if (i === filterId) return false;
-                if (special_types.includes(dragged.type)) {
+                if (unique_by_type_only.includes(dragged.type)) {
                     return f.type === dragged.type && f.action === newAction;
                 }
                 return f.type === dragged.type &&

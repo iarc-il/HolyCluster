@@ -43,6 +43,16 @@ export function is_matching_list(list, spot, dxcc_extra = null) {
             return dxcc_extra.needed_countries.has(cty_country);
         }
 
+        if (filter.type === "cq_zone") {
+            if (!dxcc_extra?.lookup_cq_zone) return false;
+            return dxcc_extra.lookup_cq_zone(spot.dx_callsign) === Number(filter.value);
+        }
+
+        if (filter.type === "itu_zone") {
+            if (!dxcc_extra?.lookup_itu_zone) return false;
+            return dxcc_extra.lookup_itu_zone(spot.dx_callsign) === Number(filter.value);
+        }
+
         let matched_value;
         if (filter.type == "comment") {
             matched_value = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">").toLowerCase();

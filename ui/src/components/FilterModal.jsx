@@ -255,6 +255,8 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         { label: "Suffix", value: "suffix" },
                         { label: "Entity", value: "entity" },
                         { label: "Comment", value: "comment" },
+                        { label: "CQ Zone", value: "cq_zone" },
+                        { label: "ITU Zone", value: "itu_zone" },
                         { label: "Self Spotters", value: "self_spotters" },
                         { label: "DXpeditions", value: "dxpeditions" },
                         { label: "Missing DXCC", value: "missing_dxcc" },
@@ -265,6 +267,8 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                     build_temp_data={(temp_data, field, value) => {
                         if (value == "entity" || temp_data.type == "entity") {
                             return { ...temp_data, [field]: value, value: "" };
+                        } else if (value == "cq_zone" || value == "itu_zone") {
+                            return { ...temp_data, [field]: value, value: "1" };
                         } else {
                             return { ...temp_data, [field]: value };
                         }
@@ -273,6 +277,32 @@ function FilterModal({ initial_data = null, on_apply, button }) {
 
                 {temp_data.type === "missing_dxcc" ? (
                     <MissingDxccPanel />
+                ) : temp_data.type === "cq_zone" || temp_data.type === "itu_zone" ? (
+                    <>
+                        <hr />
+                        <div className="flex justify-start space-x-5 items-center">
+                            <div>{temp_data.type === "cq_zone" ? "CQ Zone:" : "ITU Zone:"}</div>
+                            <select
+                                value={temp_data.value}
+                                onChange={e => set_temp_data({ ...temp_data, value: e.target.value })}
+                                style={{
+                                    backgroundColor: colors.theme.input_background,
+                                    color: colors.theme.text,
+                                    borderRadius: "0.375rem",
+                                    padding: "0.25rem 0.5rem",
+                                    fontSize: "1rem",
+                                    border: `1px solid ${colors.theme.borders}`,
+                                }}
+                            >
+                                {Array.from(
+                                    { length: temp_data.type === "cq_zone" ? 40 : 90 },
+                                    (_, i) => i + 1
+                                ).map(n => (
+                                    <option key={n} value={String(n)}>{n}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </>
                 ) : temp_data.type != "self_spotters" &&
                 temp_data.type != "dxpeditions" &&
                 temp_data.type != "comment" ? (

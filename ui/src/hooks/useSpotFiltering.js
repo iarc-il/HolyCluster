@@ -27,13 +27,13 @@ export default function useSpotFiltering(raw_spots) {
     const { radio_band, radio_freq, radio_status } = use_radio();
     const { search_query } = useSpotInteraction();
     const { is_replay_active, current_frame_start, replay_config, is_search_active, search_spots } = useReplay();
-    const { needed_countries, lookup_cty_country } = useDxcc();
+    const { needed_countries, lookup_cty_country, lookup_cq_zone, lookup_itu_zone } = useDxcc();
     const dxcc_extra = useMemo(
         () =>
-            needed_countries && lookup_cty_country
-                ? { needed_countries, lookup_cty_country }
+            lookup_cty_country
+                ? { needed_countries, lookup_cty_country, lookup_cq_zone, lookup_itu_zone }
                 : null,
-        [needed_countries, lookup_cty_country],
+        [needed_countries, lookup_cty_country, lookup_cq_zone, lookup_itu_zone],
     );
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
