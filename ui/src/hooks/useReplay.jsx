@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { shorten_dxcc } from "@/data/flags.js";
-import { modes, continents } from "@/data/filters_data.js";
+import SpotsParserWorker from "@/workers/spotsParser.js?worker";
 
 const ReplayContext = createContext(undefined);
 
@@ -8,32 +7,22 @@ export function useReplay() {
     return useContext(ReplayContext);
 }
 
-function normalize_band(band) {
-    if (band == 2) return "VHF";
-    if (band == 0.7) return "UHF";
-    if (band < 1) return "SHF";
-    return band;
+function parse_spots_in_worker(text) {
+    return new Promise((resolve, reject) => {
+        const worker = new SpotsParserWorker();
+        worker.onmessage = e => {
+            worker.terminate();
+            if (e.data.ok) resolve(e.data.spots);
+            else reject(new Error(e.data.error));
+        };
+        worker.onerror = err => {
+            worker.terminate();
+            reject(err);
+        };
+        worker.postMessage(text);
+    });
 }
 
-let replay_id_counter = 1_000_000;
-
-function normalize_spots(spots) {
-    return spots
-        .map(spot => ({
-            ...spot,
-            id: replay_id_counter++,
-            band: normalize_band(spot.band),
-            mode: spot.mode === "DIGITAL" ? "DIGI" : spot.mode,
-            dx_country: shorten_dxcc(spot.dx_country),
-            spotter_country: shorten_dxcc(spot.spotter_country),
-        }))
-        .filter(spot => {
-            if (!modes.includes(spot.mode)) return false;
-            if (!continents.includes(spot.dx_continent)) return false;
-            if (!continents.includes(spot.spotter_continent)) return false;
-            return true;
-        });
-}
 
 export function ReplayProvider({ children, live_spots = [] }) {
     const [is_replay_active, set_is_replay_active] = useState(false);
@@ -134,7 +123,7 @@ export function ReplayProvider({ children, live_spots = [] }) {
                         s => s.time >= config.start_time && s.time <= config.end_time,
                     );
                 } else {
-                    spots = normalize_spots(JSON.parse(text));
+                    spots = await parse_spots_in_worker(text);
                 }
                 set_replay_spots(spots);
                 set_replay_config(config);
@@ -158,18 +147,24 @@ export function ReplayProvider({ children, live_spots = [] }) {
         set_error(null);
     }, [pause]);
 
-    const load_search_spots = useCallback(async (from_hours) => {
+    const search_callsign = useCallback(async (callsign, from_hours) => {
+        if (!callsign || callsign.length < 1) {
+            set_is_search_active(false);
+            set_search_spots([]);
+            return;
+        }
         set_is_search_loading(true);
         try {
             const now = Math.floor(Date.now() / 1000);
             const start_time = now - from_hours * 3600;
-            const resp = await fetch(`/spots?start_time=${start_time}&end_time=${now}`);
+            const resp = await fetch(`/spots?start_time=${start_time}&end_time=${now}&callsign=${encodeURIComponent(callsign)}`);
             const text = await resp.text();
             let spots;
             if (!resp.ok || text.trimStart().startsWith("<")) {
-                spots = live_spots.filter(s => s.time >= start_time && s.time <= now);
+                spots = live_spots.filter(s => s.time >= start_time && s.time <= now &&
+                    s.dx_callsign.toLowerCase().startsWith(callsign.toLowerCase()));
             } else {
-                spots = normalize_spots(JSON.parse(text));
+                spots = await parse_spots_in_worker(text);
             }
             set_search_spots(spots);
             set_is_search_active(true);
@@ -207,7 +202,7 @@ export function ReplayProvider({ children, live_spots = [] }) {
                 search_spots,
                 is_search_active,
                 is_search_loading,
-                load_search_spots,
+                search_callsign,
                 clear_search_spots,
             }}
         >

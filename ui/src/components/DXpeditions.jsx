@@ -132,7 +132,15 @@ function DXpeditionCard({
                     style={{ color: is_highlighted ? "white" : colors.theme.text }}
                 >
                     {is_spotted && <OnAirStar colors={colors} />}
-                    {dxpedition.callsign}
+                    <a
+                        href={`https://www.qrz.com/db/${dxpedition.callsign}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{ color: "inherit", textDecoration: "none" }}
+                    >
+                        {dxpedition.callsign}
+                    </a>
                 </span>
                 <span
                     className="text-md font-medium px-1.5 py-0.5 rounded"

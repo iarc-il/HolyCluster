@@ -57,7 +57,7 @@ export default function useSpotFiltering(raw_spots) {
     );
 
     const spots_with_alerts = useMemo(() => {
-        const source = is_search_active ? search_spots : raw_spots;
+        const source = (is_search_active && search_spots.length > 0) ? search_spots : raw_spots;
         return source.map(spot => {
             const has_missing_dxcc_filter = callsign_filters.filters.some(
                 f => f.type === "missing_dxcc",
@@ -75,11 +75,13 @@ export default function useSpotFiltering(raw_spots) {
                 ...spot,
                 is_alerted:
                     is_matching_list(alerts, spot, dxcc_extra) &&
-                    callsign_filters.is_alert_filters_active,
+                    callsign_filters.is_alert_filters_active &&
+                    !settings.disabled_bands[spot.band] &&
+                    !settings.disabled_modes?.[spot.mode],
                 is_dxcc_needed,
             };
         });
-    }, [raw_spots, search_spots, is_search_active, alerts, callsign_filters.is_alert_filters_active, callsign_filters.filters, dxcc_extra]);
+    }, [raw_spots, search_spots, alerts, callsign_filters.is_alert_filters_active, callsign_filters.filters, dxcc_extra, settings.disabled_bands, settings.disabled_modes]);
 
     const spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;

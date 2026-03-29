@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import { use_object_local_storage } from "@/utils.js";
-import { bands } from "@/data/filters_data.js";
+import { bands, modes } from "@/data/filters_data.js";
 
 const SettingsContext = createContext(undefined);
 
@@ -28,6 +28,8 @@ export function SettingsProvider({ children }) {
         alert_sound_enabled: false,
         disabled_bands: Object.fromEntries(bands.map(band => [band, false])),
         show_disabled_bands: false,
+        disabled_modes: Object.fromEntries(modes.map(mode => [mode, false])),
+        show_disabled_modes: false,
         show_only_latest_spot: false,
     });
 

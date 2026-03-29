@@ -415,17 +415,21 @@ async def health():
 
 
 @app.get("/spots")
-async def get_spots(start_time: float, end_time: float):
+async def get_spots(start_time: float, end_time: float, callsign: str | None = None, limit: int = 75000):
     if end_time <= start_time:
         raise HTTPException(status_code=400, detail="end_time must be after start_time")
     if end_time - start_time > 86400 * 3:
         raise HTTPException(status_code=400, detail="Time range cannot exceed 72 hours")
+    clamped_limit = max(1, min(limit, 75000))
     async with async_session() as session:
+        conditions = [HolySpot.timestamp >= start_time, HolySpot.timestamp <= end_time]
+        if callsign:
+            conditions.append(HolySpot.dx_callsign.ilike(f"{callsign}%"))
         query = (
             select(HolySpot)
-            .where(HolySpot.timestamp >= start_time, HolySpot.timestamp <= end_time)
+            .where(*conditions)
             .order_by(desc(HolySpot.timestamp))
-            .limit(75000)
+            .limit(clamped_limit)
         )
         spots = cleanup_spots((await session.execute(query)).scalars())
         return spots
