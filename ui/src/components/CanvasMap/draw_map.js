@@ -24,8 +24,8 @@ function generate_radial_lines(center_x, center_y, radius, degrees_diff) {
     return lines;
 }
 
-function draw_night_circle(context, path_generator) {
-    const now = new Date();
+function draw_night_circle(context, path_generator, display_time) {
+    const now = display_time || new Date();
     const day = new Date(+now).setUTCHours(0, 0, 0, 0);
     const t = century(now);
     const longitude = ((day - now) / 864e5) * 360 - 180;
@@ -48,6 +48,7 @@ export function draw_map(
     night_displayed,
     show_equator,
     is_globe,
+    display_time,
 ) {
     const path_generator = d3.geoPath().projection(projection).context(context);
 
@@ -105,7 +106,7 @@ export function draw_map(
 
     // Night circle
     if (night_displayed) {
-        draw_night_circle(context, path_generator);
+        draw_night_circle(context, path_generator, display_time);
     }
 
     // Equator

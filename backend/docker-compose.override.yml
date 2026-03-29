@@ -1,0 +1,5 @@
+services:
+  api:
+    volumes:
+      - C:\tmp\ui:/tmp/ui
+      - C:\tmp\catserver:/tmp/catserver

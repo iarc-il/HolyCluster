@@ -10,9 +10,10 @@ import ImportExport from "./ImportExport";
 import General from "./General";
 import CatControl from "./CatControl";
 import Bands from "./Bands";
+import Modes from "./Modes";
 import use_radio from "@/hooks/useRadio";
 import Tabs from "@/components/ui/Tabs";
-import { bands } from "@/data/filters_data.js";
+import { bands, modes } from "@/data/filters_data.js";
 
 function SettingsIcon({ size }) {
     const { colors } = useColors();
@@ -55,6 +56,8 @@ const empty_temp_settings = {
     alert_sound_enabled: false,
     disabled_bands: Object.fromEntries(bands.map(band => [band, false])),
     show_disabled_bands: false,
+    disabled_modes: Object.fromEntries(modes.map(mode => [mode, false])),
+    show_disabled_modes: false,
     show_only_latest_spot: false,
 };
 
@@ -88,9 +91,16 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                     updated_bands[band] = false;
                 }
             });
+            const updated_modes = { ...current_filters.modes };
+            modes.forEach(mode => {
+                if (new_settings.disabled_modes?.[mode]) {
+                    updated_modes[mode] = false;
+                }
+            });
             return {
                 ...current_filters,
                 bands: updated_bands,
+                modes: updated_modes,
             };
         });
     }
@@ -122,6 +132,16 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             label: "My Bands",
             content: (
                 <Bands
+                    temp_settings={temp_settings}
+                    set_temp_settings={set_temp_settings}
+                    colors={colors}
+                />
+            ),
+        },
+        {
+            label: "My Modes",
+            content: (
+                <Modes
                     temp_settings={temp_settings}
                     set_temp_settings={set_temp_settings}
                     colors={colors}
