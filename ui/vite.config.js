@@ -11,6 +11,7 @@ export default defineConfig({
         },
     },
     server: {
+        host: true,
         proxy: {
             "/propagation": { target: "https://holycluster-dev.iarc.org", secure: false },
             "/locator": { target: "https://holycluster-dev.iarc.org", secure: false },
