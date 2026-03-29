@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { modes, continents } from "@/data/filters_data.js";
 import { shorten_dxcc } from "@/data/flags.js";
@@ -12,7 +12,6 @@ function normalize_band(band) {
 
 export default function useSpotWebSocket() {
     const [raw_spots, set_spots] = useState([]);
-    const [new_spot_ids, set_new_spot_ids] = useState(new Set());
     const [network_state, set_network_state] = useState("connecting");
 
     const [is_first_connection, set_is_first_connection] = useState(true);
@@ -40,6 +39,7 @@ export default function useSpotWebSocket() {
     useEffect(() => {
         if (lastJsonMessage) {
             const data = lastJsonMessage;
+            const now = data.type === "update" ? Date.now() : null;
             let new_spots = data.spots
                 .map(spot => {
                     spot.id = next_spot_id_ref.current++;
@@ -47,6 +47,7 @@ export default function useSpotWebSocket() {
                     spot.band = normalize_band(spot.band);
                     spot.dx_country = shorten_dxcc(spot.dx_country);
                     spot.spotter_country = shorten_dxcc(spot.spotter_country);
+                    spot.arrival_time = now; // null for initial load, timestamp for updates
                     return spot;
                 })
                 .filter(spot => {
@@ -72,13 +73,6 @@ export default function useSpotWebSocket() {
                 });
 
             if (data.type === "update") {
-                const new_ids = new Set(new_spots.map(spot => spot.id));
-                set_new_spot_ids(new_ids);
-
-                setTimeout(() => {
-                    set_new_spot_ids(new Set());
-                }, 3000);
-
                 new_spots = new_spots.concat(raw_spots);
             }
 
@@ -106,5 +100,5 @@ export default function useSpotWebSocket() {
         }
     }, [readyState]);
 
-    return { raw_spots, new_spot_ids, network_state };
+    return { raw_spots, network_state };
 }

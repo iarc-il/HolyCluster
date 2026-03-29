@@ -1,6 +1,6 @@
 import * as d3 from "d3";
 import { get_mode_shape } from "@/data/mode_shapes.js";
-import { build_geojson_line } from "./draw_spots.js";
+import { build_geojson_line, make_visibility_check } from "./draw_spots.js";
 
 const TYPE_OFFSET = { dx: 0, arc: 1, spotter: 2 };
 
@@ -53,7 +53,7 @@ function draw_shadow_dx(context, spot, color, dx_x, dx_y, dx_size) {
     context.stroke();
 }
 
-function draw_shadow_spot(context, spot, { path_generator, projection }) {
+function draw_shadow_spot(context, spot, { path_generator, projection, is_visible }) {
     const line = build_geojson_line(spot);
 
     context.beginPath();
@@ -62,23 +62,28 @@ function draw_shadow_spot(context, spot, { path_generator, projection }) {
     path_generator(line);
     context.stroke();
 
-    const dx_size = 12;
-    const [dx_x, dx_y] = projection(spot.dx_loc);
-    const dx_color = spot_to_color(spot.id, "dx");
-    draw_shadow_dx(context, spot, dx_color, dx_x, dx_y, dx_size);
+    if (is_visible(spot.dx_loc)) {
+        const dx_size = 12;
+        const [dx_x, dx_y] = projection(spot.dx_loc);
+        const dx_color = spot_to_color(spot.id, "dx");
+        draw_shadow_dx(context, spot, dx_color, dx_x, dx_y, dx_size);
+    }
 
-    const [spotter_x, spotter_y] = projection(spot.spotter_loc);
-    const spotter_radius = 7;
+    if (is_visible(spot.spotter_loc)) {
+        const [spotter_x, spotter_y] = projection(spot.spotter_loc);
+        const spotter_radius = 7;
 
-    context.beginPath();
-    context.fillStyle = spot_to_color(spot.id, "spotter");
-    context.lineWidth = 2;
-    context.arc(spotter_x, spotter_y, spotter_radius, 0, 2 * Math.PI);
-    context.fill();
+        context.beginPath();
+        context.fillStyle = spot_to_color(spot.id, "spotter");
+        context.lineWidth = 2;
+        context.arc(spotter_x, spotter_y, spotter_radius, 0, 2 * Math.PI);
+        context.fill();
+    }
 }
 
-export function draw_shadow_map(shadow_context, spots, dims, projection) {
+export function draw_shadow_map(shadow_context, spots, dims, projection, is_globe) {
     const shadow_path_generator = d3.geoPath().projection(projection).context(shadow_context);
+    const is_visible = is_globe ? make_visibility_check(projection) : () => true;
     shadow_context.save();
 
     shadow_context.beginPath();
@@ -89,6 +94,7 @@ export function draw_shadow_map(shadow_context, spots, dims, projection) {
         draw_shadow_spot(shadow_context, spot, {
             path_generator: shadow_path_generator,
             projection,
+            is_visible,
         });
     });
 

@@ -2,17 +2,20 @@ import Filters from "@/components/Filters.jsx";
 import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Heatmap from "@/components/Heatmap.jsx";
 import DXpeditions from "@/components/DXpeditions.jsx";
+import ReplayControls from "@/components/ReplayControls.jsx";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
 import { continents } from "@/data/filters_data.js";
 import { useFilters } from "@/hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
+import { useReplay } from "@/hooks/useReplay";
 
 const continent_title = { dx: "DX", spotter: "DE" };
 
 function ContinentColumn({ spot_type, colors }) {
     const { filters, setFilters } = useFilters();
+    const { is_replay_active } = useReplay();
     const filter_key = `${spot_type}_continents`;
     const color = colors.buttons[spot_type + "_continents"];
 
@@ -156,12 +159,13 @@ const view_options = [
         is_disabled: false,
     },
     {
-        label: "",
-        bg: "",
-        icon: "",
+        label: "Playback",
+        bg: "#00FF00",
+        icon_color: "#00FF00",
+        icon: "M8 5v14l11-7z",
         viewbox: "0 0 24 24",
-        size: 32,
-        is_disabled: true,
+        size: 44,
+        is_disabled: false,
     },
 ];
 
@@ -198,7 +202,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                             width={option.size}
                             height={option.size}
                             viewBox={option.viewbox}
-                            fill={is_active ? option.bg : colors.buttons.utility}
+                            fill={is_active ? option.bg : (option.icon_color || colors.buttons.utility)}
                         >
                             <path d={option.icon} />
                         </svg>
@@ -222,13 +226,19 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
             <Heatmap />
         </div>,
         <DXpeditions />,
+        <ReplayControls />,
     ];
 
-    const toggled_classes = toggled_ui.right_visible ? "max-2xl:absolute right-0 top-0" : "hidden";
+    const toggled_classes = toggled_ui.right_visible
+        ? "max-2xl:absolute max-2xl:flex right-0 top-0"
+        : "hidden";
     return (
         <div
-            className={toggled_classes + " 2xl:flex flex-col h-full z-50"}
-            style={{ backgroundColor: colors.theme.background }}
+            className={
+                toggled_classes +
+                " 2xl:flex flex-col h-full z-50 max-2xl:max-h-full max-2xl:overflow-auto"
+            }
+            style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}
         >
             <ViewSelectorTabs
                 active_view={active_view}
@@ -236,7 +246,7 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
                 colors={colors}
             />
             <div className="flex flex-1 overflow-hidden">
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64">
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64 min-w-0">
                     {content[active_view]}
                 </div>
                 <RightColumnContent colors={colors} />

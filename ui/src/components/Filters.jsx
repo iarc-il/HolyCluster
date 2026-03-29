@@ -24,11 +24,12 @@ const SPOTTER_DX_LABELS = {
 const SPECIAL_FILTER_LABELS = {
     self_spotters: "Self spotters",
     dxpeditions: "DXpedition",
+    missing_dxcc: "Needed DXCC",
 };
 
 function Indicator({ text }) {
     return (
-        <div className="flex border border-gray-700 items-center justify-center p-2 w-7 h-7 rounded-md mr-2 text-xs font-bold bg-green-600 text-white">
+        <div className="flex border border-gray-700 items-center justify-center px-1.5 py-2 h-7 rounded-md mr-1 text-base bg-green-600 text-white">
             {text}
         </div>
     );
@@ -57,13 +58,13 @@ function EditSymbol({ size }) {
     );
 }
 
-function SpecialFilterBadge({ type, listeners, attributes }) {
-    const label = SPECIAL_FILTER_LABELS[type];
+function SpecialFilterBadge({ type, value, listeners, attributes }) {
+    const label = type === "cq_zone" ? `CQ ${value}` : type === "itu_zone" ? `ITU ${value}` : SPECIAL_FILTER_LABELS[type];
     return (
         <div
             {...listeners}
             {...attributes}
-            className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing w-24"
+            className="flex border border-gray-700 items-center justify-center px-2 h-7 rounded-md text-base bg-green-600 text-white cursor-grab active:cursor-grabbing"
         >
             {label}
         </div>
@@ -71,7 +72,10 @@ function SpecialFilterBadge({ type, listeners, attributes }) {
 }
 
 function FilterContent({ filter, listeners, attributes, colors }) {
-    const is_special_filter = filter.type === "self_spotters" || filter.type === "dxpeditions";
+    const is_special_filter =
+        filter.type === "self_spotters" ||
+        filter.type === "dxpeditions" ||
+        filter.type === "missing_dxcc";
 
     if (is_special_filter) {
         return (
@@ -79,11 +83,22 @@ function FilterContent({ filter, listeners, attributes, colors }) {
         );
     }
 
+    if (filter.type === "cq_zone" || filter.type === "itu_zone") {
+        return (
+            <SpecialFilterBadge
+                type={filter.type}
+                value={filter.value}
+                listeners={listeners}
+                attributes={attributes}
+            />
+        );
+    }
+
     return (
         <>
             <div {...listeners} {...attributes}>
                 <Input
-                    className="h-7 text-sm mr-1 w-24 cursor-grab active:cursor-grabbing"
+                    className="h-7 text-base mr-1 w-24 cursor-grab active:cursor-grabbing"
                     disabled
                     disabled_text_color={colors.theme.text}
                     title={filter.value}
@@ -157,6 +172,7 @@ function FilterSection({ title, filters, action, toggle_field, active_filter_id 
         padding: "0.5rem",
         margin: "-0.5rem",
         transition: "all 0.2s ease",
+        minHeight: "2.5rem",
     };
 
     const toggle_active = () => {
@@ -167,6 +183,17 @@ function FilterSection({ title, filters, action, toggle_field, active_filter_id 
     };
 
     const add_filter = new_filter => {
+        const unique_by_type_only = ["self_spotters", "dxpeditions", "missing_dxcc"];
+        const is_duplicate = callsign_filters.filters.some(f => {
+            if (unique_by_type_only.includes(new_filter.type)) {
+                return f.type === new_filter.type && f.action === new_filter.action;
+            }
+            return f.type === new_filter.type &&
+                f.value === new_filter.value &&
+                f.spotter_or_dx === new_filter.spotter_or_dx &&
+                f.action === new_filter.action;
+        });
+        if (is_duplicate) return;
         setCallsignFilters({
             ...callsign_filters,
             filters: [...callsign_filters.filters, new_filter],
@@ -224,9 +251,29 @@ function Filters() {
         if (!over) return;
 
         const { filterId, currentAction } = active.data.current;
-        const newAction = over.id;
+        // If dropped on a filter item rather than the section itself,
+        // use that filter's action as the target section
+        let newAction = over.id;
+        if (String(over.id).startsWith("filter-")) {
+            const overIndex = Number.parseInt(String(over.id).replace("filter-", ""));
+            newAction = callsign_filters.filters[overIndex]?.action ?? over.id;
+        }
 
         if (currentAction !== newAction) {
+            const unique_by_type_only = ["self_spotters", "dxpeditions", "missing_dxcc"];
+            const dragged = active.data.current.filter;
+            if (!dragged) return;
+            const is_duplicate = callsign_filters.filters.some((f, i) => {
+                if (i === filterId) return false;
+                if (unique_by_type_only.includes(dragged.type)) {
+                    return f.type === dragged.type && f.action === newAction;
+                }
+                return f.type === dragged.type &&
+                    f.value === dragged.value &&
+                    f.spotter_or_dx === dragged.spotter_or_dx &&
+                    f.action === newAction;
+            });
+            if (is_duplicate) return;
             const new_filters = [...callsign_filters.filters];
             new_filters[filterId] = { ...new_filters[filterId], action: newAction };
             setCallsignFilters({ ...callsign_filters, filters: new_filters });

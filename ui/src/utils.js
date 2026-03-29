@@ -34,8 +34,25 @@ export function is_same_base_callsign(callsign1, callsign2) {
     return find_base_callsign(callsign1) == find_base_callsign(callsign2) && callsign1.length > 0;
 }
 
-export function is_matching_list(list, spot) {
+export function is_matching_list(list, spot, dxcc_extra = null) {
     return list.some(filter => {
+        if (filter.type === "missing_dxcc") {
+            if (!dxcc_extra?.needed_countries || !dxcc_extra?.lookup_cty_country) return false;
+            const cty_country = dxcc_extra.lookup_cty_country(spot.dx_callsign);
+            if (!cty_country) return false;
+            return dxcc_extra.needed_countries.has(cty_country);
+        }
+
+        if (filter.type === "cq_zone") {
+            if (!dxcc_extra?.lookup_cq_zone) return false;
+            return dxcc_extra.lookup_cq_zone(spot.dx_callsign) === Number(filter.value);
+        }
+
+        if (filter.type === "itu_zone") {
+            if (!dxcc_extra?.lookup_itu_zone) return false;
+            return dxcc_extra.lookup_itu_zone(spot.dx_callsign) === Number(filter.value);
+        }
+
         let matched_value;
         if (filter.type == "comment") {
             matched_value = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">").toLowerCase();
@@ -115,6 +132,19 @@ export function use_object_local_storage(key, default_value) {
 export function km_to_miles(km) {
     const miles = km * 0.621371;
     return Math.round(miles);
+}
+
+export function get_spots_center(spots) {
+    if (spots.length === 0) return null;
+    let sum_lon = 0;
+    let sum_lat = 0;
+    let count = 0;
+    spots.forEach(spot => {
+        sum_lon += spot.spotter_loc[0] + spot.dx_loc[0];
+        sum_lat += spot.spotter_loc[1] + spot.dx_loc[1];
+        count += 2;
+    });
+    return [sum_lon / count, sum_lat / count];
 }
 
 export const get_max_radius = (center, spots) => {

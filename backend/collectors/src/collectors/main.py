@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import sys
 import re
+import time
 from datetime import datetime, timezone
 
 from loguru import logger
@@ -202,6 +203,21 @@ async def refresh_dxpedition_data(valkey_client):
         await asyncio.sleep(sleep)
 
 
+STREAM_ARRIVALS = "stream-arrivals"
+STREAM_ARRIVALS_RETENTION_SECONDS = 7 * 86400
+
+
+async def trim_arrivals_stream(valkey_client):
+    while True:
+        min_id = int((time.time() - STREAM_ARRIVALS_RETENTION_SECONDS) * 1000)
+        try:
+            await valkey_client.xtrim(STREAM_ARRIVALS, minid=min_id)
+            logger.info(f"Trimmed stream-arrivals to minid={min_id}")
+        except Exception:
+            logger.warning("Failed to trim stream-arrivals", exc_info=True)
+        await asyncio.sleep(3600)
+
+
 async def run_collector():
     logger.info("Starting collector...")
 
@@ -222,10 +238,11 @@ async def run_collector():
     dxpedition_refresh_task = asyncio.create_task(
         refresh_dxpedition_data(valkey_client), name="dxpedition_refresh_task"
     )
+    trim_task = asyncio.create_task(trim_arrivals_stream(valkey_client), name="trim_arrivals_stream")
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
     collector_tasks = run_concurrent_telnet_connections(spots_queue)
 
-    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task]
+    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task, trim_task]
     tasks.extend(collector_tasks)
 
     try:

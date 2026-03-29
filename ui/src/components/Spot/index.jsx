@@ -59,7 +59,7 @@ function Spot({
     const light_color = colors.light_bands[spot.band];
 
     let style;
-    if (spot.is_alerted) {
+    if (spot.is_alerted || spot.is_dxcc_needed) {
         style = {
             strokeDasharray: 5,
             strokeDashoffset: 50,
@@ -140,7 +140,7 @@ function Spot({
                         stroke="#FFFFFF"
                         d={path_generator(line)}
                     />
-                    {spot.is_alerted ? (
+                    {(spot.is_alerted || spot.is_dxcc_needed) ? (
                         <style>
                             {`
                 @keyframes dash {
@@ -178,7 +178,11 @@ function Spot({
                     onMouseLeave={event => {
                         set_hovered_spot({ source: null, id: null });
                     }}
+                    style={spot.is_dxcc_needed ? { animation: "dxcc-blink 0.4s step-start infinite" } : {}}
                 >
+                    {spot.is_dxcc_needed && (
+                        <style>{`@keyframes dxcc-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }`}</style>
+                    )}
                     {symbol_component}
                 </g>
             )}

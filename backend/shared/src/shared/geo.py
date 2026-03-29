@@ -63,7 +63,10 @@ async def get_geo_details(
     callsign_type,
 ) -> GeoData:
     # Get geo details from cache
-    geo_data = await valkey_client.get(callsign)
+    if valkey_client is not None:
+        geo_data = await valkey_client.get(callsign)
+    else:
+        geo_data = None
 
     if geo_data:
         geo_data = json.loads(geo_data)
@@ -95,7 +98,8 @@ async def get_geo_details(
         "continent": continent,
         "state": state or "",
     }
-    await valkey_client.set(callsign, json.dumps(geo_data), ex=geo_expiration)
+    if valkey_client is not None:
+        await valkey_client.set(callsign, json.dumps(geo_data), ex=geo_expiration)
     geo_data["cached"] = False
 
     return GeoData(**geo_data)
