@@ -541,6 +541,20 @@ function CanvasMap({
             const pos = get_offset(event);
             pointers.set(event.pointerId, pos);
 
+            // If no buttons are pressed but we're still dragging, the pointerup event was missed
+            if (
+                (gesture_state === "dragging" || gesture_state === "pending") &&
+                event.buttons === 0
+            ) {
+                if (gesture_state === "dragging") {
+                    finalize_drag();
+                }
+                pending_start_pos = null;
+                pending_start_time = null;
+                set_gesture("idle");
+                return;
+            }
+
             const is_globe = render_state_ref.current.map_controls.is_globe;
             const do_drag = is_globe ? perform_globe_drag : perform_drag;
 

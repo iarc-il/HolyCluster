@@ -16,23 +16,18 @@ RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
     --mount=type=bind,source=shared/pyproject.toml,target=shared/pyproject.toml \
     uv sync --frozen --no-install-workspace
 
-# Copy workspace members
-COPY collectors/ ./collectors/
-# Copy other members for workspace validity
-COPY api/ ./api/
-COPY monitor/ ./monitor/
 COPY shared/ ./shared/
+COPY api/ ./api/
+COPY collectors/ ./collectors/
+COPY monitor/ ./monitor/
 COPY pyproject.toml uv.lock ./
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
 
-# Install project non-editably
 RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-editable --package collectors
-
-COPY --from=band_plans band_plans.json ./shared/band_plans.json
+    uv sync --locked --no-editable --package shared
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["collector"]
-
-
+CMD ["sh", "-c", "ensure_db && alembic upgrade head"]
