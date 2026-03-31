@@ -7,7 +7,7 @@ import { useDxcc } from "@/hooks/useDxcc";
 import entities from "@/assets/dxcc_entities.json";
 
 import { default as SearchSelect } from "react-select";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 const dxcc_entities = entities.map(entity => ({ value: entity, label: entity }));
 
@@ -43,6 +43,58 @@ function RadioButton({ children, disabled, on_click }) {
     );
 }
 
+function TooltipLabel({ tooltip, children }) {
+    const [visible, set_visible] = useState(false);
+    const [pos, set_pos] = useState({ x: 0, y: 0 });
+
+    const handle_mouse_enter = useCallback(e => {
+        set_pos({ x: e.clientX, y: e.clientY });
+        set_visible(true);
+    }, []);
+
+    const handle_mouse_move = useCallback(e => {
+        set_pos({ x: e.clientX, y: e.clientY });
+    }, []);
+
+    const handle_mouse_leave = useCallback(() => {
+        set_visible(false);
+    }, []);
+
+    if (!tooltip) return <label>{children}</label>;
+
+    return (
+        <label
+            onMouseEnter={handle_mouse_enter}
+            onMouseMove={handle_mouse_move}
+            onMouseLeave={handle_mouse_leave}
+        >
+            {children}
+            {visible && (
+                <div
+                    style={{
+                        position: "fixed",
+                        left: pos.x + 12,
+                        top: pos.y + 12,
+                        backgroundColor: "#1e293b",
+                        color: "#f1f5f9",
+                        border: "1px solid #475569",
+                        borderRadius: "6px",
+                        padding: "10px 14px",
+                        fontSize: "14px",
+                        lineHeight: "1.6",
+                        maxWidth: "260px",
+                        zIndex: 9999,
+                        pointerEvents: "none",
+                        whiteSpace: "pre-line",
+                    }}
+                >
+                    {tooltip}
+                </div>
+            )}
+        </label>
+    );
+}
+
 function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_data = null }) {
     if (build_temp_data == null) {
         build_temp_data = (temp_data, field, value) => {
@@ -53,7 +105,7 @@ function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_dat
         <div className="flex flex-wrap justify-start items-center gap-y-2">
             {states.map(state => {
                 return (
-                    <label key={state.value}>
+                    <TooltipLabel key={state.value} tooltip={state.tooltip}>
                         <RadioButton
                             color="green"
                             disabled={temp_data[field] !== state.value}
@@ -63,7 +115,7 @@ function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_dat
                         >
                             {state.label}
                         </RadioButton>
-                    </label>
+                    </TooltipLabel>
                 );
             })}
         </div>
@@ -259,7 +311,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         { label: "ITU Zone", value: "itu_zone" },
                         { label: "Self Spotters", value: "self_spotters" },
                         { label: "DXpeditions", value: "dxpeditions" },
-                        { label: "Missing DXCC", value: "missing_dxcc" },
+                        { label: "Missing DXCC", value: "missing_dxcc", tooltip: "Load your ADIF log files.\nI will list all DXCC entities\nyou have not worked yet.\n\nAny such entity that is spotted\nwill blink on the map." },
                     ]}
                     field="type"
                     temp_data={temp_data}

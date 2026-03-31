@@ -66,13 +66,17 @@ function SpecialFilterBadge({ type, value, listeners, attributes }) {
         ? `${base_label} (${needed_countries.size})`
         : base_label;
     const label = type === "cq_zone" ? `CQ ${value}` : type === "itu_zone" ? `ITU ${value}` : missing_dxcc_label;
+    const tooltip = type === "missing_dxcc"
+        ? "Load as many ADIF files of contacts that you did and I will list all DXCC entities that you have not worked yet. Any such entity that will be spotted will blink on the map"
+        : undefined;
+
     return (
         <div
             {...listeners}
             {...attributes}
             className="flex border border-gray-700 items-center justify-center px-2 h-7 rounded-md text-base bg-green-600 text-white cursor-grab active:cursor-grabbing"
         >
-            {label}
+            <span title={tooltip}>{label}</span>
         </div>
     );
 }
