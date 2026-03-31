@@ -39,6 +39,12 @@ Docker runs the database and collector.
 2. Run the installer
 3. When it asks about WSL, say Yes to everything
 4. Restart the computer when asked
+5. After restarting, open Docker Desktop and enable automatic startup:
+   - Click the **gear icon** (Settings) in the top right
+   - Check **"Start Docker Desktop when you sign in to your computer"**
+   - Click **Apply & restart**
+
+   This is mandatory — without this, the database collector will stop every time the computer restarts.
 
 ---
 
@@ -52,9 +58,12 @@ WSL is required by Docker.
    ```
    wsl --install -d Ubuntu
    ```
-3. Wait for it to finish — it will ask you to create a username and password for Ubuntu
-   - Pick anything simple (you won't need these again)
-4. Close the Ubuntu window when done
+3. Wait for it to finish — it will ask you to create a username and password for Ubuntu:
+   - When you see `Enter new UNIX username:` — type anything simple (e.g. `user`) and press Enter
+   - When you see `New password:` — type anything and press Enter
+   - When you see `Retype new password:` — type the same thing and press Enter
+   - When you see a prompt like `user@computer:~$` — it is done
+4. Close the Ubuntu window
 5. Restart the computer
 
 ---
