@@ -12,6 +12,7 @@ import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { is_same_base_callsign } from "@/utils.js";
 import { band_plans } from "@/data/band_plans.js";
+import Tooltip from "@/components/ui/Tooltip.jsx";
 
 function SubmitIcon({ size }) {
     const { colors } = useColors();
@@ -178,7 +179,7 @@ function SubmitSpot({ dev_mode }) {
                         Submit a new spot
                     </h3>
                 }
-                button={<SubmitIcon size="32"></SubmitIcon>}
+                button={<Tooltip text="Spot" delay={300}><SubmitIcon size="32"></SubmitIcon></Tooltip>}
                 on_open={() => {
                     set_is_open(true);
                     set_external_close(true);

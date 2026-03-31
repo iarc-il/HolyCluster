@@ -7,7 +7,8 @@ import { useDxcc } from "@/hooks/useDxcc";
 import entities from "@/assets/dxcc_entities.json";
 
 import { default as SearchSelect } from "react-select";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
+import Tooltip from "@/components/ui/Tooltip.jsx";
 
 const dxcc_entities = entities.map(entity => ({ value: entity, label: entity }));
 
@@ -44,58 +45,8 @@ function RadioButton({ children, disabled, on_click }) {
 }
 
 function TooltipLabel({ tooltip, children }) {
-    const [visible, set_visible] = useState(false);
-    const [pos, set_pos] = useState({ x: 0, y: 0 });
-
-    const timer_ref = useRef(null);
-
-    const handle_mouse_enter = useCallback(e => {
-        set_pos({ x: e.clientX, y: e.clientY });
-        timer_ref.current = setTimeout(() => set_visible(true), 500);
-    }, []);
-
-    const handle_mouse_move = useCallback(e => {
-        set_pos({ x: e.clientX, y: e.clientY });
-    }, []);
-
-    const handle_mouse_leave = useCallback(() => {
-        clearTimeout(timer_ref.current);
-        set_visible(false);
-    }, []);
-
     if (!tooltip) return <label>{children}</label>;
-
-    return (
-        <label
-            onMouseEnter={handle_mouse_enter}
-            onMouseMove={handle_mouse_move}
-            onMouseLeave={handle_mouse_leave}
-        >
-            {children}
-            {visible && (
-                <div
-                    style={{
-                        position: "fixed",
-                        left: pos.x + 12,
-                        top: pos.y + 12,
-                        backgroundColor: "#1e293b",
-                        color: "#f1f5f9",
-                        border: "1px solid #475569",
-                        borderRadius: "6px",
-                        padding: "10px 14px",
-                        fontSize: "14px",
-                        lineHeight: "1.6",
-                        maxWidth: "260px",
-                        zIndex: 9999,
-                        pointerEvents: "none",
-                        whiteSpace: "pre-line",
-                    }}
-                >
-                    {tooltip}
-                </div>
-            )}
-        </label>
-    );
+    return <Tooltip text={tooltip} delay={500}><label>{children}</label></Tooltip>;
 }
 
 function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_data = null }) {
