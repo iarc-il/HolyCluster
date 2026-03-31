@@ -81,7 +81,8 @@ The CAT server connects HolyCluster to your radio via OmniRig.
 ## Step 6 — Download the HolyCluster code
 
 1. Open Command Prompt (regular, not administrator)
-2. Type these commands one at a time:
+2. Type these commands one at a time.
+   **Note:** These commands install HolyCluster on the `D:` drive. If your computer does not have a `D:` drive, replace `d:` with `c:` in the commands below — and remember to use that same letter in Step 10.
    ```
    d:
    mkdir holyclusterD
@@ -124,12 +125,22 @@ Get it from a team member via USB drive, WhatsApp, or any file sharing method.
 
 ---
 
-## Step 9 — Start HolyCluster
+## Step 9 — Update start.bat with your drive letter
 
-1. Open Windows Explorer and go to:
-   ```
-   D:\holyclusterD\HolyCluster\
-   ```
+**Skip this step if you installed on the `D:` drive.**
+
+If you installed on a different drive (e.g. `C:`), you need to update `start.bat`:
+
+1. Open Windows Explorer and go to your HolyCluster folder (e.g. `C:\holyclusterD\HolyCluster\`)
+2. Right-click on `start.bat` and choose **Edit** (opens in Notepad)
+3. Replace every occurrence of `D:\` with your drive letter (e.g. `C:\`)
+4. Save and close
+
+---
+
+## Step 10 — Start HolyCluster
+
+1. Open Windows Explorer and go to your HolyCluster folder (e.g. `D:\holyclusterD\HolyCluster\`)
 2. You will see a file called **start.bat** — double-click it
 3. Wait about 30 seconds
 4. The browser will open **twice** — this is normal:
