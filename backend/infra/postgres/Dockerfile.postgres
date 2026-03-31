@@ -1,0 +1,2 @@
+FROM postgres:16
+ENV POSTGRES_DB=holy_cluster

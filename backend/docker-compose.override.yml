@@ -1,5 +1,7 @@
 services:
   api:
+    ports:
+      - "127.0.0.1:8000:8000"
     volumes:
       - C:\tmp\ui:/tmp/ui
       - C:\tmp\catserver:/tmp/catserver
