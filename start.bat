@@ -13,7 +13,7 @@ cd /d D:\holyclusterD\HolyCluster\ui
 start "" cmd /k "npm run dev"
 
 echo Waiting for frontend to start...
-timeout /t 8 /nobreak >nul
+timeout /t 15 /nobreak >nul
 
 echo Opening browser...
 start "" http://localhost:5173
