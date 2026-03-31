@@ -6,6 +6,7 @@ import { empty_filter_data, default as FilterModal } from "@/components/FilterMo
 
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import { useDxcc } from "@/hooks/useDxcc";
 import { useState } from "react";
 import { DndContext, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -59,7 +60,12 @@ function EditSymbol({ size }) {
 }
 
 function SpecialFilterBadge({ type, value, listeners, attributes }) {
-    const label = type === "cq_zone" ? `CQ ${value}` : type === "itu_zone" ? `ITU ${value}` : SPECIAL_FILTER_LABELS[type];
+    const { needed_countries } = useDxcc();
+    const base_label = SPECIAL_FILTER_LABELS[type];
+    const missing_dxcc_label = type === "missing_dxcc" && needed_countries != null
+        ? `${base_label} (${needed_countries.size})`
+        : base_label;
+    const label = type === "cq_zone" ? `CQ ${value}` : type === "itu_zone" ? `ITU ${value}` : missing_dxcc_label;
     return (
         <div
             {...listeners}
