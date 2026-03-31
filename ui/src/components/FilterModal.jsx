@@ -47,9 +47,11 @@ function TooltipLabel({ tooltip, children }) {
     const [visible, set_visible] = useState(false);
     const [pos, set_pos] = useState({ x: 0, y: 0 });
 
+    const timer_ref = useRef(null);
+
     const handle_mouse_enter = useCallback(e => {
         set_pos({ x: e.clientX, y: e.clientY });
-        set_visible(true);
+        timer_ref.current = setTimeout(() => set_visible(true), 500);
     }, []);
 
     const handle_mouse_move = useCallback(e => {
@@ -57,6 +59,7 @@ function TooltipLabel({ tooltip, children }) {
     }, []);
 
     const handle_mouse_leave = useCallback(() => {
+        clearTimeout(timer_ref.current);
         set_visible(false);
     }, []);
 
