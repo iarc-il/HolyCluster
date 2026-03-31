@@ -112,14 +112,11 @@ The CAT server connects HolyCluster to your radio via OmniRig.
    ```
    cd ui
    npm run build
+   cd ..
    ```
 2. Wait for it to finish
-3. Now copy the built files to where Docker expects them:
-   ```
-   wsl mkdir -p /tmp/ui
-   wsl cp -r /mnt/d/holyclusterD/HolyCluster/ui/dist/. /tmp/ui/
-   ```
-   **Note:** If you installed on a different drive (e.g. `C:`), replace `/mnt/d/` with `/mnt/c/` in the command above.
+
+   `start.bat` will automatically copy the built files to the right place every time it runs.
 
 ---
 
