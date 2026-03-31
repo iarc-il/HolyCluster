@@ -25,9 +25,8 @@ export default defineConfig({
                 secure: false,
             },
             "/radio": {
-                target: "wss://holycluster-dev.iarc.org",
+                target: "ws://localhost:3000",
                 ws: true,
-                secure: false,
             },
             "/submit_spot": {
                 target: "wss://holycluster-dev.iarc.org",
