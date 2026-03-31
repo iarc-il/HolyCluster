@@ -1,6 +1,10 @@
 @echo off
 echo Starting HolyCluster...
 
+echo Copying frontend build to Docker volume...
+for /f %%i in ('wsl wslpath "%~dp0ui/dist"') do set WSL_DIST_PATH=%%i
+wsl bash -c "mkdir -p /tmp/ui && cp -r %WSL_DIST_PATH%/. /tmp/ui/"
+
 echo Starting Docker services...
 cd /d "%~dp0backend"
 docker compose up -d postgres valkey collector api
