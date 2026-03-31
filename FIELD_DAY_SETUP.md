@@ -39,6 +39,12 @@ Docker runs the database and collector.
 2. Run the installer
 3. When it asks about WSL, say Yes to everything
 4. Restart the computer when asked
+5. After restarting, open Docker Desktop and enable automatic startup:
+   - Click the **gear icon** (Settings) in the top right
+   - Check **"Start Docker Desktop when you sign in to your computer"**
+   - Click **Apply & restart**
+
+   This is mandatory — without this, the database collector will stop every time the computer restarts.
 
 ---
 
@@ -52,9 +58,12 @@ WSL is required by Docker.
    ```
    wsl --install -d Ubuntu
    ```
-3. Wait for it to finish — it will ask you to create a username and password for Ubuntu
-   - Pick anything simple (you won't need these again)
-4. Close the Ubuntu window when done
+3. Wait for it to finish — it will ask you to create a username and password for Ubuntu:
+   - When you see `Enter new UNIX username:` — type anything simple (e.g. `user`) and press Enter
+   - When you see `New password:` — type anything and press Enter
+   - When you see `Retype new password:` — type the same thing and press Enter
+   - When you see a prompt like `user@computer:~$` — it is done
+4. Close the Ubuntu window
 5. Restart the computer
 
 ---
@@ -72,7 +81,8 @@ The CAT server connects HolyCluster to your radio via OmniRig.
 ## Step 6 — Download the HolyCluster code
 
 1. Open Command Prompt (regular, not administrator)
-2. Type these commands one at a time:
+2. Type these commands one at a time.
+   **Note:** These commands install HolyCluster on the `D:` drive. If your computer does not have a `D:` drive, replace `d:` with `c:` in the commands below — and remember to use that same letter in Step 10.
    ```
    d:
    mkdir holyclusterD
@@ -109,6 +119,7 @@ The CAT server connects HolyCluster to your radio via OmniRig.
    wsl mkdir -p /tmp/ui
    wsl cp -r /mnt/d/holyclusterD/HolyCluster/ui/dist/. /tmp/ui/
    ```
+   **Note:** If you installed on a different drive (e.g. `C:`), replace `/mnt/d/` with `/mnt/c/` in the command above.
 
 ---
 
@@ -136,10 +147,8 @@ Get it from a team member via USB drive, WhatsApp, or any file sharing method.
 1. Make sure **Docker Desktop is open** and shows a green "Running" indicator in the taskbar
    - If it's not open, find it in the Start menu and launch it, then wait for it to turn green before continuing
 
-2. Open Windows Explorer and go to:
-   ```
-   D:\holyclusterD\HolyCluster\
-   ```
+2. Open Windows Explorer and go to your HolyCluster folder (e.g. `D:\holyclusterD\HolyCluster\`)
+
 3. You will see a file called **start.bat** — double-click it
 
 4. **The first time only:** Docker needs to build the services, which takes 5–10 minutes. You will see a lot of text scrolling. This is normal — wait until it stops.
