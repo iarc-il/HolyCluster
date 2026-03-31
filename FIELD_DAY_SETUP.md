@@ -96,7 +96,23 @@ The CAT server connects HolyCluster to your radio via OmniRig.
 
 ---
 
-## Step 8 — Copy the settings file
+## Step 8 — Build the frontend
+
+1. In the same Command Prompt, type:
+   ```
+   cd ui
+   npm run build
+   ```
+2. Wait for it to finish
+3. Now copy the built files to where Docker expects them:
+   ```
+   wsl mkdir -p /tmp/ui
+   wsl cp -r /mnt/d/holyclusterD/HolyCluster/ui/dist/. /tmp/ui/
+   ```
+
+---
+
+## Step 9 — Copy the settings file
 
 The settings file contains the project credentials shared by the whole team.
 Get it from a team member via USB drive, WhatsApp, or any file sharing method.
@@ -115,15 +131,22 @@ Get it from a team member via USB drive, WhatsApp, or any file sharing method.
 
 ---
 
-## Step 9 — Start HolyCluster
+## Step 10 — Start HolyCluster
 
-1. Open Windows Explorer and go to:
+1. Make sure **Docker Desktop is open** and shows a green "Running" indicator in the taskbar
+   - If it's not open, find it in the Start menu and launch it, then wait for it to turn green before continuing
+
+2. Open Windows Explorer and go to:
    ```
    D:\holyclusterD\HolyCluster\
    ```
-2. You will see a file called **start.bat** — double-click it
-3. Wait about 30 seconds
-4. The browser will open **twice** — this is normal:
+3. You will see a file called **start.bat** — double-click it
+
+4. **The first time only:** Docker needs to build the services, which takes 5–10 minutes. You will see a lot of text scrolling. This is normal — wait until it stops.
+
+5. Wait about 30 seconds after the build finishes
+
+6. The browser will open **twice** — this is normal:
    - One tab opens the **released version** of HolyCluster (opened automatically by the CAT server) — **close this tab**
    - The other tab opens at `http://localhost:5173` — **this is your version, keep this one**
 
@@ -135,7 +158,7 @@ You should see spots on the map and the radio frequency displayed.
 
 - The database starts empty on a new computer — history builds up as time goes by
 - Every time you want to use HolyCluster, always double-click `start.bat` — even if you just closed the browser and want to reopen it. This ensures the CAT server and all services are running properly
-- Docker must be running (it starts automatically with Windows after first setup)
+- Docker Desktop must be open and showing a green "Running" indicator before you run start.bat (it may need to be launched manually from the Start menu)
 - You need an internet connection for spots to appear
 
 ---

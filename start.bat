@@ -2,14 +2,14 @@
 echo Starting HolyCluster...
 
 echo Starting Docker services...
-cd /d C:\holyclusterD\holycluster\backend
+cd /d "%~dp0backend"
 docker compose up -d postgres valkey collector api
 
 echo Starting CAT server...
 start "" "C:\Program Files (x86)\HolyCluster\HolyCluster.exe"
 
 echo Starting frontend...
-cd /d C:\holyclusterD\holycluster\ui
+cd /d "%~dp0ui"
 start "" cmd /k "npm run dev"
 
 echo Waiting for frontend to start...
