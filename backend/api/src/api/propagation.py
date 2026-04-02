@@ -14,9 +14,9 @@ async def collect_propagation_data():
     async with aiohttp.ClientSession("https://services.swpc.noaa.gov") as session:
         async with session.get(K_INDEX_ENDPOINT) as response:
             json_data = await response.json()
-            k_time, k_index, _, _ = (json_data)[-1]
-            k_time = int(datetime.strptime(k_time, "%Y-%m-%d %H:%M:%S.%f").timestamp())
-            k_index = float(k_index)
+            last_data = json_data[-1]
+            k_time = int(datetime.strptime(last_data["time_tag"], "%Y-%m-%dT%H:%M:%S").timestamp())
+            k_index = float(last_data["Kp"])
             k_values = {"value": k_index, "timestamp": k_time}
 
         async with session.get(A_INDEX_ENDPOINT) as response:

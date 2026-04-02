@@ -127,8 +127,9 @@ async def telnet_and_collect(
                         await push_drop_event(valkey_client, "parse_error", line)
                         continue
 
-                    if spot["spotter_callsign"].upper() == "W3LPL":
-                        logger.debug(f"Skipping W3LPL spot: {spot}")
+                    # W3LPL is a spammer and J9AQ is a pirate
+                    if spot["spotter_callsign"].upper() in ["W3LPL", "J9AQ"]:
+                        logger.debug(f"Skipping banned spot: {spot}")
                         continue
 
                     cluster = f"{host}:{port}"
@@ -139,6 +140,13 @@ async def telnet_and_collect(
 
                     spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
                     added = await valkey_client.set(spot_key, 1, ex=settings.valkey_spot_expiration, nx=True)
+                    try:
+                        await valkey_client.xadd(
+                            "stream-arrivals",
+                            {"cluster": cluster, "spot_key": spot_key, "accepted": "1" if added else "0"},
+                        )
+                    except Exception:
+                        logger.warning("Failed to write to stream-arrivals", exc_info=True)
                     if added:
                         await output_queue.put(spot)
                         task_logger.debug(f"Spot added to queue: {spot_data}")

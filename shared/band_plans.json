@@ -1,0 +1,175 @@
+{
+  "160": {
+    "freq_start": 1800,
+    "freq_end": 2000,
+    "modes": {
+      "FT8": { "start": 1840, "end": 1843 },
+      "FT2": { "start": 1843, "end": 1846 },
+      "CW": { "start": 1800, "end": 1850 },
+      "SSB": { "start": 1850, "end": 2000 }
+    }
+  },
+  "80": {
+    "freq_start": 3500,
+    "freq_end": 4000,
+    "modes": {
+      "FT8": { "start": 3573, "end": 3575 },
+      "FT4": { "start": 3575, "end": 3578 },
+      "FT2": { "start": 3578, "end": 3581 },
+      "CW": { "start": 3500, "end": 3580 },
+      "RTTY": { "start": 3580, "end": 3700 },
+      "SSB": { "start": 3700, "end": 4000 }
+    }
+  },
+  "60": {
+    "freq_start": 5250,
+    "freq_end": 5450,
+    "modes": {
+      "FT8": { "start": 5357, "end": 5360 },
+      "FT2": { "start": 5360, "end": 5363 },
+      "CW": { "start": 5250, "end": 5290 },
+      "SSB": { "start": 5260, "end": 5450 }
+    }
+  },
+  "40": {
+    "freq_start": 7000,
+    "freq_end": 7300,
+    "modes": {
+      "FT8": { "start": 7074, "end": 7077 },
+      "FT4": { "start": 7047.5, "end": 7050.5 },
+      "FT2": { "start": 7052, "end": 7055 },
+      "CW": { "start": 7000, "end": 7040 },
+      "RTTY": { "start": 7040, "end": 7100 },
+      "SSB": { "start": 7100, "end": 7300 }
+    }
+  },
+  "30": {
+    "freq_start": 10100,
+    "freq_end": 10150,
+    "modes": {
+      "FT8": { "start": 10136, "end": 10139 },
+      "FT4": { "start": 10140, "end": 10143 },
+      "FT2": { "start": 10144, "end": 10147 },
+      "CW": { "start": 10100, "end": 10130 },
+      "RTTY": { "start": 10130, "end": 10150 }
+    }
+  },
+  "20": {
+    "freq_start": 14000,
+    "freq_end": 14350,
+    "modes": {
+      "FT8": { "start": 14074, "end": 14077 },
+      "FT4": { "start": 14080, "end": 14083 },
+      "FT2": { "start": 14084, "end": 14088 },
+      "CW": { "start": 14000, "end": 14070 },
+      "RTTY": { "start": 14070, "end": 14150 },
+      "SSB": { "start": 14150, "end": 14350 }
+    }
+  },
+  "17": {
+    "freq_start": 18068,
+    "freq_end": 18168,
+    "modes": {
+      "FT8": { "start": 18100, "end": 18104 },
+      "FT4": { "start": 18104, "end": 18107 },
+      "FT2": { "start": 18108, "end": 18111 },
+      "CW": { "start": 18068, "end": 18100 },
+      "RTTY": { "start": 18100, "end": 18110 },
+      "SSB": { "start": 18110, "end": 18168 }
+    }
+  },
+  "15": {
+    "freq_start": 21000,
+    "freq_end": 21450,
+    "modes": {
+      "FT8": { "start": 21074, "end": 21077 },
+      "FT4": { "start": 21140, "end": 21143 },
+      "FT2": { "start": 21144, "end": 21147 },
+      "CW": { "start": 21000, "end": 21070 },
+      "RTTY": { "start": 21070, "end": 21200 },
+      "SSB": { "start": 21200, "end": 21450 }
+    }
+  },
+  "12": {
+    "freq_start": 24890,
+    "freq_end": 24990,
+    "modes": {
+      "FT8": { "start": 24915, "end": 24918 },
+      "FT4": { "start": 24919, "end": 24922 },
+      "FT2": { "start": 24923, "end": 24926 },
+      "CW": { "start": 24890, "end": 24920 },
+      "RTTY": { "start": 24920, "end": 24930 },
+      "SSB": { "start": 24930, "end": 24990 }
+    }
+  },
+  "10": {
+    "freq_start": 28000,
+    "freq_end": 29700,
+    "modes": {
+      "FT8": { "start": 28074, "end": 28077 },
+      "FT4": { "start": 28180, "end": 28183 },
+      "FT2": { "start": 28184, "end": 28187 },
+      "CW": { "start": 28000, "end": 28070 },
+      "RTTY": { "start": 28070, "end": 28300 },
+      "SSB": { "start": 28300, "end": 29700 }
+    }
+  },
+  "8": {
+    "freq_start": 40650,
+    "freq_end": 40700,
+    "modes": {
+      "FT8": { "start": 40678, "end": 40681 },
+      "CW": { "start": 40650, "end": 40670 },
+      "SSB": { "start": 40670, "end": 40700 }
+    }
+  },
+  "6": {
+    "freq_start": 50000,
+    "freq_end": 54000,
+    "modes": {
+      "FT8": { "start": 50313, "end": 50316 },
+      "FT4": { "start": 50318, "end": 50321 },
+      "FT2": { "start": 50320, "end": 50323 },
+      "CW": { "start": 50000, "end": 50080 },
+      "SSB": { "start": 50080, "end": 50500 },
+      "FM": { "start": 50500, "end": 54000 }
+    }
+  },
+  "4": {
+    "freq_start": 70000,
+    "freq_end": 70500,
+    "modes": {
+      "FT8": { "start": 70154, "end": 70157 },
+      "CW": { "start": 70100, "end": 70250 },
+      "SSB": { "start": 70250, "end": 70500 }
+    }
+  },
+  "VHF": {
+    "freq_start": 80000,
+    "freq_end": 300000,
+    "modes": {
+      "FT8": { "start": 144174, "end": 144177 },
+      "FT4": { "start": 144170, "end": 144173 },
+      "FT2": { "start": 144174, "end": 144177 },
+      "CW": { "start": 144000, "end": 144150 },
+      "SSB": { "start": 144150, "end": 144400 },
+      "FM": { "start": 144500, "end": 148000 }
+    }
+  },
+  "UHF": {
+    "freq_start": 300000,
+    "freq_end": 3000000,
+    "modes": {
+      "FT8": { "start": 432174, "end": 432177 },
+      "CW": { "start": 432000, "end": 432100 },
+      "SSB": { "start": 432100, "end": 433000 }
+    }
+  },
+  "SHF": {
+    "freq_start": 3000000,
+    "freq_end": 30000000,
+    "modes": {
+      "FT8": { "start": 1296174, "end": 1296177 }
+    }
+  }
+}

@@ -2,6 +2,12 @@ import * as d3 from "d3";
 import { get_mode_shape } from "@/data/mode_shapes.js";
 import { calculate_geographic_azimuth } from "@/utils.js";
 
+export function make_visibility_check(projection) {
+    const rotation = projection.rotate();
+    const center = [-rotation[0], -rotation[1]];
+    return point => d3.geoDistance(center, point) <= Math.PI / 2;
+}
+
 export function build_geojson_line(spot) {
     return {
         type: "LineString",
@@ -45,18 +51,27 @@ function draw_spot_dx(context, spot, color, stroke_color, dx_x, dx_y, dx_size) {
     context.stroke();
 }
 
-function draw_spot(context, spot, colors, dash_offset, { is_bold, path_generator, projection }) {
+function draw_spot(
+    context,
+    spot,
+    colors,
+    dash_offset,
+    { is_bold, path_generator, projection, is_visible },
+) {
     const line = build_geojson_line(spot);
+    let color;
 
-    // Arc
     context.beginPath();
     if (is_bold) {
-        context.strokeStyle = colors.light_bands[spot.band];
+        color = colors.light_bands[spot.band];
         context.lineWidth = 6;
     } else {
-        context.strokeStyle = colors.bands[spot.band];
+        color = colors.bands[spot.band];
         context.lineWidth = 2;
     }
+
+    context.strokeStyle = color;
+
     if (spot.is_alerted) {
         context.setLineDash([10, 10]);
         context.lineDashOffset = dash_offset;
@@ -66,23 +81,24 @@ function draw_spot(context, spot, colors, dash_offset, { is_bold, path_generator
     path_generator(line);
     context.stroke();
 
-    // DX marker
-    const dx_size = is_bold ? 12 : 10;
-    const [dx_x, dx_y] = projection(spot.dx_loc);
+    if (is_visible(spot.dx_loc)) {
+        const dx_size = is_bold ? 12 : 10;
+        const [dx_x, dx_y] = projection(spot.dx_loc);
+        draw_spot_dx(context, spot, color, "grey", dx_x, dx_y, dx_size);
+    }
 
-    draw_spot_dx(context, spot, colors.light_bands[spot.band], "grey", dx_x, dx_y, dx_size);
+    if (is_visible(spot.spotter_loc)) {
+        const [spotter_x, spotter_y] = projection(spot.spotter_loc);
+        const spotter_radius = is_bold ? 5 : 3;
 
-    // Spotter circle
-    const [spotter_x, spotter_y] = projection(spot.spotter_loc);
-    const spotter_radius = is_bold ? 5 : 3;
-
-    context.beginPath();
-    context.strokeStyle = "grey";
-    context.fillStyle = colors.light_bands[spot.band];
-    context.lineWidth = 1;
-    context.arc(spotter_x, spotter_y, spotter_radius, 0, 2 * Math.PI);
-    context.fill();
-    context.stroke();
+        context.beginPath();
+        context.strokeStyle = "grey";
+        context.fillStyle = color;
+        context.lineWidth = 1;
+        context.arc(spotter_x, spotter_y, spotter_radius, 0, 2 * Math.PI);
+        context.fill();
+        context.stroke();
+    }
 }
 
 export function draw_spots(
@@ -96,8 +112,10 @@ export function draw_spots(
     dims,
     dash_offset,
     projection,
+    is_globe,
 ) {
     const path_generator = d3.geoPath().projection(projection).context(context);
+    const is_visible = is_globe ? make_visibility_check(projection) : () => true;
 
     context.save();
 
@@ -116,18 +134,20 @@ export function draw_spots(
                 is_bold: true,
                 path_generator,
                 projection,
+                is_visible,
             });
         } else {
             draw_spot(context, spot, colors, dash_offset, {
                 is_bold: false,
                 path_generator,
                 projection,
+                is_visible,
             });
         }
     });
 
     // Draw azimuth line before the bold spot so it appears under it
-    if (bold_spot) {
+    if (bold_spot && !is_globe) {
         const show_azimuth =
             hovered_spot.source === "dx" ||
             (pinned_spot === bold_spot.id && hovered_spot.source !== "dx");
@@ -162,6 +182,7 @@ export function draw_spots(
             is_bold: true,
             path_generator,
             projection,
+            is_visible,
         });
     }
 

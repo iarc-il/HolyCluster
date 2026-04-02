@@ -3,6 +3,8 @@ name = "shared"
 version = "0.1.0"
 description = "Shared utilities for HolyCluster backend services"
 dependencies = [
+    "alembic>=1.18.4",
+    "asyncpg>=0.31.0",
     "httpx>=0.28.1",
     "loguru>=0.7.3",
     "pydantic>=2.12.5",
@@ -10,6 +12,9 @@ dependencies = [
     "redis>=7.1.0",
     "sqlmodel>=0.0.27",
 ]
+
+[project.scripts]
+ensure_db = "shared.ensure_db:main"
 
 [build-system]
 requires = ["uv_build>=0.9.13,<0.10.0"]

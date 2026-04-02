@@ -7,7 +7,13 @@ import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import SidePanel from "@/components/SidePanel.jsx";
 import Tabs from "@/components/ui/Tabs.jsx";
-import { use_object_local_storage, is_matching_list, get_max_radius } from "@/utils.js";
+import Maidenhead from "maidenhead";
+import {
+    use_object_local_storage,
+    is_matching_list,
+    get_max_radius,
+    get_spots_center,
+} from "@/utils.js";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useColors } from "@/hooks/useColors";
@@ -55,11 +61,25 @@ function MainContainer() {
 
     const [radius_in_km, set_radius_in_km] = useState(settings.default_radius);
     const [auto_radius, set_auto_radius] = useLocalStorage("auto_radius", true);
+    const prev_auto_radius_ref = useRef(auto_radius);
     useEffect(() => {
+        const just_activated = auto_radius && !prev_auto_radius_ref.current;
+        prev_auto_radius_ref.current = auto_radius;
+
         if (max_radius > 0 && auto_radius) {
+            if (just_activated) {
+                const center = get_spots_center(spots);
+                if (center) {
+                    const [lon, lat] = center;
+                    const displayed_locator = new Maidenhead(lat, lon).locator.slice(0, 6);
+                    set_map_controls(state => {
+                        state.location = { displayed_locator, location: [lon, lat] };
+                    });
+                }
+            }
             set_radius_in_km(Math.round((max_radius + 500) / 1000) * 1000);
         }
-    }, [max_radius, auto_radius, map_controls.location]);
+    }, [max_radius, auto_radius]);
 
     const { set_mode_and_freq, radio_freq, rig, radio_mode } = use_radio();
 
