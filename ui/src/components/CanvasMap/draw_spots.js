@@ -123,12 +123,12 @@ export function draw_spots(
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
     context.clip();
 
-    let bold_spot;
+    let bold_spots = [];
     spots.forEach(spot => {
         const is_band_highlighted = hovered_band != null && spot.band === hovered_band;
         const is_freq_highlighted = current_freq_spots.includes(spot.id);
         if (hovered_spot.id == spot.id || pinned_spot == spot.id) {
-            bold_spot = spot;
+            bold_spots.push(spot);
         } else if (is_band_highlighted || is_freq_highlighted) {
             draw_spot(context, spot, colors, dash_offset, {
                 is_bold: true,
@@ -147,38 +147,44 @@ export function draw_spots(
     });
 
     // Draw azimuth line before the bold spot so it appears under it
-    if (bold_spot && !is_globe) {
-        const show_azimuth =
-            hovered_spot.source === "dx" ||
-            (pinned_spot === bold_spot.id && hovered_spot.source !== "dx");
-
-        if (show_azimuth) {
-            const [center_lon, center_lat] = projection.rotate().map(x => -x);
-            const azimuth = calculate_geographic_azimuth(
-                center_lat,
-                center_lon,
-                bold_spot.dx_loc[1],
-                bold_spot.dx_loc[0],
-            );
-
-            const angle = (90 - azimuth) * (Math.PI / 180);
-            const x = dims.center_x + dims.radius * Math.cos(angle);
-            const y = dims.center_y - dims.radius * Math.sin(angle);
-
-            context.beginPath();
-            context.moveTo(dims.center_x, dims.center_y);
-            context.lineTo(x, y);
-            context.strokeStyle = "black";
-            context.lineWidth = 1;
-            context.setLineDash([5, 5]);
-            context.stroke();
-            context.setLineDash([]);
+    let azimuth_spot;
+    if (pinned_spot) {
+        for (let spot of bold_spots) {
+            if (spot.id == pinned_spot) {
+                azimuth_spot = spot;
+                break;
+            }
         }
+    } else {
+        azimuth_spot = bold_spots[bold_spots.length - 1];
+    }
+
+    if (azimuth_spot && !is_globe && hovered_spot.source != "table") {
+        const [center_lon, center_lat] = projection.rotate().map(x => -x);
+        const azimuth = calculate_geographic_azimuth(
+            center_lat,
+            center_lon,
+            azimuth_spot.dx_loc[1],
+            azimuth_spot.dx_loc[0],
+        );
+
+        const angle = (90 - azimuth) * (Math.PI / 180);
+        const x = dims.center_x + dims.radius * Math.cos(angle);
+        const y = dims.center_y - dims.radius * Math.sin(angle);
+
+        context.beginPath();
+        context.moveTo(dims.center_x, dims.center_y);
+        context.lineTo(x, y);
+        context.strokeStyle = "black";
+        context.lineWidth = 1;
+        context.setLineDash([5, 5]);
+        context.stroke();
+        context.setLineDash([]);
     }
 
     // Bold spot drawn last (on top)
-    if (bold_spot != null) {
-        draw_spot(context, bold_spot, colors, dash_offset, {
+    for (let spot of bold_spots) {
+        draw_spot(context, spot, colors, dash_offset, {
             is_bold: true,
             path_generator,
             projection,
