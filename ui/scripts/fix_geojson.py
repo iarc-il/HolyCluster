@@ -2,6 +2,8 @@
 """Fix GeoJSON geometries that cause d3.js rendering issues (spilling).
 
 Handles:
+- Authoritative replacement: replaces oversimplified DXCC polygons with
+  more detailed ones from an authoritative map (via spatial overlap matching)
 - Holes that lie outside their shell (promoted to separate polygons)
 - Self-intersecting polygons (resolved via buffer(0))
 - Winding order: enforces CW exterior / CCW holes (d3-geo clockwise convention)
@@ -9,13 +11,15 @@ Handles:
   that cause spilling when the map is centered on the north pole
 
 Usage:
-    python fix_geojson.py <input.json> <output.json>
+    python fix_geojson.py <input.json> <output.json> [authoritative.json]
 """
 import json
 import sys
 from shapely.geometry import shape, mapping, MultiPolygon, Polygon
 from shapely.geometry.polygon import orient
 from shapely.validation import explain_validity
+
+AREA_RATIO_THRESHOLD = 5.0
 
 
 def orient_geometry(geom):
@@ -133,14 +137,60 @@ def stitch_geojson_coords(geom):
     return False
 
 
-def fix_geojson(input_path, output_path):
+def replace_with_authoritative(data, auth_path):
+    """Replace oversimplified DXCC polygons using an authoritative map.
+
+    For each authoritative feature, find which DXCC feature contains its
+    centroid. Group authoritative features by DXCC feature index. If the
+    DXCC feature's area is much larger than the total authoritative area,
+    replace it with the union of the authoritative features.
+    """
+    with open(auth_path) as f:
+        auth_data = json.load(f)
+
+    dxcc_shapes = [shape(feat["geometry"]) for feat in data["features"]]
+    dxcc_names = [feat["properties"].get("dxcc_name", "") for feat in data["features"]]
+
+    auth_groups = {}
+    for auth_feat in auth_data["features"]:
+        auth_s = shape(auth_feat["geometry"])
+        centroid = auth_s.centroid
+        for di, ds in enumerate(dxcc_shapes):
+            if ds.contains(centroid):
+                auth_groups.setdefault(di, []).append(auth_s)
+                break
+
+    replaced = 0
+    for di, auth_shapes in auth_groups.items():
+        ds = dxcc_shapes[di]
+        auth_union = auth_shapes[0]
+        for a in auth_shapes[1:]:
+            auth_union = auth_union.union(a)
+        if ds.area > auth_union.area * AREA_RATIO_THRESHOLD:
+            name = dxcc_names[di]
+            print(f"Replacing feature {di} ({name}): "
+                  f"area {ds.area:.1f} -> {auth_union.area:.1f} "
+                  f"(ratio {ds.area / auth_union.area:.1f}x)")
+            new_geom = mapping(auth_union)
+            data["features"][di]["geometry"] = new_geom
+            dxcc_shapes[di] = auth_union
+            replaced += 1
+
+    return replaced
+
+
+def fix_geojson(input_path, output_path, auth_path=None):
     with open(input_path) as f:
         data = json.load(f)
 
     features = data["features"]
+    fixed_authoritative = 0
     fixed_validity = 0
     fixed_winding = 0
     fixed_stitch = 0
+
+    if auth_path:
+        fixed_authoritative = replace_with_authoritative(data, auth_path)
 
     for i, feature in enumerate(features):
         name = feature["properties"].get("dxcc_name", "")
@@ -179,20 +229,17 @@ def fix_geojson(input_path, output_path):
         json.dump(data, f)
 
     all_valid = all(shape(f["geometry"]).is_valid for f in data["features"])
-    stitched_invalid = fixed_stitch > 0 and not all(shape(data["features"][i]["geometry"]).is_valid for i in range(len(data["features"])) if any(
-        any(abs(c[1] - (-90)) < 0.01 for c in ring)
-        for poly in (data["features"][i]["geometry"].get("coordinates", []) if data["features"][i]["geometry"]["type"] == "MultiPolygon" else [data["features"][i]["geometry"].get("coordinates", [])])
-        for ring in poly
-    ))
+    summary = f"{fixed_authoritative} authoritative replacement(s), {fixed_validity} validity issue(s), {fixed_winding} winding order fix(es), {fixed_stitch} antarctic stitch(es)"
     if all_valid:
-        print(f"\nFixed {fixed_validity} validity issue(s), {fixed_winding} winding order fix(es), {fixed_stitch} antarctic stitch(es). All valid: {all_valid}")
+        print(f"\nFixed {summary}. All valid: {all_valid}")
     else:
-        print(f"\nFixed {fixed_validity} validity issue(s), {fixed_winding} winding order fix(es), {fixed_stitch} antarctic stitch(es).")
-        print(f"Note: stitched antarctic polygon has expected self-intersection at antimeridian (harmless for d3-geo rendering)")
+        print(f"\nFixed {summary}.")
+        print("Note: stitched antarctic polygon has expected self-intersection at antimeridian (harmless for d3-geo rendering)")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <input.json> <output.json>")
+    if len(sys.argv) < 3:
+        print(f"Usage: {sys.argv[0]} <input.json> <output.json> [authoritative.json]")
         sys.exit(1)
-    fix_geojson(sys.argv[1], sys.argv[2])
+    auth_path = sys.argv[3] if len(sys.argv) > 3 else None
+    fix_geojson(sys.argv[1], sys.argv[2], auth_path)
