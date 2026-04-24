@@ -1,8 +1,15 @@
 import * as d3 from "d3";
 import { century, equationOfTime, declination } from "solar-calculator";
 import dxcc_map from "@/assets/dxcc_map.json";
+import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
 
 export { dxcc_map };
+
+const color_groups = new Map();
+country_color_indices.forEach((ci, fi) => {
+    if (!color_groups.has(ci)) color_groups.set(ci, []);
+    color_groups.get(ci).push(fi);
+});
 
 function generate_concentric_circles(center_x, center_y, radius, circle_count = 6) {
     const circles = [];
@@ -93,14 +100,20 @@ export function draw_map(
         context.stroke();
     }
 
-    // DXCC country paths (batched into a single path for performance)
+    for (const [ci, feature_indices] of color_groups) {
+        context.beginPath();
+        for (const fi of feature_indices) {
+            path_generator(dxcc_map.features[fi]);
+        }
+        context.fillStyle = MAP_COUNTRY_COLORS[ci];
+        context.fill();
+    }
+
     context.beginPath();
     dxcc_map.features.forEach(feature => {
         path_generator(feature);
     });
-    context.fillStyle = colors.map.land;
     context.strokeStyle = colors.map.land_borders;
-    context.fill();
     context.stroke();
 
     // Night circle
