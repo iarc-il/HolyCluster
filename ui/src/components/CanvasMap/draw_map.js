@@ -1,6 +1,7 @@
 import * as d3 from "d3";
 import { century, equationOfTime, declination } from "solar-calculator";
 import dxcc_map from "@/assets/dxcc_map.json";
+import lakes from "@/assets/lakes.json";
 import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
 
 export { dxcc_map };
@@ -108,6 +109,13 @@ export function draw_map(
         context.fillStyle = MAP_COUNTRY_COLORS[ci];
         context.fill();
     }
+
+    context.beginPath();
+    for (const feature of lakes.features) {
+        path_generator(feature);
+    }
+    context.fillStyle = colors.map.background;
+    context.fill("evenodd");
 
     context.beginPath();
     dxcc_map.features.forEach(feature => {
