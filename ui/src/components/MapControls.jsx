@@ -1,5 +1,3 @@
-import { useMediaQuery } from "@uidotdev/usehooks";
-
 import Input from "@/components/ui/Input.jsx";
 import Button from "@/components/ui/Button.jsx";
 import Radio from "@/components/ui/Radio.jsx";
@@ -45,7 +43,6 @@ function MapControls({
         disconnected: "#DD0000",
     };
 
-    const is_md_device = useMediaQuery("only screen and (min-width : 768px)");
     return (
         <>
             <div className="absolute top-0 z-40 right-0 flex justify-end mr-2 pt-2 xs:pt-4 gap-2 xs:gap-4 mb-2">
@@ -66,12 +63,9 @@ function MapControls({
                     ""
                 )}
                 <div className="ml-auto flex items-center gap-2">
-                    {
-                        // Remove this when we release the radio CAT control feature!!!
-                        radio_status != "unavailable" ? (
-                            <Radio color={radio_status_to_color[radio_status]} size="40"></Radio>
-                        ) : null
-                    }
+                    {radio_status != "unavailable" ? (
+                        <Radio color={radio_status_to_color[radio_status]} size="40"></Radio>
+                    ) : null}
                 </div>
                 {dev_mode && (
                     <button
@@ -105,8 +99,11 @@ function MapControls({
                     on_click={event => set_map_controls(state => (state.night = !state.night))}
                 />
             </div>
-            {propagation && is_md_device && settings.propagation_displayed && (
-                <div className="absolute bottom-2 z-40 right-5 flex justify-center pt-1 xs:pt-2 gap-1 xs:gap-2">
+            {propagation && settings.propagation_displayed && (
+                <div
+                    className="fixed md:absolute bottom-0 md:bottom-2 right-0 md:right-5 z-40 flex justify-end md:justify-center pt-1 xs:pt-2 gap-1 xs:gap-2 pb-1 pr-2"
+                    style={{ backgroundColor: colors.theme.background }}
+                >
                     <PropagationBar
                         value={propagation.a_index.value}
                         timestamp={propagation.a_index.timestamp}
