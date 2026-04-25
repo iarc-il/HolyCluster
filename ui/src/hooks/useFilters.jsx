@@ -40,11 +40,11 @@ export const FiltersProvider = ({ children }) => {
 
     // This function changes all the keys in the filter object.
     // For example: setFilterKeys("bands", true) will enable all bands.
-    function setFilterKeys(filters_key, is_active, disabled_bands = {}) {
+    function setFilterKeys(filters_key, is_active, disabled_filters = {}) {
         setFilters(state => ({
             ...state,
             [filters_key]: Object.keys(state[filters_key]).reduce((acc, key) => {
-                if (filters_key === "bands" && is_active && disabled_bands[key]) {
+                if (is_active && disabled_filters[key]) {
                     acc[key] = false;
                 } else {
                     acc[key] = is_active;
