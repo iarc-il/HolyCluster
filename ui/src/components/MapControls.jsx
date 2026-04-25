@@ -147,7 +147,7 @@ function MapControls({
                             </svg>
                         </button>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 mr-1">
                         <button
                             onClick={() => {
                                 const show_cq = !map_controls.show_cq_zones;
