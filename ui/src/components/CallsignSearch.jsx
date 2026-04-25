@@ -5,14 +5,12 @@ import Popup from "@/components/ui/Popup.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useFilters } from "@/hooks/useFilters";
-import { useSettings } from "@/hooks/useSettings";
 
 export default function CallsignSearch() {
     const { colors } = useColors();
     const { search_query, set_search_query } = useSpotInteraction();
-    const { callsign_filters, setCallsignFilters } = useFilters();
-    const { settings, set_settings } = useSettings();
-    const single_spot = settings.show_only_latest_spot;
+    const { filters, setFilters, callsign_filters, setCallsignFilters } = useFilters();
+    const single_spot = filters.show_only_latest_spot;
     const single_spot_ref = useRef(null);
     const [show_popup, set_show_popup] = useState(false);
 
@@ -64,9 +62,9 @@ export default function CallsignSearch() {
             <button
                 ref={single_spot_ref}
                 onClick={() =>
-                    set_settings({
-                        ...settings,
-                        show_only_latest_spot: !settings.show_only_latest_spot,
+                    setFilters({
+                        ...filters,
+                        show_only_latest_spot: !filters.show_only_latest_spot,
                     })
                 }
                 onMouseEnter={() => set_show_popup(true)}

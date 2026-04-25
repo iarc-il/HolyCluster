@@ -17,6 +17,7 @@ export const FiltersProvider = ({ children }) => {
         dx_continents: Object.fromEntries(continents.map(continent => [continent, true])),
         spotter_continents: Object.fromEntries(continents.map(continent => [continent, true])),
         time_limit: 3600,
+        show_only_latest_spot: false,
     };
 
     const initial_callsign_filters = {
