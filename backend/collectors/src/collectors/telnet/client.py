@@ -155,7 +155,7 @@ async def telnet_and_collect(
                         task_logger.debug(f"Duplicate spot not queued: {spot_data}")
                         logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
-        except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
+        except (TimeoutError, asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
             task_logger.exception(f"Connection failed: {host}:{port}  {e}")
             logger.exception(f"Connection failed: {host}:{port}  {e}")
             await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
