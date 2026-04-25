@@ -43,7 +43,7 @@ function draw_night_circle(context, path_generator) {
     const night_circle = d3.geoCircle().radius(90).center(sun_antipode)();
 
     context.beginPath();
-    context.fillStyle = "rgba(0,0,128,0.2)";
+    context.fillStyle = "rgba(0,0,170,0.3)";
     path_generator(night_circle);
     context.fill();
 }
