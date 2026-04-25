@@ -5,7 +5,7 @@ import CallsignInput from "@/components/CallsignInput.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { get_valid_zone_numbers, is_valid_zone_number } from "@/utils/zones.js";
-import entities from "@/assets/dxcc_entities.json";
+import entities from "@/data/dxcc_entities.json";
 
 import { default as SearchSelect } from "react-select";
 import { useEffect, useState } from "react";

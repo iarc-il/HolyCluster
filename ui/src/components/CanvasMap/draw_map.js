@@ -1,7 +1,7 @@
 import * as d3 from "d3";
 import { century, equationOfTime, declination } from "solar-calculator";
-import dxcc_map from "@/assets/dxcc_map.json";
-import lakes from "@/assets/lakes.json";
+import dxcc_map from "@/maps/dxcc_map.json";
+import lakes from "@/maps/lakes.json";
 import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
 import { cq_zones_geojson, itu_zones_geojson } from "@/utils/zones.js";
 

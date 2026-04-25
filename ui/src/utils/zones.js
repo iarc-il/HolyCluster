@@ -1,7 +1,7 @@
 import * as d3 from "d3";
 import rewind from "@mapbox/geojson-rewind";
-import cq_zones from "@/assets/cqzones.json";
-import itu_zones from "@/assets/ituzones.json";
+import cq_zones from "@/maps/cqzones.json";
+import itu_zones from "@/maps/ituzones.json";
 
 function clone_feature(feature) {
     if (typeof structuredClone === "function") {

@@ -14,7 +14,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
 import ClusterStats from "@/components/ClusterStats.jsx";
-import Icon from "@/icon.png";
+import Icon from "@/assets/icon.png";
 import OpenMenu from "@/components/OpenMenu.jsx";
 
 import { modes } from "@/data/filters_data.js";

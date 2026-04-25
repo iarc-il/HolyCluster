@@ -1,4 +1,4 @@
-import dxcc_map from "@/assets/dxcc_map.json";
+import dxcc_map from "@/maps/dxcc_map.json";
 import { geoContains } from "d3-geo";
 
 const WARM_PALETTE = [

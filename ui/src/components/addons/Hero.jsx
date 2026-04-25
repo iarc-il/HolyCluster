@@ -1,4 +1,4 @@
-import Icon from "@/icon.png";
+import Icon from "@/assets/icon.png";
 export default function Hero() {
     return (
         <section className="bg-gradient-to-br from-addons-primary to-addons-secondary text-white py-8 px-4">
