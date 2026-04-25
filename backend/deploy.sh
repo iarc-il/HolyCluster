@@ -84,6 +84,10 @@ while IFS= read -r file; do
     esac
 done <<< "$CHANGED_FILES"
 
+if [[ -v SERVICES[api] ]]; then
+    add_service nginx
+fi
+
 SERVICE_LIST="${!SERVICES[*]}"
 
 if [ -z "$SERVICE_LIST" ]; then
@@ -103,9 +107,18 @@ echo "Building: $SERVICE_LIST"
 docker compose build --parallel $SERVICE_LIST
 
 echo "Starting: $SERVICE_LIST"
+
 for svc in $SERVICE_LIST; do
+    if [ "$svc" = "nginx" ]; then
+        continue
+    fi
     docker compose up -d --no-deps "$svc" &
 done
+
 wait
+
+if [[ -v SERVICES[nginx] ]]; then
+    docker compose up -d --no-deps nginx
+fi
 
 echo "Deploy complete."
