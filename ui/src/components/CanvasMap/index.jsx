@@ -115,6 +115,7 @@ function do_redraw(
                 canvas_refs.dash_offset_ref.current,
                 projection,
                 map_controls.is_globe,
+                render_state_ref.current.home_location,
             );
             draw_zone_labels(
                 ctx,
@@ -199,6 +200,12 @@ function CanvasMap({
     );
 
     const [center_lon, center_lat] = map_controls.location.location;
+    const home_location = useMemo(() => {
+        const locator = (settings.locator || "").trim().toUpperCase();
+        if (!locator || !Maidenhead.valid(locator)) return null;
+        const [lat, lon] = Maidenhead.toLatLon(locator);
+        return [lon, lat];
+    }, [settings.locator]);
     const max_radius = 20000;
 
     const render_state_ref = useRef({});
@@ -214,6 +221,7 @@ function CanvasMap({
         radius_in_km,
         filters,
         hovered_zone,
+        home_location,
     };
 
     useMemo(() => {
@@ -330,6 +338,7 @@ function CanvasMap({
                     dash_offset_ref.current,
                     projection,
                     rs.map_controls.is_globe,
+                    rs.home_location,
                 );
                 draw_zone_labels(
                     ctx,

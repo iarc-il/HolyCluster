@@ -113,6 +113,7 @@ export function draw_spots(
     dash_offset,
     projection,
     is_globe,
+    home_location,
 ) {
     const path_generator = d3.geoPath().projection(projection).context(context);
     const is_visible = is_globe ? make_visibility_check(projection) : () => true;
@@ -190,6 +191,25 @@ export function draw_spots(
             projection,
             is_visible,
         });
+    }
+
+    if (home_location && is_visible(home_location)) {
+        const home_pos = projection(home_location);
+        if (home_pos) {
+            const [home_x, home_y] = home_pos;
+            context.beginPath();
+            context.arc(home_x, home_y, 6.5, 0, 2 * Math.PI);
+            context.fillStyle = "rgba(37, 99, 235, 0.95)";
+            context.fill();
+            context.strokeStyle = "rgba(255, 255, 255, 0.95)";
+            context.lineWidth = 1.8;
+            context.stroke();
+
+            context.beginPath();
+            context.arc(home_x, home_y, 2, 0, 2 * Math.PI);
+            context.fillStyle = "rgba(255, 255, 255, 1)";
+            context.fill();
+        }
     }
 
     context.restore();
