@@ -16,7 +16,7 @@ export function SettingsProvider({ children }) {
     const [settings, set_settings] = use_object_local_storage("settings", {
         locator: "",
         default_radius: 20000,
-        theme: "Light",
+        theme: "Dark",
         callsign: "",
         is_miles: false,
         propagation_displayed: true,

@@ -69,9 +69,15 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const [should_close_settings, set_should_close_settings] = useState(true);
 
     function apply_settings(new_settings) {
-        const [lat, lon] = Maidenhead.toLatLon(new_settings.locator);
+        let locator;
+        if (locator && locator != "") {
+            locator = new_settings.locator;
+        } else {
+            locator = "JJ00AA";
+        }
+        const [lat, lon] = Maidenhead.toLatLon(locator);
         set_map_controls(map_controls => {
-            map_controls.location.displayed_locator = new_settings.locator || "JJ00AA";
+            map_controls.location.displayed_locator = locator;
             map_controls.location.location = [lon, lat];
             if (settings.default_radius != new_settings.default_radius) {
                 set_radius_in_km(new_settings.default_radius);
