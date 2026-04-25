@@ -18,7 +18,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useSettings } from "@/hooks/useSettings";
-import { find_zone_label_number, toggle_zone_selection } from "@/utils/zones.js";
+import { find_zone_label_number } from "@/utils/zones.js";
 
 const DPR = window.devicePixelRatio || 1;
 
@@ -151,7 +151,7 @@ function CanvasMap({
     set_auto_radius,
 }) {
     const { spots, current_freq_spots } = useSpotData();
-    const { filters, setFilters } = useFilters();
+    const { filters, cycle_zone_filter } = useFilters();
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
@@ -177,7 +177,7 @@ function CanvasMap({
         set_cat_to_spot,
         set_hovered_spot,
         set_pinned_spot,
-        setFilters,
+        cycle_zone_filter,
     };
 
     const canvas_refs = {
@@ -569,10 +569,7 @@ function CanvasMap({
             const clickable_zone = get_clickable_zone_label(x, y);
             if (clickable_zone != null) {
                 const { system, number } = clickable_zone;
-                callbacks_ref.current.setFilters(state => ({
-                    ...state,
-                    zone_filters: toggle_zone_selection(state.zone_filters, system, number),
-                }));
+                callbacks_ref.current.cycle_zone_filter(system, number);
                 return;
             }
 

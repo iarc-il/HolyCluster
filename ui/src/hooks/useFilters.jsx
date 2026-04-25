@@ -3,6 +3,18 @@ import { use_object_local_storage } from "@/utils.js";
 import { bands, modes, continents } from "@/data/filters_data.js";
 
 const FiltersContext = createContext(undefined);
+const ZONE_CLICK_ACTION_CYCLE = ["hide", "show_only", "alert"];
+
+function get_next_zone_action(current_action) {
+    const current_index = ZONE_CLICK_ACTION_CYCLE.indexOf(current_action);
+    if (current_index === -1) {
+        return ZONE_CLICK_ACTION_CYCLE[0];
+    }
+    if (current_index === ZONE_CLICK_ACTION_CYCLE.length - 1) {
+        return null;
+    }
+    return ZONE_CLICK_ACTION_CYCLE[current_index + 1];
+}
 
 export const useFilters = () => {
     const context = useContext(FiltersContext);
@@ -75,6 +87,42 @@ export const FiltersProvider = ({ children }) => {
         }));
     }
 
+    function cycle_zone_filter(system, number) {
+        setCallsignFilters(state => {
+            const current_filters = state.filters ?? [];
+            const is_same_zone_filter = filter =>
+                filter.type === "zone" &&
+                filter.zone_system === system &&
+                Number.parseInt(filter.value, 10) === number;
+            const existing_filter = current_filters.find(is_same_zone_filter);
+            const next_action = get_next_zone_action(existing_filter?.action);
+            const filters_without_zone = current_filters.filter(
+                filter => !is_same_zone_filter(filter),
+            );
+
+            if (next_action == null) {
+                return {
+                    ...state,
+                    filters: filters_without_zone,
+                };
+            }
+
+            return {
+                ...state,
+                filters: [
+                    ...filters_without_zone,
+                    {
+                        action: next_action,
+                        type: "zone",
+                        value: number,
+                        zone_system: system,
+                        spotter_or_dx: "dx",
+                    },
+                ],
+            };
+        });
+    }
+
     return (
         <FiltersContext.Provider
             value={{
@@ -83,6 +131,7 @@ export const FiltersProvider = ({ children }) => {
                 setFilterKeys,
                 setOnlyFilterKeys,
                 setRadioModeFilter,
+                cycle_zone_filter,
                 callsign_filters,
                 setCallsignFilters,
             }}
