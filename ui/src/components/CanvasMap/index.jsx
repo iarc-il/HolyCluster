@@ -70,6 +70,7 @@ function do_redraw(
             settings.show_equator,
             map_controls.is_globe,
             map_controls.show_cq_zones,
+            map_controls.show_itu_zones,
             fast,
         );
         cache_ctx.restore();
@@ -268,6 +269,7 @@ function CanvasMap({
         map_controls.night,
         map_controls.is_globe,
         map_controls.show_cq_zones,
+        map_controls.show_itu_zones,
         settings.show_equator,
     ]);
 

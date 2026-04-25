@@ -27,10 +27,14 @@ Requirements:
 import json
 import sys
 
+OVERLAP_AREA_THRESHOLD = 1e-6
+
 try:
     import topojson
     from shapely.geometry import shape, mapping, LineString, MultiPoint
     from shapely.ops import split
+    from shapely.validation import make_valid
+    from shapely.errors import GEOSException
 except ImportError:
     print("Error: topojson and shapely are required.", file=sys.stderr)
     print("Install them with: pip install topojson shapely", file=sys.stderr)
@@ -67,6 +71,15 @@ def ensure_lists(obj):
     return obj
 
 
+def normalize_geometries(data):
+    for feature in data["features"]:
+        geom = shape(feature["geometry"])
+        if geom.is_valid:
+            continue
+        fixed = make_valid(geom)
+        feature["geometry"] = ensure_lists(mapping(fixed))
+
+
 def fix_overlaps(data):
     features = data["features"]
     n = len(features)
@@ -77,8 +90,11 @@ def fix_overlaps(data):
             if not shapes[i].intersects(shapes[j]):
                 continue
 
-            overlap = shapes[i].intersection(shapes[j])
-            if overlap.area < 0.1:
+            try:
+                overlap = shapes[i].intersection(shapes[j])
+            except GEOSException:
+                continue
+            if overlap.area < OVERLAP_AREA_THRESHOLD:
                 continue
 
             pts_i = ring_point_count(features[i]["geometry"])
@@ -89,7 +105,10 @@ def fix_overlaps(data):
             else:
                 simpler, authoritative = j, i
 
-            fixed = shapes[simpler].difference(shapes[authoritative])
+            try:
+                fixed = shapes[simpler].difference(shapes[authoritative])
+            except GEOSException:
+                continue
             if fixed.is_valid and fixed.area > 0:
                 shapes[simpler] = fixed
                 features[simpler]["geometry"] = ensure_lists(mapping(fixed))
@@ -122,7 +141,10 @@ def realign_borders(data):
 
             boundary_i = LineString(ring_i)
             boundary_j = LineString(ring_j)
-            intersection = boundary_i.intersection(boundary_j)
+            try:
+                intersection = boundary_i.intersection(boundary_j)
+            except GEOSException:
+                continue
 
             pts = []
             if intersection.geom_type == "Point":
@@ -214,6 +236,7 @@ def simplify_geojson(input_path, output_path, tolerance=0.3):
 
     before = count_coordinates(data)
 
+    normalize_geometries(data)
     fix_overlaps(data)
     realign_borders(data)
 
@@ -221,6 +244,7 @@ def simplify_geojson(input_path, output_path, tolerance=0.3):
     simplified = tp.toposimplify(tolerance, simplify_with="shapely")
     result = json.loads(simplified.to_geojson())
 
+    normalize_geometries(result)
     # Topology-preserving simplification can still collapse very short shared
     # borders into point contacts. Run the same cleanup once more so neighbors
     # end up with consistent line borders in the final output.

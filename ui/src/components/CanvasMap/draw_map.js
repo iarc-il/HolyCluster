@@ -3,6 +3,7 @@ import { century, equationOfTime, declination } from "solar-calculator";
 import dxcc_map from "@/assets/dxcc_map.json";
 import lakes from "@/assets/lakes.json";
 import cq_zones from "@/assets/cqzones.json";
+import itu_zones from "@/assets/ituzones.json";
 import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
 
 export { dxcc_map };
@@ -49,9 +50,17 @@ function draw_night_circle(context, path_generator) {
     context.fill();
 }
 
-function draw_cq_zones(context, path_generator, projection, is_globe) {
+function draw_zone_overlay(
+    context,
+    path_generator,
+    projection,
+    is_globe,
+    zones,
+    label_key,
+    loc_key,
+) {
     context.beginPath();
-    for (const feature of cq_zones.features) {
+    for (const feature of zones.features) {
         path_generator(feature);
     }
     context.strokeStyle = "rgba(0, 0, 0, 0.6)";
@@ -64,8 +73,8 @@ function draw_cq_zones(context, path_generator, projection, is_globe) {
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.fillStyle = "rgba(0, 0, 0, 0.8)";
-    for (const feature of cq_zones.features) {
-        const [lat, lon] = feature.properties.cq_zone_name_loc;
+    for (const feature of zones.features) {
+        const [lat, lon] = feature.properties[loc_key];
         if (is_globe) {
             const dist = d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]);
             if (dist > Math.PI / 2) continue;
@@ -75,7 +84,7 @@ function draw_cq_zones(context, path_generator, projection, is_globe) {
         const [x, y] = pos;
         if (!isFinite(x) || !isFinite(y)) continue;
 
-        const label = String(feature.properties.cq_zone_number);
+        const label = String(feature.properties[label_key]);
         context.fillText(label, x, y);
     }
 }
@@ -89,6 +98,7 @@ export function draw_map(
     show_equator,
     is_globe,
     show_cq_zones,
+    show_itu_zones,
     fast = false,
 ) {
     const saved_precision = projection.precision();
@@ -176,7 +186,28 @@ export function draw_map(
 
     // CQ Zones
     if (show_cq_zones) {
-        draw_cq_zones(context, path_generator, projection, is_globe);
+        draw_zone_overlay(
+            context,
+            path_generator,
+            projection,
+            is_globe,
+            cq_zones,
+            "cq_zone_number",
+            "cq_zone_name_loc",
+        );
+    }
+
+    // ITU Zones
+    if (show_itu_zones) {
+        draw_zone_overlay(
+            context,
+            path_generator,
+            projection,
+            is_globe,
+            itu_zones,
+            "itu_zone_number",
+            "itu_zone_name_loc",
+        );
     }
 
     context.restore();
