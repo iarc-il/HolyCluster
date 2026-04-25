@@ -1,4 +1,3 @@
-import SvgMap from "@/components/SvgMap.jsx";
 import CanvasMap from "@/components/CanvasMap/index.jsx";
 import MapControls from "@/components/MapControls.jsx";
 import TopBar from "@/components/TopBar.jsx";
@@ -107,7 +106,6 @@ function MainContainer() {
         set_prev_freqs(prev_freqs.slice(1));
     }
 
-    const [canvas, set_canvas] = useLocalStorage("canvas", false);
     // The view with zero index is the Filters view
     const [active_view, set_active_view] = useLocalStorage("active_view", 0);
 
@@ -117,9 +115,7 @@ function MainContainer() {
         }
 
         if (event.ctrlKey && event.altKey) {
-            if (event.key == "c") {
-                set_canvas(!canvas);
-            } else if (event.key == "f") {
+            if (event.key == "f") {
                 set_filter_missing_flags(!filter_missing_flags);
             } else if (event.key == "p") {
                 set_dev_mode(!dev_mode);
@@ -145,27 +141,15 @@ function MainContainer() {
                 can_undo_cat={prev_freqs.length > 0}
                 undo_cat={undo_freq_change}
             />
-            {canvas ? (
-                <CanvasMap
-                    map_controls={map_controls}
-                    set_map_controls={set_map_controls}
-                    set_cat_to_spot={set_cat_to_spot}
-                    radius_in_km={radius_in_km}
-                    set_radius_in_km={set_radius_in_km}
-                    auto_radius={auto_radius}
-                    set_auto_radius={set_auto_radius}
-                />
-            ) : (
-                <SvgMap
-                    map_controls={map_controls}
-                    set_map_controls={set_map_controls}
-                    set_cat_to_spot={set_cat_to_spot}
-                    radius_in_km={radius_in_km}
-                    set_radius_in_km={set_radius_in_km}
-                    auto_radius={auto_radius}
-                    set_auto_radius={set_auto_radius}
-                />
-            )}
+            <CanvasMap
+                map_controls={map_controls}
+                set_map_controls={set_map_controls}
+                set_cat_to_spot={set_cat_to_spot}
+                radius_in_km={radius_in_km}
+                set_radius_in_km={set_radius_in_km}
+                auto_radius={auto_radius}
+                set_auto_radius={set_auto_radius}
+            />
         </div>
     );
 
