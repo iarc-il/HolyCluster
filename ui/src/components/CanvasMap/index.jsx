@@ -782,24 +782,6 @@ function CanvasMap({
                 const { spots } = render_state_ref.current;
                 const spot = spots.find(s => s.id === spot_id);
                 if (spot) callbacks_ref.current.set_cat_to_spot(spot);
-            } else {
-                const projection = projection_ref.current;
-                if (!projection) return;
-                const distance_from_center = Math.sqrt(
-                    (dims.center_x - pos.x) ** 2 + (dims.center_y - pos.y) ** 2,
-                );
-                if (distance_from_center <= dims.radius) {
-                    const inverted = projection.invert([pos.x, pos.y]);
-                    if (!inverted) return;
-                    const [lon, lat] = inverted;
-                    const displayed_locator = new Maidenhead(lat, lon).locator.slice(0, 6);
-                    callbacks_ref.current.set_map_controls(state => {
-                        state.location = {
-                            displayed_locator,
-                            location: [lon, lat],
-                        };
-                    });
-                }
             }
         }
 
