@@ -5,7 +5,7 @@ import Popup from "./ui/Popup";
 import CallsignSearch from "@/components/CallsignSearch.jsx";
 
 import { get_flag } from "@/data/flags.js";
-import { US_STATES } from "@/data/us_states.js";
+import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
@@ -116,13 +116,14 @@ function Spot(
     }
 
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
+    const state_name = STATES[spot.dx_country]?.[spot.dx_state];
 
     let dx_column;
     let dx_state;
     if (
         settings.show_state_abbreviations &&
         spot.dx_state &&
-        (spot.dx_country == "USA" || dev_mode)
+        (spot.dx_country == "USA" || spot.dx_country == "Canada" || dev_mode)
     ) {
         dx_state = `(${spot.dx_state})`;
     } else {
@@ -205,8 +206,10 @@ function Spot(
                             }}
                         >
                             {spot.dx_country}
-                            {spot.dx_state && spot.dx_country === "USA" && US_STATES[spot.dx_state]
-                                ? `, ${US_STATES[spot.dx_state]}`
+                            {spot.dx_state &&
+                            (spot.dx_country === "USA" || spot.dx_country === "Canada") &&
+                            state_name
+                                ? `, ${state_name}`
                                 : ""}
                         </div>
                     </Popup>
