@@ -14,6 +14,7 @@ const FILTER_TYPE_LABELS = {
     prefix: "Pfx",
     suffix: "Sfx",
     entity: "Ent",
+    zone: "Zone",
 };
 
 const SPOTTER_DX_LABELS = {
@@ -70,6 +71,20 @@ function SpecialFilterBadge({ type, listeners, attributes }) {
     );
 }
 
+function ZoneFilterBadge({ filter, listeners, attributes }) {
+    const system_label = (filter.zone_system || "cq").toUpperCase();
+    return (
+        <div
+            {...listeners}
+            {...attributes}
+            className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing w-24"
+            title={`Zone ${system_label} ${filter.value}`}
+        >
+            {system_label} {filter.value}
+        </div>
+    );
+}
+
 function FilterContent({ filter, listeners, attributes, colors }) {
     const is_special_filter = filter.type === "self_spotters" || filter.type === "dxpeditions";
 
@@ -77,6 +92,10 @@ function FilterContent({ filter, listeners, attributes, colors }) {
         return (
             <SpecialFilterBadge type={filter.type} listeners={listeners} attributes={attributes} />
         );
+    }
+
+    if (filter.type === "zone") {
+        return <ZoneFilterBadge filter={filter} listeners={listeners} attributes={attributes} />;
     }
 
     return (

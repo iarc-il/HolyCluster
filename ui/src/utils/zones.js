@@ -39,6 +39,33 @@ export const itu_zones_geojson = {
 
 const zone_lookup_cache = new Map();
 
+const ZONE_RANGE_BY_SYSTEM = {
+    cq: { min: 1, max: 40 },
+    itu: { min: 1, max: 90 },
+};
+
+export function get_valid_zone_numbers(system) {
+    const range = ZONE_RANGE_BY_SYSTEM[system];
+    if (!range) {
+        return [];
+    }
+
+    const zones = [];
+    for (let zone = range.min; zone <= range.max; zone++) {
+        zones.push(zone);
+    }
+    return zones;
+}
+
+export function is_valid_zone_number(system, zone_number) {
+    const parsed_zone = Number.parseInt(zone_number, 10);
+    const range = ZONE_RANGE_BY_SYSTEM[system];
+    if (!Number.isFinite(parsed_zone) || !range) {
+        return false;
+    }
+    return parsed_zone >= range.min && parsed_zone <= range.max;
+}
+
 function get_longitude_candidates(lon) {
     const candidates = [lon];
     if (lon < 0) {

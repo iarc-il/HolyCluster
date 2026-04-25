@@ -1,6 +1,7 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect } from "react";
 import Maidenhead from "maidenhead";
+import { find_zone_number } from "@/utils/zones.js";
 
 export function to_radian(deg) {
     return deg * (Math.PI / 180);
@@ -36,6 +37,16 @@ export function is_same_base_callsign(callsign1, callsign2) {
 
 export function is_matching_list(list, spot) {
     return list.some(filter => {
+        if (filter.type == "zone") {
+            const system = filter.zone_system;
+            const selected_zone = Number.parseInt(filter.value, 10);
+            if (!system || !Number.isFinite(selected_zone)) {
+                return false;
+            }
+            const spot_zone = find_zone_number(system, spot.dx_loc);
+            return spot_zone != null && spot_zone === selected_zone;
+        }
+
         let matched_value;
         if (filter.type == "comment") {
             matched_value = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">").toLowerCase();
