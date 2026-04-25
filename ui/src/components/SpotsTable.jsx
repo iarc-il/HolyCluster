@@ -512,7 +512,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     return (
         <>
             <div
-                className="relative text-sm h-full overflow-x-visible border-x-4 flex flex-col"
+                className="relative text-sm h-full overflow-x-visible border-x-4 flex flex-col w-full min-w-0"
                 style={{
                     borderColor: colors.theme.borders,
                     backgroundColor: colors.theme.background,

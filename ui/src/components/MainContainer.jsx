@@ -234,10 +234,10 @@ function MainContainer() {
                         ]}
                     ></Tabs>
                 ) : (
-                    <>
-                        {map}
-                        {table}
-                    </>
+                    <div className="flex flex-1 min-w-0 h-full">
+                        <div className="flex-[0_0_57%] min-w-0">{map}</div>
+                        <div className="flex-[0_0_43%] min-w-0">{table}</div>
+                    </div>
                 )}
                 <SidePanel
                     toggled_ui={toggled_ui}
