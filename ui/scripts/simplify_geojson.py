@@ -31,7 +31,8 @@ OVERLAP_AREA_THRESHOLD = 1e-6
 
 try:
     import topojson
-    from shapely.geometry import shape, mapping, LineString, MultiPoint
+    from shapely.geometry import shape, mapping, LineString, MultiPoint, MultiPolygon
+    from shapely.geometry.polygon import orient
     from shapely.ops import split
     from shapely.validation import make_valid
     from shapely.errors import GEOSException
@@ -78,6 +79,20 @@ def normalize_geometries(data):
             continue
         fixed = make_valid(geom)
         feature["geometry"] = ensure_lists(mapping(fixed))
+
+
+def normalize_ring_orientation(data):
+    for feature in data["features"]:
+        geom = shape(feature["geometry"])
+
+        if geom.geom_type == "Polygon":
+            normalized = orient(geom, sign=-1.0)
+        elif geom.geom_type == "MultiPolygon":
+            normalized = MultiPolygon([orient(poly, sign=-1.0) for poly in geom.geoms])
+        else:
+            continue
+
+        feature["geometry"] = ensure_lists(mapping(normalized))
 
 
 def fix_overlaps(data):
@@ -237,6 +252,7 @@ def simplify_geojson(input_path, output_path, tolerance=0.3):
     before = count_coordinates(data)
 
     normalize_geometries(data)
+    normalize_ring_orientation(data)
     fix_overlaps(data)
     realign_borders(data)
 
@@ -245,11 +261,13 @@ def simplify_geojson(input_path, output_path, tolerance=0.3):
     result = json.loads(simplified.to_geojson())
 
     normalize_geometries(result)
+    normalize_ring_orientation(result)
     # Topology-preserving simplification can still collapse very short shared
     # borders into point contacts. Run the same cleanup once more so neighbors
     # end up with consistent line borders in the final output.
     fix_overlaps(result)
     realign_borders(result)
+    normalize_ring_orientation(result)
 
     after = count_coordinates(result)
     reduction = (1 - after / before) * 100 if before > 0 else 0
