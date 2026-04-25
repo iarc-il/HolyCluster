@@ -37,6 +37,7 @@ function MainContainer() {
     const [map_controls, set_map_controls_inner] = use_object_local_storage("map_controls", {
         night: false,
         is_globe: false,
+        show_cq_zones: false,
         location: {
             displayed_locator: "JJ00AA",
             // Longitude, latitude

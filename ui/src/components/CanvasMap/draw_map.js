@@ -2,6 +2,7 @@ import * as d3 from "d3";
 import { century, equationOfTime, declination } from "solar-calculator";
 import dxcc_map from "@/assets/dxcc_map.json";
 import lakes from "@/assets/lakes.json";
+import cq_zones from "@/assets/cqzones.json";
 import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
 
 export { dxcc_map };
@@ -48,6 +49,37 @@ function draw_night_circle(context, path_generator) {
     context.fill();
 }
 
+function draw_cq_zones(context, path_generator, projection, is_globe) {
+    context.beginPath();
+    for (const feature of cq_zones.features) {
+        path_generator(feature);
+    }
+    context.strokeStyle = "rgba(0, 0, 0, 0.6)";
+    context.lineWidth = 1.5;
+    context.stroke();
+
+    context.lineWidth = 1;
+    const rotation = projection.rotate();
+    context.font = "bold 14px sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillStyle = "rgba(0, 0, 0, 0.8)";
+    for (const feature of cq_zones.features) {
+        const [lat, lon] = feature.properties.cq_zone_name_loc;
+        if (is_globe) {
+            const dist = d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]);
+            if (dist > Math.PI / 2) continue;
+        }
+        const pos = projection([lon, lat]);
+        if (!pos) continue;
+        const [x, y] = pos;
+        if (!isFinite(x) || !isFinite(y)) continue;
+
+        const label = String(feature.properties.cq_zone_number);
+        context.fillText(label, x, y);
+    }
+}
+
 export function draw_map(
     context,
     colors,
@@ -56,6 +88,7 @@ export function draw_map(
     night_displayed,
     show_equator,
     is_globe,
+    show_cq_zones,
     fast = false,
 ) {
     const saved_precision = projection.precision();
@@ -139,6 +172,11 @@ export function draw_map(
         context.lineWidth = 2;
         path_generator(d3.geoCircle().radius(90).center([0, 90])());
         context.stroke();
+    }
+
+    // CQ Zones
+    if (show_cq_zones) {
+        draw_cq_zones(context, path_generator, projection, is_globe);
     }
 
     context.restore();
