@@ -82,6 +82,7 @@ async def telnet_and_collect(
 
     task_logger.info(f"Start of telnet_and_collect for {host}")
     valkey_client = get_valkey_client()
+    reconnect_attempts = 0
 
     while True:
         reader, writer = None, None
@@ -96,7 +97,6 @@ async def telnet_and_collect(
             await push_exception_event(valkey_client, "collector", f"telnet {host}:{port}: {e}")
         else:
             logger.info(f"{host}:{port}  Successfully connected")
-            reconnect_attempts = 0
             await set_value(valkey_client, f"collector:telnet:{host}:connected", 1)
             connection_start_time = asyncio.get_event_loop().time()
 
