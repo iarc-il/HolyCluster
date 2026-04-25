@@ -41,7 +41,7 @@ function do_redraw(
     const {
         colors,
         map_controls,
-        filters,
+        callsign_filters,
         settings,
         spots,
         hovered_spot,
@@ -75,7 +75,7 @@ function do_redraw(
             map_controls.is_globe,
             map_controls.show_cq_zones,
             map_controls.show_itu_zones,
-            filters.zone_filters,
+            callsign_filters,
             fast,
         );
         cache_ctx.restore();
@@ -125,6 +125,7 @@ function do_redraw(
                 map_controls.show_cq_zones,
                 map_controls.show_itu_zones,
                 hovered_zone,
+                callsign_filters,
             );
         });
     }
@@ -151,7 +152,7 @@ function CanvasMap({
     set_auto_radius,
 }) {
     const { spots, current_freq_spots } = useSpotData();
-    const { filters, cycle_zone_filter } = useFilters();
+    const { callsign_filters, cycle_zone_filter } = useFilters();
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
@@ -219,7 +220,7 @@ function CanvasMap({
         map_controls,
         settings,
         radius_in_km,
-        filters,
+        callsign_filters,
         hovered_zone,
         home_location,
     };
@@ -297,7 +298,7 @@ function CanvasMap({
         map_controls.is_globe,
         map_controls.show_cq_zones,
         map_controls.show_itu_zones,
-        filters.zone_filters,
+        callsign_filters.filters,
         hovered_zone.system,
         hovered_zone.number,
         settings.show_equator,
@@ -348,6 +349,7 @@ function CanvasMap({
                     rs.map_controls.show_cq_zones,
                     rs.map_controls.show_itu_zones,
                     rs.hovered_zone,
+                    rs.callsign_filters,
                 );
             });
         }

@@ -49,20 +49,72 @@ function draw_night_circle(context, path_generator) {
     context.fill();
 }
 
-function draw_zone_overlay(context, path_generator, zones, label_key, disabled_zones = []) {
-    const disabled_zone_set = new Set(disabled_zones);
+const ZONE_ACTION_STYLES = {
+    hide: {
+        fill: "rgba(185, 28, 28, 0.28)",
+        stroke: "rgba(185, 28, 28, 0.95)",
+    },
+    show_only: {
+        fill: "rgba(22, 163, 74, 0.24)",
+        stroke: "rgba(22, 163, 74, 0.95)",
+    },
+    alert: {
+        fill: "rgba(245, 158, 11, 0.24)",
+        stroke: "rgba(245, 158, 11, 0.95)",
+    },
+};
 
-    if (disabled_zone_set.size > 0) {
+function get_zone_action_numbers(callsign_filters, system) {
+    const filters = callsign_filters?.filters ?? [];
+    const zone_to_action = new Map();
+
+    for (const filter of filters) {
+        if (filter.type !== "zone" || filter.zone_system !== system) continue;
+        if (!(filter.action in ZONE_ACTION_STYLES)) continue;
+        const zone_number = Number.parseInt(filter.value, 10);
+        if (!Number.isFinite(zone_number)) continue;
+        zone_to_action.set(zone_number, filter.action);
+    }
+
+    const action_numbers = { hide: [], show_only: [], alert: [] };
+    for (const [zone_number, action] of zone_to_action) {
+        action_numbers[action].push(zone_number);
+    }
+
+    return action_numbers;
+}
+
+function get_zone_action_map(callsign_filters, system) {
+    const filters = callsign_filters?.filters ?? [];
+    const zone_to_action = new Map();
+
+    for (const filter of filters) {
+        if (filter.type !== "zone" || filter.zone_system !== system) continue;
+        if (!(filter.action in ZONE_ACTION_STYLES)) continue;
+        const zone_number = Number.parseInt(filter.value, 10);
+        if (!Number.isFinite(zone_number)) continue;
+        zone_to_action.set(zone_number, filter.action);
+    }
+
+    return zone_to_action;
+}
+
+function draw_zone_overlay(context, path_generator, zones, label_key, action_numbers) {
+    for (const [action, style] of Object.entries(ZONE_ACTION_STYLES)) {
+        const numbers = action_numbers[action] ?? [];
+        const zone_set = new Set(numbers);
+        if (zone_set.size === 0) continue;
+
         context.beginPath();
         for (const feature of zones.features) {
             const zone_number = feature.properties[label_key];
-            if (disabled_zone_set.has(zone_number)) {
+            if (zone_set.has(zone_number)) {
                 path_generator(feature);
             }
         }
-        context.fillStyle = "rgba(185, 28, 28, 0.28)";
+        context.fillStyle = style.fill;
         context.fill();
-        context.strokeStyle = "rgba(185, 28, 28, 0.95)";
+        context.strokeStyle = style.stroke;
         context.lineWidth = 2.8;
         context.lineJoin = "round";
         context.stroke();
@@ -85,6 +137,7 @@ function draw_zone_labels_for_system(
     label_key,
     loc_key,
     hovered_zone_number,
+    zone_action_map,
 ) {
     context.lineWidth = 1;
     const rotation = projection.rotate();
@@ -106,10 +159,12 @@ function draw_zone_labels_for_system(
         const is_hovered = hovered_zone_number != null && zone_number === hovered_zone_number;
         context.font = is_hovered ? "900 17px sans-serif" : "bold 14px sans-serif";
         if (is_hovered) {
+            const action = zone_action_map.get(zone_number);
+            const action_style = action ? ZONE_ACTION_STYLES[action] : null;
             context.strokeStyle = "rgba(255, 255, 255, 0.95)";
             context.lineWidth = 4;
             context.strokeText(label, x, y);
-            context.fillStyle = "rgba(185, 28, 28, 1)";
+            context.fillStyle = action_style?.stroke ?? "rgba(0, 0, 0, 0.9)";
         } else {
             context.fillStyle = "rgba(0, 0, 0, 0.8)";
         }
@@ -125,6 +180,7 @@ export function draw_zone_labels(
     show_cq_zones,
     show_itu_zones,
     hovered_zone,
+    callsign_filters,
 ) {
     context.save();
     context.beginPath();
@@ -132,6 +188,7 @@ export function draw_zone_labels(
     context.clip();
 
     if (show_cq_zones) {
+        const cq_zone_action_map = get_zone_action_map(callsign_filters, "cq");
         draw_zone_labels_for_system(
             context,
             projection,
@@ -140,10 +197,12 @@ export function draw_zone_labels(
             "cq_zone_number",
             "cq_zone_name_loc",
             hovered_zone?.system === "cq" ? hovered_zone.number : null,
+            cq_zone_action_map,
         );
     }
 
     if (show_itu_zones) {
+        const itu_zone_action_map = get_zone_action_map(callsign_filters, "itu");
         draw_zone_labels_for_system(
             context,
             projection,
@@ -152,6 +211,7 @@ export function draw_zone_labels(
             "itu_zone_number",
             "itu_zone_name_loc",
             hovered_zone?.system === "itu" ? hovered_zone.number : null,
+            itu_zone_action_map,
         );
     }
 
@@ -168,7 +228,7 @@ export function draw_map(
     is_globe,
     show_cq_zones,
     show_itu_zones,
-    zone_filters,
+    callsign_filters,
     fast = false,
 ) {
     const saved_precision = projection.precision();
@@ -256,23 +316,25 @@ export function draw_map(
 
     // CQ Zones
     if (show_cq_zones) {
+        const cq_action_numbers = get_zone_action_numbers(callsign_filters, "cq");
         draw_zone_overlay(
             context,
             path_generator,
             cq_zones_geojson,
             "cq_zone_number",
-            zone_filters?.cq_selected,
+            cq_action_numbers,
         );
     }
 
     // ITU Zones
     if (show_itu_zones) {
+        const itu_action_numbers = get_zone_action_numbers(callsign_filters, "itu");
         draw_zone_overlay(
             context,
             path_generator,
             itu_zones_geojson,
             "itu_zone_number",
-            zone_filters?.itu_selected,
+            itu_action_numbers,
         );
     }
 
