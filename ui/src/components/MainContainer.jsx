@@ -48,6 +48,8 @@ function MainContainer() {
 
     const [prev_freqs, set_prev_freqs] = useState([]);
     const prev_freq_limit = 1; // Set the max number of undos a user can do
+    const map_wrapper_ref = useRef(null);
+    const [is_map_fullscreen, set_is_map_fullscreen] = useState(false);
 
     const set_map_controls = change_func => {
         set_map_controls_inner(previous_state => {
@@ -136,16 +138,46 @@ function MainContainer() {
         };
     });
 
+    useEffect(() => {
+        function handle_fullscreen_change() {
+            set_is_map_fullscreen(document.fullscreenElement === map_wrapper_ref.current);
+        }
+
+        document.addEventListener("fullscreenchange", handle_fullscreen_change);
+        return () => {
+            document.removeEventListener("fullscreenchange", handle_fullscreen_change);
+        };
+    }, []);
+
+    function toggle_map_fullscreen() {
+        if (!map_wrapper_ref.current) {
+            return;
+        }
+
+        if (document.fullscreenElement === map_wrapper_ref.current) {
+            document.exitFullscreen();
+            return;
+        }
+
+        map_wrapper_ref.current.requestFullscreen();
+    }
+
     const is_md_device = useMediaQuery("only screen and (max-width : 768px)");
 
     const map = (
-        <div className="relative h-full w-full">
+        <div
+            ref={map_wrapper_ref}
+            className={`relative h-full w-full ${is_map_fullscreen ? "fixed inset-0 z-[80]" : ""}`}
+            style={{ backgroundColor: colors.theme.background }}
+        >
             <MapControls
                 map_controls={map_controls}
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
                 can_undo_cat={prev_freqs.length > 0}
                 undo_cat={undo_freq_change}
+                is_map_fullscreen={is_map_fullscreen}
+                toggle_map_fullscreen={toggle_map_fullscreen}
             />
             <CanvasMap
                 map_controls={map_controls}

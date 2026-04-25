@@ -18,6 +18,8 @@ function MapControls({
     auto_toggle_radius,
     can_undo_cat,
     undo_cat,
+    is_map_fullscreen,
+    toggle_map_fullscreen,
 }) {
     const { colors, dev_mode } = useColors();
     const { propagation } = useRestData();
@@ -127,6 +129,23 @@ function MapControls({
                                 set_map_controls(state => (state.night = !state.night))
                             }
                         />
+                        <button
+                            onClick={toggle_map_fullscreen}
+                            title={is_map_fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                        >
+                            <svg
+                                height="32"
+                                width="32"
+                                viewBox="0 0 24 24"
+                                fill={colors.buttons.utility}
+                            >
+                                {is_map_fullscreen ? (
+                                    <path d="M9 3H5a2 2 0 0 0-2 2v4h2V5h4zM19 9V5a2 2 0 0 0-2-2h-4v2h4v4zM5 15H3v4a2 2 0 0 0 2 2h4v-2H5zM19 15v4h-4v2h4a2 2 0 0 0 2-2v-4z" />
+                                ) : (
+                                    <path d="M9 5H5v4H3V5a2 2 0 0 1 2-2h4zM15 3h4a2 2 0 0 1 2 2v4h-2V5h-4zM3 15h2v4h4v2H5a2 2 0 0 1-2-2zM19 15h2v4a2 2 0 0 1-2 2h-4v-2h4z" />
+                                )}
+                            </svg>
+                        </button>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
