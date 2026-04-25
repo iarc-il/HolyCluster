@@ -163,9 +163,7 @@ function MapControls({
                                         ...state.zone_filters,
                                         active_system: show_cq
                                             ? "cq"
-                                            : map_controls.show_itu_zones
-                                              ? "itu"
-                                              : null,
+                                            : state.zone_filters.active_system,
                                     },
                                 }));
                             }}
@@ -197,9 +195,7 @@ function MapControls({
                                         ...state.zone_filters,
                                         active_system: show_itu
                                             ? "itu"
-                                            : map_controls.show_cq_zones
-                                              ? "cq"
-                                              : null,
+                                            : state.zone_filters.active_system,
                                     },
                                 }));
                             }}
