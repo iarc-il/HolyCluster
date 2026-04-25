@@ -7,7 +7,7 @@ import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
 
 import { calculate_geographic_azimuth, km_to_miles, mod } from "@/utils.js";
 import { Dimensions } from "./dimensions.js";
-import { dxcc_map, draw_map } from "./draw_map.js";
+import { dxcc_map, draw_map, draw_zone_labels } from "./draw_map.js";
 import { draw_spots } from "./draw_spots.js";
 import { color_to_spot, draw_shadow_map } from "./hit_detection.js";
 import SpotPopup from "@/components/SpotPopup.jsx";
@@ -18,7 +18,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useSettings } from "@/hooks/useSettings";
-import { find_zone_number, toggle_zone_selection } from "@/utils/zones.js";
+import { find_zone_label_number, toggle_zone_selection } from "@/utils/zones.js";
 
 const DPR = window.devicePixelRatio || 1;
 
@@ -45,6 +45,7 @@ function do_redraw(
         settings,
         spots,
         hovered_spot,
+        hovered_zone,
         pinned_spot,
         hovered_band,
         current_freq_spots,
@@ -115,6 +116,15 @@ function do_redraw(
                 projection,
                 map_controls.is_globe,
             );
+            draw_zone_labels(
+                ctx,
+                dims,
+                projection,
+                map_controls.is_globe,
+                map_controls.show_cq_zones,
+                map_controls.show_itu_zones,
+                hovered_zone,
+            );
         });
     }
 
@@ -145,6 +155,7 @@ function CanvasMap({
         useSpotInteraction();
     const { settings } = useSettings();
     const { colors } = useColors();
+    const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
 
     const map_canvas_ref = useRef(null);
     const spots_canvas_ref = useRef(null);
@@ -202,6 +213,7 @@ function CanvasMap({
         settings,
         radius_in_km,
         filters,
+        hovered_zone,
     };
 
     useMemo(() => {
@@ -278,6 +290,8 @@ function CanvasMap({
         map_controls.show_cq_zones,
         map_controls.show_itu_zones,
         filters.zone_filters,
+        hovered_zone.system,
+        hovered_zone.number,
         settings.show_equator,
     ]);
 
@@ -316,6 +330,15 @@ function CanvasMap({
                     dash_offset_ref.current,
                     projection,
                     rs.map_controls.is_globe,
+                );
+                draw_zone_labels(
+                    ctx,
+                    dims,
+                    projection,
+                    rs.map_controls.is_globe,
+                    rs.map_controls.show_cq_zones,
+                    rs.map_controls.show_itu_zones,
+                    rs.hovered_zone,
                 );
             });
         }
@@ -429,6 +452,28 @@ function CanvasMap({
             return [type, spot_id];
         }
 
+        function get_clickable_zone_label(x, y) {
+            const map_controls = render_state_ref.current.map_controls;
+            const zone_system = map_controls.show_cq_zones
+                ? "cq"
+                : map_controls.show_itu_zones
+                  ? "itu"
+                  : null;
+            const projection = projection_ref.current;
+            if (!zone_system || !projection) return null;
+
+            const zone_number = find_zone_label_number(
+                zone_system,
+                projection,
+                x,
+                y,
+                map_controls.is_globe,
+            );
+            if (zone_number == null) return null;
+
+            return { system: zone_system, number: zone_number };
+        }
+
         function perform_drag(x, y) {
             const projection = projection_ref.current;
             if (!projection || rot_start == null) return;
@@ -512,39 +557,20 @@ function CanvasMap({
 
         function handle_tap(x, y, event) {
             const searched = get_data_from_shadow_canvas(x, y);
-            const map_controls = render_state_ref.current.map_controls;
-            const zone_system = map_controls.show_cq_zones
-                ? "cq"
-                : map_controls.show_itu_zones
-                  ? "itu"
-                  : null;
-
-            const try_toggle_zone = () => {
-                if (!zone_system) return false;
-                const projection = projection_ref.current;
-                if (!projection) return false;
-                const lon_lat = projection.invert([x, y]);
-                if (!lon_lat) return false;
-                const zone_number = find_zone_number(zone_system, lon_lat);
-                if (zone_number == null) return false;
-
+            const clickable_zone = get_clickable_zone_label(x, y);
+            if (clickable_zone != null) {
+                const { system, number } = clickable_zone;
                 callbacks_ref.current.setFilters(state => ({
                     ...state,
-                    zone_filters: toggle_zone_selection(
-                        state.zone_filters,
-                        zone_system,
-                        zone_number,
-                    ),
+                    zone_filters: toggle_zone_selection(state.zone_filters, system, number),
                 }));
-                return true;
-            };
+                return;
+            }
 
             if (event.pointerType === "mouse") {
                 if (searched != null) {
                     const [, spot_id] = searched;
                     callbacks_ref.current.set_pinned_spot(spot_id);
-                } else {
-                    try_toggle_zone();
                 }
             } else {
                 // Touch: tap to pin/unpin
@@ -557,9 +583,6 @@ function CanvasMap({
                         callbacks_ref.current.set_pinned_spot(spot_id);
                     }
                 } else {
-                    if (try_toggle_zone()) {
-                        return;
-                    }
                     if (current_pinned != null) {
                         callbacks_ref.current.set_pinned_spot(null);
                     }
@@ -649,6 +672,18 @@ function CanvasMap({
 
             // Mouse hover (desktop only)
             if (event.pointerType === "mouse" && gesture_state !== "dragging") {
+                const clickable_zone = get_clickable_zone_label(pos.x, pos.y);
+                const current_hovered_zone = render_state_ref.current.hovered_zone;
+                if (
+                    current_hovered_zone.system !== clickable_zone?.system ||
+                    current_hovered_zone.number !== clickable_zone?.number
+                ) {
+                    set_hovered_zone({
+                        system: clickable_zone?.system ?? null,
+                        number: clickable_zone?.number ?? null,
+                    });
+                }
+
                 const searched = get_data_from_shadow_canvas(pos.x, pos.y);
                 const { hovered_spot: current_hovered } = render_state_ref.current;
                 if (searched != null) {
@@ -713,6 +748,10 @@ function CanvasMap({
         function on_pointer_leave(event) {
             pointers.delete(event.pointerId);
             if (event.pointerType === "mouse") {
+                const current_hovered_zone = render_state_ref.current.hovered_zone;
+                if (current_hovered_zone.system != null || current_hovered_zone.number != null) {
+                    set_hovered_zone({ system: null, number: null });
+                }
                 const { hovered_spot: current_hovered } = render_state_ref.current;
                 if (current_hovered.source != null || current_hovered.id != null) {
                     callbacks_ref.current.set_hovered_spot({ source: null, id: null });

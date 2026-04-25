@@ -49,16 +49,7 @@ function draw_night_circle(context, path_generator) {
     context.fill();
 }
 
-function draw_zone_overlay(
-    context,
-    path_generator,
-    projection,
-    is_globe,
-    zones,
-    label_key,
-    loc_key,
-    disabled_zones = [],
-) {
+function draw_zone_overlay(context, path_generator, zones, label_key, disabled_zones = []) {
     const disabled_zone_set = new Set(disabled_zones);
 
     if (disabled_zone_set.size > 0) {
@@ -84,13 +75,21 @@ function draw_zone_overlay(
     context.strokeStyle = "rgba(0, 0, 0, 0.6)";
     context.lineWidth = 1.5;
     context.stroke();
+}
 
+function draw_zone_labels_for_system(
+    context,
+    projection,
+    is_globe,
+    zones,
+    label_key,
+    loc_key,
+    hovered_zone_number,
+) {
     context.lineWidth = 1;
     const rotation = projection.rotate();
-    context.font = "bold 14px sans-serif";
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.fillStyle = "rgba(0, 0, 0, 0.8)";
     for (const feature of zones.features) {
         const [lat, lon] = feature.properties[loc_key];
         if (is_globe) {
@@ -102,9 +101,61 @@ function draw_zone_overlay(
         const [x, y] = pos;
         if (!isFinite(x) || !isFinite(y)) continue;
 
-        const label = String(feature.properties[label_key]);
+        const zone_number = feature.properties[label_key];
+        const label = String(zone_number);
+        const is_hovered = hovered_zone_number != null && zone_number === hovered_zone_number;
+        context.font = is_hovered ? "900 17px sans-serif" : "bold 14px sans-serif";
+        if (is_hovered) {
+            context.strokeStyle = "rgba(255, 255, 255, 0.95)";
+            context.lineWidth = 4;
+            context.strokeText(label, x, y);
+            context.fillStyle = "rgba(185, 28, 28, 1)";
+        } else {
+            context.fillStyle = "rgba(0, 0, 0, 0.8)";
+        }
         context.fillText(label, x, y);
     }
+}
+
+export function draw_zone_labels(
+    context,
+    dims,
+    projection,
+    is_globe,
+    show_cq_zones,
+    show_itu_zones,
+    hovered_zone,
+) {
+    context.save();
+    context.beginPath();
+    context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
+    context.clip();
+
+    if (show_cq_zones) {
+        draw_zone_labels_for_system(
+            context,
+            projection,
+            is_globe,
+            cq_zones_geojson,
+            "cq_zone_number",
+            "cq_zone_name_loc",
+            hovered_zone?.system === "cq" ? hovered_zone.number : null,
+        );
+    }
+
+    if (show_itu_zones) {
+        draw_zone_labels_for_system(
+            context,
+            projection,
+            is_globe,
+            itu_zones_geojson,
+            "itu_zone_number",
+            "itu_zone_name_loc",
+            hovered_zone?.system === "itu" ? hovered_zone.number : null,
+        );
+    }
+
+    context.restore();
 }
 
 export function draw_map(
@@ -208,11 +259,8 @@ export function draw_map(
         draw_zone_overlay(
             context,
             path_generator,
-            projection,
-            is_globe,
             cq_zones_geojson,
             "cq_zone_number",
-            "cq_zone_name_loc",
             zone_filters?.cq_selected,
         );
     }
@@ -222,11 +270,8 @@ export function draw_map(
         draw_zone_overlay(
             context,
             path_generator,
-            projection,
-            is_globe,
             itu_zones_geojson,
             "itu_zone_number",
-            "itu_zone_name_loc",
             zone_filters?.itu_selected,
         );
     }
