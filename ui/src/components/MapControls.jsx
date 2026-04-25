@@ -33,6 +33,15 @@ function MapControls({
             : active_zone_system === "itu"
               ? (zone_filters?.itu_selected ?? [])
               : [];
+    const MAX_VISIBLE_DISABLED_ZONES = 8;
+    const visible_disabled_zones = active_zone_disabled.slice(0, MAX_VISIBLE_DISABLED_ZONES);
+    const hidden_disabled_count = Math.max(
+        0,
+        active_zone_disabled.length - MAX_VISIBLE_DISABLED_ZONES,
+    );
+    const disabled_zones_text =
+        visible_disabled_zones.join(",") +
+        (hidden_disabled_count > 0 ? ` +${hidden_disabled_count}` : "");
 
     function reset_map() {
         const locator = settings.locator || "JJ00AA";
@@ -196,9 +205,11 @@ function MapControls({
                             className="flex items-center gap-2 text-xs"
                             style={{ color: colors.theme.text }}
                         >
-                            <span>
-                                {active_zone_system?.toUpperCase()} off:{" "}
-                                {active_zone_disabled.join(",")}
+                            <span
+                                className="max-w-46"
+                                title={`${active_zone_system?.toUpperCase()} off: ${active_zone_disabled.join(",")}`}
+                            >
+                                {active_zone_system?.toUpperCase()} off: {disabled_zones_text}
                             </span>
                             <button
                                 className="underline"
