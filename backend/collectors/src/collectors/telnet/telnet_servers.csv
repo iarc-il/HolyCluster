@@ -2,7 +2,6 @@ name,hostname,port,type
 WA9PIE-2,hrd.wa9pie.net,8000,dx-spider
 DXUSA,dxc.dxusa.net,7300,dx-spider
 AI9T,dxc.ai9t.com,7300,cc-cluster
-NC7J,dxc.nc7j.com,7373,ar-cluster
 K7AR,k7ar.net,7374,ar-cluster
 VE7CC,ve7cc.net,23,cc-cluster
 W1NR,dx.w1nr.net,7300,dx-spider
