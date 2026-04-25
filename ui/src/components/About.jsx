@@ -9,6 +9,18 @@ import use_radio from "@/hooks/useRadio.jsx";
 
 const RELEASES = [
     [
+        "",
+        [
+            "New CQ/ITU zones feature: map overlays, click-to-filter zone numbers, and advanced filters in Alert/Show Only/Hide",
+            "New fullscreen mode for the map",
+            "New home location indicator on the map",
+            "Added mode disabling in settings (similar to band disabling)",
+            "Added globe mode",
+            "Updated map visuals and geography (countries, lakes, and water bodies)",
+            "Propagation data is now available on mobile",
+        ],
+    ],
+    [
         "3/3/2026",
         [
             "New DXpedition list with dates, sorting, duration tracking",
