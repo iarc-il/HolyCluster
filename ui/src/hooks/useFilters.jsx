@@ -18,6 +18,11 @@ export const FiltersProvider = ({ children }) => {
         spotter_continents: Object.fromEntries(continents.map(continent => [continent, true])),
         time_limit: 3600,
         show_only_latest_spot: false,
+        zone_filters: {
+            active_system: null,
+            cq_selected: [],
+            itu_selected: [],
+        },
     };
 
     const initial_callsign_filters = {

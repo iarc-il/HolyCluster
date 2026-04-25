@@ -14,9 +14,11 @@ import SpotPopup from "@/components/SpotPopup.jsx";
 import MapAngles from "@/components/MapAngles.jsx";
 import ToggleSVG from "@/components/ui/ToggleSVG";
 import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useSettings } from "@/hooks/useSettings";
+import { find_zone_number, toggle_zone_selection } from "@/utils/zones.js";
 
 const DPR = window.devicePixelRatio || 1;
 
@@ -39,6 +41,7 @@ function do_redraw(
     const {
         colors,
         map_controls,
+        filters,
         settings,
         spots,
         hovered_spot,
@@ -71,6 +74,7 @@ function do_redraw(
             map_controls.is_globe,
             map_controls.show_cq_zones,
             map_controls.show_itu_zones,
+            filters.zone_filters,
             fast,
         );
         cache_ctx.restore();
@@ -136,6 +140,7 @@ function CanvasMap({
     set_auto_radius,
 }) {
     const { spots, current_freq_spots } = useSpotData();
+    const { filters, setFilters } = useFilters();
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
@@ -160,6 +165,7 @@ function CanvasMap({
         set_cat_to_spot,
         set_hovered_spot,
         set_pinned_spot,
+        setFilters,
     };
 
     const canvas_refs = {
@@ -195,6 +201,7 @@ function CanvasMap({
         map_controls,
         settings,
         radius_in_km,
+        filters,
     };
 
     useMemo(() => {
@@ -270,6 +277,7 @@ function CanvasMap({
         map_controls.is_globe,
         map_controls.show_cq_zones,
         map_controls.show_itu_zones,
+        filters.zone_filters,
         settings.show_equator,
     ]);
 
@@ -504,12 +512,39 @@ function CanvasMap({
 
         function handle_tap(x, y, event) {
             const searched = get_data_from_shadow_canvas(x, y);
+            const map_controls = render_state_ref.current.map_controls;
+            const zone_system = map_controls.show_cq_zones
+                ? "cq"
+                : map_controls.show_itu_zones
+                  ? "itu"
+                  : null;
+
+            const try_toggle_zone = () => {
+                if (!zone_system) return false;
+                const projection = projection_ref.current;
+                if (!projection) return false;
+                const lon_lat = projection.invert([x, y]);
+                if (!lon_lat) return false;
+                const zone_number = find_zone_number(zone_system, lon_lat);
+                if (zone_number == null) return false;
+
+                callbacks_ref.current.setFilters(state => ({
+                    ...state,
+                    zone_filters: toggle_zone_selection(
+                        state.zone_filters,
+                        zone_system,
+                        zone_number,
+                    ),
+                }));
+                return true;
+            };
+
             if (event.pointerType === "mouse") {
                 if (searched != null) {
                     const [, spot_id] = searched;
                     callbacks_ref.current.set_pinned_spot(spot_id);
                 } else {
-                    // Single click on empty area does nothing on mouse (double-click re-centers)
+                    try_toggle_zone();
                 }
             } else {
                 // Touch: tap to pin/unpin
@@ -522,6 +557,9 @@ function CanvasMap({
                         callbacks_ref.current.set_pinned_spot(spot_id);
                     }
                 } else {
+                    if (try_toggle_zone()) {
+                        return;
+                    }
                     if (current_pinned != null) {
                         callbacks_ref.current.set_pinned_spot(null);
                     }

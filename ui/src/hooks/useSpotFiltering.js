@@ -5,6 +5,7 @@ import { useSpotInteraction } from "./useSpotInteraction";
 import { is_matching_list, sort_spots, use_object_local_storage } from "@/utils.js";
 import { bands, modes } from "@/data/filters_data.js";
 import { get_flag } from "@/data/flags.js";
+import { find_zone_number } from "@/utils/zones.js";
 
 const freq_error_range = {
     FT8: 0.2,
@@ -102,11 +103,26 @@ export default function useSpotFiltering(raw_spots) {
                 const is_spotter_continent_active =
                     filters.spotter_continents[spot.spotter_continent];
 
+                const zone_filters = filters.zone_filters;
+                const active_zone_system = zone_filters?.active_system;
+                const disabled_zones =
+                    active_zone_system === "cq"
+                        ? (zone_filters?.cq_selected ?? [])
+                        : active_zone_system === "itu"
+                          ? (zone_filters?.itu_selected ?? [])
+                          : [];
+                const spot_zone = find_zone_number(active_zone_system, spot.dx_loc);
+                const is_zone_match =
+                    active_zone_system == null ||
+                    spot_zone == null ||
+                    !disabled_zones.includes(spot_zone);
+
                 const result =
                     is_in_time_limit &&
                     is_dx_continent_active &&
                     is_spotter_continent_active &&
                     is_band_and_mode_active &&
+                    is_zone_match &&
                     are_filters_including &&
                     are_filters_not_excluding;
                 return result;

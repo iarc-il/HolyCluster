@@ -2,9 +2,8 @@ import * as d3 from "d3";
 import { century, equationOfTime, declination } from "solar-calculator";
 import dxcc_map from "@/assets/dxcc_map.json";
 import lakes from "@/assets/lakes.json";
-import cq_zones from "@/assets/cqzones.json";
-import itu_zones from "@/assets/ituzones.json";
 import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
+import { cq_zones_geojson, itu_zones_geojson } from "@/utils/zones.js";
 
 export { dxcc_map };
 
@@ -58,7 +57,26 @@ function draw_zone_overlay(
     zones,
     label_key,
     loc_key,
+    disabled_zones = [],
 ) {
+    const disabled_zone_set = new Set(disabled_zones);
+
+    if (disabled_zone_set.size > 0) {
+        context.beginPath();
+        for (const feature of zones.features) {
+            const zone_number = feature.properties[label_key];
+            if (disabled_zone_set.has(zone_number)) {
+                path_generator(feature);
+            }
+        }
+        context.fillStyle = "rgba(185, 28, 28, 0.28)";
+        context.fill();
+        context.strokeStyle = "rgba(185, 28, 28, 0.95)";
+        context.lineWidth = 2.8;
+        context.lineJoin = "round";
+        context.stroke();
+    }
+
     context.beginPath();
     for (const feature of zones.features) {
         path_generator(feature);
@@ -99,6 +117,7 @@ export function draw_map(
     is_globe,
     show_cq_zones,
     show_itu_zones,
+    zone_filters,
     fast = false,
 ) {
     const saved_precision = projection.precision();
@@ -191,9 +210,10 @@ export function draw_map(
             path_generator,
             projection,
             is_globe,
-            cq_zones,
+            cq_zones_geojson,
             "cq_zone_number",
             "cq_zone_name_loc",
+            zone_filters?.cq_selected,
         );
     }
 
@@ -204,9 +224,10 @@ export function draw_map(
             path_generator,
             projection,
             is_globe,
-            itu_zones,
+            itu_zones_geojson,
             "itu_zone_number",
             "itu_zone_name_loc",
+            zone_filters?.itu_selected,
         );
     }
 

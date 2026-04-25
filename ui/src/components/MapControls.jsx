@@ -7,6 +7,7 @@ import { useColors } from "@/hooks/useColors";
 import { useRestData } from "@/hooks/useRestData";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
+import { useFilters } from "@/hooks/useFilters";
 
 import Maidenhead from "maidenhead";
 
@@ -22,6 +23,16 @@ function MapControls({
     const { propagation } = useRestData();
     const { radio_status } = use_radio();
     const { settings } = useSettings();
+    const { filters, setFilters } = useFilters();
+
+    const zone_filters = filters.zone_filters;
+    const active_zone_system = zone_filters?.active_system;
+    const active_zone_disabled =
+        active_zone_system === "cq"
+            ? (zone_filters?.cq_selected ?? [])
+            : active_zone_system === "itu"
+              ? (zone_filters?.itu_selected ?? [])
+              : [];
 
     function reset_map() {
         const locator = settings.locator || "JJ00AA";
@@ -110,15 +121,26 @@ function MapControls({
                     </div>
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() =>
+                            onClick={() => {
+                                const show_cq = !map_controls.show_cq_zones;
                                 set_map_controls(state => {
-                                    const show_cq = !state.show_cq_zones;
                                     state.show_cq_zones = show_cq;
                                     if (show_cq) {
                                         state.show_itu_zones = false;
                                     }
-                                })
-                            }
+                                });
+                                setFilters(state => ({
+                                    ...state,
+                                    zone_filters: {
+                                        ...state.zone_filters,
+                                        active_system: show_cq
+                                            ? "cq"
+                                            : map_controls.show_itu_zones
+                                              ? "itu"
+                                              : null,
+                                    },
+                                }));
+                            }}
                             className="flex items-center justify-center relative"
                             title={map_controls.show_cq_zones ? "Hide CQ Zones" : "Show CQ Zones"}
                         >
@@ -133,15 +155,26 @@ function MapControls({
                             )}
                         </button>
                         <button
-                            onClick={() =>
+                            onClick={() => {
+                                const show_itu = !map_controls.show_itu_zones;
                                 set_map_controls(state => {
-                                    const show_itu = !state.show_itu_zones;
                                     state.show_itu_zones = show_itu;
                                     if (show_itu) {
                                         state.show_cq_zones = false;
                                     }
-                                })
-                            }
+                                });
+                                setFilters(state => ({
+                                    ...state,
+                                    zone_filters: {
+                                        ...state.zone_filters,
+                                        active_system: show_itu
+                                            ? "itu"
+                                            : map_controls.show_cq_zones
+                                              ? "cq"
+                                              : null,
+                                    },
+                                }));
+                            }}
                             className="flex items-center justify-center relative"
                             title={
                                 map_controls.show_itu_zones ? "Hide ITU Zones" : "Show ITU Zones"
@@ -158,6 +191,36 @@ function MapControls({
                             )}
                         </button>
                     </div>
+                    {active_zone_disabled.length > 0 && (
+                        <div
+                            className="flex items-center gap-2 text-xs"
+                            style={{ color: colors.theme.text }}
+                        >
+                            <span>
+                                {active_zone_system?.toUpperCase()} off:{" "}
+                                {active_zone_disabled.join(",")}
+                            </span>
+                            <button
+                                className="underline"
+                                onClick={() => {
+                                    const selected_key =
+                                        active_zone_system === "cq"
+                                            ? "cq_selected"
+                                            : "itu_selected";
+                                    setFilters(state => ({
+                                        ...state,
+                                        zone_filters: {
+                                            ...state.zone_filters,
+                                            [selected_key]: [],
+                                        },
+                                    }));
+                                }}
+                                title="Enable all zones in active system"
+                            >
+                                Reset
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
             {propagation && settings.propagation_displayed && (
