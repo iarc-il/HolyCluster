@@ -121,7 +121,6 @@ async def telnet_and_collect(
                             task_logger.warning(
                                 f"Connection lasted {connection_duration:.0f}s (<{SHORT_CONNECTION_THRESHOLD}s). Not resetting backoff."
                             )
-                            reconnect_attempts += 1
                         else:
                             reconnect_attempts = 0
                         break
@@ -178,7 +177,6 @@ async def telnet_and_collect(
                     task_logger.warning(
                         f"Connection lasted {connection_duration:.0f}s (<{SHORT_CONNECTION_THRESHOLD}s). Not resetting backoff."
                     )
-                    reconnect_attempts += 1
                 else:
                     reconnect_attempts = 0
 
