@@ -53,6 +53,10 @@ def run_concurrent_telnet_connections(output_queue: asyncio.Queue):
     open_log_file(log_filename_prefix=global_log_file)
 
     servers = get_telnet_clusters_list(csv_path)
+    if not servers:
+        logger.error("No telnet servers found. Exiting.")
+        sys.exit(1)
+
     tasks = []
     for server in servers:
         host = server.get("hostname")

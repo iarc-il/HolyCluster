@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import re
+import socket
 
 from loguru import logger
 from shared.metrics import push_drop_event, push_exception_event, set_value
@@ -87,88 +88,81 @@ async def telnet_and_collect(
         try:
             logger.debug(f"Attempting to connect to {host}:{port} ...")
             reader, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), timeout=10)
-
+        except (TimeoutError, asyncio.TimeoutError, asyncio.CancelledError, ConnectionRefusedError, OSError, socket.gaierror) as e:
+            task_logger.error(f"Connection failed: {host}:{port}  {e}")
+            logger.error(f"Connection failed: {host}:{port}  {e}")
+            await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
+            await push_exception_event(valkey_client, "collector", f"telnet {host}:{port}: {e}")
+        else:
             logger.info(f"{host}:{port}  Successfully connected")
             reconnect_attempts = 0
             await set_value(valkey_client, f"collector:telnet:{host}:connected", 1)
 
-            if username:
-                await asyncio.sleep(2)
-                writer.write(f"{username}\n".encode("utf-8"))
-                await writer.drain()
+            try:
+                if username:
+                    await asyncio.sleep(2)
+                    writer.write(f"{username}\n".encode("utf-8"))
+                    await writer.drain()
 
-            while True:
-                try:
-                    data = await asyncio.wait_for(reader.read(4096), timeout=60)
-                except (TimeoutError, asyncio.TimeoutError):
-                    writer.write(b"help\n")
-                    data = await asyncio.wait_for(reader.read(4096), timeout=5)
-
-                if not data:
-                    task_logger.error("Connection closed by remote host.")
-                    await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
-                    break
-
-                lines = (line_buffer + data).split(b"\n")
-                line_buffer = lines.pop()
-
-                for line_bytes in lines:
-                    line = line_bytes.decode("utf-8", errors="ignore").replace("\r", "")
-                    task_logger.info(line)
-
-                    if not line.startswith("DX de"):
-                        continue
-
-                    spot = parse_dx_line(line)
-                    if spot is None:
-                        task_logger.error(f"Could not parse spot line: {line}")
-                        logger.error(f"Could not parse spot line: {line}")
-                        await push_drop_event(valkey_client, "parse_error", line)
-                        continue
-
-                    # W3LPL is a spammer and J9AQ is a pirate
-                    if spot["spotter_callsign"].upper() in ["W3LPL", "J9AQ"]:
-                        logger.debug(f"Skipping banned spot: {spot}")
-                        continue
-
-                    cluster = f"{host}:{port}"
-                    spot["cluster"] = cluster
-                    spot_data = json.dumps(spot)
-                    task_logger.debug(json.dumps(spot, indent=2))
-                    logger.debug(json.dumps(spot, indent=2))
-
-                    spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
-                    added = await valkey_client.set(spot_key, 1, ex=settings.valkey_spot_expiration, nx=True)
+                while True:
                     try:
-                        await valkey_client.xadd(
-                            "stream-arrivals",
-                            {"cluster": cluster, "spot_key": spot_key, "accepted": "1" if added else "0"},
-                        )
-                    except Exception:
-                        logger.warning("Failed to write to stream-arrivals", exc_info=True)
-                    if added:
-                        await output_queue.put(spot)
-                        task_logger.debug(f"Spot added to queue: {spot_data}")
-                        logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
-                    else:
-                        task_logger.debug(f"Duplicate spot not queued: {spot_data}")
-                        logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
+                        data = await asyncio.wait_for(reader.read(4096), timeout=60)
+                    except (TimeoutError, asyncio.TimeoutError):
+                        writer.write(b"help\n")
+                        data = await asyncio.wait_for(reader.read(4096), timeout=5)
 
-        except (TimeoutError, asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
-            task_logger.exception(f"Connection failed: {host}:{port}  {e}")
-            logger.exception(f"Connection failed: {host}:{port}  {e}")
-            await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
-            await push_exception_event(valkey_client, "collector", f"telnet {host}:{port}: {e}")
+                    if not data:
+                        task_logger.error("Connection closed by remote host.")
+                        await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
+                        break
 
-        except asyncio.CancelledError:
-            logger.info(f"{host}:{port} Task cancelled, shutting down.")
-            break
+                    lines = (line_buffer + data).split(b"\n")
+                    line_buffer = lines.pop()
 
-        except Exception as e:
-            task_logger.exception(f"Unexpected error connecting to {host}:{port}: {e}")
-            logger.exception(f"Unexpected error connecting to {host}:{port}: {e}")
-            await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
-            await push_exception_event(valkey_client, "collector", f"telnet {host}:{port}: {e}")
+                    for line_bytes in lines:
+                        line = line_bytes.decode("utf-8", errors="ignore").replace("\r", "")
+                        task_logger.info(line)
+
+                        if not line.startswith("DX de"):
+                            continue
+
+                        spot = parse_dx_line(line)
+                        if spot is None:
+                            task_logger.error(f"Could not parse spot line: {line}")
+                            logger.error(f"Could not parse spot line: {line}")
+                            await push_drop_event(valkey_client, "parse_error", line)
+                            continue
+
+                        if spot["spotter_callsign"].upper() in ["W3LPL", "J9AQ"]:
+                            logger.debug(f"Skipping banned spot: {spot}")
+                            continue
+
+                        cluster = f"{host}:{port}"
+                        spot["cluster"] = cluster
+                        spot_data = json.dumps(spot)
+                        task_logger.debug(json.dumps(spot, indent=2))
+                        logger.debug(json.dumps(spot, indent=2))
+
+                        spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
+                        added = await valkey_client.set(spot_key, 1, ex=settings.valkey_spot_expiration, nx=True)
+                        try:
+                            await valkey_client.xadd(
+                                "stream-arrivals",
+                                {"cluster": cluster, "spot_key": spot_key, "accepted": "1" if added else "0"},
+                            )
+                        except Exception:
+                            logger.warning("Failed to write to stream-arrivals", exc_info=True)
+                        if added:
+                            await output_queue.put(spot)
+                            task_logger.debug(f"Spot added to queue: {spot_data}")
+                            logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
+                        else:
+                            task_logger.debug(f"Duplicate spot not queued: {spot_data}")
+                            logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
+            except Exception as e:
+                task_logger.exception(f"Error during collection: {e}")
+                logger.exception(f"Error during collection: {e}")
+                await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
 
         finally:
             if writer:
