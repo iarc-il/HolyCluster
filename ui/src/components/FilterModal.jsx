@@ -126,6 +126,45 @@ function are_same_filter(filter_a, filter_b) {
     return true;
 }
 
+function are_same_filter_criteria(filter_a, filter_b) {
+    const normalized_filter_a = normalize_filter(filter_a);
+    const normalized_filter_b = normalize_filter(filter_b);
+
+    if (normalized_filter_a.type != normalized_filter_b.type) {
+        return false;
+    }
+
+    if (
+        normalized_filter_a.type == "prefix" ||
+        normalized_filter_a.type == "suffix" ||
+        normalized_filter_a.type == "entity"
+    ) {
+        return (
+            normalized_filter_a.spotter_or_dx == normalized_filter_b.spotter_or_dx &&
+            normalized_filter_a.value == normalized_filter_b.value
+        );
+    }
+
+    if (normalized_filter_a.type == "zone") {
+        return (
+            normalized_filter_a.zone_system == normalized_filter_b.zone_system &&
+            normalized_filter_a.value == normalized_filter_b.value
+        );
+    }
+
+    if (normalized_filter_a.type == "comment") {
+        return normalized_filter_a.value == normalized_filter_b.value;
+    }
+
+    return true;
+}
+
+function get_conflicting_action(action) {
+    if (action == "show_only") return "hide";
+    if (action == "hide") return "show_only";
+    return null;
+}
+
 function FilterModal({ initial_data = null, on_apply, button, exclude_filter_index = null }) {
     const [temp_data, set_temp_data] = useState(empty_filter_data);
     const [error_message, set_error_message] = useState("");
@@ -201,6 +240,26 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                 if (is_duplicate) {
                     set_error_message("This filter already exists in this section.");
                     return false;
+                }
+
+                const conflicting_action = get_conflicting_action(draft_filter.action);
+                if (conflicting_action != null) {
+                    const is_conflicting = callsign_filters.filters.some((filter, filter_index) => {
+                        if (exclude_filter_index != null && filter_index == exclude_filter_index) {
+                            return false;
+                        }
+                        return (
+                            filter.action == conflicting_action &&
+                            are_same_filter_criteria(filter, draft_filter)
+                        );
+                    });
+
+                    if (is_conflicting) {
+                        set_error_message(
+                            `This filter conflicts with an existing ${conflicting_action.replace("_", " ")} filter.`,
+                        );
+                        return false;
+                    }
                 }
 
                 on_apply(draft_filter);
