@@ -100,8 +100,7 @@ async def telnet_and_collect(
             while True:
                 try:
                     data = await asyncio.wait_for(reader.read(4096), timeout=60)
-                except asyncio.TimeoutError:
-                    # This is just universal command that is used as kind of "ping"
+                except (TimeoutError, asyncio.TimeoutError):
                     writer.write(b"help\n")
                     data = await asyncio.wait_for(reader.read(4096), timeout=5)
 
@@ -165,12 +164,18 @@ async def telnet_and_collect(
             logger.info(f"{host}:{port} Task cancelled, shutting down.")
             break
 
+        except Exception as e:
+            task_logger.exception(f"Unexpected error connecting to {host}:{port}: {e}")
+            logger.exception(f"Unexpected error connecting to {host}:{port}: {e}")
+            await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
+            await push_exception_event(valkey_client, "collector", f"telnet {host}:{port}: {e}")
+
         finally:
             if writer:
                 writer.close()
                 try:
                     await asyncio.wait_for(writer.wait_closed(), timeout=5.0)
-                except asyncio.TimeoutError:
+                except (TimeoutError, asyncio.TimeoutError):
                     logger.warning(f"{host}:{port} Timeout waiting for writer to close")
 
         delay = min(INITIAL_BACKOFF * (2**reconnect_attempts), MAX_BACKOFF)
