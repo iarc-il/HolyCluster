@@ -23,7 +23,11 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
 function MainContainer() {
-    const { dev_mode, set_dev_mode } = useColors();
+    const { dev_mode, set_dev_mode, colors } = useColors();
+
+    useEffect(() => {
+        document.body.style.backgroundColor = colors.theme.background;
+    }, [colors.theme.background]);
     const [toggled_ui, set_toggled_ui] = useState({ left_visible: true, right_visible: true });
     const { local_version } = use_radio();
     const { settings, set_settings } = useSettings();
