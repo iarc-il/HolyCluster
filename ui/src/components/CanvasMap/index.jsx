@@ -846,6 +846,10 @@ function CanvasMap({
                 backgroundColor: colors.theme.background,
                 touchAction: "none",
                 userSelect: "none",
+                cursor:
+                    hovered_zone.system != null && hovered_zone.number != null
+                        ? "pointer"
+                        : "default",
             }}
         >
             <canvas
