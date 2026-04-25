@@ -156,6 +156,7 @@ function FilterLine({ filter, id, is_dragging }) {
                 <FilterModal
                     initial_data={filter}
                     button={<EditSymbol size="24" />}
+                    exclude_filter_index={id}
                     on_apply={update_filter}
                 />
                 <X className="cursor-pointer min-w-[24px]" size="24" on_click={delete_filter} />
