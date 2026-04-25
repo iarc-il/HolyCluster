@@ -75,6 +75,7 @@ async def telnet_and_collect(
     reconnect_attempts = 0
     INITIAL_BACKOFF = 60
     MAX_BACKOFF = 86400  # 1 day
+    SHORT_CONNECTION_THRESHOLD = 30  # seconds
 
     log_filename_prefix = os.path.join(telnet_log_dir, host)
     task_logger = open_task_log_file(log_filename_prefix=log_filename_prefix)
@@ -97,6 +98,7 @@ async def telnet_and_collect(
             logger.info(f"{host}:{port}  Successfully connected")
             reconnect_attempts = 0
             await set_value(valkey_client, f"collector:telnet:{host}:connected", 1)
+            connection_start_time = asyncio.get_event_loop().time()
 
             try:
                 if username:
@@ -114,6 +116,14 @@ async def telnet_and_collect(
                     if not data:
                         task_logger.error("Connection closed by remote host.")
                         await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
+                        connection_duration = asyncio.get_event_loop().time() - connection_start_time
+                        if connection_duration < SHORT_CONNECTION_THRESHOLD:
+                            task_logger.warning(
+                                f"Connection lasted {connection_duration:.0f}s (<{SHORT_CONNECTION_THRESHOLD}s). Not resetting backoff."
+                            )
+                            reconnect_attempts += 1
+                        else:
+                            reconnect_attempts = 0
                         break
 
                     lines = (line_buffer + data).split(b"\n")
@@ -163,6 +173,14 @@ async def telnet_and_collect(
                 task_logger.exception(f"Error during collection: {e}")
                 logger.exception(f"Error during collection: {e}")
                 await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
+                connection_duration = asyncio.get_event_loop().time() - connection_start_time
+                if connection_duration < SHORT_CONNECTION_THRESHOLD:
+                    task_logger.warning(
+                        f"Connection lasted {connection_duration:.0f}s (<{SHORT_CONNECTION_THRESHOLD}s). Not resetting backoff."
+                    )
+                    reconnect_attempts += 1
+                else:
+                    reconnect_attempts = 0
 
         finally:
             if writer:
