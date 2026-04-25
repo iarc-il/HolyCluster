@@ -32,7 +32,7 @@ function do_redraw(
     projection_ref,
     render_state_ref,
     canvas_refs,
-    { skip_shadow = false } = {},
+    { skip_shadow = false, fast = false } = {},
 ) {
     const projection = projection_ref.current;
     if (!dims || !projection) return;
@@ -47,33 +47,50 @@ function do_redraw(
         current_freq_spots,
     } = render_state_ref.current;
 
-    // Map cache
+    const render_dpr = fast && DPR > 1 ? 1 : DPR;
+
     const cache_canvas = canvas_refs.map_cache_canvas_ref.current;
     if (cache_canvas) {
+        const target_w = dims.width * render_dpr;
+        const target_h = dims.height * render_dpr;
+        if (cache_canvas.width !== target_w || cache_canvas.height !== target_h) {
+            cache_canvas.width = target_w;
+            cache_canvas.height = target_h;
+        }
         const cache_ctx = cache_canvas.getContext("2d");
         cache_ctx.clearRect(0, 0, cache_canvas.width, cache_canvas.height);
-        with_dpr(cache_ctx, () => {
-            draw_map(
-                cache_ctx,
-                colors,
-                dims,
-                projection,
-                map_controls.night,
-                settings.show_equator,
-                map_controls.is_globe,
-            );
-        });
+        cache_ctx.save();
+        cache_ctx.scale(render_dpr, render_dpr);
+        draw_map(
+            cache_ctx,
+            colors,
+            dims,
+            projection,
+            map_controls.night,
+            settings.show_equator,
+            map_controls.is_globe,
+            fast,
+        );
+        cache_ctx.restore();
     }
 
-    // Blit map cache
     const map_canvas = canvas_refs.map_canvas_ref.current;
     if (map_canvas && cache_canvas) {
         const ctx = map_canvas.getContext("2d");
         ctx.clearRect(0, 0, map_canvas.width, map_canvas.height);
-        ctx.drawImage(cache_canvas, 0, 0);
+        ctx.drawImage(
+            cache_canvas,
+            0,
+            0,
+            cache_canvas.width,
+            cache_canvas.height,
+            0,
+            0,
+            map_canvas.width,
+            map_canvas.height,
+        );
     }
 
-    // Spots
     const spots_canvas = canvas_refs.spots_canvas_ref.current;
     if (spots_canvas) {
         const ctx = spots_canvas.getContext("2d");
@@ -95,7 +112,6 @@ function do_redraw(
         });
     }
 
-    // Shadow (skip during drag for performance — only needed for hover hit detection)
     if (!skip_shadow) {
         const shadow_canvas = canvas_refs.shadow_canvas_ref.current;
         if (shadow_canvas) {
@@ -422,6 +438,7 @@ function CanvasMap({
                     }
                     do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
                         skip_shadow: true,
+                        fast: true,
                     });
                     is_drawing = false;
                 });
@@ -448,6 +465,7 @@ function CanvasMap({
                     }
                     do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
                         skip_shadow: true,
+                        fast: true,
                     });
                     is_drawing = false;
                 });
@@ -578,6 +596,7 @@ function CanvasMap({
                             requestAnimationFrame(() => {
                                 do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
                                     skip_shadow: true,
+                                    fast: true,
                                 });
                                 is_drawing = false;
                             });

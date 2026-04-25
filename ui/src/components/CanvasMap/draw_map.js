@@ -56,7 +56,10 @@ export function draw_map(
     night_displayed,
     show_equator,
     is_globe,
+    fast = false,
 ) {
+    const saved_precision = projection.precision();
+    if (fast) projection.precision(2);
     const path_generator = d3.geoPath().projection(projection).context(context);
 
     context.save();
@@ -153,4 +156,6 @@ export function draw_map(
         context.fillStyle = "#FF0000";
         context.fill();
     }
+
+    if (fast) projection.precision(saved_precision);
 }
