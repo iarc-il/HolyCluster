@@ -22,6 +22,8 @@ import { useSettings } from "@/hooks/useSettings";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
+const AUTO_RADIUS_PADDING_KM = 1000;
+
 function MainContainer() {
     const { dev_mode, set_dev_mode, colors } = useColors();
 
@@ -84,7 +86,7 @@ function MainContainer() {
                     });
                 }
             }
-            set_radius_in_km(Math.round((max_radius + 500) / 1000) * 1000);
+            set_radius_in_km(Math.ceil((max_radius + AUTO_RADIUS_PADDING_KM) / 1000) * 1000);
         }
     }, [max_radius, auto_radius]);
 
