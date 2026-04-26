@@ -1,8 +1,10 @@
+import { useRef, useState } from "react";
 import Input from "@/components/ui/Input.jsx";
 import Button from "@/components/ui/Button.jsx";
 import Radio from "@/components/ui/Radio.jsx";
 import Night from "@/components/Night.jsx";
 import PropagationBar from "@/components/PropagationBar.jsx";
+import Popup from "@/components/ui/Popup.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useRestData } from "@/hooks/useRestData";
 import use_radio from "@/hooks/useRadio";
@@ -26,6 +28,8 @@ function MapControls({
     const { radio_status } = use_radio();
     const { settings } = useSettings();
     const { filters, setFilters } = useFilters();
+    const mode_button_ref = useRef(null);
+    const [show_mode_popup, set_show_mode_popup] = useState(false);
 
     const zone_filters = filters.zone_filters;
     const active_zone_system = zone_filters?.active_system;
@@ -92,24 +96,15 @@ function MapControls({
                 <div className="flex flex-col items-end gap-1">
                     <div className="flex items-center gap-4">
                         <button
+                            ref={mode_button_ref}
                             onClick={() =>
                                 set_map_controls(state => (state.is_globe = !state.is_globe))
                             }
+                            onMouseEnter={() => set_show_mode_popup(true)}
+                            onMouseLeave={() => set_show_mode_popup(false)}
                             className="flex items-center justify-center relative"
-                            title={
-                                map_controls.is_globe ? "Switch to Azimuthal" : "Switch to Globe"
-                            }
                         >
                             {map_controls.is_globe ? (
-                                <svg
-                                    height="32"
-                                    width="32"
-                                    viewBox="0 0 16 16"
-                                    fill={colors.buttons.utility}
-                                >
-                                    <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 7 7 0 0 1 .597-.933A7.03 7.03 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a7 7 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zM8.5 5v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7 7 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7 7 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a7 7 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7 7 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z" />
-                                </svg>
-                            ) : (
                                 <svg
                                     height="32"
                                     width="32"
@@ -124,8 +119,30 @@ function MapControls({
                                     <circle cx="8" cy="8" r="4.1" />
                                     <path d="M8 1.2v13.6M1.2 8h13.6M3 3l10 10M13 3 3 13" />
                                 </svg>
+                            ) : (
+                                <svg
+                                    height="32"
+                                    width="32"
+                                    viewBox="0 0 16 16"
+                                    fill={colors.buttons.utility}
+                                >
+                                    <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 7 7 0 0 1 .597-.933A7.03 7.03 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a7 7 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zM8.5 5v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7 7 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7 7 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a7 7 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7 7 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z" />
+                                </svg>
                             )}
                         </button>
+                        {show_mode_popup && (
+                            <Popup anchor_ref={mode_button_ref}>
+                                <div
+                                    className="py-1 px-2 rounded shadow-lg text-xs"
+                                    style={{
+                                        color: colors.theme.text,
+                                        background: colors.theme.background,
+                                    }}
+                                >
+                                    {map_controls.is_globe ? "Azimuthal mode" : "Globe mode"}
+                                </div>
+                            </Popup>
+                        )}
                         <button onClick={reset_map}>
                             <svg
                                 height="32"
