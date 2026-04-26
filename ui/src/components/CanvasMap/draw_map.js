@@ -250,12 +250,14 @@ export function draw_map(
 
     context.lineWidth = 1;
 
-    if (is_globe) {
+    const zones_active = show_cq_zones || show_itu_zones;
+
+    if (!zones_active && is_globe) {
         context.beginPath();
         path_generator(d3.geoGraticule10());
         context.strokeStyle = colors.map.graticule;
         context.stroke();
-    } else {
+    } else if (!zones_active) {
         const full_globe_radius = projection.scale() * Math.PI;
 
         context.beginPath();
