@@ -48,6 +48,8 @@ function MapControls({
     const disabled_zones_text =
         visible_disabled_zones.join(",") +
         (hidden_disabled_count > 0 ? ` +${hidden_disabled_count}` : "");
+    const cq_zones_on = map_controls.show_cq_zones;
+    const itu_zones_on = map_controls.show_itu_zones;
 
     function reset_map() {
         const locator = settings.locator || "JJ00AA";
@@ -160,10 +162,7 @@ function MapControls({
                                 set_map_controls(state => (state.night = !state.night))
                             }
                         />
-                        <button
-                            onClick={toggle_map_fullscreen}
-                            title={is_map_fullscreen ? "Exit fullscreen" : "Fullscreen"}
-                        >
+                        <button onClick={toggle_map_fullscreen}>
                             <svg
                                 height="32"
                                 width="32"
@@ -181,7 +180,7 @@ function MapControls({
                     <div className="flex items-center gap-3 mr-1">
                         <button
                             onClick={() => {
-                                const show_cq = !map_controls.show_cq_zones;
+                                const show_cq = !cq_zones_on;
                                 set_map_controls(state => {
                                     state.show_cq_zones = show_cq;
                                     if (show_cq) {
@@ -199,21 +198,17 @@ function MapControls({
                                 }));
                             }}
                             className="flex items-center justify-center relative"
-                            title={map_controls.show_cq_zones ? "Hide CQ Zones" : "Show CQ Zones"}
                         >
                             <span
                                 className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
-                                style={{ color: colors.buttons.utility }}
+                                style={{ color: cq_zones_on ? "#FFFFFF" : "#9CA3AF" }}
                             >
                                 CQ
                             </span>
-                            {map_controls.show_cq_zones && (
-                                <span className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full" />
-                            )}
                         </button>
                         <button
                             onClick={() => {
-                                const show_itu = !map_controls.show_itu_zones;
+                                const show_itu = !itu_zones_on;
                                 set_map_controls(state => {
                                     state.show_itu_zones = show_itu;
                                     if (show_itu) {
@@ -231,19 +226,13 @@ function MapControls({
                                 }));
                             }}
                             className="flex items-center justify-center relative"
-                            title={
-                                map_controls.show_itu_zones ? "Hide ITU Zones" : "Show ITU Zones"
-                            }
                         >
                             <span
                                 className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
-                                style={{ color: colors.buttons.utility }}
+                                style={{ color: itu_zones_on ? "#FFFFFF" : "#9CA3AF" }}
                             >
                                 ITU
                             </span>
-                            {map_controls.show_itu_zones && (
-                                <span className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full" />
-                            )}
                         </button>
                     </div>
                     {active_zone_disabled.length > 0 && (
