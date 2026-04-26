@@ -127,7 +127,7 @@ function MainContainer() {
         if (event.ctrlKey && event.altKey) {
             if (event.key == "f") {
                 set_filter_missing_flags(!filter_missing_flags);
-            } else if (event.key == "p") {
+            } else if (event.key == "p" || event.key == "s") {
                 set_dev_mode(!dev_mode);
             }
         }
