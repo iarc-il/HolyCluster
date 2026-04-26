@@ -11,6 +11,7 @@ import { dxcc_map, draw_map, draw_zone_labels } from "./draw_map.js";
 import { draw_spots } from "./draw_spots.js";
 import { color_to_spot, draw_shadow_map } from "./hit_detection.js";
 import SpotPopup from "@/components/SpotPopup.jsx";
+import SpotContextMenu from "@/components/SpotContextMenu.jsx";
 import MapAngles from "@/components/MapAngles.jsx";
 import ToggleSVG from "@/components/ui/ToggleSVG";
 import { useColors } from "@/hooks/useColors";
@@ -152,12 +153,19 @@ function CanvasMap({
     set_auto_radius,
 }) {
     const { spots, current_freq_spots } = useSpotData();
-    const { callsign_filters, cycle_zone_filter } = useFilters();
+    const { callsign_filters, get_filter_add_status, add_filter_if_allowed } = useFilters();
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
     const { colors } = useColors();
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
+    const [zone_context_menu, set_zone_context_menu] = useState({
+        visible: false,
+        x: 0,
+        y: 0,
+        system: null,
+        number: null,
+    });
 
     const map_canvas_ref = useRef(null);
     const spots_canvas_ref = useRef(null);
@@ -178,8 +186,36 @@ function CanvasMap({
         set_cat_to_spot,
         set_hovered_spot,
         set_pinned_spot,
-        cycle_zone_filter,
+        add_filter_if_allowed,
+        open_zone_context_menu: (x, y, system, number) => {
+            set_zone_context_menu({ visible: true, x, y, system, number });
+        },
     };
+
+    const zone_menu_actions = [
+        { action: "alert", add_label: "Add Alert", remove_label: "Remove Alert" },
+        { action: "show_only", add_label: "Add Show Only", remove_label: "Remove Show Only" },
+        { action: "hide", add_label: "Add Hide", remove_label: "Remove Hide" },
+    ].map(action_config => {
+        const build_candidate_filter = () => ({
+            action: action_config.action,
+            type: "zone",
+            value: zone_context_menu.number,
+            zone_system: zone_context_menu.system,
+            spotter_or_dx: "dx",
+        });
+        const get_candidate_status = () => get_filter_add_status(build_candidate_filter());
+
+        return {
+            label: () =>
+                get_candidate_status().status === "remove"
+                    ? action_config.remove_label
+                    : action_config.add_label,
+            onClick: () => {
+                add_filter_if_allowed(build_candidate_filter());
+            },
+        };
+    });
 
     const canvas_refs = {
         map_canvas_ref,
@@ -571,7 +607,12 @@ function CanvasMap({
             const clickable_zone = get_clickable_zone_label(x, y);
             if (clickable_zone != null) {
                 const { system, number } = clickable_zone;
-                callbacks_ref.current.cycle_zone_filter(system, number);
+                callbacks_ref.current.open_zone_context_menu(
+                    event.clientX,
+                    event.clientY,
+                    system,
+                    number,
+                );
                 return;
             }
 
@@ -915,6 +956,15 @@ function CanvasMap({
                     pinned_spot_data={pinned_spot_data}
                     distance={hovered_spot_distance ?? pinned_spot_distance}
                     azimuth={azimuth}
+                />
+            )}
+            {zone_context_menu.visible && (
+                <SpotContextMenu
+                    x={zone_context_menu.x}
+                    y={zone_context_menu.y}
+                    spot={null}
+                    on_close={() => set_zone_context_menu(state => ({ ...state, visible: false }))}
+                    actions={zone_menu_actions}
                 />
             )}
         </div>

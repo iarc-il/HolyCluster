@@ -4,6 +4,96 @@ import { bands, modes, continents } from "@/data/filters_data.js";
 
 const FiltersContext = createContext(undefined);
 const ZONE_CLICK_ACTION_CYCLE = ["hide", "show_only", "alert"];
+const FILTER_CONFLICTING_ACTIONS = {
+    show_only: "hide",
+    hide: "show_only",
+};
+
+function normalize_filter_text(value) {
+    return (value ?? "").toString().trim().toLowerCase();
+}
+
+function normalize_zone_value(value) {
+    return Number.parseInt(value, 10);
+}
+
+function normalize_filter_criteria(filter) {
+    const type = filter?.type;
+    const normalized = { type };
+
+    if (type === "prefix" || type === "suffix" || type === "entity") {
+        normalized.spotter_or_dx = filter.spotter_or_dx;
+        normalized.value = normalize_filter_text(filter.value);
+    } else if (type === "zone") {
+        normalized.zone_system = filter.zone_system || "cq";
+        normalized.value = normalize_zone_value(filter.value);
+    } else if (type === "comment") {
+        normalized.value = normalize_filter_text(filter.value);
+    }
+
+    return normalized;
+}
+
+function is_same_filter_criteria(filter_a, filter_b) {
+    const normalized_a = normalize_filter_criteria(filter_a);
+    const normalized_b = normalize_filter_criteria(filter_b);
+
+    if (normalized_a.type !== normalized_b.type) {
+        return false;
+    }
+
+    if (
+        normalized_a.type === "prefix" ||
+        normalized_a.type === "suffix" ||
+        normalized_a.type === "entity"
+    ) {
+        return (
+            normalized_a.spotter_or_dx === normalized_b.spotter_or_dx &&
+            normalized_a.value === normalized_b.value
+        );
+    }
+
+    if (normalized_a.type === "zone") {
+        return (
+            normalized_a.zone_system === normalized_b.zone_system &&
+            normalized_a.value === normalized_b.value
+        );
+    }
+
+    if (normalized_a.type === "comment") {
+        return normalized_a.value === normalized_b.value;
+    }
+
+    return true;
+}
+
+function filter_matches_action(filter, candidate_filter, action) {
+    return filter.action === action && is_same_filter_criteria(filter, candidate_filter);
+}
+
+function evaluate_filter_add_status(existing_filters, candidate_filter) {
+    const has_same_action = existing_filters.some(filter =>
+        filter_matches_action(filter, candidate_filter, candidate_filter.action),
+    );
+    if (has_same_action) {
+        return { status: "remove" };
+    }
+
+    const conflicting_action = FILTER_CONFLICTING_ACTIONS[candidate_filter.action] ?? null;
+    if (conflicting_action == null) {
+        return { status: "add" };
+    }
+
+    const has_conflicting_action = existing_filters.some(filter =>
+        filter_matches_action(filter, candidate_filter, conflicting_action),
+    );
+
+    if (has_conflicting_action) {
+        return { status: "replace", conflicting_action };
+    }
+
+    return { status: "add" };
+}
 
 function get_next_zone_action(current_action) {
     const current_index = ZONE_CLICK_ACTION_CYCLE.indexOf(current_action);
@@ -123,6 +213,45 @@ export const FiltersProvider = ({ children }) => {
         });
     }
 
+    function get_filter_add_status(candidate_filter) {
+        const existing_filters = callsign_filters?.filters ?? [];
+        return evaluate_filter_add_status(existing_filters, candidate_filter);
+    }
+
+    function add_filter_if_allowed(candidate_filter) {
+        setCallsignFilters(state => {
+            const existing_filters = state.filters ?? [];
+            const result = evaluate_filter_add_status(existing_filters, candidate_filter);
+            if (result.status === "remove") {
+                return {
+                    ...state,
+                    filters: existing_filters.filter(
+                        filter =>
+                            !filter_matches_action(
+                                filter,
+                                candidate_filter,
+                                candidate_filter.action,
+                            ),
+                    ),
+                };
+            }
+
+            const conflicting_action = FILTER_CONFLICTING_ACTIONS[candidate_filter.action] ?? null;
+            const filters_without_conflict =
+                conflicting_action == null
+                    ? existing_filters
+                    : existing_filters.filter(
+                          filter =>
+                              !filter_matches_action(filter, candidate_filter, conflicting_action),
+                      );
+
+            return {
+                ...state,
+                filters: [...filters_without_conflict, candidate_filter],
+            };
+        });
+    }
+
     return (
         <FiltersContext.Provider
             value={{
@@ -134,6 +263,8 @@ export const FiltersProvider = ({ children }) => {
                 cycle_zone_filter,
                 callsign_filters,
                 setCallsignFilters,
+                get_filter_add_status,
+                add_filter_if_allowed,
             }}
         >
             {children}
