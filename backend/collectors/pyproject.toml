@@ -18,7 +18,6 @@ dependencies = [
 ]
 
 [project.scripts]
-check_postgres = "collectors.db.check_postgres:main"
 cleanup_postgres = "collectors.db.cleanup_postgres_tables:main"
 collector = "collectors.main:main"
 

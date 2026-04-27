@@ -12,7 +12,7 @@ import CatControl from "./CatControl";
 import Bands from "./Bands";
 import use_radio from "@/hooks/useRadio";
 import Tabs from "@/components/ui/Tabs";
-import { bands } from "@/data/filters_data.js";
+import { bands, modes } from "@/data/filters_data.js";
 
 function SettingsIcon({ size }) {
     const { colors } = useColors();
@@ -55,7 +55,8 @@ const empty_temp_settings = {
     alert_sound_enabled: false,
     disabled_bands: Object.fromEntries(bands.map(band => [band, false])),
     show_disabled_bands: false,
-    show_only_latest_spot: false,
+    disabled_modes: Object.fromEntries(modes.map(mode => [mode, false])),
+    show_disabled_modes: false,
 };
 
 function Settings({ set_map_controls, set_radius_in_km }) {
@@ -70,9 +71,15 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const [should_close_settings, set_should_close_settings] = useState(true);
 
     function apply_settings(new_settings) {
-        const [lat, lon] = Maidenhead.toLatLon(new_settings.locator);
+        let locator;
+        if (locator && locator != "") {
+            locator = new_settings.locator;
+        } else {
+            locator = "JJ00AA";
+        }
+        const [lat, lon] = Maidenhead.toLatLon(locator);
         set_map_controls(map_controls => {
-            map_controls.location.displayed_locator = new_settings.locator || "JJ00AA";
+            map_controls.location.displayed_locator = locator;
             map_controls.location.location = [lon, lat];
             if (settings.default_radius != new_settings.default_radius) {
                 set_radius_in_km(new_settings.default_radius);
@@ -83,14 +90,24 @@ function Settings({ set_map_controls, set_radius_in_km }) {
 
         setFilters(current_filters => {
             const updated_bands = { ...current_filters.bands };
+            const updated_modes = { ...current_filters.modes };
+
             bands.forEach(band => {
                 if (new_settings.disabled_bands[band]) {
                     updated_bands[band] = false;
                 }
             });
+
+            modes.forEach(mode => {
+                if (new_settings.disabled_modes[mode]) {
+                    updated_modes[mode] = false;
+                }
+            });
+
             return {
                 ...current_filters,
                 bands: updated_bands,
+                modes: updated_modes,
             };
         });
     }
@@ -119,7 +136,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             ),
         },
         {
-            label: "My Bands",
+            label: "Bands & Modes",
             content: (
                 <Bands
                     temp_settings={temp_settings}

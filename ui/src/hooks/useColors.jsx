@@ -83,7 +83,7 @@ const base_theme = {
         160: "white",
     },
     map: {
-        background: "#FFFFFF",
+        background: "#e3f3f0",
         land: "#D7D7D7",
         land_borders: "#777777",
         graticule: "#c4c4c4",

@@ -1,4 +1,3 @@
-import SvgMap from "@/components/SvgMap.jsx";
 import CanvasMap from "@/components/CanvasMap/index.jsx";
 import MapControls from "@/components/MapControls.jsx";
 import TopBar from "@/components/TopBar.jsx";
@@ -7,7 +6,13 @@ import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import SidePanel from "@/components/SidePanel.jsx";
 import Tabs from "@/components/ui/Tabs.jsx";
-import { use_object_local_storage, is_matching_list, get_max_radius } from "@/utils.js";
+import Maidenhead from "maidenhead";
+import {
+    use_object_local_storage,
+    is_matching_list,
+    get_max_radius,
+    get_spots_center,
+} from "@/utils.js";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useColors } from "@/hooks/useColors";
@@ -17,8 +22,14 @@ import { useSettings } from "@/hooks/useSettings";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
+const AUTO_RADIUS_PADDING_KM = 1000;
+
 function MainContainer() {
-    const { dev_mode, set_dev_mode } = useColors();
+    const { dev_mode, set_dev_mode, colors } = useColors();
+
+    useEffect(() => {
+        document.body.style.backgroundColor = colors.theme.background;
+    }, [colors.theme.background]);
     const [toggled_ui, set_toggled_ui] = useState({ left_visible: true, right_visible: true });
     const { local_version } = use_radio();
     const { settings, set_settings } = useSettings();
@@ -28,6 +39,8 @@ function MainContainer() {
     const [map_controls, set_map_controls_inner] = use_object_local_storage("map_controls", {
         night: false,
         is_globe: false,
+        show_cq_zones: false,
+        show_itu_zones: false,
         location: {
             displayed_locator: "JJ00AA",
             // Longitude, latitude
@@ -37,6 +50,8 @@ function MainContainer() {
 
     const [prev_freqs, set_prev_freqs] = useState([]);
     const prev_freq_limit = 1; // Set the max number of undos a user can do
+    const map_wrapper_ref = useRef(null);
+    const [is_map_fullscreen, set_is_map_fullscreen] = useState(false);
 
     const set_map_controls = change_func => {
         set_map_controls_inner(previous_state => {
@@ -55,11 +70,25 @@ function MainContainer() {
 
     const [radius_in_km, set_radius_in_km] = useState(settings.default_radius);
     const [auto_radius, set_auto_radius] = useLocalStorage("auto_radius", true);
+    const prev_auto_radius_ref = useRef(auto_radius);
     useEffect(() => {
+        const just_activated = auto_radius && !prev_auto_radius_ref.current;
+        prev_auto_radius_ref.current = auto_radius;
+
         if (max_radius > 0 && auto_radius) {
-            set_radius_in_km(Math.round((max_radius + 500) / 1000) * 1000);
+            if (just_activated) {
+                const center = get_spots_center(spots);
+                if (center) {
+                    const [lon, lat] = center;
+                    const displayed_locator = new Maidenhead(lat, lon).locator.slice(0, 6);
+                    set_map_controls(state => {
+                        state.location = { displayed_locator, location: [lon, lat] };
+                    });
+                }
+            }
+            set_radius_in_km(Math.ceil((max_radius + AUTO_RADIUS_PADDING_KM) / 1000) * 1000);
         }
-    }, [max_radius, auto_radius, map_controls.location]);
+    }, [max_radius, auto_radius]);
 
     const { set_mode_and_freq, radio_freq, rig, radio_mode } = use_radio();
 
@@ -87,7 +116,6 @@ function MainContainer() {
         set_prev_freqs(prev_freqs.slice(1));
     }
 
-    const [canvas, set_canvas] = useLocalStorage("canvas", false);
     // The view with zero index is the Filters view
     const [active_view, set_active_view] = useLocalStorage("active_view", 0);
 
@@ -97,11 +125,9 @@ function MainContainer() {
         }
 
         if (event.ctrlKey && event.altKey) {
-            if (event.key == "c") {
-                set_canvas(!canvas);
-            } else if (event.key == "f") {
+            if (event.key == "f") {
                 set_filter_missing_flags(!filter_missing_flags);
-            } else if (event.key == "p") {
+            } else if (event.key == "p" || event.key == "s") {
                 set_dev_mode(!dev_mode);
             }
         }
@@ -114,38 +140,56 @@ function MainContainer() {
         };
     });
 
+    useEffect(() => {
+        function handle_fullscreen_change() {
+            set_is_map_fullscreen(document.fullscreenElement === map_wrapper_ref.current);
+        }
+
+        document.addEventListener("fullscreenchange", handle_fullscreen_change);
+        return () => {
+            document.removeEventListener("fullscreenchange", handle_fullscreen_change);
+        };
+    }, []);
+
+    function toggle_map_fullscreen() {
+        if (!map_wrapper_ref.current) {
+            return;
+        }
+
+        if (document.fullscreenElement === map_wrapper_ref.current) {
+            document.exitFullscreen();
+            return;
+        }
+
+        map_wrapper_ref.current.requestFullscreen();
+    }
+
     const is_md_device = useMediaQuery("only screen and (max-width : 768px)");
 
     const map = (
-        <div className="relative h-full w-full">
+        <div
+            ref={map_wrapper_ref}
+            className={`relative h-full w-full ${is_map_fullscreen ? "fixed inset-0 z-[80]" : ""}`}
+            style={{ backgroundColor: colors.theme.background }}
+        >
             <MapControls
                 map_controls={map_controls}
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
                 can_undo_cat={prev_freqs.length > 0}
                 undo_cat={undo_freq_change}
+                is_map_fullscreen={is_map_fullscreen}
+                toggle_map_fullscreen={toggle_map_fullscreen}
             />
-            {canvas ? (
-                <CanvasMap
-                    map_controls={map_controls}
-                    set_map_controls={set_map_controls}
-                    set_cat_to_spot={set_cat_to_spot}
-                    radius_in_km={radius_in_km}
-                    set_radius_in_km={set_radius_in_km}
-                    auto_radius={auto_radius}
-                    set_auto_radius={set_auto_radius}
-                />
-            ) : (
-                <SvgMap
-                    map_controls={map_controls}
-                    set_map_controls={set_map_controls}
-                    set_cat_to_spot={set_cat_to_spot}
-                    radius_in_km={radius_in_km}
-                    set_radius_in_km={set_radius_in_km}
-                    auto_radius={auto_radius}
-                    set_auto_radius={set_auto_radius}
-                />
-            )}
+            <CanvasMap
+                map_controls={map_controls}
+                set_map_controls={set_map_controls}
+                set_cat_to_spot={set_cat_to_spot}
+                radius_in_km={radius_in_km}
+                set_radius_in_km={set_radius_in_km}
+                auto_radius={auto_radius}
+                set_auto_radius={set_auto_radius}
+            />
         </div>
     );
 
@@ -192,10 +236,10 @@ function MainContainer() {
                         ]}
                     ></Tabs>
                 ) : (
-                    <>
-                        {map}
-                        {table}
-                    </>
+                    <div className="flex flex-1 min-w-0 h-full">
+                        <div className="flex-[0_0_57%] min-w-0">{map}</div>
+                        <div className="flex-[0_0_43%] min-w-0">{table}</div>
+                    </div>
                 )}
                 <SidePanel
                     toggled_ui={toggled_ui}

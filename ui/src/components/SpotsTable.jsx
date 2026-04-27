@@ -5,7 +5,7 @@ import Popup from "./ui/Popup";
 import CallsignSearch from "@/components/CallsignSearch.jsx";
 
 import { get_flag } from "@/data/flags.js";
-import { US_STATES } from "@/data/us_states.js";
+import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
@@ -116,13 +116,14 @@ function Spot(
     }
 
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
+    const state_name = STATES[spot.dx_country]?.[spot.dx_state];
 
     let dx_column;
     let dx_state;
     if (
         settings.show_state_abbreviations &&
         spot.dx_state &&
-        (spot.dx_country == "USA" || dev_mode)
+        (spot.dx_country == "USA" || spot.dx_country == "Canada" || dev_mode)
     ) {
         dx_state = `(${spot.dx_state})`;
     } else {
@@ -205,8 +206,10 @@ function Spot(
                             }}
                         >
                             {spot.dx_country}
-                            {spot.dx_state && spot.dx_country === "USA" && US_STATES[spot.dx_state]
-                                ? `, ${US_STATES[spot.dx_state]}`
+                            {spot.dx_state &&
+                            (spot.dx_country === "USA" || spot.dx_country === "Canada") &&
+                            state_name
+                                ? `, ${state_name}`
                                 : ""}
                         </div>
                     </Popup>
@@ -359,7 +362,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const { colors } = useColors();
     const { spots, new_spot_ids, current_freq_spots } = useSpotData();
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useSpotInteraction();
-    const { callsign_filters, setCallsignFilters } = useFilters();
+    const { get_filter_add_status, add_filter_if_allowed } = useFilters();
     const row_refs = useRef({});
 
     const parity_map = useRef(new Map());
@@ -375,42 +378,55 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         menu_type: "callsign",
     });
 
+    const build_filter_action = ({ add_label, remove_label, build_filter }) => ({
+        label: spot => {
+            const candidate_filter = build_filter(spot);
+            const status = get_filter_add_status(candidate_filter);
+            const resolved_add_label =
+                typeof add_label === "function" ? add_label(spot) : add_label;
+            const resolved_remove_label =
+                typeof remove_label === "function" ? remove_label(spot) : remove_label;
+            return status.status === "remove" ? resolved_remove_label : resolved_add_label;
+        },
+        onClick: spot => {
+            const candidate_filter = build_filter(spot);
+            add_filter_if_allowed(candidate_filter);
+        },
+    });
+
     const get_context_menu_actions = menu_type => {
         if (menu_type === "flag") {
             return [
-                {
-                    label: spot => `Create Alert for ${spot.dx_country}`,
-                    onClick: spot => {
-                        add_filter({
-                            action: "alert",
-                            type: "entity",
-                            value: spot.dx_country,
-                            spotter_or_dx: "dx",
-                        });
-                    },
-                },
-                {
-                    label: spot => `Show Only ${spot.dx_country}`,
-                    onClick: spot => {
-                        add_filter({
-                            action: "show_only",
-                            type: "entity",
-                            value: spot.dx_country,
-                            spotter_or_dx: "dx",
-                        });
-                    },
-                },
-                {
-                    label: spot => `Hide ${spot.dx_country}`,
-                    onClick: spot => {
-                        add_filter({
-                            action: "hide",
-                            type: "entity",
-                            value: spot.dx_country,
-                            spotter_or_dx: "dx",
-                        });
-                    },
-                },
+                build_filter_action({
+                    add_label: spot => `Add Alert for ${spot.dx_country}`,
+                    remove_label: spot => `Remove Alert for ${spot.dx_country}`,
+                    build_filter: spot => ({
+                        action: "alert",
+                        type: "entity",
+                        value: spot.dx_country,
+                        spotter_or_dx: "dx",
+                    }),
+                }),
+                build_filter_action({
+                    add_label: spot => `Add Show Only ${spot.dx_country}`,
+                    remove_label: spot => `Remove Show Only ${spot.dx_country}`,
+                    build_filter: spot => ({
+                        action: "show_only",
+                        type: "entity",
+                        value: spot.dx_country,
+                        spotter_or_dx: "dx",
+                    }),
+                }),
+                build_filter_action({
+                    add_label: spot => `Add Hide ${spot.dx_country}`,
+                    remove_label: spot => `Remove Hide ${spot.dx_country}`,
+                    build_filter: spot => ({
+                        action: "hide",
+                        type: "entity",
+                        value: spot.dx_country,
+                        spotter_or_dx: "dx",
+                    }),
+                }),
             ];
         } else {
             return [
@@ -429,42 +445,45 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                         set_pinned_spot(spot.id === pinned_spot ? null : spot.id);
                     },
                 },
-                {
-                    label: spot => "Create Alert",
-                    onClick: spot => {
+                build_filter_action({
+                    add_label: "Add Alert",
+                    remove_label: "Remove Alert",
+                    build_filter: spot => {
                         const is_spotter = context_menu.is_spotter;
-                        add_filter({
+                        return {
                             action: "alert",
                             type: "prefix",
                             value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
                             spotter_or_dx: is_spotter ? "spotter" : "dx",
-                        });
+                        };
                     },
-                },
-                {
-                    label: spot => "Create Show Only Filter",
-                    onClick: spot => {
+                }),
+                build_filter_action({
+                    add_label: "Add Show Only Filter",
+                    remove_label: "Remove Show Only Filter",
+                    build_filter: spot => {
                         const is_spotter = context_menu.is_spotter;
-                        add_filter({
+                        return {
                             action: "show_only",
                             type: "prefix",
                             value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
                             spotter_or_dx: is_spotter ? "spotter" : "dx",
-                        });
+                        };
                     },
-                },
-                {
-                    label: spot => "Create Hide Filter",
-                    onClick: spot => {
+                }),
+                build_filter_action({
+                    add_label: "Add Hide Filter",
+                    remove_label: "Remove Hide Filter",
+                    build_filter: spot => {
                         const is_spotter = context_menu.is_spotter;
-                        add_filter({
+                        return {
                             action: "hide",
                             type: "prefix",
                             value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
                             spotter_or_dx: is_spotter ? "spotter" : "dx",
-                        });
+                        };
                     },
-                },
+                }),
             ];
         }
     };
@@ -474,26 +493,13 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         const x = event.clientX;
         const y = event.clientY;
 
-        const menuWidth = 200;
-        const actions = get_context_menu_actions(menu_type);
-        const menuHeight = actions.length * 43;
-        const adjustedX = Math.min(x, window.innerWidth - menuWidth);
-        const adjustedY = Math.min(y, window.innerHeight - menuHeight);
-
         set_context_menu({
             visible: true,
-            x: adjustedX,
-            y: adjustedY,
+            x,
+            y,
             spot,
             is_spotter,
             menu_type,
-        });
-    };
-
-    const add_filter = filter => {
-        setCallsignFilters({
-            ...callsign_filters,
-            filters: [...callsign_filters.filters, filter],
         });
     };
 
@@ -512,7 +518,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     return (
         <>
             <div
-                className="relative text-sm h-full overflow-x-visible border-x-4 flex flex-col"
+                className="relative text-sm h-full overflow-x-visible border-x-4 flex flex-col w-full min-w-0"
                 style={{
                     borderColor: colors.theme.borders,
                     backgroundColor: colors.theme.background,

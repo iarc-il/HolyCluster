@@ -17,6 +17,11 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
     const [position, set_position] = useState(null);
 
     const is_hovered = is_parent_hovered || is_popup_hovered;
+    const disabled_filter_by_key = {
+        bands: settings.disabled_bands,
+        modes: settings.disabled_modes,
+    };
+    const disabled_filters = disabled_filter_by_key[filter_key] || {};
 
     function close_popup() {
         set_is_parent_hovered(false);
@@ -80,7 +85,7 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
                                 color="green"
                                 className="w-16 px-2"
                                 on_click={() => {
-                                    setFilterKeys(filter_key, true, settings.disabled_bands);
+                                    setFilterKeys(filter_key, true, disabled_filters);
                                     close_popup();
                                 }}
                             >

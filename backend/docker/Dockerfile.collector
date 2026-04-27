@@ -29,8 +29,10 @@ RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable --package collectors
 
+COPY --from=band_plans band_plans.json ./shared/band_plans.json
+
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["sh", "-c", "check_postgres && collector"]
+CMD ["collector"]
 
 
