@@ -250,33 +250,35 @@ export function draw_map(
 
     context.lineWidth = 1;
 
-    const zones_active = show_cq_zones || show_itu_zones;
+    if (!show_cq_zones && !show_itu_zones) {
+        if (is_globe) {
+            context.beginPath();
+            path_generator(d3.geoGraticule10());
+            context.strokeStyle = colors.map.graticule;
+            context.stroke();
+        } else {
+            const full_globe_radius = projection.scale() * Math.PI;
 
-    if (!zones_active && is_globe) {
-        context.beginPath();
-        path_generator(d3.geoGraticule10());
-        context.strokeStyle = colors.map.graticule;
-        context.stroke();
-    } else if (!zones_active) {
-        const full_globe_radius = projection.scale() * Math.PI;
+            context.beginPath();
+            generate_concentric_circles(dims.center_x, dims.center_y, full_globe_radius).forEach(
+                circle => {
+                    context.moveTo(circle.cx + circle.r, circle.cy);
+                    context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
+                },
+            );
+            context.strokeStyle = colors.map.graticule;
+            context.stroke();
 
-        context.beginPath();
-        generate_concentric_circles(dims.center_x, dims.center_y, full_globe_radius).forEach(
-            circle => {
-                context.moveTo(circle.cx + circle.r, circle.cy);
-                context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
-            },
-        );
-        context.strokeStyle = colors.map.graticule;
-        context.stroke();
-
-        context.beginPath();
-        generate_radial_lines(dims.center_x, dims.center_y, full_globe_radius, 15).forEach(line => {
-            context.moveTo(line.x1, line.y1);
-            context.lineTo(line.x2, line.y2);
-        });
-        context.strokeStyle = colors.map.graticule;
-        context.stroke();
+            context.beginPath();
+            generate_radial_lines(dims.center_x, dims.center_y, full_globe_radius, 15).forEach(
+                line => {
+                    context.moveTo(line.x1, line.y1);
+                    context.lineTo(line.x2, line.y2);
+                },
+            );
+            context.strokeStyle = colors.map.graticule;
+            context.stroke();
+        }
     }
 
     for (const [ci, feature_indices] of color_groups) {
