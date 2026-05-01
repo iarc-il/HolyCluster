@@ -549,6 +549,10 @@ function CanvasMap({
                     if (cur_proj && current_rot) {
                         cur_proj.rotate(current_rot);
                     }
+                    if (!gesture_active_ref.current) {
+                        is_drawing = false;
+                        return;
+                    }
                     do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
                         skip_shadow: true,
                         fast: true,
@@ -582,6 +586,10 @@ function CanvasMap({
                     const cur_proj = projection_ref.current;
                     if (cur_proj && current_rot) {
                         cur_proj.rotate(current_rot);
+                    }
+                    if (!gesture_active_ref.current) {
+                        is_drawing = false;
+                        return;
                     }
                     do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
                         skip_shadow: true,
@@ -790,6 +798,10 @@ function CanvasMap({
                         if (!is_drawing) {
                             is_drawing = true;
                             requestAnimationFrame(() => {
+                                if (!gesture_active_ref.current) {
+                                    is_drawing = false;
+                                    return;
+                                }
                                 do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
                                     skip_shadow: true,
                                     fast: true,
