@@ -911,23 +911,26 @@ function CanvasMap({
                 <g className="font-medium text-lg select-none">
                     <text x={text_x} y={text_y} fill={colors.theme.text}>
                         Radius: {settings.is_miles ? km_to_miles(radius_in_km) : radius_in_km}{" "}
-                        {settings.is_miles ? "Miles" : "KM"} | Auto
+                        {settings.is_miles ? "Miles" : "KM"}
+                        {!map_controls.is_globe ? " | Auto" : ""}
                     </text>
 
-                    <foreignObject
-                        x={text_x + 215}
-                        y={text_y - 18}
-                        width="67"
-                        height="40"
-                        className="pointer-events-auto"
-                    >
-                        <div xmlns="http://www.w3.org/1999/xhtml">
-                            <ToggleSVG
-                                auto_radius={auto_radius}
-                                set_auto_radius={set_auto_radius}
-                            />
-                        </div>
-                    </foreignObject>
+                    {!map_controls.is_globe && (
+                        <foreignObject
+                            x={text_x + 220}
+                            y={text_y - 18}
+                            width="67"
+                            height="40"
+                            className="pointer-events-auto"
+                        >
+                            <div xmlns="http://www.w3.org/1999/xhtml">
+                                <ToggleSVG
+                                    auto_radius={auto_radius}
+                                    set_auto_radius={set_auto_radius}
+                                />
+                            </div>
+                        </foreignObject>
+                    )}
 
                     <text x={text_x} y={text_y + text_height} fill={colors.theme.text}>
                         Center: {map_controls.location.displayed_locator}
