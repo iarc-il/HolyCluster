@@ -180,6 +180,7 @@ function MainContainer() {
                 undo_cat={undo_freq_change}
                 is_map_fullscreen={is_map_fullscreen}
                 toggle_map_fullscreen={toggle_map_fullscreen}
+                is_mobile={is_md_device}
             />
             <CanvasMap
                 map_controls={map_controls}
