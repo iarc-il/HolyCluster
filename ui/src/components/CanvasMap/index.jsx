@@ -471,6 +471,7 @@ function CanvasMap({
         // Pinch state
         let pinch_start_distance = null;
         let pinch_start_radius = null;
+        let suppress_tab_swipe = false;
 
         const TAP_THRESHOLD_PX = 5;
         const TAP_THRESHOLD_MS = 300;
@@ -478,6 +479,14 @@ function CanvasMap({
         function get_offset(event) {
             const rect = container.getBoundingClientRect();
             return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+        }
+
+        function is_inside_map_circle(x, y) {
+            const dx = x - dims.center_x;
+            const dy = y - dims.center_y;
+            const edge_buffer_px = 8;
+            const interactive_radius = dims.radius + edge_buffer_px;
+            return dx * dx + dy * dy <= interactive_radius * interactive_radius;
         }
 
         function get_pointer_distance() {
@@ -650,6 +659,11 @@ function CanvasMap({
             // To allow clicking on the auto zoom toggle button
             if (event.target.tagName !== "CANVAS") return;
             const pos = get_offset(event);
+
+            // On touch devices, only capture gestures when interaction starts on the map circle.
+            // Starting outside should allow parent swipe handlers (tab switching) to run.
+            if (event.pointerType !== "mouse" && !is_inside_map_circle(pos.x, pos.y)) return;
+
             pointers.set(event.pointerId, pos);
             container.setPointerCapture(event.pointerId);
 
@@ -668,8 +682,69 @@ function CanvasMap({
             }
         }
 
+        function on_touch_start_capture(event) {
+            const touch = event.touches[0];
+            if (!touch) return;
+            const rect = container.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            suppress_tab_swipe = is_inside_map_circle(x, y);
+
+            if (suppress_tab_swipe) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        }
+
+        function on_touch_move_capture(event) {
+            if (!suppress_tab_swipe) return;
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        function on_touch_end_capture(event) {
+            if (!suppress_tab_swipe) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.touches.length === 0) {
+                suppress_tab_swipe = false;
+            }
+        }
+
         function on_pointer_move(event) {
             const pos = get_offset(event);
+
+            if (!pointers.has(event.pointerId)) {
+                // Mouse hover (desktop only)
+                if (event.pointerType === "mouse" && gesture_state !== "dragging") {
+                    const clickable_zone = get_clickable_zone_label(pos.x, pos.y);
+                    const current_hovered_zone = render_state_ref.current.hovered_zone;
+                    if (
+                        current_hovered_zone.system !== clickable_zone?.system ||
+                        current_hovered_zone.number !== clickable_zone?.number
+                    ) {
+                        set_hovered_zone({
+                            system: clickable_zone?.system ?? null,
+                            number: clickable_zone?.number ?? null,
+                        });
+                    }
+
+                    const searched = get_data_from_shadow_canvas(pos.x, pos.y);
+                    const { hovered_spot: current_hovered } = render_state_ref.current;
+                    if (searched != null) {
+                        const [type, spot_id] = searched;
+                        if (current_hovered.source !== type || current_hovered.id !== spot_id) {
+                            callbacks_ref.current.set_hovered_spot({ source: type, id: spot_id });
+                        }
+                    } else {
+                        if (current_hovered.source != null || current_hovered.id != null) {
+                            callbacks_ref.current.set_hovered_spot({ source: null, id: null });
+                        }
+                    }
+                }
+                return;
+            }
+
             pointers.set(event.pointerId, pos);
 
             // If no buttons are pressed but we're still dragging, the pointerup event was missed
@@ -839,6 +914,22 @@ function CanvasMap({
         container.addEventListener("pointerleave", on_pointer_leave);
         container.addEventListener("pointercancel", on_pointer_leave);
         container.addEventListener("dblclick", on_dblclick);
+        container.addEventListener("touchstart", on_touch_start_capture, {
+            capture: true,
+            passive: false,
+        });
+        container.addEventListener("touchmove", on_touch_move_capture, {
+            capture: true,
+            passive: false,
+        });
+        container.addEventListener("touchend", on_touch_end_capture, {
+            capture: true,
+            passive: false,
+        });
+        container.addEventListener("touchcancel", on_touch_end_capture, {
+            capture: true,
+            passive: false,
+        });
 
         return () => {
             container.removeEventListener("pointerdown", on_pointer_down);
@@ -847,6 +938,10 @@ function CanvasMap({
             container.removeEventListener("pointerleave", on_pointer_leave);
             container.removeEventListener("pointercancel", on_pointer_leave);
             container.removeEventListener("dblclick", on_dblclick);
+            container.removeEventListener("touchstart", on_touch_start_capture, true);
+            container.removeEventListener("touchmove", on_touch_move_capture, true);
+            container.removeEventListener("touchend", on_touch_end_capture, true);
+            container.removeEventListener("touchcancel", on_touch_end_capture, true);
         };
     }, [dims]);
 
