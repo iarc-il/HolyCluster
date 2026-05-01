@@ -23,6 +23,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
 const AUTO_RADIUS_PADDING_KM = 1000;
+const AUTO_RADIUS_RECENTER_ENABLED = false;
 
 function MainContainer() {
     const { dev_mode, set_dev_mode, colors } = useColors();
@@ -76,7 +77,7 @@ function MainContainer() {
         prev_auto_radius_ref.current = auto_radius;
 
         if (max_radius > 0 && auto_radius) {
-            if (just_activated) {
+            if (AUTO_RADIUS_RECENTER_ENABLED && just_activated) {
                 const center = get_spots_center(spots);
                 if (center) {
                     const [lon, lat] = center;
