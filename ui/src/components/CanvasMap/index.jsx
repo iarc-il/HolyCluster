@@ -556,7 +556,14 @@ function CanvasMap({
             const dx = (x - last_drag_pos[0]) * scale;
             const dy = (y - last_drag_pos[1]) * scale;
             const cur = current_rot || projection.rotate();
-            current_rot = [cur[0] + dx, Math.max(-90, Math.min(90, cur[1] - dy)), cur[2]];
+            let rot_x = cur[0] + dx;
+            if (rot_x <= -180) {
+                rot_x = 180;
+            } else if (rot_x >= 180) {
+                rot_x = -180;
+            }
+            const rot_y = Math.max(-90, Math.min(90, cur[1] - dy));
+            current_rot = [rot_x, rot_y, cur[2]];
             last_drag_pos = [x, y];
 
             projection.rotate(current_rot);
