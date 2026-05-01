@@ -22,6 +22,30 @@ from shapely.validation import explain_validity
 AREA_RATIO_THRESHOLD = 5.0
 
 
+def norm_name(s):
+    if not s:
+        return ""
+    return "".join(ch.lower() for ch in str(s) if ch.isalnum())
+
+
+def build_auth_name_index(auth_features):
+    idx = {}
+    for i, feat in enumerate(auth_features):
+        p = feat.get("properties", {})
+        candidates = [
+            p.get("name"),
+            p.get("name_en"),
+            p.get("name_long"),
+            p.get("admin"),
+            p.get("formal_en"),
+        ]
+        for c in candidates:
+            n = norm_name(c)
+            if n:
+                idx.setdefault(n, []).append(i)
+    return idx
+
+
 def orient_geometry(geom):
     if geom.geom_type == "Polygon":
         return orient(geom, sign=-1.0)
@@ -148,14 +172,34 @@ def replace_with_authoritative(data, auth_path):
     with open(auth_path) as f:
         auth_data = json.load(f)
 
+    auth_features = auth_data["features"]
+    auth_shapes = [shape(feat["geometry"]) for feat in auth_features]
+    auth_name_idx = build_auth_name_index(auth_features)
+
     dxcc_shapes = [shape(feat["geometry"]) for feat in data["features"]]
     dxcc_names = [feat["properties"].get("dxcc_name", "") for feat in data["features"]]
 
     auth_groups = {}
-    for auth_feat in auth_data["features"]:
-        auth_s = shape(auth_feat["geometry"])
+
+    # Pass 1: direct name matching (safest)
+    for di, dxcc_name in enumerate(dxcc_names):
+        key = norm_name(dxcc_name)
+        if key in auth_name_idx:
+            auth_groups[di] = [auth_shapes[i] for i in auth_name_idx[key]]
+
+    # Pass 2: spatial fallback for unmatched DXCC features
+    for ai, auth_s in enumerate(auth_shapes):
         centroid = auth_s.centroid
+        matched = False
+        for grouped in auth_groups.values():
+            if auth_s in grouped:
+                matched = True
+                break
+        if matched:
+            continue
         for di, ds in enumerate(dxcc_shapes):
+            if di in auth_groups:
+                continue
             if ds.contains(centroid):
                 auth_groups.setdefault(di, []).append(auth_s)
                 break
@@ -163,9 +207,21 @@ def replace_with_authoritative(data, auth_path):
     replaced = 0
     for di, auth_shapes in auth_groups.items():
         ds = dxcc_shapes[di]
+        if not ds.is_valid:
+            ds = ds.buffer(0)
         auth_union = auth_shapes[0]
         for a in auth_shapes[1:]:
             auth_union = auth_union.union(a)
+        if not auth_union.is_valid:
+            auth_union = auth_union.buffer(0)
+        if auth_union.is_empty or auth_union.area == 0:
+            continue
+
+        # Guard against obvious mismatches (e.g. France -> Monaco)
+        overlap_ratio = ds.intersection(auth_union).area / auth_union.area
+        if overlap_ratio < 0.5:
+            continue
+
         if ds.area > auth_union.area * AREA_RATIO_THRESHOLD:
             name = dxcc_names[di]
             print(f"Replacing feature {di} ({name}): "
