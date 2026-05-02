@@ -151,17 +151,27 @@ export function find_zone_number(system, lon_lat) {
 }
 
 export function toggle_zone_selection(zone_filters, system, zone_number) {
-    const selected_key = system === "cq" ? "cq_selected" : "itu_selected";
-    const current_selected = zone_filters[selected_key] ?? [];
-    const has_zone = current_selected.includes(zone_number);
+    const disabled_by_system = zone_filters.disabled_by_system ?? {};
+    const current_selected = disabled_by_system[system] ?? [];
+    const normalized_zone = normalize_zone_value(system, zone_number);
+    if (normalized_zone == null) {
+        return zone_filters;
+    }
+
+    const has_zone = current_selected.includes(normalized_zone);
     const next_selected = has_zone
-        ? current_selected.filter(value => value !== zone_number)
-        : [...current_selected, zone_number].sort((a, b) => a - b);
+        ? current_selected.filter(value => value !== normalized_zone)
+        : [...current_selected, normalized_zone].sort((a, b) => {
+              if (typeof a === "number" && typeof b === "number") return a - b;
+              return String(a).localeCompare(String(b));
+          });
 
     return {
         ...zone_filters,
-        active_system: system,
-        [selected_key]: next_selected,
+        disabled_by_system: {
+            ...disabled_by_system,
+            [system]: next_selected,
+        },
     };
 }
 

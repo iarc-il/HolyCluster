@@ -118,9 +118,12 @@ export const FiltersProvider = ({ children }) => {
         time_limit: 3600,
         show_only_latest_spot: false,
         zone_filters: {
-            active_system: null,
-            cq_selected: [],
-            itu_selected: [],
+            disabled_by_system: {
+                cq: [],
+                itu: [],
+                us_state: [],
+                ca_state: [],
+            },
         },
     };
 

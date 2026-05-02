@@ -32,27 +32,40 @@ function MapControls({
     const mode_button_ref = useRef(null);
     const [show_mode_popup, set_show_mode_popup] = useState(false);
 
-    const zone_filters = filters.zone_filters;
-    const active_zone_system = zone_filters?.active_system;
-    const active_zone_disabled =
-        active_zone_system === "cq"
-            ? (zone_filters?.cq_selected ?? [])
-            : active_zone_system === "itu"
-              ? (zone_filters?.itu_selected ?? [])
-              : [];
+    const zone_filters = filters.zone_filters ?? {};
+    const disabled_by_system = zone_filters.disabled_by_system ?? {};
     const MAX_VISIBLE_DISABLED_ZONES = 8;
-    const visible_disabled_zones = active_zone_disabled.slice(0, MAX_VISIBLE_DISABLED_ZONES);
-    const hidden_disabled_count = Math.max(
-        0,
-        active_zone_disabled.length - MAX_VISIBLE_DISABLED_ZONES,
-    );
-    const disabled_zones_text =
-        visible_disabled_zones.join(",") +
-        (hidden_disabled_count > 0 ? ` +${hidden_disabled_count}` : "");
     const cq_zones_on = map_controls.show_cq_zones;
     const itu_zones_on = map_controls.show_itu_zones;
     const us_states_on = map_controls.show_us_states ?? false;
     const can_states_on = map_controls.show_can_states ?? false;
+
+    const active_zone_systems = cq_zones_on
+        ? ["cq"]
+        : itu_zones_on
+          ? ["itu"]
+          : [...(us_states_on ? ["us_state"] : []), ...(can_states_on ? ["ca_state"] : [])];
+
+    const zone_system_labels = {
+        cq: "CQ",
+        itu: "ITU",
+        us_state: "US",
+        ca_state: "CA",
+    };
+
+    const active_disabled_summaries = active_zone_systems
+        .map(system => {
+            const disabled = disabled_by_system[system] ?? [];
+            if (disabled.length === 0) return null;
+            const visible = disabled.slice(0, MAX_VISIBLE_DISABLED_ZONES);
+            const hidden_count = Math.max(0, disabled.length - MAX_VISIBLE_DISABLED_ZONES);
+            return {
+                system,
+                disabled,
+                text: visible.join(",") + (hidden_count > 0 ? ` +${hidden_count}` : ""),
+            };
+        })
+        .filter(Boolean);
 
     function reset_map() {
         const locator = settings.locator || "JJ00AA";
@@ -194,15 +207,6 @@ function MapControls({
                                         state.show_can_states = false;
                                     }
                                 });
-                                setFilters(state => ({
-                                    ...state,
-                                    zone_filters: {
-                                        ...state.zone_filters,
-                                        active_system: show_cq
-                                            ? "cq"
-                                            : state.zone_filters.active_system,
-                                    },
-                                }));
                             }}
                             className="flex items-center justify-center relative"
                         >
@@ -224,15 +228,6 @@ function MapControls({
                                         state.show_can_states = false;
                                     }
                                 });
-                                setFilters(state => ({
-                                    ...state,
-                                    zone_filters: {
-                                        ...state.zone_filters,
-                                        active_system: show_itu
-                                            ? "itu"
-                                            : state.zone_filters.active_system,
-                                    },
-                                }));
                             }}
                             className="flex items-center justify-center relative"
                         >
@@ -251,13 +246,6 @@ function MapControls({
                                     state.show_cq_zones = false;
                                     state.show_itu_zones = false;
                                 });
-                                setFilters(state => ({
-                                    ...state,
-                                    zone_filters: {
-                                        ...state.zone_filters,
-                                        active_system: show_us ? "us_state" : state.zone_filters.active_system,
-                                    },
-                                }));
                             }}
                             className="flex items-center justify-center relative"
                             title="US states overlay"
@@ -277,15 +265,6 @@ function MapControls({
                                     state.show_cq_zones = false;
                                     state.show_itu_zones = false;
                                 });
-                                setFilters(state => ({
-                                    ...state,
-                                    zone_filters: {
-                                        ...state.zone_filters,
-                                        active_system: show_can
-                                            ? "ca_state"
-                                            : state.zone_filters.active_system,
-                                    },
-                                }));
                             }}
                             className="flex items-center justify-center relative"
                             title="Canada states overlay"
@@ -298,36 +277,40 @@ function MapControls({
                             </span>
                         </button>
                     </div>
-                    {active_zone_disabled.length > 0 && (
+                    {active_disabled_summaries.length > 0 && (
                         <div
-                            className="flex items-center gap-2 text-xs"
+                            className="flex flex-col items-end gap-1 text-xs"
                             style={{ color: colors.theme.text }}
                         >
-                            <span
-                                className="max-w-46"
-                                title={`${active_zone_system?.toUpperCase()} off: ${active_zone_disabled.join(",")}`}
-                            >
-                                {active_zone_system?.toUpperCase()} off: {disabled_zones_text}
-                            </span>
-                            <button
-                                className="underline"
-                                onClick={() => {
-                                    const selected_key =
-                                        active_zone_system === "cq"
-                                            ? "cq_selected"
-                                            : "itu_selected";
-                                    setFilters(state => ({
-                                        ...state,
-                                        zone_filters: {
-                                            ...state.zone_filters,
-                                            [selected_key]: [],
-                                        },
-                                    }));
-                                }}
-                                title="Enable all zones in active system"
-                            >
-                                Reset
-                            </button>
+                            {active_disabled_summaries.map(summary => (
+                                <div key={summary.system} className="flex items-center gap-2">
+                                    <span
+                                        className="max-w-46"
+                                        title={`${zone_system_labels[summary.system]} off: ${summary.disabled.join(",")}`}
+                                    >
+                                        {zone_system_labels[summary.system]} off: {summary.text}
+                                    </span>
+                                    <button
+                                        className="underline"
+                                        onClick={() => {
+                                            setFilters(state => ({
+                                                ...state,
+                                                zone_filters: {
+                                                    ...state.zone_filters,
+                                                    disabled_by_system: {
+                                                        ...(state.zone_filters
+                                                            ?.disabled_by_system ?? {}),
+                                                        [summary.system]: [],
+                                                    },
+                                                },
+                                            }));
+                                        }}
+                                        title={`Enable all zones in ${zone_system_labels[summary.system]}`}
+                                    >
+                                        Reset
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>
