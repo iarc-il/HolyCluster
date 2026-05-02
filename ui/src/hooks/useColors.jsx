@@ -101,6 +101,10 @@ const base_theme = {
         alert_border: "white",
         dxpedition_alert: "#FFD700",
     },
+    map_controls: {
+        zone_label_active: "#FFFFFF",
+        zone_label_inactive: "#9CA3AF",
+    },
 };
 
 function merge_theme(overrides) {
@@ -117,6 +121,10 @@ function merge_theme(overrides) {
 
 const themes = {
     Light: merge_theme({
+        map_controls: {
+            zone_label_active: "#111827",
+            zone_label_inactive: "#6B7280",
+        },
         text: {
             SHF: "default_dark",
             UHF: "default_dark",

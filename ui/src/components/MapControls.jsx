@@ -66,6 +66,8 @@ function MapControls({
             };
         })
         .filter(Boolean);
+    const zone_label_active_color = colors.map_controls.zone_label_active;
+    const zone_label_inactive_color = colors.map_controls.zone_label_inactive;
 
     function reset_map() {
         const locator = settings.locator || "JJ00AA";
@@ -212,7 +214,11 @@ function MapControls({
                         >
                             <span
                                 className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
-                                style={{ color: cq_zones_on ? "#FFFFFF" : "#9CA3AF" }}
+                                style={{
+                                    color: cq_zones_on
+                                        ? zone_label_active_color
+                                        : zone_label_inactive_color,
+                                }}
                             >
                                 CQ
                             </span>
@@ -233,7 +239,11 @@ function MapControls({
                         >
                             <span
                                 className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
-                                style={{ color: itu_zones_on ? "#FFFFFF" : "#9CA3AF" }}
+                                style={{
+                                    color: itu_zones_on
+                                        ? zone_label_active_color
+                                        : zone_label_inactive_color,
+                                }}
                             >
                                 ITU
                             </span>
@@ -252,7 +262,11 @@ function MapControls({
                         >
                             <span
                                 className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
-                                style={{ color: us_states_on ? "#FFFFFF" : "#9CA3AF" }}
+                                style={{
+                                    color: us_states_on
+                                        ? zone_label_active_color
+                                        : zone_label_inactive_color,
+                                }}
                             >
                                 US
                             </span>
@@ -271,7 +285,11 @@ function MapControls({
                         >
                             <span
                                 className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
-                                style={{ color: can_states_on ? "#FFFFFF" : "#9CA3AF" }}
+                                style={{
+                                    color: can_states_on
+                                        ? zone_label_active_color
+                                        : zone_label_inactive_color,
+                                }}
                             >
                                 CA
                             </span>
