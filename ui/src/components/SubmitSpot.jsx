@@ -11,7 +11,6 @@ import Spinner from "@/components/ui/Spinner.jsx";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
-import { is_same_base_callsign } from "@/utils.js";
 import { band_plans } from "@/data/band_plans.js";
 
 function SubmitIcon({ size }) {
@@ -171,7 +170,6 @@ function SubmitSpot({ dev_mode }) {
     }
     const is_stuart_mode = find_base_callsign(settings.callsign || "") === "VE9CF";
     const [stuart_less_noise, set_stuart_less_noise] = useLocalStorage("stuart_less_noise", false);
-    let is_self_spotting = is_same_base_callsign(settings.callsign, temp_data.callsign);
 
     return (
         <>
@@ -346,18 +344,6 @@ function SubmitSpot({ dev_mode }) {
                         )}
                     </tbody>
                 </table>
-                {is_self_spotting && !is_stuart_mode ? (
-                    <p
-                        className="pb-2 px-2 text-center text-lg"
-                        style={{ color: colors.theme.text }}
-                    >
-                        Usually, self spotting is discourged
-                        <br />
-                        in the ham radio community
-                    </p>
-                ) : (
-                    ""
-                )}
                 {submit_status.status == "failure" || not_connected ? (
                     <p className="pb-2 px-2 text-red-400">
                         {formatted_state}: {formatted_failure}
