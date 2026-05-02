@@ -338,6 +338,8 @@ function CanvasMap({
         map_controls.is_globe,
         map_controls.show_cq_zones,
         map_controls.show_itu_zones,
+        map_controls.show_us_states,
+        map_controls.show_can_states,
         callsign_filters.filters,
         hovered_zone.system,
         hovered_zone.number,
