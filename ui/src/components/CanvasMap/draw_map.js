@@ -194,6 +194,56 @@ function draw_zone_labels_for_system(
     }
 }
 
+function get_dxcc_label_from_prefix(dxcc_prefix) {
+    if (typeof dxcc_prefix !== "string") return "";
+    const first_item = dxcc_prefix.split(",")[0]?.trim();
+    if (!first_item) return "";
+    const first_prefix = first_item.split("-")[0]?.trim();
+    return first_prefix || "";
+}
+
+function draw_dxcc_labels(context, projection, is_globe) {
+    const dxcc_path = d3.geoPath().projection(projection);
+    const MIN_LABEL_AREA_PX = ZONE_LABEL_RENDER_MIN_AREA_PX;
+    const MIN_FONT_PX = 9;
+    const MAX_FONT_PX = 14;
+    const FONT_SCALE = 0.25;
+
+    const rotation = projection.rotate();
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    for (const feature of dxcc_map.features) {
+        const area_px = dxcc_path.area(feature);
+        if (!Number.isFinite(area_px) || area_px < MIN_LABEL_AREA_PX) continue;
+
+        const centroid = d3.geoCentroid(feature);
+        if (!centroid || centroid.length < 2) continue;
+        const [lon, lat] = centroid;
+
+        if (is_globe) {
+            const dist = d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]);
+            if (dist > Math.PI / 2) continue;
+        }
+
+        const pos = projection([lon, lat]);
+        if (!pos) continue;
+        const [x, y] = pos;
+        if (!isFinite(x) || !isFinite(y)) continue;
+
+        const label = get_dxcc_label_from_prefix(feature?.properties?.dxcc_prefix);
+        if (!label) continue;
+
+        const font_px = Math.max(
+            MIN_FONT_PX,
+            Math.min(MAX_FONT_PX, Math.sqrt(area_px) * FONT_SCALE),
+        );
+        context.font = `bold ${Math.round(font_px)}px sans-serif`;
+        context.fillStyle = "rgba(0, 0, 0, 0.8)";
+        context.fillText(label, x, y);
+    }
+}
+
 export function draw_zone_labels(
     context,
     dims,
@@ -205,6 +255,7 @@ export function draw_zone_labels(
     show_can_states,
     hovered_zone,
     callsign_filters,
+    dev_mode,
 ) {
     context.save();
     context.beginPath();
@@ -231,6 +282,10 @@ export function draw_zone_labels(
             hovered_zone?.system === system ? hovered_zone.number : null,
             zone_action_map,
         );
+    }
+
+    if (dev_mode) {
+        draw_dxcc_labels(context, projection, is_globe);
     }
 
     context.restore();

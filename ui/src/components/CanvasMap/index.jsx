@@ -43,6 +43,7 @@ function do_redraw(
         colors,
         map_controls,
         callsign_filters,
+        dev_mode,
         settings,
         spots,
         hovered_spot,
@@ -130,6 +131,7 @@ function do_redraw(
                 map_controls.show_can_states,
                 hovered_zone,
                 callsign_filters,
+                dev_mode,
             );
         });
     }
@@ -160,7 +162,7 @@ function CanvasMap({
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
-    const { colors } = useColors();
+    const { colors, dev_mode } = useColors();
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
     const [zone_context_menu, set_zone_context_menu] = useState({
         visible: false,
@@ -262,6 +264,7 @@ function CanvasMap({
         callsign_filters,
         hovered_zone,
         home_location,
+        dev_mode,
     };
 
     useMemo(() => {
@@ -393,6 +396,7 @@ function CanvasMap({
                     rs.map_controls.show_can_states,
                     rs.hovered_zone,
                     rs.callsign_filters,
+                    rs.dev_mode,
                 );
             });
         }
