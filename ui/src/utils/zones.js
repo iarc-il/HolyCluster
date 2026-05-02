@@ -1,27 +1,15 @@
 import * as d3 from "d3";
-import rewind from "@mapbox/geojson-rewind";
 import cq_zones from "@/maps/cqzones.json";
 import itu_zones from "@/maps/ituzones.json";
 
-function clone_feature(feature) {
-    if (typeof structuredClone === "function") {
-        return structuredClone(feature);
-    }
-    return JSON.parse(JSON.stringify(feature));
-}
-
-function prepare_features(features) {
-    return features.map(feature => rewind(clone_feature(feature), true));
-}
-
 const ZONE_CONFIG = {
     cq: {
-        features: prepare_features(cq_zones.features),
+        features: cq_zones.features,
         number_key: "cq_zone_number",
         loc_key: "cq_zone_name_loc",
     },
     itu: {
-        features: prepare_features(itu_zones.features),
+        features: itu_zones.features,
         number_key: "itu_zone_number",
         loc_key: "itu_zone_name_loc",
     },
