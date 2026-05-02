@@ -2,12 +2,50 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { modes, continents } from "@/data/filters_data.js";
 import { shorten_dxcc } from "@/data/flags.js";
+import { find_zone_number } from "@/utils/zones.js";
 
 function normalize_band(band) {
     if (band == 2) return "VHF";
     if (band == 0.7) return "UHF";
     if (band < 1) return "SHF";
     return band;
+}
+
+function has_valid_enriched_value(value) {
+    return value !== undefined && value !== null && value !== "" && value !== -1 && value !== "-1";
+}
+
+function enrich_spot_zones_if_missing(spot) {
+    if (!has_valid_enriched_value(spot.dx_cq_zone)) {
+        spot.dx_cq_zone = find_zone_number("cq", spot.dx_loc);
+    }
+    if (!has_valid_enriched_value(spot.dx_itu_zone)) {
+        spot.dx_itu_zone = find_zone_number("itu", spot.dx_loc);
+    }
+    if (!has_valid_enriched_value(spot.spotter_cq_zone)) {
+        spot.spotter_cq_zone = find_zone_number("cq", spot.spotter_loc);
+    }
+    if (!has_valid_enriched_value(spot.spotter_itu_zone)) {
+        spot.spotter_itu_zone = find_zone_number("itu", spot.spotter_loc);
+    }
+
+    if (!has_valid_enriched_value(spot.dx_state)) {
+        if (spot.dx_country === "USA") {
+            spot.dx_state = find_zone_number("us_state", spot.dx_loc);
+        } else if (spot.dx_country === "Canada") {
+            spot.dx_state = find_zone_number("ca_province", spot.dx_loc);
+        }
+    }
+
+    if (!has_valid_enriched_value(spot.spotter_state)) {
+        if (spot.spotter_country === "USA") {
+            spot.spotter_state = find_zone_number("us_state", spot.spotter_loc);
+        } else if (spot.spotter_country === "Canada") {
+            spot.spotter_state = find_zone_number("ca_province", spot.spotter_loc);
+        }
+    }
+
+    return spot;
 }
 
 export default function useSpotWebSocket() {
@@ -47,7 +85,7 @@ export default function useSpotWebSocket() {
                     spot.band = normalize_band(spot.band);
                     spot.dx_country = shorten_dxcc(spot.dx_country);
                     spot.spotter_country = shorten_dxcc(spot.spotter_country);
-                    return spot;
+                    return enrich_spot_zones_if_missing(spot);
                 })
                 .filter(spot => {
                     if (!modes.includes(spot.mode)) {
