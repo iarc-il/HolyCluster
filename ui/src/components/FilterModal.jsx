@@ -96,6 +96,24 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
         }
     }, [temp_data]);
 
+    function to_modal_filter_data(filter_data) {
+        if (!filter_data) {
+            return empty_filter_data;
+        }
+
+        if (
+            filter_data.type === "zone" &&
+            (filter_data.zone_system === "us_state" || filter_data.zone_system === "ca_province")
+        ) {
+            return {
+                ...filter_data,
+                type: "zone_region",
+            };
+        }
+
+        return filter_data;
+    }
+
     return (
         <Modal
             title={
@@ -119,14 +137,15 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
             on_open={() => {
                 set_error_message("");
                 if (initial_data != null) {
-                    set_temp_data(initial_data);
+                    set_temp_data(to_modal_filter_data(initial_data));
                 }
             }}
             on_apply={() => {
                 const draft_filter =
-                    temp_data.type == "zone"
+                    temp_data.type == "zone" || temp_data.type == "zone_region"
                         ? {
                               ...temp_data,
+                              type: "zone",
                               value: normalize_zone_value(
                                   temp_data.zone_system || "cq",
                                   temp_data.value,
@@ -134,7 +153,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                           }
                         : temp_data;
 
-                if (temp_data.type == "zone") {
+                if (temp_data.type == "zone" || temp_data.type == "zone_region") {
                     if (!is_valid_zone_number(temp_data.zone_system, temp_data.value)) {
                         set_error_message("Please choose a valid zone.");
                         return false;
@@ -144,7 +163,8 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                 const is_value_required =
                     temp_data.type != "self_spotters" &&
                     temp_data.type != "dxpeditions" &&
-                    temp_data.type != "zone";
+                    temp_data.type != "zone" &&
+                    temp_data.type != "zone_region";
                 if (is_value_required && temp_data.value.toString().trim().length == 0) {
                     set_error_message("Please enter a filter value.");
                     return false;
@@ -179,6 +199,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                         { label: "Prefix", value: "prefix" },
                         { label: "Suffix", value: "suffix" },
                         { label: "Entity", value: "entity" },
+                        { label: "US/Canada", value: "zone_region" },
                         { label: "Zone", value: "zone" },
                         { label: "Comment", value: "comment" },
                         { label: "Self Spotters", value: "self_spotters" },
@@ -188,8 +209,19 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                     temp_data={temp_data}
                     set_temp_data={set_temp_data}
                     build_temp_data={(temp_data, field, value) => {
-                        if (value == "entity" || temp_data.type == "entity") {
-                            return { ...temp_data, [field]: value, value: "" };
+                        if (
+                            value == "entity" ||
+                            temp_data.type == "entity" ||
+                            value == "zone_region"
+                        ) {
+                            return {
+                                ...temp_data,
+                                [field]: value,
+                                value: value == "zone_region" ? "AL" : "",
+                                zone_system:
+                                    value == "zone_region" ? "us_state" : temp_data.zone_system,
+                                spotter_or_dx: "dx",
+                            };
                         } else if (value == "zone") {
                             return {
                                 ...temp_data,
@@ -248,6 +280,55 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                             {zone_number}
                                         </option>
                                     ))}
+                                </Select>
+                            </div>
+                        </div>
+                    </>
+                ) : temp_data.type == "zone_region" ? (
+                    <>
+                        <hr />
+                        <SelectionLine
+                            states={[
+                                { label: "US", value: "us_state" },
+                                { label: "Canada", value: "ca_province" },
+                            ]}
+                            field="zone_system"
+                            temp_data={temp_data}
+                            set_temp_data={set_temp_data}
+                            build_temp_data={(current_data, field, system_value) => {
+                                const zones = get_valid_zone_values(system_value);
+                                const next_zone = zones.includes(current_data.value)
+                                    ? current_data.value
+                                    : (zones[0] ?? "");
+                                return {
+                                    ...current_data,
+                                    [field]: system_value,
+                                    value: String(next_zone),
+                                    spotter_or_dx: "dx",
+                                };
+                            }}
+                        />
+                        <div className="flex justify-start space-x-5 items-center w-full">
+                            <div>state/province:</div>
+                            <div>
+                                <Select
+                                    value={temp_data.value}
+                                    className="h-10 w-40"
+                                    onChange={event => {
+                                        set_temp_data({
+                                            ...temp_data,
+                                            value: event.target.value,
+                                            spotter_or_dx: "dx",
+                                        });
+                                    }}
+                                >
+                                    {get_valid_zone_values(temp_data.zone_system || "us_state").map(
+                                        zone_number => (
+                                            <option key={zone_number} value={zone_number}>
+                                                {zone_number}
+                                            </option>
+                                        ),
+                                    )}
                                 </Select>
                             </div>
                         </div>

@@ -72,7 +72,13 @@ function SpecialFilterBadge({ type, listeners, attributes }) {
 }
 
 function ZoneFilterBadge({ filter, listeners, attributes }) {
-    const system_label = (filter.zone_system || "cq").toUpperCase();
+    const system_label =
+        {
+            cq: "CQ",
+            itu: "ITU",
+            us_state: "US",
+            ca_province: "CA",
+        }[filter.zone_system || "cq"] ?? (filter.zone_system || "cq").toUpperCase();
     return (
         <div
             {...listeners}

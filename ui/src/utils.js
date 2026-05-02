@@ -1,7 +1,7 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect } from "react";
 import Maidenhead from "maidenhead";
-import { find_zone_number } from "@/utils/zones.js";
+import { find_zone_number, normalize_zone_value } from "@/utils/zones.js";
 
 export function to_radian(deg) {
     return deg * (Math.PI / 180);
@@ -39,8 +39,8 @@ export function is_matching_list(list, spot) {
     return list.some(filter => {
         if (filter.type == "zone") {
             const system = filter.zone_system;
-            const selected_zone = Number.parseInt(filter.value, 10);
-            if (!system || !Number.isFinite(selected_zone)) {
+            const selected_zone = normalize_zone_value(system, filter.value);
+            if (!system || selected_zone == null) {
                 return false;
             }
             const spot_zone = find_zone_number(system, spot.dx_loc);

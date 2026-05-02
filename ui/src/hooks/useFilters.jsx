@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext } from "react";
 import { use_object_local_storage } from "@/utils.js";
 import { bands, modes, continents } from "@/data/filters_data.js";
 import { normalize_zone_value } from "@/utils/zones.js";
