@@ -2,6 +2,7 @@ import * as d3 from "d3";
 import cq_zones from "@/maps/cqzones.json";
 import itu_zones from "@/maps/ituzones.json";
 import us_states from "@/maps/us_states.json";
+import ca_provinces from "@/maps/canada_provinces.json";
 
 export const ZONE_CONFIG = {
     cq: {
@@ -26,7 +27,7 @@ export const ZONE_CONFIG = {
         value_type: "string",
     },
     ca_province: {
-        zones: { type: "FeatureCollection", features: [] },
+        zones: ca_provinces,
         number_key: "state_code",
         label_key: "state_code",
         loc_key: "state_name_loc",
