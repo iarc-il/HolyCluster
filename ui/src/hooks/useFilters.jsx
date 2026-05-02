@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect } from "react";
 import { use_object_local_storage } from "@/utils.js";
 import { bands, modes, continents } from "@/data/filters_data.js";
+import { normalize_zone_value } from "@/utils/zones.js";
 
 const FiltersContext = createContext(undefined);
 const ZONE_CLICK_ACTION_CYCLE = ["hide", "show_only", "alert"];
@@ -13,10 +14,6 @@ function normalize_filter_text(value) {
     return (value ?? "").toString().trim().toLowerCase();
 }
 
-function normalize_zone_value(value) {
-    return Number.parseInt(value, 10);
-}
-
 function normalize_filter_criteria(filter) {
     const type = filter?.type;
     const normalized = { type };
@@ -26,7 +23,7 @@ function normalize_filter_criteria(filter) {
         normalized.value = normalize_filter_text(filter.value);
     } else if (type === "zone") {
         normalized.zone_system = filter.zone_system || "cq";
-        normalized.value = normalize_zone_value(filter.value);
+        normalized.value = normalize_zone_value(normalized.zone_system, filter.value);
     } else if (type === "comment") {
         normalized.value = normalize_filter_text(filter.value);
     }
@@ -183,7 +180,7 @@ export const FiltersProvider = ({ children }) => {
             const is_same_zone_filter = filter =>
                 filter.type === "zone" &&
                 filter.zone_system === system &&
-                Number.parseInt(filter.value, 10) === number;
+                normalize_zone_value(system, filter.value) === normalize_zone_value(system, number);
             const existing_filter = current_filters.find(is_same_zone_filter);
             const next_action = get_next_zone_action(existing_filter?.action);
             const filters_without_zone = current_filters.filter(
@@ -213,8 +210,10 @@ export const FiltersProvider = ({ children }) => {
         });
     }
 
-    function get_filter_add_status(candidate_filter) {
-        const existing_filters = callsign_filters?.filters ?? [];
+    function get_filter_add_status(candidate_filter, exclude_filter_index = null) {
+        const existing_filters = (callsign_filters?.filters ?? []).filter(
+            (_, index) => exclude_filter_index == null || index !== exclude_filter_index,
+        );
         return evaluate_filter_add_status(existing_filters, candidate_filter);
     }
 

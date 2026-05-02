@@ -51,6 +51,8 @@ function MapControls({
         (hidden_disabled_count > 0 ? ` +${hidden_disabled_count}` : "");
     const cq_zones_on = map_controls.show_cq_zones;
     const itu_zones_on = map_controls.show_itu_zones;
+    const us_states_on = map_controls.show_us_states ?? false;
+    const can_states_on = map_controls.show_can_states ?? false;
 
     function reset_map() {
         const locator = settings.locator || "JJ00AA";
@@ -188,6 +190,8 @@ function MapControls({
                                     state.show_cq_zones = show_cq;
                                     if (show_cq) {
                                         state.show_itu_zones = false;
+                                        state.show_us_states = false;
+                                        state.show_can_states = false;
                                     }
                                 });
                                 setFilters(state => ({
@@ -216,6 +220,8 @@ function MapControls({
                                     state.show_itu_zones = show_itu;
                                     if (show_itu) {
                                         state.show_cq_zones = false;
+                                        state.show_us_states = false;
+                                        state.show_can_states = false;
                                     }
                                 });
                                 setFilters(state => ({
@@ -235,6 +241,60 @@ function MapControls({
                                 style={{ color: itu_zones_on ? "#FFFFFF" : "#9CA3AF" }}
                             >
                                 ITU
+                            </span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                const show_us = !us_states_on;
+                                set_map_controls(state => {
+                                    state.show_us_states = show_us;
+                                    state.show_cq_zones = false;
+                                    state.show_itu_zones = false;
+                                });
+                                setFilters(state => ({
+                                    ...state,
+                                    zone_filters: {
+                                        ...state.zone_filters,
+                                        active_system: show_us ? "us_state" : state.zone_filters.active_system,
+                                    },
+                                }));
+                            }}
+                            className="flex items-center justify-center relative"
+                            title="US states overlay"
+                        >
+                            <span
+                                className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
+                                style={{ color: us_states_on ? "#FFFFFF" : "#9CA3AF" }}
+                            >
+                                US
+                            </span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                const show_can = !can_states_on;
+                                set_map_controls(state => {
+                                    state.show_can_states = show_can;
+                                    state.show_cq_zones = false;
+                                    state.show_itu_zones = false;
+                                });
+                                setFilters(state => ({
+                                    ...state,
+                                    zone_filters: {
+                                        ...state.zone_filters,
+                                        active_system: show_can
+                                            ? "ca_state"
+                                            : state.zone_filters.active_system,
+                                    },
+                                }));
+                            }}
+                            className="flex items-center justify-center relative"
+                            title="Canada states overlay"
+                        >
+                            <span
+                                className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
+                                style={{ color: can_states_on ? "#FFFFFF" : "#9CA3AF" }}
+                            >
+                                CA
                             </span>
                         </button>
                     </div>

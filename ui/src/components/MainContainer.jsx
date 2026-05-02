@@ -42,6 +42,8 @@ function MainContainer() {
         is_globe: false,
         show_cq_zones: false,
         show_itu_zones: false,
+        show_us_states: false,
+        show_can_states: false,
         location: {
             displayed_locator: "JJ00AA",
             // Longitude, latitude

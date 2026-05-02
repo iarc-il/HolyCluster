@@ -4,7 +4,11 @@ import Input from "@/components/ui/Input.jsx";
 import CallsignInput from "@/components/CallsignInput.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
-import { get_valid_zone_numbers, is_valid_zone_number } from "@/utils/zones.js";
+import {
+    get_valid_zone_numbers,
+    is_valid_zone_number,
+    normalize_zone_value,
+} from "@/utils/zones.js";
 import entities from "@/data/dxcc_entities.json";
 
 import { default as SearchSelect } from "react-select";
@@ -72,108 +76,18 @@ function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_dat
     );
 }
 
-function normalize_filter(filter) {
-    const normalized_filter = {
-        action: filter.action,
-        type: filter.type,
-        value: (filter.value ?? "").toString().trim().toLowerCase(),
-    };
-
-    if (filter.type == "prefix" || filter.type == "suffix" || filter.type == "entity") {
-        normalized_filter.spotter_or_dx = filter.spotter_or_dx;
-    }
-
-    if (filter.type == "zone") {
-        normalized_filter.zone_system = filter.zone_system || "cq";
-    }
-
-    return normalized_filter;
-}
-
-function are_same_filter(filter_a, filter_b) {
-    const normalized_filter_a = normalize_filter(filter_a);
-    const normalized_filter_b = normalize_filter(filter_b);
-
-    if (
-        normalized_filter_a.action != normalized_filter_b.action ||
-        normalized_filter_a.type != normalized_filter_b.type
-    ) {
-        return false;
-    }
-
-    if (
-        normalized_filter_a.type == "prefix" ||
-        normalized_filter_a.type == "suffix" ||
-        normalized_filter_a.type == "entity"
-    ) {
-        return (
-            normalized_filter_a.spotter_or_dx == normalized_filter_b.spotter_or_dx &&
-            normalized_filter_a.value == normalized_filter_b.value
-        );
-    }
-
-    if (normalized_filter_a.type == "zone") {
-        return (
-            normalized_filter_a.zone_system == normalized_filter_b.zone_system &&
-            normalized_filter_a.value == normalized_filter_b.value
-        );
-    }
-
-    if (normalized_filter_a.type == "comment") {
-        return normalized_filter_a.value == normalized_filter_b.value;
-    }
-
-    return true;
-}
-
-function are_same_filter_criteria(filter_a, filter_b) {
-    const normalized_filter_a = normalize_filter(filter_a);
-    const normalized_filter_b = normalize_filter(filter_b);
-
-    if (normalized_filter_a.type != normalized_filter_b.type) {
-        return false;
-    }
-
-    if (
-        normalized_filter_a.type == "prefix" ||
-        normalized_filter_a.type == "suffix" ||
-        normalized_filter_a.type == "entity"
-    ) {
-        return (
-            normalized_filter_a.spotter_or_dx == normalized_filter_b.spotter_or_dx &&
-            normalized_filter_a.value == normalized_filter_b.value
-        );
-    }
-
-    if (normalized_filter_a.type == "zone") {
-        return (
-            normalized_filter_a.zone_system == normalized_filter_b.zone_system &&
-            normalized_filter_a.value == normalized_filter_b.value
-        );
-    }
-
-    if (normalized_filter_a.type == "comment") {
-        return normalized_filter_a.value == normalized_filter_b.value;
-    }
-
-    return true;
-}
-
-function get_conflicting_action(action) {
-    if (action == "show_only") return "hide";
-    if (action == "hide") return "show_only";
-    return null;
-}
-
 function FilterModal({ initial_data = null, on_apply, button, exclude_filter_index = null }) {
     const [temp_data, set_temp_data] = useState(empty_filter_data);
     const [error_message, set_error_message] = useState("");
     const { colors } = useColors();
-    const { callsign_filters } = useFilters();
+    const { get_filter_add_status } = useFilters();
     const valid_zone_numbers = get_valid_zone_numbers(temp_data.zone_system || "cq");
-    const parsed_zone_value = Number.parseInt(temp_data.value, 10);
-    const selected_zone_value = valid_zone_numbers.includes(parsed_zone_value)
-        ? String(parsed_zone_value)
+    const normalized_zone_value = normalize_zone_value(
+        temp_data.zone_system || "cq",
+        temp_data.value,
+    );
+    const selected_zone_value = valid_zone_numbers.includes(normalized_zone_value)
+        ? String(normalized_zone_value)
         : String(valid_zone_numbers[0] ?? "");
 
     useEffect(() => {
@@ -211,7 +125,13 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
             on_apply={() => {
                 const draft_filter =
                     temp_data.type == "zone"
-                        ? { ...temp_data, value: Number.parseInt(temp_data.value, 10) }
+                        ? {
+                              ...temp_data,
+                              value: normalize_zone_value(
+                                  temp_data.zone_system || "cq",
+                                  temp_data.value,
+                              ),
+                          }
                         : temp_data;
 
                 if (temp_data.type == "zone") {
@@ -230,36 +150,17 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                     return false;
                 }
 
-                const is_duplicate = callsign_filters.filters.some((filter, filter_index) => {
-                    if (exclude_filter_index != null && filter_index == exclude_filter_index) {
-                        return false;
-                    }
-                    return are_same_filter(filter, draft_filter);
-                });
-
-                if (is_duplicate) {
+                const add_status = get_filter_add_status(draft_filter, exclude_filter_index);
+                if (add_status.status === "remove") {
                     set_error_message("This filter already exists in this section.");
                     return false;
                 }
 
-                const conflicting_action = get_conflicting_action(draft_filter.action);
-                if (conflicting_action != null) {
-                    const is_conflicting = callsign_filters.filters.some((filter, filter_index) => {
-                        if (exclude_filter_index != null && filter_index == exclude_filter_index) {
-                            return false;
-                        }
-                        return (
-                            filter.action == conflicting_action &&
-                            are_same_filter_criteria(filter, draft_filter)
-                        );
-                    });
-
-                    if (is_conflicting) {
-                        set_error_message(
-                            `This filter conflicts with an existing ${conflicting_action.replace("_", " ")} filter.`,
-                        );
-                        return false;
-                    }
+                if (add_status.status === "replace") {
+                    set_error_message(
+                        `This filter conflicts with an existing ${add_status.conflicting_action.replace("_", " ")} filter.`,
+                    );
+                    return false;
                 }
 
                 on_apply(draft_filter);
