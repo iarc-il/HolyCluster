@@ -9,6 +9,7 @@ import {
     is_valid_zone_number,
     normalize_zone_value,
 } from "@/utils/zones.js";
+import { STATES } from "@/data/states.js";
 import entities from "@/data/dxcc_entities.json";
 
 import { default as SearchSelect } from "react-select";
@@ -323,11 +324,19 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                     }}
                                 >
                                     {get_valid_zone_values(temp_data.zone_system || "us_state").map(
-                                        zone_number => (
-                                            <option key={zone_number} value={zone_number}>
-                                                {zone_number}
-                                            </option>
-                                        ),
+                                        zone_number => {
+                                            const state_list =
+                                                temp_data.zone_system === "ca_province"
+                                                    ? STATES.Canada
+                                                    : STATES.USA;
+                                            const region_name =
+                                                state_list?.[zone_number] ?? zone_number;
+                                            return (
+                                                <option key={zone_number} value={zone_number}>
+                                                    {zone_number} - {region_name}
+                                                </option>
+                                            );
+                                        },
                                     )}
                                 </Select>
                             </div>
