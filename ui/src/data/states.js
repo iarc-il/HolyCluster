@@ -63,5 +63,8 @@ export const STATES = {
         SK: "Saskatchewan",
         AB: "Alberta",
         NL: "Newfoundland and Labrador",
+        YT: "Yukon",
+        NT: "Northwest Territories",
+        NU: "Nunavut",
     },
 };
