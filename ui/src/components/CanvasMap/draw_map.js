@@ -256,7 +256,10 @@ export function draw_zone_labels(
     hovered_zone,
     callsign_filters,
     dev_mode,
+    fast = false,
 ) {
+    if (fast) return;
+
     context.save();
     context.beginPath();
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
@@ -306,7 +309,7 @@ export function draw_map(
     fast = false,
 ) {
     const saved_precision = projection.precision();
-    if (fast) projection.precision(2);
+    if (fast) projection.precision(3);
     const path_generator = d3.geoPath().projection(projection).context(context);
 
     context.save();

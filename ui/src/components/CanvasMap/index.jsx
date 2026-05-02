@@ -132,6 +132,7 @@ function do_redraw(
                 hovered_zone,
                 callsign_filters,
                 dev_mode,
+                fast,
             );
         });
     }
@@ -181,6 +182,7 @@ function CanvasMap({
     const animation_id_ref = useRef(null);
     const dash_offset_ref = useRef(0);
     const zoom_settle_timer_ref = useRef(null);
+    const last_gesture_draw_ref = useRef(0);
 
     const projection_ref = useRef(null);
     const base_scale_ref = useRef(null);
@@ -474,6 +476,8 @@ function CanvasMap({
         let current_rot = null;
         let last_drag_pos = null;
         let is_drawing = false;
+        const TARGET_GESTURE_FPS = 30;
+        const GESTURE_FRAME_MS = 1000 / TARGET_GESTURE_FPS;
 
         // Tap detection
         let pending_start_pos = null;
@@ -563,6 +567,12 @@ function CanvasMap({
                         is_drawing = false;
                         return;
                     }
+                    const now = performance.now();
+                    if (now - last_gesture_draw_ref.current < GESTURE_FRAME_MS) {
+                        is_drawing = false;
+                        return;
+                    }
+                    last_gesture_draw_ref.current = now;
                     do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
                         skip_shadow: true,
                         fast: true,
@@ -601,6 +611,12 @@ function CanvasMap({
                         is_drawing = false;
                         return;
                     }
+                    const now = performance.now();
+                    if (now - last_gesture_draw_ref.current < GESTURE_FRAME_MS) {
+                        is_drawing = false;
+                        return;
+                    }
+                    last_gesture_draw_ref.current = now;
                     do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
                         skip_shadow: true,
                         fast: true,
@@ -812,6 +828,12 @@ function CanvasMap({
                                     is_drawing = false;
                                     return;
                                 }
+                                const now = performance.now();
+                                if (now - last_gesture_draw_ref.current < GESTURE_FRAME_MS) {
+                                    is_drawing = false;
+                                    return;
+                                }
+                                last_gesture_draw_ref.current = now;
                                 do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
                                     skip_shadow: true,
                                     fast: true,
