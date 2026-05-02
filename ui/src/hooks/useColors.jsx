@@ -82,14 +82,6 @@ const base_theme = {
         80: "white",
         160: "white",
     },
-    map: {
-        background: "#e3f3f0",
-        land: "#D7D7D7",
-        land_borders: "#777777",
-        graticule: "#c4c4c4",
-        night: "#000080",
-        borders: "#000000",
-    },
     dxpeditions: {
         inactive: "#6b7280",
         badge_text: "white",
@@ -275,14 +267,6 @@ const themes = {
             header_arrow: "#60a5fa",
             even_text: "#000000",
             odd_text: "#000000",
-        },
-        map: {
-            background: "#a9a7a7",
-            land: "#403f3f",
-            land_borders: "#a9a7a7",
-            graticule: "#c4c4c4",
-            night: "#5a00a3",
-            borders: "#000000",
         },
         seven_segment: {
             on: "#ef4444",

@@ -12,6 +12,13 @@ import {
 
 export { dxcc_map };
 
+const MAP_STYLE = {
+    background: "#e3f3f0",
+    graticule: "#c4c4c4",
+    land_borders: "#777777",
+    borders: "#000000",
+};
+
 const color_groups = new Map();
 country_color_indices.forEach((ci, fi) => {
     if (!color_groups.has(ci)) color_groups.set(ci, []);
@@ -231,7 +238,6 @@ export function draw_zone_labels(
 
 export function draw_map(
     context,
-    colors,
     dims,
     projection,
     night_displayed,
@@ -258,7 +264,7 @@ export function draw_map(
     // Background
     context.beginPath();
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
-    context.fillStyle = colors.map.background;
+    context.fillStyle = MAP_STYLE.background;
     context.fill();
 
     context.lineWidth = 1;
@@ -267,7 +273,7 @@ export function draw_map(
         if (is_globe) {
             context.beginPath();
             path_generator(d3.geoGraticule10());
-            context.strokeStyle = colors.map.graticule;
+            context.strokeStyle = MAP_STYLE.graticule;
             context.stroke();
         } else {
             const full_globe_radius = projection.scale() * Math.PI;
@@ -279,7 +285,7 @@ export function draw_map(
                     context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
                 },
             );
-            context.strokeStyle = colors.map.graticule;
+            context.strokeStyle = MAP_STYLE.graticule;
             context.stroke();
 
             context.beginPath();
@@ -289,7 +295,7 @@ export function draw_map(
                     context.lineTo(line.x2, line.y2);
                 },
             );
-            context.strokeStyle = colors.map.graticule;
+            context.strokeStyle = MAP_STYLE.graticule;
             context.stroke();
         }
     }
@@ -307,14 +313,14 @@ export function draw_map(
     for (const feature of lakes.features) {
         path_generator(feature);
     }
-    context.fillStyle = colors.map.background;
+    context.fillStyle = MAP_STYLE.background;
     context.fill("evenodd");
 
     context.beginPath();
     dxcc_map.features.forEach(feature => {
         path_generator(feature);
     });
-    context.strokeStyle = colors.map.land_borders;
+    context.strokeStyle = MAP_STYLE.land_borders;
     context.stroke();
 
     // Night circle
@@ -350,7 +356,7 @@ export function draw_map(
     // Map outline
     context.beginPath();
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
-    context.strokeStyle = colors.map.borders;
+    context.strokeStyle = MAP_STYLE.borders;
     context.stroke();
 
     if (!is_globe) {

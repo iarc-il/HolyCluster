@@ -68,7 +68,6 @@ function do_redraw(
         cache_ctx.scale(render_dpr, render_dpr);
         draw_map(
             cache_ctx,
-            colors,
             dims,
             projection,
             map_controls.night,
