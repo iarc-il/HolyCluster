@@ -151,6 +151,8 @@ function draw_zone_labels_for_system(
             const action_style = action ? ZONE_ACTION_STYLES[action] : null;
             context.strokeStyle = "rgba(255, 255, 255, 0.95)";
             context.lineWidth = 4;
+            context.lineJoin = "round";
+            context.miterLimit = 2;
             context.strokeText(label, x, y);
             context.fillStyle = action_style?.stroke ?? "rgba(0, 0, 0, 0.9)";
         } else {
