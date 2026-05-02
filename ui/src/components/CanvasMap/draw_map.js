@@ -3,7 +3,7 @@ import { century, equationOfTime, declination } from "solar-calculator";
 import dxcc_map from "@/maps/dxcc_map.json";
 import lakes from "@/maps/lakes.json";
 import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
-import { cq_zones_geojson, itu_zones_geojson } from "@/utils/zones.js";
+import { get_active_overlay_systems, normalize_zone_value, ZONE_CONFIG } from "@/utils/zones.js";
 
 export { dxcc_map };
 
@@ -64,26 +64,6 @@ const ZONE_ACTION_STYLES = {
     },
 };
 
-function get_zone_action_numbers(callsign_filters, system) {
-    const filters = callsign_filters?.filters ?? [];
-    const zone_to_action = new Map();
-
-    for (const filter of filters) {
-        if (filter.type !== "zone" || filter.zone_system !== system) continue;
-        if (!(filter.action in ZONE_ACTION_STYLES)) continue;
-        const zone_number = Number.parseInt(filter.value, 10);
-        if (!Number.isFinite(zone_number)) continue;
-        zone_to_action.set(zone_number, filter.action);
-    }
-
-    const action_numbers = { hide: [], show_only: [], alert: [] };
-    for (const [zone_number, action] of zone_to_action) {
-        action_numbers[action].push(zone_number);
-    }
-
-    return action_numbers;
-}
-
 function get_zone_action_map(callsign_filters, system) {
     const filters = callsign_filters?.filters ?? [];
     const zone_to_action = new Map();
@@ -91,12 +71,20 @@ function get_zone_action_map(callsign_filters, system) {
     for (const filter of filters) {
         if (filter.type !== "zone" || filter.zone_system !== system) continue;
         if (!(filter.action in ZONE_ACTION_STYLES)) continue;
-        const zone_number = Number.parseInt(filter.value, 10);
-        if (!Number.isFinite(zone_number)) continue;
+        const zone_number = normalize_zone_value(system, filter.value);
+        if (zone_number == null) continue;
         zone_to_action.set(zone_number, filter.action);
     }
 
     return zone_to_action;
+}
+
+function get_zone_action_numbers(zone_action_map) {
+    const action_numbers = { hide: [], show_only: [], alert: [] };
+    for (const [zone_number, action] of zone_action_map) {
+        action_numbers[action].push(zone_number);
+    }
+    return action_numbers;
 }
 
 function draw_zone_overlay(context, path_generator, zones, label_key, action_numbers) {
@@ -179,6 +167,8 @@ export function draw_zone_labels(
     is_globe,
     show_cq_zones,
     show_itu_zones,
+    show_us_states,
+    show_can_states,
     hovered_zone,
     callsign_filters,
 ) {
@@ -187,31 +177,25 @@ export function draw_zone_labels(
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
     context.clip();
 
-    if (show_cq_zones) {
-        const cq_zone_action_map = get_zone_action_map(callsign_filters, "cq");
+    const active_systems = get_active_overlay_systems({
+        show_cq_zones,
+        show_itu_zones,
+        show_us_states,
+        show_can_states,
+    });
+    for (const system of active_systems) {
+        const config = ZONE_CONFIG[system];
+        if (!config) continue;
+        const zone_action_map = get_zone_action_map(callsign_filters, system);
         draw_zone_labels_for_system(
             context,
             projection,
             is_globe,
-            cq_zones_geojson,
-            "cq_zone_number",
-            "cq_zone_name_loc",
-            hovered_zone?.system === "cq" ? hovered_zone.number : null,
-            cq_zone_action_map,
-        );
-    }
-
-    if (show_itu_zones) {
-        const itu_zone_action_map = get_zone_action_map(callsign_filters, "itu");
-        draw_zone_labels_for_system(
-            context,
-            projection,
-            is_globe,
-            itu_zones_geojson,
-            "itu_zone_number",
-            "itu_zone_name_loc",
-            hovered_zone?.system === "itu" ? hovered_zone.number : null,
-            itu_zone_action_map,
+            config.zones,
+            config.number_key,
+            config.loc_key,
+            hovered_zone?.system === system ? hovered_zone.number : null,
+            zone_action_map,
         );
     }
 
@@ -228,6 +212,8 @@ export function draw_map(
     is_globe,
     show_cq_zones,
     show_itu_zones,
+    show_us_states,
+    show_can_states,
     callsign_filters,
     fast = false,
 ) {
@@ -318,28 +304,18 @@ export function draw_map(
         context.stroke();
     }
 
-    // CQ Zones
-    if (show_cq_zones) {
-        const cq_action_numbers = get_zone_action_numbers(callsign_filters, "cq");
-        draw_zone_overlay(
-            context,
-            path_generator,
-            cq_zones_geojson,
-            "cq_zone_number",
-            cq_action_numbers,
-        );
-    }
-
-    // ITU Zones
-    if (show_itu_zones) {
-        const itu_action_numbers = get_zone_action_numbers(callsign_filters, "itu");
-        draw_zone_overlay(
-            context,
-            path_generator,
-            itu_zones_geojson,
-            "itu_zone_number",
-            itu_action_numbers,
-        );
+    const active_systems = get_active_overlay_systems({
+        show_cq_zones,
+        show_itu_zones,
+        show_us_states,
+        show_can_states,
+    });
+    for (const system of active_systems) {
+        const config = ZONE_CONFIG[system];
+        if (!config) continue;
+        const zone_action_map = get_zone_action_map(callsign_filters, system);
+        const action_numbers = get_zone_action_numbers(zone_action_map);
+        draw_zone_overlay(context, path_generator, config.zones, config.number_key, action_numbers);
     }
 
     context.restore();

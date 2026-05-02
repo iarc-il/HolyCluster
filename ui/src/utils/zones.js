@@ -1,29 +1,48 @@
 import * as d3 from "d3";
 import cq_zones from "@/maps/cqzones.json";
 import itu_zones from "@/maps/ituzones.json";
+import us_states from "@/maps/us_states.json";
 
-const ZONE_CONFIG = {
+export const ZONE_CONFIG = {
     cq: {
-        features: cq_zones.features,
+        zones: cq_zones,
         number_key: "cq_zone_number",
+        label_key: "cq_zone_number",
         loc_key: "cq_zone_name_loc",
+        value_type: "number",
     },
     itu: {
-        features: itu_zones.features,
+        zones: itu_zones,
         number_key: "itu_zone_number",
+        label_key: "itu_zone_number",
         loc_key: "itu_zone_name_loc",
+        value_type: "number",
+    },
+    us_state: {
+        zones: us_states,
+        number_key: "state_code",
+        label_key: "state_code",
+        loc_key: "state_name_loc",
+        value_type: "string",
+    },
+    ca_state: {
+        zones: { type: "FeatureCollection", features: [] },
+        number_key: "state_code",
+        label_key: "state_code",
+        loc_key: "state_name_loc",
+        value_type: "string",
     },
 };
 
-export const cq_zones_geojson = {
-    type: "FeatureCollection",
-    features: ZONE_CONFIG.cq.features,
-};
+export function get_active_overlay_systems(map_controls) {
+    if (map_controls?.show_cq_zones) return ["cq"];
+    if (map_controls?.show_itu_zones) return ["itu"];
 
-export const itu_zones_geojson = {
-    type: "FeatureCollection",
-    features: ZONE_CONFIG.itu.features,
-};
+    const systems = [];
+    if (map_controls?.show_us_states) systems.push("us_state");
+    if (map_controls?.show_can_states) systems.push("ca_state");
+    return systems;
+}
 
 const zone_lookup_cache = new Map();
 
@@ -32,7 +51,32 @@ const ZONE_RANGE_BY_SYSTEM = {
     itu: { min: 1, max: 90 },
 };
 
+const zone_valid_values_cache = new Map();
+
+export function normalize_zone_value(system, zone_value) {
+    const config = ZONE_CONFIG[system];
+    if (!config) return null;
+
+    if (config.value_type === "number") {
+        const parsed = Number.parseInt(zone_value, 10);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    if (config.value_type === "string") {
+        const parsed = (zone_value ?? "").toString().trim().toUpperCase();
+        return parsed.length > 0 ? parsed : null;
+    }
+
+    return null;
+}
+
 export function get_valid_zone_numbers(system) {
+    if (system === "us_state" || system === "ca_state") {
+        const config = ZONE_CONFIG[system];
+        if (!config) return [];
+        return config.zones.features.map(feature => feature.properties[config.number_key]).sort();
+    }
+
     const range = ZONE_RANGE_BY_SYSTEM[system];
     if (!range) {
         return [];
@@ -45,13 +89,29 @@ export function get_valid_zone_numbers(system) {
     return zones;
 }
 
+function get_valid_zone_value_set(system) {
+    if (zone_valid_values_cache.has(system)) {
+        return zone_valid_values_cache.get(system);
+    }
+
+    const valid_set = new Set(get_valid_zone_numbers(system));
+    zone_valid_values_cache.set(system, valid_set);
+    return valid_set;
+}
+
 export function is_valid_zone_number(system, zone_number) {
-    const parsed_zone = Number.parseInt(zone_number, 10);
+    const parsed_zone = normalize_zone_value(system, zone_number);
     const range = ZONE_RANGE_BY_SYSTEM[system];
-    if (!Number.isFinite(parsed_zone) || !range) {
+    if (range) {
+        if (!Number.isFinite(parsed_zone)) return false;
+        return parsed_zone >= range.min && parsed_zone <= range.max;
+    }
+
+    const valid_values = get_valid_zone_value_set(system);
+    if (valid_values.size === 0 || parsed_zone == null) {
         return false;
     }
-    return parsed_zone >= range.min && parsed_zone <= range.max;
+    return valid_values.has(parsed_zone);
 }
 
 function get_longitude_candidates(lon) {
@@ -76,7 +136,7 @@ export function find_zone_number(system, lon_lat) {
 
     for (const candidate_lon of get_longitude_candidates(lon)) {
         const point = [candidate_lon, lat];
-        for (const feature of config.features) {
+        for (const feature of config.zones.features) {
             if (d3.geoContains(feature, point)) {
                 const zone_number = feature.properties[config.number_key];
                 zone_lookup_cache.set(cache_key, zone_number);
@@ -113,7 +173,7 @@ export function find_zone_label_number(system, projection, x, y, is_globe, pixel
     const rotation = projection.rotate();
     let best = null;
 
-    for (const feature of config.features) {
+    for (const feature of config.zones.features) {
         const [lat, lon] = feature.properties[config.loc_key];
         if (is_globe) {
             const dist = d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]);

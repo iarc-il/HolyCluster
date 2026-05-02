@@ -19,7 +19,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useSettings } from "@/hooks/useSettings";
-import { find_zone_label_number } from "@/utils/zones.js";
+import { find_zone_label_number, get_active_overlay_systems } from "@/utils/zones.js";
 
 const DPR = window.devicePixelRatio || 1;
 
@@ -76,6 +76,8 @@ function do_redraw(
             map_controls.is_globe,
             map_controls.show_cq_zones,
             map_controls.show_itu_zones,
+            map_controls.show_us_states,
+            map_controls.show_can_states,
             callsign_filters,
             fast,
         );
@@ -125,6 +127,8 @@ function do_redraw(
                 map_controls.is_globe,
                 map_controls.show_cq_zones,
                 map_controls.show_itu_zones,
+                map_controls.show_us_states,
+                map_controls.show_can_states,
                 hovered_zone,
                 callsign_filters,
             );
@@ -384,6 +388,8 @@ function CanvasMap({
                     rs.map_controls.is_globe,
                     rs.map_controls.show_cq_zones,
                     rs.map_controls.show_itu_zones,
+                    rs.map_controls.show_us_states,
+                    rs.map_controls.show_can_states,
                     rs.hovered_zone,
                     rs.callsign_filters,
                 );
@@ -510,24 +516,23 @@ function CanvasMap({
 
         function get_clickable_zone_label(x, y) {
             const map_controls = render_state_ref.current.map_controls;
-            const zone_system = map_controls.show_cq_zones
-                ? "cq"
-                : map_controls.show_itu_zones
-                  ? "itu"
-                  : null;
             const projection = projection_ref.current;
-            if (!zone_system || !projection) return null;
+            if (!projection) return null;
 
-            const zone_number = find_zone_label_number(
-                zone_system,
-                projection,
-                x,
-                y,
-                map_controls.is_globe,
-            );
-            if (zone_number == null) return null;
+            const active_systems = get_active_overlay_systems(map_controls);
+            for (const zone_system of active_systems) {
+                const zone_number = find_zone_label_number(
+                    zone_system,
+                    projection,
+                    x,
+                    y,
+                    map_controls.is_globe,
+                );
+                if (zone_number == null) continue;
+                return { system: zone_system, number: zone_number };
+            }
 
-            return { system: zone_system, number: zone_number };
+            return null;
         }
 
         function perform_drag(x, y) {
