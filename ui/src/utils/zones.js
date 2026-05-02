@@ -25,7 +25,7 @@ export const ZONE_CONFIG = {
         loc_key: "state_name_loc",
         value_type: "string",
     },
-    ca_state: {
+    ca_province: {
         zones: { type: "FeatureCollection", features: [] },
         number_key: "state_code",
         label_key: "state_code",
@@ -40,7 +40,7 @@ export function get_active_overlay_systems(map_controls) {
 
     const systems = [];
     if (map_controls?.show_us_states) systems.push("us_state");
-    if (map_controls?.show_can_states) systems.push("ca_state");
+    if (map_controls?.show_can_states) systems.push("ca_province");
     return systems;
 }
 
@@ -70,8 +70,8 @@ export function normalize_zone_value(system, zone_value) {
     return null;
 }
 
-export function get_valid_zone_numbers(system) {
-    if (system === "us_state" || system === "ca_state") {
+export function get_valid_zone_values(system) {
+    if (system === "us_state" || system === "ca_province") {
         const config = ZONE_CONFIG[system];
         if (!config) return [];
         return config.zones.features.map(feature => feature.properties[config.number_key]).sort();
@@ -94,7 +94,7 @@ function get_valid_zone_value_set(system) {
         return zone_valid_values_cache.get(system);
     }
 
-    const valid_set = new Set(get_valid_zone_numbers(system));
+    const valid_set = new Set(get_valid_zone_values(system));
     zone_valid_values_cache.set(system, valid_set);
     return valid_set;
 }
@@ -148,31 +148,6 @@ export function find_zone_number(system, lon_lat) {
     zone_lookup_cache.set(cache_key, null);
 
     return null;
-}
-
-export function toggle_zone_selection(zone_filters, system, zone_number) {
-    const disabled_by_system = zone_filters.disabled_by_system ?? {};
-    const current_selected = disabled_by_system[system] ?? [];
-    const normalized_zone = normalize_zone_value(system, zone_number);
-    if (normalized_zone == null) {
-        return zone_filters;
-    }
-
-    const has_zone = current_selected.includes(normalized_zone);
-    const next_selected = has_zone
-        ? current_selected.filter(value => value !== normalized_zone)
-        : [...current_selected, normalized_zone].sort((a, b) => {
-              if (typeof a === "number" && typeof b === "number") return a - b;
-              return String(a).localeCompare(String(b));
-          });
-
-    return {
-        ...zone_filters,
-        disabled_by_system: {
-            ...disabled_by_system,
-            [system]: next_selected,
-        },
-    };
 }
 
 export function find_zone_label_number(system, projection, x, y, is_globe, pixel_threshold = 14) {

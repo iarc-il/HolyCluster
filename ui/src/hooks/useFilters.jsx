@@ -122,7 +122,7 @@ export const FiltersProvider = ({ children }) => {
                 cq: [],
                 itu: [],
                 us_state: [],
-                ca_state: [],
+                ca_province: [],
             },
         },
     };

@@ -44,13 +44,13 @@ function MapControls({
         ? ["cq"]
         : itu_zones_on
           ? ["itu"]
-          : [...(us_states_on ? ["us_state"] : []), ...(can_states_on ? ["ca_state"] : [])];
+          : [...(us_states_on ? ["us_state"] : []), ...(can_states_on ? ["ca_province"] : [])];
 
     const zone_system_labels = {
         cq: "CQ",
         itu: "ITU",
         us_state: "US",
-        ca_state: "CA",
+        ca_province: "CA",
     };
 
     const active_disabled_summaries = active_zone_systems

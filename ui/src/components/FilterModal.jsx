@@ -5,7 +5,7 @@ import CallsignInput from "@/components/CallsignInput.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import {
-    get_valid_zone_numbers,
+    get_valid_zone_values,
     is_valid_zone_number,
     normalize_zone_value,
 } from "@/utils/zones.js";
@@ -81,7 +81,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
     const [error_message, set_error_message] = useState("");
     const { colors } = useColors();
     const { get_filter_add_status } = useFilters();
-    const valid_zone_numbers = get_valid_zone_numbers(temp_data.zone_system || "cq");
+    const valid_zone_numbers = get_valid_zone_values(temp_data.zone_system || "cq");
     const normalized_zone_value = normalize_zone_value(
         temp_data.zone_system || "cq",
         temp_data.value,
@@ -216,7 +216,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             temp_data={temp_data}
                             set_temp_data={set_temp_data}
                             build_temp_data={(current_data, field, system_value) => {
-                                const zones = get_valid_zone_numbers(system_value);
+                                const zones = get_valid_zone_values(system_value);
                                 const parsed_zone = Number.parseInt(current_data.value, 10);
                                 const next_zone = zones.includes(parsed_zone)
                                     ? parsed_zone
