@@ -3,7 +3,12 @@ import { century, equationOfTime, declination } from "solar-calculator";
 import dxcc_map from "@/maps/dxcc_map.json";
 import lakes from "@/maps/lakes.json";
 import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
-import { get_active_overlay_systems, normalize_zone_value, ZONE_CONFIG } from "@/utils/zones.js";
+import {
+    get_active_overlay_systems,
+    normalize_zone_value,
+    ZONE_CONFIG,
+    ZONE_LABEL_RENDER_MIN_AREA_PX,
+} from "@/utils/zones.js";
 
 export { dxcc_map };
 
@@ -127,11 +132,21 @@ function draw_zone_labels_for_system(
     hovered_zone_number,
     zone_action_map,
 ) {
+    const zone_path = d3.geoPath().projection(projection);
+    const MIN_LABEL_AREA_PX = ZONE_LABEL_RENDER_MIN_AREA_PX;
+    const MIN_FONT_PX = 9;
+    const MAX_FONT_PX = 14;
+    const HOVER_MAX_FONT_PX = 16;
+    const FONT_SCALE = 0.25;
+
     context.lineWidth = 1;
     const rotation = projection.rotate();
     context.textAlign = "center";
     context.textBaseline = "middle";
     for (const feature of zones.features) {
+        const area_px = zone_path.area(feature);
+        if (!Number.isFinite(area_px) || area_px < MIN_LABEL_AREA_PX) continue;
+
         const [lat, lon] = feature.properties[loc_key];
         if (is_globe) {
             const dist = d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]);
@@ -145,7 +160,17 @@ function draw_zone_labels_for_system(
         const zone_number = feature.properties[label_key];
         const label = String(zone_number);
         const is_hovered = hovered_zone_number != null && zone_number === hovered_zone_number;
-        context.font = is_hovered ? "900 17px sans-serif" : "bold 14px sans-serif";
+        const base_font_px = Math.max(
+            MIN_FONT_PX,
+            Math.min(MAX_FONT_PX, Math.sqrt(area_px) * FONT_SCALE),
+        );
+        const hovered_font_px = Math.max(
+            MIN_FONT_PX + 1,
+            Math.min(HOVER_MAX_FONT_PX, base_font_px + 2),
+        );
+        context.font = is_hovered
+            ? `900 ${Math.round(hovered_font_px)}px sans-serif`
+            : `bold ${Math.round(base_font_px)}px sans-serif`;
         if (is_hovered) {
             const action = zone_action_map.get(zone_number);
             const action_style = action ? ZONE_ACTION_STYLES[action] : null;

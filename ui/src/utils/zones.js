@@ -35,6 +35,8 @@ export const ZONE_CONFIG = {
     },
 };
 
+export const ZONE_LABEL_RENDER_MIN_AREA_PX = 220;
+
 export function get_active_overlay_systems(map_controls) {
     if (map_controls?.show_cq_zones) return ["cq"];
     if (map_controls?.show_itu_zones) return ["itu"];
@@ -156,10 +158,14 @@ export function find_zone_label_number(system, projection, x, y, is_globe, pixel
     if (!config || !projection) return null;
 
     const threshold_sq = pixel_threshold * pixel_threshold;
+    const zone_path = d3.geoPath().projection(projection);
     const rotation = projection.rotate();
     let best = null;
 
     for (const feature of config.zones.features) {
+        const area_px = zone_path.area(feature);
+        if (!Number.isFinite(area_px) || area_px < ZONE_LABEL_RENDER_MIN_AREA_PX) continue;
+
         const [lat, lon] = feature.properties[config.loc_key];
         if (is_globe) {
             const dist = d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]);
