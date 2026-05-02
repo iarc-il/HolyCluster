@@ -18,6 +18,8 @@ const RELEASES = [
             "Added globe mode",
             "Updated map visuals and geography (countries, lakes, and water bodies)",
             "Propagation data is now available on mobile",
+            "Added a context menu for CQ/ITU zone numbers instead of cycling on click",
+            "Added US/Canada filtering support with dedicated US/CA buttons",
         ],
     ],
     [
