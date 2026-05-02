@@ -48,6 +48,11 @@ function enrich_spot_zones_if_missing(spot) {
     return spot;
 }
 
+function trim_spots_to_last_hour(spots) {
+    const current_time = Math.round(Date.now() / 1000);
+    return spots.filter(spot => spot.time > current_time - 3600);
+}
+
 export default function useSpotWebSocket() {
     const [raw_spots, set_spots] = useState([]);
     const [new_spot_ids, set_new_spot_ids] = useState(new Set());
@@ -117,15 +122,24 @@ export default function useSpotWebSocket() {
                     set_new_spot_ids(new Set());
                 }, 3000);
 
-                new_spots = new_spots.concat(raw_spots);
-            }
+                set_spots(previous_spots => {
+                    const merged_spots = trim_spots_to_last_hour(new_spots.concat(previous_spots));
 
-            let current_time = Math.round(Date.now() / 1000);
-            new_spots = new_spots.filter(spot => spot.time > current_time - 3600);
-            set_spots(new_spots);
+                    if (merged_spots.length > 0) {
+                        last_spot_time_ref.current = Math.max(
+                            ...merged_spots.map(spot => spot.time),
+                        );
+                    }
 
-            if (new_spots.length > 0) {
-                last_spot_time_ref.current = Math.max(...new_spots.map(spot => spot.time));
+                    return merged_spots;
+                });
+            } else {
+                new_spots = trim_spots_to_last_hour(new_spots);
+                set_spots(new_spots);
+
+                if (new_spots.length > 0) {
+                    last_spot_time_ref.current = Math.max(...new_spots.map(spot => spot.time));
+                }
             }
         }
     }, [lastJsonMessage]);
