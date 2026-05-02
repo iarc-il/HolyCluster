@@ -6,6 +6,7 @@ export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
     const menu_ref = useRef(null);
     const { colors } = useColors();
     const [position, set_position] = useState({ x, y });
+    const [hovered_index, set_hovered_index] = useState(null);
 
     function resolve_value(value) {
         if (typeof value === "function") {
@@ -75,11 +76,21 @@ export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
                     <div
                         key={index}
                         className={`px-4 py-2 flex items-center gap-2 ${
-                            disabled
-                                ? "opacity-50 cursor-not-allowed"
-                                : "cursor-pointer hover:bg-opacity-10 hover:bg-white"
+                            disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
                         }`}
-                        style={{ color: colors.theme.text }}
+                        style={{
+                            color: colors.theme.text,
+                            backgroundColor:
+                                !disabled && hovered_index === index
+                                    ? colors.buttons.active_tab
+                                    : "transparent",
+                        }}
+                        onMouseEnter={() => {
+                            if (!disabled) set_hovered_index(index);
+                        }}
+                        onMouseLeave={() => {
+                            if (!disabled) set_hovered_index(null);
+                        }}
                         onClick={() => {
                             if (disabled) return;
                             action.onClick(spot);
