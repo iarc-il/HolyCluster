@@ -30,7 +30,7 @@ const SPECIAL_FILTER_LABELS = {
 
 function Indicator({ text }) {
     return (
-        <div className="flex border border-gray-700 items-center justify-center p-2 w-7 h-7 rounded-md mr-2 text-xs font-bold bg-green-600 text-white">
+        <div className="flex border border-gray-700 items-center justify-center p-2 w-7 h-7 rounded-md text-xs font-bold bg-green-600 text-white">
             {text}
         </div>
     );
@@ -152,10 +152,10 @@ function FilterContent({ filter, listeners, attributes, colors }) {
     }
 
     return (
-        <>
+        <div className="flex items-center gap-1">
             <div {...listeners} {...attributes}>
                 <Input
-                    className="h-7 text-sm mr-1 w-24 cursor-grab active:cursor-grabbing"
+                    className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
                     disabled
                     disabled_text_color={colors.theme.text}
                     title={filter.value}
@@ -164,7 +164,7 @@ function FilterContent({ filter, listeners, attributes, colors }) {
             </div>
             <Indicator text={FILTER_TYPE_LABELS[filter.type]} />
             <Indicator text={SPOTTER_DX_LABELS[filter.spotter_or_dx]} />
-        </>
+        </div>
     );
 }
 
@@ -197,7 +197,7 @@ function FilterLine({ filter, id, is_dragging }) {
 
     return (
         <div ref={setNodeRef} className="flex items-center mb-1 w-full" style={style}>
-            <div className="flex items-center flex-1 min-w-0">
+            <div className="flex items-center gap-1 flex-1 min-w-0">
                 <FilterContent
                     filter={filter}
                     listeners={listeners}
