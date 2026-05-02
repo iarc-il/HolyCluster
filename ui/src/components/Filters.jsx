@@ -36,6 +36,19 @@ function Indicator({ text }) {
     );
 }
 
+function FilterBadge({ children, className = "", title, listeners, attributes }) {
+    return (
+        <div
+            {...listeners}
+            {...attributes}
+            className={`flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white ${className}`}
+            title={title}
+        >
+            {children}
+        </div>
+    );
+}
+
 function EditSymbol({ size }) {
     const { colors } = useColors();
 
@@ -62,13 +75,13 @@ function EditSymbol({ size }) {
 function SpecialFilterBadge({ type, listeners, attributes }) {
     const label = SPECIAL_FILTER_LABELS[type];
     return (
-        <div
-            {...listeners}
-            {...attributes}
-            className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing w-24"
+        <FilterBadge
+            listeners={listeners}
+            attributes={attributes}
+            className="cursor-grab active:cursor-grabbing w-24"
         >
             {label}
-        </div>
+        </FilterBadge>
     );
 }
 
@@ -95,33 +108,33 @@ function ZoneFilterBadge({ filter, listeners, attributes }) {
     if (is_region_filter) {
         return (
             <>
-                <div
-                    {...listeners}
-                    {...attributes}
-                    className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing w-10"
+                <FilterBadge
+                    listeners={listeners}
+                    attributes={attributes}
+                    className="cursor-grab active:cursor-grabbing w-10"
                     title={system_label}
                 >
                     {system_label}
-                </div>
-                <div
-                    className={`flex border border-gray-700 items-center justify-center px-2 h-7 rounded-md font-bold bg-green-600 text-white w-fit max-w-52 ${region_text_size_class}`}
+                </FilterBadge>
+                <FilterBadge
+                    className={`px-2 w-fit max-w-52 ${region_text_size_class}`}
                     title={region_name}
                 >
                     {region_name}
-                </div>
+                </FilterBadge>
             </>
         );
     }
 
     return (
-        <div
-            {...listeners}
-            {...attributes}
-            className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing w-24"
+        <FilterBadge
+            listeners={listeners}
+            attributes={attributes}
+            className="cursor-grab active:cursor-grabbing w-24"
             title={`Zone ${system_label} ${filter.value}`}
         >
             {system_label} {filter.value}
-        </div>
+        </FilterBadge>
     );
 }
 
