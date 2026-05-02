@@ -11,15 +11,16 @@ const RELEASES = [
     [
         "",
         [
-            "New CQ/ITU zones feature: map overlays, click-to-filter zone numbers, and advanced filters in Alert/Show Only/Hide",
-            "New fullscreen mode for the map",
-            "New home location indicator on the map",
-            "Added mode disabling in settings (similar to band disabling)",
-            "Added globe mode",
+            "Map update! 🗺️",
+            "4 New filter types: ITU zones, CQ zones, US state and Canada provinces",
+            "Support overlay display and quick filter in the map for all new filters",
             "Updated map visuals and geography (countries, lakes, and water bodies)",
+            "Added globe mode",
+            "Show Canada provinces in the table",
             "Propagation data is now available on mobile",
-            "Added a context menu for CQ/ITU zone numbers instead of cycling on click",
-            "Added US/Canada filtering support with dedicated US/CA buttons",
+            "Added mode selection in settings (similar to band selection)",
+            "New home location indicator on the map",
+            "New fullscreen mode for the map",
         ],
     ],
     [
