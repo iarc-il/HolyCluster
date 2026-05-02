@@ -79,6 +79,8 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             "spotter_country": spotter_geo.country,
             "spotter_continent": spotter_geo.continent,
             "spotter_state": spotter_geo.state,
+            "spotter_cq_zone": spotter_geo.cq_zone or -1,
+            "spotter_itu_zone": spotter_geo.itu_zone or -1,
             # Redis doesn't accept bools
             "dx_geo_cache": 1 if dx_geo.cached else 0,
             "dx_locator_source": dx_geo.locator_source,
@@ -88,6 +90,8 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             "dx_country": dx_geo.country,
             "dx_continent": dx_geo.continent,
             "dx_state": dx_geo.state,
+            "dx_cq_zone": dx_geo.cq_zone or -1,
+            "dx_itu_zone": dx_geo.itu_zone or -1,
         }
     )
 
@@ -113,6 +117,8 @@ async def add_spot_to_postgres(engine, spot: dict):
         spotter_country=spot["spotter_country"],
         spotter_continent=spot["spotter_continent"],
         spotter_state=spot["spotter_state"],
+        spotter_cq_zone=spot.get("spotter_cq_zone"),
+        spotter_itu_zone=spot.get("spotter_itu_zone"),
         dx_callsign=spot["dx_callsign"],
         dx_locator=spot["dx_locator"],
         dx_locator_source=spot["dx_locator_source"],
@@ -121,6 +127,8 @@ async def add_spot_to_postgres(engine, spot: dict):
         dx_country=spot["dx_country"],
         dx_continent=spot["dx_continent"],
         dx_state=spot["dx_state"],
+        dx_cq_zone=spot.get("dx_cq_zone"),
+        dx_itu_zone=spot.get("dx_itu_zone"),
         comment=spot["comment"],
         is_dxpedition=spot["is_dxpedition"],
     )

@@ -25,6 +25,8 @@ class GeoData(BaseModel):
     country: str
     continent: str
     state: str
+    cq_zone: int | None = None
+    itu_zone: int | None = None
 
 
 def read_csv_to_list_of_tuples(filename: str):
@@ -77,6 +79,8 @@ async def get_geo_details(
 
     locator = qrz_locator_dict.get("locator")
     state = qrz_locator_dict.get("state")
+    cq_zone = qrz_locator_dict.get("cq_zone")
+    itu_zone = qrz_locator_dict.get("itu_zone")
     if locator:
         locator_source = "qrz"
     else:
@@ -97,6 +101,8 @@ async def get_geo_details(
         "country": country,
         "continent": continent,
         "state": state or "",
+        "cq_zone": cq_zone,
+        "itu_zone": itu_zone,
     }
     if valkey_client is not None:
         await valkey_client.set(callsign, json.dumps(geo_data), ex=geo_expiration)
