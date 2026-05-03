@@ -13,6 +13,23 @@ export default function CallsignSearch() {
     const single_spot = filters.show_only_latest_spot;
     const single_spot_ref = useRef(null);
     const [show_popup, set_show_popup] = useState(false);
+    const [single_spot_hover, set_single_spot_hover] = useState(false);
+
+    const single_spot_button_base = {
+        border: `1px solid ${colors.theme.text}38`,
+        background: `${colors.theme.text}14`,
+        transition: "background-color 140ms ease, border-color 140ms ease, color 140ms ease",
+    };
+
+    const single_spot_button_active = {
+        border: `1px solid ${colors.theme.text}80`,
+        background: `${colors.theme.text}2E`,
+    };
+
+    const single_spot_button_hover_style = {
+        border: `1px solid ${colors.theme.text}66`,
+        background: `${colors.theme.text}24`,
+    };
 
     const handle_enter = query => {
         const newFilter = {
@@ -67,9 +84,20 @@ export default function CallsignSearch() {
                         show_only_latest_spot: !filters.show_only_latest_spot,
                     })
                 }
-                onMouseEnter={() => set_show_popup(true)}
-                onMouseLeave={() => set_show_popup(false)}
-                className="ml-auto flex items-center gap-1 cursor-pointer"
+                onMouseEnter={() => {
+                    set_show_popup(true);
+                    set_single_spot_hover(true);
+                }}
+                onMouseLeave={() => {
+                    set_show_popup(false);
+                    set_single_spot_hover(false);
+                }}
+                className="ml-auto flex items-center gap-1 cursor-pointer rounded-md px-2 py-1"
+                style={{
+                    ...single_spot_button_base,
+                    ...(single_spot ? single_spot_button_active : {}),
+                    ...(single_spot_hover ? single_spot_button_hover_style : {}),
+                }}
             >
                 <svg
                     width="24"

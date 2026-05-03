@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Input from "@/components/ui/Input.jsx";
 import Button from "@/components/ui/Button.jsx";
 import Radio from "@/components/ui/Radio.jsx";
@@ -30,7 +30,9 @@ function MapControls({
     const { settings } = useSettings();
     const { filters, setFilters } = useFilters();
     const mode_button_ref = useRef(null);
+    const country_selector_ref = useRef(null);
     const [show_mode_popup, set_show_mode_popup] = useState(false);
+    const [show_country_selector, set_show_country_selector] = useState(false);
 
     const zone_filters = filters.zone_filters ?? {};
     const disabled_by_system = zone_filters.disabled_by_system ?? {};
@@ -66,8 +68,61 @@ function MapControls({
             };
         })
         .filter(Boolean);
-    const zone_label_active_color = colors.map_controls.zone_label_active;
+    const zone_label_active_color = colors.theme.text;
     const zone_label_inactive_color = colors.map_controls.zone_label_inactive;
+    const zone_button_base_style = {
+        border: `1px solid ${colors.theme.text}38`,
+        background: `${colors.theme.text}14`,
+        transition: "background-color 140ms ease, border-color 140ms ease, color 140ms ease",
+    };
+
+    const zone_button_active_style = {
+        border: `1px solid ${colors.theme.text}80`,
+        background: `${colors.theme.text}2E`,
+    };
+
+    const zone_button_hover_style = {
+        border: `1px solid ${colors.theme.text}66`,
+        background: `${colors.theme.text}24`,
+    };
+
+    const [zone_button_hover, set_zone_button_hover] = useState(null);
+
+    const country_zone_overlays = [
+        {
+            id: "us_state",
+            label: "US",
+            map_control_key: "show_us_states",
+            title: "US states overlay",
+        },
+        {
+            id: "ca_province",
+            label: "CA",
+            map_control_key: "show_can_states",
+            title: "Canada provinces overlay",
+        },
+    ];
+
+    const active_country_overlays = country_zone_overlays.filter(
+        overlay => map_controls[overlay.map_control_key],
+    );
+    const all_country_overlays_selected =
+        active_country_overlays.length === country_zone_overlays.length;
+
+    useEffect(() => {
+        if (!show_country_selector) return;
+
+        function close_selector_on_click_outside(event) {
+            if (!country_selector_ref.current?.contains(event.target)) {
+                set_show_country_selector(false);
+            }
+        }
+
+        document.addEventListener("mousedown", close_selector_on_click_outside);
+        return () => {
+            document.removeEventListener("mousedown", close_selector_on_click_outside);
+        };
+    }, [show_country_selector]);
 
     function reset_map() {
         const locator = settings.locator || "JJ00AA";
@@ -210,10 +265,17 @@ function MapControls({
                                     }
                                 });
                             }}
-                            className="flex items-center justify-center relative"
+                            onMouseEnter={() => set_zone_button_hover("cq")}
+                            onMouseLeave={() => set_zone_button_hover(null)}
+                            className="flex items-center justify-center relative rounded-md px-1 min-w-10"
+                            style={{
+                                ...zone_button_base_style,
+                                ...(cq_zones_on ? zone_button_active_style : {}),
+                                ...(zone_button_hover === "cq" ? zone_button_hover_style : {}),
+                            }}
                         >
                             <span
-                                className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
+                                className={`w-8 h-8 flex items-center justify-center text-xl leading-none ${cq_zones_on ? "font-medium" : "font-bold"}`}
                                 style={{
                                     color: cq_zones_on
                                         ? zone_label_active_color
@@ -235,10 +297,17 @@ function MapControls({
                                     }
                                 });
                             }}
-                            className="flex items-center justify-center relative"
+                            onMouseEnter={() => set_zone_button_hover("itu")}
+                            onMouseLeave={() => set_zone_button_hover(null)}
+                            className="flex items-center justify-center relative rounded-md px-1 min-w-10"
+                            style={{
+                                ...zone_button_base_style,
+                                ...(itu_zones_on ? zone_button_active_style : {}),
+                                ...(zone_button_hover === "itu" ? zone_button_hover_style : {}),
+                            }}
                         >
                             <span
-                                className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
+                                className={`w-8 h-8 flex items-center justify-center text-xl leading-none ${itu_zones_on ? "font-medium" : "font-bold"}`}
                                 style={{
                                     color: itu_zones_on
                                         ? zone_label_active_color
@@ -248,52 +317,113 @@ function MapControls({
                                 ITU
                             </span>
                         </button>
-                        <button
-                            onClick={() => {
-                                const show_us = !us_states_on;
-                                set_map_controls(state => {
-                                    state.show_us_states = show_us;
-                                    state.show_cq_zones = false;
-                                    state.show_itu_zones = false;
-                                });
-                            }}
-                            className="flex items-center justify-center relative"
-                            title="US states overlay"
-                        >
-                            <span
-                                className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
+                        <div className="relative" ref={country_selector_ref}>
+                            <button
+                                onClick={() => set_show_country_selector(value => !value)}
+                                onMouseEnter={() => set_zone_button_hover("countries")}
+                                onMouseLeave={() => set_zone_button_hover(null)}
+                                className="flex items-center justify-center relative rounded-md px-2 w-28 h-8 gap-2"
                                 style={{
-                                    color: us_states_on
-                                        ? zone_label_active_color
-                                        : zone_label_inactive_color,
+                                    ...zone_button_base_style,
+                                    ...(active_country_overlays.length > 0
+                                        ? zone_button_active_style
+                                        : {}),
+                                    ...(zone_button_hover === "countries"
+                                        ? zone_button_hover_style
+                                        : {}),
                                 }}
+                                title="Country overlays"
                             >
-                                US
-                            </span>
-                        </button>
-                        <button
-                            onClick={() => {
-                                const show_can = !can_states_on;
-                                set_map_controls(state => {
-                                    state.show_can_states = show_can;
-                                    state.show_cq_zones = false;
-                                    state.show_itu_zones = false;
-                                });
-                            }}
-                            className="flex items-center justify-center relative"
-                            title="Canada states overlay"
-                        >
-                            <span
-                                className="w-8 h-8 flex items-center justify-center text-xl leading-none font-semibold"
-                                style={{
-                                    color: can_states_on
-                                        ? zone_label_active_color
-                                        : zone_label_inactive_color,
-                                }}
-                            >
-                                CA
-                            </span>
-                        </button>
+                                <span
+                                    className={`text-xl leading-none ${active_country_overlays.length > 0 ? "font-medium" : "font-bold"}`}
+                                    style={{
+                                        color:
+                                            active_country_overlays.length > 0
+                                                ? zone_label_active_color
+                                                : zone_label_inactive_color,
+                                    }}
+                                >
+                                    States
+                                </span>
+                                <span
+                                    className="text-xs leading-none"
+                                    style={{
+                                        color:
+                                            active_country_overlays.length > 0
+                                                ? zone_label_active_color
+                                                : zone_label_inactive_color,
+                                    }}
+                                >
+                                    ({active_country_overlays.length})
+                                </span>
+                            </button>
+                            {show_country_selector && (
+                                <div
+                                    className="absolute left-0 mt-1 rounded-md shadow-lg w-full p-2 z-50"
+                                    style={{
+                                        background: colors.theme.background,
+                                        border: `1px solid ${colors.theme.text}2E`,
+                                    }}
+                                >
+                                    <div className="flex flex-col gap-2">
+                                        <label
+                                            className="flex items-center gap-2 text-xl"
+                                            style={{ color: colors.theme.text }}
+                                            title="Toggle all country overlays"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={all_country_overlays_selected}
+                                                onChange={event => {
+                                                    const next_checked = event.target.checked;
+                                                    set_map_controls(state => {
+                                                        country_zone_overlays.forEach(overlay => {
+                                                            state[overlay.map_control_key] =
+                                                                next_checked;
+                                                        });
+                                                        if (next_checked) {
+                                                            state.show_cq_zones = false;
+                                                            state.show_itu_zones = false;
+                                                        }
+                                                    });
+                                                }}
+                                            />
+                                            <span>All</span>
+                                        </label>
+                                        {country_zone_overlays.map(overlay => {
+                                            const is_checked =
+                                                map_controls[overlay.map_control_key] ?? false;
+                                            return (
+                                                <label
+                                                    key={overlay.id}
+                                                    className="flex items-center gap-2 text-xl"
+                                                    style={{ color: colors.theme.text }}
+                                                    title={overlay.title}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={is_checked}
+                                                        onChange={event => {
+                                                            const next_checked =
+                                                                event.target.checked;
+                                                            set_map_controls(state => {
+                                                                state[overlay.map_control_key] =
+                                                                    next_checked;
+                                                                if (next_checked) {
+                                                                    state.show_cq_zones = false;
+                                                                    state.show_itu_zones = false;
+                                                                }
+                                                            });
+                                                        }}
+                                                    />
+                                                    <span>{overlay.label}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     {active_disabled_summaries.length > 0 && (
                         <div
