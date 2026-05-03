@@ -249,11 +249,9 @@ function SubmitSpot({ dev_mode }) {
                         <tr>
                             <td>Spotter callsign:</td>
                             <td>
-                                <Input
-                                    value={settings.callsign}
-                                    className="uppercase w-32"
-                                    disabled
-                                />
+                                <span className="inline-block w-32 uppercase font-bold text-lg text-center">
+                                    {settings.callsign}
+                                </span>
                             </td>
                         </tr>
                         <tr>
