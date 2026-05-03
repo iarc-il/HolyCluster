@@ -16,6 +16,7 @@ const FILTER_TYPE_LABELS = {
     suffix: "Sfx",
     entity: "Ent",
     zone: "Zone",
+    comment: "Cmt",
 };
 
 const SPOTTER_DX_LABELS = {
@@ -149,6 +150,36 @@ function FilterContent({ filter, listeners, attributes, colors }) {
 
     if (filter.type === "zone") {
         return <ZoneFilterBadge filter={filter} listeners={listeners} attributes={attributes} />;
+    }
+
+    if (filter.type === "comment" && filter.quick_filter) {
+        return (
+            <FilterBadge
+                listeners={listeners}
+                attributes={attributes}
+                className="cursor-grab active:cursor-grabbing w-24"
+                title={filter.value}
+            >
+                {filter.value}
+            </FilterBadge>
+        );
+    }
+
+    if (filter.type === "comment") {
+        return (
+            <div className="flex items-center gap-1">
+                <div {...listeners} {...attributes}>
+                    <Input
+                        className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
+                        disabled
+                        disabled_text_color={colors.theme.text}
+                        title={filter.value}
+                        value={filter.value}
+                    />
+                </div>
+                <Indicator text={FILTER_TYPE_LABELS[filter.type]} />
+            </div>
+        );
     }
 
     return (

@@ -25,6 +25,13 @@ export const empty_filter_data = {
     zone_system: "cq",
 };
 
+const QUICK_COMMENT_FILTERS = [
+    { label: "WWFF", value: "wwff", comment: "WWFF" },
+    { label: "POTA", value: "pota", comment: "POTA" },
+    { label: "SOTA", value: "sota", comment: "SOTA" },
+    { label: "IOTA", value: "iota", comment: "IOTA" },
+];
+
 function RadioButton({ children, disabled, on_click }) {
     let classes = [
         "flex",
@@ -102,6 +109,13 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
             return empty_filter_data;
         }
 
+        if (filter_data.type === "comment" && filter_data.quick_filter) {
+            return {
+                ...filter_data,
+                type: "quick_comment",
+            };
+        }
+
         if (
             filter_data.type === "zone" &&
             (filter_data.zone_system === "us_state" || filter_data.zone_system === "ca_province")
@@ -152,7 +166,12 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                   temp_data.value,
                               ),
                           }
-                        : temp_data;
+                        : temp_data.type == "quick_comment"
+                          ? {
+                                ...temp_data,
+                                type: "comment",
+                            }
+                          : temp_data;
 
                 if (temp_data.type == "zone" || temp_data.type == "zone_region") {
                     if (!is_valid_zone_number(temp_data.zone_system, temp_data.value)) {
@@ -202,6 +221,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                         { label: "Entity", value: "entity" },
                         { label: "US/Canada", value: "zone_region" },
                         { label: "Zone", value: "zone" },
+                        { label: "Quick Filter", value: "quick_comment" },
                         { label: "Comment", value: "comment" },
                         { label: "Self Spotters", value: "self_spotters" },
                         { label: "DXpeditions", value: "dxpeditions" },
@@ -222,6 +242,15 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                 zone_system:
                                     value == "zone_region" ? "us_state" : temp_data.zone_system,
                                 spotter_or_dx: "dx",
+                                quick_filter: undefined,
+                            };
+                        } else if (value == "quick_comment") {
+                            const quick_filter = QUICK_COMMENT_FILTERS[0];
+                            return {
+                                ...temp_data,
+                                [field]: value,
+                                value: quick_filter.comment,
+                                quick_filter: quick_filter.value,
                             };
                         } else if (value == "zone") {
                             return {
@@ -230,9 +259,15 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                 value: "1",
                                 zone_system: temp_data.zone_system || "cq",
                                 spotter_or_dx: "dx",
+                                quick_filter: undefined,
                             };
                         } else {
-                            return { ...temp_data, [field]: value };
+                            return {
+                                ...temp_data,
+                                [field]: value,
+                                quick_filter:
+                                    value === "quick_comment" ? temp_data.quick_filter : undefined,
+                            };
                         }
                     }}
                 />
@@ -344,7 +379,8 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                     </>
                 ) : temp_data.type != "self_spotters" &&
                   temp_data.type != "dxpeditions" &&
-                  temp_data.type != "comment" ? (
+                  temp_data.type != "comment" &&
+                  temp_data.type != "quick_comment" ? (
                     <>
                         <hr />
                         <SelectionLine
@@ -436,6 +472,33 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                 />
                             </div>
                         </div>
+                    </>
+                ) : temp_data.type == "quick_comment" ? (
+                    <>
+                        <hr />
+                        <b className="text-xl flex mt-2">Select:</b>
+                        <SelectionLine
+                            states={QUICK_COMMENT_FILTERS.map(quick_filter => ({
+                                label: quick_filter.label,
+                                value: quick_filter.value,
+                            }))}
+                            field="quick_filter"
+                            temp_data={temp_data}
+                            set_temp_data={set_temp_data}
+                            build_temp_data={(current_data, field, value) => {
+                                const selected_filter = QUICK_COMMENT_FILTERS.find(
+                                    filter => filter.value === value,
+                                );
+                                if (!selected_filter) {
+                                    return current_data;
+                                }
+                                return {
+                                    ...current_data,
+                                    [field]: selected_filter.value,
+                                    value: selected_filter.comment,
+                                };
+                            }}
+                        />
                     </>
                 ) : (
                     ""
