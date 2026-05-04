@@ -309,7 +309,7 @@ export function draw_zone_labels(
         );
     }
 
-    if (dev_mode) {
+    if (dev_mode && active_systems.length === 0) {
         draw_dxcc_labels(context, projection, is_globe);
     }
 
