@@ -130,7 +130,7 @@ export default function CallsignSearch() {
                 </svg>
             </button>
             {show_popup && (
-                <Popup anchor_ref={single_spot_ref}>
+                <Popup anchor_ref={single_spot_ref} keep_in_view={true}>
                     <div
                         className="py-1 px-2 rounded shadow-lg"
                         style={{
