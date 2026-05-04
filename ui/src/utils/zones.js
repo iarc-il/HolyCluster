@@ -35,7 +35,43 @@ export const ZONE_CONFIG = {
     },
 };
 
-export const ZONE_LABEL_RENDER_MIN_AREA_PX = 220;
+export const LABEL_AREA_VISIBILITY = {
+    cq: {
+        inside_polygon_min_area_px: 220,
+        outside_polygon_min_area_px: 70,
+    },
+    itu: {
+        inside_polygon_min_area_px: 220,
+        outside_polygon_min_area_px: 70,
+    },
+    us_state: {
+        inside_polygon_min_area_px: 220,
+        outside_polygon_min_area_px: 70,
+    },
+    ca_province: {
+        inside_polygon_min_area_px: 220,
+        outside_polygon_min_area_px: 70,
+    },
+    dxcc: {
+        inside_polygon_min_area_px: 35,
+        outside_polygon_min_area_px: 0,
+    },
+};
+
+export function is_label_anchor_outside_feature(feature, anchor_lon_lat) {
+    if (!feature || !anchor_lon_lat || anchor_lon_lat.length < 2) return false;
+    return !d3.geoContains(feature, anchor_lon_lat);
+}
+
+export function get_label_min_area_px(system, feature, anchor_lon_lat) {
+    const visibility = LABEL_AREA_VISIBILITY[system];
+    if (!visibility) return Number.POSITIVE_INFINITY;
+
+    const is_outside = is_label_anchor_outside_feature(feature, anchor_lon_lat);
+    return is_outside
+        ? visibility.outside_polygon_min_area_px
+        : visibility.inside_polygon_min_area_px;
+}
 
 export function get_active_overlay_systems(map_controls) {
     if (map_controls?.show_cq_zones) return ["cq"];
@@ -164,9 +200,10 @@ export function find_zone_label_number(system, projection, x, y, is_globe, pixel
 
     for (const feature of config.zones.features) {
         const area_px = zone_path.area(feature);
-        if (!Number.isFinite(area_px) || area_px < ZONE_LABEL_RENDER_MIN_AREA_PX) continue;
-
         const [lat, lon] = feature.properties[config.loc_key];
+        const min_label_area_px = get_label_min_area_px(system, feature, [lon, lat]);
+        if (!Number.isFinite(area_px) || area_px < min_label_area_px) continue;
+
         if (is_globe) {
             const dist = d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]);
             if (dist > Math.PI / 2) continue;

@@ -5,9 +5,10 @@ import lakes from "@/maps/lakes.json";
 import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
 import {
     get_active_overlay_systems,
+    get_label_min_area_px,
+    is_label_anchor_outside_feature,
     normalize_zone_value,
     ZONE_CONFIG,
-    ZONE_LABEL_RENDER_MIN_AREA_PX,
 } from "@/utils/zones.js";
 
 export { dxcc_map };
@@ -134,16 +135,18 @@ function draw_zone_labels_for_system(
     projection,
     is_globe,
     zones,
+    system,
     label_key,
     loc_key,
     hovered_zone_number,
     zone_action_map,
 ) {
     const zone_path = d3.geoPath().projection(projection);
-    const MIN_LABEL_AREA_PX = ZONE_LABEL_RENDER_MIN_AREA_PX;
     const MIN_FONT_PX = 9;
     const MAX_FONT_PX = 14;
+    const OUTSIDE_MAX_FONT_PX = 20;
     const HOVER_MAX_FONT_PX = 16;
+    const OUTSIDE_HOVER_MAX_FONT_PX = 22;
     const FONT_SCALE = 0.25;
 
     context.lineWidth = 1;
@@ -152,9 +155,11 @@ function draw_zone_labels_for_system(
     context.textBaseline = "middle";
     for (const feature of zones.features) {
         const area_px = zone_path.area(feature);
-        if (!Number.isFinite(area_px) || area_px < MIN_LABEL_AREA_PX) continue;
-
         const [lat, lon] = feature.properties[loc_key];
+        const is_outside_polygon = is_label_anchor_outside_feature(feature, [lon, lat]);
+        const min_label_area_px = get_label_min_area_px(system, feature, [lon, lat]);
+        if (!Number.isFinite(area_px) || area_px < min_label_area_px) continue;
+
         if (is_globe) {
             const dist = d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]);
             if (dist > Math.PI / 2) continue;
@@ -167,13 +172,16 @@ function draw_zone_labels_for_system(
         const zone_number = feature.properties[label_key];
         const label = String(zone_number);
         const is_hovered = hovered_zone_number != null && zone_number === hovered_zone_number;
+        const outside_font_multiplier = is_outside_polygon ? 1.7 : 1;
+        const max_font_px = is_outside_polygon ? OUTSIDE_MAX_FONT_PX : MAX_FONT_PX;
+        const hover_max_font_px = is_outside_polygon ? OUTSIDE_HOVER_MAX_FONT_PX : HOVER_MAX_FONT_PX;
         const base_font_px = Math.max(
             MIN_FONT_PX,
-            Math.min(MAX_FONT_PX, Math.sqrt(area_px) * FONT_SCALE),
+            Math.min(max_font_px, Math.sqrt(area_px) * FONT_SCALE * outside_font_multiplier),
         );
         const hovered_font_px = Math.max(
             MIN_FONT_PX + 1,
-            Math.min(HOVER_MAX_FONT_PX, base_font_px + 2),
+            Math.min(hover_max_font_px, base_font_px + 2),
         );
         context.font = is_hovered
             ? `900 ${Math.round(hovered_font_px)}px sans-serif`
@@ -204,9 +212,9 @@ function get_dxcc_label_from_prefix(dxcc_prefix) {
 
 function draw_dxcc_labels(context, projection, is_globe) {
     const dxcc_path = d3.geoPath().projection(projection);
-    const MIN_LABEL_AREA_PX = ZONE_LABEL_RENDER_MIN_AREA_PX;
     const MIN_FONT_PX = 9;
     const MAX_FONT_PX = 14;
+    const OUTSIDE_MAX_FONT_PX = 26;
     const FONT_SCALE = 0.25;
 
     const rotation = projection.rotate();
@@ -215,11 +223,12 @@ function draw_dxcc_labels(context, projection, is_globe) {
 
     for (const feature of dxcc_map.features) {
         const area_px = dxcc_path.area(feature);
-        if (!Number.isFinite(area_px) || area_px < MIN_LABEL_AREA_PX) continue;
-
         const centroid = d3.geoCentroid(feature);
         if (!centroid || centroid.length < 2) continue;
         const [lon, lat] = centroid;
+        const is_outside_polygon = is_label_anchor_outside_feature(feature, [lon, lat]);
+        const min_label_area_px = get_label_min_area_px("dxcc", feature, [lon, lat]);
+        if (!Number.isFinite(area_px) || area_px < min_label_area_px) continue;
 
         if (is_globe) {
             const dist = d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]);
@@ -234,9 +243,11 @@ function draw_dxcc_labels(context, projection, is_globe) {
         const label = get_dxcc_label_from_prefix(feature?.properties?.dxcc_prefix);
         if (!label) continue;
 
+        const outside_font_multiplier = is_outside_polygon ? 1.9 : 1;
+        const max_font_px = is_outside_polygon ? OUTSIDE_MAX_FONT_PX : MAX_FONT_PX;
         const font_px = Math.max(
             MIN_FONT_PX,
-            Math.min(MAX_FONT_PX, Math.sqrt(area_px) * FONT_SCALE),
+            Math.min(max_font_px, Math.sqrt(area_px) * FONT_SCALE * outside_font_multiplier),
         );
         context.font = `bold ${Math.round(font_px)}px sans-serif`;
         context.fillStyle = "rgba(0, 0, 0, 0.8)";
@@ -280,6 +291,7 @@ export function draw_zone_labels(
             projection,
             is_globe,
             config.zones,
+            system,
             config.number_key,
             config.loc_key,
             hovered_zone?.system === system ? hovered_zone.number : null,
