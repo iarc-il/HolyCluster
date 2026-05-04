@@ -58,16 +58,62 @@ export const LABEL_AREA_VISIBILITY = {
     },
 };
 
-export function is_label_anchor_outside_feature(feature, anchor_lon_lat) {
-    if (!feature || !anchor_lon_lat || anchor_lon_lat.length < 2) return false;
-    return !d3.geoContains(feature, anchor_lon_lat);
+function is_point_in_linear_ring(point_lon_lat, ring) {
+    const [px, py] = point_lon_lat;
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+        const intersects = yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
+        if (intersects) inside = !inside;
+    }
+    return inside;
 }
 
-export function get_label_min_area_px(system, feature, anchor_lon_lat) {
+function is_point_in_polygon_geometry(point_lon_lat, polygon_coordinates) {
+    if (!Array.isArray(polygon_coordinates) || polygon_coordinates.length === 0) return false;
+
+    const [outer_ring, ...holes] = polygon_coordinates;
+    if (!is_point_in_linear_ring(point_lon_lat, outer_ring)) return false;
+
+    for (const hole of holes) {
+        if (is_point_in_linear_ring(point_lon_lat, hole)) return false;
+    }
+    return true;
+}
+
+function is_point_in_geometry(point_lon_lat, geometry) {
+    if (!geometry) return false;
+
+    if (geometry.type === "Polygon") {
+        return is_point_in_polygon_geometry(point_lon_lat, geometry.coordinates);
+    }
+    if (geometry.type === "MultiPolygon") {
+        return geometry.coordinates.some(polygon =>
+            is_point_in_polygon_geometry(point_lon_lat, polygon),
+        );
+    }
+    if (geometry.type === "GeometryCollection") {
+        return (geometry.geometries ?? []).some(inner_geometry =>
+            is_point_in_geometry(point_lon_lat, inner_geometry),
+        );
+    }
+    return false;
+}
+
+export function is_label_anchor_outside_feature(feature, anchor_lon_lat) {
+    if (!feature || !anchor_lon_lat || anchor_lon_lat.length < 2) return false;
+    return !is_point_in_geometry(anchor_lon_lat, feature.geometry);
+}
+
+export function get_label_min_area_px(system, feature, anchor_lon_lat, is_outside_polygon = null) {
     const visibility = LABEL_AREA_VISIBILITY[system];
     if (!visibility) return Number.POSITIVE_INFINITY;
 
-    const is_outside = is_label_anchor_outside_feature(feature, anchor_lon_lat);
+    const is_outside =
+        typeof is_outside_polygon === "boolean"
+            ? is_outside_polygon
+            : is_label_anchor_outside_feature(feature, anchor_lon_lat);
     return is_outside
         ? visibility.outside_polygon_min_area_px
         : visibility.inside_polygon_min_area_px;

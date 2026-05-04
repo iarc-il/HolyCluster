@@ -100,7 +100,7 @@ function get_zone_action_numbers(zone_action_map) {
     return action_numbers;
 }
 
-function draw_zone_overlay(context, path_generator, zones, label_key, action_numbers) {
+function draw_zone_overlay(context, path_generator, zones, system, label_key, action_numbers) {
     for (const [action, style] of Object.entries(ZONE_ACTION_STYLES)) {
         const numbers = action_numbers[action] ?? [];
         const zone_set = new Set(numbers);
@@ -157,7 +157,12 @@ function draw_zone_labels_for_system(
         const area_px = zone_path.area(feature);
         const [lat, lon] = feature.properties[loc_key];
         const is_outside_polygon = is_label_anchor_outside_feature(feature, [lon, lat]);
-        const min_label_area_px = get_label_min_area_px(system, feature, [lon, lat]);
+        const min_label_area_px = get_label_min_area_px(
+            system,
+            feature,
+            [lon, lat],
+            is_outside_polygon,
+        );
         if (!Number.isFinite(area_px) || area_px < min_label_area_px) continue;
 
         if (is_globe) {
@@ -227,7 +232,12 @@ function draw_dxcc_labels(context, projection, is_globe) {
         if (!centroid || centroid.length < 2) continue;
         const [lon, lat] = centroid;
         const is_outside_polygon = is_label_anchor_outside_feature(feature, [lon, lat]);
-        const min_label_area_px = get_label_min_area_px("dxcc", feature, [lon, lat]);
+        const min_label_area_px = get_label_min_area_px(
+            "dxcc",
+            feature,
+            [lon, lat],
+            is_outside_polygon,
+        );
         if (!Number.isFinite(area_px) || area_px < min_label_area_px) continue;
 
         if (is_globe) {
@@ -418,7 +428,14 @@ export function draw_map(
         if (!config) continue;
         const zone_action_map = get_zone_action_map(callsign_filters, system);
         const action_numbers = get_zone_action_numbers(zone_action_map);
-        draw_zone_overlay(context, path_generator, config.zones, config.number_key, action_numbers);
+        draw_zone_overlay(
+            context,
+            path_generator,
+            config.zones,
+            system,
+            config.number_key,
+            action_numbers,
+        );
     }
 
     context.restore();
