@@ -17,8 +17,8 @@
       "FT4": { "start": 3575, "end": 3578 },
       "FT2": { "start": 3578, "end": 3581 },
       "CW": { "start": 3500, "end": 3580 },
-      "RTTY": { "start": 3580, "end": 3700 },
-      "SSB": { "start": 3700, "end": 4000 }
+      "RTTY": { "start": 3580, "end": 3600 },
+      "SSB": { "start": 3600, "end": 4000 }
     }
   },
   "60": {
