@@ -103,7 +103,13 @@ function is_point_in_geometry(point_lon_lat, geometry) {
 
 export function is_label_anchor_outside_feature(feature, anchor_lon_lat) {
     if (!feature || !anchor_lon_lat || anchor_lon_lat.length < 2) return false;
-    return !is_point_in_geometry(anchor_lon_lat, feature.geometry);
+
+    // Keep the planar check for legacy zone polygons with inconsistent winding,
+    // and use spherical containment for polar/dateline-spanning features.
+    return !(
+        is_point_in_geometry(anchor_lon_lat, feature.geometry) ||
+        d3.geoContains(feature, anchor_lon_lat)
+    );
 }
 
 export function get_label_min_area_px(system, feature, anchor_lon_lat, is_outside_polygon = null) {
