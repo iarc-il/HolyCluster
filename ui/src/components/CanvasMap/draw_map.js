@@ -218,8 +218,7 @@ function get_dxcc_label_from_prefix(dxcc_prefix) {
 function draw_dxcc_labels(context, projection, is_globe) {
     const dxcc_path = d3.geoPath().projection(projection);
     const MIN_FONT_PX = 9;
-    const MAX_FONT_PX = 14;
-    const OUTSIDE_MAX_FONT_PX = 26;
+    const MAX_FONT_PX = 16;
     const FONT_SCALE = 0.25;
 
     const rotation = projection.rotate();
@@ -254,10 +253,9 @@ function draw_dxcc_labels(context, projection, is_globe) {
         if (!label) continue;
 
         const outside_font_multiplier = is_outside_polygon ? 1.9 : 1;
-        const max_font_px = is_outside_polygon ? OUTSIDE_MAX_FONT_PX : MAX_FONT_PX;
         const font_px = Math.max(
             MIN_FONT_PX,
-            Math.min(max_font_px, Math.sqrt(area_px) * FONT_SCALE * outside_font_multiplier),
+            Math.min(MAX_FONT_PX, Math.sqrt(area_px) * FONT_SCALE * outside_font_multiplier),
         );
         context.font = `bold ${Math.round(font_px)}px sans-serif`;
         context.fillStyle = "rgba(0, 0, 0, 0.8)";
