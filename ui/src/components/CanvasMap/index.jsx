@@ -59,9 +59,14 @@ function do_redraw(
     projection_ref,
     render_state_ref,
     canvas_refs,
-    { skip_shadow = false, fast = false } = {},
+    { skip_map = false, skip_shadow = false, fast = false } = {},
 ) {
-    return profile_map(fast ? "do_redraw.fast" : "do_redraw.full", () => {
+    const profile_label = skip_map
+        ? "do_redraw.overlay"
+        : fast
+          ? "do_redraw.fast"
+          : "do_redraw.full";
+    return profile_map(profile_label, () => {
         const projection = projection_ref.current;
         if (!dims || !projection) return;
         const {
@@ -81,7 +86,7 @@ function do_redraw(
         const render_dpr = fast && DPR > 1 ? 1 : DPR;
 
         const cache_canvas = canvas_refs.map_cache_canvas_ref.current;
-        if (cache_canvas) {
+        if (!skip_map && cache_canvas) {
             const target_w = dims.width * render_dpr;
             const target_h = dims.height * render_dpr;
             if (cache_canvas.width !== target_w || cache_canvas.height !== target_h) {
@@ -112,7 +117,7 @@ function do_redraw(
         }
 
         const map_canvas = canvas_refs.map_canvas_ref.current;
-        if (map_canvas && cache_canvas) {
+        if (!skip_map && map_canvas && cache_canvas) {
             profile_map("blit_map_cache", () => {
                 const ctx = map_canvas.getContext("2d");
                 ctx.clearRect(0, 0, map_canvas.width, map_canvas.height);
@@ -411,7 +416,7 @@ function CanvasMap({
         }
     }, [dims]);
 
-    // Main rendering effect — redraws all canvases when any visual state changes
+    // Base map changes are expensive; only redraw the cached map when inputs that affect it change.
     useEffect(() => {
         if (!dims || !projection_ref.current) return;
         if (gesture_active_ref.current) return;
@@ -421,29 +426,39 @@ function CanvasMap({
         center_lon,
         center_lat,
         radius_in_km,
-        spots,
-        colors,
-        hovered_spot,
-        pinned_spot,
-        hovered_band,
-        current_freq_spots,
         map_controls.night,
         map_controls.is_globe,
         map_controls.show_cq_zones,
         map_controls.show_itu_zones,
-        map_controls.show_dxcc_labels,
         map_controls.show_us_states,
         map_controls.show_can_states,
         callsign_filters.filters,
         callsign_filters.is_alert_filters_active,
         callsign_filters.is_show_only_filters_active,
         callsign_filters.is_hide_filters_active,
+        settings.show_equator,
+    ]);
+
+    // Dynamic overlays can change frequently; redraw them without touching the cached base map.
+    useEffect(() => {
+        if (!dims || !projection_ref.current) return;
+        if (gesture_active_ref.current) return;
+        do_redraw(dims, projection_ref, render_state_ref, canvas_refs, { skip_map: true });
+    }, [
+        dims,
+        spots,
+        colors,
+        hovered_spot,
+        pinned_spot,
+        hovered_band,
+        current_freq_spots,
+        map_controls.show_dxcc_labels,
         hovered_zone.system,
         hovered_zone.number,
         hovered_dxcc?.feature_index,
         hovered_dxcc?.label,
         hovered_dxcc?.entity,
-        settings.show_equator,
+        home_location,
     ]);
 
     // Animation loop for alerted spots
