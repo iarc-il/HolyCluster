@@ -62,7 +62,7 @@ function draw_night_circle(context, path_generator) {
     context.fill();
 }
 
-const ZONE_ACTION_STYLES = {
+const FILTER_ACTION_STYLES = {
     hide: {
         fill: "rgba(185, 28, 28, 0.28)",
         stroke: "rgba(185, 28, 28, 0.95)",
@@ -83,13 +83,32 @@ function get_zone_action_map(callsign_filters, system) {
 
     for (const filter of filters) {
         if (filter.type !== "zone" || filter.zone_system !== system) continue;
-        if (!(filter.action in ZONE_ACTION_STYLES)) continue;
+        if (!(filter.action in FILTER_ACTION_STYLES)) continue;
         const zone_number = normalize_zone_value(system, filter.value);
         if (zone_number == null) continue;
         zone_to_action.set(zone_number, filter.action);
     }
 
     return zone_to_action;
+}
+
+function normalize_dxcc_entity_filter_value(value) {
+    return (value ?? "").toString().trim().toLowerCase();
+}
+
+function get_dxcc_action_map(callsign_filters) {
+    const filters = callsign_filters?.filters ?? [];
+    const entity_to_action = new Map();
+
+    for (const filter of filters) {
+        if (filter.type !== "entity" || filter.spotter_or_dx !== "dx") continue;
+        if (!(filter.action in FILTER_ACTION_STYLES)) continue;
+        const entity = normalize_dxcc_entity_filter_value(filter.value);
+        if (!entity) continue;
+        entity_to_action.set(entity, filter.action);
+    }
+
+    return entity_to_action;
 }
 
 function get_zone_action_numbers(zone_action_map) {
@@ -101,7 +120,7 @@ function get_zone_action_numbers(zone_action_map) {
 }
 
 function draw_zone_overlay(context, path_generator, zones, system, label_key, action_numbers) {
-    for (const [action, style] of Object.entries(ZONE_ACTION_STYLES)) {
+    for (const [action, style] of Object.entries(FILTER_ACTION_STYLES)) {
         const numbers = action_numbers[action] ?? [];
         const zone_set = new Set(numbers);
         if (zone_set.size === 0) continue;
@@ -195,7 +214,7 @@ function draw_zone_labels_for_system(
             : `bold ${Math.round(base_font_px)}px sans-serif`;
         if (is_hovered) {
             const action = zone_action_map.get(zone_number);
-            const action_style = action ? ZONE_ACTION_STYLES[action] : null;
+            const action_style = action ? FILTER_ACTION_STYLES[action] : null;
             context.strokeStyle = "rgba(255, 255, 255, 0.95)";
             context.lineWidth = 4;
             context.lineJoin = "round";
@@ -296,10 +315,11 @@ export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14
     };
 }
 
-function draw_dxcc_labels(context, projection, is_globe) {
+function draw_dxcc_labels(context, projection, is_globe, hovered_dxcc, dxcc_action_map) {
     const dxcc_path = d3.geoPath().projection(projection);
     const MIN_FONT_PX = 9;
     const MAX_FONT_PX = 16;
+    const HOVER_MAX_FONT_PX = 18;
     const FONT_SCALE = 0.25;
 
     context.textAlign = "center";
@@ -310,14 +330,30 @@ function draw_dxcc_labels(context, projection, is_globe) {
         if (!label_data) continue;
 
         const { area_px, is_outside_polygon, label, x, y } = label_data;
+        const entity = feature?.properties?.dxcc_name ?? "";
+        const is_hovered = hovered_dxcc?.label === label && hovered_dxcc?.entity === entity;
 
         const outside_font_multiplier = is_outside_polygon ? 1.9 : 1;
         const font_px = Math.max(
             MIN_FONT_PX,
             Math.min(MAX_FONT_PX, Math.sqrt(area_px) * FONT_SCALE * outside_font_multiplier),
         );
-        context.font = `bold ${Math.round(font_px)}px sans-serif`;
-        context.fillStyle = "rgba(0, 0, 0, 0.8)";
+        const hovered_font_px = Math.max(MIN_FONT_PX + 1, Math.min(HOVER_MAX_FONT_PX, font_px + 2));
+        context.font = is_hovered
+            ? `900 ${Math.round(hovered_font_px)}px sans-serif`
+            : `bold ${Math.round(font_px)}px sans-serif`;
+        if (is_hovered) {
+            const action = dxcc_action_map.get(normalize_dxcc_entity_filter_value(entity));
+            const action_style = action ? FILTER_ACTION_STYLES[action] : null;
+            context.strokeStyle = "rgba(255, 255, 255, 0.95)";
+            context.lineWidth = 4;
+            context.lineJoin = "round";
+            context.miterLimit = 2;
+            context.strokeText(label, x, y);
+            context.fillStyle = action_style?.stroke ?? "rgba(0, 0, 0, 0.9)";
+        } else {
+            context.fillStyle = "rgba(0, 0, 0, 0.8)";
+        }
         context.fillText(label, x, y);
     }
 }
@@ -332,6 +368,7 @@ export function draw_zone_labels(
     show_us_states,
     show_can_states,
     hovered_zone,
+    hovered_dxcc,
     callsign_filters,
     dev_mode,
     fast = false,
@@ -367,7 +404,8 @@ export function draw_zone_labels(
     }
 
     if (dev_mode && active_systems.length === 0) {
-        draw_dxcc_labels(context, projection, is_globe);
+        const dxcc_action_map = get_dxcc_action_map(callsign_filters);
+        draw_dxcc_labels(context, projection, is_globe, hovered_dxcc, dxcc_action_map);
     }
 
     context.restore();

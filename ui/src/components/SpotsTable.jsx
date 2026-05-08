@@ -14,12 +14,12 @@ import { useSettings } from "@/hooks/useSettings";
 
 const cell_classes = {
     time: "w-[15%] md:w-[11%] xl:w-[8%]",
-    flag: "w-[7%] md:w-[6%] xl:w-[4%]",
+    flag: "w-[7%] md:w-[6%] xl:w-[8%]",
     dx_callsign: "w-[22%] md:w-[19%] xl:w-[15%]",
     freq: "w-[16%] md:w-[14%] xl:w-[11%]",
     band: "w-[11%] hidden align-middle md:table-cell xl:w-[10%]",
     spotter_callsign: "w-[22%] md:w-[19%] xl:w-[15%]",
-    mode: "w-[20%] md:w-[20%] xl:w-[10%]",
+    mode: "w-[20%] md:w-[20%] xl:w-[8%]",
     comment: "w-[25%] text-left hidden whitespace-normal [overflow-wrap:anywhere] xl:table-cell",
 };
 

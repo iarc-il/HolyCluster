@@ -16,6 +16,9 @@ function has_valid_enriched_value(value) {
 }
 
 function enrich_spot_zones_if_missing(spot) {
+    // if (spot.dx_callsign == "E70Y") {
+    //     console.log(spot);
+    // }
     if (!has_valid_enriched_value(spot.dx_cq_zone)) {
         spot.dx_cq_zone = find_zone_number("cq", spot.dx_loc);
     }

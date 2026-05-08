@@ -48,6 +48,7 @@ function do_redraw(
         spots,
         hovered_spot,
         hovered_zone,
+        hovered_dxcc,
         pinned_spot,
         hovered_band,
         current_freq_spots,
@@ -130,6 +131,7 @@ function do_redraw(
                 map_controls.show_us_states,
                 map_controls.show_can_states,
                 hovered_zone,
+                hovered_dxcc,
                 callsign_filters,
                 dev_mode,
                 fast,
@@ -401,6 +403,7 @@ function CanvasMap({
                     rs.map_controls.show_us_states,
                     rs.map_controls.show_can_states,
                     rs.hovered_zone,
+                    rs.hovered_dxcc,
                     rs.callsign_filters,
                     rs.dev_mode,
                 );
