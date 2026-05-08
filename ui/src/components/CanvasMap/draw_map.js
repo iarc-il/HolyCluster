@@ -79,6 +79,14 @@ const FILTER_ACTION_STYLES = {
     },
 };
 
+const DXCC_LABEL_STYLE = {
+    min_font_px: 9,
+    max_font_px: 16,
+    hover_max_font_px: 18,
+    font_scale: 0.25,
+    text_width_factor: 0.62,
+};
+
 const DXCC_ENTITY_ALIASES = {
     "Agalega & St. Brandon Is.": "Agalega and St. Brandon Islands",
     "Andaman & Nicobar Is.": "Andaman and Nicobar Islands",
@@ -290,12 +298,65 @@ function draw_zone_labels_for_system(
     }
 }
 
+function is_valid_dxcc_prefix_item(prefix_item) {
+    if (!prefix_item) return false;
+    if (prefix_item.toLowerCase() === "none") return false;
+    if (/\bunofficial\b/i.test(prefix_item)) return false;
+    return true;
+}
+
+export function get_dxcc_labels_from_prefix(dxcc_prefix) {
+    if (typeof dxcc_prefix !== "string") return [];
+
+    return dxcc_prefix
+        .split(",")
+        .map(item => item.trim().replace(/\s+/g, " "))
+        .filter(is_valid_dxcc_prefix_item);
+}
+
 export function get_dxcc_label_from_prefix(dxcc_prefix) {
-    if (typeof dxcc_prefix !== "string") return "";
-    const first_item = dxcc_prefix.split(",")[0]?.trim();
+    const [first_item] = get_dxcc_labels_from_prefix(dxcc_prefix);
     if (!first_item) return "";
-    const first_prefix = first_item.split("-")[0]?.trim();
-    return first_prefix || "";
+
+    return first_item.split("-")[0]?.trim() || "";
+}
+
+function get_dxcc_label_font_px(area_px, is_outside_polygon) {
+    const outside_font_multiplier = is_outside_polygon ? 1.9 : 1;
+    return Math.max(
+        DXCC_LABEL_STYLE.min_font_px,
+        Math.min(
+            DXCC_LABEL_STYLE.max_font_px,
+            Math.sqrt(area_px) * DXCC_LABEL_STYLE.font_scale * outside_font_multiplier,
+        ),
+    );
+}
+
+function estimate_dxcc_label_width_px(label, font_px) {
+    return label.length * font_px * DXCC_LABEL_STYLE.text_width_factor;
+}
+
+function get_dxcc_label_width_limit_px(feature, dxcc_path, area_px) {
+    const bounds = dxcc_path.bounds(feature);
+    const bounds_width = Math.abs(bounds?.[1]?.[0] - bounds?.[0]?.[0]);
+    if (!Number.isFinite(bounds_width) || bounds_width <= 0) return 0;
+
+    return Math.min(bounds_width * 0.88, Math.sqrt(area_px) * 2.6);
+}
+
+function select_dxcc_label(prefix_items, feature, dxcc_path, area_px, font_px) {
+    const first_label = get_dxcc_label_from_prefix(prefix_items[0] ?? "");
+    if (!first_label) return "";
+
+    const all_label = prefix_items.join(", ");
+    const width_limit_px = get_dxcc_label_width_limit_px(feature, dxcc_path, area_px);
+    const all_label_width_px = estimate_dxcc_label_width_px(all_label, font_px);
+
+    if (all_label_width_px <= width_limit_px) {
+        return all_label;
+    }
+
+    return first_label;
 }
 
 export function get_dxcc_label_data(feature, projection, is_globe, dxcc_path = null) {
@@ -327,14 +388,21 @@ export function get_dxcc_label_data(feature, projection, is_globe, dxcc_path = n
     const [x, y] = pos;
     if (!isFinite(x) || !isFinite(y)) return null;
 
-    const label = get_dxcc_label_from_prefix(feature?.properties?.dxcc_prefix);
+    const prefix_items = get_dxcc_labels_from_prefix(feature?.properties?.dxcc_prefix);
+    if (prefix_items.length === 0) return null;
+
+    const font_px = get_dxcc_label_font_px(area_px, is_outside_polygon);
+    const label = select_dxcc_label(prefix_items, feature, path, area_px, font_px);
     if (!label) return null;
+    const label_width_px = estimate_dxcc_label_width_px(label, font_px);
 
     return {
         area_px,
         feature,
+        font_px,
         is_outside_polygon,
         label,
+        label_width_px,
         lat,
         lon,
         x,
@@ -345,7 +413,6 @@ export function get_dxcc_label_data(feature, projection, is_globe, dxcc_path = n
 export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14) {
     if (!projection) return null;
 
-    const threshold_sq = pixel_threshold * pixel_threshold;
     const dxcc_path = d3.geoPath().projection(projection);
     let best = null;
 
@@ -355,8 +422,11 @@ export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14
 
         const dx = label_data.x - x;
         const dy = label_data.y - y;
+        const half_width = Math.max(pixel_threshold, label_data.label_width_px / 2 + 4);
+        const half_height = Math.max(pixel_threshold, label_data.font_px);
+        if (Math.abs(dx) > half_width || Math.abs(dy) > half_height) continue;
+
         const dist_sq = dx * dx + dy * dy;
-        if (dist_sq > threshold_sq) continue;
 
         if (best == null || dist_sq < best.dist_sq) {
             best = {
@@ -379,10 +449,6 @@ export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14
 
 function draw_dxcc_labels(context, projection, is_globe, hovered_dxcc, dxcc_action_map) {
     const dxcc_path = d3.geoPath().projection(projection);
-    const MIN_FONT_PX = 9;
-    const MAX_FONT_PX = 16;
-    const HOVER_MAX_FONT_PX = 18;
-    const FONT_SCALE = 0.25;
 
     context.textAlign = "center";
     context.textBaseline = "middle";
@@ -391,16 +457,14 @@ function draw_dxcc_labels(context, projection, is_globe, hovered_dxcc, dxcc_acti
         const label_data = get_dxcc_label_data(feature, projection, is_globe, dxcc_path);
         if (!label_data) continue;
 
-        const { area_px, is_outside_polygon, label, x, y } = label_data;
+        const { font_px, label, x, y } = label_data;
         const entity = get_dxcc_entity_name(feature);
         const is_hovered = hovered_dxcc?.label === label && hovered_dxcc?.entity === entity;
 
-        const outside_font_multiplier = is_outside_polygon ? 1.9 : 1;
-        const font_px = Math.max(
-            MIN_FONT_PX,
-            Math.min(MAX_FONT_PX, Math.sqrt(area_px) * FONT_SCALE * outside_font_multiplier),
+        const hovered_font_px = Math.max(
+            DXCC_LABEL_STYLE.min_font_px + 1,
+            Math.min(DXCC_LABEL_STYLE.hover_max_font_px, font_px + 2),
         );
-        const hovered_font_px = Math.max(MIN_FONT_PX + 1, Math.min(HOVER_MAX_FONT_PX, font_px + 2));
         context.font = is_hovered
             ? `900 ${Math.round(hovered_font_px)}px sans-serif`
             : `bold ${Math.round(font_px)}px sans-serif`;
