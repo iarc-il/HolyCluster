@@ -179,7 +179,9 @@ function draw_zone_labels_for_system(
         const is_hovered = hovered_zone_number != null && zone_number === hovered_zone_number;
         const outside_font_multiplier = is_outside_polygon ? 1.7 : 1;
         const max_font_px = is_outside_polygon ? OUTSIDE_MAX_FONT_PX : MAX_FONT_PX;
-        const hover_max_font_px = is_outside_polygon ? OUTSIDE_HOVER_MAX_FONT_PX : HOVER_MAX_FONT_PX;
+        const hover_max_font_px = is_outside_polygon
+            ? OUTSIDE_HOVER_MAX_FONT_PX
+            : HOVER_MAX_FONT_PX;
         const base_font_px = Math.max(
             MIN_FONT_PX,
             Math.min(max_font_px, Math.sqrt(area_px) * FONT_SCALE * outside_font_multiplier),
@@ -207,12 +209,56 @@ function draw_zone_labels_for_system(
     }
 }
 
-function get_dxcc_label_from_prefix(dxcc_prefix) {
+export function get_dxcc_label_from_prefix(dxcc_prefix) {
     if (typeof dxcc_prefix !== "string") return "";
     const first_item = dxcc_prefix.split(",")[0]?.trim();
     if (!first_item) return "";
     const first_prefix = first_item.split("-")[0]?.trim();
     return first_prefix || "";
+}
+
+export function get_dxcc_label_data(feature, projection, is_globe, dxcc_path = null) {
+    if (!feature || !projection) return null;
+
+    const path = dxcc_path ?? d3.geoPath().projection(projection);
+    const area_px = path.area(feature);
+    const centroid = d3.geoCentroid(feature);
+    if (!centroid || centroid.length < 2) return null;
+
+    const [lon, lat] = centroid;
+    const is_outside_polygon = is_label_anchor_outside_feature(feature, [lon, lat]);
+    const min_label_area_px = get_label_min_area_px(
+        "dxcc",
+        feature,
+        [lon, lat],
+        is_outside_polygon,
+    );
+    if (!Number.isFinite(area_px) || area_px < min_label_area_px) return null;
+
+    if (is_globe) {
+        const rotation = projection.rotate();
+        const dist = d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]);
+        if (dist > Math.PI / 2) return null;
+    }
+
+    const pos = projection([lon, lat]);
+    if (!pos) return null;
+    const [x, y] = pos;
+    if (!isFinite(x) || !isFinite(y)) return null;
+
+    const label = get_dxcc_label_from_prefix(feature?.properties?.dxcc_prefix);
+    if (!label) return null;
+
+    return {
+        area_px,
+        feature,
+        is_outside_polygon,
+        label,
+        lat,
+        lon,
+        x,
+        y,
+    };
 }
 
 function draw_dxcc_labels(context, projection, is_globe) {
@@ -221,36 +267,14 @@ function draw_dxcc_labels(context, projection, is_globe) {
     const MAX_FONT_PX = 16;
     const FONT_SCALE = 0.25;
 
-    const rotation = projection.rotate();
     context.textAlign = "center";
     context.textBaseline = "middle";
 
     for (const feature of dxcc_map.features) {
-        const area_px = dxcc_path.area(feature);
-        const centroid = d3.geoCentroid(feature);
-        if (!centroid || centroid.length < 2) continue;
-        const [lon, lat] = centroid;
-        const is_outside_polygon = is_label_anchor_outside_feature(feature, [lon, lat]);
-        const min_label_area_px = get_label_min_area_px(
-            "dxcc",
-            feature,
-            [lon, lat],
-            is_outside_polygon,
-        );
-        if (!Number.isFinite(area_px) || area_px < min_label_area_px) continue;
+        const label_data = get_dxcc_label_data(feature, projection, is_globe, dxcc_path);
+        if (!label_data) continue;
 
-        if (is_globe) {
-            const dist = d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]);
-            if (dist > Math.PI / 2) continue;
-        }
-
-        const pos = projection([lon, lat]);
-        if (!pos) continue;
-        const [x, y] = pos;
-        if (!isFinite(x) || !isFinite(y)) continue;
-
-        const label = get_dxcc_label_from_prefix(feature?.properties?.dxcc_prefix);
-        if (!label) continue;
+        const { area_px, is_outside_polygon, label, x, y } = label_data;
 
         const outside_font_multiplier = is_outside_polygon ? 1.9 : 1;
         const font_px = Math.max(
