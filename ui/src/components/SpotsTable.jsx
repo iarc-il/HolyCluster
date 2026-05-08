@@ -518,50 +518,48 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     return (
         <>
             <div
-                className="relative text-sm h-full overflow-x-visible border-x-4 flex flex-col w-full min-w-0"
+                className="relative text-sm overflow-y-scroll h-full w-full border-x-4 flex flex-col"
                 style={{
                     borderColor: colors.theme.borders,
                     backgroundColor: colors.theme.background,
                 }}
             >
                 <CallsignSearch />
-                <div className="overflow-y-scroll h-full w-full">
-                    <table
-                        className="max-md:table-fixed max-md:w-full text-center border-separate border-spacing-0"
-                        onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
-                    >
-                        <tbody className="divide-y">
-                            <tr>
-                                {columns.map(col => (
-                                    <HeaderCell
-                                        key={col.field}
-                                        title={col.title}
-                                        field={col.field}
-                                        cell_classes={cell_classes}
-                                        table_sort={table_sort}
-                                        set_table_sort={set_table_sort}
-                                        sorting={col.sorting}
-                                    />
-                                ))}
-                            </tr>
-                            {spots.map(spot => (
-                                <Spot
-                                    ref={element => (row_refs.current[spot.id] = element)}
-                                    key={spot.id}
-                                    spot={spot}
-                                    is_even={parity_map.current.get(spot.id)}
-                                    hovered_spot={hovered_spot}
-                                    pinned_spot={pinned_spot}
-                                    set_pinned_spot={set_pinned_spot}
-                                    set_hovered_spot={set_hovered_spot}
-                                    set_cat_to_spot={set_cat_to_spot}
-                                    on_context_menu={handle_context_menu}
-                                    is_new_spot={new_spot_ids.has(spot.id)}
-                                ></Spot>
+                <table
+                    className="max-md:table-fixed max-md:w-full text-center border-separate border-spacing-0"
+                    onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
+                >
+                    <tbody className="divide-y">
+                        <tr>
+                            {columns.map(col => (
+                                <HeaderCell
+                                    key={col.field}
+                                    title={col.title}
+                                    field={col.field}
+                                    cell_classes={cell_classes}
+                                    table_sort={table_sort}
+                                    set_table_sort={set_table_sort}
+                                    sorting={col.sorting}
+                                />
                             ))}
-                        </tbody>
-                    </table>
-                </div>
+                        </tr>
+                        {spots.map(spot => (
+                            <Spot
+                                ref={element => (row_refs.current[spot.id] = element)}
+                                key={spot.id}
+                                spot={spot}
+                                is_even={parity_map.current.get(spot.id)}
+                                hovered_spot={hovered_spot}
+                                pinned_spot={pinned_spot}
+                                set_pinned_spot={set_pinned_spot}
+                                set_hovered_spot={set_hovered_spot}
+                                set_cat_to_spot={set_cat_to_spot}
+                                on_context_menu={handle_context_menu}
+                                is_new_spot={new_spot_ids.has(spot.id)}
+                            ></Spot>
+                        ))}
+                    </tbody>
+                </table>
             </div>
             {context_menu.visible && (
                 <SpotContextMenu
