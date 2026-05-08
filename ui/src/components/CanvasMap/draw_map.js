@@ -250,6 +250,60 @@ function draw_dxcc_entity_filter_strokes(context, path_generator, feature_action
     }
 }
 
+function can_use_path2d() {
+    return typeof Path2D !== "undefined";
+}
+
+function build_dxcc_feature_paths(projection) {
+    if (!can_use_path2d()) return null;
+
+    const feature_paths = [];
+    const path_generator = d3.geoPath().projection(projection);
+    for (const feature of dxcc_map.features) {
+        const feature_path = new Path2D();
+        path_generator.context(feature_path)(feature);
+        feature_paths.push(feature_path);
+    }
+
+    return feature_paths;
+}
+
+function draw_dxcc_entity_filter_fills_from_paths(context, feature_paths, feature_actions) {
+    for (const [action, style] of Object.entries(FILTER_ACTION_STYLES)) {
+        const action_path = new Path2D();
+        let has_path = false;
+
+        for (const [fi, feature_action] of feature_actions) {
+            if (feature_action !== action) continue;
+            action_path.addPath(feature_paths[fi]);
+            has_path = true;
+        }
+
+        if (!has_path) continue;
+        context.fillStyle = style.fill;
+        context.fill(action_path);
+    }
+}
+
+function draw_dxcc_entity_filter_strokes_from_paths(context, feature_paths, feature_actions) {
+    for (const [action, style] of Object.entries(FILTER_ACTION_STYLES)) {
+        const action_path = new Path2D();
+        let has_path = false;
+
+        for (const [fi, feature_action] of feature_actions) {
+            if (feature_action !== action) continue;
+            action_path.addPath(feature_paths[fi]);
+            has_path = true;
+        }
+
+        if (!has_path) continue;
+        context.strokeStyle = style.stroke;
+        context.lineWidth = 2.8;
+        context.lineJoin = "round";
+        context.stroke(action_path);
+    }
+}
+
 function get_zone_action_numbers(zone_action_map) {
     const action_numbers = { hide: [], show_only: [], alert: [] };
     for (const [zone_number, action] of zone_action_map) {
@@ -770,19 +824,45 @@ export function draw_map(
         const dxcc_action_map = get_dxcc_action_map(callsign_filters);
         return get_dxcc_filtered_feature_actions(dxcc_action_map);
     });
+    const dxcc_feature_paths = profile_map("draw_map.dxcc_paths", () =>
+        build_dxcc_feature_paths(projection),
+    );
 
     profile_map("draw_map.dxcc_fill", () => {
-        for (const [ci, feature_indices] of color_groups) {
-            context.beginPath();
-            for (const fi of feature_indices) {
-                if (dxcc_feature_actions.has(fi)) continue;
-                path_generator(dxcc_map.features[fi]);
-            }
-            context.fillStyle = MAP_COUNTRY_COLORS[ci];
-            context.fill();
-        }
+        if (dxcc_feature_paths) {
+            for (const [ci, feature_indices] of color_groups) {
+                const color_path = new Path2D();
+                let has_path = false;
 
-        draw_dxcc_entity_filter_fills(context, path_generator, dxcc_feature_actions);
+                for (const fi of feature_indices) {
+                    if (dxcc_feature_actions.has(fi)) continue;
+                    color_path.addPath(dxcc_feature_paths[fi]);
+                    has_path = true;
+                }
+
+                if (!has_path) continue;
+                context.fillStyle = MAP_COUNTRY_COLORS[ci];
+                context.fill(color_path);
+            }
+
+            draw_dxcc_entity_filter_fills_from_paths(
+                context,
+                dxcc_feature_paths,
+                dxcc_feature_actions,
+            );
+        } else {
+            for (const [ci, feature_indices] of color_groups) {
+                context.beginPath();
+                for (const fi of feature_indices) {
+                    if (dxcc_feature_actions.has(fi)) continue;
+                    path_generator(dxcc_map.features[fi]);
+                }
+                context.fillStyle = MAP_COUNTRY_COLORS[ci];
+                context.fill();
+            }
+
+            draw_dxcc_entity_filter_fills(context, path_generator, dxcc_feature_actions);
+        }
     });
 
     profile_map("draw_map.lakes", () => {
@@ -795,14 +875,30 @@ export function draw_map(
     });
 
     profile_map("draw_map.dxcc_borders", () => {
-        context.beginPath();
-        dxcc_map.features.forEach(feature => {
-            path_generator(feature);
-        });
-        context.strokeStyle = MAP_STYLE.land_borders;
-        context.stroke();
+        if (dxcc_feature_paths) {
+            const border_path = new Path2D();
+            for (const feature_path of dxcc_feature_paths) {
+                border_path.addPath(feature_path);
+            }
 
-        draw_dxcc_entity_filter_strokes(context, path_generator, dxcc_feature_actions);
+            context.strokeStyle = MAP_STYLE.land_borders;
+            context.stroke(border_path);
+
+            draw_dxcc_entity_filter_strokes_from_paths(
+                context,
+                dxcc_feature_paths,
+                dxcc_feature_actions,
+            );
+        } else {
+            context.beginPath();
+            dxcc_map.features.forEach(feature => {
+                path_generator(feature);
+            });
+            context.strokeStyle = MAP_STYLE.land_borders;
+            context.stroke();
+
+            draw_dxcc_entity_filter_strokes(context, path_generator, dxcc_feature_actions);
+        }
     });
 
     // Night circle
