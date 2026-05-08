@@ -13,14 +13,14 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";
 
 const cell_classes = {
-    time: "w-14",
-    flag: "w-[1.3rem] md:min-w-[1.3rem]",
-    dx_callsign: "w-16 2xs:w-24",
-    freq: "w-12",
-    band: "w-12 hidden md:table-cell",
-    spotter_callsign: "w-16 2xs:w-24",
-    mode: "w-12 lg:w-[14rem]",
-    comment: "w-[40rem] text-left hidden xl:table-cell",
+    time: "w-[15%] md:w-[11%] xl:w-[8%]",
+    flag: "w-[7%] md:w-[6%] xl:w-[4%]",
+    dx_callsign: "w-[22%] md:w-[19%] xl:w-[15%]",
+    freq: "w-[16%] md:w-[14%] xl:w-[11%]",
+    band: "w-[11%] hidden align-middle md:table-cell xl:w-[10%]",
+    spotter_callsign: "w-[22%] md:w-[19%] xl:w-[15%]",
+    mode: "w-[20%] md:w-[20%] xl:w-[10%]",
+    comment: "w-[25%] text-left hidden whitespace-normal [overflow-wrap:anywhere] xl:table-cell",
 };
 
 const columns = [
@@ -148,6 +148,7 @@ function Spot(
     }
 
     let popup_anchor = useRef(null);
+    const comment = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 
     return (
         <tr
@@ -240,16 +241,18 @@ function Spot(
             </td>
             <td className={cell_classes.freq} onClick={() => set_cat_to_spot(spot)}>
                 <div
-                    className="px-1 rounded-full cursor-pointer md:hidden"
+                    className="inline-block min-w-[3.25rem] px-1 rounded-full cursor-pointer md:hidden"
                     style={{ backgroundColor: color, color: colors.text[spot.band] }}
                 >
                     {spot.freq}
                 </div>
-                <div className="px-1 rounded-full cursor-pointer hidden md:block">{spot.freq}</div>
+                <div className="hidden min-w-[3.25rem] px-1 rounded-full cursor-pointer md:inline-block">
+                    {spot.freq}
+                </div>
             </td>
-            <td className={cell_classes.band + " flex justify-center items-center"}>
+            <td className={cell_classes.band}>
                 <p
-                    className="px-1 rounded-full font-medium"
+                    className="inline-block min-w-[2.75rem] px-1 rounded-full font-medium whitespace-nowrap"
                     style={{
                         backgroundColor: color,
                         color: colors.text[spot.band],
@@ -268,8 +271,8 @@ function Spot(
                 <Callsign callsign={spot.spotter_callsign} />
             </td>
             <td className={cell_classes.mode}>{spot.mode}</td>
-            <td className={cell_classes.comment}>
-                {spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">")}
+            <td className={cell_classes.comment} title={comment}>
+                {comment}
             </td>
         </tr>
     );
@@ -518,7 +521,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     return (
         <>
             <div
-                className="relative text-sm overflow-y-scroll h-full w-full border-x-4 flex flex-col"
+                className="relative text-sm overflow-y-scroll overflow-x-hidden h-full w-full border-x-4 flex flex-col"
                 style={{
                     borderColor: colors.theme.borders,
                     backgroundColor: colors.theme.background,
@@ -526,7 +529,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
             >
                 <CallsignSearch />
                 <table
-                    className="max-md:table-fixed max-md:w-full text-center border-separate border-spacing-0"
+                    className="table-fixed w-full text-center border-separate border-spacing-0"
                     onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
                 >
                     <tbody className="divide-y">
