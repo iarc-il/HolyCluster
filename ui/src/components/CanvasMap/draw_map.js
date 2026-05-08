@@ -586,12 +586,12 @@ export function draw_zone_labels(
     is_globe,
     show_cq_zones,
     show_itu_zones,
+    show_dxcc_labels,
     show_us_states,
     show_can_states,
     hovered_zone,
     hovered_dxcc,
     callsign_filters,
-    dev_mode,
     fast = false,
 ) {
     if (fast) return;
@@ -624,7 +624,7 @@ export function draw_zone_labels(
         );
     }
 
-    if (dev_mode && active_systems.length === 0) {
+    if (show_dxcc_labels && active_systems.length === 0) {
         const dxcc_action_map = get_dxcc_action_map(callsign_filters);
         draw_dxcc_labels(context, projection, is_globe, hovered_dxcc, dxcc_action_map);
     }

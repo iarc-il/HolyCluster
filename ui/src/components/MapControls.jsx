@@ -38,6 +38,7 @@ function MapControls({
     const disabled_by_system = zone_filters.disabled_by_system ?? {};
     const MAX_VISIBLE_DISABLED_ZONES = 8;
     const cq_zones_on = map_controls.show_cq_zones;
+    const dxcc_labels_on = map_controls.show_dxcc_labels ?? false;
     const itu_zones_on = map_controls.show_itu_zones;
     const us_states_on = map_controls.show_us_states ?? false;
     const can_states_on = map_controls.show_can_states ?? false;
@@ -250,10 +251,45 @@ function MapControls({
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => {
+                            const show_dxcc = !dxcc_labels_on;
+                            set_map_controls(state => {
+                                state.show_dxcc_labels = show_dxcc;
+                                if (show_dxcc) {
+                                    state.show_cq_zones = false;
+                                    state.show_itu_zones = false;
+                                    state.show_us_states = false;
+                                    state.show_can_states = false;
+                                }
+                            });
+                        }}
+                        onMouseEnter={() => set_zone_button_hover("dxcc")}
+                        onMouseLeave={() => set_zone_button_hover(null)}
+                        className="flex items-center justify-center relative rounded-md px-2 min-w-10"
+                        style={{
+                            ...zone_button_base_style,
+                            ...(dxcc_labels_on ? zone_button_active_style : {}),
+                            ...(zone_button_hover === "dxcc" ? zone_button_hover_style : {}),
+                        }}
+                        title="DXCC labels"
+                    >
+                        <span
+                            className={`w-12 h-8 flex items-center justify-center text-xl leading-none ${dxcc_labels_on ? "font-medium" : "font-bold"}`}
+                            style={{
+                                color: dxcc_labels_on
+                                    ? zone_label_active_color
+                                    : zone_label_inactive_color,
+                            }}
+                        >
+                            DXCC
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => {
                             const show_cq = !cq_zones_on;
                             set_map_controls(state => {
                                 state.show_cq_zones = show_cq;
                                 if (show_cq) {
+                                    state.show_dxcc_labels = false;
                                     state.show_itu_zones = false;
                                     state.show_us_states = false;
                                     state.show_can_states = false;
@@ -287,6 +323,7 @@ function MapControls({
                                 state.show_itu_zones = show_itu;
                                 if (show_itu) {
                                     state.show_cq_zones = false;
+                                    state.show_dxcc_labels = false;
                                     state.show_us_states = false;
                                     state.show_can_states = false;
                                 }
@@ -374,6 +411,7 @@ function MapControls({
                                                 });
                                                 if (next_checked) {
                                                     state.show_cq_zones = false;
+                                                    state.show_dxcc_labels = false;
                                                     state.show_itu_zones = false;
                                                 }
                                             });
@@ -401,6 +439,7 @@ function MapControls({
                                                             next_checked;
                                                         if (next_checked) {
                                                             state.show_cq_zones = false;
+                                                            state.show_dxcc_labels = false;
                                                             state.show_itu_zones = false;
                                                         }
                                                     });

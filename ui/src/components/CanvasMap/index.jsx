@@ -66,7 +66,6 @@ function do_redraw(
         colors,
         map_controls,
         callsign_filters,
-        dev_mode,
         settings,
         spots,
         hovered_spot,
@@ -151,12 +150,12 @@ function do_redraw(
                 map_controls.is_globe,
                 map_controls.show_cq_zones,
                 map_controls.show_itu_zones,
+                map_controls.show_dxcc_labels,
                 map_controls.show_us_states,
                 map_controls.show_can_states,
                 hovered_zone,
                 hovered_dxcc,
                 callsign_filters,
-                dev_mode,
                 fast,
             );
         });
@@ -188,7 +187,7 @@ function CanvasMap({
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
-    const { colors, dev_mode } = useColors();
+    const { colors } = useColors();
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
     const [hovered_dxcc, set_hovered_dxcc] = useState(null);
     const [map_context_menu, set_map_context_menu] = useState({
@@ -344,7 +343,6 @@ function CanvasMap({
         hovered_zone,
         hovered_dxcc,
         home_location,
-        dev_mode,
     };
 
     useMemo(() => {
@@ -420,6 +418,7 @@ function CanvasMap({
         map_controls.is_globe,
         map_controls.show_cq_zones,
         map_controls.show_itu_zones,
+        map_controls.show_dxcc_labels,
         map_controls.show_us_states,
         map_controls.show_can_states,
         callsign_filters.filters,
@@ -475,12 +474,12 @@ function CanvasMap({
                     rs.map_controls.is_globe,
                     rs.map_controls.show_cq_zones,
                     rs.map_controls.show_itu_zones,
+                    rs.map_controls.show_dxcc_labels,
                     rs.map_controls.show_us_states,
                     rs.map_controls.show_can_states,
                     rs.hovered_zone,
                     rs.hovered_dxcc,
                     rs.callsign_filters,
-                    rs.dev_mode,
                 );
             });
         }
@@ -627,9 +626,10 @@ function CanvasMap({
         }
 
         function get_clickable_dxcc_label(x, y) {
-            const { dev_mode, map_controls } = render_state_ref.current;
+            const { map_controls } = render_state_ref.current;
             const projection = projection_ref.current;
-            if (!dev_mode || !projection) return null;
+            if (!projection) return null;
+            if (!map_controls.show_dxcc_labels) return null;
 
             const active_systems = get_active_overlay_systems(map_controls);
             if (active_systems.length !== 0) return null;
