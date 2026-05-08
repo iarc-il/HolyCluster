@@ -2,6 +2,7 @@ import * as d3 from "d3";
 import { century, equationOfTime, declination } from "solar-calculator";
 import dxcc_map from "@/maps/dxcc_map.json";
 import lakes from "@/maps/lakes.json";
+import { shorten_dxcc } from "@/data/flags.js";
 import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
 import {
     get_active_overlay_systems,
@@ -76,6 +77,65 @@ const FILTER_ACTION_STYLES = {
         stroke: "rgba(245, 158, 11, 0.95)",
     },
 };
+
+const DXCC_ENTITY_ALIASES = {
+    "Agalega & St. Brandon Is.": "Agalega and St. Brandon Islands",
+    "Andaman & Nicobar Is.": "Andaman and Nicobar Islands",
+    "Antigua & Barbuda": "Antigua and Barbuda",
+    "Baker & Howland Is.": "Baker Howland Islands",
+    "Banaba I. (Ocean I.)": "Banaba Island",
+    "Bosnia-Herzegovina": "Bosnia and Herzegovina",
+    Bouvet: "Bouvet Island",
+    "Brunei Darussalam": "Brunei",
+    "C. Kiribati (British Phoenix Is.)": "Central Kiribati",
+    "Central Africa": "Central African Republic",
+    "Ceuta & Melilla": "Ceuta and Melilla",
+    "Cote de'Ivoire": "Ivory Coast",
+    "Democratic People's Rep. of Korea": "North Korea",
+    "E. Kiribati (Line Is.)": "Eastern Kiribati",
+    "Federal Republic of Germany": "Germany",
+    Macedonia: "North Macedonia",
+    "New Zealand Subantarctic Islands": "Auckland & Campbell Islands",
+    "Peter 1 I.": "Peter I Island",
+    "Republic of Korea": "South Korea",
+    "Republic of the Congo": "Congo",
+    "San Andres & Providencia": "San Andres and Providencia",
+    "San Felix & San Ambrosio": "San Felix Islands",
+    "South Shetland Is.": "Antarctica",
+    "South Sudan (Republic of)": "South Sudan",
+    "St Maarten": "Sint Maarten",
+    "St. Barthelemy": "Saint Barthelemy",
+    "St. Kitts & Nevis": "St. Kitts and Nevis",
+    "St. Lucia": "Saint Lucia",
+    "St. Peter & St. Paul Rocks": "St. Peter and St. Paul Rocks",
+    "St. Pierre & Miquelon": "Saint Pierre and Miquelon",
+    "St. Vincent": "Saint Vincent and the Grenadines",
+    Swaziland: "Eswatini",
+    "Trinidad & Tobago": "Trinidad and Tobago",
+    "Tristan da Cunha & Gough I.": "Tristan da Cunha & Gough Islands",
+    "Turks & Caicos Is.": "Turks and Caicos Islands",
+    Vatican: "Vatican City",
+    "Viet Nam": "Vietnam",
+    "W. Kiribati (Gilbert Is.)": "Western Kiribati",
+    "Wallis & Futuna Is.": "Wallis and Futuna Islands",
+};
+
+function expand_dxcc_island_abbreviations(dxcc_name) {
+    return dxcc_name
+        .replace(/\bIs\./g, "Islands")
+        .replace(/\bI\./g, "Island")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+export function get_dxcc_entity_name(feature) {
+    const dxcc_name = feature?.properties?.dxcc_name;
+    if (typeof dxcc_name !== "string") return "";
+
+    const entity_name =
+        DXCC_ENTITY_ALIASES[dxcc_name] ?? expand_dxcc_island_abbreviations(dxcc_name);
+    return shorten_dxcc(entity_name);
+}
 
 function get_zone_action_map(callsign_filters, system) {
     const filters = callsign_filters?.filters ?? [];
@@ -299,7 +359,7 @@ export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14
         if (best == null || dist_sq < best.dist_sq) {
             best = {
                 label: label_data.label,
-                entity: feature?.properties?.dxcc_name ?? "",
+                entity: get_dxcc_entity_name(feature),
                 feature,
                 dist_sq,
             };
@@ -330,7 +390,7 @@ function draw_dxcc_labels(context, projection, is_globe, hovered_dxcc, dxcc_acti
         if (!label_data) continue;
 
         const { area_px, is_outside_polygon, label, x, y } = label_data;
-        const entity = feature?.properties?.dxcc_name ?? "";
+        const entity = get_dxcc_entity_name(feature);
         const is_hovered = hovered_dxcc?.label === label && hovered_dxcc?.entity === entity;
 
         const outside_font_multiplier = is_outside_polygon ? 1.9 : 1;
