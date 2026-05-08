@@ -320,7 +320,7 @@ function MapControls({
                                 fill={colors.buttons.utility}
                             >
                                 {is_map_fullscreen ? (
-                                    <path d="M9 3H5a2 2 0 0 0-2 2v4h2V5h4zM19 9V5a2 2 0 0 0-2-2h-4v2h4v4zM5 15H3v4a2 2 0 0 0 2 2h4v-2H5zM19 15v4h-4v2h4a2 2 0 0 0 2-2v-4z" />
+                                    <path d="M5 16h3v3h2v-5H5v2zM8 5v3H5v2h5V5H8zM16 19v-3h3v-2h-5v5h2zM14 5v5h5V8h-3V5h-2z" />
                                 ) : (
                                     <path d="M9 5H5v4H3V5a2 2 0 0 1 2-2h4zM15 3h4a2 2 0 0 1 2 2v4h-2V5h-4zM3 15h2v4h4v2H5a2 2 0 0 1-2-2zM19 15h2v4a2 2 0 0 1-2 2h-4v-2h4z" />
                                 )}
