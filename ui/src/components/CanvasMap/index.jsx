@@ -312,7 +312,7 @@ function CanvasMap({
 
     const is_max_xs_device = useMediaQuery("only screen and (max-width : 500px)");
     const is_sm_device = useMediaQuery("only screen and (min-width : 640px)");
-    const inner_padding = is_sm_device ? 45 : 5;
+    const inner_padding = is_sm_device && !map_controls.is_globe ? 45 : 5;
 
     const dims = useMemo(
         () => (width && height ? new Dimensions(width, height, inner_padding) : null),
