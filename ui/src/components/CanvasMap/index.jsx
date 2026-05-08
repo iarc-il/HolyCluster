@@ -770,6 +770,16 @@ function CanvasMap({
                 return;
             }
 
+            const clickable_dxcc = get_clickable_dxcc_label(x, y);
+            if (clickable_dxcc != null && clickable_dxcc.entity) {
+                callbacks_ref.current.open_dxcc_context_menu(
+                    event.clientX,
+                    event.clientY,
+                    clickable_dxcc.entity,
+                );
+                return;
+            }
+
             if (event.pointerType === "mouse") {
                 if (searched != null) {
                     const [, spot_id] = searched;
