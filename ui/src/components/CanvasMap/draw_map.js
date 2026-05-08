@@ -28,6 +28,11 @@ country_color_indices.forEach((ci, fi) => {
     color_groups.get(ci).push(fi);
 });
 
+const dxcc_label_placement_cache = {
+    key: null,
+    placements: [],
+};
+
 function generate_concentric_circles(center_x, center_y, radius, circle_count = 6) {
     const circles = [];
     const step = radius / circle_count;
@@ -337,22 +342,58 @@ function get_dxcc_label_width_limit_px(feature, dxcc_path, area_px) {
     return Math.min(bounds_width * 0.88, Math.sqrt(area_px) * 2.6);
 }
 
-function select_dxcc_label(prefix_items, feature, dxcc_path, area_px, font_px) {
-    const first_label = get_dxcc_label_from_prefix(prefix_items[0] ?? "");
-    if (!first_label) return "";
+function get_dxcc_label_box(x, y, label_width_px, font_px) {
+    const padding_x = 4;
+    const padding_y = 2;
+    const half_width = label_width_px / 2 + padding_x;
+    const half_height = font_px / 2 + padding_y;
 
-    const all_label = prefix_items.join(", ");
-    const width_limit_px = get_dxcc_label_width_limit_px(feature, dxcc_path, area_px);
-    const all_label_width_px = estimate_dxcc_label_width_px(all_label, font_px);
-
-    if (all_label_width_px <= width_limit_px) {
-        return all_label;
-    }
-
-    return first_label;
+    return {
+        x0: x - half_width,
+        y0: y - half_height,
+        x1: x + half_width,
+        y1: y + half_height,
+    };
 }
 
-export function get_dxcc_label_data(feature, projection, is_globe, dxcc_path = null) {
+function dxcc_label_boxes_overlap(box_a, box_b) {
+    return !(
+        box_a.x1 <= box_b.x0 ||
+        box_a.x0 >= box_b.x1 ||
+        box_a.y1 <= box_b.y0 ||
+        box_a.y0 >= box_b.y1
+    );
+}
+
+function has_dxcc_label_collision(box, placements, ignored_index = null) {
+    for (let index = 0; index < placements.length; index += 1) {
+        if (index === ignored_index) continue;
+        if (dxcc_label_boxes_overlap(box, placements[index].box)) return true;
+    }
+    return false;
+}
+
+function get_dxcc_label_placement_cache_key(projection, is_globe) {
+    const rotate = projection.rotate();
+    const translate = projection.translate();
+    return [
+        is_globe ? "globe" : "azimuthal",
+        projection.scale(),
+        translate[0],
+        translate[1],
+        rotate[0],
+        rotate[1],
+        rotate[2],
+    ].join(":");
+}
+
+export function get_dxcc_label_data(
+    feature,
+    projection,
+    is_globe,
+    dxcc_path = null,
+    feature_index = -1,
+) {
     if (!feature || !projection) return null;
 
     const path = dxcc_path ?? d3.geoPath().projection(projection);
@@ -385,47 +426,113 @@ export function get_dxcc_label_data(feature, projection, is_globe, dxcc_path = n
     if (prefix_items.length === 0) return null;
 
     const font_px = get_dxcc_label_font_px(area_px, is_outside_polygon);
-    const label = select_dxcc_label(prefix_items, feature, path, area_px, font_px);
-    if (!label) return null;
-    const label_width_px = estimate_dxcc_label_width_px(label, font_px);
+    const single_label = get_dxcc_label_from_prefix(prefix_items[0] ?? "");
+    if (!single_label) return null;
+
+    const single_label_width_px = estimate_dxcc_label_width_px(single_label, font_px);
+    const single_box = get_dxcc_label_box(x, y, single_label_width_px, font_px);
+    const full_label = prefix_items.join(", ");
+    const full_label_width_px = estimate_dxcc_label_width_px(full_label, font_px);
+    const full_label_fits_feature =
+        prefix_items.length > 1 &&
+        full_label !== single_label &&
+        full_label_width_px <= get_dxcc_label_width_limit_px(feature, path, area_px);
+    const full_box = full_label_fits_feature
+        ? get_dxcc_label_box(x, y, full_label_width_px, font_px)
+        : null;
 
     return {
         area_px,
+        entity: get_dxcc_entity_name(feature),
         feature,
+        feature_index,
         font_px,
+        full_box,
+        full_label,
+        full_label_fits_feature,
+        full_label_width_px,
         is_outside_polygon,
-        label,
-        label_width_px,
         lat,
         lon,
+        single_box,
+        single_label,
+        single_label_width_px,
         x,
         y,
     };
 }
 
+export function get_visible_dxcc_label_placements(projection, is_globe) {
+    if (!projection) return [];
+
+    const cache_key = get_dxcc_label_placement_cache_key(projection, is_globe);
+    if (dxcc_label_placement_cache.key === cache_key) {
+        return dxcc_label_placement_cache.placements;
+    }
+
+    const dxcc_path = d3.geoPath().projection(projection);
+    const candidates = [];
+    for (let feature_index = 0; feature_index < dxcc_map.features.length; feature_index += 1) {
+        const candidate = get_dxcc_label_data(
+            dxcc_map.features[feature_index],
+            projection,
+            is_globe,
+            dxcc_path,
+            feature_index,
+        );
+        if (candidate) candidates.push(candidate);
+    }
+
+    candidates.sort((a, b) => b.area_px - a.area_px);
+
+    const placements = [];
+    for (const candidate of candidates) {
+        if (has_dxcc_label_collision(candidate.single_box, placements)) continue;
+
+        placements.push({
+            ...candidate,
+            box: candidate.single_box,
+            label: candidate.single_label,
+            label_width_px: candidate.single_label_width_px,
+        });
+    }
+
+    for (let index = 0; index < placements.length; index += 1) {
+        const placement = placements[index];
+        if (!placement.full_label_fits_feature || !placement.full_box) continue;
+        if (has_dxcc_label_collision(placement.full_box, placements, index)) continue;
+
+        placement.box = placement.full_box;
+        placement.label = placement.full_label;
+        placement.label_width_px = placement.full_label_width_px;
+    }
+
+    dxcc_label_placement_cache.key = cache_key;
+    dxcc_label_placement_cache.placements = placements;
+
+    return placements;
+}
+
 export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14) {
     if (!projection) return null;
 
-    const dxcc_path = d3.geoPath().projection(projection);
     let best = null;
 
-    for (const feature of dxcc_map.features) {
-        const label_data = get_dxcc_label_data(feature, projection, is_globe, dxcc_path);
-        if (!label_data) continue;
-
-        const dx = label_data.x - x;
-        const dy = label_data.y - y;
-        const half_width = Math.max(pixel_threshold, label_data.label_width_px / 2 + 4);
-        const half_height = Math.max(pixel_threshold, label_data.font_px);
+    for (const placement of get_visible_dxcc_label_placements(projection, is_globe)) {
+        const dx = placement.x - x;
+        const dy = placement.y - y;
+        const half_width = Math.max(pixel_threshold, placement.label_width_px / 2 + 4);
+        const half_height = Math.max(pixel_threshold, placement.font_px);
         if (Math.abs(dx) > half_width || Math.abs(dy) > half_height) continue;
 
         const dist_sq = dx * dx + dy * dy;
 
         if (best == null || dist_sq < best.dist_sq) {
             best = {
-                label: label_data.label,
-                entity: get_dxcc_entity_name(feature),
-                feature,
+                label: placement.label,
+                entity: placement.entity,
+                feature: placement.feature,
+                feature_index: placement.feature_index,
                 dist_sq,
             };
         }
@@ -437,22 +544,17 @@ export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14
         label: best.label,
         entity: best.entity,
         feature: best.feature,
+        feature_index: best.feature_index,
     };
 }
 
 function draw_dxcc_labels(context, projection, is_globe, hovered_dxcc, dxcc_action_map) {
-    const dxcc_path = d3.geoPath().projection(projection);
-
     context.textAlign = "center";
     context.textBaseline = "middle";
 
-    for (const feature of dxcc_map.features) {
-        const label_data = get_dxcc_label_data(feature, projection, is_globe, dxcc_path);
-        if (!label_data) continue;
-
-        const { font_px, label, x, y } = label_data;
-        const entity = get_dxcc_entity_name(feature);
-        const is_hovered = hovered_dxcc?.label === label && hovered_dxcc?.entity === entity;
+    for (const placement of get_visible_dxcc_label_placements(projection, is_globe)) {
+        const { entity, feature_index, font_px, label, x, y } = placement;
+        const is_hovered = hovered_dxcc?.feature_index === feature_index;
 
         const hovered_font_px = Math.max(
             DXCC_LABEL_STYLE.min_font_px + 1,

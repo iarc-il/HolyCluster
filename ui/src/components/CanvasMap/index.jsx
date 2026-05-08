@@ -425,6 +425,7 @@ function CanvasMap({
         callsign_filters.filters,
         hovered_zone.system,
         hovered_zone.number,
+        hovered_dxcc?.feature_index,
         hovered_dxcc?.label,
         hovered_dxcc?.entity,
         settings.show_equator,
@@ -652,10 +653,15 @@ function CanvasMap({
             const clickable_dxcc =
                 clickable_zone == null ? get_clickable_dxcc_label(pos.x, pos.y) : null;
             const next_hovered_dxcc = clickable_dxcc
-                ? { label: clickable_dxcc.label, entity: clickable_dxcc.entity }
+                ? {
+                      feature_index: clickable_dxcc.feature_index,
+                      label: clickable_dxcc.label,
+                      entity: clickable_dxcc.entity,
+                  }
                 : null;
             const current_hovered_dxcc = render_state_ref.current.hovered_dxcc;
             if (
+                current_hovered_dxcc?.feature_index !== next_hovered_dxcc?.feature_index ||
                 current_hovered_dxcc?.label !== next_hovered_dxcc?.label ||
                 current_hovered_dxcc?.entity !== next_hovered_dxcc?.entity
             ) {
