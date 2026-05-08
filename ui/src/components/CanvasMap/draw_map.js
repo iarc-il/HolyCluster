@@ -298,20 +298,13 @@ function draw_zone_labels_for_system(
     }
 }
 
-function is_valid_dxcc_prefix_item(prefix_item) {
-    if (!prefix_item) return false;
-    if (prefix_item.toLowerCase() === "none") return false;
-    if (/\bunofficial\b/i.test(prefix_item)) return false;
-    return true;
-}
-
 export function get_dxcc_labels_from_prefix(dxcc_prefix) {
     if (typeof dxcc_prefix !== "string") return [];
 
     return dxcc_prefix
         .split(",")
         .map(item => item.trim().replace(/\s+/g, " "))
-        .filter(is_valid_dxcc_prefix_item);
+        .filter(Boolean);
 }
 
 export function get_dxcc_label_from_prefix(dxcc_prefix) {
