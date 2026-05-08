@@ -23,6 +23,28 @@ import { find_zone_label_number, get_active_overlay_systems } from "@/utils/zone
 
 const DPR = window.devicePixelRatio || 1;
 
+const MAP_FILTER_ACTIONS = [
+    {
+        action: "alert",
+        add_label: target_label => (target_label ? `Add Alert for ${target_label}` : "Add Alert"),
+        remove_label: target_label =>
+            target_label ? `Remove Alert for ${target_label}` : "Remove Alert",
+    },
+    {
+        action: "show_only",
+        add_label: target_label =>
+            target_label ? `Add Show Only ${target_label}` : "Add Show Only",
+        remove_label: target_label =>
+            target_label ? `Remove Show Only ${target_label}` : "Remove Show Only",
+    },
+    {
+        action: "hide",
+        add_label: target_label => (target_label ? `Add Hide ${target_label}` : "Add Hide"),
+        remove_label: target_label =>
+            target_label ? `Remove Hide ${target_label}` : "Remove Hide",
+    },
+];
+
 function with_dpr(ctx, fn) {
     ctx.save();
     ctx.scale(DPR, DPR);
@@ -168,12 +190,14 @@ function CanvasMap({
     const { colors, dev_mode } = useColors();
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
     const [hovered_dxcc, set_hovered_dxcc] = useState(null);
-    const [zone_context_menu, set_zone_context_menu] = useState({
+    const [map_context_menu, set_map_context_menu] = useState({
         visible: false,
         x: 0,
         y: 0,
+        type: null,
         system: null,
         number: null,
+        entity: null,
     });
 
     const map_canvas_ref = useRef(null);
@@ -198,34 +222,69 @@ function CanvasMap({
         set_pinned_spot,
         add_filter_if_allowed,
         open_zone_context_menu: (x, y, system, number) => {
-            set_zone_context_menu({ visible: true, x, y, system, number });
+            set_map_context_menu({
+                visible: true,
+                x,
+                y,
+                type: "zone",
+                system,
+                number,
+                entity: null,
+            });
+        },
+        open_dxcc_context_menu: (x, y, entity) => {
+            set_map_context_menu({
+                visible: true,
+                x,
+                y,
+                type: "dxcc",
+                system: null,
+                number: null,
+                entity,
+            });
         },
     };
 
-    const zone_menu_actions = [
-        { action: "alert", add_label: "Add Alert", remove_label: "Remove Alert" },
-        { action: "show_only", add_label: "Add Show Only", remove_label: "Remove Show Only" },
-        { action: "hide", add_label: "Add Hide", remove_label: "Remove Hide" },
-    ].map(action_config => {
-        const build_candidate_filter = () => ({
-            action: action_config.action,
-            type: "zone",
-            value: zone_context_menu.number,
-            zone_system: zone_context_menu.system,
-            spotter_or_dx: "dx",
-        });
-        const get_candidate_status = () => get_filter_add_status(build_candidate_filter());
+    function build_map_context_filter(action) {
+        if (map_context_menu.type === "dxcc") {
+            return {
+                action,
+                type: "entity",
+                value: map_context_menu.entity,
+                spotter_or_dx: "dx",
+            };
+        }
 
         return {
-            label: () =>
-                get_candidate_status().status === "remove"
-                    ? action_config.remove_label
-                    : action_config.add_label,
-            onClick: () => {
-                add_filter_if_allowed(build_candidate_filter());
-            },
+            action,
+            type: "zone",
+            value: map_context_menu.number,
+            zone_system: map_context_menu.system,
+            spotter_or_dx: "dx",
         };
-    });
+    }
+
+    function build_filter_menu_actions(build_candidate_filter, target_label = null) {
+        return MAP_FILTER_ACTIONS.map(action_config => {
+            const build_filter = () => build_candidate_filter(action_config.action);
+            const get_candidate_status = () => get_filter_add_status(build_filter());
+
+            return {
+                label: () =>
+                    get_candidate_status().status === "remove"
+                        ? action_config.remove_label(target_label)
+                        : action_config.add_label(target_label),
+                onClick: () => {
+                    add_filter_if_allowed(build_filter());
+                },
+            };
+        });
+    }
+
+    const map_menu_actions = build_filter_menu_actions(
+        build_map_context_filter,
+        map_context_menu.type === "dxcc" ? map_context_menu.entity : null,
+    );
 
     const canvas_refs = {
         map_canvas_ref,
@@ -1136,13 +1195,13 @@ function CanvasMap({
                     azimuth={azimuth}
                 />
             )}
-            {zone_context_menu.visible && (
+            {map_context_menu.visible && (
                 <SpotContextMenu
-                    x={zone_context_menu.x}
-                    y={zone_context_menu.y}
+                    x={map_context_menu.x}
+                    y={map_context_menu.y}
                     spot={null}
-                    on_close={() => set_zone_context_menu(state => ({ ...state, visible: false }))}
-                    actions={zone_menu_actions}
+                    on_close={() => set_map_context_menu(state => ({ ...state, visible: false }))}
+                    actions={map_menu_actions}
                 />
             )}
         </div>
