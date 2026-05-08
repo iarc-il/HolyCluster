@@ -261,6 +261,41 @@ export function get_dxcc_label_data(feature, projection, is_globe, dxcc_path = n
     };
 }
 
+export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14) {
+    if (!projection) return null;
+
+    const threshold_sq = pixel_threshold * pixel_threshold;
+    const dxcc_path = d3.geoPath().projection(projection);
+    let best = null;
+
+    for (const feature of dxcc_map.features) {
+        const label_data = get_dxcc_label_data(feature, projection, is_globe, dxcc_path);
+        if (!label_data) continue;
+
+        const dx = label_data.x - x;
+        const dy = label_data.y - y;
+        const dist_sq = dx * dx + dy * dy;
+        if (dist_sq > threshold_sq) continue;
+
+        if (best == null || dist_sq < best.dist_sq) {
+            best = {
+                label: label_data.label,
+                entity: feature?.properties?.dxcc_name ?? "",
+                feature,
+                dist_sq,
+            };
+        }
+    }
+
+    if (!best) return null;
+
+    return {
+        label: best.label,
+        entity: best.entity,
+        feature: best.feature,
+    };
+}
+
 function draw_dxcc_labels(context, projection, is_globe) {
     const dxcc_path = d3.geoPath().projection(projection);
     const MIN_FONT_PX = 9;

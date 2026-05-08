@@ -7,7 +7,7 @@ import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
 
 import { calculate_geographic_azimuth, km_to_miles, mod } from "@/utils.js";
 import { Dimensions } from "./dimensions.js";
-import { dxcc_map, draw_map, draw_zone_labels } from "./draw_map.js";
+import { dxcc_map, draw_map, draw_zone_labels, find_dxcc_label } from "./draw_map.js";
 import { draw_spots } from "./draw_spots.js";
 import { color_to_spot, draw_shadow_map } from "./hit_detection.js";
 import SpotPopup from "@/components/SpotPopup.jsx";
@@ -165,6 +165,7 @@ function CanvasMap({
     const { settings } = useSettings();
     const { colors, dev_mode } = useColors();
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
+    const [hovered_dxcc, set_hovered_dxcc] = useState(null);
     const [zone_context_menu, set_zone_context_menu] = useState({
         visible: false,
         x: 0,
@@ -265,6 +266,7 @@ function CanvasMap({
         radius_in_km,
         callsign_filters,
         hovered_zone,
+        hovered_dxcc,
         home_location,
         dev_mode,
     };
@@ -347,6 +349,8 @@ function CanvasMap({
         callsign_filters.filters,
         hovered_zone.system,
         hovered_zone.number,
+        hovered_dxcc?.label,
+        hovered_dxcc?.entity,
         settings.show_equator,
     ]);
 
@@ -542,6 +546,44 @@ function CanvasMap({
             }
 
             return null;
+        }
+
+        function get_clickable_dxcc_label(x, y) {
+            const { dev_mode, map_controls } = render_state_ref.current;
+            const projection = projection_ref.current;
+            if (!dev_mode || !projection) return null;
+
+            const active_systems = get_active_overlay_systems(map_controls);
+            if (active_systems.length !== 0) return null;
+
+            return find_dxcc_label(projection, x, y, map_controls.is_globe);
+        }
+
+        function update_label_hover(pos) {
+            const clickable_zone = get_clickable_zone_label(pos.x, pos.y);
+            const current_hovered_zone = render_state_ref.current.hovered_zone;
+            if (
+                current_hovered_zone.system !== clickable_zone?.system ||
+                current_hovered_zone.number !== clickable_zone?.number
+            ) {
+                set_hovered_zone({
+                    system: clickable_zone?.system ?? null,
+                    number: clickable_zone?.number ?? null,
+                });
+            }
+
+            const clickable_dxcc =
+                clickable_zone == null ? get_clickable_dxcc_label(pos.x, pos.y) : null;
+            const next_hovered_dxcc = clickable_dxcc
+                ? { label: clickable_dxcc.label, entity: clickable_dxcc.entity }
+                : null;
+            const current_hovered_dxcc = render_state_ref.current.hovered_dxcc;
+            if (
+                current_hovered_dxcc?.label !== next_hovered_dxcc?.label ||
+                current_hovered_dxcc?.entity !== next_hovered_dxcc?.entity
+            ) {
+                set_hovered_dxcc(next_hovered_dxcc);
+            }
         }
 
         function perform_drag(x, y) {
@@ -751,17 +793,7 @@ function CanvasMap({
             if (!pointers.has(event.pointerId)) {
                 // Mouse hover (desktop only)
                 if (event.pointerType === "mouse" && gesture_state !== "dragging") {
-                    const clickable_zone = get_clickable_zone_label(pos.x, pos.y);
-                    const current_hovered_zone = render_state_ref.current.hovered_zone;
-                    if (
-                        current_hovered_zone.system !== clickable_zone?.system ||
-                        current_hovered_zone.number !== clickable_zone?.number
-                    ) {
-                        set_hovered_zone({
-                            system: clickable_zone?.system ?? null,
-                            number: clickable_zone?.number ?? null,
-                        });
-                    }
+                    update_label_hover(pos);
 
                     const searched = get_data_from_shadow_canvas(pos.x, pos.y);
                     const { hovered_spot: current_hovered } = render_state_ref.current;
@@ -847,17 +879,7 @@ function CanvasMap({
 
             // Mouse hover (desktop only)
             if (event.pointerType === "mouse" && gesture_state !== "dragging") {
-                const clickable_zone = get_clickable_zone_label(pos.x, pos.y);
-                const current_hovered_zone = render_state_ref.current.hovered_zone;
-                if (
-                    current_hovered_zone.system !== clickable_zone?.system ||
-                    current_hovered_zone.number !== clickable_zone?.number
-                ) {
-                    set_hovered_zone({
-                        system: clickable_zone?.system ?? null,
-                        number: clickable_zone?.number ?? null,
-                    });
-                }
+                update_label_hover(pos);
 
                 const searched = get_data_from_shadow_canvas(pos.x, pos.y);
                 const { hovered_spot: current_hovered } = render_state_ref.current;
@@ -926,6 +948,9 @@ function CanvasMap({
                 const current_hovered_zone = render_state_ref.current.hovered_zone;
                 if (current_hovered_zone.system != null || current_hovered_zone.number != null) {
                     set_hovered_zone({ system: null, number: null });
+                }
+                if (render_state_ref.current.hovered_dxcc != null) {
+                    set_hovered_dxcc(null);
                 }
                 const { hovered_spot: current_hovered } = render_state_ref.current;
                 if (current_hovered.source != null || current_hovered.id != null) {
@@ -1034,7 +1059,8 @@ function CanvasMap({
                 touchAction: "none",
                 userSelect: "none",
                 cursor:
-                    hovered_zone.system != null && hovered_zone.number != null
+                    (hovered_zone.system != null && hovered_zone.number != null) ||
+                    hovered_dxcc != null
                         ? "pointer"
                         : "default",
             }}
