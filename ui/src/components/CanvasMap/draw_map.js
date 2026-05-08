@@ -12,6 +12,7 @@ import {
     normalize_zone_value,
     ZONE_CONFIG,
 } from "@/utils/zones.js";
+import { profile_map } from "./map_profile.js";
 
 export { dxcc_map };
 
@@ -526,54 +527,56 @@ export function get_dxcc_label_data(
 }
 
 export function get_visible_dxcc_label_placements(projection, is_globe) {
-    if (!projection) return [];
+    return profile_map("dxcc_label_placements", () => {
+        if (!projection) return [];
 
-    const cache_key = get_dxcc_label_placement_cache_key(projection, is_globe);
-    if (dxcc_label_placement_cache.key === cache_key) {
-        return dxcc_label_placement_cache.placements;
-    }
+        const cache_key = get_dxcc_label_placement_cache_key(projection, is_globe);
+        if (dxcc_label_placement_cache.key === cache_key) {
+            return dxcc_label_placement_cache.placements;
+        }
 
-    const dxcc_path = d3.geoPath().projection(projection);
-    const candidates = [];
-    for (let feature_index = 0; feature_index < dxcc_map.features.length; feature_index += 1) {
-        const candidate = get_dxcc_label_data(
-            dxcc_map.features[feature_index],
-            projection,
-            is_globe,
-            dxcc_path,
-            feature_index,
-        );
-        if (candidate) candidates.push(candidate);
-    }
+        const dxcc_path = d3.geoPath().projection(projection);
+        const candidates = [];
+        for (let feature_index = 0; feature_index < dxcc_map.features.length; feature_index += 1) {
+            const candidate = get_dxcc_label_data(
+                dxcc_map.features[feature_index],
+                projection,
+                is_globe,
+                dxcc_path,
+                feature_index,
+            );
+            if (candidate) candidates.push(candidate);
+        }
 
-    candidates.sort((a, b) => b.area_px - a.area_px);
+        candidates.sort((a, b) => b.area_px - a.area_px);
 
-    const placements = [];
-    for (const candidate of candidates) {
-        if (has_dxcc_label_collision(candidate.single_box, placements)) continue;
+        const placements = [];
+        for (const candidate of candidates) {
+            if (has_dxcc_label_collision(candidate.single_box, placements)) continue;
 
-        placements.push({
-            ...candidate,
-            box: candidate.single_box,
-            label: candidate.single_label,
-            label_width_px: candidate.single_label_width_px,
-        });
-    }
+            placements.push({
+                ...candidate,
+                box: candidate.single_box,
+                label: candidate.single_label,
+                label_width_px: candidate.single_label_width_px,
+            });
+        }
 
-    for (let index = 0; index < placements.length; index += 1) {
-        const placement = placements[index];
-        if (!placement.full_label_fits_feature || !placement.full_box) continue;
-        if (has_dxcc_label_collision(placement.full_box, placements, index)) continue;
+        for (let index = 0; index < placements.length; index += 1) {
+            const placement = placements[index];
+            if (!placement.full_label_fits_feature || !placement.full_box) continue;
+            if (has_dxcc_label_collision(placement.full_box, placements, index)) continue;
 
-        placement.box = placement.full_box;
-        placement.label = placement.full_label;
-        placement.label_width_px = placement.full_label_width_px;
-    }
+            placement.box = placement.full_box;
+            placement.label = placement.full_label;
+            placement.label_width_px = placement.full_label_width_px;
+        }
 
-    dxcc_label_placement_cache.key = cache_key;
-    dxcc_label_placement_cache.placements = placements;
+        dxcc_label_placement_cache.key = cache_key;
+        dxcc_label_placement_cache.placements = placements;
 
-    return placements;
+        return placements;
+    });
 }
 
 export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14) {
@@ -728,102 +731,120 @@ export function draw_map(
 
     context.lineWidth = 1;
 
-    if (!show_cq_zones && !show_itu_zones) {
-        if (is_globe) {
-            context.beginPath();
-            path_generator(d3.geoGraticule10());
-            context.strokeStyle = MAP_STYLE.graticule;
-            context.stroke();
-        } else {
-            const full_globe_radius = projection.scale() * Math.PI;
+    profile_map("draw_map.graticule", () => {
+        if (!show_cq_zones && !show_itu_zones) {
+            if (is_globe) {
+                context.beginPath();
+                path_generator(d3.geoGraticule10());
+                context.strokeStyle = MAP_STYLE.graticule;
+                context.stroke();
+            } else {
+                const full_globe_radius = projection.scale() * Math.PI;
 
-            context.beginPath();
-            generate_concentric_circles(dims.center_x, dims.center_y, full_globe_radius).forEach(
-                circle => {
+                context.beginPath();
+                generate_concentric_circles(
+                    dims.center_x,
+                    dims.center_y,
+                    full_globe_radius,
+                ).forEach(circle => {
                     context.moveTo(circle.cx + circle.r, circle.cy);
                     context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
-                },
-            );
-            context.strokeStyle = MAP_STYLE.graticule;
-            context.stroke();
+                });
+                context.strokeStyle = MAP_STYLE.graticule;
+                context.stroke();
 
-            context.beginPath();
-            generate_radial_lines(dims.center_x, dims.center_y, full_globe_radius, 15).forEach(
-                line => {
-                    context.moveTo(line.x1, line.y1);
-                    context.lineTo(line.x2, line.y2);
-                },
-            );
-            context.strokeStyle = MAP_STYLE.graticule;
-            context.stroke();
+                context.beginPath();
+                generate_radial_lines(dims.center_x, dims.center_y, full_globe_radius, 15).forEach(
+                    line => {
+                        context.moveTo(line.x1, line.y1);
+                        context.lineTo(line.x2, line.y2);
+                    },
+                );
+                context.strokeStyle = MAP_STYLE.graticule;
+                context.stroke();
+            }
         }
-    }
-
-    const dxcc_action_map = get_dxcc_action_map(callsign_filters);
-    const dxcc_feature_actions = get_dxcc_filtered_feature_actions(dxcc_action_map);
-
-    for (const [ci, feature_indices] of color_groups) {
-        context.beginPath();
-        for (const fi of feature_indices) {
-            if (dxcc_feature_actions.has(fi)) continue;
-            path_generator(dxcc_map.features[fi]);
-        }
-        context.fillStyle = MAP_COUNTRY_COLORS[ci];
-        context.fill();
-    }
-
-    draw_dxcc_entity_filter_fills(context, path_generator, dxcc_feature_actions);
-
-    context.beginPath();
-    for (const feature of lakes.features) {
-        path_generator(feature);
-    }
-    context.fillStyle = MAP_STYLE.background;
-    context.fill("evenodd");
-
-    context.beginPath();
-    dxcc_map.features.forEach(feature => {
-        path_generator(feature);
     });
-    context.strokeStyle = MAP_STYLE.land_borders;
-    context.stroke();
 
-    draw_dxcc_entity_filter_strokes(context, path_generator, dxcc_feature_actions);
+    const dxcc_feature_actions = profile_map("draw_map.dxcc_filter_actions", () => {
+        const dxcc_action_map = get_dxcc_action_map(callsign_filters);
+        return get_dxcc_filtered_feature_actions(dxcc_action_map);
+    });
+
+    profile_map("draw_map.dxcc_fill", () => {
+        for (const [ci, feature_indices] of color_groups) {
+            context.beginPath();
+            for (const fi of feature_indices) {
+                if (dxcc_feature_actions.has(fi)) continue;
+                path_generator(dxcc_map.features[fi]);
+            }
+            context.fillStyle = MAP_COUNTRY_COLORS[ci];
+            context.fill();
+        }
+
+        draw_dxcc_entity_filter_fills(context, path_generator, dxcc_feature_actions);
+    });
+
+    profile_map("draw_map.lakes", () => {
+        context.beginPath();
+        for (const feature of lakes.features) {
+            path_generator(feature);
+        }
+        context.fillStyle = MAP_STYLE.background;
+        context.fill("evenodd");
+    });
+
+    profile_map("draw_map.dxcc_borders", () => {
+        context.beginPath();
+        dxcc_map.features.forEach(feature => {
+            path_generator(feature);
+        });
+        context.strokeStyle = MAP_STYLE.land_borders;
+        context.stroke();
+
+        draw_dxcc_entity_filter_strokes(context, path_generator, dxcc_feature_actions);
+    });
 
     // Night circle
     if (night_displayed) {
-        draw_night_circle(context, path_generator);
+        profile_map("draw_map.night", () => {
+            draw_night_circle(context, path_generator);
+        });
     }
 
     // Equator
     if (show_equator) {
-        context.beginPath();
-        context.strokeStyle = "rgb(0, 0, 0)";
-        context.lineWidth = 2;
-        path_generator(d3.geoCircle().radius(90).center([0, 90])());
-        context.stroke();
+        profile_map("draw_map.equator", () => {
+            context.beginPath();
+            context.strokeStyle = "rgb(0, 0, 0)";
+            context.lineWidth = 2;
+            path_generator(d3.geoCircle().radius(90).center([0, 90])());
+            context.stroke();
+        });
     }
 
-    const active_systems = get_active_overlay_systems({
-        show_cq_zones,
-        show_itu_zones,
-        show_us_states,
-        show_can_states,
+    profile_map("draw_map.zone_overlays", () => {
+        const active_systems = get_active_overlay_systems({
+            show_cq_zones,
+            show_itu_zones,
+            show_us_states,
+            show_can_states,
+        });
+        for (const system of active_systems) {
+            const config = ZONE_CONFIG[system];
+            if (!config) continue;
+            const zone_action_map = get_zone_action_map(callsign_filters, system);
+            const action_numbers = get_zone_action_numbers(zone_action_map);
+            draw_zone_overlay(
+                context,
+                path_generator,
+                config.zones,
+                system,
+                config.number_key,
+                action_numbers,
+            );
+        }
     });
-    for (const system of active_systems) {
-        const config = ZONE_CONFIG[system];
-        if (!config) continue;
-        const zone_action_map = get_zone_action_map(callsign_filters, system);
-        const action_numbers = get_zone_action_numbers(zone_action_map);
-        draw_zone_overlay(
-            context,
-            path_generator,
-            config.zones,
-            system,
-            config.number_key,
-            action_numbers,
-        );
-    }
 
     context.restore();
 

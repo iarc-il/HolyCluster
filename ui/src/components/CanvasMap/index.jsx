@@ -10,6 +10,7 @@ import { Dimensions } from "./dimensions.js";
 import { dxcc_map, draw_map, draw_zone_labels, find_dxcc_label } from "./draw_map.js";
 import { draw_spots } from "./draw_spots.js";
 import { color_to_spot, draw_shadow_map } from "./hit_detection.js";
+import { profile_map } from "./map_profile.js";
 import SpotPopup from "@/components/SpotPopup.jsx";
 import SpotContextMenu from "@/components/SpotContextMenu.jsx";
 import MapAngles from "@/components/MapAngles.jsx";
@@ -60,117 +61,129 @@ function do_redraw(
     canvas_refs,
     { skip_shadow = false, fast = false } = {},
 ) {
-    const projection = projection_ref.current;
-    if (!dims || !projection) return;
-    const {
-        colors,
-        map_controls,
-        callsign_filters,
-        settings,
-        spots,
-        hovered_spot,
-        hovered_zone,
-        hovered_dxcc,
-        pinned_spot,
-        hovered_band,
-        current_freq_spots,
-    } = render_state_ref.current;
-
-    const render_dpr = fast && DPR > 1 ? 1 : DPR;
-
-    const cache_canvas = canvas_refs.map_cache_canvas_ref.current;
-    if (cache_canvas) {
-        const target_w = dims.width * render_dpr;
-        const target_h = dims.height * render_dpr;
-        if (cache_canvas.width !== target_w || cache_canvas.height !== target_h) {
-            cache_canvas.width = target_w;
-            cache_canvas.height = target_h;
-        }
-        const cache_ctx = cache_canvas.getContext("2d");
-        cache_ctx.clearRect(0, 0, cache_canvas.width, cache_canvas.height);
-        cache_ctx.save();
-        cache_ctx.scale(render_dpr, render_dpr);
-        draw_map(
-            cache_ctx,
-            dims,
-            projection,
-            map_controls.night,
-            settings.show_equator,
-            map_controls.is_globe,
-            map_controls.show_cq_zones,
-            map_controls.show_itu_zones,
-            map_controls.show_us_states,
-            map_controls.show_can_states,
+    return profile_map(fast ? "do_redraw.fast" : "do_redraw.full", () => {
+        const projection = projection_ref.current;
+        if (!dims || !projection) return;
+        const {
+            colors,
+            map_controls,
             callsign_filters,
-            fast,
-        );
-        cache_ctx.restore();
-    }
+            settings,
+            spots,
+            hovered_spot,
+            hovered_zone,
+            hovered_dxcc,
+            pinned_spot,
+            hovered_band,
+            current_freq_spots,
+        } = render_state_ref.current;
 
-    const map_canvas = canvas_refs.map_canvas_ref.current;
-    if (map_canvas && cache_canvas) {
-        const ctx = map_canvas.getContext("2d");
-        ctx.clearRect(0, 0, map_canvas.width, map_canvas.height);
-        ctx.drawImage(
-            cache_canvas,
-            0,
-            0,
-            cache_canvas.width,
-            cache_canvas.height,
-            0,
-            0,
-            map_canvas.width,
-            map_canvas.height,
-        );
-    }
+        const render_dpr = fast && DPR > 1 ? 1 : DPR;
 
-    const spots_canvas = canvas_refs.spots_canvas_ref.current;
-    if (spots_canvas) {
-        const ctx = spots_canvas.getContext("2d");
-        ctx.clearRect(0, 0, spots_canvas.width, spots_canvas.height);
-        with_dpr(ctx, () => {
-            draw_spots(
-                ctx,
-                spots,
-                colors,
-                hovered_spot,
-                pinned_spot,
-                hovered_band,
-                current_freq_spots,
-                dims,
-                canvas_refs.dash_offset_ref.current,
-                projection,
-                map_controls.is_globe,
-                render_state_ref.current.home_location,
-            );
-            draw_zone_labels(
-                ctx,
-                dims,
-                projection,
-                map_controls.is_globe,
-                map_controls.show_cq_zones,
-                map_controls.show_itu_zones,
-                map_controls.show_dxcc_labels,
-                map_controls.show_us_states,
-                map_controls.show_can_states,
-                hovered_zone,
-                hovered_dxcc,
-                callsign_filters,
-                fast,
-            );
-        });
-    }
+        const cache_canvas = canvas_refs.map_cache_canvas_ref.current;
+        if (cache_canvas) {
+            const target_w = dims.width * render_dpr;
+            const target_h = dims.height * render_dpr;
+            if (cache_canvas.width !== target_w || cache_canvas.height !== target_h) {
+                cache_canvas.width = target_w;
+                cache_canvas.height = target_h;
+            }
+            const cache_ctx = cache_canvas.getContext("2d");
+            cache_ctx.clearRect(0, 0, cache_canvas.width, cache_canvas.height);
+            cache_ctx.save();
+            cache_ctx.scale(render_dpr, render_dpr);
+            profile_map(fast ? "draw_map.fast" : "draw_map", () => {
+                draw_map(
+                    cache_ctx,
+                    dims,
+                    projection,
+                    map_controls.night,
+                    settings.show_equator,
+                    map_controls.is_globe,
+                    map_controls.show_cq_zones,
+                    map_controls.show_itu_zones,
+                    map_controls.show_us_states,
+                    map_controls.show_can_states,
+                    callsign_filters,
+                    fast,
+                );
+            });
+            cache_ctx.restore();
+        }
 
-    if (!skip_shadow) {
-        const shadow_canvas = canvas_refs.shadow_canvas_ref.current;
-        if (shadow_canvas) {
-            const ctx = shadow_canvas.getContext("2d");
-            ctx.clearRect(0, 0, shadow_canvas.width, shadow_canvas.height);
-            with_dpr(ctx, () => {
-                draw_shadow_map(ctx, spots, dims, projection, map_controls.is_globe);
+        const map_canvas = canvas_refs.map_canvas_ref.current;
+        if (map_canvas && cache_canvas) {
+            profile_map("blit_map_cache", () => {
+                const ctx = map_canvas.getContext("2d");
+                ctx.clearRect(0, 0, map_canvas.width, map_canvas.height);
+                ctx.drawImage(
+                    cache_canvas,
+                    0,
+                    0,
+                    cache_canvas.width,
+                    cache_canvas.height,
+                    0,
+                    0,
+                    map_canvas.width,
+                    map_canvas.height,
+                );
             });
         }
-    }
+
+        const spots_canvas = canvas_refs.spots_canvas_ref.current;
+        if (spots_canvas) {
+            const ctx = spots_canvas.getContext("2d");
+            ctx.clearRect(0, 0, spots_canvas.width, spots_canvas.height);
+            with_dpr(ctx, () => {
+                profile_map("draw_spots", () => {
+                    draw_spots(
+                        ctx,
+                        spots,
+                        colors,
+                        hovered_spot,
+                        pinned_spot,
+                        hovered_band,
+                        current_freq_spots,
+                        dims,
+                        canvas_refs.dash_offset_ref.current,
+                        projection,
+                        map_controls.is_globe,
+                        render_state_ref.current.home_location,
+                    );
+                });
+                profile_map(fast ? "draw_zone_labels.fast" : "draw_zone_labels", () => {
+                    draw_zone_labels(
+                        ctx,
+                        dims,
+                        projection,
+                        map_controls.is_globe,
+                        map_controls.show_cq_zones,
+                        map_controls.show_itu_zones,
+                        map_controls.show_dxcc_labels,
+                        map_controls.show_us_states,
+                        map_controls.show_can_states,
+                        hovered_zone,
+                        hovered_dxcc,
+                        callsign_filters,
+                        fast,
+                    );
+                });
+            });
+        }
+
+        if (!skip_shadow) {
+            const shadow_canvas = canvas_refs.shadow_canvas_ref.current;
+            if (shadow_canvas) {
+                const ctx = shadow_canvas.getContext("2d");
+                ctx.clearRect(0, 0, shadow_canvas.width, shadow_canvas.height);
+                with_dpr(ctx, () => {
+                    profile_map("draw_shadow_map", () => {
+                        draw_shadow_map(ctx, spots, dims, projection, map_controls.is_globe);
+                    });
+                });
+            }
+        }
+    });
 }
 
 function CanvasMap({
@@ -456,34 +469,38 @@ function CanvasMap({
             const ctx = spots_canvas.getContext("2d");
             ctx.clearRect(0, 0, spots_canvas.width, spots_canvas.height);
             with_dpr(ctx, () => {
-                draw_spots(
-                    ctx,
-                    rs.spots,
-                    rs.colors,
-                    rs.hovered_spot,
-                    rs.pinned_spot,
-                    rs.hovered_band,
-                    rs.current_freq_spots,
-                    dims,
-                    dash_offset_ref.current,
-                    projection,
-                    rs.map_controls.is_globe,
-                    rs.home_location,
-                );
-                draw_zone_labels(
-                    ctx,
-                    dims,
-                    projection,
-                    rs.map_controls.is_globe,
-                    rs.map_controls.show_cq_zones,
-                    rs.map_controls.show_itu_zones,
-                    rs.map_controls.show_dxcc_labels,
-                    rs.map_controls.show_us_states,
-                    rs.map_controls.show_can_states,
-                    rs.hovered_zone,
-                    rs.hovered_dxcc,
-                    rs.callsign_filters,
-                );
+                profile_map("draw_spots.animation", () => {
+                    draw_spots(
+                        ctx,
+                        rs.spots,
+                        rs.colors,
+                        rs.hovered_spot,
+                        rs.pinned_spot,
+                        rs.hovered_band,
+                        rs.current_freq_spots,
+                        dims,
+                        dash_offset_ref.current,
+                        projection,
+                        rs.map_controls.is_globe,
+                        rs.home_location,
+                    );
+                });
+                profile_map("draw_zone_labels.animation", () => {
+                    draw_zone_labels(
+                        ctx,
+                        dims,
+                        projection,
+                        rs.map_controls.is_globe,
+                        rs.map_controls.show_cq_zones,
+                        rs.map_controls.show_itu_zones,
+                        rs.map_controls.show_dxcc_labels,
+                        rs.map_controls.show_us_states,
+                        rs.map_controls.show_can_states,
+                        rs.hovered_zone,
+                        rs.hovered_dxcc,
+                        rs.callsign_filters,
+                    );
+                });
             });
         }
 
@@ -597,47 +614,56 @@ function CanvasMap({
         }
 
         function get_data_from_shadow_canvas(x, y) {
-            const ctx = shadow_canvas.getContext("2d");
-            const [r, g, b] = ctx.getImageData(x * DPR, y * DPR, 1, 1).data;
-            const result = color_to_spot(r, g, b);
-            if (result === null) return null;
-            const [type, spot_id] = result;
-            const { spots } = render_state_ref.current;
-            if (!spots.some(s => s.id === spot_id)) return null;
-            return [type, spot_id];
+            return profile_map("hit_test.shadow_canvas", () => {
+                const ctx = shadow_canvas.getContext("2d");
+                const [r, g, b] = profile_map(
+                    "hit_test.getImageData",
+                    () => ctx.getImageData(x * DPR, y * DPR, 1, 1).data,
+                );
+                const result = color_to_spot(r, g, b);
+                if (result === null) return null;
+                const [type, spot_id] = result;
+                const { spots } = render_state_ref.current;
+                if (!spots.some(s => s.id === spot_id)) return null;
+                return [type, spot_id];
+            });
         }
 
         function get_clickable_zone_label(x, y) {
-            const map_controls = render_state_ref.current.map_controls;
-            const projection = projection_ref.current;
-            if (!projection) return null;
+            return profile_map("hit_test.zone_labels", () => {
+                const map_controls = render_state_ref.current.map_controls;
+                const projection = projection_ref.current;
+                if (!projection) return null;
 
-            const active_systems = get_active_overlay_systems(map_controls);
-            for (const zone_system of active_systems) {
-                const zone_number = find_zone_label_number(
-                    zone_system,
-                    projection,
-                    x,
-                    y,
-                    map_controls.is_globe,
-                );
-                if (zone_number == null) continue;
-                return { system: zone_system, number: zone_number };
-            }
+                const active_systems = get_active_overlay_systems(map_controls);
+                for (const zone_system of active_systems) {
+                    const zone_number = find_zone_label_number(
+                        zone_system,
+                        projection,
+                        x,
+                        y,
+                        map_controls.is_globe,
+                    );
+                    if (zone_number == null) continue;
+                    return { system: zone_system, number: zone_number };
+                }
 
-            return null;
+                return null;
+            });
         }
 
         function get_clickable_dxcc_label(x, y) {
-            const { map_controls } = render_state_ref.current;
-            const projection = projection_ref.current;
-            if (!projection) return null;
-            if (!map_controls.show_dxcc_labels) return null;
+            return profile_map("hit_test.dxcc_labels", () => {
+                const { map_controls } = render_state_ref.current;
+                const projection = projection_ref.current;
+                if (!projection) return null;
+                if (!map_controls.show_dxcc_labels) return null;
 
-            const active_systems = get_active_overlay_systems(map_controls);
-            if (active_systems.length !== 0) return null;
+                const active_systems = get_active_overlay_systems(map_controls);
+                if (active_systems.length !== 0) return null;
 
-            return find_dxcc_label(projection, x, y, map_controls.is_globe);
+                return find_dxcc_label(projection, x, y, map_controls.is_globe);
+            });
         }
 
         function update_label_hover(pos) {
