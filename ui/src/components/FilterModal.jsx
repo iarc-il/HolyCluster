@@ -10,12 +10,10 @@ import {
     normalize_zone_value,
 } from "@/utils/zones.js";
 import { STATES } from "@/data/states.js";
-import entities from "@/data/dxcc_entities.json";
+import { dxcc_entity_options } from "@/data/dxcc_entities.js";
 
 import { default as SearchSelect } from "react-select";
 import { useEffect, useState } from "react";
-
-const dxcc_entities = entities.map(entity => ({ value: entity, label: entity }));
 
 export const empty_filter_data = {
     action: "show_only",
@@ -435,7 +433,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                                 color: colors.theme.text,
                                             }),
                                         }}
-                                        options={dxcc_entities}
+                                        options={dxcc_entity_options}
                                     />
                                 ) : (
                                     <CallsignInput

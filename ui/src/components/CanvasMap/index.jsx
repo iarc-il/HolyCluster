@@ -19,6 +19,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useSettings } from "@/hooks/useSettings";
+import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
 import { find_zone_label_number, get_active_overlay_systems } from "@/utils/zones.js";
 
 const DPR = window.devicePixelRatio || 1;
@@ -198,6 +199,7 @@ function CanvasMap({
         system: null,
         number: null,
         entity: null,
+        is_filterable_entity: false,
     });
 
     const map_canvas_ref = useRef(null);
@@ -230,6 +232,7 @@ function CanvasMap({
                 system,
                 number,
                 entity: null,
+                is_filterable_entity: false,
             });
         },
         open_dxcc_context_menu: (x, y, entity) => {
@@ -241,6 +244,7 @@ function CanvasMap({
                 system: null,
                 number: null,
                 entity,
+                is_filterable_entity: is_filterable_dxcc_entity(entity),
             });
         },
     };
@@ -264,16 +268,23 @@ function CanvasMap({
         };
     }
 
-    function build_filter_menu_actions(build_candidate_filter, target_label = null) {
+    function build_filter_menu_actions(
+        build_candidate_filter,
+        target_label = null,
+        disabled = false,
+        disabled_reason = null,
+    ) {
         return MAP_FILTER_ACTIONS.map(action_config => {
             const build_filter = () => build_candidate_filter(action_config.action);
             const get_candidate_status = () => get_filter_add_status(build_filter());
 
             return {
                 label: () =>
-                    get_candidate_status().status === "remove"
+                    !disabled && get_candidate_status().status === "remove"
                         ? action_config.remove_label(target_label)
                         : action_config.add_label(target_label),
+                disabled,
+                disabled_reason,
                 onClick: () => {
                     add_filter_if_allowed(build_filter());
                 },
@@ -281,9 +292,13 @@ function CanvasMap({
         });
     }
 
+    const map_menu_has_invalid_dxcc_entity =
+        map_context_menu.type === "dxcc" && !map_context_menu.is_filterable_entity;
     const map_menu_actions = build_filter_menu_actions(
         build_map_context_filter,
         map_context_menu.type === "dxcc" ? map_context_menu.entity : null,
+        map_menu_has_invalid_dxcc_entity,
+        map_menu_has_invalid_dxcc_entity ? "Unmapped DXCC" : null,
     );
 
     const canvas_refs = {

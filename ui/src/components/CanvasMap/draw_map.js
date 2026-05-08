@@ -2,6 +2,7 @@ import * as d3 from "d3";
 import { century, equationOfTime, declination } from "solar-calculator";
 import dxcc_map from "@/maps/dxcc_map.json";
 import lakes from "@/maps/lakes.json";
+import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
 import { shorten_dxcc } from "@/data/flags.js";
 import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
 import {
@@ -163,6 +164,7 @@ function get_dxcc_action_map(callsign_filters) {
     for (const filter of filters) {
         if (filter.type !== "entity" || filter.spotter_or_dx !== "dx") continue;
         if (!(filter.action in FILTER_ACTION_STYLES)) continue;
+        if (!is_filterable_dxcc_entity(filter.value)) continue;
         const entity = normalize_dxcc_entity_filter_value(filter.value);
         if (!entity) continue;
         entity_to_action.set(entity, filter.action);
