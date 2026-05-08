@@ -13,6 +13,14 @@ import { useFilters } from "@/hooks/useFilters";
 
 import Maidenhead from "maidenhead";
 
+const EXCLUSIVE_OVERLAY_CONTROL_KEYS = ["show_dxcc_labels", "show_cq_zones", "show_itu_zones"];
+
+function clear_exclusive_overlays(state) {
+    EXCLUSIVE_OVERLAY_CONTROL_KEYS.forEach(control_key => {
+        state[control_key] = false;
+    });
+}
+
 function MapControls({
     map_controls,
     set_map_controls,
@@ -74,7 +82,6 @@ function MapControls({
     const zone_button_base_style = {
         border: `1px solid ${colors.theme.text}38`,
         background: `${colors.theme.text}14`,
-        transition: "background-color 140ms ease, border-color 140ms ease, color 140ms ease",
     };
 
     const zone_button_active_style = {
@@ -144,6 +151,79 @@ function MapControls({
         // Radio or omnirig is disconnected
         disconnected: "#DD0000",
     };
+
+    function set_exclusive_overlay(map_control_key, show_overlay) {
+        set_map_controls(state => {
+            if (!show_overlay) {
+                state[map_control_key] = false;
+                return;
+            }
+
+            clear_exclusive_overlays(state);
+            state[map_control_key] = true;
+            state.show_us_states = false;
+            state.show_can_states = false;
+        });
+    }
+
+    const overlay_buttons = [
+        {
+            id: "dxcc",
+            label: "DXCC",
+            map_control_key: "show_dxcc_labels",
+            active: dxcc_labels_on,
+            title: "DXCC labels",
+            padding_class: "px-2",
+            width_class: "w-12",
+        },
+        {
+            id: "cq",
+            label: "CQ",
+            map_control_key: "show_cq_zones",
+            active: cq_zones_on,
+        },
+        {
+            id: "itu",
+            label: "ITU",
+            map_control_key: "show_itu_zones",
+            active: itu_zones_on,
+        },
+    ];
+
+    function render_overlay_button({
+        id,
+        label,
+        map_control_key,
+        active,
+        title,
+        padding_class = "px-1",
+        width_class = "w-8",
+    }) {
+        return (
+            <button
+                key={id}
+                onClick={() => set_exclusive_overlay(map_control_key, !active)}
+                onMouseEnter={() => set_zone_button_hover(id)}
+                onMouseLeave={() => set_zone_button_hover(null)}
+                className={`flex items-center justify-center relative rounded-md ${padding_class} min-w-10`}
+                style={{
+                    ...zone_button_base_style,
+                    ...(active ? zone_button_active_style : {}),
+                    ...(zone_button_hover === id ? zone_button_hover_style : {}),
+                }}
+                title={title}
+            >
+                <span
+                    className={`${width_class} h-8 flex items-center justify-center text-xl leading-none ${active ? "font-bold" : "font-medium"}`}
+                    style={{
+                        color: active ? zone_label_active_color : zone_label_inactive_color,
+                    }}
+                >
+                    {label}
+                </span>
+            </button>
+        );
+    }
 
     return (
         <>
@@ -249,106 +329,7 @@ function MapControls({
                     )}
                 </div>
                 <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => {
-                            const show_dxcc = !dxcc_labels_on;
-                            set_map_controls(state => {
-                                state.show_dxcc_labels = show_dxcc;
-                                if (show_dxcc) {
-                                    state.show_cq_zones = false;
-                                    state.show_itu_zones = false;
-                                    state.show_us_states = false;
-                                    state.show_can_states = false;
-                                }
-                            });
-                        }}
-                        onMouseEnter={() => set_zone_button_hover("dxcc")}
-                        onMouseLeave={() => set_zone_button_hover(null)}
-                        className="flex items-center justify-center relative rounded-md px-2 min-w-10"
-                        style={{
-                            ...zone_button_base_style,
-                            ...(dxcc_labels_on ? zone_button_active_style : {}),
-                            ...(zone_button_hover === "dxcc" ? zone_button_hover_style : {}),
-                        }}
-                        title="DXCC labels"
-                    >
-                        <span
-                            className={`w-12 h-8 flex items-center justify-center text-xl leading-none ${dxcc_labels_on ? "font-medium" : "font-bold"}`}
-                            style={{
-                                color: dxcc_labels_on
-                                    ? zone_label_active_color
-                                    : zone_label_inactive_color,
-                            }}
-                        >
-                            DXCC
-                        </span>
-                    </button>
-                    <button
-                        onClick={() => {
-                            const show_cq = !cq_zones_on;
-                            set_map_controls(state => {
-                                state.show_cq_zones = show_cq;
-                                if (show_cq) {
-                                    state.show_dxcc_labels = false;
-                                    state.show_itu_zones = false;
-                                    state.show_us_states = false;
-                                    state.show_can_states = false;
-                                }
-                            });
-                        }}
-                        onMouseEnter={() => set_zone_button_hover("cq")}
-                        onMouseLeave={() => set_zone_button_hover(null)}
-                        className="flex items-center justify-center relative rounded-md px-1 min-w-10"
-                        style={{
-                            ...zone_button_base_style,
-                            ...(cq_zones_on ? zone_button_active_style : {}),
-                            ...(zone_button_hover === "cq" ? zone_button_hover_style : {}),
-                        }}
-                    >
-                        <span
-                            className={`w-8 h-8 flex items-center justify-center text-xl leading-none ${cq_zones_on ? "font-medium" : "font-bold"}`}
-                            style={{
-                                color: cq_zones_on
-                                    ? zone_label_active_color
-                                    : zone_label_inactive_color,
-                            }}
-                        >
-                            CQ
-                        </span>
-                    </button>
-                    <button
-                        onClick={() => {
-                            const show_itu = !itu_zones_on;
-                            set_map_controls(state => {
-                                state.show_itu_zones = show_itu;
-                                if (show_itu) {
-                                    state.show_cq_zones = false;
-                                    state.show_dxcc_labels = false;
-                                    state.show_us_states = false;
-                                    state.show_can_states = false;
-                                }
-                            });
-                        }}
-                        onMouseEnter={() => set_zone_button_hover("itu")}
-                        onMouseLeave={() => set_zone_button_hover(null)}
-                        className="flex items-center justify-center relative rounded-md px-1 min-w-10"
-                        style={{
-                            ...zone_button_base_style,
-                            ...(itu_zones_on ? zone_button_active_style : {}),
-                            ...(zone_button_hover === "itu" ? zone_button_hover_style : {}),
-                        }}
-                    >
-                        <span
-                            className={`w-8 h-8 flex items-center justify-center text-xl leading-none ${itu_zones_on ? "font-medium" : "font-bold"}`}
-                            style={{
-                                color: itu_zones_on
-                                    ? zone_label_active_color
-                                    : zone_label_inactive_color,
-                            }}
-                        >
-                            ITU
-                        </span>
-                    </button>
+                    {overlay_buttons.map(render_overlay_button)}
                 </div>
                 <div className="relative" ref={country_selector_ref}>
                     <button
@@ -410,9 +391,7 @@ function MapControls({
                                                     state[overlay.map_control_key] = next_checked;
                                                 });
                                                 if (next_checked) {
-                                                    state.show_cq_zones = false;
-                                                    state.show_dxcc_labels = false;
-                                                    state.show_itu_zones = false;
+                                                    clear_exclusive_overlays(state);
                                                 }
                                             });
                                         }}
@@ -438,9 +417,7 @@ function MapControls({
                                                         state[overlay.map_control_key] =
                                                             next_checked;
                                                         if (next_checked) {
-                                                            state.show_cq_zones = false;
-                                                            state.show_dxcc_labels = false;
-                                                            state.show_itu_zones = false;
+                                                            clear_exclusive_overlays(state);
                                                         }
                                                     });
                                                 }}
