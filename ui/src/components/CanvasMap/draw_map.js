@@ -199,6 +199,56 @@ function get_dxcc_action_map(callsign_filters) {
     return entity_to_action;
 }
 
+function get_dxcc_filtered_feature_actions(dxcc_action_map) {
+    const feature_actions = new Map();
+    if (dxcc_action_map.size === 0) return feature_actions;
+
+    for (let fi = 0; fi < dxcc_map.features.length; fi += 1) {
+        const feature = dxcc_map.features[fi];
+        const entity = normalize_dxcc_entity_filter_value(get_dxcc_entity_name(feature));
+        const action = dxcc_action_map.get(entity);
+        if (action) feature_actions.set(fi, action);
+    }
+
+    return feature_actions;
+}
+
+function draw_dxcc_entity_filter_fills(context, path_generator, feature_actions) {
+    for (const [action, style] of Object.entries(FILTER_ACTION_STYLES)) {
+        context.beginPath();
+        let has_path = false;
+
+        for (const [fi, feature_action] of feature_actions) {
+            if (feature_action !== action) continue;
+            path_generator(dxcc_map.features[fi]);
+            has_path = true;
+        }
+
+        if (!has_path) continue;
+        context.fillStyle = style.fill;
+        context.fill();
+    }
+}
+
+function draw_dxcc_entity_filter_strokes(context, path_generator, feature_actions) {
+    for (const [action, style] of Object.entries(FILTER_ACTION_STYLES)) {
+        context.beginPath();
+        let has_path = false;
+
+        for (const [fi, feature_action] of feature_actions) {
+            if (feature_action !== action) continue;
+            path_generator(dxcc_map.features[fi]);
+            has_path = true;
+        }
+
+        if (!has_path) continue;
+        context.strokeStyle = style.stroke;
+        context.lineWidth = 2.8;
+        context.lineJoin = "round";
+        context.stroke();
+    }
+}
+
 function get_zone_action_numbers(zone_action_map) {
     const action_numbers = { hide: [], show_only: [], alert: [] };
     for (const [zone_number, action] of zone_action_map) {
@@ -709,14 +759,20 @@ export function draw_map(
         }
     }
 
+    const dxcc_action_map = get_dxcc_action_map(callsign_filters);
+    const dxcc_feature_actions = get_dxcc_filtered_feature_actions(dxcc_action_map);
+
     for (const [ci, feature_indices] of color_groups) {
         context.beginPath();
         for (const fi of feature_indices) {
+            if (dxcc_feature_actions.has(fi)) continue;
             path_generator(dxcc_map.features[fi]);
         }
         context.fillStyle = MAP_COUNTRY_COLORS[ci];
         context.fill();
     }
+
+    draw_dxcc_entity_filter_fills(context, path_generator, dxcc_feature_actions);
 
     context.beginPath();
     for (const feature of lakes.features) {
@@ -731,6 +787,8 @@ export function draw_map(
     });
     context.strokeStyle = MAP_STYLE.land_borders;
     context.stroke();
+
+    draw_dxcc_entity_filter_strokes(context, path_generator, dxcc_feature_actions);
 
     // Night circle
     if (night_displayed) {
