@@ -552,7 +552,6 @@ export function get_dxcc_label_data(
     const full_label = prefix_items.join(", ");
     const full_label_width_px = estimate_dxcc_label_width_px(full_label, font_px);
     const full_label_fits_feature =
-        prefix_items.length > 1 &&
         full_label !== single_label &&
         full_label_width_px <= get_dxcc_label_width_limit_px(feature, path, area_px);
     const full_box = full_label_fits_feature
