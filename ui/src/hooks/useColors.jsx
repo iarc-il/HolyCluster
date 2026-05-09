@@ -345,6 +345,10 @@ export const ColorsProvider = ({ children }) => {
         set_colors_inner(themes[theme_name]);
     }
 
+    function resetToCurrentTheme() {
+        set_colors_inner(themes[current_theme]);
+    }
+
     return (
         <ColorsContext.Provider
             value={{
@@ -352,6 +356,7 @@ export const ColorsProvider = ({ children }) => {
                 set_dev_mode,
                 colors,
                 setSectionColor,
+                resetToCurrentTheme,
                 setTheme,
             }}
         >

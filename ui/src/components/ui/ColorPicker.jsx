@@ -74,7 +74,7 @@ function ThemeSection({ section }) {
 }
 
 export function ColorPicker({}) {
-    const { colors } = useColors();
+    const { colors, resetToCurrentTheme } = useColors();
 
     return (
         <Modal
@@ -113,8 +113,8 @@ export function ColorPicker({}) {
                         Download
                     </a>
                 </Button>
-                <Button color="green" on_click={() => setTheme("light")}>
-                    Clear
+                <Button color="green" on_click={resetToCurrentTheme}>
+                    Reset
                 </Button>
             </div>
         </Modal>
