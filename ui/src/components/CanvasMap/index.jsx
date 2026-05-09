@@ -54,6 +54,76 @@ function with_dpr(ctx, fn) {
     ctx.restore();
 }
 
+function get_shadow_render_state(dims, projection, spots, is_globe, shadow_canvas) {
+    return {
+        canvas_height: shadow_canvas.height,
+        canvas_width: shadow_canvas.width,
+        center_x: dims.center_x,
+        center_y: dims.center_y,
+        height: dims.height,
+        is_globe,
+        radius: dims.radius,
+        rotate: projection.rotate(),
+        scale: projection.scale(),
+        spots,
+        translate: projection.translate(),
+        width: dims.width,
+    };
+}
+
+function are_number_arrays_equal(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (let index = 0; index < a.length; index += 1) {
+        if (a[index] !== b[index]) return false;
+    }
+    return true;
+}
+
+function is_same_shadow_render_state(a, b) {
+    return (
+        a != null &&
+        b != null &&
+        a.canvas_height === b.canvas_height &&
+        a.canvas_width === b.canvas_width &&
+        a.center_x === b.center_x &&
+        a.center_y === b.center_y &&
+        a.height === b.height &&
+        a.is_globe === b.is_globe &&
+        a.radius === b.radius &&
+        a.scale === b.scale &&
+        a.spots === b.spots &&
+        a.width === b.width &&
+        are_number_arrays_equal(a.rotate, b.rotate) &&
+        are_number_arrays_equal(a.translate, b.translate)
+    );
+}
+
+function draw_shadow_layer(dims, projection, render_state_ref, canvas_refs) {
+    const shadow_canvas = canvas_refs.shadow_canvas_ref.current;
+    if (!shadow_canvas) return;
+
+    const { spots, map_controls } = render_state_ref.current;
+    const next_state = get_shadow_render_state(
+        dims,
+        projection,
+        spots,
+        map_controls.is_globe,
+        shadow_canvas,
+    );
+    if (is_same_shadow_render_state(canvas_refs.shadow_render_state_ref.current, next_state)) {
+        return;
+    }
+
+    const ctx = shadow_canvas.getContext("2d", { willReadFrequently: true });
+    ctx.clearRect(0, 0, shadow_canvas.width, shadow_canvas.height);
+    with_dpr(ctx, () => {
+        profile_map("draw_shadow_map", () => {
+            draw_shadow_map(ctx, spots, dims, projection, map_controls.is_globe);
+        });
+    });
+    canvas_refs.shadow_render_state_ref.current = next_state;
+}
+
 function do_redraw(
     dims,
     projection_ref,
@@ -177,16 +247,7 @@ function do_redraw(
         }
 
         if (!skip_shadow) {
-            const shadow_canvas = canvas_refs.shadow_canvas_ref.current;
-            if (shadow_canvas) {
-                const ctx = shadow_canvas.getContext("2d");
-                ctx.clearRect(0, 0, shadow_canvas.width, shadow_canvas.height);
-                with_dpr(ctx, () => {
-                    profile_map("draw_shadow_map", () => {
-                        draw_shadow_map(ctx, spots, dims, projection, map_controls.is_globe);
-                    });
-                });
-            }
+            draw_shadow_layer(dims, projection, render_state_ref, canvas_refs);
         }
     });
 }
@@ -229,6 +290,7 @@ function CanvasMap({
     const dash_offset_ref = useRef(0);
     const zoom_settle_timer_ref = useRef(null);
     const last_gesture_draw_ref = useRef(0);
+    const shadow_render_state_ref = useRef(null);
 
     const projection_ref = useRef(null);
     const base_scale_ref = useRef(null);
@@ -324,6 +386,7 @@ function CanvasMap({
         shadow_canvas_ref,
         map_cache_canvas_ref,
         dash_offset_ref,
+        shadow_render_state_ref,
     };
 
     const [div_ref, { width, height }] = useMeasure();
@@ -630,7 +693,7 @@ function CanvasMap({
 
         function get_data_from_shadow_canvas(x, y) {
             return profile_map("hit_test.shadow_canvas", () => {
-                const ctx = shadow_canvas.getContext("2d");
+                const ctx = shadow_canvas.getContext("2d", { willReadFrequently: true });
                 const [r, g, b] = profile_map(
                     "hit_test.getImageData",
                     () => ctx.getImageData(x * DPR, y * DPR, 1, 1).data,
