@@ -181,6 +181,7 @@ function do_redraw(
                     map_controls.show_can_states,
                     callsign_filters,
                     colors.map,
+                    colors.map_countries,
                     fast,
                 );
             });
@@ -503,6 +504,7 @@ function CanvasMap({
         callsign_filters.is_hide_filters_active,
         settings.show_equator,
         colors.map,
+        colors.map_countries,
     ]);
 
     // Dynamic overlays can change frequently; redraw them without touching the cached base map.

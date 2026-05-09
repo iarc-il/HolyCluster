@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext } from "react";
 
 import { useLocalStorage } from "@uidotdev/usehooks";
 
@@ -113,6 +113,8 @@ const base_theme = {
         home_marker: "#2563eb",
         home_marker_border: "#ffffff",
         home_marker_center: "#ffffff",
+    },
+    map_countries: {
         country_0: "#fedbb5",
         country_1: "#d5b98a",
         country_2: "#fab493",

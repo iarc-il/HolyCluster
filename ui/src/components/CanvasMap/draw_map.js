@@ -66,8 +66,8 @@ function get_filter_action_styles(map_colors) {
     );
 }
 
-function get_country_color(map_colors, color_index) {
-    return map_colors[`country_${color_index}`] ?? map_colors.background;
+function get_country_color(map_country_colors, map_colors, color_index) {
+    return map_country_colors[`country_${color_index}`] ?? map_colors.background;
 }
 
 const dxcc_label_placement_cache = {
@@ -842,6 +842,7 @@ export function draw_map(
     show_can_states,
     callsign_filters,
     map_colors,
+    map_country_colors,
     fast = false,
 ) {
     const filter_action_styles = get_filter_action_styles(map_colors);
@@ -920,7 +921,7 @@ export function draw_map(
                 }
 
                 if (!has_path) continue;
-                context.fillStyle = get_country_color(map_colors, ci);
+                context.fillStyle = get_country_color(map_country_colors, map_colors, ci);
                 context.fill(color_path);
             }
 
@@ -937,7 +938,7 @@ export function draw_map(
                     if (dxcc_feature_actions.has(fi)) continue;
                     path_generator(dxcc_map.features[fi]);
                 }
-                context.fillStyle = get_country_color(map_colors, ci);
+                context.fillStyle = get_country_color(map_country_colors, map_colors, ci);
                 context.fill();
             }
 

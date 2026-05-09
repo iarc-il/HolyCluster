@@ -96,6 +96,7 @@ export function ColorPicker({}) {
                     <ThemeSection section="theme"></ThemeSection>
                     <ThemeSection section="buttons"></ThemeSection>
                     <ThemeSection section="table"></ThemeSection>
+                    <ThemeSection section="map_countries"></ThemeSection>
                 </div>
             </div>
             <div className="flex justify-around items-end pb-2">
