@@ -48,22 +48,26 @@ function ThemeSection({ section }) {
                         {section}
                     </td>
                 </tr>
-                {Object.entries(colors[section]).map(([name, color]) => {
-                    return (
-                        <tr key={`${name}_${color}`}>
-                            <td className="w-24">{name}</td>
-                            <td className="w-8 text-center">
-                                <input
-                                    type="color"
-                                    value={color}
-                                    onChange={event => {
-                                        setSectionColor(section, name, event.target.value);
-                                    }}
-                                />
-                            </td>
-                        </tr>
-                    );
-                })}
+                {colors[section] ? (
+                    Object.entries(colors[section]).map(([name, color]) => {
+                        return (
+                            <tr key={`${name}_${color}`}>
+                                <td className="w-24">{name}</td>
+                                <td className="w-8 text-center">
+                                    <input
+                                        type="color"
+                                        value={color}
+                                        onChange={event => {
+                                            setSectionColor(section, name, event.target.value);
+                                        }}
+                                    />
+                                </td>
+                            </tr>
+                        );
+                    })
+                ) : (
+                    <b>Missing section</b>
+                )}
             </tbody>
         </table>
     );
