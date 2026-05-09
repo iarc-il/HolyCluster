@@ -2,6 +2,23 @@ import * as d3 from "d3";
 import { get_mode_shape } from "@/data/mode_shapes.js";
 import { calculate_geographic_azimuth } from "@/utils.js";
 
+function with_alpha(color, alpha) {
+    if (typeof color !== "string") return color;
+
+    const value = color.trim();
+    const short_hex_match = value.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+    if (short_hex_match) {
+        const [, r, g, b] = short_hex_match;
+        return with_alpha(`#${r}${r}${g}${g}${b}${b}`, alpha);
+    }
+
+    const hex_match = value.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+    if (!hex_match) return value;
+
+    const [, r, g, b] = hex_match;
+    return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${alpha})`;
+}
+
 export function make_visibility_check(projection) {
     const rotation = projection.rotate();
     const center = [-rotation[0], -rotation[1]];
@@ -84,7 +101,7 @@ function draw_spot(
     if (is_visible(spot.dx_loc)) {
         const dx_size = is_bold ? 12 : 10;
         const [dx_x, dx_y] = projection(spot.dx_loc);
-        draw_spot_dx(context, spot, color, "grey", dx_x, dx_y, dx_size);
+        draw_spot_dx(context, spot, color, colors.map.spot_outline, dx_x, dx_y, dx_size);
     }
 
     if (is_visible(spot.spotter_loc)) {
@@ -92,7 +109,7 @@ function draw_spot(
         const spotter_radius = is_bold ? 5 : 3;
 
         context.beginPath();
-        context.strokeStyle = "grey";
+        context.strokeStyle = colors.map.spot_outline;
         context.fillStyle = color;
         context.lineWidth = 1;
         context.arc(spotter_x, spotter_y, spotter_radius, 0, 2 * Math.PI);
@@ -176,7 +193,7 @@ export function draw_spots(
         context.beginPath();
         context.moveTo(dims.center_x, dims.center_y);
         context.lineTo(x, y);
-        context.strokeStyle = "black";
+        context.strokeStyle = colors.map.azimuth_line;
         context.lineWidth = 1;
         context.setLineDash([5, 5]);
         context.stroke();
@@ -199,15 +216,15 @@ export function draw_spots(
             const [home_x, home_y] = home_pos;
             context.beginPath();
             context.arc(home_x, home_y, 6.5, 0, 2 * Math.PI);
-            context.fillStyle = "rgba(37, 99, 235, 0.95)";
+            context.fillStyle = with_alpha(colors.map.home_marker, 0.95);
             context.fill();
-            context.strokeStyle = "rgba(255, 255, 255, 0.95)";
+            context.strokeStyle = with_alpha(colors.map.home_marker_border, 0.95);
             context.lineWidth = 1.8;
             context.stroke();
 
             context.beginPath();
             context.arc(home_x, home_y, 2, 0, 2 * Math.PI);
-            context.fillStyle = "rgba(255, 255, 255, 1)";
+            context.fillStyle = with_alpha(colors.map.home_marker_center, 1);
             context.fill();
         }
     }

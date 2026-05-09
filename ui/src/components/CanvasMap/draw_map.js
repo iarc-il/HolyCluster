@@ -4,7 +4,7 @@ import dxcc_map from "@/maps/dxcc_map.json";
 import lakes from "@/maps/lakes.json";
 import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
 import { shorten_dxcc } from "@/data/flags.js";
-import { country_color_indices, MAP_COUNTRY_COLORS } from "@/data/map_colors.js";
+import { country_color_indices } from "@/data/map_colors.js";
 import {
     get_active_overlay_systems,
     get_label_min_area_px,
@@ -16,18 +16,59 @@ import { profile_map } from "./map_profile.js";
 
 export { dxcc_map };
 
-const MAP_STYLE = {
-    background: "#e3f3f0",
-    graticule: "#c4c4c4",
-    land_borders: "#777777",
-    borders: "#000000",
-};
-
 const color_groups = new Map();
 country_color_indices.forEach((ci, fi) => {
     if (!color_groups.has(ci)) color_groups.set(ci, []);
     color_groups.get(ci).push(fi);
 });
+
+const FILTER_ACTIONS = ["hide", "show_only", "alert"];
+const FILTER_ACTION_COLOR_KEYS = {
+    hide: "filter_hide",
+    show_only: "filter_show_only",
+    alert: "filter_alert",
+};
+const FILTER_ACTION_FILL_ALPHA = {
+    hide: 0.28,
+    show_only: 0.24,
+    alert: 0.24,
+};
+
+function with_alpha(color, alpha) {
+    if (typeof color !== "string") return color;
+
+    const value = color.trim();
+    const short_hex_match = value.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+    if (short_hex_match) {
+        const [, r, g, b] = short_hex_match;
+        return with_alpha(`#${r}${r}${g}${g}${b}${b}`, alpha);
+    }
+
+    const hex_match = value.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+    if (!hex_match) return value;
+
+    const [, r, g, b] = hex_match;
+    return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${alpha})`;
+}
+
+function get_filter_action_styles(map_colors) {
+    return Object.fromEntries(
+        FILTER_ACTIONS.map(action => {
+            const color = map_colors[FILTER_ACTION_COLOR_KEYS[action]];
+            return [
+                action,
+                {
+                    fill: with_alpha(color, FILTER_ACTION_FILL_ALPHA[action]),
+                    stroke: with_alpha(color, 0.95),
+                },
+            ];
+        }),
+    );
+}
+
+function get_country_color(map_colors, color_index) {
+    return map_colors[`country_${color_index}`] ?? map_colors.background;
+}
 
 const dxcc_label_placement_cache = {
     key: null,
@@ -54,7 +95,7 @@ function generate_radial_lines(center_x, center_y, radius, degrees_diff) {
     return lines;
 }
 
-function draw_night_circle(context, path_generator) {
+function draw_night_circle(context, path_generator, map_colors) {
     const now = new Date();
     const day = new Date(+now).setUTCHours(0, 0, 0, 0);
     const t = century(now);
@@ -65,25 +106,10 @@ function draw_night_circle(context, path_generator) {
     const night_circle = d3.geoCircle().radius(90).center(sun_antipode)();
 
     context.beginPath();
-    context.fillStyle = "rgba(0,0,170,0.3)";
+    context.fillStyle = with_alpha(map_colors.night_overlay, 0.3);
     path_generator(night_circle);
     context.fill();
 }
-
-const FILTER_ACTION_STYLES = {
-    hide: {
-        fill: "rgba(185, 28, 28, 0.28)",
-        stroke: "rgba(185, 28, 28, 0.95)",
-    },
-    show_only: {
-        fill: "rgba(22, 163, 74, 0.24)",
-        stroke: "rgba(22, 163, 74, 0.95)",
-    },
-    alert: {
-        fill: "rgba(245, 158, 11, 0.24)",
-        stroke: "rgba(245, 158, 11, 0.95)",
-    },
-};
 
 const FILTER_ACTION_ACTIVE_FIELDS = {
     alert: "is_alert_filters_active",
@@ -169,7 +195,7 @@ function get_zone_action_map(callsign_filters, system) {
 
     for (const filter of filters) {
         if (filter.type !== "zone" || filter.zone_system !== system) continue;
-        if (!(filter.action in FILTER_ACTION_STYLES)) continue;
+        if (!(filter.action in FILTER_ACTION_COLOR_KEYS)) continue;
         if (!is_filter_action_active(callsign_filters, filter.action)) continue;
         const zone_number = normalize_zone_value(system, filter.value);
         if (zone_number == null) continue;
@@ -189,7 +215,7 @@ function get_dxcc_action_map(callsign_filters) {
 
     for (const filter of filters) {
         if (filter.type !== "entity" || filter.spotter_or_dx !== "dx") continue;
-        if (!(filter.action in FILTER_ACTION_STYLES)) continue;
+        if (!(filter.action in FILTER_ACTION_COLOR_KEYS)) continue;
         if (!is_filter_action_active(callsign_filters, filter.action)) continue;
         if (!is_filterable_dxcc_entity(filter.value)) continue;
         const entity = normalize_dxcc_entity_filter_value(filter.value);
@@ -214,8 +240,13 @@ function get_dxcc_filtered_feature_actions(dxcc_action_map) {
     return feature_actions;
 }
 
-function draw_dxcc_entity_filter_fills(context, path_generator, feature_actions) {
-    for (const [action, style] of Object.entries(FILTER_ACTION_STYLES)) {
+function draw_dxcc_entity_filter_fills(
+    context,
+    path_generator,
+    feature_actions,
+    filter_action_styles,
+) {
+    for (const [action, style] of Object.entries(filter_action_styles)) {
         context.beginPath();
         let has_path = false;
 
@@ -231,8 +262,13 @@ function draw_dxcc_entity_filter_fills(context, path_generator, feature_actions)
     }
 }
 
-function draw_dxcc_entity_filter_strokes(context, path_generator, feature_actions) {
-    for (const [action, style] of Object.entries(FILTER_ACTION_STYLES)) {
+function draw_dxcc_entity_filter_strokes(
+    context,
+    path_generator,
+    feature_actions,
+    filter_action_styles,
+) {
+    for (const [action, style] of Object.entries(filter_action_styles)) {
         context.beginPath();
         let has_path = false;
 
@@ -268,8 +304,13 @@ function build_dxcc_feature_paths(projection) {
     return feature_paths;
 }
 
-function draw_dxcc_entity_filter_fills_from_paths(context, feature_paths, feature_actions) {
-    for (const [action, style] of Object.entries(FILTER_ACTION_STYLES)) {
+function draw_dxcc_entity_filter_fills_from_paths(
+    context,
+    feature_paths,
+    feature_actions,
+    filter_action_styles,
+) {
+    for (const [action, style] of Object.entries(filter_action_styles)) {
         const action_path = new Path2D();
         let has_path = false;
 
@@ -285,8 +326,13 @@ function draw_dxcc_entity_filter_fills_from_paths(context, feature_paths, featur
     }
 }
 
-function draw_dxcc_entity_filter_strokes_from_paths(context, feature_paths, feature_actions) {
-    for (const [action, style] of Object.entries(FILTER_ACTION_STYLES)) {
+function draw_dxcc_entity_filter_strokes_from_paths(
+    context,
+    feature_paths,
+    feature_actions,
+    filter_action_styles,
+) {
+    for (const [action, style] of Object.entries(filter_action_styles)) {
         const action_path = new Path2D();
         let has_path = false;
 
@@ -312,8 +358,17 @@ function get_zone_action_numbers(zone_action_map) {
     return action_numbers;
 }
 
-function draw_zone_overlay(context, path_generator, zones, system, label_key, action_numbers) {
-    for (const [action, style] of Object.entries(FILTER_ACTION_STYLES)) {
+function draw_zone_overlay(
+    context,
+    path_generator,
+    zones,
+    system,
+    label_key,
+    action_numbers,
+    map_colors,
+    filter_action_styles,
+) {
+    for (const [action, style] of Object.entries(filter_action_styles)) {
         const numbers = action_numbers[action] ?? [];
         const zone_set = new Set(numbers);
         if (zone_set.size === 0) continue;
@@ -337,7 +392,7 @@ function draw_zone_overlay(context, path_generator, zones, system, label_key, ac
     for (const feature of zones.features) {
         path_generator(feature);
     }
-    context.strokeStyle = "rgba(0, 0, 0, 0.6)";
+    context.strokeStyle = with_alpha(map_colors.zone_border, 0.6);
     context.lineWidth = 1.5;
     context.stroke();
 }
@@ -352,6 +407,8 @@ function draw_zone_labels_for_system(
     loc_key,
     hovered_zone_number,
     zone_action_map,
+    map_colors,
+    filter_action_styles,
 ) {
     const zone_path = d3.geoPath().projection(projection);
     const MIN_FONT_PX = 9;
@@ -407,15 +464,15 @@ function draw_zone_labels_for_system(
             : `bold ${Math.round(base_font_px)}px sans-serif`;
         if (is_hovered) {
             const action = zone_action_map.get(zone_number);
-            const action_style = action ? FILTER_ACTION_STYLES[action] : null;
-            context.strokeStyle = "rgba(255, 255, 255, 0.95)";
+            const action_style = action ? filter_action_styles[action] : null;
+            context.strokeStyle = with_alpha(map_colors.label_outline, 0.95);
             context.lineWidth = 4;
             context.lineJoin = "round";
             context.miterLimit = 2;
             context.strokeText(label, x, y);
-            context.fillStyle = action_style?.stroke ?? "rgba(0, 0, 0, 0.9)";
+            context.fillStyle = action_style?.stroke ?? with_alpha(map_colors.label_hover, 0.9);
         } else {
-            context.fillStyle = "rgba(0, 0, 0, 0.8)";
+            context.fillStyle = with_alpha(map_colors.label, 0.8);
         }
         context.fillText(label, x, y);
     }
@@ -667,7 +724,15 @@ export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14
     };
 }
 
-function draw_dxcc_labels(context, projection, is_globe, hovered_dxcc, dxcc_action_map) {
+function draw_dxcc_labels(
+    context,
+    projection,
+    is_globe,
+    hovered_dxcc,
+    dxcc_action_map,
+    map_colors,
+    filter_action_styles,
+) {
     context.textAlign = "center";
     context.textBaseline = "middle";
 
@@ -684,15 +749,15 @@ function draw_dxcc_labels(context, projection, is_globe, hovered_dxcc, dxcc_acti
             : `bold ${Math.round(font_px)}px sans-serif`;
         if (is_hovered) {
             const action = dxcc_action_map.get(normalize_dxcc_entity_filter_value(entity));
-            const action_style = action ? FILTER_ACTION_STYLES[action] : null;
-            context.strokeStyle = "rgba(255, 255, 255, 0.95)";
+            const action_style = action ? filter_action_styles[action] : null;
+            context.strokeStyle = with_alpha(map_colors.label_outline, 0.95);
             context.lineWidth = 4;
             context.lineJoin = "round";
             context.miterLimit = 2;
             context.strokeText(label, x, y);
-            context.fillStyle = action_style?.stroke ?? "rgba(0, 0, 0, 0.9)";
+            context.fillStyle = action_style?.stroke ?? with_alpha(map_colors.label_hover, 0.9);
         } else {
-            context.fillStyle = "rgba(0, 0, 0, 0.8)";
+            context.fillStyle = with_alpha(map_colors.label, 0.8);
         }
         context.fillText(label, x, y);
     }
@@ -711,9 +776,12 @@ export function draw_zone_labels(
     hovered_zone,
     hovered_dxcc,
     callsign_filters,
+    map_colors,
     fast = false,
 ) {
     if (fast) return;
+
+    const filter_action_styles = get_filter_action_styles(map_colors);
 
     context.save();
     context.beginPath();
@@ -740,12 +808,22 @@ export function draw_zone_labels(
             config.loc_key,
             hovered_zone?.system === system ? hovered_zone.number : null,
             zone_action_map,
+            map_colors,
+            filter_action_styles,
         );
     }
 
     if (show_dxcc_labels && active_systems.length === 0) {
         const dxcc_action_map = get_dxcc_action_map(callsign_filters);
-        draw_dxcc_labels(context, projection, is_globe, hovered_dxcc, dxcc_action_map);
+        draw_dxcc_labels(
+            context,
+            projection,
+            is_globe,
+            hovered_dxcc,
+            dxcc_action_map,
+            map_colors,
+            filter_action_styles,
+        );
     }
 
     context.restore();
@@ -763,8 +841,10 @@ export function draw_map(
     show_us_states,
     show_can_states,
     callsign_filters,
+    map_colors,
     fast = false,
 ) {
+    const filter_action_styles = get_filter_action_styles(map_colors);
     const saved_precision = projection.precision();
     if (fast) projection.precision(3);
     const path_generator = d3.geoPath().projection(projection).context(context);
@@ -779,7 +859,7 @@ export function draw_map(
     // Background
     context.beginPath();
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
-    context.fillStyle = MAP_STYLE.background;
+    context.fillStyle = map_colors.background;
     context.fill();
 
     context.lineWidth = 1;
@@ -789,7 +869,7 @@ export function draw_map(
             if (is_globe) {
                 context.beginPath();
                 path_generator(d3.geoGraticule10());
-                context.strokeStyle = MAP_STYLE.graticule;
+                context.strokeStyle = map_colors.graticule;
                 context.stroke();
             } else {
                 const full_globe_radius = projection.scale() * Math.PI;
@@ -803,7 +883,7 @@ export function draw_map(
                     context.moveTo(circle.cx + circle.r, circle.cy);
                     context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
                 });
-                context.strokeStyle = MAP_STYLE.graticule;
+                context.strokeStyle = map_colors.graticule;
                 context.stroke();
 
                 context.beginPath();
@@ -813,7 +893,7 @@ export function draw_map(
                         context.lineTo(line.x2, line.y2);
                     },
                 );
-                context.strokeStyle = MAP_STYLE.graticule;
+                context.strokeStyle = map_colors.graticule;
                 context.stroke();
             }
         }
@@ -840,7 +920,7 @@ export function draw_map(
                 }
 
                 if (!has_path) continue;
-                context.fillStyle = MAP_COUNTRY_COLORS[ci];
+                context.fillStyle = get_country_color(map_colors, ci);
                 context.fill(color_path);
             }
 
@@ -848,6 +928,7 @@ export function draw_map(
                 context,
                 dxcc_feature_paths,
                 dxcc_feature_actions,
+                filter_action_styles,
             );
         } else {
             for (const [ci, feature_indices] of color_groups) {
@@ -856,11 +937,16 @@ export function draw_map(
                     if (dxcc_feature_actions.has(fi)) continue;
                     path_generator(dxcc_map.features[fi]);
                 }
-                context.fillStyle = MAP_COUNTRY_COLORS[ci];
+                context.fillStyle = get_country_color(map_colors, ci);
                 context.fill();
             }
 
-            draw_dxcc_entity_filter_fills(context, path_generator, dxcc_feature_actions);
+            draw_dxcc_entity_filter_fills(
+                context,
+                path_generator,
+                dxcc_feature_actions,
+                filter_action_styles,
+            );
         }
     });
 
@@ -869,7 +955,7 @@ export function draw_map(
         for (const feature of lakes.features) {
             path_generator(feature);
         }
-        context.fillStyle = MAP_STYLE.background;
+        context.fillStyle = map_colors.background;
         context.fill("evenodd");
     });
 
@@ -880,30 +966,36 @@ export function draw_map(
                 border_path.addPath(feature_path);
             }
 
-            context.strokeStyle = MAP_STYLE.land_borders;
+            context.strokeStyle = map_colors.land_borders;
             context.stroke(border_path);
 
             draw_dxcc_entity_filter_strokes_from_paths(
                 context,
                 dxcc_feature_paths,
                 dxcc_feature_actions,
+                filter_action_styles,
             );
         } else {
             context.beginPath();
             dxcc_map.features.forEach(feature => {
                 path_generator(feature);
             });
-            context.strokeStyle = MAP_STYLE.land_borders;
+            context.strokeStyle = map_colors.land_borders;
             context.stroke();
 
-            draw_dxcc_entity_filter_strokes(context, path_generator, dxcc_feature_actions);
+            draw_dxcc_entity_filter_strokes(
+                context,
+                path_generator,
+                dxcc_feature_actions,
+                filter_action_styles,
+            );
         }
     });
 
     // Night circle
     if (night_displayed) {
         profile_map("draw_map.night", () => {
-            draw_night_circle(context, path_generator);
+            draw_night_circle(context, path_generator, map_colors);
         });
     }
 
@@ -911,7 +1003,7 @@ export function draw_map(
     if (show_equator) {
         profile_map("draw_map.equator", () => {
             context.beginPath();
-            context.strokeStyle = "rgb(0, 0, 0)";
+            context.strokeStyle = map_colors.equator;
             context.lineWidth = 2;
             path_generator(d3.geoCircle().radius(90).center([0, 90])());
             context.stroke();
@@ -937,6 +1029,8 @@ export function draw_map(
                 system,
                 config.number_key,
                 action_numbers,
+                map_colors,
+                filter_action_styles,
             );
         }
     });
@@ -946,14 +1040,14 @@ export function draw_map(
     // Map outline
     context.beginPath();
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
-    context.strokeStyle = MAP_STYLE.borders;
+    context.strokeStyle = map_colors.borders;
     context.stroke();
 
     if (!is_globe) {
         // Center red dot
         context.beginPath();
         context.arc(dims.center_x, dims.center_y, 4, 0, 2 * Math.PI);
-        context.fillStyle = "#FF0000";
+        context.fillStyle = map_colors.center_dot;
         context.fill();
     }
 

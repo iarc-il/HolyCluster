@@ -145,11 +145,11 @@ function MapControls({
 
     const radio_status_to_color = {
         // Probably rig is not configured
-        unknown: "#888888",
+        unknown: colors.map_controls.radio_unknown,
         // CAT control is working
-        connected: "#00DD00",
+        connected: colors.map_controls.radio_connected,
         // Radio or omnirig is disconnected
-        disconnected: "#DD0000",
+        disconnected: colors.map_controls.radio_disconnected,
     };
 
     function set_exclusive_overlay(map_control_key, show_overlay) {

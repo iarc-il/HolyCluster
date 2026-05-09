@@ -1,17 +1,6 @@
 import dxcc_map from "@/maps/dxcc_map.json";
 import { geoContains } from "d3-geo";
 
-const WARM_PALETTE = [
-    "#fedbb5",
-    "#d5b98a",
-    "#fab493",
-    "#df8073",
-    "#bcb759",
-    "#98d4c1",
-    "#b99881",
-    "#89c765",
-];
-
 function compute_bounding_box(geometry) {
     let minLon = Infinity,
         maxLon = -Infinity,
@@ -215,7 +204,5 @@ function compute_coloring(features) {
 }
 
 const country_color_indices = compute_coloring(dxcc_map.features);
-const num_colors = Math.max(...country_color_indices) + 1;
-const MAP_COUNTRY_COLORS = WARM_PALETTE.slice(0, num_colors);
 
-export { country_color_indices, MAP_COUNTRY_COLORS };
+export { country_color_indices };

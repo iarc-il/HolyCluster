@@ -180,6 +180,7 @@ function do_redraw(
                     map_controls.show_us_states,
                     map_controls.show_can_states,
                     callsign_filters,
+                    colors.map,
                     fast,
                 );
             });
@@ -240,6 +241,7 @@ function do_redraw(
                         hovered_zone,
                         hovered_dxcc,
                         callsign_filters,
+                        colors.map,
                         fast,
                     );
                 });
@@ -500,6 +502,7 @@ function CanvasMap({
         callsign_filters.is_show_only_filters_active,
         callsign_filters.is_hide_filters_active,
         settings.show_equator,
+        colors.map,
     ]);
 
     // Dynamic overlays can change frequently; redraw them without touching the cached base map.
@@ -577,6 +580,7 @@ function CanvasMap({
                         rs.hovered_zone,
                         rs.hovered_dxcc,
                         rs.callsign_filters,
+                        rs.colors.map,
                     );
                 });
             });
