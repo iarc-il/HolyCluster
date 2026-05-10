@@ -15,6 +15,7 @@ import SpotPopup from "@/components/SpotPopup.jsx";
 import SpotContextMenu from "@/components/SpotContextMenu.jsx";
 import MapAngles from "@/components/MapAngles.jsx";
 import ToggleSVG from "@/components/ui/ToggleSVG";
+import Popup from "@/components/ui/Popup.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useSpotData } from "@/hooks/useSpotData";
@@ -288,6 +289,7 @@ function CanvasMap({
     const shadow_canvas_ref = useRef(null);
     const map_cache_canvas_ref = useRef(null);
     const container_ref = useRef(null);
+    const dxcc_popup_anchor_ref = useRef(null);
 
     const animation_id_ref = useRef(null);
     const dash_offset_ref = useRef(0);
@@ -770,13 +772,17 @@ function CanvasMap({
                       feature_index: clickable_dxcc.feature_index,
                       label: clickable_dxcc.label,
                       entity: clickable_dxcc.entity,
+                      x: clickable_dxcc.x,
+                      y: clickable_dxcc.y,
                   }
                 : null;
             const current_hovered_dxcc = render_state_ref.current.hovered_dxcc;
             if (
                 current_hovered_dxcc?.feature_index !== next_hovered_dxcc?.feature_index ||
                 current_hovered_dxcc?.label !== next_hovered_dxcc?.label ||
-                current_hovered_dxcc?.entity !== next_hovered_dxcc?.entity
+                current_hovered_dxcc?.entity !== next_hovered_dxcc?.entity ||
+                current_hovered_dxcc?.x !== next_hovered_dxcc?.x ||
+                current_hovered_dxcc?.y !== next_hovered_dxcc?.y
             ) {
                 set_hovered_dxcc(next_hovered_dxcc);
             }
@@ -1338,6 +1344,29 @@ function CanvasMap({
                     distance={hovered_spot_distance ?? pinned_spot_distance}
                     azimuth={azimuth}
                 />
+            )}
+            {hovered_dxcc?.entity && (
+                <div
+                    ref={dxcc_popup_anchor_ref}
+                    className="absolute pointer-events-none w-0 h-0"
+                    style={{
+                        left: `${hovered_dxcc.x}px`,
+                        top: `${hovered_dxcc.y}px`,
+                    }}
+                />
+            )}
+            {hovered_dxcc?.entity && !map_context_menu.visible && (
+                <Popup anchor_ref={dxcc_popup_anchor_ref} keep_in_view={true} vertical_offset={-12}>
+                    <div
+                        className="py-1 px-2 rounded shadow-lg text-xs whitespace-nowrap"
+                        style={{
+                            color: colors.theme.text,
+                            background: colors.theme.background,
+                        }}
+                    >
+                        {hovered_dxcc.entity}
+                    </div>
+                </Popup>
             )}
             {map_context_menu.visible && (
                 <SpotContextMenu

@@ -709,6 +709,8 @@ export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14
                 entity: placement.entity,
                 feature: placement.feature,
                 feature_index: placement.feature_index,
+                x: placement.x,
+                y: placement.y,
                 dist_sq,
             };
         }
@@ -721,6 +723,8 @@ export function find_dxcc_label(projection, x, y, is_globe, pixel_threshold = 14
         entity: best.entity,
         feature: best.feature,
         feature_index: best.feature_index,
+        x: best.x,
+        y: best.y,
     };
 }
 
