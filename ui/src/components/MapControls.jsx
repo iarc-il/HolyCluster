@@ -36,10 +36,8 @@ function MapControls({
     const { settings } = useSettings();
     const { filters, setFilters } = useFilters();
     const mode_button_ref = useRef(null);
-    const country_selector_ref = useRef(null);
     const controls_panel_ref = useRef(null);
     const [show_mode_popup, set_show_mode_popup] = useState(false);
-    const [show_country_selector, set_show_country_selector] = useState(false);
     const [show_controls_panel, set_show_controls_panel] = useState(false);
 
     const zone_filters = filters.zone_filters ?? {};
@@ -106,52 +104,29 @@ function MapControls({
     const country_zone_overlays = [
         {
             id: "us_state",
-            label: "US",
+            label: "US state",
             map_control_key: "show_us_states",
-            title: "US states overlay",
+            title: "US state overlay",
         },
         {
             id: "ca_province",
-            label: "CA",
+            label: "Canada provinces",
             map_control_key: "show_can_states",
             title: "Canada provinces overlay",
         },
     ];
 
-    const active_country_overlays = country_zone_overlays.filter(
-        overlay => map_controls[overlay.map_control_key],
-    );
-    const all_country_overlays_selected =
-        active_country_overlays.length === country_zone_overlays.length;
-
     function close_controls_panel() {
         set_show_controls_panel(false);
-        set_show_country_selector(false);
         set_show_mode_popup(false);
     }
 
     function toggle_controls_panel() {
         if (show_controls_panel) {
-            set_show_country_selector(false);
             set_show_mode_popup(false);
         }
         set_show_controls_panel(!show_controls_panel);
     }
-
-    useEffect(() => {
-        if (!show_country_selector) return;
-
-        function close_selector_on_click_outside(event) {
-            if (!country_selector_ref.current?.contains(event.target)) {
-                set_show_country_selector(false);
-            }
-        }
-
-        document.addEventListener("mousedown", close_selector_on_click_outside);
-        return () => {
-            document.removeEventListener("mousedown", close_selector_on_click_outside);
-        };
-    }, [show_country_selector]);
 
     useEffect(() => {
         if (!show_controls_panel) return;
@@ -207,6 +182,15 @@ function MapControls({
             state[map_control_key] = true;
             state.show_us_states = false;
             state.show_can_states = false;
+        });
+    }
+
+    function toggle_country_overlay(map_control_key, show_overlay) {
+        set_map_controls(state => {
+            state[map_control_key] = show_overlay;
+            if (show_overlay) {
+                clear_exclusive_overlays(state);
+            }
         });
     }
 
@@ -446,110 +430,36 @@ function MapControls({
                         <div className="flex items-center gap-3">
                             {overlay_buttons.map(render_overlay_button)}
                         </div>
-                        <div className="relative" ref={country_selector_ref}>
-                            <button
-                                onClick={() => set_show_country_selector(value => !value)}
-                                onMouseEnter={() => set_zone_button_hover("countries")}
-                                onMouseLeave={() => set_zone_button_hover(null)}
-                                className="flex items-center justify-center relative rounded-md px-1 w-24 h-8 gap-1"
-                                style={{
-                                    ...zone_button_base_style,
-                                    ...(active_country_overlays.length > 0
-                                        ? zone_button_active_style
-                                        : {}),
-                                    ...(zone_button_hover === "countries"
-                                        ? zone_button_hover_style
-                                        : {}),
-                                }}
-                                title="Country overlays"
-                            >
-                                <span
-                                    className={`text-xl leading-none ${active_country_overlays.length > 0 ? "font-bold" : "font-medium"}`}
-                                    style={{
-                                        color:
-                                            active_country_overlays.length > 0
+                        <div className="flex w-full flex-wrap justify-end gap-2">
+                            {country_zone_overlays.map(overlay => {
+                                const active = map_controls[overlay.map_control_key] ?? false;
+                                return (
+                                    <button
+                                        key={overlay.id}
+                                        onClick={() =>
+                                            toggle_country_overlay(overlay.map_control_key, !active)
+                                        }
+                                        onMouseEnter={() => set_zone_button_hover(overlay.id)}
+                                        onMouseLeave={() => set_zone_button_hover(null)}
+                                        className="flex min-h-9 items-center justify-center whitespace-nowrap rounded-md px-3 text-center text-sm leading-tight"
+                                        style={{
+                                            ...zone_button_base_style,
+                                            ...(active ? zone_button_active_style : {}),
+                                            ...(zone_button_hover === overlay.id
+                                                ? zone_button_hover_style
+                                                : {}),
+                                            color: active
                                                 ? zone_label_active_color
                                                 : zone_label_inactive_color,
-                                    }}
-                                >
-                                    States
-                                </span>
-                                <span
-                                    className="text-xs leading-none"
-                                    style={{
-                                        color:
-                                            active_country_overlays.length > 0
-                                                ? zone_label_active_color
-                                                : zone_label_inactive_color,
-                                    }}
-                                >
-                                    ({active_country_overlays.length})
-                                </span>
-                            </button>
-                            {show_country_selector && (
-                                <div
-                                    className="absolute left-0 mt-1 rounded-md shadow-lg w-full p-2 z-50"
-                                    style={{
-                                        background: colors.theme.background,
-                                        border: `1px solid ${colors.theme.text}2E`,
-                                    }}
-                                >
-                                    <div className="flex flex-col gap-2">
-                                        <label
-                                            className="flex items-center gap-2 text-xl"
-                                            style={{ color: colors.theme.text }}
-                                            title="Toggle all country overlays"
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={all_country_overlays_selected}
-                                                onChange={event => {
-                                                    const next_checked = event.target.checked;
-                                                    set_map_controls(state => {
-                                                        country_zone_overlays.forEach(overlay => {
-                                                            state[overlay.map_control_key] =
-                                                                next_checked;
-                                                        });
-                                                        if (next_checked) {
-                                                            clear_exclusive_overlays(state);
-                                                        }
-                                                    });
-                                                }}
-                                            />
-                                            <span>All</span>
-                                        </label>
-                                        {country_zone_overlays.map(overlay => {
-                                            const is_checked =
-                                                map_controls[overlay.map_control_key] ?? false;
-                                            return (
-                                                <label
-                                                    key={overlay.id}
-                                                    className="flex items-center gap-2 text-xl"
-                                                    style={{ color: colors.theme.text }}
-                                                    title={overlay.title}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={is_checked}
-                                                        onChange={event => {
-                                                            const next_checked =
-                                                                event.target.checked;
-                                                            set_map_controls(state => {
-                                                                state[overlay.map_control_key] =
-                                                                    next_checked;
-                                                                if (next_checked) {
-                                                                    clear_exclusive_overlays(state);
-                                                                }
-                                                            });
-                                                        }}
-                                                    />
-                                                    <span>{overlay.label}</span>
-                                                </label>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
+                                        }}
+                                        title={overlay.title}
+                                    >
+                                        <span className={active ? "font-bold" : "font-medium"}>
+                                            {overlay.label}
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
                         {active_disabled_summaries.length > 0 && (
                             <div
