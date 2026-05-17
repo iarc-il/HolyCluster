@@ -51,8 +51,8 @@ def find_band_and_mode(frequency: str, comment: str) -> Tuple[str, str, str]:
     if not band:
         raise InvalidBandError(f"Band not found for frequency={frequency}")
 
-    mode = ""
-    mode_selection = ""
+    mode = "SSB"
+    mode_selection = "default"
     frequency_khz = float(frequency)
     logger.debug(f"{band=}")
     logger.debug(f"{frequency_khz=}")
@@ -76,16 +76,16 @@ def find_band_and_mode(frequency: str, comment: str) -> Tuple[str, str, str]:
         mode_selection = "comment"
     elif band in modes:
         logger.debug(f"{modes[band]=}")
-        for mode, start_end in modes[band].items():
+        for range_mode, start_end in modes[band].items():
             start = start_end["start"]
             end = start_end["end"]
-            logger.debug(f"{mode=} {start=}  {end=}")
+            logger.debug(f"{range_mode=} {start=}  {end=}")
             if start <= frequency_khz < end:
+                mode = range_mode
                 logger.debug(f"Frequency {frequency} mode is: {mode}")
                 mode_selection = "range"
                 break
     else:
-        mode = ""
         logger.debug(f"Mode not found for {band=}   {comment=}")
 
     return band, mode, mode_selection
