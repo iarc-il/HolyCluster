@@ -202,6 +202,13 @@ function LeftColumn({ toggled_ui }) {
         return !settings.disabled_bands[band];
     });
 
+    const visible_modes = modes.filter(mode => {
+        if (settings.show_disabled_modes) {
+            return true;
+        }
+        return !settings.disabled_modes[mode];
+    });
+
     return (
         <div
             className={toggled_classes + "2xl:flex w-18 flex-col h-full shrink-0 relative"}
@@ -280,7 +287,7 @@ function LeftColumn({ toggled_ui }) {
                 )}
 
                 <div className={filter_group_classes + " pt-4"}>
-                    {modes.map(mode => {
+                    {visible_modes.map(mode => {
                         return (
                             <FilterOptions
                                 key={mode}

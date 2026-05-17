@@ -1,7 +1,7 @@
 {
     "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
     "files": {
-        "ignore": ["src/assets/*.json", "dist"]
+        "ignore": ["src/assets/flags.json", "src/maps/*.json", "dist"]
     },
     "formatter": {
         "enabled": true,

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+from collections import defaultdict
 from contextlib import asynccontextmanager
 
 import fastapi
@@ -155,11 +156,15 @@ def cleanup_spot(spot):
             "spotter_country": spot["spotter_country"],
             "spotter_continent": spot["spotter_continent"],
             "spotter_state": spot.get("spotter_state"),
+            "spotter_cq_zone": int(spot.get("spotter_cq_zone") or -1),
+            "spotter_itu_zone": int(spot.get("spotter_itu_zone") or -1),
             "dx_callsign": spot["dx_callsign"],
             "dx_loc": [float(spot["dx_lon"]), float(spot["dx_lat"])],
             "dx_country": spot["dx_country"],
             "dx_continent": spot["dx_continent"],
             "dx_state": spot.get("dx_state"),
+            "dx_cq_zone": int(spot.get("dx_cq_zone") or -1),
+            "dx_itu_zone": int(spot.get("dx_itu_zone") or -1),
             "freq": float(spot["frequency"]),
             "band": band,
             "mode": mode,
@@ -183,6 +188,75 @@ async def get_qrz_session_key_from_redis() -> str:
     if not qrz_key:
         raise HTTPException(status_code=503, detail="QRZ session key not available")
     return qrz_key
+
+
+async def compute_cluster_stats(valkey_client, hours: int | None = None):
+    if hours is not None:
+        min_id = str(int((time.time() - hours * 3600) * 1000))
+    else:
+        min_id = "-"
+
+    entries = await valkey_client.xrange("stream-arrivals", min=min_id, max="+")
+
+    spot_sources = defaultdict(set)
+
+    for entry_id, fields in entries:
+        cluster = fields["cluster"]
+        cluster = cluster.split(":")[0]
+        spot_key = fields["spot_key"]
+        ts_ms = int(entry_id.split("-")[0])
+        day = ts_ms // 86_400_000
+        spot_sources[(day, spot_key)].add(cluster)
+
+    cluster_totals = defaultdict(int)
+    cluster_exclusive = defaultdict(int)
+    pairwise_overlap = defaultdict(lambda: defaultdict(int))
+
+    for (_day, _spot_key), clusters in spot_sources.items():
+        for c in clusters:
+            cluster_totals[c] += 1
+        if len(clusters) == 1:
+            cluster_exclusive[next(iter(clusters))] += 1
+        else:
+            cluster_list = sorted(clusters)
+            for i, c1 in enumerate(cluster_list):
+                for c2 in cluster_list[i + 1 :]:
+                    pairwise_overlap[c1][c2] += 1
+                    pairwise_overlap[c2][c1] += 1
+
+    all_clusters = sorted(cluster_totals.keys())
+
+    if hours is not None:
+        period_hours = hours
+    elif entries:
+        earliest_ms = int(entries[0][0].split("-")[0])
+        period_hours = round((time.time() * 1000 - earliest_ms) / 3_600_000, 1)
+    else:
+        period_hours = 0
+
+    clusters_summary = []
+    for name in all_clusters:
+        total = cluster_totals[name]
+        exclusive = cluster_exclusive.get(name, 0)
+        clusters_summary.append(
+            {
+                "name": name,
+                "total": total,
+                "exclusive": exclusive,
+                "exclusive_pct": round(exclusive / total * 100, 1) if total > 0 else 0.0,
+                "overlap": total - exclusive,
+            }
+        )
+
+    pairwise = {}
+    for name in all_clusters:
+        pairwise[name] = dict(pairwise_overlap[name]) if name in pairwise_overlap else {}
+
+    return {
+        "period_hours": period_hours,
+        "clusters": clusters_summary,
+        "pairwise_overlap": pairwise,
+    }
 
 
 @app.get("/locator/{callsign}")
@@ -342,6 +416,13 @@ def download_catserver():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/cluster_stats")
+async def cluster_stats(hours: int | None = None):
+    if hours is not None and (hours < 1 or hours > 168):
+        raise HTTPException(status_code=400, detail="hours must be between 1 and 168")
+    return await compute_cluster_stats(app.state.valkey_client, hours)
 
 
 @app.get("/")

@@ -1,6 +1,7 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect } from "react";
 import Maidenhead from "maidenhead";
+import { find_zone_number, normalize_zone_value } from "@/utils/zones.js";
 
 export function to_radian(deg) {
     return deg * (Math.PI / 180);
@@ -36,6 +37,35 @@ export function is_same_base_callsign(callsign1, callsign2) {
 
 export function is_matching_list(list, spot) {
     return list.some(filter => {
+        if (filter.type == "zone") {
+            const system = filter.zone_system;
+            const selected_zone = normalize_zone_value(system, filter.value);
+            if (!system || selected_zone == null) {
+                return false;
+            }
+
+            let spot_zone = null;
+            if (system === "cq") {
+                spot_zone = normalize_zone_value(system, spot.dx_cq_zone);
+            } else if (system === "itu") {
+                spot_zone = normalize_zone_value(system, spot.dx_itu_zone);
+            } else if (system === "us_state") {
+                if (spot.dx_country === "USA") {
+                    spot_zone = normalize_zone_value(system, spot.dx_state);
+                }
+            } else if (system === "ca_province") {
+                if (spot.dx_country === "Canada") {
+                    spot_zone = normalize_zone_value(system, spot.dx_state);
+                }
+            }
+
+            if (spot_zone == null) {
+                spot_zone = find_zone_number(system, spot.dx_loc);
+            }
+
+            return spot_zone != null && spot_zone === selected_zone;
+        }
+
         let matched_value;
         if (filter.type == "comment") {
             matched_value = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">").toLowerCase();
@@ -115,6 +145,19 @@ export function use_object_local_storage(key, default_value) {
 export function km_to_miles(km) {
     const miles = km * 0.621371;
     return Math.round(miles);
+}
+
+export function get_spots_center(spots) {
+    if (spots.length === 0) return null;
+    let sum_lon = 0;
+    let sum_lat = 0;
+    let count = 0;
+    spots.forEach(spot => {
+        sum_lon += spot.spotter_loc[0] + spot.dx_loc[0];
+        sum_lat += spot.spotter_loc[1] + spot.dx_loc[1];
+        count += 2;
+    });
+    return [sum_lon / count, sum_lat / count];
 }
 
 export const get_max_radius = (center, spots) => {

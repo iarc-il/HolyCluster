@@ -3,19 +3,32 @@ import Select from "@/components/ui/Select.jsx";
 import Input from "@/components/ui/Input.jsx";
 import CallsignInput from "@/components/CallsignInput.jsx";
 import { useColors } from "@/hooks/useColors";
-import entities from "@/assets/dxcc_entities.json";
+import { useFilters } from "@/hooks/useFilters";
+import {
+    get_valid_zone_values,
+    is_valid_zone_number,
+    normalize_zone_value,
+} from "@/utils/zones.js";
+import { STATES } from "@/data/states.js";
+import { dxcc_entity_options } from "@/data/dxcc_entities.js";
 
 import { default as SearchSelect } from "react-select";
-import { useState } from "react";
-
-const dxcc_entities = entities.map(entity => ({ value: entity, label: entity }));
+import { useEffect, useState } from "react";
 
 export const empty_filter_data = {
     action: "show_only",
     type: "prefix",
     value: "",
     spotter_or_dx: "dx",
+    zone_system: "cq",
 };
+
+const QUICK_COMMENT_FILTERS = [
+    { label: "WWFF", value: "wwff", comment: "WWFF" },
+    { label: "POTA", value: "pota", comment: "POTA" },
+    { label: "SOTA", value: "sota", comment: "SOTA" },
+    { label: "IOTA", value: "iota", comment: "IOTA" },
+];
 
 function RadioButton({ children, disabled, on_click }) {
     let classes = [
@@ -69,9 +82,50 @@ function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_dat
     );
 }
 
-function FilterModal({ initial_data = null, on_apply, button }) {
+function FilterModal({ initial_data = null, on_apply, button, exclude_filter_index = null }) {
     const [temp_data, set_temp_data] = useState(empty_filter_data);
+    const [error_message, set_error_message] = useState("");
     const { colors } = useColors();
+    const { get_filter_add_status } = useFilters();
+    const valid_zone_numbers = get_valid_zone_values(temp_data.zone_system || "cq");
+    const normalized_zone_value = normalize_zone_value(
+        temp_data.zone_system || "cq",
+        temp_data.value,
+    );
+    const selected_zone_value = valid_zone_numbers.includes(normalized_zone_value)
+        ? String(normalized_zone_value)
+        : String(valid_zone_numbers[0] ?? "");
+
+    useEffect(() => {
+        if (error_message.length > 0) {
+            set_error_message("");
+        }
+    }, [temp_data]);
+
+    function to_modal_filter_data(filter_data) {
+        if (!filter_data) {
+            return empty_filter_data;
+        }
+
+        if (filter_data.type === "comment" && filter_data.quick_filter) {
+            return {
+                ...filter_data,
+                type: "quick_comment",
+            };
+        }
+
+        if (
+            filter_data.type === "zone" &&
+            (filter_data.zone_system === "us_state" || filter_data.zone_system === "ca_province")
+        ) {
+            return {
+                ...filter_data,
+                type: "zone_region",
+            };
+        }
+
+        return filter_data;
+    }
 
     return (
         <Modal
@@ -94,24 +148,68 @@ function FilterModal({ initial_data = null, on_apply, button }) {
             }
             button={button}
             on_open={() => {
+                set_error_message("");
                 if (initial_data != null) {
-                    set_temp_data(initial_data);
+                    set_temp_data(to_modal_filter_data(initial_data));
                 }
             }}
             on_apply={() => {
-                if (
-                    temp_data.value.length > 0 ||
-                    temp_data.type == "self_spotters" ||
-                    temp_data.type == "dxpeditions"
-                ) {
-                    on_apply(temp_data);
-                    set_temp_data(empty_filter_data);
-                    return true;
-                } else {
+                const draft_filter =
+                    temp_data.type == "zone" || temp_data.type == "zone_region"
+                        ? {
+                              ...temp_data,
+                              type: "zone",
+                              value: normalize_zone_value(
+                                  temp_data.zone_system || "cq",
+                                  temp_data.value,
+                              ),
+                          }
+                        : temp_data.type == "quick_comment"
+                          ? {
+                                ...temp_data,
+                                type: "comment",
+                            }
+                          : temp_data;
+
+                if (temp_data.type == "zone" || temp_data.type == "zone_region") {
+                    if (!is_valid_zone_number(temp_data.zone_system, temp_data.value)) {
+                        set_error_message("Please choose a valid zone.");
+                        return false;
+                    }
+                }
+
+                const is_value_required =
+                    temp_data.type != "self_spotters" &&
+                    temp_data.type != "dxpeditions" &&
+                    temp_data.type != "zone" &&
+                    temp_data.type != "zone_region";
+                if (is_value_required && temp_data.value.toString().trim().length == 0) {
+                    set_error_message("Please enter a filter value.");
                     return false;
                 }
+
+                const add_status = get_filter_add_status(draft_filter, exclude_filter_index);
+                if (add_status.status === "remove") {
+                    set_error_message("This filter already exists in this section.");
+                    return false;
+                }
+
+                if (add_status.status === "replace") {
+                    set_error_message(
+                        `This filter conflicts with an existing ${add_status.conflicting_action.replace("_", " ")} filter.`,
+                    );
+                    return false;
+                }
+
+                on_apply(draft_filter);
+                set_error_message("");
+                set_temp_data(empty_filter_data);
+                return true;
             }}
-            on_cancel={() => set_temp_data(empty_filter_data)}
+            on_cancel={() => {
+                set_error_message("");
+                set_temp_data(empty_filter_data);
+            }}
         >
             <div className="space-y-2 p-2 pb-4 w-96">
                 <SelectionLine
@@ -119,6 +217,9 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                         { label: "Prefix", value: "prefix" },
                         { label: "Suffix", value: "suffix" },
                         { label: "Entity", value: "entity" },
+                        { label: "US/Canada", value: "zone_region" },
+                        { label: "Zone", value: "zone" },
+                        { label: "Quick Filter", value: "quick_comment" },
                         { label: "Comment", value: "comment" },
                         { label: "Self Spotters", value: "self_spotters" },
                         { label: "DXpeditions", value: "dxpeditions" },
@@ -127,17 +228,157 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                     temp_data={temp_data}
                     set_temp_data={set_temp_data}
                     build_temp_data={(temp_data, field, value) => {
-                        if (value == "entity" || temp_data.type == "entity") {
-                            return { ...temp_data, [field]: value, value: "" };
+                        if (
+                            value == "entity" ||
+                            temp_data.type == "entity" ||
+                            value == "zone_region"
+                        ) {
+                            return {
+                                ...temp_data,
+                                [field]: value,
+                                value: value == "zone_region" ? "AL" : "",
+                                zone_system:
+                                    value == "zone_region" ? "us_state" : temp_data.zone_system,
+                                spotter_or_dx: "dx",
+                                quick_filter: undefined,
+                            };
+                        } else if (value == "quick_comment") {
+                            const quick_filter = QUICK_COMMENT_FILTERS[0];
+                            return {
+                                ...temp_data,
+                                [field]: value,
+                                value: quick_filter.comment,
+                                quick_filter: quick_filter.value,
+                            };
+                        } else if (value == "zone") {
+                            return {
+                                ...temp_data,
+                                [field]: value,
+                                value: "1",
+                                zone_system: temp_data.zone_system || "cq",
+                                spotter_or_dx: "dx",
+                                quick_filter: undefined,
+                            };
                         } else {
-                            return { ...temp_data, [field]: value };
+                            return {
+                                ...temp_data,
+                                [field]: value,
+                                quick_filter:
+                                    value === "quick_comment" ? temp_data.quick_filter : undefined,
+                            };
                         }
                     }}
                 />
 
-                {temp_data.type != "self_spotters" &&
-                temp_data.type != "dxpeditions" &&
-                temp_data.type != "comment" ? (
+                {temp_data.type == "zone" ? (
+                    <>
+                        <hr />
+                        <SelectionLine
+                            states={[
+                                { label: "CQ", value: "cq" },
+                                { label: "ITU", value: "itu" },
+                            ]}
+                            field="zone_system"
+                            temp_data={temp_data}
+                            set_temp_data={set_temp_data}
+                            build_temp_data={(current_data, field, system_value) => {
+                                const zones = get_valid_zone_values(system_value);
+                                const parsed_zone = Number.parseInt(current_data.value, 10);
+                                const next_zone = zones.includes(parsed_zone)
+                                    ? parsed_zone
+                                    : (zones[0] ?? "");
+                                return {
+                                    ...current_data,
+                                    [field]: system_value,
+                                    value: String(next_zone),
+                                    spotter_or_dx: "dx",
+                                };
+                            }}
+                        />
+                        <div className="flex justify-start space-x-5 items-center w-full">
+                            <div>zone:</div>
+                            <div>
+                                <Select
+                                    value={selected_zone_value}
+                                    className="h-10 w-40"
+                                    onChange={event => {
+                                        set_temp_data({
+                                            ...temp_data,
+                                            value: event.target.value,
+                                            spotter_or_dx: "dx",
+                                        });
+                                    }}
+                                >
+                                    {valid_zone_numbers.map(zone_number => (
+                                        <option key={zone_number} value={zone_number}>
+                                            {zone_number}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </div>
+                        </div>
+                    </>
+                ) : temp_data.type == "zone_region" ? (
+                    <>
+                        <hr />
+                        <SelectionLine
+                            states={[
+                                { label: "US", value: "us_state" },
+                                { label: "Canada", value: "ca_province" },
+                            ]}
+                            field="zone_system"
+                            temp_data={temp_data}
+                            set_temp_data={set_temp_data}
+                            build_temp_data={(current_data, field, system_value) => {
+                                const zones = get_valid_zone_values(system_value);
+                                const next_zone = zones.includes(current_data.value)
+                                    ? current_data.value
+                                    : (zones[0] ?? "");
+                                return {
+                                    ...current_data,
+                                    [field]: system_value,
+                                    value: String(next_zone),
+                                    spotter_or_dx: "dx",
+                                };
+                            }}
+                        />
+                        <div className="flex justify-start space-x-5 items-center w-full">
+                            <div>state/province:</div>
+                            <div>
+                                <Select
+                                    value={temp_data.value}
+                                    className="h-10 w-40"
+                                    onChange={event => {
+                                        set_temp_data({
+                                            ...temp_data,
+                                            value: event.target.value,
+                                            spotter_or_dx: "dx",
+                                        });
+                                    }}
+                                >
+                                    {get_valid_zone_values(temp_data.zone_system || "us_state").map(
+                                        zone_number => {
+                                            const state_list =
+                                                temp_data.zone_system === "ca_province"
+                                                    ? STATES.Canada
+                                                    : STATES.USA;
+                                            const region_name =
+                                                state_list?.[zone_number] ?? zone_number;
+                                            return (
+                                                <option key={zone_number} value={zone_number}>
+                                                    {zone_number} - {region_name}
+                                                </option>
+                                            );
+                                        },
+                                    )}
+                                </Select>
+                            </div>
+                        </div>
+                    </>
+                ) : temp_data.type != "self_spotters" &&
+                  temp_data.type != "dxpeditions" &&
+                  temp_data.type != "comment" &&
+                  temp_data.type != "quick_comment" ? (
                     <>
                         <hr />
                         <SelectionLine
@@ -192,7 +433,7 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                                                 color: colors.theme.text,
                                             }),
                                         }}
-                                        options={dxcc_entities}
+                                        options={dxcc_entity_options}
                                     />
                                 ) : (
                                     <CallsignInput
@@ -230,9 +471,40 @@ function FilterModal({ initial_data = null, on_apply, button }) {
                             </div>
                         </div>
                     </>
+                ) : temp_data.type == "quick_comment" ? (
+                    <>
+                        <hr />
+                        <b className="text-xl flex mt-2">Select:</b>
+                        <SelectionLine
+                            states={QUICK_COMMENT_FILTERS.map(quick_filter => ({
+                                label: quick_filter.label,
+                                value: quick_filter.value,
+                            }))}
+                            field="quick_filter"
+                            temp_data={temp_data}
+                            set_temp_data={set_temp_data}
+                            build_temp_data={(current_data, field, value) => {
+                                const selected_filter = QUICK_COMMENT_FILTERS.find(
+                                    filter => filter.value === value,
+                                );
+                                if (!selected_filter) {
+                                    return current_data;
+                                }
+                                return {
+                                    ...current_data,
+                                    [field]: selected_filter.value,
+                                    value: selected_filter.comment,
+                                };
+                            }}
+                        />
+                    </>
                 ) : (
                     ""
                 )}
+
+                {error_message.length > 0 ? (
+                    <div className="px-1 text-sm font-semibold text-red-400">{error_message}</div>
+                ) : null}
             </div>
         </Modal>
     );

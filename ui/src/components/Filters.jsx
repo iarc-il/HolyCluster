@@ -6,6 +6,7 @@ import { empty_filter_data, default as FilterModal } from "@/components/FilterMo
 
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import { STATES } from "@/data/states.js";
 import { useState } from "react";
 import { DndContext, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -14,6 +15,8 @@ const FILTER_TYPE_LABELS = {
     prefix: "Pfx",
     suffix: "Sfx",
     entity: "Ent",
+    zone: "Zone",
+    comment: "Cmt",
 };
 
 const SPOTTER_DX_LABELS = {
@@ -28,8 +31,21 @@ const SPECIAL_FILTER_LABELS = {
 
 function Indicator({ text }) {
     return (
-        <div className="flex border border-gray-700 items-center justify-center p-2 w-7 h-7 rounded-md mr-2 text-xs font-bold bg-green-600 text-white">
+        <div className="flex border border-gray-700 items-center justify-center p-2 w-7 h-7 rounded-md text-xs font-bold bg-green-600 text-white">
             {text}
+        </div>
+    );
+}
+
+function FilterBadge({ children, className = "", title, listeners, attributes }) {
+    return (
+        <div
+            {...listeners}
+            {...attributes}
+            className={`flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white ${className}`}
+            title={title}
+        >
+            {children}
         </div>
     );
 }
@@ -60,13 +76,66 @@ function EditSymbol({ size }) {
 function SpecialFilterBadge({ type, listeners, attributes }) {
     const label = SPECIAL_FILTER_LABELS[type];
     return (
-        <div
-            {...listeners}
-            {...attributes}
-            className="flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white cursor-grab active:cursor-grabbing w-24"
+        <FilterBadge
+            listeners={listeners}
+            attributes={attributes}
+            className="cursor-grab active:cursor-grabbing w-24"
         >
             {label}
-        </div>
+        </FilterBadge>
+    );
+}
+
+function ZoneFilterBadge({ filter, listeners, attributes }) {
+    const system_label =
+        {
+            cq: "CQ",
+            itu: "ITU",
+            us_state: "US",
+            ca_province: "CA",
+        }[filter.zone_system || "cq"] ?? (filter.zone_system || "cq").toUpperCase();
+
+    const is_region_filter =
+        filter.zone_system === "us_state" || filter.zone_system === "ca_province";
+    const country_key = filter.zone_system === "ca_province" ? "Canada" : "USA";
+    const region_name = STATES[country_key]?.[filter.value] ?? filter.value;
+    const region_text_size_class =
+        region_name.length > 22
+            ? "text-[10px]"
+            : region_name.length > 16
+              ? "text-[11px]"
+              : "text-xs";
+
+    if (is_region_filter) {
+        return (
+            <>
+                <FilterBadge
+                    listeners={listeners}
+                    attributes={attributes}
+                    className="cursor-grab active:cursor-grabbing w-10"
+                    title={system_label}
+                >
+                    {system_label}
+                </FilterBadge>
+                <FilterBadge
+                    className={`px-2 w-fit max-w-52 ${region_text_size_class}`}
+                    title={region_name}
+                >
+                    {region_name}
+                </FilterBadge>
+            </>
+        );
+    }
+
+    return (
+        <FilterBadge
+            listeners={listeners}
+            attributes={attributes}
+            className="cursor-grab active:cursor-grabbing w-24"
+            title={`Zone ${system_label} ${filter.value}`}
+        >
+            {system_label} {filter.value}
+        </FilterBadge>
     );
 }
 
@@ -79,11 +148,45 @@ function FilterContent({ filter, listeners, attributes, colors }) {
         );
     }
 
+    if (filter.type === "zone") {
+        return <ZoneFilterBadge filter={filter} listeners={listeners} attributes={attributes} />;
+    }
+
+    if (filter.type === "comment" && filter.quick_filter) {
+        return (
+            <FilterBadge
+                listeners={listeners}
+                attributes={attributes}
+                className="cursor-grab active:cursor-grabbing w-24"
+                title={filter.value}
+            >
+                {filter.value}
+            </FilterBadge>
+        );
+    }
+
+    if (filter.type === "comment") {
+        return (
+            <div className="flex items-center gap-1">
+                <div {...listeners} {...attributes}>
+                    <Input
+                        className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
+                        disabled
+                        disabled_text_color={colors.theme.text}
+                        title={filter.value}
+                        value={filter.value}
+                    />
+                </div>
+                <Indicator text={FILTER_TYPE_LABELS[filter.type]} />
+            </div>
+        );
+    }
+
     return (
-        <>
+        <div className="flex items-center gap-1">
             <div {...listeners} {...attributes}>
                 <Input
-                    className="h-7 text-sm mr-1 w-24 cursor-grab active:cursor-grabbing"
+                    className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
                     disabled
                     disabled_text_color={colors.theme.text}
                     title={filter.value}
@@ -92,7 +195,7 @@ function FilterContent({ filter, listeners, attributes, colors }) {
             </div>
             <Indicator text={FILTER_TYPE_LABELS[filter.type]} />
             <Indicator text={SPOTTER_DX_LABELS[filter.spotter_or_dx]} />
-        </>
+        </div>
     );
 }
 
@@ -125,7 +228,7 @@ function FilterLine({ filter, id, is_dragging }) {
 
     return (
         <div ref={setNodeRef} className="flex items-center mb-1 w-full" style={style}>
-            <div className="flex items-center flex-1 min-w-0">
+            <div className="flex items-center gap-1 flex-1 min-w-0">
                 <FilterContent
                     filter={filter}
                     listeners={listeners}
@@ -137,6 +240,7 @@ function FilterLine({ filter, id, is_dragging }) {
                 <FilterModal
                     initial_data={filter}
                     button={<EditSymbol size="24" />}
+                    exclude_filter_index={id}
                     on_apply={update_filter}
                 />
                 <X className="cursor-pointer min-w-[24px]" size="24" on_click={delete_filter} />

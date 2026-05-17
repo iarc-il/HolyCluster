@@ -1,4 +1,3 @@
-import Triangle from "./Spot/components/Triangle";
 import { useColors } from "@/hooks/useColors";
 
 function FilterButton({

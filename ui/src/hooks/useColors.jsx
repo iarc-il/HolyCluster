@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext } from "react";
 
 import { useLocalStorage } from "@uidotdev/usehooks";
 
@@ -82,14 +82,6 @@ const base_theme = {
         80: "white",
         160: "white",
     },
-    map: {
-        background: "#FFFFFF",
-        land: "#D7D7D7",
-        land_borders: "#777777",
-        graticule: "#c4c4c4",
-        night: "#000080",
-        borders: "#000000",
-    },
     dxpeditions: {
         inactive: "#6b7280",
         badge_text: "white",
@@ -100,6 +92,44 @@ const base_theme = {
     spots: {
         alert_border: "white",
         dxpedition_alert: "#FFD700",
+    },
+    map: {
+        background: "#e3f3f0",
+        graticule: "#c4c4c4",
+        land_borders: "#777777",
+        borders: "#000000",
+        night_overlay: "#0000aa",
+        filter_hide: "#b91c1c",
+        filter_show_only: "#16a34a",
+        filter_alert: "#f59e0b",
+        zone_border: "#000000",
+        label_outline: "#ffffff",
+        label_hover: "#000000",
+        label: "#000000",
+        equator: "#000000",
+        center_dot: "#ff0000",
+        spot_outline: "#808080",
+        azimuth_line: "#000000",
+        home_marker: "#2563eb",
+        home_marker_border: "#ffffff",
+        home_marker_center: "#ffffff",
+    },
+    map_countries: {
+        country_0: "#fedbb5",
+        country_1: "#d5b98a",
+        country_2: "#fab493",
+        country_3: "#df8073",
+        country_4: "#bcb759",
+        country_5: "#98d4c1",
+        country_6: "#b99881",
+        country_7: "#89c765",
+    },
+    map_controls: {
+        zone_label_active: "#FFFFFF",
+        zone_label_inactive: "#9CA3AF",
+        radio_unknown: "#888888",
+        radio_connected: "#00DD00",
+        radio_disconnected: "#DD0000",
     },
 };
 
@@ -117,6 +147,10 @@ function merge_theme(overrides) {
 
 const themes = {
     Light: merge_theme({
+        map_controls: {
+            zone_label_active: "#111827",
+            zone_label_inactive: "#6B7280",
+        },
         text: {
             SHF: "default_dark",
             UHF: "default_dark",
@@ -268,14 +302,6 @@ const themes = {
             even_text: "#000000",
             odd_text: "#000000",
         },
-        map: {
-            background: "#a9a7a7",
-            land: "#403f3f",
-            land_borders: "#a9a7a7",
-            graticule: "#c4c4c4",
-            night: "#5a00a3",
-            borders: "#000000",
-        },
         seven_segment: {
             on: "#ef4444",
             off: "#505050",
@@ -319,6 +345,10 @@ export const ColorsProvider = ({ children }) => {
         set_colors_inner(themes[theme_name]);
     }
 
+    function resetToCurrentTheme() {
+        set_colors_inner(themes[current_theme]);
+    }
+
     return (
         <ColorsContext.Provider
             value={{
@@ -326,6 +356,7 @@ export const ColorsProvider = ({ children }) => {
                 set_dev_mode,
                 colors,
                 setSectionColor,
+                resetToCurrentTheme,
                 setTheme,
             }}
         >

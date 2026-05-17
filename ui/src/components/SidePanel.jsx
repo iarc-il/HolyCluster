@@ -224,11 +224,16 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
         <DXpeditions />,
     ];
 
-    const toggled_classes = toggled_ui.right_visible ? "max-2xl:absolute right-0 top-0" : "hidden";
+    const toggled_classes = toggled_ui.right_visible
+        ? "max-2xl:absolute max-2xl:flex right-0 top-0"
+        : "hidden";
     return (
         <div
-            className={toggled_classes + " 2xl:flex flex-col h-full z-50"}
-            style={{ backgroundColor: colors.theme.background }}
+            className={
+                toggled_classes +
+                " 2xl:flex flex-col h-full z-50 max-2xl:max-h-full max-2xl:overflow-auto"
+            }
+            style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}
         >
             <ViewSelectorTabs
                 active_view={active_view}
@@ -236,7 +241,7 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
                 colors={colors}
             />
             <div className="flex flex-1 overflow-hidden">
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64">
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64 min-w-0">
                     {content[active_view]}
                 </div>
                 <RightColumnContent colors={colors} />

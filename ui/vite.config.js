@@ -1,10 +1,9 @@
 import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig({
-    plugins: [react(), visualizer()],
+    plugins: [react()],
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "./src"),
@@ -16,6 +15,7 @@ export default defineConfig({
             "/locator": "https://holycluster-dev.iarc.org",
             "/catserver": "https://holycluster-dev.iarc.org",
             "/dxpeditions": "https://holycluster-dev.iarc.org",
+            "/cluster_stats": "https://holycluster-dev.iarc.org",
             "/spots_ws": {
                 target: "wss://holycluster-dev.iarc.org",
                 ws: true,

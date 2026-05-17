@@ -97,12 +97,30 @@ async def get_qrz_session_key(username: str, password: str, api_key: str, http_c
 
 
 async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client: httpx.AsyncClient) -> dict:
+    def parse_zone_int(root, ns, tag_name):
+        elem = root.find(f".//qrz:{tag_name}", ns)
+        if elem is None or elem.text is None:
+            return None
+        text = elem.text.strip()
+        if text == "":
+            return None
+        try:
+            return int(text)
+        except ValueError:
+            return None
+
     suffix_list = ["/M", "/P"]
     for suffix in suffix_list:
         if callsign.upper().endswith(suffix):
             callsign = callsign[: -len(suffix)]
     if not qrz_session_key:
-        return {"locator": None, "state": None, "error": "No qrz_session_key"}
+        return {
+            "locator": None,
+            "state": None,
+            "cq_zone": None,
+            "itu_zone": None,
+            "error": "No qrz_session_key",
+        }
 
     url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
 
@@ -151,20 +169,40 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client:
                 retries += 1
 
     if response.status_code != 200:
-        return {"locator": None, "state": None, "error": f"qrz response code {response.status_code}"}
+        return {
+            "locator": None,
+            "state": None,
+            "cq_zone": None,
+            "itu_zone": None,
+            "error": f"qrz response code {response.status_code}",
+        }
 
     ns = {"qrz": "http://xmldata.qrz.com"}
     root = ET.fromstring(response.text)
     xml_error = root.find(".//qrz:Error", ns)
     if xml_error is not None:
         error = root.find(".//qrz:Error", ns).text
-        return {"locator": None, "state": None, "error": error}
+        return {
+            "locator": None,
+            "state": None,
+            "cq_zone": None,
+            "itu_zone": None,
+            "error": error,
+        }
 
     geoloc = root.find(".//qrz:geoloc", ns).text
     if geoloc != "none":
         locator = root.find(".//qrz:grid", ns).text
         state_elem = root.find(".//qrz:state", ns)
         state = state_elem.text if state_elem is not None else None
-        return {"locator": locator, "state": state}
+        cq_zone = parse_zone_int(root, ns, "cqzone")
+        itu_zone = parse_zone_int(root, ns, "ituzone")
+        return {"locator": locator, "state": state, "cq_zone": cq_zone, "itu_zone": itu_zone}
     else:
-        return {"locator": None, "state": None, "error": "no user supplied grid"}
+        return {
+            "locator": None,
+            "state": None,
+            "cq_zone": None,
+            "itu_zone": None,
+            "error": "no user supplied grid",
+        }

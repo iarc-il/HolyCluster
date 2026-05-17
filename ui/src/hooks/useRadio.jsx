@@ -1,65 +1,14 @@
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useState, useEffect, createContext, useContext } from "react";
 import { useSettings } from "./useSettings";
+import raw_band_plans from "../../../shared/band_plans.json";
 
-const band_plans = {
-    160: {
-        min: 1800000,
-        max: 2000000,
-    },
-    80: {
-        min: 3500000,
-        max: 4000000,
-    },
-    60: {
-        min: 5351000,
-        max: 5366000,
-    },
-    40: {
-        min: 7000000,
-        max: 7300000,
-    },
-    30: {
-        min: 10100000,
-        max: 10150000,
-    },
-    20: {
-        min: 14000000,
-        max: 14350000,
-    },
-    17: {
-        min: 18068000,
-        max: 18168000,
-    },
-    15: {
-        min: 21000000,
-        max: 21450000,
-    },
-    12: {
-        min: 24890000,
-        max: 24990000,
-    },
-    10: {
-        min: 28000000,
-        max: 29700000,
-    },
-    6: {
-        min: 50000000,
-        max: 52000000,
-    },
-    4: {
-        min: 70000000,
-        max: 70500000,
-    },
-    VHF: {
-        min: 144000000,
-        max: 144300000,
-    },
-    UHF: {
-        min: 432000000,
-        max: 433000000,
-    },
-};
+const band_plans = Object.fromEntries(
+    Object.entries(raw_band_plans).map(([band, info]) => [
+        band,
+        { min: info.freq_start * 1000, max: info.freq_end * 1000 },
+    ]),
+);
 
 function parse_version(raw_version) {
     if (!raw_version) {

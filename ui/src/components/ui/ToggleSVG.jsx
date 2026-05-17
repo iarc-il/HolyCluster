@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import ToggleSwitchOff from "@/assets/ToggleSwitchOff";
-import ToggleSwitchOn from "@/assets/ToggleSwitchOn";
+import ToggleSwitchOff from "@/components/ui/ToggleSwitchOff";
+import ToggleSwitchOn from "@/components/ui/ToggleSwitchOn";
 
 const ToggleSVG = ({ auto_radius, set_auto_radius }) => {
     return (

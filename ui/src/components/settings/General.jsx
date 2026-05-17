@@ -262,20 +262,6 @@ function General({ temp_settings, set_temp_settings, colors }) {
                             )}
                         </td>
                     </tr>
-                    <tr>
-                        <td>Single spot per station:&nbsp;&nbsp;</td>
-                        <td>
-                            <Toggle
-                                value={temp_settings.show_only_latest_spot}
-                                on_click={() => {
-                                    set_temp_settings({
-                                        ...temp_settings,
-                                        show_only_latest_spot: !temp_settings.show_only_latest_spot,
-                                    });
-                                }}
-                            />
-                        </td>
-                    </tr>
                 </tbody>
             </table>
         </div>

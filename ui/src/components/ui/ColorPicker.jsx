@@ -48,29 +48,33 @@ function ThemeSection({ section }) {
                         {section}
                     </td>
                 </tr>
-                {Object.entries(colors[section]).map(([name, color]) => {
-                    return (
-                        <tr key={`${name}_${color}`}>
-                            <td className="w-24">{name}</td>
-                            <td className="w-8 text-center">
-                                <input
-                                    type="color"
-                                    value={color}
-                                    onChange={event => {
-                                        setSectionColor(section, name, event.target.value);
-                                    }}
-                                />
-                            </td>
-                        </tr>
-                    );
-                })}
+                {colors[section] ? (
+                    Object.entries(colors[section]).map(([name, color]) => {
+                        return (
+                            <tr key={`${name}_${color}`}>
+                                <td className="w-24">{name}</td>
+                                <td className="w-8 text-center">
+                                    <input
+                                        type="color"
+                                        value={color}
+                                        onChange={event => {
+                                            setSectionColor(section, name, event.target.value);
+                                        }}
+                                    />
+                                </td>
+                            </tr>
+                        );
+                    })
+                ) : (
+                    <b>Missing section</b>
+                )}
             </tbody>
         </table>
     );
 }
 
 export function ColorPicker({}) {
-    const { colors } = useColors();
+    const { colors, resetToCurrentTheme } = useColors();
 
     return (
         <Modal
@@ -92,6 +96,7 @@ export function ColorPicker({}) {
                     <ThemeSection section="theme"></ThemeSection>
                     <ThemeSection section="buttons"></ThemeSection>
                     <ThemeSection section="table"></ThemeSection>
+                    <ThemeSection section="map_countries"></ThemeSection>
                 </div>
             </div>
             <div className="flex justify-around items-end pb-2">
@@ -108,8 +113,8 @@ export function ColorPicker({}) {
                         Download
                     </a>
                 </Button>
-                <Button color="green" on_click={() => setTheme("light")}>
-                    Clear
+                <Button color="green" on_click={resetToCurrentTheme}>
+                    Reset
                 </Button>
             </div>
         </Modal>

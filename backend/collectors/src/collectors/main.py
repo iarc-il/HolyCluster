@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import sys
 import re
+import time
 from datetime import datetime, timezone
 
 from loguru import logger
@@ -78,6 +79,8 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             "spotter_country": spotter_geo.country,
             "spotter_continent": spotter_geo.continent,
             "spotter_state": spotter_geo.state,
+            "spotter_cq_zone": spotter_geo.cq_zone or -1,
+            "spotter_itu_zone": spotter_geo.itu_zone or -1,
             # Redis doesn't accept bools
             "dx_geo_cache": 1 if dx_geo.cached else 0,
             "dx_locator_source": dx_geo.locator_source,
@@ -87,6 +90,8 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             "dx_country": dx_geo.country,
             "dx_continent": dx_geo.continent,
             "dx_state": dx_geo.state,
+            "dx_cq_zone": dx_geo.cq_zone or -1,
+            "dx_itu_zone": dx_geo.itu_zone or -1,
         }
     )
 
@@ -112,6 +117,8 @@ async def add_spot_to_postgres(engine, spot: dict):
         spotter_country=spot["spotter_country"],
         spotter_continent=spot["spotter_continent"],
         spotter_state=spot["spotter_state"],
+        spotter_cq_zone=spot.get("spotter_cq_zone"),
+        spotter_itu_zone=spot.get("spotter_itu_zone"),
         dx_callsign=spot["dx_callsign"],
         dx_locator=spot["dx_locator"],
         dx_locator_source=spot["dx_locator_source"],
@@ -120,6 +127,8 @@ async def add_spot_to_postgres(engine, spot: dict):
         dx_country=spot["dx_country"],
         dx_continent=spot["dx_continent"],
         dx_state=spot["dx_state"],
+        dx_cq_zone=spot.get("dx_cq_zone"),
+        dx_itu_zone=spot.get("dx_itu_zone"),
         comment=spot["comment"],
         is_dxpedition=spot["is_dxpedition"],
     )
@@ -202,6 +211,21 @@ async def refresh_dxpedition_data(valkey_client):
         await asyncio.sleep(sleep)
 
 
+STREAM_ARRIVALS = "stream-arrivals"
+STREAM_ARRIVALS_RETENTION_SECONDS = 7 * 86400
+
+
+async def trim_arrivals_stream(valkey_client):
+    while True:
+        min_id = int((time.time() - STREAM_ARRIVALS_RETENTION_SECONDS) * 1000)
+        try:
+            await valkey_client.xtrim(STREAM_ARRIVALS, minid=min_id)
+            logger.info(f"Trimmed stream-arrivals to minid={min_id}")
+        except Exception:
+            logger.warning("Failed to trim stream-arrivals", exc_info=True)
+        await asyncio.sleep(3600)
+
+
 async def run_collector():
     logger.info("Starting collector...")
 
@@ -222,10 +246,11 @@ async def run_collector():
     dxpedition_refresh_task = asyncio.create_task(
         refresh_dxpedition_data(valkey_client), name="dxpedition_refresh_task"
     )
+    trim_task = asyncio.create_task(trim_arrivals_stream(valkey_client), name="trim_arrivals_stream")
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
     collector_tasks = run_concurrent_telnet_connections(spots_queue)
 
-    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task]
+    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task, trim_task]
     tasks.extend(collector_tasks)
 
     try:

@@ -9,6 +9,22 @@ import use_radio from "@/hooks/useRadio.jsx";
 
 const RELEASES = [
     [
+        "",
+        [
+            "Map update! 🗺️",
+            "4 New filter types: ITU zones, CQ zones, US state and Canada provinces",
+            "Add overlay display and quick filter in the map for all new filters",
+            "Add DXCC labels also supporting filtering",
+            "Update map visuals and geography (countries, lakes, and water bodies)",
+            "New globe mode",
+            "Show Canada provinces in the table",
+            "Propagation data is now available on mobile",
+            "Add mode selection in settings (similar to band selection)",
+            "New home location indicator on the map",
+            "New fullscreen mode for the map",
+        ],
+    ],
+    [
         "3/3/2026",
         [
             "New DXpedition list with dates, sorting, duration tracking",

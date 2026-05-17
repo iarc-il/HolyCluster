@@ -11,7 +11,7 @@ import Spinner from "@/components/ui/Spinner.jsx";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
-import { is_same_base_callsign } from "@/utils.js";
+import { band_plans } from "@/data/band_plans.js";
 
 function SubmitIcon({ size }) {
     const { colors } = useColors();
@@ -112,8 +112,18 @@ function SubmitSpot({ dev_mode }) {
         set_temp_data(empty_temp_data);
     }
 
+    function is_freq_in_band_plan(freq) {
+        const freq_khz = Number.parseFloat(freq);
+        if (Number.isNaN(freq_khz) || freq_khz <= 0) return false;
+        return Object.values(band_plans).some(band => freq_khz >= band.min && freq_khz <= band.max);
+    }
+
     function try_to_submit_spot() {
         if (readyState == ReadyState.OPEN) {
+            if (!is_freq_in_band_plan(temp_data.freq)) {
+                set_submit_status({ status: "failure", reason: "FrequencyOutOfBand" });
+                return;
+            }
             set_submit_status({ status: "sending", reason: "" });
             const message = {
                 spotter_callsign: settings.callsign,
@@ -149,7 +159,9 @@ function SubmitSpot({ dev_mode }) {
         } else if (submit_status.reason == "InvalidDXCallsign") {
             formatted_failure = "Invalid DX callsign";
         } else if (submit_status.reason == "ClusterConnectionFailed") {
-            formatted_failure = "Couldn't react the remote cluster server";
+            formatted_failure = "Couldn't reach the remote cluster server";
+        } else if (submit_status.reason == "FrequencyOutOfBand") {
+            formatted_failure = "Frequency is out of range";
         }
     }
 
@@ -158,7 +170,6 @@ function SubmitSpot({ dev_mode }) {
     }
     const is_stuart_mode = find_base_callsign(settings.callsign || "") === "VE9CF";
     const [stuart_less_noise, set_stuart_less_noise] = useLocalStorage("stuart_less_noise", false);
-    let is_self_spotting = is_same_base_callsign(settings.callsign, temp_data.callsign);
 
     return (
         <>
@@ -210,9 +221,10 @@ function SubmitSpot({ dev_mode }) {
                 }}
                 on_cancel={() => {
                     set_is_open(false);
+                    set_submit_status({ status: "pending", reason: "" });
                 }}
                 apply_text={
-                    submit_status.status == "Sending" ? (
+                    submit_status.status == "sending" ? (
                         <Spinner size="20" color="lightblue" />
                     ) : (
                         "Submit"
@@ -237,11 +249,9 @@ function SubmitSpot({ dev_mode }) {
                         <tr>
                             <td>Spotter callsign:</td>
                             <td>
-                                <Input
-                                    value={settings.callsign}
-                                    className="uppercase w-32"
-                                    disabled
-                                />
+                                <span className="inline-block w-32 uppercase font-bold text-lg text-center">
+                                    {settings.callsign}
+                                </span>
                             </td>
                         </tr>
                         <tr>
@@ -332,18 +342,6 @@ function SubmitSpot({ dev_mode }) {
                         )}
                     </tbody>
                 </table>
-                {is_self_spotting && !is_stuart_mode ? (
-                    <p
-                        className="pb-2 px-2 text-center text-lg"
-                        style={{ color: colors.theme.text }}
-                    >
-                        Usually, self spotting is discourged
-                        <br />
-                        in the ham radio community
-                    </p>
-                ) : (
-                    ""
-                )}
                 {submit_status.status == "failure" || not_connected ? (
                     <p className="pb-2 px-2 text-red-400">
                         {formatted_state}: {formatted_failure}

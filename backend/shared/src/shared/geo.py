@@ -25,6 +25,8 @@ class GeoData(BaseModel):
     country: str
     continent: str
     state: str
+    cq_zone: int | None = None
+    itu_zone: int | None = None
 
 
 def read_csv_to_list_of_tuples(filename: str):
@@ -63,7 +65,10 @@ async def get_geo_details(
     callsign_type,
 ) -> GeoData:
     # Get geo details from cache
-    geo_data = await valkey_client.get(callsign)
+    if valkey_client is not None:
+        geo_data = await valkey_client.get(callsign)
+    else:
+        geo_data = None
 
     if geo_data:
         geo_data = json.loads(geo_data)
@@ -74,6 +79,8 @@ async def get_geo_details(
 
     locator = qrz_locator_dict.get("locator")
     state = qrz_locator_dict.get("state")
+    cq_zone = qrz_locator_dict.get("cq_zone")
+    itu_zone = qrz_locator_dict.get("itu_zone")
     if locator:
         locator_source = "qrz"
     else:
@@ -94,8 +101,11 @@ async def get_geo_details(
         "country": country,
         "continent": continent,
         "state": state or "",
+        "cq_zone": cq_zone,
+        "itu_zone": itu_zone,
     }
-    await valkey_client.set(callsign, json.dumps(geo_data), ex=geo_expiration)
+    if valkey_client is not None:
+        await valkey_client.set(callsign, json.dumps(geo_data), ex=geo_expiration)
     geo_data["cached"] = False
 
     return GeoData(**geo_data)
