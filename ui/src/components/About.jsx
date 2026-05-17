@@ -9,7 +9,7 @@ import use_radio from "@/hooks/useRadio.jsx";
 
 const RELEASES = [
     [
-        "",
+        "17/05/2026",
         [
             "Map update! 🗺️",
             "4 New filter types: ITU zones, CQ zones, US state and Canada provinces",
