@@ -1,7 +1,14 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { use_object_local_storage } from "@/utils.js";
-import { bands, modes, continents } from "@/data/filters_data.js";
 import { normalize_zone_value } from "@/utils/zones.js";
+import { create_initial_callsign_filters, create_initial_filters } from "@/data/filter_defaults.js";
+import {
+    build_filter_share_url,
+    decode_filter_state,
+    FILTER_URL_PARAM,
+    get_filter_url_param,
+} from "@/utils/filter_url_state.js";
 
 const FiltersContext = createContext(undefined);
 const ZONE_CLICK_ACTION_CYCLE = ["hide", "show_only", "alert"];
@@ -109,36 +116,98 @@ export const useFilters = () => {
 };
 
 export const FiltersProvider = ({ children }) => {
-    const initial_filters = {
-        bands: Object.fromEntries(Array.from(bands).map(band => [band, true])),
-        modes: Object.fromEntries(modes.map(mode => [mode, true])),
-        radio_band: false,
-        dx_continents: Object.fromEntries(continents.map(continent => [continent, true])),
-        spotter_continents: Object.fromEntries(continents.map(continent => [continent, true])),
-        time_limit: 3600,
-        show_only_latest_spot: false,
-        zone_filters: {
-            disabled_by_system: {
-                cq: [],
-                itu: [],
-                us_state: [],
-                ca_province: [],
-            },
-        },
-    };
+    const location = useLocation();
+    const navigate = useNavigate();
+    const initial_filters = useMemo(() => create_initial_filters(), []);
+    const initial_callsign_filters = useMemo(() => create_initial_callsign_filters(), []);
+    const filter_url_value = get_filter_url_param(location.search);
 
-    const initial_callsign_filters = {
-        is_alert_filters_active: true,
-        is_show_only_filters_active: true,
-        is_hide_filters_active: true,
-        filters: [],
-    };
-
-    const [filters, setFilters] = use_object_local_storage("filters", initial_filters);
-    const [callsign_filters, setCallsignFilters] = use_object_local_storage(
+    const [stored_filters, setStoredFilters] = use_object_local_storage("filters", initial_filters);
+    const [stored_callsign_filters, setStoredCallsignFilters] = use_object_local_storage(
         "callsign_filters",
         initial_callsign_filters,
     );
+    const [shared_filter_state, set_shared_filter_state] = useState(() =>
+        decode_filter_state(filter_url_value),
+    );
+
+    useEffect(() => {
+        set_shared_filter_state(decode_filter_state(filter_url_value));
+    }, [filter_url_value]);
+
+    const is_shared_filter_state = shared_filter_state != null;
+    const filters = is_shared_filter_state ? shared_filter_state.filters : stored_filters;
+    const callsign_filters = is_shared_filter_state
+        ? shared_filter_state.callsign_filters
+        : stored_callsign_filters;
+
+    function apply_setter_value(previous_value, value_or_setter) {
+        return typeof value_or_setter === "function"
+            ? value_or_setter(previous_value)
+            : value_or_setter;
+    }
+
+    function setFilters(value_or_setter) {
+        if (!is_shared_filter_state) {
+            setStoredFilters(value_or_setter);
+            return;
+        }
+
+        set_shared_filter_state(state => {
+            if (state == null) {
+                return state;
+            }
+
+            return {
+                ...state,
+                filters: apply_setter_value(state.filters, value_or_setter),
+            };
+        });
+    }
+
+    function setCallsignFilters(value_or_setter) {
+        if (!is_shared_filter_state) {
+            setStoredCallsignFilters(value_or_setter);
+            return;
+        }
+
+        set_shared_filter_state(state => {
+            if (state == null) {
+                return state;
+            }
+
+            return {
+                ...state,
+                callsign_filters: apply_setter_value(state.callsign_filters, value_or_setter),
+            };
+        });
+    }
+
+    function save_shared_filters() {
+        if (!is_shared_filter_state) {
+            return;
+        }
+
+        setStoredFilters(shared_filter_state.filters);
+        setStoredCallsignFilters(shared_filter_state.callsign_filters);
+        set_shared_filter_state(null);
+
+        const search_params = new URLSearchParams(location.search);
+        search_params.delete(FILTER_URL_PARAM);
+        const next_search = search_params.toString();
+        navigate(
+            {
+                pathname: location.pathname,
+                search: next_search ? `?${next_search}` : "",
+                hash: location.hash,
+            },
+            { replace: true },
+        );
+    }
+
+    function get_filter_share_url() {
+        return build_filter_share_url(filters, callsign_filters);
+    }
 
     // This function changes all the keys in the filter object.
     // For example: setFilterKeys("bands", true) will enable all bands.
@@ -265,6 +334,9 @@ export const FiltersProvider = ({ children }) => {
                 cycle_zone_filter,
                 callsign_filters,
                 setCallsignFilters,
+                is_shared_filter_state,
+                save_shared_filters,
+                get_filter_share_url,
                 get_filter_add_status,
                 add_filter_if_allowed,
             }}
