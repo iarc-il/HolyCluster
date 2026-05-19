@@ -27,6 +27,11 @@ class InvalidDXCallsign(UserInputError):
         return "Invalid dx callsign"
 
 
+class EmptyDXCallsign(UserInputError):
+    def __str__(self):
+        return "Empty dx callsign"
+
+
 class InvalidFrequency(UserInputError):
     def __str__(self):
         return "Invalid frequency"
@@ -48,6 +53,11 @@ class CommandError(Exception):
 
     def __str__(self):
         return f"Invalid command: {self.command}"
+
+
+class DXError(Exception):
+    def __str__(self):
+        return "DX error"
 
 
 class OtherError(Exception):
@@ -109,7 +119,7 @@ async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
         if data["spotter_callsign"] == "":
             raise InvalidSpotter()
         if data["dx_callsign"] == "":
-            raise InvalidDXCallsign()
+            raise EmptyDXCallsign()
 
         try:
             freq = float(data["freq"])
@@ -147,7 +157,7 @@ async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
             regex,
             {
                 "command error": CommandError(spot_command),
-                "Error - DX": OtherError(),
+                "Error - DX": DXError(),
                 "Error - invalid frequency": InvalidFrequency(),
                 "Error - Invalid Dx Call": InvalidDXCallsign(),
             },
