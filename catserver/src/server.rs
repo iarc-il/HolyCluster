@@ -162,9 +162,13 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
     if let Some(headers) = response_builder.headers_mut() {
         *headers = reqwest_response.headers().clone();
     }
-    response_builder
-        .body(Body::from_stream(reqwest_response.bytes_stream()))
-        .unwrap()
+    match response_builder.body(Body::from_stream(reqwest_response.bytes_stream())) {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::error!(?error, "Failed to build proxy response");
+            (StatusCode::INTERNAL_SERVER_ERROR, Body::empty()).into_response()
+        }
+    }
 }
 
 async fn exit_server_handler(State(state): State<AppState>) -> impl IntoResponse {
