@@ -31,15 +31,53 @@ impl OmnirigRadio {
         }
     }
 
-    fn inner(&self) -> &OmnirigInner {
-        self.inner.as_ref().unwrap()
+    fn get_rig_dispatch(omnirig: &IDispatch, property_name: &str) -> Option<IDispatch> {
+        match omnirig.invoke_get(property_name, &[]) {
+            Ok(winsafe::Variant::Dispatch(dispatch)) => Some(dispatch),
+            Ok(_) => {
+                tracing::error!(
+                    property_name,
+                    "OmniRig property did not return a dispatch object"
+                );
+                None
+            }
+            Err(err) => {
+                tracing::error!(property_name, "Failed to get OmniRig property: {err}");
+                None
+            }
+        }
     }
 
-    fn current_rig(&self) -> &'_ IDispatch {
+    fn current_rig(&self) -> Option<IDispatch> {
+        let Some(inner) = self.inner.as_ref() else {
+            tracing::error!("OmniRig was used before it was initialized");
+            return None;
+        };
+
         match self.current_rig {
-            1 => &self.inner().rig1,
-            2 => &self.inner().rig2,
-            _ => panic!(),
+            1 => Some(inner.rig1.clone()),
+            2 => Some(inner.rig2.clone()),
+            rig => {
+                tracing::error!(rig, "Invalid OmniRig rig selected");
+                None
+            }
+        }
+    }
+
+    fn disconnected_status(&self) -> Status {
+        Status {
+            freq: 0,
+            status: "disconnected".into(),
+            mode: "unknown".into(),
+            current_rig: self.current_rig,
+        }
+    }
+
+    fn record_connection_failure(&mut self) {
+        self.reconnect_counter = self.reconnect_counter.saturating_add(1);
+        if self.reconnect_counter >= 5 {
+            self.reconnect_counter = 0;
+            self.init();
         }
     }
 }
@@ -81,8 +119,14 @@ impl Radio for OmnirigRadio {
             }
         };
 
-        let rig1 = omnirig.invoke_get("Rig1", &[]).unwrap().unwrap_dispatch();
-        let rig2 = omnirig.invoke_get("Rig2", &[]).unwrap().unwrap_dispatch();
+        let Some(rig1) = Self::get_rig_dispatch(&omnirig, "Rig1") else {
+            self.omnirig_available = false;
+            return;
+        };
+        let Some(rig2) = Self::get_rig_dispatch(&omnirig, "Rig2") else {
+            self.omnirig_available = false;
+            return;
+        };
 
         self.inner = Some(OmnirigInner {
             com_guard,
@@ -105,14 +149,21 @@ impl Radio for OmnirigRadio {
             Mode::Data => 0x08000000,
         };
 
-        self.current_rig()
-            .invoke_put("Mode", &winsafe::Variant::I4(mode))
-            .unwrap();
+        let Some(rig) = self.current_rig() else {
+            self.omnirig_available = false;
+            return;
+        };
+
+        if let Err(err) = rig.invoke_put("Mode", &winsafe::Variant::I4(mode)) {
+            tracing::error!("Failed to set OmniRig mode: {err}");
+            self.record_connection_failure();
+        }
     }
 
     fn set_rig(&mut self, rig: u8) {
         if rig != 1 && rig != 2 {
-            panic!("Invalid rig: {rig}");
+            tracing::error!(rig, "Ignoring invalid OmniRig rig");
+            return;
         }
         self.current_rig = rig;
     }
@@ -123,36 +174,67 @@ impl Radio for OmnirigRadio {
             Slot::B => "FreqB",
         };
         let freq = freq.as_u32_hz();
-        self.current_rig()
-            .invoke_put(vfo, &winsafe::Variant::I4(freq as i32))
-            .unwrap();
+        let Some(rig) = self.current_rig() else {
+            self.omnirig_available = false;
+            return;
+        };
+
+        if let Err(err) = rig.invoke_put(vfo, &winsafe::Variant::I4(freq as i32)) {
+            tracing::error!(vfo, "Failed to set OmniRig frequency: {err}");
+            self.record_connection_failure();
+        }
     }
 
     fn get_status(&mut self) -> Status {
-        let freq = self.current_rig().invoke_get("FreqA", &[]).unwrap();
-        let freq = if let winsafe::Variant::I4(freq) = freq {
-            Freq::from_i32_hz(freq)
-        } else {
-            panic!("Unknown variant");
+        let Some(rig) = self.current_rig() else {
+            self.omnirig_available = false;
+            return self.disconnected_status();
         };
-        let status_str = self
-            .current_rig()
-            .invoke_get("StatusStr", &[])
-            .unwrap()
-            .unwrap_bstr();
-        let mode = self.current_rig().invoke_get("Mode", &[]).unwrap();
 
-        let mode = if let winsafe::Variant::I4(mode) = mode {
-            match mode {
+        let freq = match rig.invoke_get("FreqA", &[]) {
+            Ok(winsafe::Variant::I4(freq)) => Freq::from_i32_hz(freq),
+            Ok(_) => {
+                tracing::error!("OmniRig FreqA did not return an integer");
+                self.record_connection_failure();
+                return self.disconnected_status();
+            }
+            Err(err) => {
+                tracing::error!("Failed to get OmniRig frequency: {err}");
+                self.record_connection_failure();
+                return self.disconnected_status();
+            }
+        };
+
+        let status_str = match rig.invoke_get("StatusStr", &[]) {
+            Ok(winsafe::Variant::Bstr(status_str)) => status_str,
+            Ok(_) => {
+                tracing::error!("OmniRig StatusStr did not return a string");
+                "unknown".into()
+            }
+            Err(err) => {
+                tracing::error!("Failed to get OmniRig status: {err}");
+                self.record_connection_failure();
+                return self.disconnected_status();
+            }
+        };
+
+        let mode = match rig.invoke_get("Mode", &[]) {
+            Ok(winsafe::Variant::I4(mode)) => match mode {
                 0x2000000 | 0x4000000 => "SSB",
                 0x8000000 | 0x10000000 => "DIGI",
                 0x800000 | 0x1000000 => "CW",
                 0x20000000 => "AM",
                 0x40000000 => "FM",
                 _ => "Unknown",
+            },
+            Ok(_) => {
+                tracing::error!("OmniRig Mode did not return an integer");
+                "Unknown"
             }
-        } else {
-            panic!("Unknown variant");
+            Err(err) => {
+                tracing::error!("Failed to get OmniRig mode: {err}");
+                "Unknown"
+            }
         };
 
         let status = match status_str.as_str() {
@@ -161,18 +243,13 @@ impl Radio for OmnirigRadio {
                 "connected"
             }
             "Rig is not responding" => {
-                self.reconnect_counter += 1;
+                self.record_connection_failure();
                 "disconnected"
             }
             "Port is not available" => "disconnected",
             _ => "unknown",
         }
         .to_string();
-
-        if self.reconnect_counter == 5 {
-            self.reconnect_counter = 0;
-            self.init();
-        }
         Status {
             freq: freq.as_u32_hz(),
             status,
