@@ -36,6 +36,10 @@ impl Radio for DummyRadio {
     }
 
     fn set_rig(&mut self, rig: u8) {
+        if rig != 1 && rig != 2 {
+            tracing::error!(rig, "Ignoring invalid dummy rig");
+            return;
+        }
         self.current_rig = rig;
     }
 
@@ -53,8 +57,8 @@ impl Radio for DummyRadio {
             (Slot::B, 2) => {
                 self.freq_b2 = freq;
             }
-            _ => {
-                panic!();
+            (_, rig) => {
+                tracing::error!(rig, "Ignoring frequency update for invalid dummy rig");
             }
         }
     }
@@ -65,8 +69,9 @@ impl Radio for DummyRadio {
             freq: match self.current_rig {
                 1 => self.freq_a1.as_u32_hz(),
                 2 => self.freq_a2.as_u32_hz(),
-                _ => {
-                    panic!();
+                rig => {
+                    tracing::error!(rig, "Invalid dummy rig in status request");
+                    0
                 }
             },
             mode: "SSB".into(),

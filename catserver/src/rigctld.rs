@@ -99,7 +99,8 @@ impl Radio for RigctldRadio {
 
     fn set_rig(&mut self, rig: u8) {
         if rig != 1 && rig != 2 {
-            panic!("Invalid rig: {rig}");
+            tracing::error!(rig, "Ignoring invalid rigctld rig");
+            return;
         }
         self.current_rig = rig;
     }
