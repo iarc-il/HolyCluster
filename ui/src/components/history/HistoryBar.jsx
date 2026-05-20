@@ -3,6 +3,7 @@ import { useColors } from "@/hooks/useColors";
 import Select from "@/components/ui/Select.jsx";
 import Button from "@/components/ui/Button.jsx";
 import HistoryBarSettings from "@/components/history/HistoryBarSettings.jsx";
+import { useLocalStorage } from "@uidotdev/usehooks";
 
 const PRESETS = [
     { label: "8h", hours: 8 },
@@ -33,19 +34,15 @@ function tick_interval_hours(range_hours) {
     return 12;
 }
 
-function to_datetime_local(date) {
-    const pad = n => String(n).padStart(2, "0");
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window_size_ms }) {
     const { colors } = useColors();
 
-    const [display_hours, set_display_hours] = useState(24);
+    const [display_hours, set_display_hours] = useLocalStorage("history-display-hours", 24);
     const [is_playing, set_is_playing] = useState(false);
-    const [time_between_shifts, set_time_between_shifts] = useState(3);
-    const [editing_start, set_editing_start] = useState(false);
-    const [start_input, set_start_input] = useState("");
+    const [time_between_shifts, set_time_between_shifts] = useLocalStorage(
+        "history-time-between-shifts",
+        3,
+    );
 
     const bar_ref = useRef(null);
     const drag_ref = useRef(null);
@@ -224,23 +221,6 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             window.removeEventListener("mouseup", on_mouse_up);
         };
     }, [bar_start_ms, display_ms, bar_end_ms, set_start, set_end, set_window_size_ms]);
-
-    // --- Jump to time ---
-    function open_start_editor() {
-        set_start_input(to_datetime_local(start));
-        set_is_playing(false);
-        set_editing_start(true);
-    }
-
-    function apply_start() {
-        const new_start = new Date(start_input);
-        if (!isNaN(new_start.getTime())) {
-            const new_end = new Date(new_start.getTime() + window_ms);
-            set_start(new_start);
-            set_end(new_end);
-        }
-        set_editing_start(false);
-    }
 
     const btn_style = {
         background: colors.theme.background,

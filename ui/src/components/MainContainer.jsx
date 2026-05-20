@@ -295,7 +295,10 @@ function MainContent({
 function MainContainer() {
     const [history_start, set_history_start] = useState(null);
     const [history_end, set_history_end] = useState(null);
-    const [window_size_ms, set_window_size_ms] = useState(15 * 60_000);
+    const [window_size_ms, set_window_size_ms] = useLocalStorage(
+        "history-window-size",
+        15 * 60_000,
+    );
 
     return (
         <SpotDataProvider
