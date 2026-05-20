@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "dev_server"), windows_subsystem = "windows")]
 
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use tracing_panic::panic_hook;
 
 use anyhow::Result;
@@ -105,43 +105,70 @@ fn get_slug_from_args(args: &Args, use_dev_server: bool) -> String {
     slug.join("-")
 }
 
+fn open_debug_log() -> Option<File> {
+    let Some(project_dirs) = ProjectDirs::from("org", "iarc", "holycluster") else {
+        eprintln!("Failed to locate HolyCluster cache directory");
+        return None;
+    };
+    let cache_dir = project_dirs.cache_dir();
+    if let Err(error) = std::fs::create_dir_all(cache_dir) {
+        eprintln!("Failed to create debug log directory: {error}");
+        return None;
+    }
+
+    let log_path = cache_dir.join("debug.log");
+    match OpenOptions::new().append(true).create(true).open(&log_path) {
+        Ok(debug_file) => Some(debug_file),
+        Err(error) => {
+            eprintln!(
+                "Failed to open debug log at {}: {error}",
+                log_path.display()
+            );
+            None
+        }
+    }
+}
+
+fn log_file_filter() -> EnvFilter {
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
+
+    match "catserver=debug".parse() {
+        Ok(directive) => filter.add_directive(directive),
+        Err(error) => {
+            eprintln!("Failed to add catserver debug log directive: {error}");
+            filter
+        }
+    }
+}
+
 fn configure_tracing() {
     std::panic::set_hook(Box::new(panic_hook));
 
-    let project_dirs = ProjectDirs::from("org", "iarc", "holycluster").unwrap();
-    let cache_dir = project_dirs.cache_dir();
-    std::fs::create_dir_all(cache_dir).unwrap();
-    let log_path = cache_dir.join("debug.log");
+    let console_layer = tracing_subscriber::fmt::layer()
+        .compact()
+        .with_ansi(!cfg!(windows))
+        .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
+            tracing::Level::INFO,
+        ));
 
-    let debug_file = OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(log_path)
-        .unwrap();
-
-    let log_file_filter = EnvFilter::builder()
-        .with_default_directive(LevelFilter::INFO.into())
-        .from_env()
-        .unwrap()
-        .add_directive("catserver=debug".parse().unwrap());
-
-    let subscriber = Registry::default()
-        .with(
-            tracing_subscriber::fmt::layer()
-                .compact()
-                .with_ansi(!cfg!(windows))
-                .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
-                    tracing::Level::INFO,
-                )),
-        )
-        .with(
+    let set_result = if let Some(debug_file) = open_debug_log() {
+        let subscriber = Registry::default().with(console_layer).with(
             tracing_subscriber::fmt::layer()
                 .compact()
                 .with_writer(debug_file)
-                .with_filter(log_file_filter),
+                .with_filter(log_file_filter()),
         );
+        tracing::subscriber::set_global_default(subscriber)
+    } else {
+        let subscriber = Registry::default().with(console_layer);
+        tracing::subscriber::set_global_default(subscriber)
+    };
 
-    tracing::subscriber::set_global_default(subscriber).unwrap();
+    if let Err(error) = set_result {
+        eprintln!("Failed to configure tracing subscriber: {error}");
+    }
 }
 
 fn main() -> Result<()> {
