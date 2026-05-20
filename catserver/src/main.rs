@@ -186,7 +186,11 @@ fn main() -> Result<()> {
         let thread = std::thread::Builder::new()
             .name("singleton".into())
             .spawn(move || {
-                run_singleton_instance(event_sender, radio, server_config, use_local_ui).unwrap();
+                if let Err(error) =
+                    run_singleton_instance(event_sender, radio, server_config, use_local_ui)
+                {
+                    tracing::error!(?error, "Singleton instance failed");
+                }
             })?;
 
         // Currently we don't care about tray icon for linux because it's only used for development.
@@ -195,7 +199,16 @@ fn main() -> Result<()> {
             let receiver = sender.subscribe();
             tray_icon::run_tray_icon(&args_slug, sender, receiver);
         } else {
-            thread.join().unwrap();
+            if let Err(error) = thread.join() {
+                let message = if let Some(message) = error.downcast_ref::<&str>() {
+                    *message
+                } else if let Some(message) = error.downcast_ref::<String>() {
+                    message.as_str()
+                } else {
+                    "unknown panic payload"
+                };
+                tracing::error!(message, "Singleton thread panicked");
+            }
         }
     } else if args.close {
         let client = reqwest::blocking::Client::new();
@@ -238,16 +251,21 @@ async fn run_singleton_instance(
 
     tokio::spawn(async move {
         loop {
-            match receiver.recv().await? {
-                UserEvent::Quit => {
+            match receiver.recv().await {
+                Ok(UserEvent::Quit) => {
                     break;
                 }
-                UserEvent::OpenBrowser => {
-                    open_at_browser(local_port).unwrap();
+                Ok(UserEvent::OpenBrowser) => {
+                    if let Err(error) = open_at_browser(local_port) {
+                        tracing::error!(?error, "Failed to open browser from user event");
+                    }
+                }
+                Err(error) => {
+                    tracing::error!(?error, "Failed to receive user event");
+                    break;
                 }
             }
         }
-        Ok::<(), anyhow::Error>(())
     });
 
     tracing::info!("Running webapp");
