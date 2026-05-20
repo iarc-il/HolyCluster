@@ -2,7 +2,7 @@ import SubmitSpot from "@/components/SubmitSpot.jsx";
 import Clock from "@/components/Clock.jsx";
 import NetworkState from "@/components/NetworkState.jsx";
 import Spinner from "@/components/ui/Spinner.jsx";
-import Settings from "@/components/settings/Settings.jsx";
+import { Settings } from "@/components/settings/Settings.jsx";
 import ColorPicker from "@/components/ui/ColorPicker.jsx";
 import Select from "@/components/ui/Select.jsx";
 import Button from "@/components/ui/Button.jsx";
