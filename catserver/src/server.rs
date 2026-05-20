@@ -182,14 +182,15 @@ async fn websocket_handler(
     websocket: WebSocketUpgrade,
     path: &'static str,
 ) -> impl IntoResponse {
+    let server_config = state.server_config;
     websocket
         .write_buffer_size(0)
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
-        .on_upgrade(async |websocket: WebSocket| {
-            handle_websocket(state.server_config, websocket, path)
-                .await
-                .unwrap()
+        .on_upgrade(move |websocket: WebSocket| async move {
+            if let Err(error) = handle_websocket(server_config, websocket, path).await {
+                tracing::error!(path, ?error, "WebSocket proxy handler failed");
+            }
         })
 }
 
@@ -264,7 +265,9 @@ async fn cat_control_handler(
         .accept_unmasked_frames(true)
         .on_upgrade(async move |websocket: WebSocket| {
             let result = handle_cat_control_socket(websocket, state.radio, receiver).await;
-            result.unwrap();
+            if let Err(error) = result {
+                tracing::error!(?error, "CAT control WebSocket handler failed");
+            }
         })
 }
 
