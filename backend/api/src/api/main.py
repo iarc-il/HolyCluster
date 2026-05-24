@@ -413,6 +413,24 @@ def download_catserver():
     )
 
 
+@app.get("/history")
+async def spot_history(start_time: int, end_time: int):
+    if end_time <= start_time:
+        raise HTTPException(status_code=400, detail="end_time must be greater than start_time")
+    if end_time - start_time > 86400:
+        raise HTTPException(status_code=400, detail="time range cannot exceed 24 hours")
+
+    async with async_session() as session:
+        query = (
+            select(HolySpot)
+            .where(HolySpot.timestamp >= start_time)
+            .where(HolySpot.timestamp <= end_time)
+            .order_by(HolySpot.timestamp)
+        )
+        spots = cleanup_spots((await session.execute(query)).scalars())
+        return {"spots": spots}
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}

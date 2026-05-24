@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect } from "react";
 import useSpotWebSocket from "./useSpotWebSocket";
+import useHistorySpots from "./useHistorySpots";
 import useSpotFiltering from "./useSpotFiltering";
 import { useSpotInteraction } from "./useSpotInteraction";
 import { useFilters } from "./useFilters";
@@ -13,8 +14,21 @@ export function useSpotData() {
     return useContext(SpotDataContext);
 }
 
-export const SpotDataProvider = ({ children }) => {
-    const { raw_spots, new_spot_ids, network_state } = useSpotWebSocket();
+export const SpotDataProvider = ({ children, startTime, endTime, window_size_ms }) => {
+    const {
+        raw_spots: ws_raw_spots,
+        new_spot_ids: ws_new_spot_ids,
+        network_state,
+    } = useSpotWebSocket();
+    const { raw_spots: history_raw_spots, fetch_state } = useHistorySpots(
+        startTime,
+        endTime,
+        window_size_ms,
+    );
+
+    const is_history_mode = !!(startTime && endTime);
+    const raw_spots = is_history_mode ? history_raw_spots : ws_raw_spots;
+    const new_spot_ids = is_history_mode ? new Set() : ws_new_spot_ids;
     const {
         spots,
         spots_with_alerts,
@@ -23,7 +37,7 @@ export const SpotDataProvider = ({ children }) => {
         spots_per_band_count,
         spots_per_mode_count,
         current_freq_spots,
-    } = useSpotFiltering(raw_spots);
+    } = useSpotFiltering(raw_spots, is_history_mode);
 
     const { pinned_spot } = useSpotInteraction();
     const { settings } = useSettings();
@@ -33,6 +47,7 @@ export const SpotDataProvider = ({ children }) => {
     // Play alert sound when new alerted spots arrive
     useEffect(() => {
         if (
+            !is_history_mode &&
             new_spot_ids.size > 0 &&
             settings.alert_sound_enabled &&
             callsign_filters.is_alert_filters_active
@@ -74,6 +89,8 @@ export const SpotDataProvider = ({ children }) => {
                 spots_per_mode_count,
                 network_state,
                 current_freq_spots,
+                is_history_mode,
+                fetch_state,
             }}
         >
             {children}

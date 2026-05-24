@@ -18,7 +18,7 @@ function limit_count(count) {
     return Math.min(count, 99);
 }
 
-export default function useSpotFiltering(raw_spots) {
+export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     const { filters, callsign_filters } = useFilters();
     const { radio_band, radio_freq, radio_status } = use_radio();
     const { search_query } = useSpotInteraction();
@@ -66,7 +66,8 @@ export default function useSpotFiltering(raw_spots) {
                     }
                 }
 
-                const is_in_time_limit = current_time - spot.time < filters.time_limit;
+                const is_in_time_limit =
+                    is_history_mode || current_time - spot.time < filters.time_limit;
 
                 const is_matching_search = spot.dx_callsign
                     .toLowerCase()
@@ -139,6 +140,7 @@ export default function useSpotFiltering(raw_spots) {
         table_sort,
         filters.show_only_latest_spot,
         search_query,
+        is_history_mode,
     ]);
 
     const spots_per_band_count = useMemo(() => {
