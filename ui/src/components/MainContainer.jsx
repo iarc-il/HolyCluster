@@ -217,6 +217,7 @@ function MainContent({
                 set_radius_in_km={set_radius_in_km}
                 auto_radius={auto_radius}
                 set_auto_radius={set_auto_radius}
+                night_time={is_history_mode ? history_end : null}
             />
         </div>
     );

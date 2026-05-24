@@ -152,6 +152,7 @@ function do_redraw(
             pinned_spot,
             hovered_band,
             current_freq_spots,
+            night_time,
         } = render_state_ref.current;
 
         const render_dpr = fast && DPR > 1 ? 1 : DPR;
@@ -184,6 +185,7 @@ function do_redraw(
                     colors.map,
                     colors.map_countries,
                     fast,
+                    night_time,
                 );
             });
             cache_ctx.restore();
@@ -264,6 +266,7 @@ function CanvasMap({
     set_radius_in_km,
     auto_radius,
     set_auto_radius,
+    night_time = null,
 }) {
     const { spots, current_freq_spots } = useSpotData();
     const { callsign_filters, get_filter_add_status, add_filter_if_allowed } = useFilters();
@@ -413,6 +416,7 @@ function CanvasMap({
         return [lon, lat];
     }, [settings.locator]);
     const max_radius = 20000;
+    const night_time_ms = night_time?.getTime() ?? null;
 
     const render_state_ref = useRef({});
     render_state_ref.current = {
@@ -429,6 +433,7 @@ function CanvasMap({
         hovered_zone,
         hovered_dxcc,
         home_location,
+        night_time,
     };
 
     useMemo(() => {
@@ -507,6 +512,7 @@ function CanvasMap({
         settings.show_equator,
         colors.map,
         colors.map_countries,
+        night_time_ms,
     ]);
 
     // Dynamic overlays can change frequently; redraw them without touching the cached base map.
