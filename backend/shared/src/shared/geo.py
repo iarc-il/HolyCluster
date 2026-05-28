@@ -54,6 +54,7 @@ _COUNTRY_NAME_ALIASES = {
     "kingdomofeswatini": "eswatini",
     "republicofkorea": "southkorea",
     "republicofthecongo": "congo",
+    "stvincent": "saintvincentandthegrenadines",
     "sovmilorderofmalta": "sovereignmilitaryorderofmalta",
     "unitedstates": "unitedstatesofamerica",
 }
