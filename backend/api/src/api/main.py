@@ -11,6 +11,7 @@ from fastapi import HTTPException, websockets
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
+from shared.cty import refresh_cty_cache
 from shared.db import GeoCache, HolySpot, SpotsWithIssues
 from shared.geo import get_geo_details, GeoException
 from shared.metrics import push_exception_event, set_timestamp, set_value
@@ -110,6 +111,8 @@ async def lifespan(app: fastapi.FastAPI):
     )
 
     app.state.http_client = httpx.AsyncClient()
+
+    await refresh_cty_cache(http_client=app.state.http_client)
 
     tasks = [
         asyncio.create_task(propagation_data_collector(app)),

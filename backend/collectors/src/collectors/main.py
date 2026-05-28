@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timezone
 
 from loguru import logger
+from shared.cty import refresh_cty_cache
 from shared.db import HolySpot
 from shared.geo import GeoException, get_geo_details
 from shared.metrics import push_drop_event, push_exception_event, set_timestamp
@@ -227,6 +228,8 @@ async def trim_arrivals_stream(valkey_client):
 
 async def run_collector():
     logger.info("Starting collector...")
+
+    await refresh_cty_cache()
 
     spots_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
 
