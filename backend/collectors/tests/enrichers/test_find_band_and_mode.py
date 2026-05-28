@@ -15,14 +15,19 @@ def test_find_band_and_mode(debug: bool = False):
     expected = ("40", "SSB", "range")
     assert result == expected, f"Expected {expected} for {test_frequency}, got {result}"
 
-    # RTTY should not be inferred from frequency-only data ranges.
+    # Data ranges should be DIGI, while explicit RTTY still comes from comments only.
     test_frequency = "14100.0"
     result = find_band_and_mode(test_frequency, "")
-    expected = ("20", "SSB", "default")
+    expected = ("20", "DIGI", "range")
     assert result == expected, f"Expected {expected} for {test_frequency}, got {result}"
 
     result = find_band_and_mode(test_frequency, "RTTY")
     expected = ("20", "RTTY", "comment")
+    assert result == expected, f"Expected {expected} for {test_frequency}, got {result}"
+
+    test_frequency = "14130.0"
+    result = find_band_and_mode(test_frequency, "")
+    expected = ("20", "SSB", "default")
     assert result == expected, f"Expected {expected} for {test_frequency}, got {result}"
 
     # test for 7350.0
@@ -34,6 +39,11 @@ def test_find_band_and_mode(debug: bool = False):
     test_frequency = "21075.0"
     result = find_band_and_mode(test_frequency, "")
     expected = ("15", "FT8", "range")
+    assert result == expected, f"Expected {expected} for {test_frequency}, got {result}"
+
+    test_frequency = "21120.0"
+    result = find_band_and_mode(test_frequency, "")
+    expected = ("15", "DIGI", "range")
     assert result == expected, f"Expected {expected} for {test_frequency}, got {result}"
 
     # test for 21075.0
