@@ -158,7 +158,6 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     )
                 except InvalidBandError:
                     logger.debug(f"Dropping spot due to invalid band: {spot}")
-                    await push_drop_event(valkey_client, "invalid_band", str(spot))
                     continue
                 except InvalidCallsignError as e:
                     logger.info(f"Dropping spot due to {e}: {spot}")
