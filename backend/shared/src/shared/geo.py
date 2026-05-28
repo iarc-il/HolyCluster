@@ -46,12 +46,19 @@ PREFIXES_TO_LOCATORS = read_csv_to_list_of_tuples(filename=callsign_to_locator_f
 _COUNTRY_NAME_ALIASES = {
     "agalegaandstbrandon": "agalegaandstbrandonislands",
     "bouvet": "bouvetisland",
+    "bruneidarussalam": "brunei",
     "demrepofthecongo": "democraticrepublicofthecongo",
     "fedrepofgermany": "germany",
     "kingdomofeswatini": "eswatini",
     "republicofkorea": "southkorea",
+    "republicofthecongo": "congo",
+    "sicily": "italy",
     "sovmilorderofmalta": "sovereignmilitaryorderofmalta",
     "unitedstates": "unitedstatesofamerica",
+}
+
+_COUNTRY_OVERRIDES_BY_CALLSIGN = {
+    "RI0SP": ("Asiatic Russia", "AS"),
 }
 
 
@@ -112,6 +119,10 @@ def _country_results_disagree(
 
 
 def _resolve_cty_country(callsign: str) -> tuple[str, str] | None:
+    callsign = callsign.upper()
+    if callsign in _COUNTRY_OVERRIDES_BY_CALLSIGN:
+        return _COUNTRY_OVERRIDES_BY_CALLSIGN[callsign]
+
     cty_resolver = get_cty_resolver()
     if cty_resolver is None:
         raise RuntimeError("CTY resolver is unavailable")
