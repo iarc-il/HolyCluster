@@ -11,7 +11,7 @@ from fastapi import HTTPException, websockets
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
-from shared.cty import get_cty_resolver, refresh_cty_cache
+from shared.cty import ensure_cty_available
 from shared.db import GeoCache, HolySpot, SpotsWithIssues
 from shared.geo import get_geo_details, GeoException
 from shared.metrics import push_exception_event, set_timestamp, set_value
@@ -112,12 +112,7 @@ async def lifespan(app: fastapi.FastAPI):
 
     app.state.http_client = httpx.AsyncClient()
 
-    cty_cache = await refresh_cty_cache(http_client=app.state.http_client)
-    if cty_cache.available:
-        try:
-            get_cty_resolver()
-        except Exception:
-            logger.exception("Failed to load CTY resolver; prefix list fallback remains available")
+    await ensure_cty_available(http_client=app.state.http_client)
 
     tasks = [
         asyncio.create_task(propagation_data_collector(app)),

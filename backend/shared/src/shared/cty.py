@@ -135,6 +135,8 @@ def get_cty_resolver(path: Path = CTY_CACHE_PATH) -> CtyResolver | None:
     try:
         mtime = path.stat().st_mtime
     except FileNotFoundError:
+        if _CTY_RESOLVER is not None and _CTY_RESOLVER_PATH == path:
+            return _CTY_RESOLVER
         return None
 
     if _CTY_RESOLVER is not None and _CTY_RESOLVER_PATH == path and _CTY_RESOLVER_MTIME == mtime:
@@ -151,6 +153,17 @@ def resolve_country_from_cty(callsign: str, path: Path = CTY_CACHE_PATH) -> tupl
     if resolver is None:
         return None
     return resolver.resolve(callsign)
+
+
+async def ensure_cty_available(http_client: httpx.AsyncClient | None = None) -> CtyResolver:
+    cache_result = await refresh_cty_cache(http_client=http_client)
+    if not cache_result.available:
+        raise RuntimeError(f"CTY file is unavailable: {cache_result.message}")
+
+    resolver = get_cty_resolver()
+    if resolver is None:
+        raise RuntimeError(f"CTY resolver is unavailable: {cache_result.path}")
+    return resolver
 
 
 def _read_metadata(metadata_path: Path) -> dict[str, Any]:

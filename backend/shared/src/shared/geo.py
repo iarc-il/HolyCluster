@@ -13,10 +13,11 @@ from shared.qrz import get_locator_from_qrz
 
 
 class GeoException(Exception):
-    def __init__(self, callsign: str, callsign_type: str, data_type: str):
+    def __init__(self, callsign: str, callsign_type: str, data_type: str, notify_monitor: bool = True):
         self.callsign = callsign
         self.callsign_type = callsign_type
         self.data_type = data_type
+        self.notify_monitor = notify_monitor
 
 
 class GeoData(BaseModel):
@@ -110,16 +111,28 @@ def _country_results_disagree(
     )
 
 
+def _resolve_cty_country(callsign: str) -> tuple[str, str] | None:
+    cty_resolver = get_cty_resolver()
+    if cty_resolver is None:
+        raise RuntimeError("CTY resolver is unavailable")
+    return cty_resolver.resolve(callsign)
+
+
+def _both_country_sources_miss(callsign: str) -> bool:
+    cty_country = _resolve_cty_country(callsign)
+    prefix_list_country = resolve_country_and_continent_from_prefix_list(callsign)
+    return cty_country is None and prefix_list_country is None
+
+
 async def _push_country_mismatch_if_needed(
     valkey_client,
     callsign: str,
     callsign_type: str,
     report_country_mismatch: bool,
-    cty_lookup_available: bool,
     cty_country: tuple[str, str] | None,
     prefix_list_country: tuple[str, str] | None,
 ) -> None:
-    if not report_country_mismatch or valkey_client is None or not cty_lookup_available:
+    if not report_country_mismatch or valkey_client is None:
         return
     if not _country_results_disagree(cty_country, prefix_list_country):
         return
@@ -142,23 +155,13 @@ async def resolve_country_and_continent(
     callsign_type: str,
     report_country_mismatch: bool = False,
 ) -> tuple[str, str]:
-    cty_lookup_available = False
-    try:
-        cty_resolver = get_cty_resolver()
-        cty_lookup_available = cty_resolver is not None
-        cty_country = cty_resolver.resolve(callsign) if cty_resolver is not None else None
-    except Exception:
-        logger.exception("Failed to resolve country from CTY")
-        cty_lookup_available = False
-        cty_country = None
-
+    cty_country = _resolve_cty_country(callsign)
     prefix_list_country = resolve_country_and_continent_from_prefix_list(callsign)
     await _push_country_mismatch_if_needed(
         valkey_client,
         callsign,
         callsign_type,
         report_country_mismatch,
-        cty_lookup_available,
         cty_country,
         prefix_list_country,
     )
@@ -167,7 +170,12 @@ async def resolve_country_and_continent(
         return _format_cty_country_for_output(cty_country)
     if prefix_list_country is not None:
         return prefix_list_country
-    raise GeoException(callsign, callsign_type, "country_and_continent")
+    raise GeoException(
+        callsign,
+        callsign_type,
+        "country_and_continent",
+        notify_monitor=False,
+    )
 
 
 async def get_geo_details(
@@ -208,7 +216,12 @@ async def get_geo_details(
         if locator:
             locator_source = "prefixes list"
         else:
-            raise GeoException(callsign, callsign_type, "locator")
+            raise GeoException(
+                callsign,
+                callsign_type,
+                "locator",
+                notify_monitor=not _both_country_sources_miss(callsign),
+            )
 
     country, continent = await resolve_country_and_continent(
         valkey_client, callsign, callsign_type, report_country_mismatch
