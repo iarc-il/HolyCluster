@@ -4,13 +4,14 @@ const mode_colors = {
     CW: "#ff8e23",
     SSB: "#189f18",
     RTTY: "#9b59b6",
+    DIGI: "#8e44ad",
     FM: "#00bcd4",
     FT8: "#FF0000",
     FT4: "#0000FF",
     FT2: "#ff69b4",
 };
 
-const range_modes = new Set(["CW", "SSB", "RTTY", "FM"]);
+const range_modes = new Set(["CW", "SSB", "RTTY", "DIGI", "FM"]);
 const hidden_modes = new Set(["FT2", "FM"]);
 
 export const band_plans = Object.fromEntries(
