@@ -15,6 +15,7 @@ CTY_CACHE_DIR = Path.home() / ".cache" / "holycluster" / "country-files"
 CTY_CACHE_PATH = CTY_CACHE_DIR / "cty.csv"
 CTY_METADATA_PATH = CTY_CACHE_DIR / "cty_metadata.json"
 CTY_REFRESH_TIMEOUT = 30.0
+CTY_DXCC_FIELD_INDEX = 2
 CTY_ALIAS_FIELD_INDEX = 9
 
 _CTY_TOKEN_MODIFIER_RE = re.compile(r"\(\d+\)|\[\d+\]|<[^>]+>|\{[^}]+}|~[^~]+~")
@@ -35,6 +36,7 @@ class CtyCacheResult:
 class CtyCountry:
     country: str
     continent: str
+    dxcc_code: str
 
 
 @dataclass(frozen=True)
@@ -92,22 +94,45 @@ def _iter_cty_tokens(row: list[str]) -> list[tuple[bool, str]]:
     return tokens
 
 
+def _build_canonical_countries_by_dxcc(rows: list[list[str]]) -> dict[str, str]:
+    canonical_countries = {}
+    for row in rows:
+        if len(row) <= CTY_ALIAS_FIELD_INDEX:
+            continue
+
+        primary_prefix = row[0].strip()
+        dxcc_code = row[CTY_DXCC_FIELD_INDEX].strip()
+        country = row[1].strip()
+        if primary_prefix.startswith("*") or not dxcc_code or not country:
+            continue
+
+        canonical_countries.setdefault(dxcc_code, country)
+
+    return canonical_countries
+
+
 def build_cty_resolver(rows: list[list[str]]) -> CtyResolver:
     exact_callsigns: dict[str, CtyCountry] = {}
     prefixes: dict[str, CtyCountry] = {}
+    canonical_countries_by_dxcc = _build_canonical_countries_by_dxcc(rows)
 
     for row in rows:
         if len(row) <= CTY_ALIAS_FIELD_INDEX:
             logger.warning(f"Skipping malformed CTY row: {row}")
             continue
 
+        primary_prefix = row[0].strip()
+        dxcc_code = row[CTY_DXCC_FIELD_INDEX].strip()
         country = row[1].strip()
         continent = row[3].strip().upper()
         if not country or not continent:
             logger.warning(f"Skipping CTY row with missing country or continent: {row}")
             continue
 
-        cty_country = CtyCountry(country=country, continent=continent)
+        if primary_prefix.startswith("*"):
+            country = canonical_countries_by_dxcc.get(dxcc_code, country)
+
+        cty_country = CtyCountry(country=country, continent=continent, dxcc_code=dxcc_code)
         for exact, token in _iter_cty_tokens(row):
             if exact:
                 exact_callsigns.setdefault(token, cty_country)

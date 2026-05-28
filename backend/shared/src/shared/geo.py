@@ -45,6 +45,8 @@ PREFIXES_TO_LOCATORS = read_csv_to_list_of_tuples(filename=callsign_to_locator_f
 
 _COUNTRY_NAME_ALIASES = {
     "agalegaandstbrandon": "agalegaandstbrandonislands",
+    "asiaticturkey": "turkey",
+    "bosniaherzegovina": "bosniaandherzegovina",
     "bouvet": "bouvetisland",
     "bruneidarussalam": "brunei",
     "demrepofthecongo": "democraticrepublicofthecongo",
@@ -52,7 +54,6 @@ _COUNTRY_NAME_ALIASES = {
     "kingdomofeswatini": "eswatini",
     "republicofkorea": "southkorea",
     "republicofthecongo": "congo",
-    "sicily": "italy",
     "sovmilorderofmalta": "sovereignmilitaryorderofmalta",
     "unitedstates": "unitedstatesofamerica",
 }
