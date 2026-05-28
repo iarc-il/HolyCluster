@@ -1,4 +1,6 @@
+import csv
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +15,12 @@ CTY_CACHE_DIR = Path.home() / ".cache" / "holycluster" / "country-files"
 CTY_CACHE_PATH = CTY_CACHE_DIR / "cty.csv"
 CTY_METADATA_PATH = CTY_CACHE_DIR / "cty_metadata.json"
 CTY_REFRESH_TIMEOUT = 30.0
+CTY_ALIAS_FIELD_INDEX = 9
+
+_CTY_TOKEN_MODIFIER_RE = re.compile(r"\(\d+\)|\[\d+\]|<[^>]+>|\{[^}]+}|~[^~]+~")
+_CTY_RESOLVER: "CtyResolver | None" = None
+_CTY_RESOLVER_PATH: Path | None = None
+_CTY_RESOLVER_MTIME: float | None = None
 
 
 @dataclass(frozen=True)
@@ -21,6 +29,128 @@ class CtyCacheResult:
     available: bool
     downloaded: bool
     message: str
+
+
+@dataclass(frozen=True)
+class CtyCountry:
+    country: str
+    continent: str
+
+
+@dataclass(frozen=True)
+class CtyResolver:
+    exact_callsigns: dict[str, CtyCountry]
+    prefixes: dict[str, CtyCountry]
+
+    def resolve(self, callsign: str) -> tuple[str, str] | None:
+        normalized = normalize_callsign(callsign)
+        if not normalized:
+            return None
+
+        country = self.exact_callsigns.get(normalized)
+        if country is not None:
+            return country.country, country.continent
+
+        for end in range(len(normalized), 0, -1):
+            country = self.prefixes.get(normalized[:end])
+            if country is not None:
+                return country.country, country.continent
+
+        return None
+
+
+def normalize_callsign(callsign: str) -> str:
+    return callsign.strip().upper()
+
+
+def _clean_cty_token(raw_token: str) -> tuple[bool, str] | None:
+    token = raw_token.strip().strip(",;")
+    if not token:
+        return None
+
+    exact = token.startswith("=")
+    if exact:
+        token = token[1:]
+
+    token = token.lstrip("*")
+    token = _CTY_TOKEN_MODIFIER_RE.sub("", token).strip().upper()
+    if not token:
+        return None
+
+    return exact, token
+
+
+def _iter_cty_tokens(row: list[str]) -> list[tuple[bool, str]]:
+    raw_tokens = [row[0]]
+    raw_tokens.extend(" ".join(row[CTY_ALIAS_FIELD_INDEX:]).split())
+
+    tokens = []
+    for raw_token in raw_tokens:
+        token = _clean_cty_token(raw_token)
+        if token is not None:
+            tokens.append(token)
+    return tokens
+
+
+def build_cty_resolver(rows: list[list[str]]) -> CtyResolver:
+    exact_callsigns: dict[str, CtyCountry] = {}
+    prefixes: dict[str, CtyCountry] = {}
+
+    for row in rows:
+        if len(row) <= CTY_ALIAS_FIELD_INDEX:
+            logger.warning(f"Skipping malformed CTY row: {row}")
+            continue
+
+        country = row[1].strip()
+        continent = row[3].strip().upper()
+        if not country or not continent:
+            logger.warning(f"Skipping CTY row with missing country or continent: {row}")
+            continue
+
+        cty_country = CtyCountry(country=country, continent=continent)
+        for exact, token in _iter_cty_tokens(row):
+            if exact:
+                exact_callsigns.setdefault(token, cty_country)
+            else:
+                prefixes.setdefault(token, cty_country)
+
+    return CtyResolver(exact_callsigns=exact_callsigns, prefixes=prefixes)
+
+
+def load_cty_resolver(path: Path = CTY_CACHE_PATH) -> CtyResolver:
+    with path.open(newline="") as file:
+        rows = list(csv.reader(file))
+
+    resolver = build_cty_resolver(rows)
+    logger.info(
+        f"Loaded CTY resolver from {path}: "
+        f"{len(resolver.exact_callsigns)} exact callsigns, {len(resolver.prefixes)} prefixes"
+    )
+    return resolver
+
+
+def get_cty_resolver(path: Path = CTY_CACHE_PATH) -> CtyResolver | None:
+    global _CTY_RESOLVER, _CTY_RESOLVER_MTIME, _CTY_RESOLVER_PATH
+
+    try:
+        mtime = path.stat().st_mtime
+    except FileNotFoundError:
+        return None
+
+    if _CTY_RESOLVER is not None and _CTY_RESOLVER_PATH == path and _CTY_RESOLVER_MTIME == mtime:
+        return _CTY_RESOLVER
+
+    _CTY_RESOLVER = load_cty_resolver(path)
+    _CTY_RESOLVER_PATH = path
+    _CTY_RESOLVER_MTIME = mtime
+    return _CTY_RESOLVER
+
+
+def resolve_country_from_cty(callsign: str, path: Path = CTY_CACHE_PATH) -> tuple[str, str] | None:
+    resolver = get_cty_resolver(path)
+    if resolver is None:
+        return None
+    return resolver.resolve(callsign)
 
 
 def _read_metadata(metadata_path: Path) -> dict[str, Any]:
