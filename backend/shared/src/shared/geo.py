@@ -3,9 +3,11 @@ import json
 import re
 from pathlib import Path
 
+from loguru import logger
 from pydantic import BaseModel
 
 from shared.coordinates import locator_to_coordinates
+from shared.cty import resolve_country_from_cty
 from shared.qrz import get_locator_from_qrz
 
 
@@ -49,10 +51,36 @@ def resolve_locator_from_list(callsign: str) -> str | None:
 
 
 def resolve_country_and_continent_from_list(callsign: str, callsign_type: str) -> tuple[str, str]:
+    result = resolve_country_and_continent_from_prefix_list(callsign)
+    if result is not None:
+        return result
+    raise GeoException(callsign, callsign_type, "country_and_continent")
+
+
+def resolve_country_and_continent_from_prefix_list(callsign: str) -> tuple[str, str] | None:
     callsign = callsign.upper()
     for regex, locator, country, continent in PREFIXES_TO_LOCATORS:
         if re.match(regex + ".*", callsign):
             return country, continent
+    return None
+
+
+def resolve_country_and_continent(
+    callsign: str,
+    callsign_type: str,
+    report_country_mismatch: bool = False,
+) -> tuple[str, str]:
+    try:
+        cty_country = resolve_country_from_cty(callsign)
+    except Exception:
+        logger.exception("Failed to resolve country from CTY")
+        cty_country = None
+
+    prefix_list_country = resolve_country_and_continent_from_prefix_list(callsign)
+    if cty_country is not None:
+        return cty_country
+    if prefix_list_country is not None:
+        return prefix_list_country
     raise GeoException(callsign, callsign_type, "country_and_continent")
 
 
@@ -63,6 +91,7 @@ async def get_geo_details(
     geo_expiration: int,
     http_client,
     callsign_type,
+    report_country_mismatch: bool = False,
 ) -> GeoData:
     # Get geo details from cache
     if valkey_client is not None:
@@ -72,6 +101,9 @@ async def get_geo_details(
 
     if geo_data:
         geo_data = json.loads(geo_data)
+        country, continent = resolve_country_and_continent(callsign, callsign_type, report_country_mismatch)
+        geo_data["country"] = country
+        geo_data["continent"] = continent
         geo_data["cached"] = True
         return GeoData(**geo_data)
 
@@ -90,7 +122,7 @@ async def get_geo_details(
         else:
             raise GeoException(callsign, callsign_type, "locator")
 
-    country, continent = resolve_country_and_continent_from_list(callsign, callsign_type)
+    country, continent = resolve_country_and_continent(callsign, callsign_type, report_country_mismatch)
     lat, lon = locator_to_coordinates(locator)
 
     geo_data = {

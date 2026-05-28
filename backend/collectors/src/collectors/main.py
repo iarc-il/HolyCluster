@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timezone
 
 from loguru import logger
-from shared.cty import refresh_cty_cache
+from shared.cty import get_cty_resolver, refresh_cty_cache
 from shared.db import HolySpot
 from shared.geo import GeoException, get_geo_details
 from shared.metrics import push_drop_event, push_exception_event, set_timestamp
@@ -54,6 +54,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             settings.valkey_geo_expiration,
             http_client,
             "spotter",
+            report_country_mismatch=True,
         ),
         get_geo_details(
             valkey_client,
@@ -62,6 +63,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             settings.valkey_geo_expiration,
             http_client,
             "dx_callsign",
+            report_country_mismatch=True,
         ),
     )
 
@@ -229,7 +231,12 @@ async def trim_arrivals_stream(valkey_client):
 async def run_collector():
     logger.info("Starting collector...")
 
-    await refresh_cty_cache()
+    cty_cache = await refresh_cty_cache()
+    if cty_cache.available:
+        try:
+            get_cty_resolver()
+        except Exception:
+            logger.exception("Failed to load CTY resolver; prefix list fallback remains available")
 
     spots_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
 
