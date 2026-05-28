@@ -5,6 +5,11 @@ import httpx
 from loguru import logger
 
 
+QRZ_KEEPALIVE_EXPIRY_SECONDS = 1.0
+HTTPX_DEFAULT_MAX_CONNECTIONS = 100
+HTTPX_DEFAULT_MAX_KEEPALIVE_CONNECTIONS = 20
+
+
 class QrzSessionManager:
     def __init__(
         self,
@@ -23,7 +28,15 @@ class QrzSessionManager:
         self._lock = asyncio.Lock()
         self.redis_client = redis_client
         self.redis_key = redis_key
-        self.http_client = httpx.AsyncClient()
+        # QRZ's Apache endpoint advertises Keep-Alive timeout=2. Drop idle
+        # connections sooner to avoid reusing sockets the server already closed.
+        self.http_client = httpx.AsyncClient(
+            limits=httpx.Limits(
+                max_connections=HTTPX_DEFAULT_MAX_CONNECTIONS,
+                max_keepalive_connections=HTTPX_DEFAULT_MAX_KEEPALIVE_CONNECTIONS,
+                keepalive_expiry=QRZ_KEEPALIVE_EXPIRY_SECONDS,
+            )
+        )
 
     async def start(self):
         self.session_key = await get_qrz_session_key(
@@ -147,7 +160,7 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client:
             if retries == max_retries:
                 raise type(e)(f"xmldata.qrz.com protocol: {e}") from e
             else:
-                logger.warning("Protocol error, retrying")
+                logger.warning(f"Protocol error, retrying ({retries + 1}/{max_retries}): {type(e).__name__}: {e}")
                 retries += 1
         except httpx.ProxyError as e:
             if retries == max_retries:
