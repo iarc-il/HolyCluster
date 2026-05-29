@@ -57,6 +57,7 @@ _COUNTRY_NAME_ALIASES = {
     "stvincent": "saintvincentandthegrenadines",
     "sovmilorderofmalta": "sovereignmilitaryorderofmalta",
     "unitedstates": "unitedstatesofamerica",
+    "usvirginislands": "virginislands",
 }
 
 _COUNTRY_OVERRIDES_BY_CALLSIGN = {
