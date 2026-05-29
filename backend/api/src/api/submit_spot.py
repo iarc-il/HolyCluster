@@ -106,6 +106,12 @@ class ClusterWriteFailed(RetryableClusterError):
         return f"Failed to write to cluster during {self.phase}"
 
 
+def should_alert_submit_failure(error):
+    if isinstance(error, SpotNotSubmitted):
+        return False
+    return error.__class__.__name__ != "WebSocketDisconnect"
+
+
 async def expect_lines_inner(reader, valid_line, invalid_lines, phase):
     while True:
         line_bytes = await reader.readline()
@@ -272,6 +278,9 @@ async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
         }
         if getattr(e, "phase", None):
             response["phase"] = e.phase
-        logger.exception(f"Failed to submit spot: {data}, Response: {response}")
-        await push_exception_event(valkey, "submit_spot", f"{e.__class__.__name__}: {e}, Spot: {data}")
+        if should_alert_submit_failure(e):
+            logger.exception(f"Failed to submit spot: {data}, Response: {response}")
+            await push_exception_event(valkey, "submit_spot", f"{e.__class__.__name__}: {e}, Spot: {data}")
+        else:
+            logger.warning(f"Spot submit failure not alerting monitor: {data}, Response: {response}")
         await websocket.send_json(response)
