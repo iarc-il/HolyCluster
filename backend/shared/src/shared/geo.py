@@ -45,26 +45,48 @@ PREFIXES_TO_LOCATORS = read_csv_to_list_of_tuples(filename=callsign_to_locator_f
 
 _COUNTRY_NAME_ALIASES = {
     "agalegaandstbrandon": "agalegaandstbrandonislands",
+    "amsterdamandstpaulis": "amsterdamandstpaulislands",
     "asiaticturkey": "turkey",
     "bosniaherzegovina": "bosniaandherzegovina",
     "bouvet": "bouvetisland",
     "bruneidarussalam": "brunei",
+    "congodemrepublicof": "democraticrepublicofthecongo",
+    "cotedivoire": "ivorycoast",
     "demrepofthecongo": "democraticrepublicofthecongo",
     "dprofkorea": "northkorea",
     "fedrepofgermany": "germany",
+    "juandenovaisland": "juandenovaandeuropa",
     "kingdomofeswatini": "eswatini",
+    "nzsubantarcticis": "newzealandsubantarcticislands",
     "republicofkorea": "southkorea",
     "republicofkosovo": "kosovo",
+    "republicofsouthsudan": "southsudan",
     "republicofthecongo": "congo",
+    "southgeorgiaislands": "southgeorgiaisland",
+    "stbarthelemy": "saintbarthelemy",
     "stlucia": "saintlucia",
+    "stmaarten": "sintmaarten",
+    "stmartin": "saintmartin",
+    "stpierreandmiquelon": "saintpierreandmiquelon",
     "stvincent": "saintvincentandthegrenadines",
     "sovmilorderofmalta": "sovereignmilitaryorderofmalta",
+    "ukbaseareasoncyprus": "uksovereignbaseareasoncyprus",
+    "usa": "unitedstatesofamerica",
     "unitedstates": "unitedstatesofamerica",
     "usvirginislands": "virginislands",
 }
 
 _COUNTRY_OVERRIDES_BY_CALLSIGN = {
+    "2R0PLA": ("England", "EU"),
+    "4U5ITU": ("ITU HQ", "EU"),
+    "BB4IA": ("China", "AS"),
+    "DP0MIR": ("Antarctica", "AN"),
+    "RP2F": ("Kaliningrad", "EU"),
     "RI0SP": ("Asiatic Russia", "AS"),
+    "T94A": ("Bosnia and Herzegovina", "EU"),
+    "VD9WH": ("Canada", "NA"),
+    "VS6AI": ("Hong Kong", "AS"),
+    "YZ5W": ("Serbia", "EU"),
 }
 
 
