@@ -509,6 +509,29 @@ function CanvasMap({
         colors.map_countries,
     ]);
 
+    useEffect(() => {
+        if (!dims || !projection_ref.current) return;
+        if (!map_controls.night || night_time_ms != null) return;
+
+        let timeout_id = null;
+
+        function schedule_redraw() {
+            const ms_until_next_minute = 60_000 - (Date.now() % 60_000);
+            timeout_id = setTimeout(() => {
+                if (!gesture_active_ref.current) {
+                    do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
+                }
+                schedule_redraw();
+            }, ms_until_next_minute);
+        }
+
+        schedule_redraw();
+
+        return () => {
+            clearTimeout(timeout_id);
+        };
+    }, [dims, map_controls.night, night_time_ms]);
+
     // Dynamic overlays can change frequently; redraw them without touching the cached base map.
     useEffect(() => {
         if (!dims || !projection_ref.current) return;
