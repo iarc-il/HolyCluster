@@ -95,8 +95,8 @@ function generate_radial_lines(center_x, center_y, radius, degrees_diff) {
     return lines;
 }
 
-function draw_night_circle(context, path_generator, map_colors) {
-    const now = new Date();
+function draw_night_circle(context, path_generator, map_colors, time = null) {
+    const now = time ?? new Date();
     const day = new Date(+now).setUTCHours(0, 0, 0, 0);
     const t = century(now);
     const longitude = ((day - now) / 864e5) * 360 - 180;
@@ -848,6 +848,7 @@ export function draw_map(
     map_colors,
     map_country_colors,
     fast = false,
+    night_time = null,
 ) {
     const filter_action_styles = get_filter_action_styles(map_colors);
     const saved_precision = projection.precision();
@@ -1000,7 +1001,7 @@ export function draw_map(
     // Night circle
     if (night_displayed) {
         profile_map("draw_map.night", () => {
-            draw_night_circle(context, path_generator, map_colors);
+            draw_night_circle(context, path_generator, map_colors, night_time);
         });
     }
 
