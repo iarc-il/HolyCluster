@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature = "dev_server"), windows_subsystem = "windows")]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::fs::{File, OpenOptions};
 use tracing_panic::panic_hook;
@@ -45,6 +45,14 @@ fn open_at_browser(port: u16) -> Result<()> {
 /// The Holy Cluster - debug flags
 #[argh(help_triggers("-h", "--help"))]
 struct Args {
+    /// use the development HolyCluster server
+    #[argh(switch)]
+    dev_server: bool,
+
+    /// local HTTP port to listen on
+    #[argh(option)]
+    local_port: Option<u16>,
+
     /// run with dummy radio instead of real radio
     #[argh(switch)]
     dummy: bool,
@@ -78,6 +86,10 @@ fn get_radio(use_dummy: bool) -> AnyRadio {
 
 /// For development purposes, we run each instance in different port, based on the given arguments
 fn get_port_from_args(base_port: u16, args: &Args, use_dev_server: bool) -> u16 {
+    if let Some(local_port) = args.local_port {
+        return local_port;
+    }
+
     let mut port = base_port;
     if use_dev_server {
         port += 1;
@@ -175,7 +187,7 @@ fn main() -> Result<()> {
     configure_tracing();
 
     let args: Args = argh::from_env();
-    let use_dev_server = cfg!(feature = "dev_server");
+    let use_dev_server = args.dev_server || cfg!(feature = "dev_server");
     let args_slug = get_slug_from_args(&args, use_dev_server);
     let local_port = get_port_from_args(BASE_LOCAL_PORT, &args, use_dev_server);
 
