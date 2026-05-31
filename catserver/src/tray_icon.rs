@@ -23,27 +23,19 @@ pub enum UserEvent {
     OpenBrowser,
 }
 
-pub fn run_tray_icon(
-    instance_name: &str,
-    tray_sender: Sender<UserEvent>,
-    mut tray_receiver: Receiver<UserEvent>,
-) {
+pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver<UserEvent>) {
     let open_menu_item = MenuItem::new("Open", true, None);
     let quit_menu_item = MenuItem::new("Quit", true, None);
     let tray_menu = Menu::new();
-    let instance_title = if !instance_name.is_empty() {
-        format!("Holy Cluster - {instance_name}")
-    } else {
-        "Holy Cluster".into()
-    };
+    let instance_title = "Holy Cluster";
     if let Err(error) = tray_menu.append_items(&[&open_menu_item, &quit_menu_item]) {
         tracing::error!(?error, "Failed to build tray menu");
         return;
     }
     let tray_icon = TrayIconBuilder::new()
         .with_menu(Box::new(tray_menu))
-        .with_tooltip(&instance_title)
-        .with_title(&instance_title);
+        .with_tooltip(instance_title)
+        .with_title(instance_title);
     let tray_icon = match add_icon_to_tray_icon(tray_icon) {
         Ok(tray_icon) => tray_icon,
         Err(error) => {

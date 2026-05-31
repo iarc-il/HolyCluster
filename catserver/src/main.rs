@@ -33,6 +33,7 @@ use tracing_subscriber::{EnvFilter, Layer, Registry, layer::SubscriberExt};
 use tray_icon::UserEvent;
 
 const BASE_LOCAL_PORT: u16 = 3000;
+const INSTANCE_NAME: &str = "HolyCluster";
 
 fn open_at_browser(port: u16) -> Result<()> {
     let address = format!("http://127.0.0.1:{port}");
@@ -48,10 +49,6 @@ struct Args {
     /// use the development HolyCluster server
     #[argh(switch)]
     dev_server: bool,
-
-    /// local HTTP port to listen on
-    #[argh(option)]
-    local_port: Option<u16>,
 
     /// run with dummy radio instead of real radio
     #[argh(switch)]
@@ -84,39 +81,6 @@ fn get_radio(use_dummy: bool) -> AnyRadio {
     }
 }
 
-/// For development purposes, we run each instance in different port, based on the given arguments
-fn get_port_from_args(base_port: u16, args: &Args, use_dev_server: bool) -> u16 {
-    if let Some(local_port) = args.local_port {
-        return local_port;
-    }
-
-    let mut port = base_port;
-    if use_dev_server {
-        port += 1;
-    }
-    if args.dummy {
-        port += 2;
-    }
-    if args.local_ui {
-        port += 4;
-    }
-    port
-}
-
-fn get_slug_from_args(args: &Args, use_dev_server: bool) -> String {
-    let mut slug = vec![];
-    if use_dev_server {
-        slug.push("dev_server");
-    }
-    if args.dummy {
-        slug.push("dummy");
-    }
-    if args.local_ui {
-        slug.push("local_ui");
-    }
-    slug.join("-")
-}
-
 fn open_debug_log() -> Option<File> {
     let Some(project_dirs) = ProjectDirs::from("org", "iarc", "holycluster") else {
         eprintln!("Failed to locate HolyCluster cache directory");
@@ -124,7 +88,7 @@ fn open_debug_log() -> Option<File> {
     };
     let cache_dir = project_dirs.cache_dir();
     if let Err(error) = std::fs::create_dir_all(cache_dir) {
-        eprintln!("Failed to create debug log directory: {error}");
+        eprintln!("Failed to create HolyCluster cache directory: {error}");
         return None;
     }
 
@@ -188,10 +152,9 @@ fn main() -> Result<()> {
 
     let args: Args = argh::from_env();
     let use_dev_server = args.dev_server || cfg!(feature = "dev_server");
-    let args_slug = get_slug_from_args(&args, use_dev_server);
-    let local_port = get_port_from_args(BASE_LOCAL_PORT, &args, use_dev_server);
+    let local_port = BASE_LOCAL_PORT;
 
-    let instance = SingleInstance::new(&format!("HolyCluster-{args_slug}"))?;
+    let instance = SingleInstance::new(INSTANCE_NAME)?;
 
     tracing::info!("Version tag: {}", env!("VERSION"));
 
@@ -236,7 +199,7 @@ fn main() -> Result<()> {
         // This can be enabled if we ever support linux for users.
         if cfg!(windows) {
             let receiver = sender.subscribe();
-            tray_icon::run_tray_icon(&args_slug, sender, receiver);
+            tray_icon::run_tray_icon(sender, receiver);
         } else {
             if let Err(error) = thread.join() {
                 let message = if let Some(message) = error.downcast_ref::<&str>() {
