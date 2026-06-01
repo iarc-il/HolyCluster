@@ -23,7 +23,13 @@ RUN set -ex \
     && apt-get install --no-install-recommends ca-certificates curl xauth xvfb xz-utils p7zip-full unzip -qqy \
     && curl -sSfLo /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key \
     && curl -sSfLo /etc/apt/sources.list.d/winehq.sources https://dl.winehq.org/wine-builds/debian/dists/$VERSION_CODENAME/winehq-$VERSION_CODENAME.sources \
-    && apt-get update -qq && apt-get install --no-install-recommends winehq-stable=$WINE_VERSION\~$VERSION_CODENAME-1 -qqy \
+    && WINE_PACKAGE_VERSION="$WINE_VERSION~$VERSION_CODENAME-1" \
+    && apt-get update -qq \
+    && apt-get install --no-install-recommends -qqy \
+        "winehq-stable=$WINE_PACKAGE_VERSION" \
+        "wine-stable=$WINE_PACKAGE_VERSION" \
+        "wine-stable-amd64=$WINE_PACKAGE_VERSION" \
+        "wine-stable-i386:i386=$WINE_PACKAGE_VERSION" \
     && curl -sSfLo /usr/local/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks \
     && chmod +x /usr/local/bin/winetricks \
     && useradd -m wix \
@@ -70,4 +76,3 @@ RUN set -ex \
 
 USER wix
 WORKDIR /home/wix
-
