@@ -151,26 +151,23 @@ fn main() -> Result<()> {
     configure_tracing();
 
     let args: Args = argh::from_env();
-    let use_dev_server = args.dev_server || cfg!(feature = "dev_server");
-    let local_port = BASE_LOCAL_PORT;
-
     let instance = SingleInstance::new(INSTANCE_NAME)?;
 
     tracing::info!("Version tag: {}", env!("VERSION"));
 
-    let server_config = if use_dev_server {
+    let server_config = if args.dev_server {
         tracing::info!("Using dev server");
         ServerConfig {
             dns: "holycluster-dev.iarc.org".into(),
             is_using_ssl: true,
-            local_port,
+            local_port: BASE_LOCAL_PORT,
         }
     } else {
         tracing::info!("Using production server");
         ServerConfig {
             dns: "holycluster.iarc.org".into(),
             is_using_ssl: true,
-            local_port,
+            local_port: BASE_LOCAL_PORT,
         }
     };
 
@@ -214,12 +211,12 @@ fn main() -> Result<()> {
         }
     } else if args.close {
         let client = reqwest::blocking::Client::new();
-        let uri = format!("http://127.0.0.1:{local_port}/exit");
+        let uri = format!("http://127.0.0.1:{BASE_LOCAL_PORT}/exit");
         client.post(uri).send()?;
     } else {
         tracing::info!("Server is already running");
         let client = reqwest::blocking::Client::new();
-        let uri = format!("http://127.0.0.1:{local_port}/open");
+        let uri = format!("http://127.0.0.1:{BASE_LOCAL_PORT}/open");
         let _response = client.post(uri).send()?;
     }
     Ok(())
