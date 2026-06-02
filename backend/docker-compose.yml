@@ -128,6 +128,26 @@ services:
     build:
       context: infra/nginx
       dockerfile: Dockerfile.nginx
+    # Mirrors the CMD in Dockerfile.nginx (envsubst + nginx), but adds a
+    # background loop that reloads nginx only when the cert on disk changes.
+    # certbot renews the cert in a separate container and can't reload this
+    # one; checking the fullchain mtime every 6h means we reload on renewal
+    # (~monthly) instead of unconditionally, which avoids leaving lingering
+    # "shutting down" workers holding open websocket connections.
+    # Keep the envsubst/nginx parts in sync with Dockerfile.nginx CMD.
+    command:
+      - /bin/sh
+      - -c
+      - |
+        (
+          last=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem 2>/dev/null)
+          while :; do
+            sleep 6h & wait $${!}
+            cur=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem 2>/dev/null)
+            [ "$$cur" != "$$last" ] && { nginx -s reload; last=$$cur; }
+          done
+        ) &
+        envsubst '$${DOMAIN}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
     restart: unless-stopped
     ulimits:
       nofile:

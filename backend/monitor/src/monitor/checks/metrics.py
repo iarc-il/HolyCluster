@@ -67,6 +67,12 @@ async def drain_events(valkey: redis.asyncio.Redis, key: str, max_events: int = 
     return events
 
 
+def format_country(country: dict | None) -> str:
+    if not country:
+        return "None"
+    return f"{country.get('country', '?')}/{country.get('continent', '?')}"
+
+
 async def check_metrics(
     valkey: redis.asyncio.Redis,
     heartbeat_timeout: int,
@@ -97,5 +103,16 @@ async def check_metrics(
     drop_events = await drain_events(valkey, f"{PREFIX}:collector:drop_events")
     for event in drop_events:
         alerts.append(Alert(f"DROPPED SPOT ({event.get('reason', '?')}): {event.get('raw_spot', '?')}", healthy=False))
+
+    country_mismatch_events = await drain_events(valkey, f"{PREFIX}:collector:country_mismatch_events")
+    for event in country_mismatch_events:
+        alerts.append(
+            Alert(
+                f"COUNTRY MISMATCH ({event.get('callsign_type', '?')}): {event.get('callsign', '?')} "
+                f"CTY={format_country(event.get('cty'))} "
+                f"PREFIX_LIST={format_country(event.get('prefix_list'))}",
+                healthy=False,
+            )
+        )
 
     return alerts

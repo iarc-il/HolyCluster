@@ -51,11 +51,25 @@ impl AnyRadio {
     }
 
     pub fn write(&self) -> RwLockWriteGuard<'_, Box<dyn Radio>> {
-        self.0.write().unwrap()
+        match self.0.write() {
+            Ok(guard) => guard,
+            Err(error) => {
+                tracing::error!("Radio write lock was poisoned; recovering");
+                self.0.clear_poison();
+                error.into_inner()
+            }
+        }
     }
 
     pub fn read(&self) -> RwLockReadGuard<'_, Box<dyn Radio>> {
-        self.0.read().unwrap()
+        match self.0.read() {
+            Ok(guard) => guard,
+            Err(error) => {
+                tracing::error!("Radio read lock was poisoned; recovering");
+                self.0.clear_poison();
+                error.into_inner()
+            }
+        }
     }
 
     pub fn is_available(&self) -> bool {

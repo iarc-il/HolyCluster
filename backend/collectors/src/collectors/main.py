@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timezone
 
 from loguru import logger
+from shared.cty import ensure_cty_available
 from shared.db import HolySpot
 from shared.geo import GeoException, get_geo_details
 from shared.metrics import push_drop_event, push_exception_event, set_timestamp
@@ -53,6 +54,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             settings.valkey_geo_expiration,
             http_client,
             "spotter",
+            report_country_mismatch=True,
         ),
         get_geo_details(
             valkey_client,
@@ -61,6 +63,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             settings.valkey_geo_expiration,
             http_client,
             "dx_callsign",
+            report_country_mismatch=True,
         ),
     )
 
@@ -158,16 +161,21 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     )
                 except InvalidBandError:
                     logger.debug(f"Dropping spot due to invalid band: {spot}")
-                    await push_drop_event(valkey_client, "invalid_band", str(spot))
                     continue
                 except InvalidCallsignError as e:
                     logger.info(f"Dropping spot due to {e}: {spot}")
                     continue
                 except GeoException as e:
-                    logger.exception("Dropping spot due to geo exception")
-                    await push_drop_event(
-                        valkey_client, f"geo_exception ({e.callsign_type}, {e.data_type})", e.callsign
-                    )
+                    if e.notify_monitor:
+                        logger.exception("Dropping spot due to geo exception")
+                        await push_drop_event(
+                            valkey_client, f"geo_exception ({e.callsign_type}, {e.data_type})", e.callsign
+                        )
+                    else:
+                        logger.info(
+                            f"Dropping spot due to non-notifiable geo exception "
+                            f"({e.callsign_type}, {e.data_type}): {e.callsign}"
+                        )
                     continue
                 except Exception as e:
                     logger.exception("Unexpected error enriching spot")
@@ -228,6 +236,8 @@ async def trim_arrivals_stream(valkey_client):
 
 async def run_collector():
     logger.info("Starting collector...")
+
+    await ensure_cty_available()
 
     spots_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
 

@@ -20,14 +20,45 @@ const EXPORTABLE_SETTINGS = {
     },
 };
 
+async function copy_to_clipboard(text) {
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+
+    const text_area = document.createElement("textarea");
+    text_area.value = text;
+    text_area.style.position = "fixed";
+    text_area.style.opacity = "0";
+    document.body.appendChild(text_area);
+    text_area.focus();
+    text_area.select();
+
+    const did_copy = document.execCommand("copy");
+    document.body.removeChild(text_area);
+
+    if (!did_copy) {
+        throw new Error("Clipboard copy failed");
+    }
+}
+
 function ImportExport({ set_temp_settings, apply_settings, set_should_close_settings }) {
     const { colors } = useColors();
-    const { filters, setFilters, callsign_filters, setCallsignFilters } = useFilters();
+    const {
+        filters,
+        setFilters,
+        callsign_filters,
+        setCallsignFilters,
+        is_shared_filter_state,
+        save_shared_filters,
+        get_filter_share_url,
+    } = useFilters();
     const { settings } = useSettings();
 
     const [selected_settings, set_selected_settings] = useState(
         Object.fromEntries(Object.keys(EXPORTABLE_SETTINGS).map(key => [key, true])),
     );
+    const [share_status, set_share_status] = useState("");
 
     function handle_export() {
         const export_data = {};
@@ -92,6 +123,20 @@ function ImportExport({ set_temp_settings, apply_settings, set_should_close_sett
         event.target.value = null;
     }
 
+    async function handle_copy_filter_url() {
+        try {
+            await copy_to_clipboard(get_filter_share_url());
+            set_share_status("Filter link copied to clipboard.");
+        } catch (_error) {
+            set_share_status("Could not copy the filter link.");
+        }
+    }
+
+    function handle_save_shared_filters() {
+        save_shared_filters();
+        set_share_status("Shared filters saved as your filters.");
+    }
+
     return (
         <div className="p-4" style={{ color: colors.theme.text }}>
             <div className="space-y-2 mb-4">
@@ -132,6 +177,29 @@ function ImportExport({ set_temp_settings, apply_settings, set_should_close_sett
                 <Button color="green" on_click={handle_export}>
                     Export to File
                 </Button>
+            </div>
+            <div
+                className="mt-4 pt-4 border-t space-y-3"
+                style={{ borderColor: colors.theme.borders }}
+            >
+                <div>
+                    <span className="font-medium">URL Sharing</span>
+                    <p className="text-sm opacity-75">
+                        Copy a link with the current filter state. Shared links use temporary
+                        filters until the URL parameter is removed.
+                    </p>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-between">
+                    <Button color="blue" on_click={handle_copy_filter_url}>
+                        Copy Filter Link
+                    </Button>
+                    {is_shared_filter_state ? (
+                        <Button color="green" on_click={handle_save_shared_filters}>
+                            Save Shared Filters
+                        </Button>
+                    ) : null}
+                </div>
+                {share_status ? <p className="text-sm opacity-75">{share_status}</p> : null}
             </div>
         </div>
     );

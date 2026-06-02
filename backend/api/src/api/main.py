@@ -11,6 +11,7 @@ from fastapi import HTTPException, websockets
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
+from shared.cty import ensure_cty_available
 from shared.db import GeoCache, HolySpot, SpotsWithIssues
 from shared.geo import get_geo_details, GeoException
 from shared.metrics import push_exception_event, set_timestamp, set_value
@@ -110,6 +111,8 @@ async def lifespan(app: fastapi.FastAPI):
     )
 
     app.state.http_client = httpx.AsyncClient()
+
+    await ensure_cty_available(http_client=app.state.http_client)
 
     tasks = [
         asyncio.create_task(propagation_data_collector(app)),
@@ -411,6 +414,24 @@ def download_catserver():
         filename=filename.replace("catserver", "HolyCluster"),
         media_type="application/octet-stream",
     )
+
+
+@app.get("/history")
+async def spot_history(start_time: int, end_time: int):
+    if end_time <= start_time:
+        raise HTTPException(status_code=400, detail="end_time must be greater than start_time")
+    if end_time - start_time > 86400:
+        raise HTTPException(status_code=400, detail="time range cannot exceed 24 hours")
+
+    async with async_session() as session:
+        query = (
+            select(HolySpot)
+            .where(HolySpot.timestamp >= start_time)
+            .where(HolySpot.timestamp <= end_time)
+            .order_by(HolySpot.timestamp)
+        )
+        spots = cleanup_spots((await session.execute(query)).scalars())
+        return {"spots": spots}
 
 
 @app.get("/health")

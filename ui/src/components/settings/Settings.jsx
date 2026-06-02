@@ -209,4 +209,4 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     );
 }
 
-export default Settings;
+export { Settings, SettingsIcon };

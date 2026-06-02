@@ -162,9 +162,13 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
     if let Some(headers) = response_builder.headers_mut() {
         *headers = reqwest_response.headers().clone();
     }
-    response_builder
-        .body(Body::from_stream(reqwest_response.bytes_stream()))
-        .unwrap()
+    match response_builder.body(Body::from_stream(reqwest_response.bytes_stream())) {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::error!(?error, "Failed to build proxy response");
+            (StatusCode::INTERNAL_SERVER_ERROR, Body::empty()).into_response()
+        }
+    }
 }
 
 async fn exit_server_handler(State(state): State<AppState>) -> impl IntoResponse {
@@ -182,14 +186,15 @@ async fn websocket_handler(
     websocket: WebSocketUpgrade,
     path: &'static str,
 ) -> impl IntoResponse {
+    let server_config = state.server_config;
     websocket
         .write_buffer_size(0)
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
-        .on_upgrade(async |websocket: WebSocket| {
-            handle_websocket(state.server_config, websocket, path)
-                .await
-                .unwrap()
+        .on_upgrade(move |websocket: WebSocket| async move {
+            if let Err(error) = handle_websocket(server_config, websocket, path).await {
+                tracing::error!(path, ?error, "WebSocket proxy handler failed");
+            }
         })
 }
 
@@ -223,8 +228,11 @@ async fn handle_websocket(
                 }
             }
             Some(Ok(message)) = server_receiver.next() => {
+                let Some(message) = utils::tungstenite_to_axum_message(message) else {
+                    continue;
+                };
                 let result = client_sender
-                    .send(utils::tungstenite_to_axum_message(message))
+                    .send(message)
                     .await;
                 if result.is_err() {
                     break;
@@ -264,7 +272,9 @@ async fn cat_control_handler(
         .accept_unmasked_frames(true)
         .on_upgrade(async move |websocket: WebSocket| {
             let result = handle_cat_control_socket(websocket, state.radio, receiver).await;
-            result.unwrap();
+            if let Err(error) = result {
+                tracing::error!(?error, "CAT control WebSocket handler failed");
+            }
         })
 }
 

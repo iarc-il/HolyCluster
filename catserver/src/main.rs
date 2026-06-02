@@ -1,6 +1,6 @@
-#![cfg_attr(not(feature = "dev_server"), windows_subsystem = "windows")]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use tracing_panic::panic_hook;
 
 use anyhow::Result;
@@ -33,6 +33,7 @@ use tracing_subscriber::{EnvFilter, Layer, Registry, layer::SubscriberExt};
 use tray_icon::UserEvent;
 
 const BASE_LOCAL_PORT: u16 = 3000;
+const INSTANCE_NAME: &str = "HolyCluster";
 
 fn open_at_browser(port: u16) -> Result<()> {
     let address = format!("http://127.0.0.1:{port}");
@@ -45,6 +46,10 @@ fn open_at_browser(port: u16) -> Result<()> {
 /// The Holy Cluster - debug flags
 #[argh(help_triggers("-h", "--help"))]
 struct Args {
+    /// use the development HolyCluster server
+    #[argh(switch)]
+    dev_server: bool,
+
     /// run with dummy radio instead of real radio
     #[argh(switch)]
     dummy: bool,
@@ -76,99 +81,93 @@ fn get_radio(use_dummy: bool) -> AnyRadio {
     }
 }
 
-/// For development purposes, we run each instance in different port, based on the given arguments
-fn get_port_from_args(base_port: u16, args: &Args, use_dev_server: bool) -> u16 {
-    let mut port = base_port;
-    if use_dev_server {
-        port += 1;
+fn open_debug_log() -> Option<File> {
+    let Some(project_dirs) = ProjectDirs::from("org", "iarc", "holycluster") else {
+        eprintln!("Failed to locate HolyCluster cache directory");
+        return None;
+    };
+    let cache_dir = project_dirs.cache_dir();
+    if let Err(error) = std::fs::create_dir_all(cache_dir) {
+        eprintln!("Failed to create HolyCluster cache directory: {error}");
+        return None;
     }
-    if args.dummy {
-        port += 2;
+
+    let log_path = cache_dir.join("debug.log");
+    match OpenOptions::new().append(true).create(true).open(&log_path) {
+        Ok(debug_file) => Some(debug_file),
+        Err(error) => {
+            eprintln!(
+                "Failed to open debug log at {}: {error}",
+                log_path.display()
+            );
+            None
+        }
     }
-    if args.local_ui {
-        port += 4;
-    }
-    port
 }
 
-fn get_slug_from_args(args: &Args, use_dev_server: bool) -> String {
-    let mut slug = vec![];
-    if use_dev_server {
-        slug.push("dev_server");
+fn log_file_filter() -> EnvFilter {
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
+
+    match "catserver=debug".parse() {
+        Ok(directive) => filter.add_directive(directive),
+        Err(error) => {
+            eprintln!("Failed to add catserver debug log directive: {error}");
+            filter
+        }
     }
-    if args.dummy {
-        slug.push("dummy");
-    }
-    if args.local_ui {
-        slug.push("local_ui");
-    }
-    slug.join("-")
 }
 
 fn configure_tracing() {
     std::panic::set_hook(Box::new(panic_hook));
 
-    let project_dirs = ProjectDirs::from("org", "iarc", "holycluster").unwrap();
-    let cache_dir = project_dirs.cache_dir();
-    std::fs::create_dir_all(cache_dir).unwrap();
-    let log_path = cache_dir.join("debug.log");
+    let console_layer = tracing_subscriber::fmt::layer()
+        .compact()
+        .with_ansi(!cfg!(windows))
+        .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
+            tracing::Level::INFO,
+        ));
 
-    let debug_file = OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(log_path)
-        .unwrap();
-
-    let log_file_filter = EnvFilter::builder()
-        .with_default_directive(LevelFilter::INFO.into())
-        .from_env()
-        .unwrap()
-        .add_directive("catserver=debug".parse().unwrap());
-
-    let subscriber = Registry::default()
-        .with(
-            tracing_subscriber::fmt::layer()
-                .compact()
-                .with_ansi(!cfg!(windows))
-                .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
-                    tracing::Level::INFO,
-                )),
-        )
-        .with(
+    let set_result = if let Some(debug_file) = open_debug_log() {
+        let subscriber = Registry::default().with(console_layer).with(
             tracing_subscriber::fmt::layer()
                 .compact()
                 .with_writer(debug_file)
-                .with_filter(log_file_filter),
+                .with_filter(log_file_filter()),
         );
+        tracing::subscriber::set_global_default(subscriber)
+    } else {
+        let subscriber = Registry::default().with(console_layer);
+        tracing::subscriber::set_global_default(subscriber)
+    };
 
-    tracing::subscriber::set_global_default(subscriber).unwrap();
+    if let Err(error) = set_result {
+        eprintln!("Failed to configure tracing subscriber: {error}");
+    }
 }
 
 fn main() -> Result<()> {
     configure_tracing();
 
     let args: Args = argh::from_env();
-    let use_dev_server = cfg!(feature = "dev_server");
-    let args_slug = get_slug_from_args(&args, use_dev_server);
-    let local_port = get_port_from_args(BASE_LOCAL_PORT, &args, use_dev_server);
-
-    let instance = SingleInstance::new(&format!("HolyCluster-{args_slug}"))?;
+    let instance = SingleInstance::new(INSTANCE_NAME)?;
 
     tracing::info!("Version tag: {}", env!("VERSION"));
 
-    let server_config = if use_dev_server {
+    let server_config = if args.dev_server {
         tracing::info!("Using dev server");
         ServerConfig {
             dns: "holycluster-dev.iarc.org".into(),
             is_using_ssl: true,
-            local_port,
+            local_port: BASE_LOCAL_PORT,
         }
     } else {
         tracing::info!("Using production server");
         ServerConfig {
             dns: "holycluster.iarc.org".into(),
             is_using_ssl: true,
-            local_port,
+            local_port: BASE_LOCAL_PORT,
         }
     };
 
@@ -186,25 +185,38 @@ fn main() -> Result<()> {
         let thread = std::thread::Builder::new()
             .name("singleton".into())
             .spawn(move || {
-                run_singleton_instance(event_sender, radio, server_config, use_local_ui).unwrap();
+                if let Err(error) =
+                    run_singleton_instance(event_sender, radio, server_config, use_local_ui)
+                {
+                    tracing::error!(?error, "Singleton instance failed");
+                }
             })?;
 
         // Currently we don't care about tray icon for linux because it's only used for development.
         // This can be enabled if we ever support linux for users.
         if cfg!(windows) {
             let receiver = sender.subscribe();
-            tray_icon::run_tray_icon(&args_slug, sender, receiver);
+            tray_icon::run_tray_icon(sender, receiver);
         } else {
-            thread.join().unwrap();
+            if let Err(error) = thread.join() {
+                let message = if let Some(message) = error.downcast_ref::<&str>() {
+                    *message
+                } else if let Some(message) = error.downcast_ref::<String>() {
+                    message.as_str()
+                } else {
+                    "unknown panic payload"
+                };
+                tracing::error!(message, "Singleton thread panicked");
+            }
         }
     } else if args.close {
         let client = reqwest::blocking::Client::new();
-        let uri = format!("http://127.0.0.1:{local_port}/exit");
+        let uri = format!("http://127.0.0.1:{BASE_LOCAL_PORT}/exit");
         client.post(uri).send()?;
     } else {
         tracing::info!("Server is already running");
         let client = reqwest::blocking::Client::new();
-        let uri = format!("http://127.0.0.1:{local_port}/open");
+        let uri = format!("http://127.0.0.1:{BASE_LOCAL_PORT}/open");
         let _response = client.post(uri).send()?;
     }
     Ok(())
@@ -238,16 +250,21 @@ async fn run_singleton_instance(
 
     tokio::spawn(async move {
         loop {
-            match receiver.recv().await? {
-                UserEvent::Quit => {
+            match receiver.recv().await {
+                Ok(UserEvent::Quit) => {
                     break;
                 }
-                UserEvent::OpenBrowser => {
-                    open_at_browser(local_port).unwrap();
+                Ok(UserEvent::OpenBrowser) => {
+                    if let Err(error) = open_at_browser(local_port) {
+                        tracing::error!(?error, "Failed to open browser from user event");
+                    }
+                }
+                Err(error) => {
+                    tracing::error!(?error, "Failed to receive user event");
+                    break;
                 }
             }
         }
-        Ok::<(), anyhow::Error>(())
     });
 
     tracing::info!("Running webapp");

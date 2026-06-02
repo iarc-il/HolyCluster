@@ -2,67 +2,54 @@ use axum::extract::ws::Message as AxumMessage;
 use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode as TungsteniteCloseCode;
 
-fn tungstenite_to_axum_close_code(close_code: TungsteniteCloseCode) -> u16 {
-    use axum::extract::ws::close_code::*;
-    match close_code {
-        TungsteniteCloseCode::Normal => NORMAL,
-        TungsteniteCloseCode::Away => AWAY,
-        TungsteniteCloseCode::Protocol => PROTOCOL,
-        TungsteniteCloseCode::Unsupported => UNSUPPORTED,
-        TungsteniteCloseCode::Status => STATUS,
-        TungsteniteCloseCode::Abnormal => ABNORMAL,
-        TungsteniteCloseCode::Invalid => INVALID,
-        TungsteniteCloseCode::Policy => POLICY,
-        TungsteniteCloseCode::Size => SIZE,
-        TungsteniteCloseCode::Extension => EXTENSION,
-        TungsteniteCloseCode::Error => ERROR,
-        TungsteniteCloseCode::Restart => RESTART,
-        TungsteniteCloseCode::Again => AGAIN,
-        _ => todo!(),
+fn sanitize_tungstenite_close_code(
+    close_code: TungsteniteCloseCode,
+    direction: &str,
+) -> TungsteniteCloseCode {
+    if close_code.is_allowed() {
+        return close_code;
     }
+
+    tracing::warn!(
+        close_code = u16::from(close_code),
+        direction,
+        "Replacing invalid WebSocket close code"
+    );
+    TungsteniteCloseCode::Error
 }
 
-pub fn tungstenite_to_axum_message(tungstenite_message: TungsteniteMessage) -> AxumMessage {
+fn tungstenite_to_axum_close_code(close_code: TungsteniteCloseCode) -> u16 {
+    sanitize_tungstenite_close_code(close_code, "upstream-to-client").into()
+}
+
+pub fn tungstenite_to_axum_message(tungstenite_message: TungsteniteMessage) -> Option<AxumMessage> {
     match tungstenite_message {
         TungsteniteMessage::Text(text) => {
             let text: &str = text.as_ref();
-            AxumMessage::Text(axum::extract::ws::Utf8Bytes::from(text))
+            Some(AxumMessage::Text(axum::extract::ws::Utf8Bytes::from(text)))
         }
-        TungsteniteMessage::Binary(bytes) => AxumMessage::Binary(bytes),
-        TungsteniteMessage::Ping(bytes) => AxumMessage::Ping(bytes),
-        TungsteniteMessage::Pong(bytes) => AxumMessage::Pong(bytes),
+        TungsteniteMessage::Binary(bytes) => Some(AxumMessage::Binary(bytes)),
+        TungsteniteMessage::Ping(bytes) => Some(AxumMessage::Ping(bytes)),
+        TungsteniteMessage::Pong(bytes) => Some(AxumMessage::Pong(bytes)),
         TungsteniteMessage::Close(close_frame) => {
-            AxumMessage::Close(close_frame.map(|close_frame| {
+            Some(AxumMessage::Close(close_frame.map(|close_frame| {
                 let reason: &str = close_frame.reason.as_ref();
                 let reason = axum::extract::ws::Utf8Bytes::from(reason);
                 axum::extract::ws::CloseFrame {
                     code: tungstenite_to_axum_close_code(close_frame.code),
                     reason,
                 }
-            }))
+            })))
         }
-        TungsteniteMessage::Frame(_frame) => panic!(),
+        TungsteniteMessage::Frame(_frame) => {
+            tracing::debug!("Ignoring raw upstream WebSocket frame");
+            None
+        }
     }
 }
 
 fn axum_to_tungstenite_close_code(close_code: u16) -> TungsteniteCloseCode {
-    use axum::extract::ws::close_code::*;
-    match close_code {
-        NORMAL => TungsteniteCloseCode::Normal,
-        AWAY => TungsteniteCloseCode::Away,
-        PROTOCOL => TungsteniteCloseCode::Protocol,
-        UNSUPPORTED => TungsteniteCloseCode::Unsupported,
-        STATUS => TungsteniteCloseCode::Status,
-        ABNORMAL => TungsteniteCloseCode::Abnormal,
-        INVALID => TungsteniteCloseCode::Invalid,
-        POLICY => TungsteniteCloseCode::Policy,
-        SIZE => TungsteniteCloseCode::Size,
-        EXTENSION => TungsteniteCloseCode::Extension,
-        ERROR => TungsteniteCloseCode::Error,
-        RESTART => TungsteniteCloseCode::Restart,
-        AGAIN => TungsteniteCloseCode::Again,
-        _ => todo!(),
-    }
+    sanitize_tungstenite_close_code(TungsteniteCloseCode::from(close_code), "client-to-upstream")
 }
 
 pub fn axum_to_tungstenite_message(axum_message: AxumMessage) -> TungsteniteMessage {

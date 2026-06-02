@@ -28,3 +28,28 @@ async def push_exception_event(valkey: redis.asyncio.Redis, service: str, error:
     event = json.dumps({"error": error, "service": service, "time": time.time()})
     await valkey.rpush(f"{PREFIX}:exception_events", event)
     await valkey.ltrim(f"{PREFIX}:exception_events", -1000, -1)
+
+
+async def push_country_mismatch_event(
+    valkey: redis.asyncio.Redis,
+    callsign: str,
+    callsign_type: str,
+    cty_country: tuple[str, str] | None,
+    prefix_list_country: tuple[str, str] | None,
+):
+    def serialize_country(country: tuple[str, str] | None):
+        if country is None:
+            return None
+        return {"country": country[0], "continent": country[1]}
+
+    event = json.dumps(
+        {
+            "callsign": callsign,
+            "callsign_type": callsign_type,
+            "cty": serialize_country(cty_country),
+            "prefix_list": serialize_country(prefix_list_country),
+            "time": time.time(),
+        }
+    )
+    await valkey.rpush(f"{PREFIX}:collector:country_mismatch_events", event)
+    await valkey.ltrim(f"{PREFIX}:collector:country_mismatch_events", -1000, -1)
