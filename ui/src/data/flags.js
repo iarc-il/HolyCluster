@@ -71,6 +71,8 @@ const dxcc_to_country_flag = {
     "Ivory Coast": "Côte d'Ivoire (Ivory Coast)",
     "St. Paul Island": "Canada",
     "Sable Island": "Canada",
+    "Lord Howe Island": "Australia",
+    "Juan Fernandez Islands": "Chile",
 };
 
 const dxcc_to_short_dxcc = {
