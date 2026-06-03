@@ -81,6 +81,7 @@ _COUNTRY_OVERRIDES_BY_CALLSIGN = {
     "4U5ITU": ("ITU HQ", "EU"),
     "BB4IA": ("China", "AS"),
     "DP0MIR": ("Antarctica", "AN"),
+    "KH7X": ("Hawaii", "OC"),
     "R95WTA": ("Asiatic Russia", "AS"),
     "RP2F": ("Kaliningrad", "EU"),
     "RI0SP": ("Asiatic Russia", "AS"),
