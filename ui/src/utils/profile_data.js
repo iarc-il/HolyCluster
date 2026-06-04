@@ -220,7 +220,6 @@ export function create_default_settings() {
         propagation_displayed: true,
         show_flags: true,
         show_state_abbreviations: true,
-        show_equator: false,
         highlight_enabled: true,
         highlight_port: 2237,
         alert_sound_enabled: false,
@@ -240,6 +239,7 @@ export function create_default_map_controls() {
         show_dxcc_labels: false,
         show_us_states: false,
         show_can_states: false,
+        show_equator: false,
         location: {
             displayed_locator: "JJ00AA",
             location: [0, 0],
@@ -318,7 +318,6 @@ export function sanitize_settings(value, defaults = create_default_settings()) {
             source.show_state_abbreviations,
             defaults.show_state_abbreviations,
         ),
-        show_equator: to_boolean(source.show_equator, defaults.show_equator),
         highlight_enabled: to_boolean(source.highlight_enabled, defaults.highlight_enabled),
         highlight_port: to_number(source.highlight_port, defaults.highlight_port, {
             min: 1024,
@@ -345,6 +344,7 @@ export function sanitize_map_controls(value, defaults = create_default_map_contr
         show_dxcc_labels: to_boolean(source.show_dxcc_labels, defaults.show_dxcc_labels),
         show_us_states: to_boolean(source.show_us_states, defaults.show_us_states),
         show_can_states: to_boolean(source.show_can_states, defaults.show_can_states),
+        show_equator: to_boolean(source.show_equator, defaults.show_equator),
         location: {
             displayed_locator: sanitize_locator(
                 source_location.displayed_locator,

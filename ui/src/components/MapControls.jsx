@@ -35,7 +35,7 @@ function MapControls({
     const { colors } = useColors();
     const { propagation } = useRestData();
     const { radio_status } = use_radio();
-    const { settings, set_settings } = useSettings();
+    const { settings } = useSettings();
     const { filters, setFilters } = useFilters();
     const mode_button_ref = useRef(null);
     const controls_panel_ref = useRef(null);
@@ -50,7 +50,7 @@ function MapControls({
     const itu_zones_on = map_controls.show_itu_zones;
     const us_states_on = map_controls.show_us_states ?? false;
     const can_states_on = map_controls.show_can_states ?? false;
-    const equator_on = settings.show_equator ?? false;
+    const equator_on = map_controls.show_equator ?? false;
 
     const active_zone_systems = cq_zones_on
         ? ["cq"]
@@ -198,10 +198,9 @@ function MapControls({
     }
 
     function toggle_equator() {
-        set_settings(state => ({
-            ...state,
-            show_equator: !state.show_equator,
-        }));
+        set_map_controls(state => {
+            state.show_equator = !state.show_equator;
+        });
     }
 
     const overlay_buttons = [

@@ -33,6 +33,8 @@ describe("profile_data", () => {
         expect(store.profiles).toHaveLength(1);
         expect(store.profiles[0].name).toBe(DEFAULT_PROFILE_NAME);
         expect(store.profiles[0].data.settings.theme).toBe("Dark");
+        expect(store.profiles[0].data.settings).not.toHaveProperty("show_equator");
+        expect(store.profiles[0].data.map_controls.show_equator).toBe(false);
         expect(store.profiles[0].data.map_view.radius_in_km).toBe(20000);
     });
 
@@ -68,6 +70,7 @@ describe("profile_data", () => {
             },
             map_controls: {
                 night: "yes",
+                show_equator: "yes",
                 location: {
                     displayed_locator: "???",
                     location: [999, 10],
@@ -106,6 +109,7 @@ describe("profile_data", () => {
         expect(data.settings.disabled_bands[40]).toBe(true);
         expect(data.settings.disabled_modes.FT8).toBe(true);
         expect(data.map_controls.night).toBe(defaults.map_controls.night);
+        expect(data.map_controls.show_equator).toBe(defaults.map_controls.show_equator);
         expect(data.map_controls.location).toEqual(defaults.map_controls.location);
         expect(data.map_view).toEqual(defaults.map_view);
         expect(data.table_sort).toEqual(defaults.table_sort);
@@ -142,6 +146,7 @@ describe("profile_data", () => {
             map_controls: json({
                 night: true,
                 is_globe: true,
+                show_equator: true,
                 location: {
                     displayed_locator: "FN20",
                     location: [-75, 40],
@@ -182,6 +187,7 @@ describe("profile_data", () => {
         ]);
         expect(data.map_controls.night).toBe(true);
         expect(data.map_controls.is_globe).toBe(true);
+        expect(data.map_controls.show_equator).toBe(true);
         expect(data.map_controls.location).toEqual({
             displayed_locator: "FN20",
             location: [-75, 40],
