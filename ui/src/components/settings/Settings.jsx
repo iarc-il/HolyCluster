@@ -10,6 +10,7 @@ import ImportExport from "./ImportExport";
 import General from "./General";
 import CatControl from "./CatControl";
 import Bands from "./Bands";
+import Profiles from "./Profiles";
 import use_radio from "@/hooks/useRadio";
 import Tabs from "@/components/ui/Tabs";
 import { bands, modes } from "@/data/filters_data.js";
@@ -144,6 +145,10 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                     colors={colors}
                 />
             ),
+        },
+        {
+            label: "Profiles",
+            content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
         },
         {
             label: "Import/Export",
