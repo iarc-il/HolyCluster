@@ -3,11 +3,12 @@ import Maidenhead from "maidenhead";
 
 import Modal from "@/components/ui/Modal.jsx";
 import { useColors } from "@/hooks/useColors";
-import { useLocalStorage } from "@uidotdev/usehooks";
+import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";
 import ImportExport from "./ImportExport";
 import General from "./General";
+import Layout from "./Layout";
 import CatControl from "./CatControl";
 import Bands from "./Bands";
 import Profiles from "./Profiles";
@@ -51,6 +52,8 @@ const empty_temp_settings = {
     callsign: "",
     is_miles: false,
     propagation_displayed: true,
+    main_view_mode: "both",
+    main_view_order: "map_table",
     highlight_enabled: true,
     highlight_port: 2237,
     alert_sound_enabled: false,
@@ -66,6 +69,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const { settings, set_settings } = useSettings();
     const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
     const { is_radio_available } = use_radio();
+    const is_mobile_settings = useMediaQuery("only screen and (max-width : 768px)");
 
     const [first_launch, set_first_launch] = useLocalStorage("first_launch", true);
     const [should_open_settings, set_should_open_settings] = useState(false);
@@ -137,6 +141,20 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
+        ...(!is_mobile_settings
+            ? [
+                  {
+                      label: "Layout",
+                      content: (
+                          <Layout
+                              temp_settings={temp_settings}
+                              set_temp_settings={set_temp_settings}
+                              colors={colors}
+                          />
+                      ),
+                  },
+              ]
+            : []),
         {
             label: "Bands & Modes",
             content: (
