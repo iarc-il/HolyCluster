@@ -2,19 +2,16 @@ const view_options = [
     {
         value: "both",
         title: "Map + Table",
-        description: "Show both panels side by side.",
         panels: ["map", "table"],
     },
     {
         value: "map",
         title: "Map only",
-        description: "Use the whole workspace for the map.",
         panels: ["map"],
     },
     {
         value: "table",
         title: "Table only",
-        description: "Use the whole workspace for spots.",
         panels: ["table"],
     },
 ];
@@ -23,13 +20,11 @@ const order_options = [
     {
         value: "map_table",
         title: "Map left",
-        description: "Table on the right.",
         panels: ["map", "table"],
     },
     {
         value: "table_map",
         title: "Table left",
-        description: "Map on the right.",
         panels: ["table", "map"],
     },
 ];
@@ -113,7 +108,6 @@ function OptionCard({ option, selected, disabled = false, colors, on_select }) {
                 ))}
             </div>
             <div className="font-semibold">{option.title}</div>
-            <div className="text-sm opacity-75">{option.description}</div>
         </button>
     );
 }
@@ -135,7 +129,6 @@ function Layout({ temp_settings, set_temp_settings, colors }) {
             <section>
                 <div className="mb-3">
                     <h4 className="text-lg font-semibold">Workspace</h4>
-                    <p className="text-sm opacity-75">Choose which main panel should be visible.</p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
                     {view_options.map(option => (
@@ -153,9 +146,6 @@ function Layout({ temp_settings, set_temp_settings, colors }) {
             <section>
                 <div className="mb-3">
                     <h4 className="text-lg font-semibold">Panel Order</h4>
-                    <p className="text-sm opacity-75">
-                        Choose the left/right order when both panels are visible.
-                    </p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                     {order_options.map(option => (
