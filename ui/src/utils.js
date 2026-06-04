@@ -232,8 +232,19 @@ export function sort_spots(spots, table_sort, radio_status = null, radio_band = 
         }
 
         const column = table_sort.column;
-        const value_a = spot_a[column];
-        const value_b = spot_b[column];
+        const raw_value_a = spot_a[column];
+        const raw_value_b = spot_b[column];
+        if (raw_value_a == null && raw_value_b == null) {
+            return spot_b.time - spot_a.time;
+        }
+        if (raw_value_a == null) {
+            return 1;
+        }
+        if (raw_value_b == null) {
+            return -1;
+        }
+        const value_a = raw_value_a ?? "";
+        const value_b = raw_value_b ?? "";
 
         if (typeof value_a === "string" && typeof value_b === "string") {
             let comparison = table_sort.ascending

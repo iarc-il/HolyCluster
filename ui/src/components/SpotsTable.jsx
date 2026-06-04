@@ -23,6 +23,18 @@ const cell_classes = {
     comment: "w-[25%] text-left hidden whitespace-normal [overflow-wrap:anywhere] xl:table-cell",
 };
 
+const pota_cell_classes = {
+    ...cell_classes,
+    time: "w-[8%]",
+    flag: "w-[13%]",
+    dx_callsign: "w-[15%]",
+    freq: "w-[12%]",
+    band: "w-[12%] hidden align-middle md:table-cell",
+    spotter_callsign: "w-[15%]",
+    mode: "w-[10%]",
+    pota_reference: "w-[15%] hidden md:table-cell",
+};
+
 const columns = [
     { title: "Time", field: "time" },
     { title: "", field: "flag", sorting: false },
@@ -32,6 +44,17 @@ const columns = [
     { title: "Spotter", field: "spotter_callsign" },
     { title: "Mode", field: "mode" },
     { title: "Comment", field: "comment", sorting: false },
+];
+
+const pota_columns = [
+    { title: "Time", field: "time" },
+    { title: "", field: "flag", sorting: false },
+    { title: "Activator", field: "dx_callsign" },
+    { title: "Freq", field: "freq" },
+    { title: "Band", field: "band" },
+    { title: "Spotter", field: "spotter_callsign" },
+    { title: "Mode", field: "mode" },
+    { title: "Ref", field: "pota_reference" },
 ];
 
 function Callsign({ callsign }) {
@@ -53,6 +76,8 @@ function Spot(
         set_cat_to_spot,
         on_context_menu,
         is_new_spot,
+        cell_classes,
+        is_pota_mode,
     },
     ref,
 ) {
@@ -116,6 +141,7 @@ function Spot(
     }
 
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
+    const [is_reference_hovered, set_is_reference_hovered] = useState(false);
     const state_name = STATES[spot.dx_country]?.[spot.dx_state];
 
     let dx_column;
@@ -148,7 +174,8 @@ function Spot(
     }
 
     let popup_anchor = useRef(null);
-    const comment = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+    let reference_popup_anchor = useRef(null);
+    const comment = (spot.comment ?? "").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 
     return (
         <tr
@@ -271,9 +298,39 @@ function Spot(
                 <Callsign callsign={spot.spotter_callsign} />
             </td>
             <td className={cell_classes.mode}>{spot.mode}</td>
-            <td className={cell_classes.comment} title={comment}>
-                {comment}
-            </td>
+            {is_pota_mode ? (
+                <>
+                    <td className={cell_classes.pota_reference}>
+                        <div
+                            ref={reference_popup_anchor}
+                            className="cursor-help"
+                            onMouseEnter={() => set_is_reference_hovered(true)}
+                            onMouseLeave={() => set_is_reference_hovered(false)}
+                        >
+                            {spot.pota_reference}
+                        </div>
+                        {is_reference_hovered && spot.pota_name ? (
+                            <Popup anchor_ref={reference_popup_anchor} keep_in_view={true}>
+                                <div
+                                    className="py-1 px-2 rounded shadow-lg max-w-xs whitespace-normal"
+                                    style={{
+                                        color: colors.theme.text,
+                                        background: colors.theme.background,
+                                    }}
+                                >
+                                    {spot.pota_name}
+                                </div>
+                            </Popup>
+                        ) : (
+                            ""
+                        )}
+                    </td>
+                </>
+            ) : (
+                <td className={cell_classes.comment} title={comment}>
+                    {comment}
+                </td>
+            )}
         </tr>
     );
 }
@@ -364,13 +421,16 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
 function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const { colors } = useColors();
     const { spots, new_spot_ids, current_freq_spots } = useSpotData();
-    const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useSpotInteraction();
+    const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, is_pota_mode } =
+        useSpotInteraction();
     const { get_filter_add_status, add_filter_if_allowed } = useFilters();
     const row_refs = useRef({});
 
     const parity_map = useRef(new Map());
     const prev_sort = useRef(table_sort);
     update_parity_map(parity_map.current, prev_sort, table_sort, spots);
+    const table_cell_classes = is_pota_mode ? pota_cell_classes : cell_classes;
+    const table_columns = is_pota_mode ? pota_columns : columns;
 
     const [context_menu, set_context_menu] = useState({
         visible: false,
@@ -534,12 +594,12 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                 >
                     <tbody className="divide-y">
                         <tr>
-                            {columns.map(col => (
+                            {table_columns.map(col => (
                                 <HeaderCell
                                     key={col.field}
                                     title={col.title}
                                     field={col.field}
-                                    cell_classes={cell_classes}
+                                    cell_classes={table_cell_classes}
                                     table_sort={table_sort}
                                     set_table_sort={set_table_sort}
                                     sorting={col.sorting}
@@ -559,6 +619,8 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                 set_cat_to_spot={set_cat_to_spot}
                                 on_context_menu={handle_context_menu}
                                 is_new_spot={new_spot_ids.has(spot.id)}
+                                cell_classes={table_cell_classes}
+                                is_pota_mode={is_pota_mode}
                             ></Spot>
                         ))}
                     </tbody>

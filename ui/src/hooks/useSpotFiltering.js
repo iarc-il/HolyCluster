@@ -25,7 +25,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         active_profile_data: { table_sort },
     } = useProfiles();
     const { radio_band, radio_freq, radio_status } = use_radio();
-    const { search_query } = useSpotInteraction();
+    const { search_query, is_pota_mode } = useSpotInteraction();
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
@@ -42,12 +42,16 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         [callsign_filters.filters],
     );
 
+    const source_spots = useMemo(() => {
+        return raw_spots.filter(spot => (spot.type === "pota") === is_pota_mode);
+    }, [raw_spots, is_pota_mode]);
+
     const spots_with_alerts = useMemo(() => {
-        return raw_spots.map(spot => ({
+        return source_spots.map(spot => ({
             ...spot,
             is_alerted: is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active,
         }));
-    }, [raw_spots, alerts, callsign_filters.is_alert_filters_active]);
+    }, [source_spots, alerts, callsign_filters.is_alert_filters_active]);
 
     const spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;
@@ -68,13 +72,19 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
                 const is_in_time_limit =
                     is_history_mode || current_time - spot.time < filters.time_limit;
 
-                const is_matching_search = spot.dx_callsign
-                    .toLowerCase()
-                    .startsWith(search_query.toLowerCase());
+                const normalized_search = search_query.toLowerCase();
+                const is_matching_search = [
+                    spot.dx_callsign,
+                    spot.spotter_callsign,
+                    spot.pota_reference,
+                ].some(value => (value ?? "").toLowerCase().startsWith(normalized_search));
+                const is_matching_pota_text = [spot.pota_name, spot.pota_description].some(value =>
+                    (value ?? "").toLowerCase().includes(normalized_search),
+                );
 
                 // If the search is not empty, it override everything else
                 if (search_query.length > 0) {
-                    return is_matching_search && is_in_time_limit;
+                    return (is_matching_search || is_matching_pota_text) && is_in_time_limit;
                 }
 
                 // Alerted spots are always displayed
@@ -139,6 +149,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         table_sort,
         filters.show_only_latest_spot,
         search_query,
+        is_pota_mode,
         is_history_mode,
     ]);
 
