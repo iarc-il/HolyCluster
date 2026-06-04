@@ -1,6 +1,5 @@
 import { createContext, useContext } from "react";
-import { use_object_local_storage } from "@/utils.js";
-import { bands, modes } from "@/data/filters_data.js";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 
 const SettingsContext = createContext(undefined);
 
@@ -13,24 +12,12 @@ export function useSettings() {
 }
 
 export function SettingsProvider({ children }) {
-    const [settings, set_settings] = use_object_local_storage("settings", {
-        locator: "",
-        default_radius: 20000,
-        theme: "Dark",
-        callsign: "",
-        is_miles: false,
-        propagation_displayed: true,
-        show_flags: true,
-        show_state_abbreviations: true,
-        show_equator: false,
-        highlight_enabled: true,
-        highlight_port: 2237,
-        alert_sound_enabled: false,
-        disabled_bands: Object.fromEntries(bands.map(band => [band, false])),
-        show_disabled_bands: false,
-        disabled_modes: Object.fromEntries(modes.map(mode => [mode, false])),
-        show_disabled_modes: false,
-    });
+    const { active_profile_data, update_active_profile_section } = useProfiles();
+    const settings = active_profile_data.settings;
+
+    function set_settings(value_or_setter) {
+        update_active_profile_section("settings", value_or_setter);
+    }
 
     return (
         <SettingsContext.Provider value={{ settings, set_settings }}>

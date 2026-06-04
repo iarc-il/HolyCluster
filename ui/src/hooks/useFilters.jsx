@@ -1,8 +1,7 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { use_object_local_storage } from "@/utils.js";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { normalize_zone_value } from "@/utils/zones.js";
-import { create_initial_callsign_filters, create_initial_filters } from "@/data/filter_defaults.js";
 import {
     build_filter_share_url,
     decode_filter_state,
@@ -118,15 +117,10 @@ export const useFilters = () => {
 export const FiltersProvider = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const initial_filters = useMemo(() => create_initial_filters(), []);
-    const initial_callsign_filters = useMemo(() => create_initial_callsign_filters(), []);
+    const { active_profile_data, update_active_profile_data, update_active_profile_section } =
+        useProfiles();
     const filter_url_value = get_filter_url_param(location.search);
 
-    const [stored_filters, setStoredFilters] = use_object_local_storage("filters", initial_filters);
-    const [stored_callsign_filters, setStoredCallsignFilters] = use_object_local_storage(
-        "callsign_filters",
-        initial_callsign_filters,
-    );
     const [shared_filter_state, set_shared_filter_state] = useState(() =>
         decode_filter_state(filter_url_value),
     );
@@ -136,10 +130,12 @@ export const FiltersProvider = ({ children }) => {
     }, [filter_url_value]);
 
     const is_shared_filter_state = shared_filter_state != null;
-    const filters = is_shared_filter_state ? shared_filter_state.filters : stored_filters;
+    const filters = is_shared_filter_state
+        ? shared_filter_state.filters
+        : active_profile_data.filters;
     const callsign_filters = is_shared_filter_state
         ? shared_filter_state.callsign_filters
-        : stored_callsign_filters;
+        : active_profile_data.callsign_filters;
 
     function apply_setter_value(previous_value, value_or_setter) {
         return typeof value_or_setter === "function"
@@ -149,7 +145,7 @@ export const FiltersProvider = ({ children }) => {
 
     function setFilters(value_or_setter) {
         if (!is_shared_filter_state) {
-            setStoredFilters(value_or_setter);
+            update_active_profile_section("filters", value_or_setter);
             return;
         }
 
@@ -167,7 +163,7 @@ export const FiltersProvider = ({ children }) => {
 
     function setCallsignFilters(value_or_setter) {
         if (!is_shared_filter_state) {
-            setStoredCallsignFilters(value_or_setter);
+            update_active_profile_section("callsign_filters", value_or_setter);
             return;
         }
 
@@ -188,8 +184,11 @@ export const FiltersProvider = ({ children }) => {
             return;
         }
 
-        setStoredFilters(shared_filter_state.filters);
-        setStoredCallsignFilters(shared_filter_state.callsign_filters);
+        update_active_profile_data(data => ({
+            ...data,
+            filters: shared_filter_state.filters,
+            callsign_filters: shared_filter_state.callsign_filters,
+        }));
         set_shared_filter_state(null);
 
         const search_params = new URLSearchParams(location.search);
