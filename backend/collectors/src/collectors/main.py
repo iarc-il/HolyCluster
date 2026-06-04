@@ -15,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from collectors.db.valkey_config import get_valkey_client
 from collectors.enrichers.dxpeditions import is_active_dxpedition
-from collectors.enrichers.frequencies import InvalidBandError, find_band_and_mode
+from collectors.enrichers.frequencies import InvalidBandError, find_band, find_band_and_mode
+from collectors.pota import run_pota_collector
 from collectors.settings import settings
 from collectors.telnet.runner import (
     run_concurrent_telnet_connections,
@@ -39,9 +40,19 @@ def validate_callsign(callsign, role):
 
 
 async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_client) -> dict:
-    spot["timestamp"] = datetime.now(timezone.utc).timestamp()
+    spot["timestamp"] = float(spot.get("timestamp") or datetime.now(timezone.utc).timestamp())
 
-    band, mode, mode_selection = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"])
+    source_mode = (spot.get("mode") or "").strip().upper()
+    if source_mode:
+        if source_mode in ("USB", "LSB"):
+            source_mode = "SSB"
+        band = find_band(spot["frequency"])
+        if not band:
+            raise InvalidBandError(f"Band not found for frequency={spot['frequency']}")
+        mode = source_mode
+        mode_selection = "source"
+    else:
+        band, mode, mode_selection = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"])
 
     validate_callsign(spot["spotter_callsign"], "spotter")
     validate_callsign(spot["dx_callsign"], "dx")
@@ -259,6 +270,7 @@ async def run_collector():
     trim_task = asyncio.create_task(trim_arrivals_stream(valkey_client), name="trim_arrivals_stream")
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
     collector_tasks = run_concurrent_telnet_connections(spots_queue)
+    collector_tasks.append(asyncio.create_task(run_pota_collector(spots_queue), name="pota.app"))
 
     tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task, trim_task]
     tasks.extend(collector_tasks)

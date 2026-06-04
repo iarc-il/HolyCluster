@@ -153,7 +153,7 @@ def cleanup_spot(spot):
         else:
             band = spot["band"]
 
-        return {
+        cleaned_spot = {
             "spotter_callsign": spot["spotter_callsign"],
             "spotter_loc": [float(spot["spotter_lon"]), float(spot["spotter_lat"])],
             "spotter_country": spot["spotter_country"],
@@ -175,6 +175,12 @@ def cleanup_spot(spot):
             "comment": spot["comment"],
             "is_dxpedition": bool(int(spot.get("is_dxpedition", 0))),
         }
+        spot_type = spot.get("type")
+        if not spot_type and spot.get("cluster") == "pota.app":
+            spot_type = "pota"
+        if spot_type:
+            cleaned_spot["type"] = spot_type
+        return cleaned_spot
     except (KeyError, ValueError):
         logger.exception(f"Failed to process spot: {spot}")
         return None
