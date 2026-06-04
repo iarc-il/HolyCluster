@@ -45,7 +45,7 @@ function Modal({
         }
     }, [external_open]);
     useEffect(() => {
-        if (!external_close) {
+        if (external_close === false) {
             set_show_modal(false);
         }
     }, [external_close]);

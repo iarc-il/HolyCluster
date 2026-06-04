@@ -22,6 +22,23 @@ function apply_setter_value(previous_value, value_or_setter) {
         : value_or_setter;
 }
 
+function read_profile_store_snapshot(fallback_value) {
+    if (typeof window === "undefined") {
+        return fallback_value;
+    }
+
+    const raw_store = window.localStorage.getItem(PROFILE_STORE_KEY);
+    if (raw_store == null) {
+        return fallback_value;
+    }
+
+    try {
+        return JSON.parse(raw_store);
+    } catch (_error) {
+        return fallback_value;
+    }
+}
+
 export function useProfiles() {
     const context = useContext(ProfilesContext);
     if (context === undefined) {
@@ -97,7 +114,8 @@ export function ProfilesProvider({ children }) {
 
     function update_profile_store(value_or_setter) {
         set_stored_profile_store(current_store => {
-            const current = sanitize_profile_store(current_store, fallback_profile_data);
+            const latest_store = read_profile_store_snapshot(current_store);
+            const current = sanitize_profile_store(latest_store, fallback_profile_data);
             return sanitize_profile_store(
                 apply_setter_value(current, value_or_setter),
                 fallback_profile_data,
