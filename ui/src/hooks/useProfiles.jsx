@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
+import { useLocation, useNavigate } from "react-router";
 import {
     make_unique_profile_name,
     PROFILE_STORE_KEY,
@@ -7,6 +8,7 @@ import {
     sanitize_profile_data,
     sanitize_profile_store,
 } from "@/utils/profile_data.js";
+import { FILTER_URL_PARAM } from "@/utils/filter_url_state.js";
 
 const ProfilesContext = createContext(undefined);
 
@@ -29,6 +31,8 @@ export function useProfiles() {
 }
 
 export function ProfilesProvider({ children }) {
+    const location = useLocation();
+    const navigate = useNavigate();
     const initial_profile_store = useMemo(
         () => sanitize_profile_store(null, read_legacy_profile_data()),
         [],
@@ -43,6 +47,7 @@ export function ProfilesProvider({ children }) {
         () => sanitize_profile_store(stored_profile_store, fallback_profile_data),
         [stored_profile_store, fallback_profile_data],
     );
+    const previous_active_profile_name_ref = useRef(profile_store.active_profile_name);
 
     useEffect(() => {
         if (!are_equal(stored_profile_store, profile_store)) {
@@ -54,6 +59,29 @@ export function ProfilesProvider({ children }) {
         profile_store.profiles.find(
             profile => profile.name === profile_store.active_profile_name,
         ) ?? profile_store.profiles[0];
+
+    useEffect(() => {
+        if (previous_active_profile_name_ref.current === profile_store.active_profile_name) {
+            return;
+        }
+        previous_active_profile_name_ref.current = profile_store.active_profile_name;
+
+        const search_params = new URLSearchParams(location.search);
+        if (!search_params.has(FILTER_URL_PARAM)) {
+            return;
+        }
+
+        search_params.delete(FILTER_URL_PARAM);
+        const next_search = search_params.toString();
+        navigate(
+            {
+                pathname: location.pathname,
+                search: next_search ? `?${next_search}` : "",
+                hash: location.hash,
+            },
+            { replace: true },
+        );
+    }, [profile_store.active_profile_name, location, navigate]);
 
     function update_profile_store(value_or_setter) {
         set_stored_profile_store(current_store => {
