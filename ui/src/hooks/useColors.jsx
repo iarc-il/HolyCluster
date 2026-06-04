@@ -4,6 +4,7 @@ import { useLocalStorage } from "@uidotdev/usehooks";
 
 import { use_object_local_storage } from "@/utils.js";
 import { bands, modes, continents } from "@/data/filters_data.js";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 
 const ColorsContext = createContext(undefined);
 
@@ -312,11 +313,16 @@ const themes = {
 export const themes_names = Object.entries(themes).map(([name, theme]) => name);
 
 export const ColorsProvider = ({ children }) => {
+    const {
+        active_profile_data: {
+            settings: { theme: profile_theme },
+        },
+    } = useProfiles();
     const [dev_mode, set_dev_mode] = useLocalStorage("dev_mode", false);
-    const [current_theme, set_current_theme] = useLocalStorage("currnet_theme", "Dark");
     const [colors_inner, set_colors_inner] = use_object_local_storage("colors", themes.Dark);
+    const profile_theme_name = themes[profile_theme] ? profile_theme : "Dark";
 
-    let colors = dev_mode ? colors_inner : themes[current_theme];
+    let colors = dev_mode ? colors_inner : themes[profile_theme_name];
 
     colors.light_bands = Object.fromEntries(
         Object.entries(colors.bands).map(([band, color]) => [band, pSBC(0.25, colors.bands[band])]),
@@ -341,12 +347,12 @@ export const ColorsProvider = ({ children }) => {
     }
 
     function setTheme(theme_name) {
-        set_current_theme(theme_name);
-        set_colors_inner(themes[theme_name]);
+        const next_theme = themes[theme_name] ? theme_name : "Dark";
+        set_colors_inner(themes[next_theme]);
     }
 
     function resetToCurrentTheme() {
-        set_colors_inner(themes[current_theme]);
+        set_colors_inner(themes[profile_theme_name]);
     }
 
     return (

@@ -71,12 +71,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const [should_open_settings, set_should_open_settings] = useState(false);
 
     function apply_settings(new_settings) {
-        let locator;
-        if (locator && locator != "") {
-            locator = new_settings.locator;
-        } else {
-            locator = "JJ00AA";
-        }
+        const locator = new_settings.locator || "JJ00AA";
         const [lat, lon] = Maidenhead.toLatLon(locator);
         set_map_controls(map_controls => {
             map_controls.location.displayed_locator = locator;

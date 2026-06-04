@@ -161,11 +161,11 @@ function ImportExport({ set_temp_settings }) {
                         accept=".json"
                         onChange={handle_import}
                         className="hidden"
-                        id="settings-import"
+                        id="profile-import"
                     />
                     <Button
                         color="blue"
-                        on_click={() => document.getElementById("settings-import").click()}
+                        on_click={() => document.getElementById("profile-import").click()}
                     >
                         Import as New Profile
                     </Button>
