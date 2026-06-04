@@ -64,11 +64,34 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const [temp_settings, set_temp_settings] = useState(empty_temp_settings);
     const { colors, setTheme } = useColors();
     const { settings, set_settings } = useSettings();
-    const { filters, setFilters } = useFilters();
+    const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
     const { is_radio_available } = use_radio();
 
     const [first_launch, set_first_launch] = useLocalStorage("first_launch", true);
     const [should_open_settings, set_should_open_settings] = useState(false);
+
+    function disable_settings_filters(current_filters, new_settings) {
+        const updated_bands = { ...current_filters.bands };
+        const updated_modes = { ...current_filters.modes };
+
+        bands.forEach(band => {
+            if (new_settings.disabled_bands[band]) {
+                updated_bands[band] = false;
+            }
+        });
+
+        modes.forEach(mode => {
+            if (new_settings.disabled_modes[mode]) {
+                updated_modes[mode] = false;
+            }
+        });
+
+        return {
+            ...current_filters,
+            bands: updated_bands,
+            modes: updated_modes,
+        };
+    }
 
     function apply_settings(new_settings) {
         const locator = new_settings.locator || "JJ00AA";
@@ -83,34 +106,18 @@ function Settings({ set_map_controls, set_radius_in_km }) {
         setTheme(new_settings.theme);
         set_settings(new_settings);
 
-        setFilters(current_filters => {
-            const updated_bands = { ...current_filters.bands };
-            const updated_modes = { ...current_filters.modes };
-
-            bands.forEach(band => {
-                if (new_settings.disabled_bands[band]) {
-                    updated_bands[band] = false;
-                }
-            });
-
-            modes.forEach(mode => {
-                if (new_settings.disabled_modes[mode]) {
-                    updated_modes[mode] = false;
-                }
-            });
-
-            return {
-                ...current_filters,
-                bands: updated_bands,
-                modes: updated_modes,
-            };
-        });
+        const update_disabled_filters = current_filters =>
+            disable_settings_filters(current_filters, new_settings);
+        setFilters(update_disabled_filters);
+        if (is_shared_filter_state) {
+            setProfileFilters(update_disabled_filters);
+        }
     }
 
     useEffect(() => {
         set_first_launch(false);
 
-        if (first_launch == true && settings.locator === "JJ00AA") {
+        if (first_launch === true && (settings.locator === "" || settings.locator === "JJ00AA")) {
             set_should_open_settings(true);
         }
     }, [first_launch]);
@@ -163,12 +170,13 @@ function Settings({ set_map_controls, set_radius_in_km }) {
         });
     }
 
-    const is_settings_valid =
-        temp_settings.locator === "" ||
-        (Maidenhead.valid(temp_settings.locator || "JJ0AA") &&
-            temp_settings.default_radius >= 1000 &&
-            temp_settings.default_radius <= 20000 &&
-            temp_settings.default_radius % 1000 == 0);
+    const is_locator_valid =
+        temp_settings.locator === "" || Maidenhead.valid(temp_settings.locator);
+    const is_default_radius_valid =
+        temp_settings.default_radius >= 1000 &&
+        temp_settings.default_radius <= 20000 &&
+        temp_settings.default_radius % 1000 == 0;
+    const is_settings_valid = is_locator_valid && is_default_radius_valid;
 
     return (
         <Modal

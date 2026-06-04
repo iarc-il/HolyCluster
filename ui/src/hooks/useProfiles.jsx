@@ -48,6 +48,7 @@ export function ProfilesProvider({ children }) {
         [stored_profile_store, fallback_profile_data],
     );
     const previous_active_profile_name_ref = useRef(profile_store.active_profile_name);
+    const should_clear_filter_url_ref = useRef(false);
 
     useEffect(() => {
         if (!are_equal(stored_profile_store, profile_store)) {
@@ -66,6 +67,11 @@ export function ProfilesProvider({ children }) {
         }
         previous_active_profile_name_ref.current = profile_store.active_profile_name;
 
+        if (!should_clear_filter_url_ref.current) {
+            return;
+        }
+        should_clear_filter_url_ref.current = false;
+
         const search_params = new URLSearchParams(location.search);
         if (!search_params.has(FILTER_URL_PARAM)) {
             return;
@@ -81,7 +87,13 @@ export function ProfilesProvider({ children }) {
             },
             { replace: true },
         );
-    }, [profile_store.active_profile_name, location, navigate]);
+    }, [
+        profile_store.active_profile_name,
+        location.pathname,
+        location.search,
+        location.hash,
+        navigate,
+    ]);
 
     function update_profile_store(value_or_setter) {
         set_stored_profile_store(current_store => {
@@ -94,6 +106,13 @@ export function ProfilesProvider({ children }) {
     }
 
     function set_active_profile_name(name) {
+        if (
+            name !== profile_store.active_profile_name &&
+            profile_store.profiles.some(profile => profile.name === name)
+        ) {
+            should_clear_filter_url_ref.current = true;
+        }
+
         update_profile_store(store => {
             if (!store.profiles.some(profile => profile.name === name)) {
                 return store;
@@ -107,6 +126,8 @@ export function ProfilesProvider({ children }) {
     }
 
     function create_profile(name, data = active_profile.data) {
+        should_clear_filter_url_ref.current = true;
+
         update_profile_store(store => {
             const profile_name = make_unique_profile_name(name, store.profiles);
             return {
@@ -149,6 +170,10 @@ export function ProfilesProvider({ children }) {
     }
 
     function delete_profile(name) {
+        if (name === profile_store.active_profile_name && profile_store.profiles.length > 1) {
+            should_clear_filter_url_ref.current = true;
+        }
+
         update_profile_store(store => {
             if (store.profiles.length <= 1) {
                 return store;

@@ -147,9 +147,13 @@ export const FiltersProvider = ({ children }) => {
             : value_or_setter;
     }
 
+    function setProfileFilters(value_or_setter) {
+        update_active_profile_section("filters", value_or_setter);
+    }
+
     function setFilters(value_or_setter) {
         if (!is_shared_filter_state) {
-            update_active_profile_section("filters", value_or_setter);
+            setProfileFilters(value_or_setter);
             return;
         }
 
@@ -331,6 +335,7 @@ export const FiltersProvider = ({ children }) => {
             value={{
                 filters,
                 setFilters,
+                setProfileFilters,
                 setFilterKeys,
                 setOnlyFilterKeys,
                 setRadioModeFilter,

@@ -104,6 +104,8 @@ function Profiles({ colors, set_temp_settings }) {
                         onChange={event => set_new_profile_name(event.target.value)}
                         onKeyDown={event => {
                             if (event.key === "Enter") {
+                                event.preventDefault();
+                                event.stopPropagation();
                                 handle_create_profile();
                             }
                         }}
@@ -126,6 +128,8 @@ function Profiles({ colors, set_temp_settings }) {
                         onChange={event => set_rename_value(event.target.value)}
                         onKeyDown={event => {
                             if (event.key === "Enter") {
+                                event.preventDefault();
+                                event.stopPropagation();
                                 handle_rename_profile();
                             }
                         }}
