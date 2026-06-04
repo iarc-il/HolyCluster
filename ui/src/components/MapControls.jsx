@@ -35,7 +35,7 @@ function MapControls({
     const { colors } = useColors();
     const { propagation } = useRestData();
     const { radio_status } = use_radio();
-    const { settings } = useSettings();
+    const { settings, set_settings } = useSettings();
     const { filters, setFilters } = useFilters();
     const mode_button_ref = useRef(null);
     const controls_panel_ref = useRef(null);
@@ -50,6 +50,7 @@ function MapControls({
     const itu_zones_on = map_controls.show_itu_zones;
     const us_states_on = map_controls.show_us_states ?? false;
     const can_states_on = map_controls.show_can_states ?? false;
+    const equator_on = settings.show_equator ?? false;
 
     const active_zone_systems = cq_zones_on
         ? ["cq"]
@@ -194,6 +195,13 @@ function MapControls({
                 clear_exclusive_overlays(state);
             }
         });
+    }
+
+    function toggle_equator() {
+        set_settings(state => ({
+            ...state,
+            show_equator: !state.show_equator,
+        }));
     }
 
     const overlay_buttons = [
@@ -396,6 +404,45 @@ function MapControls({
                                     size="40"
                                 ></Radio>
                             ) : null}
+                            <button
+                                type="button"
+                                onClick={toggle_equator}
+                                className="flex h-10 w-10 items-center justify-center rounded-md"
+                                style={{
+                                    color: equator_on
+                                        ? colors.buttons.utility
+                                        : colors.buttons.disabled,
+                                }}
+                                aria-label={equator_on ? "Hide equator" : "Show equator"}
+                                aria-pressed={equator_on}
+                                title={equator_on ? "Hide equator" : "Show equator"}
+                            >
+                                <svg
+                                    width="40"
+                                    height="40"
+                                    viewBox="0 0 40 40"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <circle cx="20" cy="20" r="15.5" strokeWidth="2.2" />
+                                    <path
+                                        d="M20 4.5c-4.4 4.4-6.8 9.7-6.8 15.5S15.6 31.1 20 35.5"
+                                        strokeWidth="1.7"
+                                        opacity="0.65"
+                                    />
+                                    <path
+                                        d="M20 4.5c4.4 4.4 6.8 9.7 6.8 15.5S24.4 31.1 20 35.5"
+                                        strokeWidth="1.7"
+                                        opacity="0.65"
+                                    />
+                                    <path d="M7.5 14h25" strokeWidth="1.5" opacity="0.45" />
+                                    <path d="M7.5 26h25" strokeWidth="1.5" opacity="0.45" />
+                                    <path d="M4 20h32" strokeWidth="3.6" />
+                                </svg>
+                            </button>
                             <button
                                 ref={mode_button_ref}
                                 onClick={() =>

@@ -210,20 +210,6 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         </td>
                     </tr>
                     <tr>
-                        <td>Show equator:&nbsp;&nbsp;</td>
-                        <td>
-                            <Toggle
-                                value={temp_settings.show_equator}
-                                on_click={() => {
-                                    set_temp_settings({
-                                        ...temp_settings,
-                                        show_equator: !temp_settings.show_equator,
-                                    });
-                                }}
-                            />
-                        </td>
-                    </tr>
-                    <tr>
                         <td>Alert sound:&nbsp;&nbsp;</td>
                         <td className="flex gap-2">
                             <Toggle
