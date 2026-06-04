@@ -44,20 +44,15 @@ def _as_text(value: Any) -> str:
     return str(value).strip()
 
 
-def _build_pota_comment(raw_spot: dict[str, Any]) -> str:
-    reference = _as_text(raw_spot.get("reference"))
-    name = _as_text(raw_spot.get("name") or raw_spot.get("parkName"))
-    comments = _as_text(raw_spot.get("comments"))
-    details = " ".join(part for part in ("POTA", reference, name) if part)
-
-    if details and comments:
-        return f"{details} | {comments}"
-    return details or comments
+def get_pota_spot_key(raw_spot: dict[str, Any]) -> str:
+    try:
+        return f"pota:{int(raw_spot['spotId'])}"
+    except (KeyError, TypeError, ValueError) as e:
+        raise ValueError(f"invalid POTA spot ID: {e}") from e
 
 
 def parse_pota_spot(raw_spot: dict[str, Any]) -> dict:
     try:
-        spot_id = int(raw_spot["spotId"])
         spot_time = parse_pota_spot_time(raw_spot["spotTime"])
         frequency = float(_as_text(raw_spot.get("frequency")))
     except (KeyError, TypeError, ValueError) as e:
@@ -71,16 +66,18 @@ def parse_pota_spot(raw_spot: dict[str, Any]) -> dict:
     return {
         "cluster": POTA_CLUSTER,
         "type": POTA_TYPE,
-        "pota_spot_id": spot_id,
         "spotter_callsign": spotter_callsign,
         "frequency": frequency,
         "dx_callsign": dx_callsign,
-        "comment": _build_pota_comment(raw_spot),
+        "comment": "",
         "mode": _as_text(raw_spot.get("mode")).upper(),
         "time": spot_time.strftime("%H%MZ"),
         "timestamp": int(spot_time.timestamp()),
         "dx_locator": _as_text(raw_spot.get("grid6") or raw_spot.get("grid4")),
         "spotter_locator": "",
+        "pota_reference": _as_text(raw_spot.get("reference")),
+        "pota_name": _as_text(raw_spot.get("name") or raw_spot.get("parkName")),
+        "pota_description": _as_text(raw_spot.get("locationDesc")),
     }
 
 
@@ -121,13 +118,13 @@ async def run_pota_collector(output_queue: asyncio.Queue):
                 queued_count = 0
                 for raw_spot in sorted(raw_spots, key=lambda spot: _as_text(spot.get("spotTime"))):
                     try:
+                        spot_key = get_pota_spot_key(raw_spot)
                         spot = parse_pota_spot(raw_spot)
                     except ValueError as e:
                         logger.info(f"Dropping POTA spot due to parse error: {e}: {raw_spot}")
                         await push_drop_event(valkey_client, "pota_parse_error", json.dumps(raw_spot, default=str))
                         continue
 
-                    spot_key = f"pota:{spot['pota_spot_id']}"
                     added = await valkey_client.set(spot_key, 1, ex=POTA_SPOT_EXPIRATION, nx=True)
                     await _record_arrival(valkey_client, spot_key, bool(added))
                     if added:

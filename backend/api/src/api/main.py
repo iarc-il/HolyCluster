@@ -180,6 +180,10 @@ def cleanup_spot(spot):
             spot_type = "pota"
         if spot_type:
             cleaned_spot["type"] = spot_type
+        for key in ("pota_reference", "pota_name", "pota_description"):
+            value = spot.get(key)
+            if value is not None:
+                cleaned_spot[key] = value
         return cleaned_spot
     except (KeyError, ValueError):
         logger.exception(f"Failed to process spot: {spot}")
