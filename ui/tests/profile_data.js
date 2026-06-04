@@ -33,6 +33,8 @@ describe("profile_data", () => {
         expect(store.profiles).toHaveLength(1);
         expect(store.profiles[0].name).toBe(DEFAULT_PROFILE_NAME);
         expect(store.profiles[0].data.settings.theme).toBe("Dark");
+        expect(store.profiles[0].data.settings.main_view_mode).toBe("both");
+        expect(store.profiles[0].data.settings.main_view_order).toBe("map_table");
         expect(store.profiles[0].data.settings).not.toHaveProperty("show_equator");
         expect(store.profiles[0].data.map_controls.show_equator).toBe(false);
         expect(store.profiles[0].data.map_view.radius_in_km).toBe(20000);
@@ -64,6 +66,8 @@ describe("profile_data", () => {
                 default_radius: 1234,
                 theme: "  Solar  ",
                 callsign: " n0call ",
+                main_view_mode: "unknown",
+                main_view_order: "unknown",
                 highlight_port: 80,
                 disabled_bands: { 20: "yes", 40: true },
                 disabled_modes: { FT8: true },
@@ -104,6 +108,8 @@ describe("profile_data", () => {
         expect(data.settings.default_radius).toBe(defaults.settings.default_radius);
         expect(data.settings.theme).toBe("Solar");
         expect(data.settings.callsign).toBe("N0CALL");
+        expect(data.settings.main_view_mode).toBe(defaults.settings.main_view_mode);
+        expect(data.settings.main_view_order).toBe(defaults.settings.main_view_order);
         expect(data.settings.highlight_port).toBe(defaults.settings.highlight_port);
         expect(data.settings.disabled_bands[20]).toBe(defaults.settings.disabled_bands[20]);
         expect(data.settings.disabled_bands[40]).toBe(true);

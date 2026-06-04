@@ -15,6 +15,8 @@ const MIN_MAP_RADIUS_KM = 100;
 const DEFAULT_HISTORY_WINDOW_MS = 15 * 60_000;
 const MAX_HISTORY_WINDOW_MS = 8 * 60 * 60_000;
 const HISTORY_DISPLAY_HOURS = new Set([8, 12, 24, 48, 72]);
+const MAIN_VIEW_MODES = new Set(["both", "map", "table"]);
+const MAIN_VIEW_ORDERS = new Set(["map_table", "table_map"]);
 const DXPEDITION_SORT_KEYS = new Set(["start", "end", "on_air"]);
 const DXPEDITION_FILTER_KEYS = new Set(["all", "active", "upcoming"]);
 const TABLE_SORT_COLUMNS = new Set([
@@ -218,6 +220,8 @@ export function create_default_settings() {
         callsign: "",
         is_miles: false,
         propagation_displayed: true,
+        main_view_mode: "both",
+        main_view_order: "map_table",
         show_flags: true,
         show_state_abbreviations: true,
         highlight_enabled: true,
@@ -312,6 +316,16 @@ export function sanitize_settings(value, defaults = create_default_settings()) {
         propagation_displayed: to_boolean(
             source.propagation_displayed,
             defaults.propagation_displayed,
+        ),
+        main_view_mode: sanitize_choice(
+            source.main_view_mode,
+            defaults.main_view_mode,
+            MAIN_VIEW_MODES,
+        ),
+        main_view_order: sanitize_choice(
+            source.main_view_order,
+            defaults.main_view_order,
+            MAIN_VIEW_ORDERS,
         ),
         show_flags: to_boolean(source.show_flags, defaults.show_flags),
         show_state_abbreviations: to_boolean(
