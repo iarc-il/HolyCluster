@@ -117,8 +117,14 @@ export const useFilters = () => {
 export const FiltersProvider = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { active_profile_data, update_active_profile_data, update_active_profile_section } =
-        useProfiles();
+    const {
+        active_profile_data: {
+            filters: profile_filters,
+            callsign_filters: profile_callsign_filters,
+        },
+        update_active_profile_data,
+        update_active_profile_section,
+    } = useProfiles();
     const filter_url_value = get_filter_url_param(location.search);
 
     const [shared_filter_state, set_shared_filter_state] = useState(() =>
@@ -130,12 +136,10 @@ export const FiltersProvider = ({ children }) => {
     }, [filter_url_value]);
 
     const is_shared_filter_state = shared_filter_state != null;
-    const filters = is_shared_filter_state
-        ? shared_filter_state.filters
-        : active_profile_data.filters;
+    const filters = is_shared_filter_state ? shared_filter_state.filters : profile_filters;
     const callsign_filters = is_shared_filter_state
         ? shared_filter_state.callsign_filters
-        : active_profile_data.callsign_filters;
+        : profile_callsign_filters;
 
     function apply_setter_value(previous_value, value_or_setter) {
         return typeof value_or_setter === "function"

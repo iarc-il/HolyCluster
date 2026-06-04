@@ -2,9 +2,10 @@ import { useMemo, useState } from "react";
 import { useFilters } from "./useFilters";
 import use_radio from "./useRadio";
 import { useSpotInteraction } from "./useSpotInteraction";
-import { is_matching_list, sort_spots, use_object_local_storage } from "@/utils.js";
+import { is_matching_list, sort_spots } from "@/utils.js";
 import { bands, modes } from "@/data/filters_data.js";
 import { get_flag } from "@/data/flags.js";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 
 const freq_error_range = {
     FT8: 0.2,
@@ -20,15 +21,13 @@ function limit_count(count) {
 
 export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     const { filters, callsign_filters } = useFilters();
+    const {
+        active_profile_data: { table_sort },
+    } = useProfiles();
     const { radio_band, radio_freq, radio_status } = use_radio();
     const { search_query } = useSpotInteraction();
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
-
-    const [table_sort] = use_object_local_storage("table_sort", {
-        column: "time",
-        ascending: false,
-    });
 
     const show_only_filters = useMemo(
         () => callsign_filters.filters.filter(filter => filter.action == "show_only"),

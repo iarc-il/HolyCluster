@@ -8,19 +8,14 @@ import SidePanel from "@/components/SidePanel.jsx";
 import Tabs from "@/components/ui/Tabs.jsx";
 import HistoryBar from "@/components/history/HistoryBar.jsx";
 import Maidenhead from "maidenhead";
-import {
-    use_object_local_storage,
-    is_matching_list,
-    get_max_radius,
-    get_spots_center,
-} from "@/utils.js";
+import { get_max_radius, get_spots_center } from "@/utils.js";
 import { useSpotData, SpotDataProvider } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
-import { useSettings } from "@/hooks/useSettings";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 
 const AUTO_RADIUS_PADDING_KM = 1000;
@@ -41,24 +36,16 @@ function MainContent({
     }, [colors.theme.background]);
     const [toggled_ui, set_toggled_ui] = useState({ left_visible: true, right_visible: true });
     const { local_version } = use_radio();
-    const { settings, set_settings } = useSettings();
+    const {
+        active_profile_data: {
+            map_controls,
+            map_view: { auto_radius, radius_in_km },
+            table_sort,
+        },
+        update_active_profile_section,
+    } = useProfiles();
     const { spots, filter_missing_flags, set_filter_missing_flags } = useSpotData();
     const { set_pinned_spot } = useSpotInteraction();
-
-    const [map_controls, set_map_controls_inner] = use_object_local_storage("map_controls", {
-        night: false,
-        is_globe: false,
-        show_cq_zones: false,
-        show_itu_zones: false,
-        show_dxcc_labels: false,
-        show_us_states: false,
-        show_can_states: false,
-        location: {
-            displayed_locator: "JJ00AA",
-            // Longitude, latitude
-            location: [0, 0],
-        },
-    });
 
     const [prev_freqs, set_prev_freqs] = useState([]);
     const prev_freq_limit = 1; // Set the max number of undos a user can do
@@ -66,22 +53,39 @@ function MainContent({
     const [is_map_fullscreen, set_is_map_fullscreen] = useState(false);
 
     const set_map_controls = change_func => {
-        set_map_controls_inner(previous_state => {
+        update_active_profile_section("map_controls", previous_state => {
             const state = structuredClone(previous_state);
             change_func(state);
             return state;
         });
     };
 
-    const [table_sort, set_table_sort] = use_object_local_storage("table_sort", {
-        column: "time",
-        ascending: false,
-    });
+    function set_table_sort(value_or_setter) {
+        update_active_profile_section("table_sort", value_or_setter);
+    }
+
+    function set_auto_radius(value_or_setter) {
+        update_active_profile_section("map_view", map_view => ({
+            ...map_view,
+            auto_radius:
+                typeof value_or_setter === "function"
+                    ? value_or_setter(map_view.auto_radius)
+                    : value_or_setter,
+        }));
+    }
+
+    function set_radius_in_km(value_or_setter) {
+        update_active_profile_section("map_view", map_view => ({
+            ...map_view,
+            radius_in_km:
+                typeof value_or_setter === "function"
+                    ? value_or_setter(map_view.radius_in_km)
+                    : value_or_setter,
+        }));
+    }
 
     const max_radius = get_max_radius(map_controls.location.location, spots);
 
-    const [radius_in_km, set_radius_in_km] = useState(settings.default_radius);
-    const [auto_radius, set_auto_radius] = useLocalStorage("auto_radius", true);
     const prev_auto_radius_ref = useRef(auto_radius);
     useEffect(() => {
         const just_activated = auto_radius && !prev_auto_radius_ref.current;
