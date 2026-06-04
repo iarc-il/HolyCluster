@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocalStorage } from "@uidotdev/usehooks";
 import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useRestData } from "@/hooks/useRestData";
 import Popup from "@/components/ui/Popup";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 
 const filter_options = [
     { key: "all", label: "All" },
@@ -174,9 +174,26 @@ function DXpeditions() {
     const { hovered_spot, set_hovered_spot } = useSpotInteraction();
     const { dxpeditions } = useRestData();
     const card_refs = useRef({});
+    const {
+        active_profile_data: {
+            panels: { dxpeditions_sort: sort_key, dxpeditions_filter: filter_key },
+        },
+        update_active_profile_section,
+    } = useProfiles();
 
-    const [sort_key, set_sort_key] = useLocalStorage("dxpeditions_sort", "end");
-    const [filter_key, set_filter_key] = useLocalStorage("dxpeditions_filter", "all");
+    function set_sort_key(value) {
+        update_active_profile_section("panels", panels => ({
+            ...panels,
+            dxpeditions_sort: value,
+        }));
+    }
+
+    function set_filter_key(value) {
+        update_active_profile_section("panels", panels => ({
+            ...panels,
+            dxpeditions_filter: value,
+        }));
+    }
 
     const spotted_dxpedition_spots = useMemo(() => {
         const map = new Map();

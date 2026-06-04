@@ -298,12 +298,24 @@ function MainContent({
 }
 
 function MainContainer() {
+    const {
+        active_profile_data: {
+            history: { window_size_ms },
+        },
+        update_active_profile_section,
+    } = useProfiles();
     const [history_start, set_history_start] = useState(null);
     const [history_end, set_history_end] = useState(null);
-    const [window_size_ms, set_window_size_ms] = useLocalStorage(
-        "history-window-size",
-        15 * 60_000,
-    );
+
+    function set_window_size_ms(value_or_setter) {
+        update_active_profile_section("history", history => ({
+            ...history,
+            window_size_ms:
+                typeof value_or_setter === "function"
+                    ? value_or_setter(history.window_size_ms)
+                    : value_or_setter,
+        }));
+    }
 
     return (
         <SpotDataProvider

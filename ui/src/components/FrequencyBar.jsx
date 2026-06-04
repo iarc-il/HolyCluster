@@ -3,10 +3,10 @@ import { useRef, useMemo } from "react";
 import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { useLocalStorage } from "@uidotdev/usehooks";
 import use_radio from "@/hooks/useRadio";
 import { get_mode_shape } from "@/data/mode_shapes.js";
 import { band_plans } from "@/data/band_plans.js";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 
 function useBandSpots(spots, band) {
     const sorted = useMemo(() => {
@@ -190,7 +190,19 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
     const { spots, current_freq_spots: freq_spots } = useSpotData();
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useSpotInteraction();
     // Set to -1 to use the current band that the radio is on
-    const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
+    const {
+        active_profile_data: {
+            panels: { frequency_bar_band: selected_band },
+        },
+        update_active_profile_section,
+    } = useProfiles();
+
+    function set_selected_band(value) {
+        update_active_profile_section("panels", panels => ({
+            ...panels,
+            frequency_bar_band: value,
+        }));
+    }
 
     let { radio_band, radio_freq, radio_status } = use_radio();
 

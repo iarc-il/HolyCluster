@@ -3,7 +3,7 @@ import { useColors } from "@/hooks/useColors";
 import Select from "@/components/ui/Select.jsx";
 import Button from "@/components/ui/Button.jsx";
 import HistoryBarSettings from "@/components/history/HistoryBarSettings.jsx";
-import { useLocalStorage } from "@uidotdev/usehooks";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 
 const PRESETS = [
     { label: "8h", hours: 8 },
@@ -36,13 +36,28 @@ function tick_interval_hours(range_hours) {
 
 function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window_size_ms }) {
     const { colors } = useColors();
+    const {
+        active_profile_data: {
+            history: { display_hours, time_between_shifts },
+        },
+        update_active_profile_section,
+    } = useProfiles();
 
-    const [display_hours, set_display_hours] = useLocalStorage("history-display-hours", 24);
     const [is_playing, set_is_playing] = useState(false);
-    const [time_between_shifts, set_time_between_shifts] = useLocalStorage(
-        "history-time-between-shifts",
-        3,
-    );
+
+    function set_display_hours(value) {
+        update_active_profile_section("history", history => ({
+            ...history,
+            display_hours: value,
+        }));
+    }
+
+    function set_time_between_shifts(value) {
+        update_active_profile_section("history", history => ({
+            ...history,
+            time_between_shifts: value,
+        }));
+    }
 
     const bar_ref = useRef(null);
     const drag_ref = useRef(null);

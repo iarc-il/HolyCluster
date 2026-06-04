@@ -10,14 +10,13 @@ import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useSpotData } from "@/hooks/useSpotData";
-import { useSettings } from "@/hooks/useSettings";
-import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
+import { useMediaQuery } from "@uidotdev/usehooks";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 
 import ClusterStats from "@/components/ClusterStats.jsx";
 import Icon from "@/assets/icon.png";
 import OpenMenu from "@/components/OpenMenu.jsx";
 
-import { modes } from "@/data/filters_data.js";
 import { useEffect } from "react";
 import use_radio from "@/hooks/useRadio";
 
@@ -32,20 +31,24 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
     const { filters, setFilters } = useFilters();
     const { network_state } = useSpotData();
     const { set_rig, radio_status, rig } = use_radio();
-    const { settings, set_settings } = useSettings();
+    const {
+        active_profile_data: {
+            radio: { requested_rig },
+        },
+        update_active_profile_section,
+    } = useProfiles();
 
     const network_state_colors = {
         connected: "#00EE00",
         disconnected: "#EE0000",
     };
     const { colors } = useColors();
-    const [requested_rig, set_requested_rig] = useLocalStorage("requested_rig", 1);
 
     useEffect(() => {
         if (rig && rig != requested_rig) {
             set_rig(requested_rig);
         }
-    }, [rig]);
+    }, [rig, requested_rig]);
 
     const { radio_freq } = use_radio();
 
@@ -102,7 +105,10 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                                         className="text-xs p-0 w-full h-4"
                                         on_click={() => {
                                             if (!rig_active) {
-                                                set_requested_rig(rig_val);
+                                                update_active_profile_section("radio", radio => ({
+                                                    ...radio,
+                                                    requested_rig: rig_val,
+                                                }));
                                                 set_rig(rig_val);
                                             }
                                         }}

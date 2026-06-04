@@ -1,16 +1,21 @@
 import { useMemo, useEffect, useRef } from "react";
-import { useLocalStorage } from "@uidotdev/usehooks";
 import simpleheat from "simpleheat";
 import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSettings } from "@/hooks/useSettings";
 import { bands, continents } from "@/data/filters_data.js";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 
 function Heatmap() {
     const { colors } = useColors();
     const { raw_spots } = useSpotData();
     const { settings } = useSettings();
-    const [selected_continent, set_selected_continent] = useLocalStorage("heatmap_continent", "EU");
+    const {
+        active_profile_data: {
+            panels: { heatmap_continent: selected_continent },
+        },
+        update_active_profile_section,
+    } = useProfiles();
     const canvas_ref = useRef(null);
     const heatmap_instance_ref = useRef(null);
 
@@ -22,9 +27,6 @@ function Heatmap() {
     });
 
     const heatmap_data = useMemo(() => {
-        const current_time = Math.floor(Date.now() / 1000);
-        const one_hour_ago = current_time - 3600;
-
         const counts = {};
 
         for (const band of visible_bands) {
@@ -168,7 +170,12 @@ function Heatmap() {
                     <span className="text-sm">Continent:</span>
                     <select
                         value={selected_continent}
-                        onChange={e => set_selected_continent(e.target.value)}
+                        onChange={event =>
+                            update_active_profile_section("panels", panels => ({
+                                ...panels,
+                                heatmap_continent: event.target.value,
+                            }))
+                        }
                         className="h-7 px-2 rounded-md text-sm ml-1"
                         style={{
                             backgroundColor: colors.theme.input_background,
