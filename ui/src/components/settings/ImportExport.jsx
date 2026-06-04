@@ -3,22 +3,16 @@ import Button from "@/components/ui/Button.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
-import { useSettings } from "@/hooks/useSettings";
-
-const EXPORTABLE_SETTINGS = {
-    settings: {
-        label: "General Settings",
-        description: "Locator, radius, theme, units, etc.",
-    },
-    filters: {
-        label: "Band & Mode Filters",
-        description: "Band, mode, and continent filters",
-    },
-    callsign_filters: {
-        label: "Callsign Filters",
-        description: "Alert, show only, and hide filters",
-    },
-};
+import { useProfiles } from "@/hooks/useProfiles.jsx";
+import {
+    create_profile_export,
+    make_unique_profile_name,
+    pick_profile_sections,
+    PROFILE_SECTION_DEFINITIONS,
+    PROFILE_SECTION_KEYS,
+    sanitize_imported_profile,
+    sanitize_profile_data,
+} from "@/utils/profile_data.js";
 
 async function copy_to_clipboard(text) {
     if (navigator.clipboard?.writeText) {
@@ -42,81 +36,81 @@ async function copy_to_clipboard(text) {
     }
 }
 
-function ImportExport({ set_temp_settings, apply_settings, set_should_close_settings }) {
-    const { colors } = useColors();
-    const {
-        filters,
-        setFilters,
-        callsign_filters,
-        setCallsignFilters,
-        is_shared_filter_state,
-        save_shared_filters,
-        get_filter_share_url,
-    } = useFilters();
-    const { settings } = useSettings();
+function profile_name_from_file(file) {
+    return file.name.replace(/\.json$/i, "").trim() || "Imported Profile";
+}
 
-    const [selected_settings, set_selected_settings] = useState(
-        Object.fromEntries(Object.keys(EXPORTABLE_SETTINGS).map(key => [key, true])),
+function filename_safe(value) {
+    return value
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+}
+
+function ImportExport({ set_temp_settings }) {
+    const { colors } = useColors();
+    const { is_shared_filter_state, save_shared_filters, get_filter_share_url } = useFilters();
+    const { profiles, active_profile, create_profile } = useProfiles();
+
+    const [selected_sections, set_selected_sections] = useState(
+        Object.fromEntries(PROFILE_SECTION_KEYS.map(key => [key, true])),
     );
+    const [file_status, set_file_status] = useState("");
     const [share_status, set_share_status] = useState("");
 
-    function handle_export() {
-        const export_data = {};
-        Object.entries(selected_settings).forEach(([key, is_selected]) => {
-            if (is_selected) {
-                switch (key) {
-                    case "settings":
-                        export_data.settings = settings;
-                        break;
-                    case "filters":
-                        export_data.filters = filters;
-                        break;
-                    case "callsign_filters":
-                        export_data.callsign_filters = callsign_filters;
-                        break;
-                }
-            }
-        });
+    const selected_section_keys = PROFILE_SECTION_KEYS.filter(key => selected_sections[key]);
 
+    function handle_export() {
+        if (selected_section_keys.length === 0) {
+            set_file_status("Select at least one section to export.");
+            return;
+        }
+
+        const export_data = create_profile_export(active_profile, selected_section_keys);
         const data_str = JSON.stringify(export_data, null, 2);
         const data_blob = new Blob([data_str], { type: "application/json" });
         const url = URL.createObjectURL(data_blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = "holycluster-settings.json";
+        link.download = `holycluster-${filename_safe(active_profile.name) || "profile"}.json`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        set_file_status("Profile exported.");
     }
 
     function handle_import(event) {
         const file = event.target.files[0];
         if (!file) return;
 
+        if (selected_section_keys.length === 0) {
+            set_file_status("Select at least one section to import.");
+            event.target.value = null;
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = event => {
             try {
                 const imported_data = JSON.parse(event.target.result);
+                const imported_profile = sanitize_imported_profile(
+                    imported_data,
+                    profile_name_from_file(file),
+                );
+                const profile_data = sanitize_profile_data(
+                    pick_profile_sections(imported_profile.data, selected_section_keys),
+                );
+                const profile_name = make_unique_profile_name(imported_profile.name, profiles);
 
-                Object.entries(selected_settings).forEach(([key, is_selected]) => {
-                    if (is_selected && imported_data[key]) {
-                        switch (key) {
-                            case "settings":
-                                apply_settings(imported_data.settings);
-                                break;
-                            case "filters":
-                                setFilters(imported_data.filters);
-                                break;
-                            case "callsign_filters":
-                                setCallsignFilters(imported_data.callsign_filters);
-                                break;
-                        }
-                    }
-                });
-                set_should_close_settings(false);
+                create_profile(profile_name, profile_data);
+                set_temp_settings(profile_data.settings);
+                set_file_status(`Imported "${profile_name}" as a new profile.`);
             } catch (error) {
-                console.error("Error importing settings:", error);
+                console.error("Error importing profile:", error);
+                set_file_status("Could not import the selected profile file.");
             }
         };
         reader.readAsText(file);
@@ -140,23 +134,25 @@ function ImportExport({ set_temp_settings, apply_settings, set_should_close_sett
     return (
         <div className="p-4" style={{ color: colors.theme.text }}>
             <div className="space-y-2 mb-4">
-                {Object.entries(EXPORTABLE_SETTINGS).map(([key, { label, description }]) => (
-                    <div key={key} className="flex items-center justify-between">
-                        <div>
-                            <span className="font-medium">{label}</span>
-                            <p className="text-sm opacity-75">{description}</p>
+                {Object.entries(PROFILE_SECTION_DEFINITIONS).map(
+                    ([key, { label, description }]) => (
+                        <div key={key} className="flex items-center justify-between gap-4">
+                            <div>
+                                <span className="font-medium">{label}</span>
+                                <p className="text-sm opacity-75">{description}</p>
+                            </div>
+                            <Toggle
+                                value={selected_sections[key]}
+                                on_click={() =>
+                                    set_selected_sections(prev => ({
+                                        ...prev,
+                                        [key]: !prev[key],
+                                    }))
+                                }
+                            />
                         </div>
-                        <Toggle
-                            value={selected_settings[key]}
-                            on_click={() =>
-                                set_selected_settings(prev => ({
-                                    ...prev,
-                                    [key]: !prev[key],
-                                }))
-                            }
-                        />
-                    </div>
-                ))}
+                    ),
+                )}
             </div>
             <div className="flex justify-between">
                 <div>
@@ -171,13 +167,14 @@ function ImportExport({ set_temp_settings, apply_settings, set_should_close_sett
                         color="blue"
                         on_click={() => document.getElementById("settings-import").click()}
                     >
-                        Import from File
+                        Import as New Profile
                     </Button>
                 </div>
                 <Button color="green" on_click={handle_export}>
-                    Export to File
+                    Export Profile
                 </Button>
             </div>
+            {file_status ? <p className="mt-3 text-sm opacity-75">{file_status}</p> : null}
             <div
                 className="mt-4 pt-4 border-t space-y-3"
                 style={{ borderColor: colors.theme.borders }}

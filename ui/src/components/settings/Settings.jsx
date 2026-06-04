@@ -69,7 +69,6 @@ function Settings({ set_map_controls, set_radius_in_km }) {
 
     const [first_launch, set_first_launch] = useLocalStorage("first_launch", true);
     const [should_open_settings, set_should_open_settings] = useState(false);
-    const [should_close_settings, set_should_close_settings] = useState(true);
 
     function apply_settings(new_settings) {
         let locator;
@@ -152,15 +151,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
         },
         {
             label: "Import/Export",
-            content: (
-                <ImportExport
-                    settings={settings}
-                    set_settings={set_settings}
-                    set_temp_settings={set_temp_settings}
-                    apply_settings={apply_settings}
-                    set_should_close_settings={set_should_close_settings}
-                />
-            ),
+            content: <ImportExport set_temp_settings={set_temp_settings} />,
         },
     ];
 
@@ -196,7 +187,6 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 set_temp_settings(settings);
             }}
             external_open={should_open_settings}
-            external_close={should_close_settings}
             on_apply={() => {
                 if (is_settings_valid) {
                     apply_settings(temp_settings);

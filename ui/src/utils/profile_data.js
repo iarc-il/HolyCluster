@@ -498,6 +498,38 @@ export function sanitize_profile(value, fallback_name = DEFAULT_PROFILE_NAME) {
     };
 }
 
+export function pick_profile_sections(profile_data, section_keys = PROFILE_SECTION_KEYS) {
+    const data = sanitize_profile_data(profile_data);
+
+    return Object.fromEntries(
+        section_keys
+            .filter(section => PROFILE_SECTION_KEYS.includes(section))
+            .map(section => [section, data[section]]),
+    );
+}
+
+export function create_profile_export(profile, section_keys = PROFILE_SECTION_KEYS) {
+    const sanitized_profile = sanitize_profile(profile);
+
+    return {
+        version: PROFILE_STORE_VERSION,
+        name: sanitized_profile.name,
+        data: pick_profile_sections(sanitized_profile.data, section_keys),
+    };
+}
+
+export function sanitize_imported_profile(value, fallback_name = DEFAULT_PROFILE_NAME) {
+    if (is_plain_object(value) && Array.isArray(value.profiles)) {
+        const store = sanitize_profile_store(value);
+        const active_profile =
+            store.profiles.find(profile => profile.name === store.active_profile_name) ??
+            store.profiles[0];
+        return sanitize_profile(active_profile, fallback_name);
+    }
+
+    return sanitize_profile(value, fallback_name);
+}
+
 export function sanitize_profile_store(value, fallback_profile_data = null) {
     const source = is_plain_object(value) ? value : {};
     const source_profiles = Array.isArray(source.profiles) ? source.profiles : [];
