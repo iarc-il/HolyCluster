@@ -38,9 +38,14 @@ echo ""
 
 declare -A SERVICES
 SERVICES=()
+RUN_MIGRATIONS=false
 
 add_service() {
     SERVICES["$1"]=1
+}
+
+run_migrations() {
+    RUN_MIGRATIONS=true
 }
 
 while IFS= read -r file; do
@@ -48,26 +53,38 @@ while IFS= read -r file; do
         docker-compose.yml|deploy.sh)
             add_service api
             add_service collector
+            add_service migrate
             add_service monitor
             add_service nginx
             add_service postgres
             add_service valkey
+            run_migrations
             ;;
         shared/*)
             add_service api
             add_service collector
+            add_service migrate
             add_service monitor
+            run_migrations
             ;;
         pyproject.toml|uv.lock)
             add_service api
             add_service collector
+            add_service migrate
             add_service monitor
+            run_migrations
+            ;;
+        alembic.ini|migrations/*|docker/Dockerfile.migrate)
+            add_service migrate
+            run_migrations
             ;;
         api/*|docker/Dockerfile.api)
             add_service api
+            run_migrations
             ;;
         collectors/*|docker/Dockerfile.collector)
             add_service collector
+            run_migrations
             ;;
         monitor/*|docker/Dockerfile.monitor)
             add_service monitor
@@ -106,10 +123,15 @@ fi
 echo "Building: $SERVICE_LIST"
 docker compose build --parallel $SERVICE_LIST
 
+if [ "$RUN_MIGRATIONS" = true ]; then
+    echo "Running migrations..."
+    docker compose up migrate
+fi
+
 echo "Starting: $SERVICE_LIST"
 
 for svc in $SERVICE_LIST; do
-    if [ "$svc" = "nginx" ]; then
+    if [ "$svc" = "nginx" ] || [ "$svc" = "migrate" ]; then
         continue
     fi
     docker compose up -d --no-deps "$svc" &
