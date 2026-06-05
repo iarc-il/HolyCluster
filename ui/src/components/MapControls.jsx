@@ -11,7 +11,12 @@ import { useSettings } from "@/hooks/useSettings";
 import { useFilters } from "@/hooks/useFilters";
 import Maidenhead from "maidenhead";
 
-const EXCLUSIVE_OVERLAY_CONTROL_KEYS = ["show_dxcc_labels", "show_cq_zones", "show_itu_zones"];
+const EXCLUSIVE_OVERLAY_CONTROL_KEYS = [
+    "show_dxcc_labels",
+    "show_cq_zones",
+    "show_itu_zones",
+    "show_maidenhead_grid",
+];
 
 function clear_exclusive_overlays(state) {
     EXCLUSIVE_OVERLAY_CONTROL_KEYS.forEach(control_key => {
@@ -50,6 +55,7 @@ function MapControls({
     const itu_zones_on = map_controls.show_itu_zones;
     const us_states_on = map_controls.show_us_states ?? false;
     const can_states_on = map_controls.show_can_states ?? false;
+    const maidenhead_grid_on = map_controls.show_maidenhead_grid ?? false;
     const equator_on = map_controls.show_equator ?? false;
 
     const active_zone_systems = cq_zones_on
@@ -224,6 +230,13 @@ function MapControls({
             label: "ITU",
             map_control_key: "show_itu_zones",
             active: itu_zones_on,
+        },
+        {
+            id: "maidenhead",
+            label: "MH",
+            map_control_key: "show_maidenhead_grid",
+            active: maidenhead_grid_on,
+            title: "Maidenhead grid",
         },
     ];
 
