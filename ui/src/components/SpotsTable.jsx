@@ -35,6 +35,18 @@ const pota_cell_classes = {
     pota_reference: "w-[15%] hidden md:table-cell",
 };
 
+const sota_cell_classes = {
+    ...pota_cell_classes,
+    flag: "w-[7%]",
+    dx_callsign: "w-[13%]",
+    freq: "w-[10%]",
+    band: "w-[10%] hidden align-middle md:table-cell",
+    spotter_callsign: "w-[14%]",
+    mode: "w-[7%]",
+    pota_reference: "w-[13%] hidden md:table-cell",
+    sota_points: "w-[14%] hidden md:table-cell",
+};
+
 const columns = [
     { title: "Time", field: "time" },
     { title: "", field: "flag", sorting: false },
@@ -57,6 +69,18 @@ const pota_columns = [
     { title: "Ref", field: "pota_reference" },
 ];
 
+const sota_columns = [...pota_columns, { title: "Points", field: "sota_points" }];
+
+function get_sota_points_style(points) {
+    const clamped_points = Math.max(1, Math.min(10, Number(points)));
+    const ratio = (clamped_points - 1) / 9;
+    const hue = Math.round(ratio * 120);
+    return {
+        backgroundColor: `hsl(${hue}, 75%, 42%)`,
+        color: clamped_points >= 4 && clamped_points <= 7 ? "#111827" : "#ffffff",
+    };
+}
+
 function Callsign({ callsign }) {
     return (
         <a href={"https://www.qrz.com/db/" + callsign} target="_blank">
@@ -78,6 +102,7 @@ function Spot(
         is_new_spot,
         cell_classes,
         is_pota_mode,
+        show_sota_points,
     },
     ref,
 ) {
@@ -325,6 +350,22 @@ function Spot(
                             ""
                         )}
                     </td>
+                    {show_sota_points ? (
+                        <td className={cell_classes.sota_points}>
+                            {spot.sota_points != null ? (
+                                <span
+                                    className="inline-block min-w-[1.75rem] px-2 rounded-full font-semibold"
+                                    style={get_sota_points_style(spot.sota_points)}
+                                >
+                                    {spot.sota_points}
+                                </span>
+                            ) : (
+                                ""
+                            )}
+                        </td>
+                    ) : (
+                        ""
+                    )}
                 </>
             ) : (
                 <td className={cell_classes.comment} title={comment}>
@@ -421,16 +462,27 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
 function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const { colors } = useColors();
     const { spots, new_spot_ids, current_freq_spots } = useSpotData();
-    const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, is_pota_mode } =
-        useSpotInteraction();
+    const {
+        hovered_spot,
+        set_hovered_spot,
+        pinned_spot,
+        set_pinned_spot,
+        is_pota_mode,
+        selected_reference_type,
+    } = useSpotInteraction();
     const { get_filter_add_status, add_filter_if_allowed } = useFilters();
     const row_refs = useRef({});
 
     const parity_map = useRef(new Map());
     const prev_sort = useRef(table_sort);
     update_parity_map(parity_map.current, prev_sort, table_sort, spots);
-    const table_cell_classes = is_pota_mode ? pota_cell_classes : cell_classes;
-    const table_columns = is_pota_mode ? pota_columns : columns;
+    const show_sota_points = selected_reference_type === "sota";
+    const table_cell_classes = show_sota_points
+        ? sota_cell_classes
+        : is_pota_mode
+          ? pota_cell_classes
+          : cell_classes;
+    const table_columns = show_sota_points ? sota_columns : is_pota_mode ? pota_columns : columns;
 
     const [context_menu, set_context_menu] = useState({
         visible: false,
@@ -621,6 +673,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                 is_new_spot={new_spot_ids.has(spot.id)}
                                 cell_classes={table_cell_classes}
                                 is_pota_mode={is_pota_mode}
+                                show_sota_points={show_sota_points}
                             ></Spot>
                         ))}
                     </tbody>
