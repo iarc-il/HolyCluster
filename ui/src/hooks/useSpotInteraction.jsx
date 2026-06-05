@@ -15,7 +15,8 @@ export const SpotInteractionProvider = ({ children }) => {
     let [hovered_band, set_hovered_band] = useState(null);
     let [pinned_spot, set_pinned_spot] = useState(null);
     let [search_query, set_search_query] = useState("");
-    let [is_pota_mode, set_is_pota_mode] = useState(false);
+    let [selected_reference_type, set_selected_reference_type] = useState(null);
+    const is_pota_mode = selected_reference_type !== null;
 
     return (
         <SpotInteractionContext.Provider
@@ -29,7 +30,8 @@ export const SpotInteractionProvider = ({ children }) => {
                 search_query,
                 set_search_query,
                 is_pota_mode,
-                set_is_pota_mode,
+                selected_reference_type,
+                set_selected_reference_type,
             }}
         >
             {children}

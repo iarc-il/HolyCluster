@@ -180,6 +180,8 @@ def cleanup_spot(spot):
             spot_type = "pota"
         if not spot_type and spot.get("cluster") == "spots.wwff.co":
             spot_type = "wwff"
+        if not spot_type and spot.get("cluster") == "sota":
+            spot_type = "sota"
         if spot_type:
             cleaned_spot["type"] = spot_type
         for key in ("pota_reference", "pota_name", "pota_description"):

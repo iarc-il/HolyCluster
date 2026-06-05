@@ -7,6 +7,8 @@ import { bands, modes } from "@/data/filters_data.js";
 import { get_flag } from "@/data/flags.js";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 
+const reference_spot_types = new Set(["sota", "pota", "wwff"]);
+
 const freq_error_range = {
     FT8: 0.2,
     FT4: 0.2,
@@ -25,7 +27,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         active_profile_data: { table_sort },
     } = useProfiles();
     const { radio_band, radio_freq, radio_status } = use_radio();
-    const { search_query, is_pota_mode } = useSpotInteraction();
+    const { search_query, selected_reference_type } = useSpotInteraction();
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
@@ -43,8 +45,11 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     );
 
     const source_spots = useMemo(() => {
-        return raw_spots.filter(spot => (spot.type === "pota") === is_pota_mode);
-    }, [raw_spots, is_pota_mode]);
+        if (selected_reference_type) {
+            return raw_spots.filter(spot => spot.type === selected_reference_type);
+        }
+        return raw_spots.filter(spot => !reference_spot_types.has(spot.type));
+    }, [raw_spots, selected_reference_type]);
 
     const spots_with_alerts = useMemo(() => {
         return source_spots.map(spot => ({
@@ -149,7 +154,6 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         table_sort,
         filters.show_only_latest_spot,
         search_query,
-        is_pota_mode,
         is_history_mode,
     ]);
 

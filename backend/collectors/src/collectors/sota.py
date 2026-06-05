@@ -5,6 +5,7 @@ from typing import Any
 from collectors.utils import as_text, run_json_spot_collector
 
 SOTA_CLUSTER = "sota"
+SOTA_TYPE = "sota"
 SOTA_SPOTS_URL = "https://api-db2.sota.org.uk/api/spots/100/all"
 SOTA_POLL_INTERVAL = 60
 SOTA_REQUEST_TIMEOUT = 15
@@ -63,6 +64,7 @@ def parse_sota_spot(raw_spot: dict[str, Any]) -> dict:
 
     return {
         "cluster": SOTA_CLUSTER,
+        "type": SOTA_TYPE,
         "spotter_callsign": spotter_callsign,
         "frequency": frequency,
         "dx_callsign": dx_callsign,
