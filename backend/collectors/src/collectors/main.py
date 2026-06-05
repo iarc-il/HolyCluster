@@ -21,6 +21,8 @@ from collectors.settings import settings
 from collectors.telnet.runner import (
     run_concurrent_telnet_connections,
 )
+from collectors.utils import STREAM_ARRIVALS
+from collectors.wwff import run_wwff_collector
 
 import aiomonitor
 
@@ -233,7 +235,6 @@ async def refresh_dxpedition_data(valkey_client):
         await asyncio.sleep(sleep)
 
 
-STREAM_ARRIVALS = "stream-arrivals"
 STREAM_ARRIVALS_RETENTION_SECONDS = 7 * 86400
 
 
@@ -274,6 +275,7 @@ async def run_collector():
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
     collector_tasks = run_concurrent_telnet_connections(spots_queue)
     collector_tasks.append(asyncio.create_task(run_pota_collector(spots_queue), name="pota.app"))
+    collector_tasks.append(asyncio.create_task(run_wwff_collector(spots_queue), name="spots.wwff.co"))
 
     tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task, trim_task]
     tasks.extend(collector_tasks)

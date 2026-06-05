@@ -1,12 +1,9 @@
 import asyncio
-import json
 import re
 from datetime import datetime, timezone
 from typing import Any
 
-import aiohttp
-from loguru import logger
-from shared.metrics import push_drop_event, push_exception_event, set_value
+from collectors.utils import as_text, run_json_spot_collector
 
 POTA_CLUSTER = "pota.app"
 POTA_TYPE = "pota"
@@ -14,7 +11,6 @@ POTA_SPOTS_URL = "https://api.pota.app/v1/spots"
 POTA_POLL_INTERVAL = 60
 POTA_REQUEST_TIMEOUT = 15
 POTA_SPOT_EXPIRATION = 7200
-STREAM_ARRIVALS = "stream-arrivals"
 
 
 def clean_pota_callsign(callsign: object) -> str:
@@ -38,12 +34,6 @@ def parse_pota_spot_time(value: object) -> datetime:
     return spot_time.astimezone(timezone.utc)
 
 
-def _as_text(value: Any) -> str:
-    if value is None:
-        return ""
-    return str(value).strip()
-
-
 def get_pota_spot_key(raw_spot: dict[str, Any]) -> str:
     try:
         return f"pota:{int(raw_spot['spotId'])}"
@@ -54,7 +44,7 @@ def get_pota_spot_key(raw_spot: dict[str, Any]) -> str:
 def parse_pota_spot(raw_spot: dict[str, Any]) -> dict:
     try:
         spot_time = parse_pota_spot_time(raw_spot["spotTime"])
-        frequency = float(_as_text(raw_spot.get("frequency")))
+        frequency = float(as_text(raw_spot.get("frequency")))
     except (KeyError, TypeError, ValueError) as e:
         raise ValueError(f"invalid POTA spot: {e}") from e
 
@@ -70,74 +60,28 @@ def parse_pota_spot(raw_spot: dict[str, Any]) -> dict:
         "frequency": frequency,
         "dx_callsign": dx_callsign,
         "comment": "",
-        "mode": _as_text(raw_spot.get("mode")).upper(),
+        "mode": as_text(raw_spot.get("mode")).upper(),
         "time": spot_time.strftime("%H%MZ"),
         "timestamp": int(spot_time.timestamp()),
-        "dx_locator": _as_text(raw_spot.get("grid6") or raw_spot.get("grid4")),
+        "dx_locator": as_text(raw_spot.get("grid6") or raw_spot.get("grid4")),
         "spotter_locator": "",
-        "pota_reference": _as_text(raw_spot.get("reference")),
-        "pota_name": _as_text(raw_spot.get("name") or raw_spot.get("parkName")),
-        "pota_description": _as_text(raw_spot.get("locationDesc")),
+        "pota_reference": as_text(raw_spot.get("reference")),
+        "pota_name": as_text(raw_spot.get("name") or raw_spot.get("parkName")),
+        "pota_description": as_text(raw_spot.get("locationDesc")),
     }
 
 
-async def fetch_pota_spots(session: aiohttp.ClientSession, url: str) -> list[dict[str, Any]]:
-    async with session.get(url) as response:
-        response.raise_for_status()
-        data = await response.json()
-
-    if not isinstance(data, list):
-        raise ValueError(f"POTA spots response is {type(data).__name__}, expected list")
-    return data
-
-
-async def _record_arrival(valkey_client, spot_key: str, added: bool):
-    try:
-        await valkey_client.xadd(
-            STREAM_ARRIVALS,
-            {"cluster": POTA_CLUSTER, "spot_key": spot_key, "accepted": "1" if added else "0"},
-        )
-    except Exception:
-        logger.warning("Failed to write POTA arrival to stream-arrivals", exc_info=True)
-
-
 async def run_pota_collector(output_queue: asyncio.Queue):
-    from collectors.db.valkey_config import get_valkey_client
-
-    logger.info("Starting POTA spot collector")
-    valkey_client = get_valkey_client()
-    timeout = aiohttp.ClientTimeout(total=POTA_REQUEST_TIMEOUT)
-    headers = {"User-Agent": "HolyCluster collector (https://holycluster.iarc.org/)"}
-
-    async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-        while True:
-            try:
-                raw_spots = await fetch_pota_spots(session, POTA_SPOTS_URL)
-                await set_value(valkey_client, "collector:pota:connected", 1)
-
-                queued_count = 0
-                for raw_spot in sorted(raw_spots, key=lambda spot: _as_text(spot.get("spotTime"))):
-                    try:
-                        spot_key = get_pota_spot_key(raw_spot)
-                        spot = parse_pota_spot(raw_spot)
-                    except ValueError as e:
-                        logger.info(f"Dropping POTA spot due to parse error: {e}: {raw_spot}")
-                        await push_drop_event(valkey_client, "pota_parse_error", json.dumps(raw_spot, default=str))
-                        continue
-
-                    added = await valkey_client.set(spot_key, 1, ex=POTA_SPOT_EXPIRATION, nx=True)
-                    await _record_arrival(valkey_client, spot_key, bool(added))
-                    if added:
-                        await output_queue.put(spot)
-                        queued_count += 1
-
-                logger.debug(f"Fetched {len(raw_spots)} POTA spots, queued {queued_count} new spots")
-                await asyncio.sleep(POTA_POLL_INTERVAL)
-            except asyncio.CancelledError:
-                logger.info("POTA collector cancelled")
-                break
-            except Exception as e:
-                logger.exception("POTA collector failed")
-                await set_value(valkey_client, "collector:pota:connected", 0)
-                await push_exception_event(valkey_client, "collector", f"pota: {e}")
-                await asyncio.sleep(min(POTA_POLL_INTERVAL, 300))
+    await run_json_spot_collector(
+        output_queue,
+        source_label="POTA",
+        metric_name=POTA_TYPE,
+        cluster=POTA_CLUSTER,
+        url=POTA_SPOTS_URL,
+        poll_interval=POTA_POLL_INTERVAL,
+        request_timeout=POTA_REQUEST_TIMEOUT,
+        spot_expiration=POTA_SPOT_EXPIRATION,
+        get_spot_key=get_pota_spot_key,
+        parse_spot=parse_pota_spot,
+        sort_key=lambda spot: as_text(spot.get("spotTime")),
+    )
