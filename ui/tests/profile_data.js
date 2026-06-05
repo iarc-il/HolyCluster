@@ -36,6 +36,7 @@ describe("profile_data", () => {
         expect(store.profiles[0].data.settings.main_view_mode).toBe("both");
         expect(store.profiles[0].data.settings.main_view_order).toBe("map_table");
         expect(store.profiles[0].data.settings).not.toHaveProperty("show_equator");
+        expect(store.profiles[0].data.map_controls.show_maidenhead_grid).toBe(false);
         expect(store.profiles[0].data.map_controls.show_equator).toBe(false);
         expect(store.profiles[0].data.map_view.radius_in_km).toBe(20000);
     });
@@ -74,6 +75,7 @@ describe("profile_data", () => {
             },
             map_controls: {
                 night: "yes",
+                show_maidenhead_grid: "yes",
                 show_equator: "yes",
                 location: {
                     displayed_locator: "???",
@@ -115,6 +117,9 @@ describe("profile_data", () => {
         expect(data.settings.disabled_bands[40]).toBe(true);
         expect(data.settings.disabled_modes.FT8).toBe(true);
         expect(data.map_controls.night).toBe(defaults.map_controls.night);
+        expect(data.map_controls.show_maidenhead_grid).toBe(
+            defaults.map_controls.show_maidenhead_grid,
+        );
         expect(data.map_controls.show_equator).toBe(defaults.map_controls.show_equator);
         expect(data.map_controls.location).toEqual(defaults.map_controls.location);
         expect(data.map_view).toEqual(defaults.map_view);
@@ -152,6 +157,7 @@ describe("profile_data", () => {
             map_controls: json({
                 night: true,
                 is_globe: true,
+                show_maidenhead_grid: true,
                 show_equator: true,
                 location: {
                     displayed_locator: "FN20",
@@ -193,6 +199,7 @@ describe("profile_data", () => {
         ]);
         expect(data.map_controls.night).toBe(true);
         expect(data.map_controls.is_globe).toBe(true);
+        expect(data.map_controls.show_maidenhead_grid).toBe(true);
         expect(data.map_controls.show_equator).toBe(true);
         expect(data.map_controls.location).toEqual({
             displayed_locator: "FN20",

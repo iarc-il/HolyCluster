@@ -243,6 +243,7 @@ export function create_default_map_controls() {
         show_dxcc_labels: false,
         show_us_states: false,
         show_can_states: false,
+        show_maidenhead_grid: false,
         show_equator: false,
         location: {
             displayed_locator: "JJ00AA",
@@ -358,6 +359,10 @@ export function sanitize_map_controls(value, defaults = create_default_map_contr
         show_dxcc_labels: to_boolean(source.show_dxcc_labels, defaults.show_dxcc_labels),
         show_us_states: to_boolean(source.show_us_states, defaults.show_us_states),
         show_can_states: to_boolean(source.show_can_states, defaults.show_can_states),
+        show_maidenhead_grid: to_boolean(
+            source.show_maidenhead_grid,
+            defaults.show_maidenhead_grid,
+        ),
         show_equator: to_boolean(source.show_equator, defaults.show_equator),
         location: {
             displayed_locator: sanitize_locator(
