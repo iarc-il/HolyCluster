@@ -777,6 +777,7 @@ export function draw_zone_labels(
     show_dxcc_labels,
     show_us_states,
     show_can_states,
+    show_maidenhead_grid,
     hovered_zone,
     hovered_dxcc,
     callsign_filters,
@@ -784,6 +785,7 @@ export function draw_zone_labels(
     fast = false,
 ) {
     if (fast) return;
+    if (show_maidenhead_grid) return;
 
     const filter_action_styles = get_filter_action_styles(map_colors);
 
@@ -844,6 +846,7 @@ export function draw_map(
     show_itu_zones,
     show_us_states,
     show_can_states,
+    show_maidenhead_grid,
     callsign_filters,
     map_colors,
     map_country_colors,
@@ -871,7 +874,7 @@ export function draw_map(
     context.lineWidth = 1;
 
     profile_map("draw_map.graticule", () => {
-        if (!show_cq_zones && !show_itu_zones) {
+        if (!show_maidenhead_grid && !show_cq_zones && !show_itu_zones) {
             if (is_globe) {
                 context.beginPath();
                 path_generator(d3.geoGraticule10());
@@ -1017,12 +1020,14 @@ export function draw_map(
     }
 
     profile_map("draw_map.zone_overlays", () => {
-        const active_systems = get_active_overlay_systems({
-            show_cq_zones,
-            show_itu_zones,
-            show_us_states,
-            show_can_states,
-        });
+        const active_systems = show_maidenhead_grid
+            ? []
+            : get_active_overlay_systems({
+                  show_cq_zones,
+                  show_itu_zones,
+                  show_us_states,
+                  show_can_states,
+              });
         for (const system of active_systems) {
             const config = ZONE_CONFIG[system];
             if (!config) continue;

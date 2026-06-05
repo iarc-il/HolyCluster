@@ -181,6 +181,7 @@ function do_redraw(
                     map_controls.show_itu_zones,
                     map_controls.show_us_states,
                     map_controls.show_can_states,
+                    map_controls.show_maidenhead_grid,
                     callsign_filters,
                     colors.map,
                     colors.map_countries,
@@ -242,6 +243,7 @@ function do_redraw(
                         map_controls.show_dxcc_labels,
                         map_controls.show_us_states,
                         map_controls.show_can_states,
+                        map_controls.show_maidenhead_grid,
                         hovered_zone,
                         hovered_dxcc,
                         callsign_filters,
@@ -505,6 +507,7 @@ function CanvasMap({
         map_controls.show_itu_zones,
         map_controls.show_us_states,
         map_controls.show_can_states,
+        map_controls.show_maidenhead_grid,
         callsign_filters.filters,
         callsign_filters.is_alert_filters_active,
         callsign_filters.is_show_only_filters_active,
@@ -552,6 +555,7 @@ function CanvasMap({
         hovered_band,
         current_freq_spots,
         map_controls.show_dxcc_labels,
+        map_controls.show_maidenhead_grid,
         hovered_zone.system,
         hovered_zone.number,
         hovered_dxcc?.feature_index,
@@ -610,6 +614,7 @@ function CanvasMap({
                         rs.map_controls.show_dxcc_labels,
                         rs.map_controls.show_us_states,
                         rs.map_controls.show_can_states,
+                        rs.map_controls.show_maidenhead_grid,
                         rs.hovered_zone,
                         rs.hovered_dxcc,
                         rs.callsign_filters,
@@ -749,6 +754,7 @@ function CanvasMap({
                 const map_controls = render_state_ref.current.map_controls;
                 const projection = projection_ref.current;
                 if (!projection) return null;
+                if (map_controls.show_maidenhead_grid) return null;
 
                 const active_systems = get_active_overlay_systems(map_controls);
                 for (const zone_system of active_systems) {
@@ -772,6 +778,7 @@ function CanvasMap({
                 const { map_controls } = render_state_ref.current;
                 const projection = projection_ref.current;
                 if (!projection) return null;
+                if (map_controls.show_maidenhead_grid) return null;
                 if (!map_controls.show_dxcc_labels) return null;
 
                 const active_systems = get_active_overlay_systems(map_controls);
