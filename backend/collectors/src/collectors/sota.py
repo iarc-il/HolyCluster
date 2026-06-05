@@ -32,8 +32,11 @@ def parse_sota_spot_time(value: object) -> datetime:
 
 
 def parse_sota_frequency(value: object) -> float:
-    frequency_mhz = float(as_text(value))
-    return frequency_mhz * 1000
+    if value == "":
+        return 0
+    else:
+        frequency_mhz = float(as_text(value))
+        return frequency_mhz * 1000
 
 
 def get_sota_spot_key(raw_spot: dict[str, Any]) -> str:
