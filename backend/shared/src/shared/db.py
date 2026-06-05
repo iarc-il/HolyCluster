@@ -53,6 +53,7 @@ class HolySpot(SQLModel, table=True):
     pota_reference: Optional[str] = None
     pota_name: Optional[str] = None
     pota_description: Optional[str] = None
+    sota_points: Optional[int] = None
     comment: str
     is_dxpedition: int
 

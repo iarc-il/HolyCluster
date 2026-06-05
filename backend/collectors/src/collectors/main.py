@@ -149,6 +149,7 @@ async def add_spot_to_postgres(engine, spot: dict):
         pota_reference=spot.get("pota_reference"),
         pota_name=spot.get("pota_name"),
         pota_description=spot.get("pota_description"),
+        sota_points=spot.get("sota_points"),
         comment=spot["comment"],
         is_dxpedition=spot["is_dxpedition"],
     )

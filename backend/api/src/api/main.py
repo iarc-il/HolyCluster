@@ -188,6 +188,9 @@ def cleanup_spot(spot):
             value = spot.get(key)
             if value is not None:
                 cleaned_spot[key] = value
+        sota_points = spot.get("sota_points")
+        if sota_points is not None:
+            cleaned_spot["sota_points"] = int(sota_points)
         return cleaned_spot
     except (KeyError, ValueError):
         logger.exception(f"Failed to process spot: {spot}")

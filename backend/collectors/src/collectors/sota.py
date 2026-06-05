@@ -1,4 +1,5 @@
 import asyncio
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -50,6 +51,13 @@ def get_sota_reference(raw_spot: dict[str, Any]) -> str:
     return f"{association_code}/{summit_code}"
 
 
+def parse_sota_points(summit_details: object) -> int | None:
+    match = re.search(r"\b(\d+)\s+points?\b", as_text(summit_details), re.IGNORECASE)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
 def parse_sota_spot(raw_spot: dict[str, Any]) -> dict:
     try:
         spot_time = parse_sota_spot_time(raw_spot["timeStamp"])
@@ -62,7 +70,8 @@ def parse_sota_spot(raw_spot: dict[str, Any]) -> dict:
     if not spotter_callsign or not dx_callsign:
         raise ValueError("invalid SOTA spot: missing spotter or activator")
 
-    return {
+    summit_details = raw_spot.get("summitDetails")
+    parsed_spot = {
         "cluster": SOTA_CLUSTER,
         "type": SOTA_TYPE,
         "spotter_callsign": spotter_callsign,
@@ -75,9 +84,13 @@ def parse_sota_spot(raw_spot: dict[str, Any]) -> dict:
         "dx_locator": "",
         "spotter_locator": "",
         "pota_reference": get_sota_reference(raw_spot),
-        "pota_name": as_text(raw_spot.get("summitDetails")),
+        "pota_name": as_text(summit_details),
         "pota_description": "SOTA",
     }
+    sota_points = parse_sota_points(summit_details)
+    if sota_points is not None:
+        parsed_spot["sota_points"] = sota_points
+    return parsed_spot
 
 
 async def run_sota_collector(output_queue: asyncio.Queue):
