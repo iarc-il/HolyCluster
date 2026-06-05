@@ -18,6 +18,7 @@ from collectors.enrichers.dxpeditions import is_active_dxpedition
 from collectors.enrichers.frequencies import InvalidBandError, find_band, find_band_and_mode
 from collectors.pota import run_pota_collector
 from collectors.settings import settings
+from collectors.sota import run_sota_collector
 from collectors.telnet.runner import (
     run_concurrent_telnet_connections,
 )
@@ -275,6 +276,7 @@ async def run_collector():
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
     collector_tasks = run_concurrent_telnet_connections(spots_queue)
     collector_tasks.append(asyncio.create_task(run_pota_collector(spots_queue), name="pota.app"))
+    collector_tasks.append(asyncio.create_task(run_sota_collector(spots_queue), name="sota"))
     collector_tasks.append(asyncio.create_task(run_wwff_collector(spots_queue), name="spots.wwff.co"))
 
     tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task, trim_task]
