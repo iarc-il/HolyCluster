@@ -19,13 +19,13 @@ const cell_classes = {
     freq: "w-[16%] md:w-[14%] xl:w-[11%]",
     band: "w-[11%] hidden align-middle md:table-cell xl:w-[10%]",
     spotter_callsign: "w-[22%] md:w-[19%] xl:w-[15%]",
-    mode: "w-[20%] md:w-[20%] xl:w-[8%]",
-    comment: "w-[25%] text-left hidden whitespace-normal [overflow-wrap:anywhere] xl:table-cell",
+    mode: "w-[20%] md:w-[20%] xl:w-[9%]",
+    comment: "w-[24%] text-left hidden whitespace-normal [overflow-wrap:anywhere] xl:table-cell",
 };
 
 const pota_cell_classes = {
     ...cell_classes,
-    time: "w-[8%]",
+    time: "w-[15%] md:w-[9%] xl:w-[8%]",
     flag: "w-[13%]",
     dx_callsign: "w-[15%]",
     freq: "w-[12%]",
@@ -410,11 +410,11 @@ function update_parity_map(parity, prev_sort, table_sort, spots) {
 
 function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, sorting = true }) {
     const { colors } = useColors();
-    let direction = <span className="w-[0.8em] h-[1.5em]"></span>;
+    let direction = <span className="w-[0.8em] h-[1.5em] shrink-0"></span>;
     if (table_sort.column == field && sorting) {
         if (table_sort.ascending) {
             direction = (
-                <svg className="w-[0.8em] h-[1.5em]" viewBox="0 0 16 16" fill="none">
+                <svg className="w-[0.8em] h-[1.5em] shrink-0" viewBox="0 0 16 16" fill="none">
                     <path
                         d="M10 8L14 8V10L8 16L2 10V8H6V0L10 4.76995e-08V8Z"
                         fill={colors.table.header_arrow}
@@ -423,7 +423,7 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
             );
         } else {
             direction = (
-                <svg className="w-[0.8em] h-[1.5em]" viewBox="0 0 16 16" fill="none">
+                <svg className="w-[0.8em] h-[1.5em] shrink-0" viewBox="0 0 16 16" fill="none">
                     <path
                         d="M6 8L2 8L2 6L8 5.24536e-07L14 6L14 8L10 8L10 16L6 16L6 8Z"
                         fill={colors.table.header_arrow}
