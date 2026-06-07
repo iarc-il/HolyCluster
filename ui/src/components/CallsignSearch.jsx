@@ -7,7 +7,11 @@ import { useColors } from "@/hooks/useColors";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useFilters } from "@/hooks/useFilters";
 
-export default function CallsignSearch() {
+export default function CallsignSearch({
+    className = "hidden md:flex",
+    compact = false,
+    border_position = "bottom",
+}) {
     const { colors } = useColors();
     const {
         search_query,
@@ -56,27 +60,31 @@ export default function CallsignSearch() {
         set_selected_reference_type(value === "cluster" ? null : value);
         set_pinned_spot(null);
     };
+    const border_style =
+        border_position === "top"
+            ? { borderTop: `1px solid ${colors.theme.borders}` }
+            : { borderBottom: `1px solid ${colors.theme.borders}` };
 
     return (
         <div
-            className="hidden md:flex items-center gap-1.5 px-2 py-1 shrink-0"
-            style={{
-                borderBottom: `1px solid ${colors.theme.borders}`,
-            }}
+            className={`${className} items-center gap-1.5 px-2 py-1 shrink-0`}
+            style={border_style}
         >
-            <svg
-                width="24"
-                height="24"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke={colors.theme.text}
-                strokeWidth="2"
-            >
-                <circle cx="6" cy="6" r="5" />
-                <path d="M15 15L10 10" strokeLinecap="round" />
-            </svg>
+            {!compact && (
+                <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke={colors.theme.text}
+                    strokeWidth="2"
+                >
+                    <circle cx="6" cy="6" r="5" />
+                    <path d="M15 15L10 10" strokeLinecap="round" />
+                </svg>
+            )}
             <Input
-                className={`w-48 h-10 text-lg border-2`}
+                className={`${compact ? "min-w-0 flex-1 h-9 text-base" : "w-48 h-10 text-lg"} border-2`}
                 border_color={colors.table.header_arrow}
                 placeholder="Search callsign..."
                 value={search_query}
@@ -89,7 +97,7 @@ export default function CallsignSearch() {
             />
             {search_query && <X size="24" on_click={() => set_search_query("")} />}
             <Select
-                className="ml-auto h-9 w-28 text-sm font-semibold"
+                className={`${compact ? "h-9 !w-24 !px-2 !py-1 text-xs" : "ml-auto h-9 w-28 text-sm"} font-semibold`}
                 value={selected_reference_type ?? "cluster"}
                 onChange={e => select_reference_type(e.target.value)}
             >
@@ -114,7 +122,7 @@ export default function CallsignSearch() {
                     set_show_single_popup(false);
                     set_single_spot_hover(false);
                 }}
-                className="flex items-center gap-1 cursor-pointer rounded-md px-2 py-1"
+                className={`flex items-center gap-1 cursor-pointer rounded-md ${compact ? "px-1 py-1" : "px-2 py-1"}`}
                 style={{
                     ...toggle_button_base,
                     ...(single_spot ? toggle_button_active : {}),

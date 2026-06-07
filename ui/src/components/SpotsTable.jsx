@@ -680,6 +680,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                         </tbody>
                     </table>
                 </div>
+                <CallsignSearch className="flex md:hidden" compact={true} border_position="top" />
             </div>
             {context_menu.visible && (
                 <SpotContextMenu
