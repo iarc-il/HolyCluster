@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import Input from "@/components/ui/Input.jsx";
+import Select from "@/components/ui/Select.jsx";
 import X from "@/components/ui/X.jsx";
 import Popup from "@/components/ui/Popup.jsx";
 import { useColors } from "@/hooks/useColors";
@@ -17,17 +18,8 @@ export default function CallsignSearch() {
     } = useSpotInteraction();
     const { filters, setFilters, callsign_filters, setCallsignFilters } = useFilters();
     const single_spot = filters.show_only_latest_spot;
-    const sota_mode_ref = useRef(null);
-    const pota_mode_ref = useRef(null);
-    const wwff_mode_ref = useRef(null);
     const single_spot_ref = useRef(null);
-    const [show_sota_popup, set_show_sota_popup] = useState(false);
-    const [show_pota_popup, set_show_pota_popup] = useState(false);
-    const [show_wwff_popup, set_show_wwff_popup] = useState(false);
     const [show_single_popup, set_show_single_popup] = useState(false);
-    const [sota_mode_hover, set_sota_mode_hover] = useState(false);
-    const [pota_mode_hover, set_pota_mode_hover] = useState(false);
-    const [wwff_mode_hover, set_wwff_mode_hover] = useState(false);
     const [single_spot_hover, set_single_spot_hover] = useState(false);
 
     const toggle_button_base = {
@@ -60,8 +52,8 @@ export default function CallsignSearch() {
         set_search_query("");
     };
 
-    const select_reference_type = type => {
-        set_selected_reference_type(selected_reference_type === type ? null : type);
+    const select_reference_type = value => {
+        set_selected_reference_type(value === "cluster" ? null : value);
         set_pinned_spot(null);
     };
 
@@ -100,117 +92,16 @@ export default function CallsignSearch() {
                 }}
             />
             {search_query && <X size="24" on_click={() => set_search_query("")} />}
-            <button
-                ref={sota_mode_ref}
-                onClick={() => select_reference_type("sota")}
-                onMouseEnter={() => {
-                    set_show_sota_popup(true);
-                    set_sota_mode_hover(true);
-                }}
-                onMouseLeave={() => {
-                    set_show_sota_popup(false);
-                    set_sota_mode_hover(false);
-                }}
-                className="ml-auto flex items-center gap-1 cursor-pointer rounded-md px-2 py-1"
-                style={{
-                    ...toggle_button_base,
-                    ...(selected_reference_type === "sota" ? toggle_button_active : {}),
-                    ...(sota_mode_hover ? toggle_button_hover_style : {}),
-                    color:
-                        selected_reference_type === "sota"
-                            ? colors.buttons.utility
-                            : colors.theme.text,
-                }}
+            <Select
+                className="ml-auto h-9 w-28 text-sm font-semibold"
+                value={selected_reference_type ?? "cluster"}
+                onChange={e => select_reference_type(e.target.value)}
             >
-                <span className="text-xs font-bold tracking-wide">SOTA</span>
-            </button>
-            {show_sota_popup && (
-                <Popup anchor_ref={sota_mode_ref} keep_in_view={true}>
-                    <div
-                        className="py-1 px-2 rounded shadow-lg"
-                        style={{
-                            color: colors.theme.text,
-                            background: colors.theme.background,
-                        }}
-                    >
-                        SOTA spots
-                    </div>
-                </Popup>
-            )}
-            <button
-                ref={pota_mode_ref}
-                onClick={() => select_reference_type("pota")}
-                onMouseEnter={() => {
-                    set_show_pota_popup(true);
-                    set_pota_mode_hover(true);
-                }}
-                onMouseLeave={() => {
-                    set_show_pota_popup(false);
-                    set_pota_mode_hover(false);
-                }}
-                className="flex items-center gap-1 cursor-pointer rounded-md px-2 py-1"
-                style={{
-                    ...toggle_button_base,
-                    ...(selected_reference_type === "pota" ? toggle_button_active : {}),
-                    ...(pota_mode_hover ? toggle_button_hover_style : {}),
-                    color:
-                        selected_reference_type === "pota"
-                            ? colors.buttons.utility
-                            : colors.theme.text,
-                }}
-            >
-                <span className="text-xs font-bold tracking-wide">POTA</span>
-            </button>
-            {show_pota_popup && (
-                <Popup anchor_ref={pota_mode_ref} keep_in_view={true}>
-                    <div
-                        className="py-1 px-2 rounded shadow-lg"
-                        style={{
-                            color: colors.theme.text,
-                            background: colors.theme.background,
-                        }}
-                    >
-                        POTA spots
-                    </div>
-                </Popup>
-            )}
-            <button
-                ref={wwff_mode_ref}
-                onClick={() => select_reference_type("wwff")}
-                onMouseEnter={() => {
-                    set_show_wwff_popup(true);
-                    set_wwff_mode_hover(true);
-                }}
-                onMouseLeave={() => {
-                    set_show_wwff_popup(false);
-                    set_wwff_mode_hover(false);
-                }}
-                className="flex items-center gap-1 cursor-pointer rounded-md px-2 py-1"
-                style={{
-                    ...toggle_button_base,
-                    ...(selected_reference_type === "wwff" ? toggle_button_active : {}),
-                    ...(wwff_mode_hover ? toggle_button_hover_style : {}),
-                    color:
-                        selected_reference_type === "wwff"
-                            ? colors.buttons.utility
-                            : colors.theme.text,
-                }}
-            >
-                <span className="text-xs font-bold tracking-wide">WWFF</span>
-            </button>
-            {show_wwff_popup && (
-                <Popup anchor_ref={wwff_mode_ref} keep_in_view={true}>
-                    <div
-                        className="py-1 px-2 rounded shadow-lg"
-                        style={{
-                            color: colors.theme.text,
-                            background: colors.theme.background,
-                        }}
-                    >
-                        WWFF spots
-                    </div>
-                </Popup>
-            )}
+                <option value="cluster">Cluster</option>
+                <option value="pota">POTA</option>
+                <option value="wwff">WWFF</option>
+                <option value="sota">SOTA</option>
+            </Select>
             <button
                 ref={single_spot_ref}
                 onClick={() =>
