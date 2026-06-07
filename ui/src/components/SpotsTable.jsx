@@ -633,51 +633,53 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     return (
         <>
             <div
-                className="relative text-sm overflow-y-scroll overflow-x-hidden h-full w-full border-x-4 flex flex-col"
+                className="relative text-sm h-full w-full border-x-4 flex flex-col min-h-0"
                 style={{
                     borderColor: colors.theme.borders,
                     backgroundColor: colors.theme.background,
                 }}
             >
                 <CallsignSearch />
-                <table
-                    className="table-fixed w-full text-center border-separate border-spacing-0"
-                    onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
-                >
-                    <tbody className="divide-y">
-                        <tr>
-                            {table_columns.map(col => (
-                                <HeaderCell
-                                    key={col.field}
-                                    title={col.title}
-                                    field={col.field}
+                <div className="flex-1 min-h-0 overflow-y-scroll overflow-x-hidden">
+                    <table
+                        className="table-fixed w-full text-center border-separate border-spacing-0"
+                        onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
+                    >
+                        <tbody className="divide-y">
+                            <tr>
+                                {table_columns.map(col => (
+                                    <HeaderCell
+                                        key={col.field}
+                                        title={col.title}
+                                        field={col.field}
+                                        cell_classes={table_cell_classes}
+                                        table_sort={table_sort}
+                                        set_table_sort={set_table_sort}
+                                        sorting={col.sorting}
+                                    />
+                                ))}
+                            </tr>
+                            {spots.map(spot => (
+                                <Spot
+                                    ref={element => (row_refs.current[spot.id] = element)}
+                                    key={spot.id}
+                                    spot={spot}
+                                    is_even={parity_map.current.get(spot.id)}
+                                    hovered_spot={hovered_spot}
+                                    pinned_spot={pinned_spot}
+                                    set_pinned_spot={set_pinned_spot}
+                                    set_hovered_spot={set_hovered_spot}
+                                    set_cat_to_spot={set_cat_to_spot}
+                                    on_context_menu={handle_context_menu}
+                                    is_new_spot={new_spot_ids.has(spot.id)}
                                     cell_classes={table_cell_classes}
-                                    table_sort={table_sort}
-                                    set_table_sort={set_table_sort}
-                                    sorting={col.sorting}
-                                />
+                                    is_pota_mode={is_pota_mode}
+                                    show_sota_points={show_sota_points}
+                                ></Spot>
                             ))}
-                        </tr>
-                        {spots.map(spot => (
-                            <Spot
-                                ref={element => (row_refs.current[spot.id] = element)}
-                                key={spot.id}
-                                spot={spot}
-                                is_even={parity_map.current.get(spot.id)}
-                                hovered_spot={hovered_spot}
-                                pinned_spot={pinned_spot}
-                                set_pinned_spot={set_pinned_spot}
-                                set_hovered_spot={set_hovered_spot}
-                                set_cat_to_spot={set_cat_to_spot}
-                                on_context_menu={handle_context_menu}
-                                is_new_spot={new_spot_ids.has(spot.id)}
-                                cell_classes={table_cell_classes}
-                                is_pota_mode={is_pota_mode}
-                                show_sota_points={show_sota_points}
-                            ></Spot>
-                        ))}
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
             </div>
             {context_menu.visible && (
                 <SpotContextMenu
