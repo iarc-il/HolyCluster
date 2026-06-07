@@ -83,11 +83,12 @@ export function useVoacap({ enabled, center_lat, center_lon, band, step_deg = 10
         loading: false,
         error: null,
         stale: false,
+        url: null,
     });
 
     useEffect(() => {
         if (!enabled) {
-            set_state({ data: null, loading: false, error: null, stale: false });
+            set_state({ data: null, loading: false, error: null, stale: false, url: null });
             return;
         }
 
@@ -97,13 +98,14 @@ export function useVoacap({ enabled, center_lat, center_lon, band, step_deg = 10
                 loading: false,
                 error: "Unsupported VOACAP request",
                 stale: false,
+                url: null,
             });
             return;
         }
 
         const cached = voacap_cache.get(url);
         if (cached) {
-            set_state({ data: cached, loading: false, error: null, stale: false });
+            set_state({ data: cached, loading: false, error: null, stale: false, url });
             return;
         }
 
@@ -113,35 +115,48 @@ export function useVoacap({ enabled, center_lat, center_lon, band, step_deg = 10
                 loading: false,
                 error: "Offline",
                 stale: Boolean(current.data),
+                url,
             }));
             return;
         }
 
         const controller = new AbortController();
-        const timeout_id = window.setTimeout(() => {
-            set_state(current => ({
-                data: current.data,
-                loading: true,
-                error: null,
-                stale: Boolean(current.data),
-            }));
+        set_state(current => ({
+            data: current.data,
+            loading: true,
+            error: null,
+            stale: Boolean(current.data),
+            url,
+        }));
 
+        const timeout_id = window.setTimeout(() => {
             fetch(url, { signal: controller.signal })
                 .then(async response => {
-                    if (response.ok) return response.json();
+                    const content_type = response.headers.get("content-type") || "";
+                    const text = await response.text();
+
+                    if (!content_type.includes("application/json")) {
+                        throw new Error(`VOACAP returned non-JSON (${response.status})`);
+                    }
+
+                    let body;
+                    try {
+                        body = JSON.parse(text);
+                    } catch (_error) {
+                        throw new Error(`VOACAP returned invalid JSON (${response.status})`);
+                    }
+
+                    if (response.ok) return body;
 
                     let detail = `VOACAP request failed (${response.status})`;
-                    try {
-                        const body = await response.json();
-                        if (body?.detail) detail = body.detail;
-                    } catch (_error) {
-                        // Keep the status-based error when the response body is not JSON.
+                    if (body?.detail) {
+                        detail = body.detail;
                     }
                     throw new Error(detail);
                 })
                 .then(data => {
                     cache_set(url, data);
-                    set_state({ data, loading: false, error: null, stale: false });
+                    set_state({ data, loading: false, error: null, stale: false, url });
                 })
                 .catch(error => {
                     if (error.name === "AbortError") return;
@@ -150,6 +165,7 @@ export function useVoacap({ enabled, center_lat, center_lon, band, step_deg = 10
                         loading: false,
                         error: error.message || "VOACAP request failed",
                         stale: Boolean(current.data),
+                        url,
                     }));
                 });
         }, VOACAP_FETCH_DEBOUNCE_MS);

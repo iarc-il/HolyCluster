@@ -94,7 +94,7 @@ export function draw_voacap(canvas, voacap, dims, projection, is_globe) {
         0.82: "yellow",
         1.0: "red",
     });
-    heat.draw(0.08);
+    heat.draw(0.5);
 
     ctx.save();
     ctx.globalCompositeOperation = "destination-in";

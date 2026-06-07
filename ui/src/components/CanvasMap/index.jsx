@@ -263,9 +263,15 @@ function do_redraw(
 
         const voacap_canvas = canvas_refs.voacap_canvas_ref.current;
         if (voacap_canvas) {
-            profile_map("draw_voacap", () => {
-                draw_voacap(voacap_canvas, voacap, dims, projection, map_controls.is_globe);
-            });
+            if (fast) {
+                voacap_canvas
+                    .getContext("2d")
+                    .clearRect(0, 0, voacap_canvas.width, voacap_canvas.height);
+            } else {
+                profile_map("draw_voacap", () => {
+                    draw_voacap(voacap_canvas, voacap, dims, projection, map_controls.is_globe);
+                });
+            }
         }
     });
 }
@@ -430,6 +436,10 @@ function CanvasMap({
         band: map_controls.voacap_band ?? "20",
         step_deg: map_controls.voacap_step_deg ?? 10,
     });
+    const voacap_render_state =
+        map_controls.voacap_enabled && !voacap_state.loading && !voacap_state.stale
+            ? voacap_state
+            : null;
     const home_location = useMemo(() => {
         const locator = (settings.locator || "").trim().toUpperCase();
         if (!locator || !Maidenhead.valid(locator)) return null;
@@ -455,7 +465,7 @@ function CanvasMap({
         hovered_dxcc,
         home_location,
         night_time,
-        voacap: map_controls.voacap_enabled ? voacap_state : null,
+        voacap: voacap_render_state,
     };
 
     useMemo(() => {
@@ -584,6 +594,8 @@ function CanvasMap({
         home_location,
         map_controls.voacap_enabled,
         voacap_state.data,
+        voacap_state.loading,
+        voacap_state.stale,
     ]);
 
     // Animation loop for alerted spots
@@ -1316,6 +1328,22 @@ function CanvasMap({
     const canvas_width = width ? width * DPR : 0;
     const canvas_height = height ? height * DPR : 0;
     const canvas_style = width && height ? { width: `${width}px`, height: `${height}px` } : {};
+    const show_voacap_legend = map_controls.voacap_enabled ?? false;
+    const voacap_band_label = `${map_controls.voacap_band ?? "20"}m`;
+    const voacap_frequency_mhz = Number(voacap_state.data?.frequency_mhz);
+    const voacap_status = voacap_state.error
+        ? voacap_state.stale
+            ? `Stale: ${voacap_state.error}`
+            : voacap_state.error
+        : voacap_state.loading
+          ? voacap_state.stale
+              ? "Updating..."
+              : "Loading..."
+          : voacap_state.data
+            ? `${voacap_state.data.cells?.length ?? 0} samples`
+            : voacap_state.url
+              ? "Queued"
+              : "No request";
 
     return (
         <div
@@ -1399,6 +1427,37 @@ function CanvasMap({
                     />
                 )}
             </svg>
+            {show_voacap_legend && (
+                <div
+                    className="absolute bottom-3 left-1/2 z-20 pointer-events-none flex -translate-x-1/2 items-center gap-2 rounded-full px-2 py-1 text-[10px] shadow-lg select-none"
+                    style={{
+                        color: colors.theme.text,
+                        backgroundColor: colors.theme.background,
+                        border: `1px solid ${colors.theme.borders}`,
+                    }}
+                    title={
+                        voacap_state.url ? `${voacap_status}: ${voacap_state.url}` : voacap_status
+                    }
+                >
+                    <span className="whitespace-nowrap font-semibold">
+                        VOACAP {voacap_band_label}
+                    </span>
+                    <div
+                        className="h-2 w-24 rounded"
+                        style={{
+                            background:
+                                "linear-gradient(to right, rgba(0,0,80,0), blue, cyan, lime, yellow, red)",
+                            border: `1px solid ${colors.theme.borders}`,
+                        }}
+                    />
+                    {Number.isFinite(voacap_frequency_mhz) && (
+                        <span className="whitespace-nowrap opacity-80">
+                            {voacap_frequency_mhz.toFixed(2)} MHz
+                        </span>
+                    )}
+                    <span className="max-w-24 truncate opacity-80">{voacap_status}</span>
+                </div>
+            )}
             {(pinned_spot_data || hovered_spot_data) && (
                 <SpotPopup
                     hovered_spot={hovered_spot}
