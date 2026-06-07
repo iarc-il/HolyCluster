@@ -57,10 +57,6 @@ export default function CallsignSearch() {
         set_pinned_spot(null);
     };
 
-    const search_placeholder = selected_reference_type
-        ? `Search ${selected_reference_type.toUpperCase()}...`
-        : "Search callsign...";
-
     return (
         <div
             className="hidden md:flex items-center gap-1.5 px-2 py-1 shrink-0"
@@ -82,7 +78,7 @@ export default function CallsignSearch() {
             <Input
                 className={`w-48 h-10 text-lg border-2`}
                 border_color={colors.table.header_arrow}
-                placeholder={search_placeholder}
+                placeholder="Search callsign..."
                 value={search_query}
                 onChange={e => set_search_query(e.target.value)}
                 onKeyDown={e => {
