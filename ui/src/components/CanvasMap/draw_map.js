@@ -118,6 +118,17 @@ const MAIDENHEAD_LABEL_STYLE = {
 const MAIDENHEAD_FIELD_LETTERS = "ABCDEFGHIJKLMNOPQR";
 const MAIDENHEAD_SUBSQUARE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWX";
 const MAIDENHEAD_GRID_LEVELS = {
+    2: {
+        precision: 2,
+        lon_step: 20,
+        lat_step: 10,
+        line_alpha: 0.82,
+        line_width: 1.1,
+        min_label_width_px: 22,
+        min_label_height_px: 14,
+        max_grid_lines: 100,
+        max_label_cells: 700,
+    },
     4: {
         precision: 4,
         lon_step: 2,
@@ -141,6 +152,7 @@ const MAIDENHEAD_GRID_LEVELS = {
         max_label_cells: 2600,
     },
 };
+const MAIDENHEAD_FOUR_GRID_MIN_SIZE_PX = { width: 28, height: 14 };
 const MAIDENHEAD_SIX_GRID_MIN_SIZE_PX = { width: 32, height: 16 };
 const GRID_EPSILON = 1e-9;
 
@@ -262,10 +274,13 @@ export function get_maidenhead_locator_label(lon, lat, precision = 6) {
 
     const field_lon = clamp(Math.floor(lon_from_origin / 20), 0, 17);
     const field_lat = clamp(Math.floor(lat_from_origin / 10), 0, 17);
+    let locator = `${MAIDENHEAD_FIELD_LETTERS[field_lon]}${MAIDENHEAD_FIELD_LETTERS[field_lat]}`;
+    if (precision <= 2) return locator;
+
     const square_lon = clamp(Math.floor((lon_from_origin - field_lon * 20) / 2), 0, 9);
     const square_lat = clamp(Math.floor(lat_from_origin - field_lat * 10), 0, 9);
 
-    let locator = `${MAIDENHEAD_FIELD_LETTERS[field_lon]}${MAIDENHEAD_FIELD_LETTERS[field_lat]}${square_lon}${square_lat}`;
+    locator += `${square_lon}${square_lat}`;
     if (precision <= 4) return locator;
 
     const lon_remainder = lon_from_origin - field_lon * 20 - square_lon * 2;
@@ -318,7 +333,20 @@ function get_maidenhead_grid_level(projection, dims) {
         return MAIDENHEAD_GRID_LEVELS[6];
     }
 
-    return MAIDENHEAD_GRID_LEVELS[4];
+    const four_cell_size = get_projected_center_cell_size(
+        projection,
+        dims,
+        MAIDENHEAD_GRID_LEVELS[4].lon_step,
+        MAIDENHEAD_GRID_LEVELS[4].lat_step,
+    );
+    if (
+        four_cell_size.width >= MAIDENHEAD_FOUR_GRID_MIN_SIZE_PX.width &&
+        four_cell_size.height >= MAIDENHEAD_FOUR_GRID_MIN_SIZE_PX.height
+    ) {
+        return MAIDENHEAD_GRID_LEVELS[4];
+    }
+
+    return MAIDENHEAD_GRID_LEVELS[2];
 }
 
 function add_visible_geo_sample(projection, x, y, center_lon, samples) {
