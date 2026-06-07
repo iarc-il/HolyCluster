@@ -9,6 +9,7 @@ import { calculate_geographic_azimuth, km_to_miles, mod } from "@/utils.js";
 import { Dimensions } from "./dimensions.js";
 import { dxcc_map, draw_map, draw_zone_labels, find_dxcc_label } from "./draw_map.js";
 import { draw_spots } from "./draw_spots.js";
+import { draw_voacap } from "./draw_voacap.js";
 import { color_to_spot, draw_shadow_map } from "./hit_detection.js";
 import { profile_map } from "./map_profile.js";
 import SpotPopup from "@/components/SpotPopup.jsx";
@@ -154,6 +155,7 @@ function do_redraw(
             hovered_band,
             current_freq_spots,
             night_time,
+            voacap,
         } = render_state_ref.current;
 
         const render_dpr = fast && DPR > 1 ? 1 : DPR;
@@ -258,6 +260,13 @@ function do_redraw(
         if (!skip_shadow) {
             draw_shadow_layer(dims, projection, render_state_ref, canvas_refs);
         }
+
+        const voacap_canvas = canvas_refs.voacap_canvas_ref.current;
+        if (voacap_canvas) {
+            profile_map("draw_voacap", () => {
+                draw_voacap(voacap_canvas, voacap, dims, projection, map_controls.is_globe);
+            });
+        }
     });
 }
 
@@ -291,6 +300,7 @@ function CanvasMap({
     });
 
     const map_canvas_ref = useRef(null);
+    const voacap_canvas_ref = useRef(null);
     const spots_canvas_ref = useRef(null);
     const shadow_canvas_ref = useRef(null);
     const map_cache_canvas_ref = useRef(null);
@@ -393,6 +403,7 @@ function CanvasMap({
 
     const canvas_refs = {
         map_canvas_ref,
+        voacap_canvas_ref,
         spots_canvas_ref,
         shadow_canvas_ref,
         map_cache_canvas_ref,
@@ -444,7 +455,7 @@ function CanvasMap({
         hovered_dxcc,
         home_location,
         night_time,
-        voacap: voacap_state,
+        voacap: map_controls.voacap_enabled ? voacap_state : null,
     };
 
     useMemo(() => {
@@ -571,6 +582,8 @@ function CanvasMap({
         hovered_dxcc?.label,
         hovered_dxcc?.entity,
         home_location,
+        map_controls.voacap_enabled,
+        voacap_state.data,
     ]);
 
     // Animation loop for alerted spots
@@ -1325,6 +1338,13 @@ function CanvasMap({
             <canvas
                 className="absolute top-0 left-0"
                 ref={map_canvas_ref}
+                width={canvas_width}
+                height={canvas_height}
+                style={canvas_style}
+            />
+            <canvas
+                className="absolute top-0 left-0"
+                ref={voacap_canvas_ref}
                 width={canvas_width}
                 height={canvas_height}
                 style={canvas_style}

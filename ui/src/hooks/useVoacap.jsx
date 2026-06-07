@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 
-const SUPPORTED_VOACAP_BANDS = new Set(["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"]);
+const SUPPORTED_VOACAP_BANDS = new Set([
+    "160",
+    "80",
+    "60",
+    "40",
+    "30",
+    "20",
+    "17",
+    "15",
+    "12",
+    "10",
+]);
 const VOACAP_FETCH_DEBOUNCE_MS = 350;
 const VOACAP_CACHE_LIMIT = 24;
 
@@ -81,7 +92,12 @@ export function useVoacap({ enabled, center_lat, center_lon, band, step_deg = 10
         }
 
         if (!url) {
-            set_state({ data: null, loading: false, error: "Unsupported VOACAP request", stale: false });
+            set_state({
+                data: null,
+                loading: false,
+                error: "Unsupported VOACAP request",
+                stale: false,
+            });
             return;
         }
 
