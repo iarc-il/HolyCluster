@@ -3,11 +3,12 @@ import json
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 import fastapi
 import httpx
 import redis.asyncio
-from fastapi import HTTPException, websockets
+from fastapi import HTTPException, Query, websockets
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
@@ -20,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
 
-from . import propagation, submit_spot
+from . import propagation, submit_spot, voacap
 from .settings import settings
 
 
@@ -337,6 +338,34 @@ async def spots_with_issues():
 @app.get("/propagation")
 def propagation_data():
     return app.state.propagation
+
+
+@app.get("/voacap")
+async def voacap_grid(
+    center_lat: float = Query(..., ge=-90.0, le=90.0),
+    center_lon: float = Query(..., ge=-180.0, le=180.0),
+    band: str = Query(...),
+    utc_hour: int | None = Query(default=None, ge=0, le=23),
+    month: int | None = Query(default=None, ge=1, le=12),
+    ssn: float = Query(default=voacap.DEFAULT_SSN, ge=0.0, le=300.0),
+    step_deg: float = Query(default=voacap.DEFAULT_STEP_DEG, ge=1.0, le=30.0),
+    metric: voacap.VoacapMetric = voacap.DEFAULT_METRIC,
+):
+    now = datetime.now(UTC)
+    try:
+        return await asyncio.to_thread(
+            voacap.generate_voacap_grid,
+            center_lat=center_lat,
+            center_lon=center_lon,
+            band=band,
+            utc_hour=utc_hour if utc_hour is not None else now.hour,
+            month=month if month is not None else now.month,
+            ssn=ssn,
+            step_deg=step_deg,
+            metric=metric,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.get("/dxpeditions")

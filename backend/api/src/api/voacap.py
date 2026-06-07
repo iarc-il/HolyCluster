@@ -232,7 +232,7 @@ def _round_or_none(value: float | None, digits: int) -> float | None:
         return None
     if not math.isfinite(value):
         return None
-    return round(value, digits)
+    return round(float(value), digits)
 
 
 def clear_voacap_cache() -> None:
