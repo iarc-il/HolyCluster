@@ -21,6 +21,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useSettings } from "@/hooks/useSettings";
+import { useVoacap } from "@/hooks/useVoacap.jsx";
 import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
 import { find_zone_label_number, get_active_overlay_systems } from "@/utils/zones.js";
 
@@ -411,6 +412,13 @@ function CanvasMap({
     );
 
     const [center_lon, center_lat] = map_controls.location.location;
+    const voacap_state = useVoacap({
+        enabled: map_controls.voacap_enabled ?? false,
+        center_lat,
+        center_lon,
+        band: map_controls.voacap_band ?? "20",
+        step_deg: map_controls.voacap_step_deg ?? 10,
+    });
     const home_location = useMemo(() => {
         const locator = (settings.locator || "").trim().toUpperCase();
         if (!locator || !Maidenhead.valid(locator)) return null;
@@ -436,6 +444,7 @@ function CanvasMap({
         hovered_dxcc,
         home_location,
         night_time,
+        voacap: voacap_state,
     };
 
     useMemo(() => {
