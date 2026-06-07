@@ -42,9 +42,9 @@ const sota_cell_classes = {
     freq: "w-[10%]",
     band: "w-[10%] hidden align-middle md:table-cell",
     spotter_callsign: "w-[14%]",
-    mode: "w-[7%]",
-    pota_reference: "w-[13%] hidden md:table-cell",
-    sota_points: "w-[14%] hidden md:table-cell",
+    mode: "w-[9%]",
+    pota_reference: "w-[14%] hidden md:table-cell",
+    sota_points: "w-[11%] hidden md:table-cell",
 };
 
 const columns = [
