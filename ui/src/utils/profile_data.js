@@ -17,6 +17,7 @@ const MAX_HISTORY_WINDOW_MS = 8 * 60 * 60_000;
 const HISTORY_DISPLAY_HOURS = new Set([8, 12, 24, 48, 72]);
 const MAIN_VIEW_MODES = new Set(["both", "map", "table"]);
 const MAIN_VIEW_ORDERS = new Set(["map_table", "table_map"]);
+const VOACAP_BANDS = new Set(["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"]);
 const DXPEDITION_SORT_KEYS = new Set(["start", "end", "on_air"]);
 const DXPEDITION_FILTER_KEYS = new Set(["all", "active", "upcoming"]);
 const TABLE_SORT_COLUMNS = new Set([
@@ -183,6 +184,11 @@ function sanitize_frequency_bar_band(value, fallback) {
     return matching_band ?? fallback;
 }
 
+function sanitize_voacap_band(value, fallback) {
+    const string_value = value?.toString().trim().replace(/m$/i, "");
+    return VOACAP_BANDS.has(string_value) ? string_value : fallback;
+}
+
 function sanitize_choice(value, fallback, valid_values) {
     return valid_values.has(value) ? value : fallback;
 }
@@ -245,6 +251,9 @@ export function create_default_map_controls() {
         show_can_states: false,
         show_maidenhead_grid: false,
         show_equator: false,
+        voacap_enabled: false,
+        voacap_band: "20",
+        voacap_step_deg: 10,
         location: {
             displayed_locator: "JJ00AA",
             location: [0, 0],
@@ -364,6 +373,13 @@ export function sanitize_map_controls(value, defaults = create_default_map_contr
             defaults.show_maidenhead_grid,
         ),
         show_equator: to_boolean(source.show_equator, defaults.show_equator),
+        voacap_enabled: to_boolean(source.voacap_enabled, defaults.voacap_enabled),
+        voacap_band: sanitize_voacap_band(source.voacap_band, defaults.voacap_band),
+        voacap_step_deg: to_number(source.voacap_step_deg, defaults.voacap_step_deg, {
+            min: 1,
+            max: 30,
+            integer: true,
+        }),
         location: {
             displayed_locator: sanitize_locator(
                 source_location.displayed_locator,
