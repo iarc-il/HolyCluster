@@ -32,15 +32,15 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
     const show_only_filters = useMemo(
-        () => callsign_filters.filters.filter(filter => filter.action == "show_only"),
+        () => callsign_filters.filters.filter(filter => filter.action === "show_only"),
         [callsign_filters.filters],
     );
     const hide_filters = useMemo(
-        () => callsign_filters.filters.filter(filter => filter.action == "hide"),
+        () => callsign_filters.filters.filter(filter => filter.action === "hide"),
         [callsign_filters.filters],
     );
     const alerts = useMemo(
-        () => callsign_filters.filters.filter(filter => filter.action == "alert"),
+        () => callsign_filters.filters.filter(filter => filter.action === "alert"),
         [callsign_filters.filters],
     );
 
@@ -64,14 +64,13 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
             .filter(spot => {
                 if (filter_missing_flags) {
                     if (
-                        spot.dx_country != "" &&
+                        spot.dx_country !== "" &&
                         spot.dx_country != null &&
                         get_flag(spot.dx_country) == null
                     ) {
                         return true;
-                    } else {
-                        return false;
                     }
+                    return false;
                 }
 
                 const is_in_time_limit =
@@ -98,12 +97,12 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
                 }
 
                 const is_band_and_mode_active =
-                    ((filters.radio_band && radio_band == spot.band) ||
+                    ((filters.radio_band && radio_band === spot.band) ||
                         (!filters.radio_band && filters.bands[spot.band])) &&
                     filters.modes[spot.mode];
 
-                const are_include_filters_empty = show_only_filters.length == 0;
-                const are_exclude_filters_empty = hide_filters.length == 0;
+                const are_include_filters_empty = show_only_filters.length === 0;
+                const are_exclude_filters_empty = hide_filters.length === 0;
                 const are_filters_including =
                     is_matching_list(show_only_filters, spot) ||
                     are_include_filters_empty ||
@@ -159,7 +158,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
 
     const spots_per_band_count = useMemo(() => {
         return Object.fromEntries(
-            bands.map(band => [band, limit_count(spots.filter(spot => spot.band == band).length)]),
+            bands.map(band => [band, limit_count(spots.filter(spot => spot.band === band).length)]),
         );
     }, [spots]);
 

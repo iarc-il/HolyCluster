@@ -8,7 +8,7 @@ function FeedbackButton({ size }) {
 
     return (
         <div>
-            <a href="https://forms.gle/jak7KnvwCnBRN6QU7" target="_blank">
+            <a href="https://forms.gle/jak7KnvwCnBRN6QU7" target="_blank" rel="noreferrer">
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
                     <title>Feedback form</title>
                     <path
@@ -29,7 +29,7 @@ function CatserverDownload({ size, new_version_available }) {
 
     return (
         <div>
-            <a href="/addons" target="_blank">
+            <a href="/addons" target="_blank" rel="noreferrer">
                 {new_version_available ? (
                     <span className="absolute right-16 flex w-5 -translate-y-1 translate-x-1 z-10">
                         <span className="relative inline-flex border border-gray-900 bg-orange-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">

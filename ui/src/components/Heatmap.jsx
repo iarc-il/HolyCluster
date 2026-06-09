@@ -38,9 +38,9 @@ function Heatmap() {
 
         for (const spot of raw_spots) {
             if (visible_bands.includes(spot.band)) {
-                if (spot.spotter_continent == selected_continent) {
+                if (spot.spotter_continent === selected_continent) {
                     counts[spot.band][spot.dx_continent] += 1;
-                } else if (spot.dx_continent == selected_continent) {
+                } else if (spot.dx_continent === selected_continent) {
                     counts[spot.band][spot.spotter_continent] += 1;
                 }
             }
@@ -83,7 +83,7 @@ function Heatmap() {
         visible_bands.forEach((band, band_index) => {
             continents.forEach((continent, continent_index) => {
                 const value = heatmap_data[band]?.[continent] || 0;
-                let point = [
+                const point = [
                     left_margin + continent_index * cell_width + cell_width / 2,
                     top_margin + band_index * cell_height + cell_height / 2,
                     Math.min(value, 20),

@@ -52,8 +52,8 @@ const RELEASES = [
         "24/09/2025",
         [
             <>
-                <b>Cat server update:</b> Clicking on spot now fills the callsign in Log4OM
-                (Upgrading cat server is required)
+                <b key="cat-update">Cat server update:</b> Clicking on spot now fills the callsign
+                in Log4OM (Upgrading cat server is required)
             </>,
             "Close and approve window by pressing Enter",
             "Mobile UI bug fixes",
@@ -67,7 +67,7 @@ const RELEASES = [
         "09/08/2025",
         [
             <>
-                <b>NOTE ⚠️</b> The CAT control should be updated due to breaking changes!
+                <b key="note">NOTE ⚠️</b> The CAT control should be updated due to breaking changes!
             </>,
             "Add VHF, UHF and SHF bands!",
             "Add timestamp when hovering over the propagation data",
@@ -81,7 +81,8 @@ const RELEASES = [
         "25/06/2025",
         [
             <>
-                🎉<b>CAT control </b> - first release of locally installed CAT control software!
+                🎉<b key="cat">CAT control </b> - first release of locally installed CAT control
+                software!
             </>,
             "Equator display on the map",
             "Table context menu - right click on a callsign for quick actions",
@@ -184,7 +185,11 @@ function About() {
             <br />
             <p>
                 You can find a nice tutorial by Stuart (VE9CF) on youtube{" "}
-                <a href="https://youtu.be/GFeqUilCaVI?si=W4C8jZ9-zQNsp3y3" target="_blank">
+                <a
+                    href="https://youtu.be/GFeqUilCaVI?si=W4C8jZ9-zQNsp3y3"
+                    target="_blank"
+                    rel="noreferrer"
+                >
                     <svg
                         width="64px"
                         height="64px"
@@ -193,12 +198,13 @@ function About() {
                         xmlns="http://www.w3.org/2000/svg"
                         stroke="#ff0000"
                     >
-                        <g id="SVGRepo_bgCarrier" strokeWidth="0"></g>
+                        <title>YouTube tutorial by VE9CF</title>
+                        <g id="SVGRepo_bgCarrier" strokeWidth="0" />
                         <g
                             id="SVGRepo_tracerCarrier"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                        ></g>
+                        />
                         <g id="SVGRepo_iconCarrier">
                             {" "}
                             <path
@@ -209,7 +215,7 @@ function About() {
                                 strokeWidth="1.5"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                            ></path>{" "}
+                            />{" "}
                             <path
                                 fillRule="evenodd"
                                 clipRule="evenodd"
@@ -218,7 +224,7 @@ function About() {
                                 strokeWidth="1.5"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                            ></path>{" "}
+                            />{" "}
                         </g>
                     </svg>
                 </a>
@@ -239,11 +245,11 @@ function About() {
 
     useEffect(() => {
         const current_release = RELEASES[0][0];
-        if (last_release != current_release) {
+        if (last_release !== current_release) {
             set_should_display_release_notes(true);
             set_last_release(current_release);
         }
-    }, []);
+    }, [last_release, set_last_release]);
 
     const release_notes = (
         <div className="p-2">
@@ -269,9 +275,13 @@ function About() {
                     <div className="pb-4" key={date}>
                         <h1 className="text-xl font-bold">{date}</h1>
                         <ul className="list-disc pl-4">
-                            {changes.map((change, index) => (
-                                <li key={index}>{change}</li>
-                            ))}
+                            {changes.map((change, index) => {
+                                const key =
+                                    typeof change === "string"
+                                        ? change
+                                        : `release-${date}-${index}`;
+                                return <li key={key}>{change}</li>;
+                            })}
                         </ul>
                     </div>
                 );
@@ -281,7 +291,7 @@ function About() {
 
     return (
         <Modal
-            button={<Info size="36"></Info>}
+            button={<Info size="36" />}
             on_cancel={() => true}
             cancel_text="close"
             external_open={should_display_release_notes}

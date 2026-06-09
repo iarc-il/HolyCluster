@@ -32,7 +32,7 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
         if (is_hovered && trigger_ref.current) {
             const rect = trigger_ref.current.getBoundingClientRect();
 
-            let top = rect.top - rect.height * 1.5;
+            const top = rect.top - rect.height * 1.5;
             let left;
 
             if (orientation === "right") {
@@ -43,7 +43,7 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
 
             set_position({ top, left });
         }
-    }, [is_parent_hovered, is_popup_hovered]);
+    }, [is_hovered, orientation]);
 
     return (
         <div

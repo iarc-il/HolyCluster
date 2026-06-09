@@ -5,8 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 
 function normalize_band(band) {
-    if (band == 2) return "VHF";
-    if (band == 0.7) return "UHF";
+    if (band === 2) return "VHF";
+    if (band === 0.7) return "UHF";
     if (band < 1) return "SHF";
     return band;
 }
@@ -76,9 +76,8 @@ export default function useSpotWebSocket() {
                     sendJsonMessage({ last_time: last_spot_time_ref.current });
                 }
             },
-            reconnectAttempts: Infinity,
-            reconnectInterval: attemptNumber =>
-                Math.min(5000 * Math.pow(2, attemptNumber - 1), 30000),
+            reconnectAttempts: Number.POSITIVE_INFINITY,
+            reconnectInterval: attemptNumber => Math.min(5000 * 2 ** (attemptNumber - 1), 30000),
             shouldReconnect: () => true,
         },
     );

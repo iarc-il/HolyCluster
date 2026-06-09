@@ -3,8 +3,8 @@ import { shorten_dxcc } from "@/data/flags.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 function normalize_band(band) {
-    if (band == 2) return "VHF";
-    if (band == 0.7) return "UHF";
+    if (band === 2) return "VHF";
+    if (band === 0.7) return "UHF";
     if (band < 1) return "SHF";
     return band;
 }

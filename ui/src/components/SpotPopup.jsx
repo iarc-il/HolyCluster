@@ -25,7 +25,16 @@ function SpotPopup({
             className="absolute w-fit z-40 bottom-2 left-2 border-l-4 pl-2"
             onMouseOver={() => set_hovered_spot(hovered_spot)}
             onMouseLeave={() => set_hovered_spot({ source: null, id: null })}
+            onFocus={() => set_hovered_spot(hovered_spot)}
+            onBlur={() => set_hovered_spot({ source: null, id: null })}
             onClick={() => set_pinned_spot(hovered_spot)}
+            onKeyDown={event => {
+                if (event.key === "Enter") {
+                    set_pinned_spot(hovered_spot);
+                }
+            }}
+            role="button"
+            tabIndex={0}
             style={{
                 borderColor: colors.bands[spot_data.band],
                 color: colors.theme.text,
@@ -34,7 +43,7 @@ function SpotPopup({
             <div className="text-sm font-bold">
                 <p>
                     DX: {spot_data.dx_callsign}
-                    {"continent_dx" in spot_data ? ", " + spot_data.continent_dx : ""}
+                    {"continent_dx" in spot_data ? `, ${spot_data.continent_dx}` : ""}
                 </p>
                 <p>Frequency: {spot_data.freq}</p>
                 <p>DX Country: {spot_data.dx_country}</p>

@@ -12,6 +12,7 @@ function OmniRigError() {
                             stroke="currentColor"
                             viewBox="0 0 24 24"
                         >
+                            <title>Warning</title>
                             <path
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
@@ -38,6 +39,7 @@ function OmniRigError() {
 
                     <div className="flex space-x-4 text-white font-semibold">
                         <button
+                            type="button"
                             onClick={() =>
                                 window.open("https://www.dxatlas.com/omnirig/", "_blank")
                             }
@@ -46,6 +48,7 @@ function OmniRigError() {
                             Download OmniRig
                         </button>
                         <button
+                            type="button"
                             onClick={() => window.open("/", "_self")}
                             className="bg-green-600 hover:bg-green-700 py-3 px-6 rounded-lg"
                         >

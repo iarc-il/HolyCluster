@@ -43,7 +43,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
     const is_default_radius_valid =
         temp_settings.default_radius >= 1000 &&
         temp_settings.default_radius <= 20000 &&
-        temp_settings.default_radius % 1000 == 0;
+        temp_settings.default_radius % 1000 === 0;
 
     return (
         <div
@@ -66,7 +66,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                         callsign: new_callsign,
                                     });
 
-                                    if (temp_settings.locator == "" || is_locator_queried) {
+                                    if (temp_settings.locator === "" || is_locator_queried) {
                                         const locator = await fetch_locator(new_callsign);
                                         if (locator) {
                                             set_is_locator_queried(true);

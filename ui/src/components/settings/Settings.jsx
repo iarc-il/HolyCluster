@@ -103,7 +103,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
         set_map_controls(map_controls => {
             map_controls.location.displayed_locator = locator;
             map_controls.location.location = [lon, lat];
-            if (settings.default_radius != new_settings.default_radius) {
+            if (settings.default_radius !== new_settings.default_radius) {
                 set_radius_in_km(new_settings.default_radius);
             }
         });
@@ -193,7 +193,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const is_default_radius_valid =
         temp_settings.default_radius >= 1000 &&
         temp_settings.default_radius <= 20000 &&
-        temp_settings.default_radius % 1000 == 0;
+        temp_settings.default_radius % 1000 === 0;
     const is_settings_valid = is_locator_valid && is_default_radius_valid;
 
     return (
@@ -203,7 +203,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                     Settings
                 </h3>
             }
-            button={<SettingsIcon size="40"></SettingsIcon>}
+            button={<SettingsIcon size="40" />}
             on_open={() => {
                 set_temp_settings(settings);
             }}

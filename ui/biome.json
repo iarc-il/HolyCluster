@@ -15,7 +15,34 @@
         }
     },
     "linter": {
-        "enabled": false
+        "enabled": true,
+        "rules": {
+            "recommended": true,
+            "correctness": {
+                "useExhaustiveDependencies": "off",
+                "noEmptyPattern": "off"
+            },
+            "a11y": {
+                "noLabelWithoutControl": "off",
+                "noSvgWithoutTitle": "off",
+                "useKeyWithClickEvents": "off",
+                "useSemanticElements": "off",
+                "useButtonType": "off",
+                "useAltText": "off"
+            },
+            "suspicious": {
+                "noArrayIndexKey": "off",
+                "noAssignInExpressions": "off",
+                "noFunctionAssign": "off"
+            },
+            "style": {
+                "noCommaOperator": "off",
+                "noParameterAssign": "off"
+            },
+            "complexity": {
+                "noForEach": "off"
+            }
+        }
     },
     "organizeImports": {
         "enabled": true

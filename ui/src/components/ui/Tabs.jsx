@@ -71,7 +71,7 @@ function Tabs({ tabs, active_color = null, local_storage_name = null, external_t
                             <div
                                 className="absolute bottom-0 left-0 right-0 h-1"
                                 style={{
-                                    backgroundColor: active_tab_index == index ? active_color : bg,
+                                    backgroundColor: active_tab_index === index ? active_color : bg,
                                 }}
                             />
                             <div

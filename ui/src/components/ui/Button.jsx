@@ -16,7 +16,7 @@ function Button({
     if (other_props.disabled) {
         color = "gray";
     }
-    let classes = [
+    const classes = [
         `text-${text_color}`,
         `bg-${color}-600`,
         `active:bg-${color}-800`,

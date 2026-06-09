@@ -79,6 +79,7 @@ export default function CallsignSearch({
                     stroke={colors.theme.text}
                     strokeWidth="2"
                 >
+                    <title>Search</title>
                     <circle cx="6" cy="6" r="5" />
                     <path d="M15 15L10 10" strokeLinecap="round" />
                 </svg>
@@ -107,6 +108,7 @@ export default function CallsignSearch({
                 <option value="sota">SOTA</option>
             </Select>
             <button
+                type="button"
                 ref={single_spot_ref}
                 onClick={() =>
                     setFilters({
@@ -139,6 +141,7 @@ export default function CallsignSearch({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                 >
+                    <title>Toggle single spot mode</title>
                     <rect
                         x="3"
                         y="3"

@@ -14,14 +14,14 @@ const continent_title = { dx: "DX", spotter: "DE" };
 function ContinentColumn({ spot_type, colors }) {
     const { filters, setFilters } = useFilters();
     const filter_key = `${spot_type}_continents`;
-    const color = colors.buttons[spot_type + "_continents"];
+    const color = colors.buttons[`${spot_type}_continents`];
 
     return (
         <div className="flex flex-col gap-3 items-center p-1">
             <strong style={{ color: colors.theme.text }}>{continent_title[spot_type]}</strong>
             {continents.map(continent => (
                 <FilterOptions
-                    key={spot_type + "_" + continent}
+                    key={`${spot_type}_${continent}`}
                     filter_key={filter_key}
                     filter_value={continent}
                     orientation="left"
@@ -64,7 +64,8 @@ function SwapButton({ colors }) {
     };
 
     return (
-        <div
+        <button
+            type="button"
             onClick={swapContinents}
             className={`w-16 rounded-full select-none border border-slate-700 flex justify-center py-0.5 ${
                 areFiltersEqual
@@ -73,8 +74,10 @@ function SwapButton({ colors }) {
             }`}
             style={{ backgroundColor: colors.buttons.disabled_background }}
             title="Swap DX and DE continent filters"
+            disabled={areFiltersEqual}
         >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <title>Swap continents</title>
                 <path
                     d="M7 4L7 20M7 4L3 8M7 4L11 8"
                     stroke="#000000"
@@ -90,7 +93,7 @@ function SwapButton({ colors }) {
                     strokeLinejoin="round"
                 />
             </svg>
-        </div>
+        </button>
     );
 }
 
@@ -183,16 +186,27 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                                 set_active_view(index);
                             }
                         }}
-                        className={
-                            "flex items-center justify-center flex-1 py-0.5 transition-colors rounded-md" +
-                            (!is_active && !option.is_disabled
+                        onKeyDown={event => {
+                            if (
+                                !is_active &&
+                                !option.is_disabled &&
+                                (event.key === "Enter" || event.key === " ")
+                            ) {
+                                event.preventDefault();
+                                set_active_view(index);
+                            }
+                        }}
+                        className={`flex items-center justify-center flex-1 py-0.5 transition-colors rounded-md${
+                            !is_active && !option.is_disabled
                                 ? " cursor-pointer opacity-60 hover:opacity-100"
-                                : "")
-                        }
+                                : ""
+                        }`}
                         style={{
                             backgroundColor: is_active ? colors.buttons.active_tab : undefined,
                         }}
                         title={option.label}
+                        role="button"
+                        tabIndex={0}
                     >
                         <svg
                             width={option.size}
@@ -200,6 +214,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                             viewBox={option.viewbox}
                             fill={is_active ? option.bg : colors.buttons.utility}
                         >
+                            <title>{option.label || "View option"}</title>
                             <path d={option.icon} />
                         </svg>
                     </div>
@@ -216,12 +231,16 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
     if (active_view === null) return null;
 
     const content = [
-        <Filters toggled_ui={toggled_ui} />,
-        <FrequencyBar set_cat_to_spot={set_cat_to_spot} className={"px-2 h-full"} />,
-        <div className="p-2">
+        <Filters key="filters" toggled_ui={toggled_ui} />,
+        <FrequencyBar
+            key="frequency-bar"
+            set_cat_to_spot={set_cat_to_spot}
+            className={"px-2 h-full"}
+        />,
+        <div key="heatmap" className="p-2">
             <Heatmap />
         </div>,
-        <DXpeditions />,
+        <DXpeditions key="dxpeditions" />,
     ];
 
     const toggled_classes = toggled_ui.right_visible
@@ -229,10 +248,7 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
         : "hidden";
     return (
         <div
-            className={
-                toggled_classes +
-                " 2xl:flex flex-col h-full z-50 max-2xl:max-h-full max-2xl:overflow-auto"
-            }
+            className={`${toggled_classes} 2xl:flex flex-col h-full z-50 max-2xl:max-h-full max-2xl:overflow-auto`}
             style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}
         >
             <ViewSelectorTabs

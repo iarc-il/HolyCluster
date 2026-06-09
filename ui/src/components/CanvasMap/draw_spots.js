@@ -16,7 +16,7 @@ function with_alpha(color, alpha) {
     if (!hex_match) return value;
 
     const [, r, g, b] = hex_match;
-    return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${alpha})`;
+    return `rgba(${Number.parseInt(r, 16)}, ${Number.parseInt(g, 16)}, ${Number.parseInt(b, 16)}, ${alpha})`;
 }
 
 export function make_visibility_check(projection) {
@@ -50,12 +50,12 @@ function draw_spot_dx(context, spot, color, stroke_color, dx_x, dx_y, dx_size) {
         context.lineTo(dx_x - dx_size / 2, dx_y + dx_size / 2);
         context.lineTo(dx_x + dx_size / 2, dx_y + dx_size / 2);
     } else {
-        dx_size = dx_size / 1.6;
+        const local_dx_size = dx_size / 1.6;
         const hex_points = [];
         for (let i = 0; i < 6; i++) {
             const angle = (Math.PI / 3) * i;
-            const x = dx_x + dx_size * Math.cos(angle);
-            const y = dx_y + dx_size * Math.sin(angle);
+            const x = dx_x + local_dx_size * Math.cos(angle);
+            const y = dx_y + local_dx_size * Math.sin(angle);
             hex_points.push([x, y]);
         }
         context.moveTo(hex_points[0][0], hex_points[0][1]);
@@ -141,11 +141,11 @@ export function draw_spots(
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
     context.clip();
 
-    let bold_spots = [];
-    spots.forEach(spot => {
+    const bold_spots = [];
+    for (const spot of spots) {
         const is_band_highlighted = hovered_band != null && spot.band === hovered_band;
         const is_freq_highlighted = current_freq_spots.includes(spot.id);
-        if (hovered_spot.id == spot.id || pinned_spot == spot.id) {
+        if (hovered_spot.id === spot.id || pinned_spot === spot.id) {
             bold_spots.push(spot);
         } else if (is_band_highlighted || is_freq_highlighted) {
             draw_spot(context, spot, colors, dash_offset, {
@@ -162,13 +162,13 @@ export function draw_spots(
                 is_visible,
             });
         }
-    });
+    }
 
     // Draw azimuth line before the bold spot so it appears under it
     let azimuth_spot;
     if (pinned_spot) {
-        for (let spot of bold_spots) {
-            if (spot.id == pinned_spot) {
+        for (const spot of bold_spots) {
+            if (spot.id === pinned_spot) {
                 azimuth_spot = spot;
                 break;
             }
@@ -177,7 +177,7 @@ export function draw_spots(
         azimuth_spot = bold_spots[bold_spots.length - 1];
     }
 
-    if (azimuth_spot && !is_globe && hovered_spot.source != "table") {
+    if (azimuth_spot && !is_globe && hovered_spot.source !== "table") {
         const [center_lon, center_lat] = projection.rotate().map(x => -x);
         const azimuth = calculate_geographic_azimuth(
             center_lat,
@@ -201,7 +201,7 @@ export function draw_spots(
     }
 
     // Bold spot drawn last (on top)
-    for (let spot of bold_spots) {
+    for (const spot of bold_spots) {
         draw_spot(context, spot, colors, dash_offset, {
             is_bold: true,
             path_generator,

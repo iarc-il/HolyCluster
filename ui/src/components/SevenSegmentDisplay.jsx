@@ -11,10 +11,10 @@ export default function SevenSegmentDisplay({ className, height, value, display_
     }
 
     return (
-        <div className={`flex flex-row gap-2 h-[35px]`}>
+        <div className={"flex flex-row gap-2 h-[35px]"}>
             {Array.from({ length: display_size }, (_, i) => (
-                <React.Fragment key={i}>
-                    <SevenSegmentTile value={error ? -1 : parseInt(value[i])} />
+                <React.Fragment key={`segment-${i}`}>
+                    <SevenSegmentTile value={error ? -1 : Number.parseInt(value[i])} />
                     {(display_size - i) % 3 === 1 && i !== display_size - 1 && (
                         <div
                             className={`h-[3px] aspect-square mt-auto -mx-1 ${error && "opacity-25"}`}
@@ -23,7 +23,7 @@ export default function SevenSegmentDisplay({ className, height, value, display_
                                     ? colors.seven_segment.off
                                     : colors.seven_segment.on,
                             }}
-                        ></div>
+                        />
                     )}
                 </React.Fragment>
             ))}
@@ -45,30 +45,30 @@ function SevenSegmentTile({ className, value }) {
             <SevenSegmentLine className={"left-[10%] top-0 w-[80%] h-[10%]"} on={top_segment} />
 
             <SevenSegmentLine
-                className={`left-[0%] top-[10%] w-[20%] h-[35%]`}
+                className={"left-[0%] top-[10%] w-[20%] h-[35%]"}
                 on={top_left_segment}
             />
             <SevenSegmentLine
-                className={`right-[0%] top-[10%] w-[20%] h-[35%]`}
+                className={"right-[0%] top-[10%] w-[20%] h-[35%]"}
                 on={top_right_segment}
             />
 
             <SevenSegmentLine
-                className={`left-[10%] top-[45%] w-[80%] h-[10%]`}
+                className={"left-[10%] top-[45%] w-[80%] h-[10%]"}
                 on={middle_segment}
             />
 
             <SevenSegmentLine
-                className={`left-[0%] top-[55%] w-[20%] h-[35%]`}
+                className={"left-[0%] top-[55%] w-[20%] h-[35%]"}
                 on={bottom_left_segment}
             />
             <SevenSegmentLine
-                className={`right-[0%] top-[55%] w-[20%] h-[35%] `}
+                className={"right-[0%] top-[55%] w-[20%] h-[35%] "}
                 on={bottom_right_segment}
             />
 
             <SevenSegmentLine
-                className={`left-[10%] top-[90%] w-[80%] h-[10%]`}
+                className={"left-[10%] top-[90%] w-[80%] h-[10%]"}
                 on={bottom_segment}
             />
         </div>

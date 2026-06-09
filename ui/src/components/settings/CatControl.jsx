@@ -70,7 +70,7 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                     onChange={event => {
                                         set_temp_settings({
                                             ...temp_settings,
-                                            highlight_port: parseInt(event.target.value),
+                                            highlight_port: Number.parseInt(event.target.value),
                                         });
                                     }}
                                 />

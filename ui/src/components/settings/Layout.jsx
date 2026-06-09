@@ -68,10 +68,7 @@ function PreviewPanel({ panel, colors, border }) {
 
     return (
         <div
-            className={
-                "flex grow basis-1/2 flex-col items-center justify-center gap-2 rounded-md px-2 " +
-                border_class
-            }
+            className={`flex grow basis-1/2 flex-col items-center justify-center gap-2 rounded-md px-2 ${border_class}`}
             style={{
                 borderColor: colors.theme.borders,
                 backgroundColor: colors.theme.background,

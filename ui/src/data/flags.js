@@ -23,8 +23,6 @@ const dxcc_to_country_flag = {
     Bonaire: "Caribbean Netherlands",
     Curacao: "Caribbean Netherlands",
     "Chatham Islands": "New Zealand",
-    "United Nations HQ": "United Nations",
-    "ITU HQ": "United Nations",
     "Kure Island": "United States Minor Outlying Islands",
     "Wake Island": "United States Minor Outlying Islands",
     "Mariana Islands": "United States Minor Outlying Islands",
@@ -87,18 +85,17 @@ const dxcc_to_short_dxcc = {
 export function get_flag(dx_country) {
     if (dxcc_to_country_flag[dx_country]) {
         return flags[dxcc_to_country_flag[dx_country]];
-    } else if (flags[dx_country]) {
-        return flags[dx_country];
-    } else {
-        return null;
     }
+    if (flags[dx_country]) {
+        return flags[dx_country];
+    }
+    return null;
 }
 
 export function shorten_dxcc(dx_country) {
-    let shorted = dxcc_to_short_dxcc[dx_country];
+    const shorted = dxcc_to_short_dxcc[dx_country];
     if (shorted) {
         return shorted;
-    } else {
-        return dx_country;
     }
+    return dx_country;
 }

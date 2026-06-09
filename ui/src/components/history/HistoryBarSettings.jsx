@@ -48,8 +48,8 @@ function HistoryBarSettings({
     }, [show_settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
     function apply_window_input() {
-        const v = parseInt(window_input);
-        if (!isNaN(v) && v >= 1) {
+        const v = Number.parseInt(window_input);
+        if (!Number.isNaN(v) && v >= 1) {
             const new_ms = Math.min(v * 60_000, MAX_WINDOW_MS);
             set_window_size_ms(new_ms);
             set_end(new Date(start.getTime() + new_ms));
@@ -60,8 +60,8 @@ function HistoryBarSettings({
     }
 
     function apply_speed_input() {
-        const v = parseInt(speed_input);
-        if (!isNaN(v) && v >= 1 && v <= 60) {
+        const v = Number.parseInt(speed_input);
+        if (!Number.isNaN(v) && v >= 1 && v <= 60) {
             set_time_between_shifts(v);
         } else {
             set_speed_input(String(time_between_shifts));

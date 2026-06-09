@@ -83,13 +83,13 @@ function get_sota_points_style(points) {
 
 function Callsign({ callsign }) {
     return (
-        <a href={"https://www.qrz.com/db/" + callsign} target="_blank">
+        <a href={`https://www.qrz.com/db/${callsign}`} target="_blank" rel="noreferrer">
             {callsign}
         </a>
     );
 }
 
-function Spot(
+const Spot = forwardRef(function Spot(
     {
         spot,
         is_even,
@@ -118,18 +118,17 @@ function Spot(
                 set_is_fading(true);
             }, 100);
             return () => clearTimeout(timer);
-        } else {
-            set_is_fading(false);
         }
+        set_is_fading(false);
     }, [is_new_spot]);
 
     const time = new Date(spot.time * 1000);
     const utc_hours = String(time.getUTCHours()).padStart(2, "0");
     const utc_minutes = String(time.getUTCMinutes()).padStart(2, "0");
-    const formatted_time = utc_hours + ":" + utc_minutes;
+    const formatted_time = `${utc_hours}:${utc_minutes}`;
     const is_same_freq = current_freq_spots.includes(spot.id);
-    const is_pinned = spot.id == pinned_spot;
-    const is_hovered = spot.id == hovered_spot.id || is_pinned || is_same_freq;
+    const is_pinned = spot.id === pinned_spot;
+    const is_hovered = spot.id === hovered_spot.id || is_pinned || is_same_freq;
 
     const { colors, dev_mode } = useColors();
     let row_classes;
@@ -145,7 +144,8 @@ function Spot(
     let background_color;
     let text_color;
 
-    let normal_bg_color, normal_text_color;
+    let normal_bg_color;
+    let normal_text_color;
     if (is_even) {
         normal_bg_color = colors.table.odd_row;
         normal_text_color = colors.table.even_text;
@@ -174,7 +174,7 @@ function Spot(
     if (
         settings.show_state_abbreviations &&
         spot.dx_state &&
-        (spot.dx_country == "USA" || spot.dx_country == "Canada" || dev_mode)
+        (spot.dx_country === "USA" || spot.dx_country === "Canada" || dev_mode)
     ) {
         dx_state = `(${spot.dx_state})`;
     } else {
@@ -184,7 +184,12 @@ function Spot(
         const flag = get_flag(spot.dx_country);
         dx_column = flag ? (
             <>
-                <img className="m-auto" width="16" src={`data:image/webp;base64, ${flag}`} />
+                <img
+                    className="m-auto"
+                    width="16"
+                    src={`data:image/webp;base64, ${flag}`}
+                    alt={`${spot.dx_country} flag`}
+                />
                 {dx_state}
             </>
         ) : (
@@ -198,8 +203,8 @@ function Spot(
         );
     }
 
-    let popup_anchor = useRef(null);
-    let reference_popup_anchor = useRef(null);
+    const popup_anchor = useRef(null);
+    const reference_popup_anchor = useRef(null);
     const comment = (spot.comment ?? "").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 
     return (
@@ -214,7 +219,7 @@ function Spot(
                     ? "background-color 2.5s ease-out, color 2.5s ease-out"
                     : "none",
             }}
-            className={row_classes + " h-7 z-40"}
+            className={`${row_classes} h-7 z-40`}
             onMouseEnter={() => set_hovered_spot({ source: "table", id: spot.id })}
             onClick={() => set_pinned_spot(spot.id)}
         >
@@ -271,7 +276,7 @@ function Spot(
                 )}
             </td>
             <td
-                className={cell_classes.dx_callsign + " font-semibold"}
+                className={`${cell_classes.dx_callsign} font-semibold`}
                 style={{
                     outline: is_dxpedition_alerted
                         ? `2px solid ${colors.spots.dxpedition_alert}`
@@ -374,9 +379,7 @@ function Spot(
             )}
         </tr>
     );
-}
-
-Spot = forwardRef(Spot);
+});
 
 function update_parity_map(parity, prev_sort, table_sort, spots) {
     if (
@@ -410,8 +413,8 @@ function update_parity_map(parity, prev_sort, table_sort, spots) {
 
 function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, sorting = true }) {
     const { colors } = useColors();
-    let direction = <span className="w-[0.8em] h-[1.5em] shrink-0"></span>;
-    if (table_sort.column == field && sorting) {
+    let direction = <span className="w-[0.8em] h-[1.5em] shrink-0" />;
+    if (table_sort.column === field && sorting) {
         if (table_sort.ascending) {
             direction = (
                 <svg className="w-[0.8em] h-[1.5em] shrink-0" viewBox="0 0 16 16" fill="none">
@@ -433,7 +436,7 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
         }
     }
     function set_sort() {
-        if (table_sort.column == field) {
+        if (table_sort.column === field) {
             set_table_sort({ ...table_sort, ascending: !table_sort.ascending });
         } else {
             set_table_sort({ column: field, ascending: false });
@@ -441,9 +444,7 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
     }
     return (
         <td
-            className={
-                "sticky top-0 z-40 h-8 " + (sorting ? "cursor-pointer " : "") + cell_classes[field]
-            }
+            className={`sticky top-0 z-40 h-8 ${sorting ? "cursor-pointer " : ""}${cell_classes[field]}`}
             style={{
                 backgroundColor: colors.table.header,
                 color: colors.table.header_text,
@@ -543,64 +544,63 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     }),
                 }),
             ];
-        } else {
-            return [
-                {
-                    label: spot => "Open QRZ Profile",
-                    onClick: spot => {
-                        const callsign = context_menu.is_spotter
-                            ? spot.spotter_callsign
-                            : spot.dx_callsign;
-                        window.open(`https://www.qrz.com/db/${callsign}`, "_blank");
-                    },
-                },
-                {
-                    label: spot => (spot.id == pinned_spot ? "Unpin Spot" : "Pin Spot"),
-                    onClick: spot => {
-                        set_pinned_spot(spot.id === pinned_spot ? null : spot.id);
-                    },
-                },
-                build_filter_action({
-                    add_label: "Add Alert",
-                    remove_label: "Remove Alert",
-                    build_filter: spot => {
-                        const is_spotter = context_menu.is_spotter;
-                        return {
-                            action: "alert",
-                            type: "prefix",
-                            value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
-                            spotter_or_dx: is_spotter ? "spotter" : "dx",
-                        };
-                    },
-                }),
-                build_filter_action({
-                    add_label: "Add Show Only Filter",
-                    remove_label: "Remove Show Only Filter",
-                    build_filter: spot => {
-                        const is_spotter = context_menu.is_spotter;
-                        return {
-                            action: "show_only",
-                            type: "prefix",
-                            value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
-                            spotter_or_dx: is_spotter ? "spotter" : "dx",
-                        };
-                    },
-                }),
-                build_filter_action({
-                    add_label: "Add Hide Filter",
-                    remove_label: "Remove Hide Filter",
-                    build_filter: spot => {
-                        const is_spotter = context_menu.is_spotter;
-                        return {
-                            action: "hide",
-                            type: "prefix",
-                            value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
-                            spotter_or_dx: is_spotter ? "spotter" : "dx",
-                        };
-                    },
-                }),
-            ];
         }
+        return [
+            {
+                label: spot => "Open QRZ Profile",
+                onClick: spot => {
+                    const callsign = context_menu.is_spotter
+                        ? spot.spotter_callsign
+                        : spot.dx_callsign;
+                    window.open(`https://www.qrz.com/db/${callsign}`, "_blank");
+                },
+            },
+            {
+                label: spot => (spot.id === pinned_spot ? "Unpin Spot" : "Pin Spot"),
+                onClick: spot => {
+                    set_pinned_spot(spot.id === pinned_spot ? null : spot.id);
+                },
+            },
+            build_filter_action({
+                add_label: "Add Alert",
+                remove_label: "Remove Alert",
+                build_filter: spot => {
+                    const is_spotter = context_menu.is_spotter;
+                    return {
+                        action: "alert",
+                        type: "prefix",
+                        value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+                        spotter_or_dx: is_spotter ? "spotter" : "dx",
+                    };
+                },
+            }),
+            build_filter_action({
+                add_label: "Add Show Only Filter",
+                remove_label: "Remove Show Only Filter",
+                build_filter: spot => {
+                    const is_spotter = context_menu.is_spotter;
+                    return {
+                        action: "show_only",
+                        type: "prefix",
+                        value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+                        spotter_or_dx: is_spotter ? "spotter" : "dx",
+                    };
+                },
+            }),
+            build_filter_action({
+                add_label: "Add Hide Filter",
+                remove_label: "Remove Hide Filter",
+                build_filter: spot => {
+                    const is_spotter = context_menu.is_spotter;
+                    return {
+                        action: "hide",
+                        type: "prefix",
+                        value: is_spotter ? spot.spotter_callsign : spot.dx_callsign,
+                        spotter_or_dx: is_spotter ? "spotter" : "dx",
+                    };
+                },
+            }),
+        ];
     };
 
     const handle_context_menu = (event, spot, menu_type, is_spotter = false) => {
@@ -622,9 +622,9 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         const hovered_ref = row_refs.current[hovered_spot.id];
 
         if (
-            hovered_ref != undefined &&
+            hovered_ref !== undefined &&
             ["spotter", "dx", "arc", "bar", "dxpedition"].includes(hovered_spot.source) &&
-            pinned_spot == undefined
+            pinned_spot === undefined
         ) {
             hovered_ref.scrollIntoView({ block: "center", behavior: "instant" });
         }
@@ -675,7 +675,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     cell_classes={table_cell_classes}
                                     is_pota_mode={is_pota_mode}
                                     show_sota_points={show_sota_points}
-                                ></Spot>
+                                />
                             ))}
                         </tbody>
                     </table>

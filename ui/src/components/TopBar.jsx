@@ -48,7 +48,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
     const { colors } = useColors();
 
     useEffect(() => {
-        if (rig && rig != requested_rig) {
+        if (rig && rig !== requested_rig) {
             set_rig(requested_rig);
         }
     }, [rig, requested_rig]);
@@ -85,7 +85,11 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                 />
             </div>
             <div className="hidden xs:flex h-full p-2 gap-3">
-                <img className="object-contain max-h-12 w-10 m-auto" src={Icon} />
+                <img
+                    className="object-contain max-h-12 w-10 m-auto"
+                    src={Icon}
+                    alt="Holy Cluster logo"
+                />
             </div>
             <h1
                 className="hidden lg:block md:text-2xl text-4xl m-auto w-fit font-bold"
@@ -99,7 +103,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                     <>
                         <div className="flex flex-col w-[42px] h-full justify-around">
                             {[1, 2].map(rig_val => {
-                                const rig_active = rig == rig_val;
+                                const rig_active = rig === rig_val;
                                 return (
                                     <Button
                                         key={rig_val}
@@ -169,7 +173,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                 </Select>
 
                 <div className="hidden xs:block">
-                    {network_state == "connecting" ? (
+                    {network_state === "connecting" ? (
                         <Spinner size="32" color="lightblue" />
                     ) : (
                         <span title={network_state}>
@@ -183,7 +187,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                 </div>
                 <Settings set_map_controls={set_map_controls} set_radius_in_km={set_radius_in_km} />
                 {dev_mode ? <ClusterStats /> : ""}
-                {dev_mode ? <ColorPicker></ColorPicker> : ""}
+                {dev_mode ? <ColorPicker /> : ""}
                 <div className="p-2 hidden max-2xl:block">
                     <OpenMenu
                         size="32"

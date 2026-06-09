@@ -7,6 +7,7 @@ function ConnectionState({ size, color, title }) {
             fill="none"
             viewBox="0 0 24 24"
         >
+            <title>Connected</title>
             <path
                 stroke={color}
                 strokeLinecap="round"
@@ -26,6 +27,7 @@ function ConnectionState({ size, color, title }) {
             fill="none"
             viewBox="0 0 24 24"
         >
+            <title>Disconnected</title>
             <path
                 stroke={color}
                 strokeLinecap="round"

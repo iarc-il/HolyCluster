@@ -6,7 +6,7 @@ function clock() {
     const [time, set_current_time] = useState(new Date());
 
     useEffect(() => {
-        let interval_id = setInterval(() => set_current_time(new Date()), 1000);
+        const interval_id = setInterval(() => set_current_time(new Date()), 1000);
         return () => {
             clearInterval(interval_id);
         };

@@ -407,7 +407,7 @@ function MapControls({
                         }}
                     >
                         <div className="flex items-center gap-3">
-                            {radio_status != "unavailable" && can_undo_cat ? (
+                            {radio_status !== "unavailable" && can_undo_cat ? (
                                 <Button
                                     color="utility"
                                     className="p-1"
@@ -428,11 +428,8 @@ function MapControls({
                             ) : (
                                 ""
                             )}
-                            {radio_status != "unavailable" ? (
-                                <Radio
-                                    color={radio_status_to_color[radio_status]}
-                                    size="40"
-                                ></Radio>
+                            {radio_status !== "unavailable" ? (
+                                <Radio color={radio_status_to_color[radio_status]} size="40" />
                             ) : null}
                             <button
                                 type="button"

@@ -46,12 +46,12 @@ function RadioButton({ children, disabled, on_click }) {
         "cursor-pointer",
         "select-none",
     ];
-    let color = disabled ? "gray" : "green";
+    const color = disabled ? "gray" : "green";
     classes = [...classes, `bg-${color}-600`, `active:bg-${color}-800`, `hover:bg-${color}-700`];
     return (
-        <div className={classes.join(" ")} onClick={on_click}>
+        <button type="button" className={classes.join(" ")} onClick={on_click}>
             {children}
-        </div>
+        </button>
     );
 }
 
@@ -155,7 +155,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
             }}
             on_apply={() => {
                 const draft_filter =
-                    temp_data.type == "zone" || temp_data.type == "zone_region"
+                    temp_data.type === "zone" || temp_data.type === "zone_region"
                         ? {
                               ...temp_data,
                               type: "zone",
@@ -164,14 +164,14 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                   temp_data.value,
                               ),
                           }
-                        : temp_data.type == "quick_comment"
+                        : temp_data.type === "quick_comment"
                           ? {
                                 ...temp_data,
                                 type: "comment",
                             }
                           : temp_data;
 
-                if (temp_data.type == "zone" || temp_data.type == "zone_region") {
+                if (temp_data.type === "zone" || temp_data.type === "zone_region") {
                     if (!is_valid_zone_number(temp_data.zone_system, temp_data.value)) {
                         set_error_message("Please choose a valid zone.");
                         return false;
@@ -179,11 +179,11 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                 }
 
                 const is_value_required =
-                    temp_data.type != "self_spotters" &&
-                    temp_data.type != "dxpeditions" &&
-                    temp_data.type != "zone" &&
-                    temp_data.type != "zone_region";
-                if (is_value_required && temp_data.value.toString().trim().length == 0) {
+                    temp_data.type !== "self_spotters" &&
+                    temp_data.type !== "dxpeditions" &&
+                    temp_data.type !== "zone" &&
+                    temp_data.type !== "zone_region";
+                if (is_value_required && temp_data.value.toString().trim().length === 0) {
                     set_error_message("Please enter a filter value.");
                     return false;
                 }
@@ -229,20 +229,21 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                     set_temp_data={set_temp_data}
                     build_temp_data={(temp_data, field, value) => {
                         if (
-                            value == "entity" ||
-                            temp_data.type == "entity" ||
-                            value == "zone_region"
+                            value === "entity" ||
+                            temp_data.type === "entity" ||
+                            value === "zone_region"
                         ) {
                             return {
                                 ...temp_data,
                                 [field]: value,
-                                value: value == "zone_region" ? "AL" : "",
+                                value: value === "zone_region" ? "AL" : "",
                                 zone_system:
-                                    value == "zone_region" ? "us_state" : temp_data.zone_system,
+                                    value === "zone_region" ? "us_state" : temp_data.zone_system,
                                 spotter_or_dx: "dx",
                                 quick_filter: undefined,
                             };
-                        } else if (value == "quick_comment") {
+                        }
+                        if (value === "quick_comment") {
                             const quick_filter = QUICK_COMMENT_FILTERS[0];
                             return {
                                 ...temp_data,
@@ -250,7 +251,8 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                 value: quick_filter.comment,
                                 quick_filter: quick_filter.value,
                             };
-                        } else if (value == "zone") {
+                        }
+                        if (value === "zone") {
                             return {
                                 ...temp_data,
                                 [field]: value,
@@ -259,18 +261,17 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                 spotter_or_dx: "dx",
                                 quick_filter: undefined,
                             };
-                        } else {
-                            return {
-                                ...temp_data,
-                                [field]: value,
-                                quick_filter:
-                                    value === "quick_comment" ? temp_data.quick_filter : undefined,
-                            };
                         }
+                        return {
+                            ...temp_data,
+                            [field]: value,
+                            quick_filter:
+                                value === "quick_comment" ? temp_data.quick_filter : undefined,
+                        };
                     }}
                 />
 
-                {temp_data.type == "zone" ? (
+                {temp_data.type === "zone" ? (
                     <>
                         <hr />
                         <SelectionLine
@@ -318,7 +319,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             </div>
                         </div>
                     </>
-                ) : temp_data.type == "zone_region" ? (
+                ) : temp_data.type === "zone_region" ? (
                     <>
                         <hr />
                         <SelectionLine
@@ -375,10 +376,10 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             </div>
                         </div>
                     </>
-                ) : temp_data.type != "self_spotters" &&
-                  temp_data.type != "dxpeditions" &&
-                  temp_data.type != "comment" &&
-                  temp_data.type != "quick_comment" ? (
+                ) : temp_data.type !== "self_spotters" &&
+                  temp_data.type !== "dxpeditions" &&
+                  temp_data.type !== "comment" &&
+                  temp_data.type !== "quick_comment" ? (
                     <>
                         <hr />
                         <SelectionLine
@@ -393,7 +394,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                         <div className="flex justify-start space-x-5 items-center w-96">
                             <div>{temp_data.type}:</div>
                             <div>
-                                {temp_data.type == "entity" ? (
+                                {temp_data.type === "entity" ? (
                                     <SearchSelect
                                         className="h-10 w-20"
                                         value={{ value: temp_data.value, label: temp_data.value }}
@@ -451,7 +452,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             </div>
                         </div>
                     </>
-                ) : temp_data.type == "comment" ? (
+                ) : temp_data.type === "comment" ? (
                     <>
                         <hr />
                         <div className="flex justify-start space-x-5 items-center w-full">
@@ -471,7 +472,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             </div>
                         </div>
                     </>
-                ) : temp_data.type == "quick_comment" ? (
+                ) : temp_data.type === "quick_comment" ? (
                     <>
                         <hr />
                         <b className="text-xl flex mt-2">Select:</b>

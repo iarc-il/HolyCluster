@@ -78,6 +78,16 @@ export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
                         className={`px-4 py-2 flex items-center gap-2 ${
                             disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
                         }`}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={event => {
+                            if (disabled) return;
+                            if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                action.onClick(spot);
+                                on_close();
+                            }
+                        }}
                         style={{
                             color: colors.theme.text,
                             backgroundColor:

@@ -981,7 +981,7 @@ function CanvasMap({
             }
 
             const clickable_dxcc = get_clickable_dxcc_label(x, y);
-            if (clickable_dxcc != null && clickable_dxcc.entity) {
+            if (clickable_dxcc?.entity) {
                 callbacks_ref.current.open_dxcc_context_menu(
                     event.clientX,
                     event.clientY,
@@ -1297,8 +1297,8 @@ function CanvasMap({
     }, [dims]);
 
     // Compute azimuth for hovered/pinned spot
-    const hovered_spot_data = spots.find(spot => spot.id == hovered_spot.id);
-    const pinned_spot_data = spots.find(spot => spot.id == pinned_spot);
+    const hovered_spot_data = spots.find(spot => spot.id === hovered_spot.id);
+    const pinned_spot_data = spots.find(spot => spot.id === pinned_spot);
 
     const hovered_spot_distance =
         hovered_spot_data != null
@@ -1385,6 +1385,7 @@ function CanvasMap({
                 style={canvas_style}
             />
             <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                <title>Map overlay</title>
                 <g className="font-medium text-lg select-none">
                     <text x={text_x} y={text_y} fill={colors.theme.text}>
                         Radius: {settings.is_miles ? km_to_miles(radius_in_km) : radius_in_km}{" "}

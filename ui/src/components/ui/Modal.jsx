@@ -24,12 +24,12 @@ function Modal({
     function on_keydown(event) {
         if (!show_modal) return;
 
-        if (event.key == "Escape") {
+        if (event.key === "Escape") {
             if (on_cancel != null) {
                 on_cancel();
             }
             set_show_modal(false);
-        } else if (event.key == "Enter") {
+        } else if (event.key === "Enter") {
             if (on_apply && !apply_disabled) {
                 event.preventDefault();
                 set_show_modal(!on_apply());

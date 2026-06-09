@@ -35,12 +35,12 @@ function draw_shadow_dx(context, spot, color, dx_x, dx_y, dx_size) {
         context.lineTo(dx_x - dx_size / 2, dx_y + dx_size / 2);
         context.lineTo(dx_x + dx_size / 2, dx_y + dx_size / 2);
     } else {
-        dx_size = dx_size / 1.6;
+        const local_dx_size = dx_size / 1.6;
         const hex_points = [];
         for (let i = 0; i < 6; i++) {
             const angle = (Math.PI / 3) * i;
-            const x = dx_x + dx_size * Math.cos(angle);
-            const y = dx_y + dx_size * Math.sin(angle);
+            const x = dx_x + local_dx_size * Math.cos(angle);
+            const y = dx_y + local_dx_size * Math.sin(angle);
             hex_points.push([x, y]);
         }
         context.moveTo(hex_points[0][0], hex_points[0][1]);
@@ -90,13 +90,13 @@ export function draw_shadow_map(shadow_context, spots, dims, projection, is_glob
     shadow_context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
     shadow_context.clip();
 
-    spots.forEach(spot => {
+    for (const spot of spots) {
         draw_shadow_spot(shadow_context, spot, {
             path_generator: shadow_path_generator,
             projection,
             is_visible,
         });
-    });
+    }
 
     shadow_context.restore();
 }

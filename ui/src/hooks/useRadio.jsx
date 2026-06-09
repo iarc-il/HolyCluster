@@ -22,10 +22,10 @@ function parse_version(raw_version) {
 
     const [, major, minor, patch, _, commit] = match;
     return [
-        parseInt(major, 10),
-        parseInt(minor, 10),
-        parseInt(patch, 10),
-        commit ? parseInt(commit, 10) : 0,
+        Number.parseInt(major, 10),
+        Number.parseInt(minor, 10),
+        Number.parseInt(patch, 10),
+        commit ? Number.parseInt(commit, 10) : 0,
     ];
 }
 
@@ -75,7 +75,7 @@ export function RadioProvider({ children }) {
 
     const host = window.location.host;
     const protocol = window.location.protocol;
-    const websocket_url = (protocol == "https:" ? "wss:" : "ws:") + "//" + host + "/radio";
+    const websocket_url = `${protocol === "https:" ? "wss:" : "ws:"}//${host}/radio`;
 
     const { sendJsonMessage, readyState, lastJsonMessage } = useWebSocket(websocket_url);
     const [radio_status, set_radio_status] = useState("unavailable");
@@ -86,7 +86,7 @@ export function RadioProvider({ children }) {
     const [raw_local_version, set_raw_local_version] = useState(null);
 
     function get_band_from_freq(freq) {
-        for (let band of Object.keys(band_plans)) {
+        for (const band of Object.keys(band_plans)) {
             if (freq <= band_plans[band].max && freq >= band_plans[band].min) {
                 return band;
             }
@@ -119,7 +119,7 @@ export function RadioProvider({ children }) {
     }, [lastJsonMessage]);
 
     function send_message_to_radio(message) {
-        if (readyState == ReadyState.OPEN) {
+        if (readyState === ReadyState.OPEN) {
             sendJsonMessage(message);
         }
     }

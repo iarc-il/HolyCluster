@@ -48,7 +48,7 @@ function with_alpha(color, alpha) {
     if (!hex_match) return value;
 
     const [, r, g, b] = hex_match;
-    return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${alpha})`;
+    return `rgba(${Number.parseInt(r, 16)}, ${Number.parseInt(g, 16)}, ${Number.parseInt(b, 16)}, ${alpha})`;
 }
 
 function get_filter_action_styles(map_colors) {
@@ -976,7 +976,7 @@ function draw_zone_labels_for_system(
         const pos = projection([lon, lat]);
         if (!pos) continue;
         const [x, y] = pos;
-        if (!isFinite(x) || !isFinite(y)) continue;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
 
         const zone_number = feature.properties[label_key];
         const label = String(zone_number);
@@ -1089,7 +1089,7 @@ export function get_dxcc_label_data(
     const pos = projection([lon, lat]);
     if (!pos) return null;
     const [x, y] = pos;
-    if (!isFinite(x) || !isFinite(y)) return null;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
 
     const prefix_items = get_dxcc_labels_from_prefix(feature?.properties?.dxcc_prefix);
     if (prefix_items.length === 0) return null;
@@ -1383,24 +1383,27 @@ export function draw_map(
                 const full_globe_radius = projection.scale() * Math.PI;
 
                 context.beginPath();
-                generate_concentric_circles(
+                for (const circle of generate_concentric_circles(
                     dims.center_x,
                     dims.center_y,
                     full_globe_radius,
-                ).forEach(circle => {
+                )) {
                     context.moveTo(circle.cx + circle.r, circle.cy);
                     context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
-                });
+                }
                 context.strokeStyle = map_colors.graticule;
                 context.stroke();
 
                 context.beginPath();
-                generate_radial_lines(dims.center_x, dims.center_y, full_globe_radius, 15).forEach(
-                    line => {
-                        context.moveTo(line.x1, line.y1);
-                        context.lineTo(line.x2, line.y2);
-                    },
-                );
+                for (const line of generate_radial_lines(
+                    dims.center_x,
+                    dims.center_y,
+                    full_globe_radius,
+                    15,
+                )) {
+                    context.moveTo(line.x1, line.y1);
+                    context.lineTo(line.x2, line.y2);
+                }
                 context.strokeStyle = map_colors.graticule;
                 context.stroke();
             }
@@ -1485,9 +1488,7 @@ export function draw_map(
             );
         } else {
             context.beginPath();
-            dxcc_map.features.forEach(feature => {
-                path_generator(feature);
-            });
+            dxcc_map.features.forEach(path_generator);
             context.strokeStyle = map_colors.land_borders;
             context.stroke();
 

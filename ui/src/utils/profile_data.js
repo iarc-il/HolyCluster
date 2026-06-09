@@ -105,7 +105,11 @@ function to_limited_text(value, fallback = "", max_length = MAX_TEXT_LENGTH) {
     return text.length > 0 ? text : fallback;
 }
 
-function to_number(value, fallback, { min = -Infinity, max = Infinity, integer = false } = {}) {
+function to_number(
+    value,
+    fallback,
+    { min = Number.NEGATIVE_INFINITY, max = Number.POSITIVE_INFINITY, integer = false } = {},
+) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) {
         return fallback;

@@ -71,7 +71,7 @@ export const SpotDataProvider = ({ children, startTime, endTime, window_size_ms 
     useEffect(() => {
         if (pinned_spot && settings.highlight_enabled && is_radio_available()) {
             highlight_spot(
-                raw_spots.find(spot => spot.id == pinned_spot),
+                raw_spots.find(spot => spot.id === pinned_spot),
                 settings.highlight_port,
             );
         }

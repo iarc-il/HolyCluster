@@ -141,14 +141,14 @@ function MainContent({
     const [active_view, set_active_view] = useLocalStorage("active_view", 0);
 
     function on_key_down(event) {
-        if (event.key == "Escape") {
+        if (event.key === "Escape") {
             set_pinned_spot(null);
         }
 
         if (event.ctrlKey && event.altKey) {
-            if (event.key == "f") {
+            if (event.key === "f") {
                 set_filter_missing_flags(!filter_missing_flags);
-            } else if (event.key == "p" || event.key == "s") {
+            } else if (event.key === "p" || event.key === "s") {
                 set_dev_mode(!dev_mode);
             }
         }
@@ -302,7 +302,7 @@ function MainContent({
                             key={mobile_tabs_key}
                             local_storage_name={mobile_tabs.length > 1 ? "mobile_tab" : null}
                             tabs={mobile_tabs}
-                        ></Tabs>
+                        />
                     ) : (
                         <div className="flex flex-1 min-w-0 h-full">
                             {active_panel_keys.map(panel_key => (

@@ -27,7 +27,8 @@ function FilterButton({
     ];
 
     return (
-        <div
+        <button
+            type="button"
             className={box_style.join(" ")}
             onClick={on_click}
             onMouseEnter={on_mouse_enter}
@@ -38,7 +39,7 @@ function FilterButton({
             }}
         >
             <span className="inline-flex items-center space-x-2">{text}</span>
-        </div>
+        </button>
     );
 }
 

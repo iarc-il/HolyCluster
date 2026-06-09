@@ -297,6 +297,7 @@ function DXpeditions() {
                             {filter_options.map(option => (
                                 <button
                                     key={option.key}
+                                    type="button"
                                     className="px-1 py-0.5 rounded cursor-pointer"
                                     style={{
                                         backgroundColor:
@@ -326,6 +327,7 @@ function DXpeditions() {
                             {sort_options.map(option => (
                                 <button
                                     key={option.key}
+                                    type="button"
                                     className="px-1 py-0.5 rounded cursor-pointer"
                                     style={{
                                         backgroundColor:

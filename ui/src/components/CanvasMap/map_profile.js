@@ -32,7 +32,7 @@ function get_metric(label) {
         metric = {
             count: 0,
             total_ms: 0,
-            min_ms: Infinity,
+            min_ms: Number.POSITIVE_INFINITY,
             max_ms: 0,
             last_ms: 0,
             samples: [],
