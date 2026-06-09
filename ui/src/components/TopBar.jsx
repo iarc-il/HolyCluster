@@ -32,6 +32,9 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
     const { network_state } = useSpotData();
     const { set_rig, radio_status, rig } = use_radio();
     const {
+        profiles,
+        active_profile_name,
+        set_active_profile_name,
         active_profile_data: {
             radio: { requested_rig },
         },
@@ -128,6 +131,21 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                     </>
                 ) : (
                     ""
+                )}
+                {profiles.length > 1 && (
+                    <div className="hidden md:block">
+                        <Select
+                            value={active_profile_name}
+                            onChange={event => set_active_profile_name(event.target.value)}
+                            className="w-28"
+                        >
+                            {profiles.map(profile => (
+                                <option key={profile.name} value={profile.name}>
+                                    {profile.name}
+                                </option>
+                            ))}
+                        </Select>
+                    </div>
                 )}
                 <SubmitSpot dev_mode={dev_mode} />
                 <Clock />
