@@ -1,30 +1,30 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
 import * as d3 from "d3";
 import haversine from "haversine-distance";
 import Maidenhead from "maidenhead";
-import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
 
+import MapAngles from "@/components/MapAngles.jsx";
+import SpotContextMenu from "@/components/SpotContextMenu.jsx";
+import SpotPopup from "@/components/SpotPopup.jsx";
+import Popup from "@/components/ui/Popup.jsx";
+import ToggleSVG from "@/components/ui/ToggleSVG";
+import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
+import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
+import { useSettings } from "@/hooks/useSettings";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { useVoacap } from "@/hooks/useVoacap.jsx";
 import { calculate_geographic_azimuth, km_to_miles, mod } from "@/utils.js";
+import { find_zone_label_number, get_active_overlay_systems } from "@/utils/zones.js";
 import { Dimensions } from "./dimensions.js";
-import { dxcc_map, draw_map, draw_zone_labels, find_dxcc_label } from "./draw_map.js";
+import { draw_map, draw_zone_labels, dxcc_map, find_dxcc_label } from "./draw_map.js";
 import { draw_spots } from "./draw_spots.js";
 import { draw_voacap } from "./draw_voacap.js";
 import { color_to_spot, draw_shadow_map } from "./hit_detection.js";
 import { profile_map } from "./map_profile.js";
-import SpotPopup from "@/components/SpotPopup.jsx";
-import SpotContextMenu from "@/components/SpotContextMenu.jsx";
-import MapAngles from "@/components/MapAngles.jsx";
-import ToggleSVG from "@/components/ui/ToggleSVG";
-import Popup from "@/components/ui/Popup.jsx";
-import { useColors } from "@/hooks/useColors";
-import { useFilters } from "@/hooks/useFilters";
-import { useSpotData } from "@/hooks/useSpotData";
-import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { useSettings } from "@/hooks/useSettings";
-import { useVoacap } from "@/hooks/useVoacap.jsx";
-import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
-import { find_zone_label_number, get_active_overlay_systems } from "@/utils/zones.js";
 
 const DPR = window.devicePixelRatio || 1;
 

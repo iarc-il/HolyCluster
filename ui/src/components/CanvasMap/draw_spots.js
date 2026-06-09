@@ -1,6 +1,6 @@
-import * as d3 from "d3";
 import { get_mode_shape } from "@/data/mode_shapes.js";
 import { calculate_geographic_azimuth } from "@/utils.js";
+import * as d3 from "d3";
 
 function with_alpha(color, alpha) {
     if (typeof color !== "string") return color;

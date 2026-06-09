@@ -1,14 +1,14 @@
-import { createContext, useContext, useEffect, useMemo, useRef } from "react";
-import { useLocalStorage } from "@uidotdev/usehooks";
-import { useLocation, useNavigate } from "react-router";
+import { FILTER_URL_PARAM } from "@/utils/filter_url_state.js";
 import {
-    make_unique_profile_name,
     PROFILE_STORE_KEY,
+    make_unique_profile_name,
     read_legacy_profile_data,
     sanitize_profile_data,
     sanitize_profile_store,
 } from "@/utils/profile_data.js";
-import { FILTER_URL_PARAM } from "@/utils/filter_url_state.js";
+import { useLocalStorage } from "@uidotdev/usehooks";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
+import { useLocation, useNavigate } from "react-router";
 
 const ProfilesContext = createContext(undefined);
 

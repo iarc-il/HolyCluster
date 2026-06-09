@@ -1,12 +1,12 @@
 import Select from "@/components/ui/Select.jsx";
-import { useRef, useMemo } from "react";
+import { band_plans } from "@/data/band_plans.js";
+import { get_mode_shape } from "@/data/mode_shapes.js";
 import { useColors } from "@/hooks/useColors";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
+import use_radio from "@/hooks/useRadio";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import use_radio from "@/hooks/useRadio";
-import { get_mode_shape } from "@/data/mode_shapes.js";
-import { band_plans } from "@/data/band_plans.js";
-import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { useMemo, useRef } from "react";
 
 function useBandSpots(spots, band) {
     const sorted = useMemo(() => {

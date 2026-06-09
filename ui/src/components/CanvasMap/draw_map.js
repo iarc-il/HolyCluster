@@ -1,17 +1,17 @@
-import * as d3 from "d3";
-import { century, equationOfTime, declination } from "solar-calculator";
-import dxcc_map from "@/maps/dxcc_map.json";
-import lakes from "@/maps/lakes.json";
 import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
 import { shorten_dxcc } from "@/data/flags.js";
 import { country_color_indices } from "@/data/map_colors.js";
+import dxcc_map from "@/maps/dxcc_map.json";
+import lakes from "@/maps/lakes.json";
 import {
+    ZONE_CONFIG,
     get_active_overlay_systems,
     get_label_min_area_px,
     is_label_anchor_outside_feature,
     normalize_zone_value,
-    ZONE_CONFIG,
 } from "@/utils/zones.js";
+import * as d3 from "d3";
+import { century, declination, equationOfTime } from "solar-calculator";
 import { profile_map } from "./map_profile.js";
 
 export { dxcc_map };

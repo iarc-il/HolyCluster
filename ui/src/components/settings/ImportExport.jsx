@@ -1,18 +1,18 @@
-import { useState } from "react";
 import Button from "@/components/ui/Button.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import {
+    PROFILE_SECTION_DEFINITIONS,
+    PROFILE_SECTION_KEYS,
     create_profile_export,
     make_unique_profile_name,
     pick_profile_sections,
-    PROFILE_SECTION_DEFINITIONS,
-    PROFILE_SECTION_KEYS,
     sanitize_imported_profile,
     sanitize_profile_data,
 } from "@/utils/profile_data.js";
+import { useState } from "react";
 
 async function copy_to_clipboard(text) {
     if (navigator.clipboard?.writeText) {

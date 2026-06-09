@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { modes, continents } from "@/data/filters_data.js";
+import { continents, modes } from "@/data/filters_data.js";
 import { shorten_dxcc } from "@/data/flags.js";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 function normalize_band(band) {
     if (band == 2) return "VHF";

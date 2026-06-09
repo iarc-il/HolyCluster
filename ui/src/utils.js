@@ -1,7 +1,7 @@
-import { useLocalStorage } from "@uidotdev/usehooks";
-import { useEffect } from "react";
-import Maidenhead from "maidenhead";
 import { find_zone_number, normalize_zone_value } from "@/utils/zones.js";
+import { useLocalStorage } from "@uidotdev/usehooks";
+import Maidenhead from "maidenhead";
+import { useEffect } from "react";
 
 export function to_radian(deg) {
     return deg * (Math.PI / 180);

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import useWebSocket, { ReadyState } from "react-use-websocket";
-import { modes, continents } from "@/data/filters_data.js";
+import { continents, modes } from "@/data/filters_data.js";
 import { shorten_dxcc } from "@/data/flags.js";
 import { find_zone_number } from "@/utils/zones.js";
+import { useCallback, useEffect, useRef, useState } from "react";
+import useWebSocket, { ReadyState } from "react-use-websocket";
 
 function normalize_band(band) {
     if (band == 2) return "VHF";

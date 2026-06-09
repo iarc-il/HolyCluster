@@ -1,7 +1,7 @@
-import Hero from "@/components/addons/Hero";
+import Download from "@/components/addons/Download";
 import Features from "@/components/addons/Features";
 import Guide from "@/components/addons/Guide";
-import Download from "@/components/addons/Download";
+import Hero from "@/components/addons/Hero";
 
 export default function Addons() {
     return (

@@ -1,13 +1,13 @@
-import { useRef, useState } from "react";
-import Input from "@/components/ui/Input.jsx";
 import CallsignInput from "@/components/CallsignInput.jsx";
+import HelpIcon from "@/components/ui/HelpIcon.jsx";
+import Input from "@/components/ui/Input.jsx";
+import Popup from "@/components/ui/Popup.jsx";
 import Select from "@/components/ui/Select.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
-import Popup from "@/components/ui/Popup.jsx";
-import HelpIcon from "@/components/ui/HelpIcon.jsx";
 import { themes_names, useColors } from "@/hooks/useColors";
 import { play_alert_sound } from "@/utils.js";
 import Maidenhead from "maidenhead";
+import { useRef, useState } from "react";
 
 function PlayIcon({ size }) {
     const { colors } = useColors();

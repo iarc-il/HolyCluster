@@ -1,20 +1,20 @@
-import { useState, useEffect } from "react";
 import Maidenhead from "maidenhead";
+import { useEffect, useState } from "react";
 
 import Modal from "@/components/ui/Modal.jsx";
-import { useColors } from "@/hooks/useColors";
-import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
-import { useFilters } from "@/hooks/useFilters";
-import { useSettings } from "@/hooks/useSettings";
-import ImportExport from "./ImportExport";
-import General from "./General";
-import Layout from "./Layout";
-import CatControl from "./CatControl";
-import Bands from "./Bands";
-import Profiles from "./Profiles";
-import use_radio from "@/hooks/useRadio";
 import Tabs from "@/components/ui/Tabs";
 import { bands, modes } from "@/data/filters_data.js";
+import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
+import use_radio from "@/hooks/useRadio";
+import { useSettings } from "@/hooks/useSettings";
+import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
+import Bands from "./Bands";
+import CatControl from "./CatControl";
+import General from "./General";
+import ImportExport from "./ImportExport";
+import Layout from "./Layout";
+import Profiles from "./Profiles";
 
 function SettingsIcon({ size }) {
     const { colors } = useColors();

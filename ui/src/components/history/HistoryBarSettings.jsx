@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import { useColors } from "@/hooks/useColors";
-import Button from "@/components/ui/Button.jsx";
-import Popup from "@/components/ui/Popup.jsx";
-import Input from "@/components/ui/Input";
 import { SettingsIcon } from "@/components/settings/Settings";
+import Button from "@/components/ui/Button.jsx";
+import Input from "@/components/ui/Input";
+import Popup from "@/components/ui/Popup.jsx";
+import { useColors } from "@/hooks/useColors";
+import { useEffect, useRef, useState } from "react";
 
 const MAX_WINDOW_MS = 8 * 60 * 60_000;
 

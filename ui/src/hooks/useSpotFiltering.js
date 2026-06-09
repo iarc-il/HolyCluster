@@ -1,11 +1,11 @@
+import { bands, modes } from "@/data/filters_data.js";
+import { get_flag } from "@/data/flags.js";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { is_matching_list, sort_spots } from "@/utils.js";
 import { useMemo, useState } from "react";
 import { useFilters } from "./useFilters";
 import use_radio from "./useRadio";
 import { useSpotInteraction } from "./useSpotInteraction";
-import { is_matching_list, sort_spots } from "@/utils.js";
-import { bands, modes } from "@/data/filters_data.js";
-import { get_flag } from "@/data/flags.js";
-import { useProfiles } from "@/hooks/useProfiles.jsx";
 
 const reference_spot_types = new Set(["sota", "pota", "wwff"]);
 

@@ -1,5 +1,5 @@
-import React from "react";
 import { useColors } from "@/hooks/useColors";
+import React from "react";
 
 export default function SevenSegmentDisplay({ className, height, value, display_size, error }) {
     const { colors } = useColors();

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button.jsx";
 import Input from "@/components/ui/Input.jsx";
 import Select from "@/components/ui/Select.jsx";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { useEffect, useState } from "react";
 
 function Profiles({ colors, set_temp_settings }) {
     const {

@@ -1,7 +1,7 @@
+import { createContext, useContext, useEffect, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
-import { useState, useEffect, createContext, useContext } from "react";
-import { useSettings } from "./useSettings";
 import raw_band_plans from "../../../shared/band_plans.json";
+import { useSettings } from "./useSettings";
 
 const band_plans = Object.fromEntries(
     Object.entries(raw_band_plans).map(([band, info]) => [

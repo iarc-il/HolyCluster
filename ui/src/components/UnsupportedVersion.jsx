@@ -1,5 +1,5 @@
-import { useColors } from "@/hooks/useColors";
 import Button from "@/components/ui/Button";
+import { useColors } from "@/hooks/useColors";
 
 function UnsupportedVersion() {
     const { colors } = useColors();

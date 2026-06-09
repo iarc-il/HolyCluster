@@ -1,5 +1,5 @@
-import prefix_list_csv from "../../../backend/shared/src/shared/prefixes_list.csv?raw";
 import { shorten_dxcc } from "@/data/flags.js";
+import prefix_list_csv from "../../../backend/shared/src/shared/prefixes_list.csv?raw";
 
 function normalize_dxcc_entity_value(value) {
     return (value ?? "").toString().trim().toLowerCase();

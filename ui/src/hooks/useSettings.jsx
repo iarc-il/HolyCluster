@@ -1,5 +1,5 @@
-import { createContext, useContext } from "react";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { createContext, useContext } from "react";
 
 const SettingsContext = createContext(undefined);
 

@@ -1,11 +1,11 @@
-import { useRef, useState } from "react";
 import Input from "@/components/ui/Input.jsx";
+import Popup from "@/components/ui/Popup.jsx";
 import Select from "@/components/ui/Select.jsx";
 import X from "@/components/ui/X.jsx";
-import Popup from "@/components/ui/Popup.jsx";
 import { useColors } from "@/hooks/useColors";
-import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useFilters } from "@/hooks/useFilters";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { useRef, useState } from "react";
 
 export default function CallsignSearch({
     className = "hidden md:flex",

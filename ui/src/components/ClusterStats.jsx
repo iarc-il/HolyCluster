@@ -1,8 +1,8 @@
 import { useState } from "react";
 
 import Modal from "@/components/ui/Modal.jsx";
-import Tabs from "@/components/ui/Tabs.jsx";
 import Select from "@/components/ui/Select.jsx";
+import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors.jsx";
 
 function StatsIcon({ size }) {

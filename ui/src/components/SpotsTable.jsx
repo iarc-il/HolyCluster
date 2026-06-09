@@ -1,16 +1,16 @@
+import CallsignSearch from "@/components/CallsignSearch.jsx";
 import X from "@/components/ui/X.jsx";
-import { useEffect, useState, forwardRef, useRef } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import SpotContextMenu from "./SpotContextMenu";
 import Popup from "./ui/Popup";
-import CallsignSearch from "@/components/CallsignSearch.jsx";
 
 import { get_flag } from "@/data/flags.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
-import { useSpotData } from "@/hooks/useSpotData";
-import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 
 const cell_classes = {
     time: "w-[15%] md:w-[11%] xl:w-[8%]",

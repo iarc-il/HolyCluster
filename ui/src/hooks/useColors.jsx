@@ -2,9 +2,9 @@ import { createContext, useContext } from "react";
 
 import { useLocalStorage } from "@uidotdev/usehooks";
 
-import { use_object_local_storage } from "@/utils.js";
-import { bands, modes, continents } from "@/data/filters_data.js";
+import { bands, continents, modes } from "@/data/filters_data.js";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { use_object_local_storage } from "@/utils.js";
 
 const ColorsContext = createContext(undefined);
 

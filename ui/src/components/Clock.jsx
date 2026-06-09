@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
 import { useColors } from "@/hooks/useColors";
+import { useEffect, useState } from "react";
 
 function clock() {
     const { colors } = useColors();

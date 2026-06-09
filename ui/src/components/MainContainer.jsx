@@ -1,22 +1,22 @@
 import CanvasMap from "@/components/CanvasMap/index.jsx";
-import MapControls from "@/components/MapControls.jsx";
-import TopBar from "@/components/TopBar.jsx";
-import SpotsTable from "@/components/SpotsTable.jsx";
-import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
+import MapControls from "@/components/MapControls.jsx";
 import SidePanel from "@/components/SidePanel.jsx";
-import Tabs from "@/components/ui/Tabs.jsx";
+import SpotsTable from "@/components/SpotsTable.jsx";
+import TopBar from "@/components/TopBar.jsx";
+import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import HistoryBar from "@/components/history/HistoryBar.jsx";
-import Maidenhead from "maidenhead";
-import { get_max_radius, get_spots_center } from "@/utils.js";
-import { useSpotData, SpotDataProvider } from "@/hooks/useSpotData";
-import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors";
-import use_radio from "@/hooks/useRadio";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
+import use_radio from "@/hooks/useRadio";
+import { SpotDataProvider, useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { get_max_radius, get_spots_center } from "@/utils.js";
+import Maidenhead from "maidenhead";
 
-import { useState, useEffect, useRef } from "react";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
+import { useEffect, useRef, useState } from "react";
 
 const AUTO_RADIUS_PADDING_KM = 1000;
 const AUTO_RADIUS_RECENTER_ENABLED = false;

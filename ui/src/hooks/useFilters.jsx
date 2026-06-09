@@ -1,13 +1,13 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
-import { normalize_zone_value } from "@/utils/zones.js";
 import {
+    FILTER_URL_PARAM,
     build_filter_share_url,
     decode_filter_state,
-    FILTER_URL_PARAM,
     get_filter_url_param,
 } from "@/utils/filter_url_state.js";
+import { normalize_zone_value } from "@/utils/zones.js";
+import { createContext, useContext, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 
 const FiltersContext = createContext(undefined);
 const ZONE_CLICK_ACTION_CYCLE = ["hide", "show_only", "alert"];

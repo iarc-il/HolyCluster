@@ -1,6 +1,6 @@
-import { km_to_miles } from "@/utils.js";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/hooks/useSettings";
+import { km_to_miles } from "@/utils.js";
 
 function SpotPopup({
     hovered_spot,

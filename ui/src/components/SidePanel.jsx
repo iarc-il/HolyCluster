@@ -1,13 +1,13 @@
+import DXpeditions from "@/components/DXpeditions.jsx";
+import FilterButton from "@/components/FilterButton.jsx";
+import FilterOptions from "@/components/FilterOptions.jsx";
 import Filters from "@/components/Filters.jsx";
 import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Heatmap from "@/components/Heatmap.jsx";
-import DXpeditions from "@/components/DXpeditions.jsx";
-import FilterOptions from "@/components/FilterOptions.jsx";
-import FilterButton from "@/components/FilterButton.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
 import { continents } from "@/data/filters_data.js";
-import { useFilters } from "@/hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
 
 const continent_title = { dx: "DX", spotter: "DE" };
 

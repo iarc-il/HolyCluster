@@ -1,5 +1,5 @@
-import * as d3 from "d3";
 import { get_mode_shape } from "@/data/mode_shapes.js";
+import * as d3 from "d3";
 import { build_geojson_line, make_visibility_check } from "./draw_spots.js";
 
 const TYPE_OFFSET = { dx: 0, arc: 1, spotter: 2 };

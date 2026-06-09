@@ -1,17 +1,17 @@
-import { useEffect, useState } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
-import useWebSocket, { ReadyState } from "react-use-websocket";
+import { useEffect, useState } from "react";
 import { ToastContainer, toast } from "react-toastify";
+import useWebSocket, { ReadyState } from "react-use-websocket";
 
-import Input from "@/components/ui/Input.jsx";
 import CallsignInput from "@/components/CallsignInput.jsx";
 import Button from "@/components/ui/Button.jsx";
+import Input from "@/components/ui/Input.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import Spinner from "@/components/ui/Spinner.jsx";
+import { band_plans } from "@/data/band_plans.js";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
-import { band_plans } from "@/data/band_plans.js";
 
 function SubmitIcon({ size }) {
     const { colors } = useColors();

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import Popup from "@/components/ui/Popup";
 import { useColors } from "@/hooks/useColors";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { useRestData } from "@/hooks/useRestData";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { useRestData } from "@/hooks/useRestData";
-import Popup from "@/components/ui/Popup";
-import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const filter_options = [
     { key: "all", label: "All" },

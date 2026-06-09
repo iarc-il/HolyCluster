@@ -1,10 +1,10 @@
-import { useState } from "react";
-import Input from "@/components/ui/Input.jsx";
-import Toggle from "@/components/ui/Toggle.jsx";
-import Modal from "@/components/ui/Modal.jsx";
-import HelpIcon from "@/components/ui/HelpIcon.jsx";
-import use_radio from "@/hooks/useRadio";
 import log4omImage from "@/assets/log4om_integration.png";
+import HelpIcon from "@/components/ui/HelpIcon.jsx";
+import Input from "@/components/ui/Input.jsx";
+import Modal from "@/components/ui/Modal.jsx";
+import Toggle from "@/components/ui/Toggle.jsx";
+import use_radio from "@/hooks/useRadio";
+import { useState } from "react";
 
 function CatControl({ temp_settings, set_temp_settings, colors }) {
     const { is_radio_available } = use_radio();

@@ -1,7 +1,7 @@
+import { useColors } from "@/hooks/useColors";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect } from "react";
 import { useSwipeable } from "react-swipeable";
-import { useColors } from "@/hooks/useColors";
 
 function get_clamped_tab_index(index, tab_count) {
     const numeric_index = Number(index);

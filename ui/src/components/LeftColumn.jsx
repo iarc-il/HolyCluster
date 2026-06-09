@@ -1,15 +1,15 @@
-import { useEffect, useRef, useCallback, useState } from "react";
-import { createPortal } from "react-dom";
-import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
+import FilterOptions from "@/components/FilterOptions.jsx";
 import { bands, modes } from "@/data/filters_data.js";
 import { get_mode_shape } from "@/data/mode_shapes.js";
+import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
+import use_radio from "@/hooks/useRadio";
+import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { useFilters } from "@/hooks/useFilters";
-import { useColors } from "@/hooks/useColors";
-import { useSettings } from "@/hooks/useSettings";
-import use_radio from "@/hooks/useRadio";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 function Hex(color) {
     return (

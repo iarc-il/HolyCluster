@@ -1,6 +1,6 @@
+import { useColors } from "@/hooks/useColors";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useColors } from "@/hooks/useColors";
 
 export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
     const menu_ref = useRef(null);

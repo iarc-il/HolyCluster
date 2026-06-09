@@ -1,15 +1,15 @@
-import Input from "@/components/ui/Input.jsx";
+import { default as FilterModal, empty_filter_data } from "@/components/FilterModal.jsx";
 import Button from "@/components/ui/Button.jsx";
+import Input from "@/components/ui/Input.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
-import { empty_filter_data, default as FilterModal } from "@/components/FilterModal.jsx";
 
+import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
-import { STATES } from "@/data/states.js";
-import { useState } from "react";
 import { DndContext, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { useState } from "react";
 
 const FILTER_TYPE_LABELS = {
     prefix: "Pfx",

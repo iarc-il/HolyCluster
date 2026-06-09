@@ -1,5 +1,5 @@
-import { bands, continents, modes } from "@/data/filters_data.js";
 import { create_initial_callsign_filters, create_initial_filters } from "@/data/filter_defaults.js";
+import { bands, continents, modes } from "@/data/filters_data.js";
 import { sanitize_callsign_filters, sanitize_filters } from "@/utils/filter_url_state.js";
 import Maidenhead from "maidenhead";
 

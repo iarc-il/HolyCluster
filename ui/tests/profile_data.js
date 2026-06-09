@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    DEFAULT_PROFILE_NAME,
+    PROFILE_STORE_VERSION,
     create_default_profile_data,
     create_profile_export,
-    DEFAULT_PROFILE_NAME,
     pick_profile_sections,
-    PROFILE_STORE_VERSION,
     read_legacy_profile_data,
     sanitize_imported_profile,
     sanitize_profile_data,

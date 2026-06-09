@@ -1,24 +1,24 @@
-import SubmitSpot from "@/components/SubmitSpot.jsx";
 import Clock from "@/components/Clock.jsx";
 import NetworkState from "@/components/NetworkState.jsx";
-import Spinner from "@/components/ui/Spinner.jsx";
+import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
+import SubmitSpot from "@/components/SubmitSpot.jsx";
 import { Settings } from "@/components/settings/Settings.jsx";
+import Button from "@/components/ui/Button.jsx";
 import ColorPicker from "@/components/ui/ColorPicker.jsx";
 import Select from "@/components/ui/Select.jsx";
-import Button from "@/components/ui/Button.jsx";
-import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
+import Spinner from "@/components/ui/Spinner.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useMediaQuery } from "@uidotdev/usehooks";
-import { useProfiles } from "@/hooks/useProfiles.jsx";
 
-import ClusterStats from "@/components/ClusterStats.jsx";
 import Icon from "@/assets/icon.png";
+import ClusterStats from "@/components/ClusterStats.jsx";
 import OpenMenu from "@/components/OpenMenu.jsx";
 
-import { useEffect } from "react";
 import use_radio from "@/hooks/useRadio";
+import { useEffect } from "react";
 
 const spots_time_limits = {
     "5 Minutes": 300,

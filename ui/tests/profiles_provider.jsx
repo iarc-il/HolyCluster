@@ -1,16 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { FiltersProvider, useFilters } from "@/hooks/useFilters.jsx";
 import { ProfilesProvider, useProfiles } from "@/hooks/useProfiles.jsx";
+import { encode_filter_state } from "@/utils/filter_url_state.js";
 import {
-    create_default_profile_data,
     PROFILE_STORE_KEY,
     PROFILE_STORE_VERSION,
+    create_default_profile_data,
 } from "@/utils/profile_data.js";
-import { encode_filter_state } from "@/utils/filter_url_state.js";
 
 function create_profile_data(overrides = {}) {
     const defaults = create_default_profile_data();

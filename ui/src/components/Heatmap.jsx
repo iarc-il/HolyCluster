@@ -1,10 +1,10 @@
-import { useMemo, useEffect, useRef } from "react";
-import simpleheat from "simpleheat";
-import { useColors } from "@/hooks/useColors";
-import { useSpotData } from "@/hooks/useSpotData";
-import { useSettings } from "@/hooks/useSettings";
 import { bands, continents } from "@/data/filters_data.js";
+import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { useSettings } from "@/hooks/useSettings";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useEffect, useMemo, useRef } from "react";
+import simpleheat from "simpleheat";
 
 function Heatmap() {
     const { colors } = useColors();

@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useColors } from "@/hooks/useColors";
-import Select from "@/components/ui/Select.jsx";
-import Button from "@/components/ui/Button.jsx";
 import HistoryBarSettings from "@/components/history/HistoryBarSettings.jsx";
+import Button from "@/components/ui/Button.jsx";
+import Select from "@/components/ui/Select.jsx";
+import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const PRESETS = [
     { label: "8h", hours: 8 },
