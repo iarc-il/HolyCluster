@@ -1,31 +1,29 @@
-const view_options = [
-    {
-        value: "both",
-        title: "Map + Table",
-        panels: ["map", "table"],
-    },
+const layout_options = [
     {
         value: "map",
         title: "Map only",
         panels: ["map"],
+        main_view_mode: "map",
     },
     {
         value: "table",
         title: "Table only",
         panels: ["table"],
+        main_view_mode: "table",
     },
-];
-
-const order_options = [
     {
         value: "map_table",
-        title: "Map left",
+        title: "Map + Table",
         panels: ["map", "table"],
+        main_view_mode: "both",
+        main_view_order: "map_table",
     },
     {
         value: "table_map",
-        title: "Table left",
+        title: "Table + Map",
         panels: ["table", "map"],
+        main_view_mode: "both",
+        main_view_order: "table_map",
     },
 ];
 
@@ -64,14 +62,17 @@ function MiniTable({ colors }) {
     );
 }
 
-function PreviewPanel({ panel, colors }) {
+function PreviewPanel({ panel, colors, border }) {
     const is_map = panel === "map";
+    const border_class = border ? "border" : "";
 
     return (
         <div
-            className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-md border px-2"
+            className={
+                "flex grow basis-1/2 flex-col items-center justify-center gap-2 rounded-md px-2 " +
+                border_class
+            }
             style={{
-                flex: is_map ? "1 1 57%" : "1 1 43%",
                 borderColor: colors.theme.borders,
                 backgroundColor: colors.theme.background,
             }}
@@ -82,16 +83,13 @@ function PreviewPanel({ panel, colors }) {
     );
 }
 
-function OptionCard({ option, selected, disabled = false, colors, on_select }) {
+function OptionCard({ option, selected, colors, on_select }) {
     return (
         <button
             type="button"
             aria-pressed={selected}
-            disabled={disabled}
             onClick={on_select}
-            className={`rounded-xl border-2 p-3 text-left transition ${
-                disabled ? "cursor-not-allowed opacity-50" : "hover:-translate-y-0.5"
-            }`}
+            className="rounded-xl border-2 p-3 text-left transition hover:-translate-y-0.5"
             style={{
                 color: colors.theme.text,
                 borderColor: selected ? colors.theme.highlighted_tab : colors.theme.borders,
@@ -104,7 +102,12 @@ function OptionCard({ option, selected, disabled = false, colors, on_select }) {
                 style={{ borderColor: colors.theme.borders }}
             >
                 {option.panels.map(panel => (
-                    <PreviewPanel key={panel} panel={panel} colors={colors} />
+                    <PreviewPanel
+                        key={panel}
+                        panel={panel}
+                        colors={colors}
+                        border={option.panels.length > 1}
+                    />
                 ))}
             </div>
             <div className="font-semibold">{option.title}</div>
@@ -115,55 +118,37 @@ function OptionCard({ option, selected, disabled = false, colors, on_select }) {
 function Layout({ temp_settings, set_temp_settings, colors }) {
     const main_view_mode = temp_settings.main_view_mode ?? "both";
     const main_view_order = temp_settings.main_view_order ?? "map_table";
-    const can_choose_order = main_view_mode === "both";
+    const selected_layout =
+        main_view_mode === "map"
+            ? "map"
+            : main_view_mode === "table"
+              ? "table"
+              : main_view_order === "table_map"
+                ? "table_map"
+                : "map_table";
 
-    function update_setting(key, value) {
+    function select_layout(option) {
         set_temp_settings(state => ({
             ...state,
-            [key]: value,
+            main_view_mode: option.main_view_mode,
+            main_view_order: option.main_view_order ?? state.main_view_order ?? "map_table",
         }));
     }
 
     return (
         <div className="space-y-6 p-4" style={{ color: colors.theme.text }}>
             <section>
-                <div className="mb-3">
-                    <h4 className="text-lg font-semibold">Workspace</h4>
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                    {view_options.map(option => (
+                <div className="grid gap-3 md:grid-cols-4">
+                    {layout_options.map(option => (
                         <OptionCard
                             key={option.value}
                             option={option}
-                            selected={main_view_mode === option.value}
+                            selected={selected_layout === option.value}
                             colors={colors}
-                            on_select={() => update_setting("main_view_mode", option.value)}
+                            on_select={() => select_layout(option)}
                         />
                     ))}
                 </div>
-            </section>
-
-            <section>
-                <div className="mb-3">
-                    <h4 className="text-lg font-semibold">Panel Order</h4>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                    {order_options.map(option => (
-                        <OptionCard
-                            key={option.value}
-                            option={option}
-                            selected={main_view_order === option.value}
-                            disabled={!can_choose_order}
-                            colors={colors}
-                            on_select={() => update_setting("main_view_order", option.value)}
-                        />
-                    ))}
-                </div>
-                {!can_choose_order ? (
-                    <p className="mt-3 text-sm opacity-75">
-                        Order applies when Map + Table is selected.
-                    </p>
-                ) : null}
             </section>
         </div>
     );
