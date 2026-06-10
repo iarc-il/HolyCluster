@@ -18,18 +18,16 @@ import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useVoacap } from "@/hooks/useVoacap.jsx";
 import { calculate_geographic_azimuth, km_to_miles, mod } from "@/utils.js";
 import { Dimensions } from "./dimensions.js";
-import { draw_zone_labels } from "./draw_map.js";
-import { draw_spots } from "./draw_spots.js";
 import {
     MAP_FILTER_ACTIONS,
     build_filter_menu_actions,
     build_map_context_filter,
 } from "./map_context_menu.js";
-import { profile_map } from "./map_profile.js";
-import { DPR, do_redraw, draw_shadow_layer } from "./render_helpers.js";
+import { DPR, do_redraw } from "./render_helpers.js";
 import { useCanvasLayers } from "./useCanvasLayers.js";
 import { useMapHitTest } from "./useMapHitTest.js";
 import { useMapProjection } from "./useMapProjection.js";
+import { useMapRedraw } from "./useMapRedraw.js";
 
 function CanvasMap({
     map_controls,
@@ -194,152 +192,30 @@ function CanvasMap({
     const hit_test = useMapHitTest(shadow_canvas_ref, projection_ref, render_state_ref);
     hit_test_ref.current = hit_test;
 
-    // Base map changes are expensive; only redraw the cached map when inputs that affect it change.
-    useEffect(() => {
-        if (!dims || !projection_ref.current) return;
-        if (gesture_active_ref.current) return;
-        do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
-    }, [
+    useMapRedraw({
         dims,
+        projection_ref,
+        canvas_refs,
+        render_state_ref,
+        gesture_active_ref,
         center_lon,
         center_lat,
         radius_in_km,
-        map_controls.night,
-        map_controls.is_globe,
-        map_controls.show_cq_zones,
-        map_controls.show_itu_zones,
-        map_controls.show_us_states,
-        map_controls.show_can_states,
-        map_controls.show_maidenhead_grid,
-        callsign_filters.filters,
-        callsign_filters.is_alert_filters_active,
-        callsign_filters.is_show_only_filters_active,
-        callsign_filters.is_hide_filters_active,
-        map_controls.show_equator,
-        colors.map,
-        colors.map_countries,
-        night_time_ms,
-    ]);
-
-    useEffect(() => {
-        if (!dims || !projection_ref.current) return;
-        if (!map_controls.night || night_time_ms != null) return;
-
-        let timeout_id = null;
-
-        function schedule_redraw() {
-            const ms_until_next_minute = 60_000 - (Date.now() % 60_000);
-            timeout_id = setTimeout(() => {
-                if (!gesture_active_ref.current) {
-                    do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
-                }
-                schedule_redraw();
-            }, ms_until_next_minute);
-        }
-
-        schedule_redraw();
-
-        return () => {
-            clearTimeout(timeout_id);
-        };
-    }, [dims, map_controls.night, night_time_ms]);
-
-    // Dynamic overlays can change frequently; redraw them without touching the cached base map.
-    useEffect(() => {
-        if (!dims || !projection_ref.current) return;
-        if (gesture_active_ref.current) return;
-        do_redraw(dims, projection_ref, render_state_ref, canvas_refs, { skip_map: true });
-    }, [
-        dims,
-        spots,
+        map_controls,
+        callsign_filters,
         colors,
+        night_time_ms,
+        spots,
         hovered_spot,
         pinned_spot,
         hovered_band,
         current_freq_spots,
-        map_controls.show_dxcc_labels,
-        map_controls.show_maidenhead_grid,
-        hovered_zone.system,
-        hovered_zone.number,
-        hovered_dxcc?.feature_index,
-        hovered_dxcc?.label,
-        hovered_dxcc?.entity,
+        hovered_zone,
+        hovered_dxcc,
         home_location,
-        map_controls.voacap_enabled,
-        voacap_state.data,
-        voacap_state.loading,
-        voacap_state.stale,
-    ]);
-
-    // Animation loop for alerted spots
-    useEffect(() => {
-        if (!dims) return;
-
-        function animate() {
-            animation_id_ref.current = requestAnimationFrame(animate);
-
-            if (gesture_active_ref.current) return;
-
-            const rs = render_state_ref.current;
-            if (!rs.spots.some(s => s.is_alerted)) return;
-
-            dash_offset_ref.current -= 0.5;
-            if (dash_offset_ref.current < -20) {
-                dash_offset_ref.current = 0;
-            }
-
-            const spots_canvas = spots_canvas_ref.current;
-            const projection = projection_ref.current;
-            if (!spots_canvas || !projection) return;
-            const ctx = spots_canvas.getContext("2d");
-            ctx.clearRect(0, 0, spots_canvas.width, spots_canvas.height);
-            with_dpr(ctx, () => {
-                profile_map("draw_spots.animation", () => {
-                    draw_spots(
-                        ctx,
-                        rs.spots,
-                        rs.colors,
-                        rs.hovered_spot,
-                        rs.pinned_spot,
-                        rs.hovered_band,
-                        rs.current_freq_spots,
-                        dims,
-                        dash_offset_ref.current,
-                        projection,
-                        rs.map_controls.is_globe,
-                        rs.home_location,
-                    );
-                });
-                profile_map("draw_zone_labels.animation", () => {
-                    draw_zone_labels(
-                        ctx,
-                        dims,
-                        projection,
-                        rs.map_controls.is_globe,
-                        rs.map_controls.show_cq_zones,
-                        rs.map_controls.show_itu_zones,
-                        rs.map_controls.show_dxcc_labels,
-                        rs.map_controls.show_us_states,
-                        rs.map_controls.show_can_states,
-                        rs.map_controls.show_maidenhead_grid,
-                        rs.hovered_zone,
-                        rs.hovered_dxcc,
-                        rs.callsign_filters,
-                        rs.colors.map,
-                    );
-                });
-            });
-        }
-
-        animation_id_ref.current = requestAnimationFrame(animate);
-
-        return () => {
-            if (animation_id_ref.current != null) {
-                cancelAnimationFrame(animation_id_ref.current);
-                animation_id_ref.current = null;
-            }
-        };
-    }, [dims]);
+        voacap_state,
+        animation_id_ref,
+    });
 
     // Wheel zoom (desktop)
     useEffect(() => {
