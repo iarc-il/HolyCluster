@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { mod } from "@/utils.js";
 import { do_redraw } from "./render_helpers.js";
 
+const MAX_RADIUS = 20000;
+
 export function useMapGestures({
     dims,
     projection_ref,
@@ -17,7 +19,6 @@ export function useMapGestures({
     set_hovered_zone,
     set_hovered_dxcc,
     callbacks,
-    max_radius,
 }) {
     const container_ref = useRef(null);
     const zoom_settle_timer_ref = useRef(null);
@@ -41,7 +42,7 @@ export function useMapGestures({
 
             const zoom_factor = event.deltaY > 0 ? 0.9 : 1.1;
             const current_k = projection.scale() / base_scale_ref.current;
-            const new_k = Math.max(1, Math.min(max_radius / 1000, current_k * zoom_factor));
+            const new_k = Math.max(1, Math.min(MAX_RADIUS / 1000, current_k * zoom_factor));
             projection.scale(new_k * base_scale_ref.current);
 
             if (!is_drawing) {
@@ -54,7 +55,7 @@ export function useMapGestures({
 
             clearTimeout(zoom_settle_timer_ref.current);
             zoom_settle_timer_ref.current = setTimeout(() => {
-                const zoom_radius = Math.round(max_radius / new_k / 100) * 100;
+                const zoom_radius = Math.round(MAX_RADIUS / new_k / 100) * 100;
                 set_auto_radius(false);
                 set_radius_in_km(Math.max(zoom_radius, 100));
             }, 150);
@@ -426,11 +427,11 @@ export function useMapGestures({
                 if (pinch_start_distance > 0 && new_distance > 0) {
                     const scale_ratio = new_distance / pinch_start_distance;
                     const new_radius = Math.round(pinch_start_radius / scale_ratio / 100) * 100;
-                    const clamped_radius = Math.max(100, Math.min(max_radius, new_radius));
+                    const clamped_radius = Math.max(100, Math.min(MAX_RADIUS, new_radius));
 
                     const projection = projection_ref.current;
                     if (projection) {
-                        const new_k = max_radius / clamped_radius;
+                        const new_k = MAX_RADIUS / clamped_radius;
                         projection.scale(new_k * base_scale_ref.current);
                         if (!is_drawing) {
                             is_drawing = true;
@@ -496,7 +497,7 @@ export function useMapGestures({
                     const projection = projection_ref.current;
                     if (projection) {
                         const current_k = projection.scale() / base_scale_ref.current;
-                        const zoom_radius = Math.round(max_radius / current_k / 100) * 100;
+                        const zoom_radius = Math.round(MAX_RADIUS / current_k / 100) * 100;
                         set_auto_radius(false);
                         set_radius_in_km(Math.max(zoom_radius, 100));
                     }
@@ -505,7 +506,7 @@ export function useMapGestures({
                     const projection = projection_ref.current;
                     if (projection) {
                         const current_k = projection.scale() / base_scale_ref.current;
-                        const zoom_radius = Math.round(max_radius / current_k / 100) * 100;
+                        const zoom_radius = Math.round(MAX_RADIUS / current_k / 100) * 100;
                         set_auto_radius(false);
                         set_radius_in_km(Math.max(zoom_radius, 100));
                     }

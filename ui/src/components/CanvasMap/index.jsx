@@ -112,7 +112,6 @@ function CanvasMap({
         const [lat, lon] = Maidenhead.toLatLon(locator);
         return [lon, lat];
     }, [settings.locator]);
-    const max_radius = 20000;
     const night_time_ms = night_time?.getTime() ?? null;
 
     const render_state_ref = useRef({});
@@ -224,7 +223,6 @@ function CanvasMap({
                 });
             },
         },
-        max_radius,
     });
 
     // Compute azimuth for hovered/pinned spot
