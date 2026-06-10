@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 
 import { useLocalStorage } from "@uidotdev/usehooks";
 
@@ -332,19 +332,29 @@ export const ColorsProvider = ({ children }) => {
     const [colors_inner, set_colors_inner] = use_object_local_storage("colors", themes.Dark);
     const profile_theme_name = themes[profile_theme] ? profile_theme : "Dark";
 
-    const colors = dev_mode ? colors_inner : themes[profile_theme_name];
+    const raw_colors = dev_mode ? colors_inner : themes[profile_theme_name];
 
-    colors.light_bands = Object.fromEntries(
-        Object.entries(colors.bands).map(([band, color]) => [band, pSBC(0.25, colors.bands[band])]),
-    );
+    const colors = useMemo(() => {
+        const light_bands = Object.fromEntries(
+            Object.entries(raw_colors.bands).map(([band, color]) => [
+                band,
+                pSBC(0.25, raw_colors.bands[band]),
+            ]),
+        );
 
-    for (const band in colors.text) {
-        if (colors.text[band] === "default_dark") {
-            colors.text[band] = colors.dark_text;
-        } else if (colors.text[band] === "default_bright") {
-            colors.text[band] = colors.bright_text;
+        const text = {};
+        for (const band in raw_colors.text) {
+            let resolved = raw_colors.text[band];
+            if (resolved === "default_dark") {
+                resolved = raw_colors.dark_text;
+            } else if (resolved === "default_bright") {
+                resolved = raw_colors.bright_text;
+            }
+            text[band] = resolved;
         }
-    }
+
+        return { ...raw_colors, light_bands, text };
+    }, [raw_colors]);
 
     function setSectionColor(section, name, color) {
         set_colors_inner(state => ({

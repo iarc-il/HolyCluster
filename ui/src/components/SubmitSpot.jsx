@@ -77,9 +77,10 @@ function SubmitSpot({ dev_mode }) {
             return;
         }
 
-        const initial_data = temp_data;
-        initial_data.freq = Math.round((radio_freq / 1000 || 0) * 10) / 10;
-        set_temp_data(initial_data);
+        set_temp_data(prev => ({
+            ...prev,
+            freq: Math.round((radio_freq / 1000 || 0) * 10) / 10,
+        }));
     }, [radio_freq, is_open]);
 
     function on_response(response) {

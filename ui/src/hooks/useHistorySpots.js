@@ -12,12 +12,15 @@ function normalize_band(band) {
 function normalize_spots(spots, id_ref) {
     return spots
         .map(spot => {
-            spot.id = id_ref.current++;
-            if (spot.mode === "DIGITAL") spot.mode = "DIGI";
-            spot.band = normalize_band(spot.band);
-            spot.dx_country = shorten_dxcc(spot.dx_country);
-            spot.spotter_country = shorten_dxcc(spot.spotter_country);
-            return spot;
+            const mode = spot.mode === "DIGITAL" ? "DIGI" : spot.mode;
+            return {
+                ...spot,
+                id: id_ref.current++,
+                mode,
+                band: normalize_band(spot.band),
+                dx_country: shorten_dxcc(spot.dx_country),
+                spotter_country: shorten_dxcc(spot.spotter_country),
+            };
         })
         .filter(spot => {
             if (!modes.includes(spot.mode)) return false;
