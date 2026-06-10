@@ -42,9 +42,9 @@ export function build_map_context_filter(action, menu_type, entity, number, syst
 export function build_filter_menu_actions(
     MAP_FILTER_ACTIONS,
     build_candidate_filter,
-    target_label = null,
-    disabled = false,
-    disabled_reason = null,
+    target_label,
+    disabled,
+    disabled_reason,
     get_filter_add_status,
     add_filter_if_allowed,
 ) {
