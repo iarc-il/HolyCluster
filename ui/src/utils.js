@@ -27,6 +27,20 @@ export function calculate_geographic_azimuth(from_lat, from_lon, to_lat, to_lon)
 
 export const mod = (n, m) => ((n % m) + m) % m;
 
+export function compare_version(a, b) {
+    if (a == null && b == null) return 0;
+    if (a == null) return -1;
+    if (b == null) return 1;
+
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+        const av = a[i] ?? 0;
+        const bv = b[i] ?? 0;
+        if (av !== bv) return av - bv;
+    }
+    return 0;
+}
+
 function find_base_callsign(callsign) {
     return callsign.split("/").reduce((a, b) => (a.length > b.length ? a : b));
 }

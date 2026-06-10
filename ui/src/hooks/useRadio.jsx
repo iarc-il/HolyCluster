@@ -1,3 +1,4 @@
+import { compare_version } from "@/utils.js";
 import { createContext, useContext, useEffect, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import raw_band_plans from "../../../shared/band_plans.json";
@@ -49,7 +50,7 @@ export function useCatserverVersion(raw_local_version) {
                 const raw_remote_version = data.slice(0, data.lastIndexOf("."));
                 set_raw_remote_version(raw_remote_version);
 
-                if (local_version > parse_version(raw_remote_version)) {
+                if (compare_version(local_version, parse_version(raw_remote_version)) > 0) {
                     set_new_version_available(true);
                     console.log(
                         `New version available - Remote: ${raw_remote_version}, Local: ${local_version}`,
@@ -133,7 +134,7 @@ export function RadioProvider({ children }) {
     const tagged_api_version = [1, 1, 0, 0];
 
     function highlight_spot(spot, udp_port) {
-        if (spot && version_data.local_version > tagged_api_version) {
+        if (spot && compare_version(version_data.local_version, tagged_api_version) > 0) {
             send_message_to_radio({
                 type: "HighlightSpot",
                 dx_callsign: spot.dx_callsign,
@@ -150,7 +151,7 @@ export function RadioProvider({ children }) {
             return;
         }
 
-        if (version_data.local_version > tagged_api_version) {
+        if (compare_version(version_data.local_version, tagged_api_version) > 0) {
             send_message_to_radio({
                 type: "SetRig",
                 rig: rig,
@@ -163,7 +164,7 @@ export function RadioProvider({ children }) {
     }
 
     function set_mode_and_freq(mode, freq) {
-        if (version_data.local_version > tagged_api_version) {
+        if (compare_version(version_data.local_version, tagged_api_version) > 0) {
             send_message_to_radio({
                 type: "SetModeAndFreq",
                 mode,

@@ -12,7 +12,7 @@ import { useProfiles } from "@/hooks/useProfiles.jsx";
 import use_radio from "@/hooks/useRadio";
 import { SpotDataProvider, useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { get_max_radius, get_spots_center } from "@/utils.js";
+import { compare_version, get_max_radius, get_spots_center } from "@/utils.js";
 import Maidenhead from "maidenhead";
 
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
@@ -232,7 +232,7 @@ function MainContent({
     );
 
     const table =
-        local_version > [1, 0, 0, 0] || local_version == null ? (
+        compare_version(local_version, [1, 0, 0, 0]) > 0 || local_version == null ? (
             <SpotsTable
                 set_cat_to_spot={set_cat_to_spot}
                 table_sort={table_sort}
