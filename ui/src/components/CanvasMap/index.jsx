@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
-import * as d3 from "d3";
 import haversine from "haversine-distance";
 import Maidenhead from "maidenhead";
 
@@ -19,7 +18,7 @@ import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useVoacap } from "@/hooks/useVoacap.jsx";
 import { calculate_geographic_azimuth, km_to_miles, mod } from "@/utils.js";
 import { Dimensions } from "./dimensions.js";
-import { draw_zone_labels, dxcc_map } from "./draw_map.js";
+import { draw_zone_labels } from "./draw_map.js";
 import { draw_spots } from "./draw_spots.js";
 import {
     MAP_FILTER_ACTIONS,
@@ -29,6 +28,7 @@ import {
 import { profile_map } from "./map_profile.js";
 import { DPR, do_redraw, draw_shadow_layer } from "./render_helpers.js";
 import { useMapHitTest } from "./useMapHitTest.js";
+import { useMapProjection } from "./useMapProjection.js";
 
 function CanvasMap({
     map_controls,
@@ -74,8 +74,6 @@ function CanvasMap({
     const shadow_render_state_ref = useRef(null);
     const hit_test_ref = useRef(null);
 
-    const projection_ref = useRef(null);
-    const base_scale_ref = useRef(null);
     const gesture_active_ref = useRef(false);
     const callbacks_ref = useRef({});
     callbacks_ref.current = {
@@ -190,35 +188,17 @@ function CanvasMap({
         voacap: voacap_render_state,
     };
 
+    const { projection_ref, base_scale_ref } = useMapProjection(
+        dims,
+        center_lon,
+        center_lat,
+        radius_in_km,
+        map_controls.is_globe,
+        gesture_active_ref,
+    );
+
     const hit_test = useMapHitTest(shadow_canvas_ref, projection_ref, render_state_ref);
     hit_test_ref.current = hit_test;
-
-    useMemo(() => {
-        if (!dims) {
-            projection_ref.current = null;
-            base_scale_ref.current = null;
-            return;
-        }
-
-        // During active gesture, only update scale — don't replace the projection
-        // (replacing it resets the drag rotation and causes a flicker)
-        if (gesture_active_ref.current && projection_ref.current && base_scale_ref.current) {
-            projection_ref.current.scale((max_radius / radius_in_km) * base_scale_ref.current);
-            return;
-        }
-
-        const proj = map_controls.is_globe
-            ? d3.geoOrthographic().precision(0.1).clipAngle(90)
-            : d3.geoAzimuthalEquidistant().precision(0.1);
-
-        proj.fitSize(dims.padded_size, dxcc_map)
-            .rotate([-center_lon, -center_lat, 0])
-            .translate([dims.center_x, dims.center_y]);
-
-        base_scale_ref.current = proj.scale();
-        proj.scale((max_radius / radius_in_km) * proj.scale());
-        projection_ref.current = proj;
-    }, [dims, center_lon, center_lat, radius_in_km, map_controls.is_globe]);
 
     // Off-screen canvas setup (cache + shadow)
     useEffect(() => {
