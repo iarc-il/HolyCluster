@@ -27,6 +27,7 @@ import {
 } from "./map_context_menu.js";
 import { profile_map } from "./map_profile.js";
 import { DPR, do_redraw, draw_shadow_layer } from "./render_helpers.js";
+import { useCanvasLayers } from "./useCanvasLayers.js";
 import { useMapHitTest } from "./useMapHitTest.js";
 import { useMapProjection } from "./useMapProjection.js";
 
@@ -59,19 +60,12 @@ function CanvasMap({
         is_filterable_entity: false,
     });
 
-    const map_canvas_ref = useRef(null);
-    const voacap_canvas_ref = useRef(null);
-    const spots_canvas_ref = useRef(null);
-    const shadow_canvas_ref = useRef(null);
-    const map_cache_canvas_ref = useRef(null);
     const container_ref = useRef(null);
     const dxcc_popup_anchor_ref = useRef(null);
 
     const animation_id_ref = useRef(null);
-    const dash_offset_ref = useRef(0);
     const zoom_settle_timer_ref = useRef(null);
     const last_gesture_draw_ref = useRef(0);
-    const shadow_render_state_ref = useRef(null);
     const hit_test_ref = useRef(null);
 
     const gesture_active_ref = useRef(false);
@@ -127,16 +121,6 @@ function CanvasMap({
         add_filter_if_allowed,
     );
 
-    const canvas_refs = {
-        map_canvas_ref,
-        voacap_canvas_ref,
-        spots_canvas_ref,
-        shadow_canvas_ref,
-        map_cache_canvas_ref,
-        dash_offset_ref,
-        shadow_render_state_ref,
-    };
-
     const [div_ref, { width, height }] = useMeasure();
 
     const is_max_xs_device = useMediaQuery("only screen and (max-width : 500px)");
@@ -188,6 +172,16 @@ function CanvasMap({
         voacap: voacap_render_state,
     };
 
+    const {
+        map_canvas_ref,
+        voacap_canvas_ref,
+        spots_canvas_ref,
+        shadow_canvas_ref,
+        canvas_refs,
+        dash_offset_ref,
+        shadow_render_state_ref,
+    } = useCanvasLayers(dims);
+
     const { projection_ref, base_scale_ref } = useMapProjection(
         dims,
         center_lon,
@@ -199,32 +193,6 @@ function CanvasMap({
 
     const hit_test = useMapHitTest(shadow_canvas_ref, projection_ref, render_state_ref);
     hit_test_ref.current = hit_test;
-
-    // Off-screen canvas setup (cache + shadow)
-    useEffect(() => {
-        if (!dims) return;
-
-        const dpr_width = dims.width * DPR;
-        const dpr_height = dims.height * DPR;
-
-        if (!map_cache_canvas_ref.current) {
-            map_cache_canvas_ref.current = document.createElement("canvas");
-        }
-        const cache_canvas = map_cache_canvas_ref.current;
-        if (cache_canvas.width !== dpr_width || cache_canvas.height !== dpr_height) {
-            cache_canvas.width = dpr_width;
-            cache_canvas.height = dpr_height;
-        }
-
-        if (!shadow_canvas_ref.current) {
-            shadow_canvas_ref.current = document.createElement("canvas");
-        }
-        const shadow_canvas = shadow_canvas_ref.current;
-        if (shadow_canvas.width !== dpr_width || shadow_canvas.height !== dpr_height) {
-            shadow_canvas.width = dpr_width;
-            shadow_canvas.height = dpr_height;
-        }
-    }, [dims]);
 
     // Base map changes are expensive; only redraw the cached map when inputs that affect it change.
     useEffect(() => {
