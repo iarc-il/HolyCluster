@@ -1,0 +1,121 @@
+import { describe, expect, it } from "vitest";
+
+import {
+    enrich_spot_zones_if_missing,
+    has_valid_enriched_value,
+    normalize_band,
+    trim_spots_to_last_hour,
+} from "@/hooks/useSpotWebSocket.js";
+
+describe("normalize_band", () => {
+    it("returns VHF for band 2", () => {
+        expect(normalize_band(2)).toBe("VHF");
+    });
+
+    it("returns UHF for band 0.7", () => {
+        expect(normalize_band(0.7)).toBe("UHF");
+    });
+
+    it("returns SHF for bands below 1", () => {
+        expect(normalize_band(0.23)).toBe("SHF");
+        expect(normalize_band(0.5)).toBe("SHF");
+    });
+
+    it("returns the band itself for normal HF bands", () => {
+        expect(normalize_band(20)).toBe(20);
+        expect(normalize_band(40)).toBe(40);
+        expect(normalize_band(160)).toBe(160);
+    });
+});
+
+describe("has_valid_enriched_value", () => {
+    it("returns false for undefined", () => {
+        expect(has_valid_enriched_value(undefined)).toBe(false);
+    });
+
+    it("returns false for null", () => {
+        expect(has_valid_enriched_value(null)).toBe(false);
+    });
+
+    it("returns false for empty string", () => {
+        expect(has_valid_enriched_value("")).toBe(false);
+    });
+
+    it("returns false for -1", () => {
+        expect(has_valid_enriched_value(-1)).toBe(false);
+    });
+
+    it("returns false for the string '-1'", () => {
+        expect(has_valid_enriched_value("-1")).toBe(false);
+    });
+
+    it("returns true for valid values", () => {
+        expect(has_valid_enriched_value(0)).toBe(true);
+        expect(has_valid_enriched_value(5)).toBe(true);
+        expect(has_valid_enriched_value("FN20")).toBe(true);
+    });
+});
+
+describe("enrich_spot_zones_if_missing", () => {
+    const base_spot = {
+        dx_cq_zone: 14,
+        dx_itu_zone: 28,
+        spotter_cq_zone: 5,
+        spotter_itu_zone: 8,
+        dx_state: "CA",
+        spotter_state: "NY",
+        dx_country: "USA",
+        spotter_country: "USA",
+        dx_loc: [-75, 40],
+        spotter_loc: [-74, 41],
+    };
+
+    it("returns the same spot when all values are present", () => {
+        const result = enrich_spot_zones_if_missing(base_spot);
+        expect(result).toBe(base_spot);
+    });
+
+    it("fills missing dx_cq_zone", () => {
+        const spot = { ...base_spot, dx_cq_zone: null };
+        const result = enrich_spot_zones_if_missing(spot);
+        expect(result.dx_cq_zone).toBeTypeOf("number");
+        expect(result.dx_cq_zone).not.toBeNull();
+        expect(result).not.toBe(spot);
+    });
+
+    it("fills missing dx_state for USA", () => {
+        const spot = { ...base_spot, dx_state: null };
+        const result = enrich_spot_zones_if_missing(spot);
+        expect(result.dx_state).toBeTypeOf("string");
+        expect(result).not.toBe(spot);
+    });
+
+    it("returns same object when no enrichment is needed", () => {
+        const result = enrich_spot_zones_if_missing(base_spot);
+        expect(result).toBe(base_spot);
+    });
+});
+
+describe("trim_spots_to_last_hour", () => {
+    it("keeps spots within the last hour", () => {
+        const now = Math.round(Date.now() / 1000);
+        const spots = [{ time: now - 600 }, { time: now - 1800 }, { time: now - 3000 }];
+        const result = trim_spots_to_last_hour(spots);
+        expect(result).toHaveLength(3);
+    });
+
+    it("removes spots older than one hour", () => {
+        const now = Math.round(Date.now() / 1000);
+        const spots = [{ time: now - 600 }, { time: now - 4000 }];
+        const result = trim_spots_to_last_hour(spots);
+        expect(result).toHaveLength(1);
+        expect(result[0].time).toBe(now - 600);
+    });
+
+    it("returns empty array for all-old spots", () => {
+        const now = Math.round(Date.now() / 1000);
+        const spots = [{ time: now - 7200 }];
+        const result = trim_spots_to_last_hour(spots);
+        expect(result).toHaveLength(0);
+    });
+});
