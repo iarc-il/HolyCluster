@@ -1,3 +1,26 @@
+const BG_BASE = {
+    blue: "bg-blue-600",
+    red: "bg-red-600",
+    green: "bg-green-600",
+    gray: "bg-gray-600",
+};
+const BG_HOVER = {
+    blue: "hover:bg-blue-700",
+    red: "hover:bg-red-700",
+    green: "hover:bg-green-700",
+    gray: "hover:bg-gray-700",
+};
+const BG_ACTIVE = {
+    blue: "active:bg-blue-800",
+    red: "active:bg-red-800",
+    green: "active:bg-green-800",
+    gray: "active:bg-gray-800",
+};
+const TEXT_COLORS = {
+    white: "text-white",
+    black: "text-black",
+};
+
 function Button({
     color = "blue",
     text_color = "white",
@@ -17,10 +40,10 @@ function Button({
         color = "gray";
     }
     const classes = [
-        `text-${text_color}`,
-        `bg-${color}-600`,
-        `active:bg-${color}-800`,
-        `hover:bg-${color}-700`,
+        TEXT_COLORS[text_color] ?? "",
+        BG_BASE[color] ?? "",
+        BG_HOVER[color] ?? "",
+        BG_ACTIVE[color] ?? "",
         "font-medium",
         "rounded-lg",
         "text-sm",

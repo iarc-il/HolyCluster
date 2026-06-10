@@ -47,7 +47,10 @@ function RadioButton({ children, disabled, on_click }) {
         "select-none",
     ];
     const color = disabled ? "gray" : "green";
-    classes = [...classes, `bg-${color}-600`, `active:bg-${color}-800`, `hover:bg-${color}-700`];
+    const bg_class = color === "green" ? "bg-green-600" : "bg-gray-600";
+    const active_class = color === "green" ? "active:bg-green-800" : "active:bg-gray-800";
+    const hover_class = color === "green" ? "hover:bg-green-700" : "hover:bg-gray-700";
+    classes = [...classes, bg_class, active_class, hover_class];
     return (
         <button type="button" className={classes.join(" ")} onClick={on_click}>
             {children}

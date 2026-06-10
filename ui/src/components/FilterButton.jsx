@@ -9,7 +9,6 @@ function FilterButton({
     color,
     text_color = "#000000",
     className,
-    hover_brightness = "110",
 }) {
     const { colors } = useColors();
 
@@ -18,7 +17,7 @@ function FilterButton({
         "cursor-pointer",
         "select-none",
         "w-14",
-        `hover:brightness-${hover_brightness}`,
+        "hover:brightness-110",
         "outline",
         "outline-1",
         "outline-slate-700",
