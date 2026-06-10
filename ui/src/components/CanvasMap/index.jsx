@@ -18,12 +18,9 @@ import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useVoacap } from "@/hooks/useVoacap.jsx";
 import { calculate_geographic_azimuth, km_to_miles, mod } from "@/utils.js";
-import { find_zone_label_number, get_active_overlay_systems } from "@/utils/zones.js";
 import { Dimensions } from "./dimensions.js";
-import { draw_map, draw_zone_labels, dxcc_map, find_dxcc_label } from "./draw_map.js";
+import { draw_zone_labels, dxcc_map } from "./draw_map.js";
 import { draw_spots } from "./draw_spots.js";
-import { draw_voacap } from "./draw_voacap.js";
-import { color_to_spot, draw_shadow_map } from "./hit_detection.js";
 import {
     MAP_FILTER_ACTIONS,
     build_filter_menu_actions,
@@ -31,6 +28,7 @@ import {
 } from "./map_context_menu.js";
 import { profile_map } from "./map_profile.js";
 import { DPR, do_redraw, draw_shadow_layer } from "./render_helpers.js";
+import { useMapHitTest } from "./useMapHitTest.js";
 
 function CanvasMap({
     map_controls,
@@ -74,6 +72,7 @@ function CanvasMap({
     const zoom_settle_timer_ref = useRef(null);
     const last_gesture_draw_ref = useRef(0);
     const shadow_render_state_ref = useRef(null);
+    const hit_test_ref = useRef(null);
 
     const projection_ref = useRef(null);
     const base_scale_ref = useRef(null);
@@ -190,6 +189,9 @@ function CanvasMap({
         night_time,
         voacap: voacap_render_state,
     };
+
+    const hit_test = useMapHitTest(shadow_canvas_ref, projection_ref, render_state_ref);
+    hit_test_ref.current = hit_test;
 
     useMemo(() => {
         if (!dims) {
@@ -490,60 +492,8 @@ function CanvasMap({
             return Math.sqrt(dx * dx + dy * dy);
         }
 
-        function get_data_from_shadow_canvas(x, y) {
-            return profile_map("hit_test.shadow_canvas", () => {
-                const ctx = shadow_canvas.getContext("2d", { willReadFrequently: true });
-                const [r, g, b] = profile_map(
-                    "hit_test.getImageData",
-                    () => ctx.getImageData(x * DPR, y * DPR, 1, 1).data,
-                );
-                const result = color_to_spot(r, g, b);
-                if (result === null) return null;
-                const [type, spot_id] = result;
-                const { spots } = render_state_ref.current;
-                if (!spots.some(s => s.id === spot_id)) return null;
-                return [type, spot_id];
-            });
-        }
-
-        function get_clickable_zone_label(x, y) {
-            return profile_map("hit_test.zone_labels", () => {
-                const map_controls = render_state_ref.current.map_controls;
-                const projection = projection_ref.current;
-                if (!projection) return null;
-                if (map_controls.show_maidenhead_grid) return null;
-
-                const active_systems = get_active_overlay_systems(map_controls);
-                for (const zone_system of active_systems) {
-                    const zone_number = find_zone_label_number(
-                        zone_system,
-                        projection,
-                        x,
-                        y,
-                        map_controls.is_globe,
-                    );
-                    if (zone_number == null) continue;
-                    return { system: zone_system, number: zone_number };
-                }
-
-                return null;
-            });
-        }
-
-        function get_clickable_dxcc_label(x, y) {
-            return profile_map("hit_test.dxcc_labels", () => {
-                const { map_controls } = render_state_ref.current;
-                const projection = projection_ref.current;
-                if (!projection) return null;
-                if (map_controls.show_maidenhead_grid) return null;
-                if (!map_controls.show_dxcc_labels) return null;
-
-                const active_systems = get_active_overlay_systems(map_controls);
-                if (active_systems.length !== 0) return null;
-
-                return find_dxcc_label(projection, x, y, map_controls.is_globe);
-            });
-        }
+        const { get_data_from_shadow_canvas, get_clickable_zone_label, get_clickable_dxcc_label } =
+            hit_test_ref.current;
 
         function update_label_hover(pos) {
             const clickable_zone = get_clickable_zone_label(pos.x, pos.y);
