@@ -4,18 +4,18 @@ import { find_zone_number } from "@/utils/zones.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 
-function normalize_band(band) {
+export function normalize_band(band) {
     if (band === 2) return "VHF";
     if (band === 0.7) return "UHF";
     if (band < 1) return "SHF";
     return band;
 }
 
-function has_valid_enriched_value(value) {
+export function has_valid_enriched_value(value) {
     return value !== undefined && value !== null && value !== "" && value !== -1 && value !== "-1";
 }
 
-function enrich_spot_zones_if_missing(spot) {
+export function enrich_spot_zones_if_missing(spot) {
     const updates = {};
 
     if (!has_valid_enriched_value(spot.dx_cq_zone)) {
@@ -50,7 +50,7 @@ function enrich_spot_zones_if_missing(spot) {
     return Object.keys(updates).length > 0 ? { ...spot, ...updates } : spot;
 }
 
-function trim_spots_to_last_hour(spots) {
+export function trim_spots_to_last_hour(spots) {
     const current_time = Math.round(Date.now() / 1000);
     return spots.filter(spot => spot.time > current_time - 3600);
 }
