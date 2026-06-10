@@ -25,30 +25,13 @@ import { draw_spots } from "./draw_spots.js";
 import { draw_voacap } from "./draw_voacap.js";
 import { color_to_spot, draw_shadow_map } from "./hit_detection.js";
 import { profile_map } from "./map_profile.js";
+import {
+    MAP_FILTER_ACTIONS,
+    build_filter_menu_actions,
+    build_map_context_filter,
+} from "./map_context_menu.js";
 
 const DPR = window.devicePixelRatio || 1;
-
-const MAP_FILTER_ACTIONS = [
-    {
-        action: "alert",
-        add_label: target_label => (target_label ? `Add Alert for ${target_label}` : "Add Alert"),
-        remove_label: target_label =>
-            target_label ? `Remove Alert for ${target_label}` : "Remove Alert",
-    },
-    {
-        action: "show_only",
-        add_label: target_label =>
-            target_label ? `Add Show Only ${target_label}` : "Add Show Only",
-        remove_label: target_label =>
-            target_label ? `Remove Show Only ${target_label}` : "Remove Show Only",
-    },
-    {
-        action: "hide",
-        add_label: target_label => (target_label ? `Add Hide ${target_label}` : "Add Hide"),
-        remove_label: target_label =>
-            target_label ? `Remove Hide ${target_label}` : "Remove Hide",
-    },
-];
 
 function with_dpr(ctx, fn) {
     ctx.save();
@@ -355,56 +338,16 @@ function CanvasMap({
         },
     };
 
-    function build_map_context_filter(action) {
-        if (map_context_menu.type === "dxcc") {
-            return {
-                action,
-                type: "entity",
-                value: map_context_menu.entity,
-                spotter_or_dx: "dx",
-            };
-        }
-
-        return {
-            action,
-            type: "zone",
-            value: map_context_menu.number,
-            zone_system: map_context_menu.system,
-            spotter_or_dx: "dx",
-        };
-    }
-
-    function build_filter_menu_actions(
-        build_candidate_filter,
-        target_label = null,
-        disabled = false,
-        disabled_reason = null,
-    ) {
-        return MAP_FILTER_ACTIONS.map(action_config => {
-            const build_filter = () => build_candidate_filter(action_config.action);
-            const get_candidate_status = () => get_filter_add_status(build_filter());
-
-            return {
-                label: () =>
-                    !disabled && get_candidate_status().status === "remove"
-                        ? action_config.remove_label(target_label)
-                        : action_config.add_label(target_label),
-                disabled,
-                disabled_reason,
-                onClick: () => {
-                    add_filter_if_allowed(build_filter());
-                },
-            };
-        });
-    }
-
     const map_menu_has_invalid_dxcc_entity =
         map_context_menu.type === "dxcc" && !map_context_menu.is_filterable_entity;
     const map_menu_actions = build_filter_menu_actions(
-        build_map_context_filter,
+        MAP_FILTER_ACTIONS,
+        action => build_map_context_filter(action, map_context_menu.type, map_context_menu.entity, map_context_menu.number, map_context_menu.system),
         map_context_menu.type === "dxcc" ? map_context_menu.entity : null,
         map_menu_has_invalid_dxcc_entity,
         map_menu_has_invalid_dxcc_entity ? "Unmapped DXCC" : null,
+        get_filter_add_status,
+        add_filter_if_allowed,
     );
 
     const canvas_refs = {
