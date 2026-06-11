@@ -17,6 +17,10 @@ def as_text(value: Any) -> str:
     return str(value).strip()
 
 
+def build_spot_key(spot: dict[str, Any]) -> str:
+    return f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
+
+
 async def fetch_json_list(session: aiohttp.ClientSession, url: str, source_label: str) -> list[dict[str, Any]]:
     async with session.get(url) as response:
         response.raise_for_status()
@@ -52,6 +56,7 @@ async def run_json_spot_collector(
     sort_key: Callable[[dict[str, Any]], object],
 ):
     from collectors.db.valkey_config import get_valkey_client
+    from collectors.settings import settings
 
     logger.info(f"Starting {source_label} spot collector")
     valkey_client = get_valkey_client()
@@ -68,9 +73,10 @@ async def run_json_spot_collector(
                 queued_count = 0
                 for raw_spot in sorted(raw_spots, key=sort_key):
                     try:
-                        spot_key = get_spot_key(raw_spot)
+                        source_spot_key = get_spot_key(raw_spot)
                         spot = parse_spot(raw_spot)
-                    except ValueError as e:
+                        content_spot_key = build_spot_key(spot)
+                    except (KeyError, ValueError) as e:
                         logger.info(f"Dropping {source_label} spot due to parse error: {e}: {raw_spot}")
                         await push_drop_event(
                             valkey_client,
@@ -79,9 +85,16 @@ async def run_json_spot_collector(
                         )
                         continue
 
-                    added = await valkey_client.set(spot_key, 1, ex=spot_expiration, nx=True)
-                    await record_arrival(valkey_client, cluster, source_label, spot_key, bool(added))
-                    if added:
+                    source_added = await valkey_client.set(source_spot_key, 1, ex=spot_expiration, nx=True)
+                    if not source_added:
+                        await record_arrival(valkey_client, cluster, source_label, content_spot_key, False)
+                        continue
+
+                    content_added = await valkey_client.set(
+                        content_spot_key, 1, ex=settings.valkey_spot_expiration, nx=True
+                    )
+                    await record_arrival(valkey_client, cluster, source_label, content_spot_key, bool(content_added))
+                    if content_added:
                         await output_queue.put(spot)
                         queued_count += 1
 

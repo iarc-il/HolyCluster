@@ -9,6 +9,7 @@ from shared.metrics import push_drop_event, push_exception_event, set_value
 from collectors.db.valkey_config import get_valkey_client
 from collectors.logging_setup import open_task_log_file
 from collectors.settings import settings
+from collectors.utils import build_spot_key
 
 DX_CC_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
 DX_AR_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\d+Z)")
@@ -138,7 +139,7 @@ async def telnet_and_collect(
                     task_logger.debug(json.dumps(spot, indent=2))
                     logger.debug(json.dumps(spot, indent=2))
 
-                    spot_key = f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
+                    spot_key = build_spot_key(spot)
                     added = await valkey_client.set(spot_key, 1, ex=settings.valkey_spot_expiration, nx=True)
                     try:
                         await valkey_client.xadd(
