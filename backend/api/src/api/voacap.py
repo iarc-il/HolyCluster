@@ -39,6 +39,7 @@ BAND_FREQUENCIES_MHZ = {
     "10": 28.5,
 }
 
+
 def get_band_frequency_mhz(band: str | int | float) -> float:
     normalized_band = str(band).strip().replace("m", "")
     frequency_mhz = BAND_FREQUENCIES_MHZ.get(normalized_band)
