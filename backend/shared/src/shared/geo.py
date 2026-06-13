@@ -80,8 +80,8 @@ _COUNTRY_OVERRIDES_BY_CALLSIGN = {
     "2R0PLA": ("England", "EU"),
     "4U5ITU": ("ITU HQ", "EU"),
     "BB4IA": ("China", "AS"),
-    "DP0MIR": ("Antarctica", "AN"),
     "KH7X": ("Hawaii", "OC"),
+    "KL2A": ("Alaska", "NA"),
     "NL5Y": ("Alaska", "NA"),
     "R95WTA": ("Asiatic Russia", "AS"),
     "RP2F": ("Kaliningrad", "EU"),
@@ -90,6 +90,14 @@ _COUNTRY_OVERRIDES_BY_CALLSIGN = {
     "VD9WH": ("Canada", "NA"),
     "VS6AI": ("Hong Kong", "AS"),
     "YZ5W": ("Serbia", "EU"),
+}
+
+_COUNTRY_OVERRIDES_BY_PREFIX = {
+    "BE": ("China", "AS"),
+    "DP0": ("Antarctica", "AN"),
+    "EA9": ("Ceuta and Melilla", "AF"),
+    "JD/": ("Ogasawara", "AS"),
+    "VO0": ("Canada", "NA"),
 }
 
 
@@ -153,6 +161,9 @@ def _resolve_cty_country(callsign: str) -> tuple[str, str] | None:
     callsign = callsign.upper()
     if callsign in _COUNTRY_OVERRIDES_BY_CALLSIGN:
         return _COUNTRY_OVERRIDES_BY_CALLSIGN[callsign]
+    for prefix, country in _COUNTRY_OVERRIDES_BY_PREFIX.items():
+        if callsign.startswith(prefix):
+            return country
 
     cty_resolver = get_cty_resolver()
     if cty_resolver is None:
