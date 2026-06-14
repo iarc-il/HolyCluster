@@ -1,23 +1,18 @@
-import { shorten_dxcc } from "@/data/flags.js";
-import prefix_list_csv from "../../../backend/shared/src/shared/prefixes_list.csv?raw";
+import cty_dxcc_entities from "virtual:cty-dxcc-entities";
+import { normalize_dxcc_entity_value, normalize_dxcc_label } from "@/data/dxcc_labels.js";
 
-function normalize_dxcc_entity_value(value) {
-    return (value ?? "").toString().trim().toLowerCase();
-}
-
-function parse_prefix_list_entities(csv_text) {
+function build_dxcc_entities(cty_entities) {
     const entities = new Set();
 
-    for (const line of csv_text.split("\n")) {
-        const match = line.match(/^"([^"]*)","([^"]*)","([^"]*)","([^"]*)"$/);
-        const entity = match?.[3];
-        if (entity) entities.add(shorten_dxcc(entity));
+    for (const entity of cty_entities) {
+        const label = normalize_dxcc_label(entity);
+        if (label) entities.add(label);
     }
 
-    return Array.from(entities).sort();
+    return Array.from(entities).sort((a, b) => a.localeCompare(b));
 }
 
-export const dxcc_entities = parse_prefix_list_entities(prefix_list_csv);
+export const dxcc_entities = build_dxcc_entities(cty_dxcc_entities);
 export const dxcc_entity_options = dxcc_entities.map(entity => ({ value: entity, label: entity }));
 
 const filterable_dxcc_entity_values = new Set(

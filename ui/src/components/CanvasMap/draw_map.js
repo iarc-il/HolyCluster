@@ -1,5 +1,5 @@
 import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
-import { shorten_dxcc } from "@/data/flags.js";
+import { normalize_dxcc_entity_value, normalize_dxcc_label } from "@/data/dxcc_labels.js";
 import { country_color_indices } from "@/data/map_colors.js";
 import dxcc_map from "@/maps/dxcc_map.json";
 import lakes from "@/maps/lakes.json";
@@ -671,63 +671,11 @@ const DXCC_LABEL_STYLE = {
     text_width_factor: 0.62,
 };
 
-const DXCC_ENTITY_ALIASES = {
-    "Agalega & St. Brandon Is.": "Agalega and St. Brandon Islands",
-    "Andaman & Nicobar Is.": "Andaman and Nicobar Islands",
-    "Antigua & Barbuda": "Antigua and Barbuda",
-    "Baker & Howland Is.": "Baker Howland Islands",
-    "Banaba I. (Ocean I.)": "Banaba Island",
-    "Bosnia-Herzegovina": "Bosnia and Herzegovina",
-    Bouvet: "Bouvet Island",
-    "Brunei Darussalam": "Brunei",
-    "C. Kiribati (British Phoenix Is.)": "Central Kiribati",
-    "Central Africa": "Central African Republic",
-    "Ceuta & Melilla": "Ceuta and Melilla",
-    "Cote de'Ivoire": "Ivory Coast",
-    "Democratic People's Rep. of Korea": "North Korea",
-    "E. Kiribati (Line Is.)": "Eastern Kiribati",
-    "Federal Republic of Germany": "Germany",
-    Macedonia: "North Macedonia",
-    "New Zealand Subantarctic Islands": "Auckland & Campbell Islands",
-    "Peter 1 I.": "Peter I Island",
-    "Republic of Korea": "South Korea",
-    "Republic of the Congo": "Congo",
-    "San Andres & Providencia": "San Andres and Providencia",
-    "San Felix & San Ambrosio": "San Felix Islands",
-    "South Shetland Is.": "Antarctica",
-    "South Sudan (Republic of)": "South Sudan",
-    "St Maarten": "Sint Maarten",
-    "St. Barthelemy": "Saint Barthelemy",
-    "St. Kitts & Nevis": "St. Kitts and Nevis",
-    "St. Lucia": "Saint Lucia",
-    "St. Peter & St. Paul Rocks": "St. Peter and St. Paul Rocks",
-    "St. Pierre & Miquelon": "Saint Pierre and Miquelon",
-    "St. Vincent": "Saint Vincent and the Grenadines",
-    Swaziland: "Eswatini",
-    "Trinidad & Tobago": "Trinidad and Tobago",
-    "Tristan da Cunha & Gough I.": "Tristan da Cunha & Gough Islands",
-    "Turks & Caicos Is.": "Turks and Caicos Islands",
-    Vatican: "Vatican City",
-    "Viet Nam": "Vietnam",
-    "W. Kiribati (Gilbert Is.)": "Western Kiribati",
-    "Wallis & Futuna Is.": "Wallis and Futuna Islands",
-};
-
-function expand_dxcc_island_abbreviations(dxcc_name) {
-    return dxcc_name
-        .replace(/\bIs\./g, "Islands")
-        .replace(/\bI\./g, "Island")
-        .replace(/\s+/g, " ")
-        .trim();
-}
-
 export function get_dxcc_entity_name(feature) {
     const dxcc_name = feature?.properties?.dxcc_name;
     if (typeof dxcc_name !== "string") return "";
 
-    const entity_name =
-        DXCC_ENTITY_ALIASES[dxcc_name] ?? expand_dxcc_island_abbreviations(dxcc_name);
-    return shorten_dxcc(entity_name);
+    return normalize_dxcc_label(dxcc_name);
 }
 
 function get_zone_action_map(callsign_filters, system) {
@@ -747,7 +695,7 @@ function get_zone_action_map(callsign_filters, system) {
 }
 
 function normalize_dxcc_entity_filter_value(value) {
-    return (value ?? "").toString().trim().toLowerCase();
+    return normalize_dxcc_entity_value(value);
 }
 
 function get_dxcc_action_map(callsign_filters) {
