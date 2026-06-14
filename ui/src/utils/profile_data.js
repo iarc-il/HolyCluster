@@ -1,5 +1,7 @@
+import { normalize_dxcc_label } from "@/data/dxcc_labels.js";
 import { create_initial_callsign_filters, create_initial_filters } from "@/data/filter_defaults.js";
 import { bands, continents, modes } from "@/data/filters_data.js";
+import { STATES } from "@/data/states.js";
 import { sanitize_callsign_filters, sanitize_filters } from "@/utils/filter_url_state.js";
 import Maidenhead from "maidenhead";
 
@@ -20,6 +22,16 @@ const MAIN_VIEW_ORDERS = new Set(["map_table", "table_map"]);
 const VOACAP_BANDS = new Set(["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"]);
 const DXPEDITION_SORT_KEYS = new Set(["start", "end", "on_air"]);
 const DXPEDITION_FILTER_KEYS = new Set(["all", "active", "upcoming"]);
+export const HUNTER_SECTION_KEYS = ["dxcc", "cq_zone", "itu_zone", "us_state", "ca_province"];
+const HUNTER_US_STATE_CODES = new Set(Object.keys(STATES.USA));
+const HUNTER_CA_PROVINCE_CODES = new Set(Object.keys(STATES.Canada));
+const HUNTER_IMPORT_COUNT_KEYS = [
+    "qso_count",
+    "skipped_count",
+    "resolved_count",
+    "unresolved_count",
+    "conflict_count",
+];
 const TABLE_SORT_COLUMNS = new Set([
     "time",
     "dx_callsign",
@@ -41,6 +53,10 @@ export const PROFILE_SECTION_DEFINITIONS = {
     callsign_filters: {
         label: "Callsign Filters",
         description: "Alert, show only, and hide filter rules",
+    },
+    hunter: {
+        label: "Hunter Progress",
+        description: "Hunter section toggles, worked entities, and ADIF import metadata",
     },
     map_controls: {
         label: "Map Controls",
@@ -197,6 +213,101 @@ function sanitize_choice(value, fallback, valid_values) {
     return valid_values.has(value) ? value : fallback;
 }
 
+function sanitize_hunter_zone(value, min, max) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+        return null;
+    }
+    return parsed;
+}
+
+function sanitize_hunter_state_code(value, valid_codes) {
+    const code = (value ?? "").toString().trim().toUpperCase();
+    return valid_codes.has(code) ? code : null;
+}
+
+function sanitize_hunter_dxcc(value) {
+    const label = normalize_dxcc_label(value);
+    return label || null;
+}
+
+function sanitize_hunter_worked_value(section, value) {
+    if (section === "dxcc") return sanitize_hunter_dxcc(value);
+    if (section === "cq_zone") return sanitize_hunter_zone(value, 1, 40);
+    if (section === "itu_zone") return sanitize_hunter_zone(value, 1, 90);
+    if (section === "us_state") return sanitize_hunter_state_code(value, HUNTER_US_STATE_CODES);
+    if (section === "ca_province")
+        return sanitize_hunter_state_code(value, HUNTER_CA_PROVINCE_CODES);
+    return null;
+}
+
+function sanitize_hunter_worked_values(section, values) {
+    const source = Array.isArray(values) ? values : [];
+    const seen = new Set();
+    const result = [];
+
+    for (const value of source) {
+        const normalized = sanitize_hunter_worked_value(section, value);
+        if (normalized == null) continue;
+
+        const key = `${typeof normalized}:${normalized}`;
+        if (seen.has(key)) continue;
+
+        seen.add(key);
+        result.push(normalized);
+    }
+
+    return result;
+}
+
+function sanitize_hunter_worked(value) {
+    const source = is_plain_object(value) ? value : {};
+
+    return Object.fromEntries(
+        HUNTER_SECTION_KEYS.map(section => {
+            const section_source = is_plain_object(source[section]) ? source[section] : {};
+            return [
+                section,
+                {
+                    global: sanitize_hunter_worked_values(section, section_source.global),
+                },
+            ];
+        }),
+    );
+}
+
+function sanitize_hunter_added_counts(value) {
+    const source = is_plain_object(value) ? value : {};
+
+    return Object.fromEntries(
+        HUNTER_SECTION_KEYS.map(section => [
+            section,
+            to_number(source[section], 0, { min: 0, integer: true }),
+        ]),
+    );
+}
+
+function sanitize_hunter_import(value) {
+    if (!is_plain_object(value)) return null;
+
+    return {
+        file_name: to_limited_text(value.file_name, "ADIF import", 120),
+        imported_at: to_number(value.imported_at, 0, { min: 0, integer: true }),
+        ...Object.fromEntries(
+            HUNTER_IMPORT_COUNT_KEYS.map(key => [
+                key,
+                to_number(value[key], 0, { min: 0, integer: true }),
+            ]),
+        ),
+        added_counts: sanitize_hunter_added_counts(value.added_counts),
+    };
+}
+
+function sanitize_hunter_imports(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map(sanitize_hunter_import).filter(Boolean);
+}
+
 function read_storage_value(storage, key) {
     if (!storage?.getItem) {
         return undefined;
@@ -303,6 +414,21 @@ export function create_default_radio() {
     };
 }
 
+export function create_default_hunter() {
+    return {
+        enabled_sections: Object.fromEntries(HUNTER_SECTION_KEYS.map(section => [section, false])),
+        worked: Object.fromEntries(
+            HUNTER_SECTION_KEYS.map(section => [
+                section,
+                {
+                    global: [],
+                },
+            ]),
+        ),
+        imports: [],
+    };
+}
+
 export function create_default_profile_data() {
     const settings = create_default_settings();
 
@@ -310,6 +436,7 @@ export function create_default_profile_data() {
         settings,
         filters: create_initial_filters(),
         callsign_filters: create_initial_callsign_filters(),
+        hunter: create_default_hunter(),
         map_controls: create_default_map_controls(),
         map_view: create_default_map_view(settings.default_radius),
         table_sort: create_default_table_sort(),
@@ -477,6 +604,16 @@ export function sanitize_radio(value, defaults = create_default_radio()) {
     };
 }
 
+export function sanitize_hunter(value, defaults = create_default_hunter()) {
+    const source = is_plain_object(value) ? value : {};
+
+    return {
+        enabled_sections: sanitize_boolean_map(source.enabled_sections, defaults.enabled_sections),
+        worked: sanitize_hunter_worked(source.worked),
+        imports: sanitize_hunter_imports(source.imports),
+    };
+}
+
 export function sanitize_profile_data(value, defaults = create_default_profile_data()) {
     const source = is_plain_object(value) ? value : {};
     const settings = sanitize_settings(source.settings, defaults.settings);
@@ -490,6 +627,7 @@ export function sanitize_profile_data(value, defaults = create_default_profile_d
         callsign_filters: sanitize_callsign_filters(
             source.callsign_filters ?? defaults.callsign_filters,
         ),
+        hunter: sanitize_hunter(source.hunter, defaults.hunter),
         map_controls: sanitize_map_controls(source.map_controls, defaults.map_controls),
         map_view: sanitize_map_view(source.map_view, map_view_defaults),
         table_sort: sanitize_table_sort(source.table_sort, defaults.table_sort),

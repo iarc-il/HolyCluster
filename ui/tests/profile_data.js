@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
     DEFAULT_PROFILE_NAME,
+    HUNTER_SECTION_KEYS,
+    PROFILE_SECTION_KEYS,
     PROFILE_STORE_VERSION,
     create_default_profile_data,
     create_profile_export,
@@ -24,6 +26,14 @@ function create_storage(values) {
     };
 }
 
+function create_default_hunter_enabled_sections() {
+    return Object.fromEntries(HUNTER_SECTION_KEYS.map(section => [section, false]));
+}
+
+function create_default_hunter_worked() {
+    return Object.fromEntries(HUNTER_SECTION_KEYS.map(section => [section, { global: [] }]));
+}
+
 describe("profile_data", () => {
     it("creates a default profile store when no store exists", () => {
         const store = sanitize_profile_store(null);
@@ -36,6 +46,11 @@ describe("profile_data", () => {
         expect(store.profiles[0].data.settings.main_view_mode).toBe("both");
         expect(store.profiles[0].data.settings.main_view_order).toBe("map_table");
         expect(store.profiles[0].data.settings).not.toHaveProperty("show_equator");
+        expect(store.profiles[0].data.hunter).toEqual({
+            enabled_sections: create_default_hunter_enabled_sections(),
+            worked: create_default_hunter_worked(),
+            imports: [],
+        });
         expect(store.profiles[0].data.map_controls.show_maidenhead_grid).toBe(false);
         expect(store.profiles[0].data.map_controls.show_equator).toBe(false);
         expect(store.profiles[0].data.map_view.radius_in_km).toBe(20000);
@@ -104,6 +119,46 @@ describe("profile_data", () => {
             radio: {
                 requested_rig: 3,
             },
+            hunter: {
+                enabled_sections: {
+                    dxcc: true,
+                    cq_zone: "yes",
+                    unknown: true,
+                },
+                worked: {
+                    dxcc: {
+                        global: [
+                            " United States ",
+                            "",
+                            null,
+                            "Fed. Rep. of Germany",
+                            "United States",
+                        ],
+                    },
+                    cq_zone: { global: [1, "40", 41, "bad", 1] },
+                    itu_zone: { global: [0, 1, "90", 91] },
+                    us_state: { global: ["ca", "ZZ", "DC"] },
+                    ca_province: { global: ["on", "XX", "NU"] },
+                    unknown: { global: ["x"] },
+                },
+                imports: [
+                    {
+                        file_name: " log.adi ",
+                        imported_at: 123,
+                        qso_count: "4",
+                        added_counts: {
+                            dxcc: "2",
+                            cq_zone: -1,
+                            ca_province: 1,
+                        },
+                        skipped_count: "bad",
+                        resolved_count: 3,
+                        unresolved_count: -1,
+                        conflict_count: 1,
+                    },
+                    null,
+                ],
+            },
         });
 
         expect(data.settings.locator).toBe(defaults.settings.locator);
@@ -127,6 +182,37 @@ describe("profile_data", () => {
         expect(data.history).toEqual(defaults.history);
         expect(data.panels).toEqual(defaults.panels);
         expect(data.radio).toEqual(defaults.radio);
+        expect(data.hunter).toEqual({
+            enabled_sections: {
+                ...create_default_hunter_enabled_sections(),
+                dxcc: true,
+            },
+            worked: {
+                dxcc: { global: ["USA", "Germany"] },
+                cq_zone: { global: [1, 40] },
+                itu_zone: { global: [1, 90] },
+                us_state: { global: ["CA", "DC"] },
+                ca_province: { global: ["ON", "NU"] },
+            },
+            imports: [
+                {
+                    file_name: "log.adi",
+                    imported_at: 123,
+                    qso_count: 4,
+                    added_counts: {
+                        dxcc: 2,
+                        cq_zone: 0,
+                        itu_zone: 0,
+                        us_state: 0,
+                        ca_province: 1,
+                    },
+                    skipped_count: 0,
+                    resolved_count: 3,
+                    unresolved_count: 0,
+                    conflict_count: 1,
+                },
+            ],
+        });
     });
 
     it("migrates legacy local-storage values into profile data", () => {
@@ -209,6 +295,7 @@ describe("profile_data", () => {
         expect(data.table_sort).toEqual({ column: "freq", ascending: true });
         expect(data.history).toEqual({
             window_size_ms: 3600000,
+            step_size_ms: 900000,
             display_hours: 48,
             time_between_shifts: 10,
         });
@@ -239,24 +326,53 @@ describe("profile_data", () => {
                     ...defaults.panels,
                     frequency_bar_band: -1,
                 },
+                hunter: {
+                    ...defaults.hunter,
+                    enabled_sections: {
+                        ...defaults.hunter.enabled_sections,
+                        dxcc: true,
+                    },
+                    worked: {
+                        ...defaults.hunter.worked,
+                        dxcc: { global: ["USA"] },
+                    },
+                },
             },
         };
 
-        const exported = create_profile_export(profile, ["settings", "filters"]);
+        const exported = create_profile_export(profile, ["settings", "filters", "hunter"]);
         const imported = sanitize_imported_profile(exported);
 
+        expect(PROFILE_SECTION_KEYS).toContain("hunter");
         expect(exported).toEqual({
             version: PROFILE_STORE_VERSION,
             name: "Portable",
             data: {
                 settings: profile.data.settings,
                 filters: profile.data.filters,
+                hunter: profile.data.hunter,
             },
         });
         expect(imported.name).toBe("Portable");
         expect(imported.data.settings.callsign).toBe("N0CALL");
         expect(imported.data.filters.time_limit).toBe(900);
+        expect(imported.data.hunter.enabled_sections.dxcc).toBe(true);
+        expect(imported.data.hunter.worked.dxcc.global).toEqual(["USA"]);
         expect(imported.data.panels.frequency_bar_band).toBe(defaults.panels.frequency_bar_band);
+    });
+
+    it("adds default hunter data to old profiles without hunter", () => {
+        const defaults = create_default_profile_data();
+        const imported = sanitize_imported_profile({
+            name: "Old Profile",
+            data: {
+                settings: { callsign: "old" },
+            },
+        });
+
+        expect(imported.name).toBe("Old Profile");
+        expect(imported.data.settings.callsign).toBe("OLD");
+        expect(imported.data.hunter).toEqual(defaults.hunter);
     });
 
     it("imports the active profile from a profile store export", () => {
