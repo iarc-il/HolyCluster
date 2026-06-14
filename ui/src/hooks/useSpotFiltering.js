@@ -2,12 +2,68 @@ import { bands, modes } from "@/data/filters_data.js";
 import { get_flag } from "@/data/flags.js";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { is_matching_list, sort_spots } from "@/utils.js";
+import { HUNTER_SECTION_KEYS } from "@/utils/profile_data.js";
+import { normalize_zone_value } from "@/utils/zones.js";
 import { useMemo, useState } from "react";
 import { useFilters } from "./useFilters";
 import use_radio from "./useRadio";
 import { useSpotInteraction } from "./useSpotInteraction";
 
 const reference_spot_types = new Set(["sota", "pota", "wwff"]);
+
+const US_STATE_COUNTRIES = new Set(["USA", "Alaska", "Hawaii"]);
+
+const SECTION_REASON_LABELS = {
+    dxcc: value => `Needed DXCC: ${value}`,
+    cq_zone: value => `Needed CQ Zone: ${value}`,
+    itu_zone: value => `Needed ITU Zone: ${value}`,
+    us_state: value => `Needed US State: ${value}`,
+    ca_province: value => `Needed CA Province: ${value}`,
+};
+
+function get_spot_feature_value(section, spot) {
+    switch (section) {
+        case "dxcc":
+            return spot.dx_country || null;
+        case "cq_zone":
+            return normalize_zone_value("cq", spot.dx_cq_zone);
+        case "itu_zone":
+            return normalize_zone_value("itu", spot.dx_itu_zone);
+        case "us_state":
+            if (!US_STATE_COUNTRIES.has(spot.dx_country)) return null;
+            return normalize_zone_value("us_state", spot.dx_state);
+        case "ca_province":
+            if (spot.dx_country !== "Canada") return null;
+            return normalize_zone_value("ca_province", spot.dx_state);
+        default:
+            return null;
+    }
+}
+
+export function check_hunter_needed(spot, hunter) {
+    if (!hunter?.enabled_sections) return null;
+
+    const reasons = [];
+    for (const section of HUNTER_SECTION_KEYS) {
+        if (!hunter.enabled_sections[section]) continue;
+
+        const spot_value = get_spot_feature_value(section, spot);
+        if (spot_value == null) continue;
+
+        const worked = hunter.worked[section]?.global ?? [];
+        if (!worked.includes(spot_value)) {
+            reasons.push({
+                section,
+                value: spot_value,
+                label: SECTION_REASON_LABELS[section](spot_value),
+            });
+        }
+    }
+
+    if (reasons.length === 0) return null;
+
+    return { is_needed: true, reasons };
+}
 
 const freq_error_range = {
     FT8: 0.2,
@@ -24,7 +80,7 @@ function limit_count(count) {
 export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     const { filters, callsign_filters } = useFilters();
     const {
-        active_profile_data: { table_sort },
+        active_profile_data: { table_sort, hunter },
     } = useProfiles();
     const { radio_band, radio_freq, radio_status } = use_radio();
     const { search_query, selected_reference_type } = useSpotInteraction();
@@ -52,11 +108,17 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     }, [raw_spots, selected_reference_type]);
 
     const spots_with_alerts = useMemo(() => {
-        return source_spots.map(spot => ({
-            ...spot,
-            is_alerted: is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active,
-        }));
-    }, [source_spots, alerts, callsign_filters.is_alert_filters_active]);
+        return source_spots.map(spot => {
+            const hunter_needed_result = check_hunter_needed(spot, hunter);
+            const is_alert_filter_match =
+                is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active;
+            return {
+                ...spot,
+                is_alerted: is_alert_filter_match || Boolean(hunter_needed_result?.is_needed),
+                hunterNeeded: hunter_needed_result,
+            };
+        });
+    }, [source_spots, alerts, callsign_filters.is_alert_filters_active, hunter]);
 
     const spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;

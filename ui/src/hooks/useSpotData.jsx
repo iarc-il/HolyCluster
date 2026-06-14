@@ -2,6 +2,7 @@ import { play_alert_sound } from "@/utils.js";
 import { createContext, useContext, useEffect } from "react";
 import { useFilters } from "./useFilters";
 import useHistorySpots from "./useHistorySpots";
+import { useProfiles } from "./useProfiles.jsx";
 import use_radio from "./useRadio";
 import { useSettings } from "./useSettings";
 import useSpotFiltering from "./useSpotFiltering";
@@ -49,7 +50,12 @@ export const SpotDataProvider = ({
     const { pinned_spot } = useSpotInteraction();
     const { settings } = useSettings();
     const { callsign_filters } = useFilters();
+    const {
+        active_profile_data: { hunter },
+    } = useProfiles();
     const { highlight_spot, is_radio_available } = use_radio();
+
+    const is_any_hunter_enabled = Object.values(hunter?.enabled_sections ?? {}).some(Boolean);
 
     // Play alert sound when new alerted spots arrive
     useEffect(() => {
@@ -57,7 +63,7 @@ export const SpotDataProvider = ({
             !is_history_mode &&
             new_spot_ids.size > 0 &&
             settings.alert_sound_enabled &&
-            callsign_filters.is_alert_filters_active
+            (callsign_filters.is_alert_filters_active || is_any_hunter_enabled)
         ) {
             const alerted_count = spots_with_alerts.filter(
                 spot => new_spot_ids.has(spot.id) && spot.is_alerted,
@@ -72,6 +78,7 @@ export const SpotDataProvider = ({
         spots_with_alerts,
         settings.alert_sound_enabled,
         callsign_filters.is_alert_filters_active,
+        is_any_hunter_enabled,
     ]);
 
     // Highlight spot on radio when pinned
