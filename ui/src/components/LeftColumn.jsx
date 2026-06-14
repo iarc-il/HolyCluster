@@ -69,9 +69,10 @@ function SpotCount({ count, toggled_ui, overlay_el }) {
 
         const anchor_rect = anchor.getBoundingClientRect();
         const container_rect = scroll_container.getBoundingClientRect();
+        const badge_rect = badge.getBoundingClientRect();
 
         badge.style.top = `${anchor_rect.top - container_rect.top + scroll_container.scrollTop - 4}px`;
-        badge.style.left = `${anchor_rect.left - container_rect.left + 20}px`;
+        badge.style.left = `${anchor_rect.left + container_rect.right - badge_rect.width * 0.75}px`;
     }, []);
 
     useEffect(() => {
