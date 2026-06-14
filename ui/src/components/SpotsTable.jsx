@@ -291,47 +291,42 @@ const Spot = forwardRef(function Spot(
                     on_context_menu(event, spot, "callsign", false);
                 }}
             >
-                <Callsign callsign={spot.dx_callsign} />
-                {is_dxpedition_alerted && (
-                    <span className="ml-1" title="DXpedition">
-                        ⭐
-                    </span>
-                )}
-                {spot.hunterNeeded?.is_needed && (
-                    <>
-                        <span
-                            ref={hunter_popup_anchor}
-                            className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold leading-none cursor-help"
-                            style={{ backgroundColor: "#22c55e", color: "white" }}
-                            onMouseEnter={() => set_is_hunter_hovered(true)}
-                            onMouseLeave={() => set_is_hunter_hovered(false)}
-                        >
-                            H
+                <span
+                    ref={hunter_popup_anchor}
+                    className="relative"
+                    onMouseEnter={() => {
+                        if (spot.hunterNeeded?.is_needed) set_is_hunter_hovered(true);
+                    }}
+                    onMouseLeave={() => set_is_hunter_hovered(false)}
+                >
+                    <Callsign callsign={spot.dx_callsign} />
+                    {is_dxpedition_alerted && (
+                        <span className="ml-1" title="DXpedition">
+                            ⭐
                         </span>
-                        {is_hunter_hovered && (
-                            <Popup anchor_ref={hunter_popup_anchor}>
-                                <div
-                                    className="py-1 px-2 rounded shadow-lg max-w-xs whitespace-normal"
-                                    style={{
-                                        color: colors.theme.text,
-                                        background: colors.theme.background,
-                                    }}
-                                >
-                                    <div className="font-semibold text-xs mb-1">Needed:</div>
-                                    {spot.hunterNeeded.reasons.slice(0, 5).map((reason, index) => (
-                                        <div key={index} className="text-xs">
-                                            {reason.label}
-                                        </div>
-                                    ))}
-                                    {spot.hunterNeeded.reasons.length > 5 && (
-                                        <div className="text-xs opacity-75 mt-1">
-                                            +{spot.hunterNeeded.reasons.length - 5} more
-                                        </div>
-                                    )}
+                    )}
+                </span>
+                {is_hunter_hovered && spot.hunterNeeded?.is_needed && (
+                    <Popup anchor_ref={hunter_popup_anchor}>
+                        <div
+                            className="py-1 px-2 rounded shadow-lg max-w-xs whitespace-normal"
+                            style={{
+                                color: colors.theme.text,
+                                background: colors.theme.background,
+                            }}
+                        >
+                            {spot.hunterNeeded.reasons.slice(0, 5).map((reason, index) => (
+                                <div key={index} className="text-xs">
+                                    {reason.label}
                                 </div>
-                            </Popup>
-                        )}
-                    </>
+                            ))}
+                            {spot.hunterNeeded.reasons.length > 5 && (
+                                <div className="text-xs opacity-75 mt-1">
+                                    +{spot.hunterNeeded.reasons.length - 5} more
+                                </div>
+                            )}
+                        </div>
+                    </Popup>
                 )}
             </td>
             <td className={cell_classes.freq} onClick={() => set_cat_to_spot(spot)}>

@@ -55,7 +55,6 @@ function SpotPopup({
                 <p>Azimuth: {Math.round(azimuth)}°</p>
                 {spot_data.hunterNeeded?.is_needed && (
                     <p className="mt-1">
-                        <span style={{ color: "#22c55e" }}>Needed:</span>{" "}
                         {spot_data.hunterNeeded.reasons
                             .slice(0, 3)
                             .map(r => r.label)

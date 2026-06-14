@@ -175,9 +175,7 @@ function HunterSection({
                                     <button
                                         type="button"
                                         className="flex items-center justify-center"
-                                        onClick={() =>
-                                            on_set_complete(section, item.value, false)
-                                        }
+                                        onClick={() => on_set_complete(section, item.value, false)}
                                         aria-label={`Mark ${item.label} incomplete`}
                                     >
                                         <X size="20" />
@@ -190,9 +188,7 @@ function HunterSection({
                                             backgroundColor: "#16a34a",
                                             color: "white",
                                         }}
-                                        onClick={() =>
-                                            on_set_complete(section, item.value, true)
-                                        }
+                                        onClick={() => on_set_complete(section, item.value, true)}
                                         aria-label={`Mark ${item.label} complete`}
                                     >
                                         Done
