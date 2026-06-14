@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
@@ -12,9 +13,10 @@ from fastapi import HTTPException, Query, websockets
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
+from pydantic import BaseModel
 from shared.cty import ensure_cty_available
 from shared.db import GeoCache, HolySpot, SpotsWithIssues
-from shared.geo import get_geo_details, GeoException
+from shared.geo import GeoException, get_geo_details
 from shared.metrics import push_exception_event, set_timestamp, set_value
 from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -140,6 +142,13 @@ engine = create_async_engine(
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 app = fastapi.FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
+
+MAX_HUNTER_RESOLVE_CALLSIGNS = 100
+HUNTER_CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/]{0,31}$")
+
+
+class HunterResolveRequest(BaseModel):
+    callsigns: list[str]
 
 
 def cleanup_spot(spot):
@@ -307,6 +316,69 @@ async def get_locator(callsign: str):
         }
     else:
         return {"callsign": callsign, "error": "not found"}
+
+
+@app.post("/hunter/resolve")
+async def hunter_resolve(request: HunterResolveRequest):
+    if len(request.callsigns) > MAX_HUNTER_RESOLVE_CALLSIGNS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"maximum {MAX_HUNTER_RESOLVE_CALLSIGNS} callsigns per request",
+        )
+
+    normalized_callsigns = []
+    errors = {}
+    seen_callsigns = set()
+
+    for callsign in request.callsigns:
+        normalized = callsign.strip().upper()
+        if not HUNTER_CALLSIGN_PATTERN.fullmatch(normalized):
+            errors[normalized] = "invalid callsign"
+            continue
+        if normalized in seen_callsigns:
+            continue
+        seen_callsigns.add(normalized)
+        normalized_callsigns.append(normalized)
+
+    try:
+        qrz_session_key = await get_qrz_session_key_from_redis()
+    except Exception as e:
+        logger.warning(f"QRZ session key unavailable for hunter resolve; continuing with CTY fallback: {e}")
+        qrz_session_key = ""
+
+    results = {}
+    for callsign in normalized_callsigns:
+        try:
+            geo_data = await get_geo_details(
+                app.state.valkey_client,
+                qrz_session_key,
+                callsign,
+                settings.valkey_geo_expiration,
+                app.state.http_client,
+                "hunter_import",
+            )
+        except GeoException as e:
+            errors[callsign] = f"{e.data_type} not found"
+            continue
+        except Exception:
+            logger.exception(f"Failed to resolve hunter callsign: {callsign}")
+            errors[callsign] = "not found"
+            continue
+
+        results[callsign] = {
+            "callsign": callsign,
+            "country": geo_data.country,
+            "continent": geo_data.continent,
+            "state": geo_data.state,
+            "cq_zone": geo_data.cq_zone,
+            "itu_zone": geo_data.itu_zone,
+            "locator": geo_data.locator,
+            "lat": geo_data.lat,
+            "lon": geo_data.lon,
+            "source": "cache" if geo_data.cached else geo_data.locator_source,
+        }
+
+    return {"results": results, "errors": errors}
 
 
 @app.get("/geocache/all")
