@@ -1,5 +1,6 @@
 import Button from "@/components/ui/Button.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
+import X from "@/components/ui/X.jsx";
 import { dxcc_entities } from "@/data/dxcc_entities.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
@@ -128,13 +129,15 @@ function HunterSection({
                         key={mode}
                         type="button"
                         onClick={() => on_set_list_mode(section, mode)}
-                        className="flex-1 rounded-full px-2 py-1 text-xs font-semibold"
+                        className={`flex-1 rounded-full px-2 py-1 text-xs font-semibold ${
+                            list_mode !== mode ? "hover:brightness-110" : ""
+                        }`}
                         style={{
                             backgroundColor:
                                 list_mode === mode
-                                    ? colors.buttons.utility
-                                    : colors.buttons.disabled_background,
-                            color: list_mode === mode ? "white" : colors.buttons.disabled,
+                                    ? colors.buttons.disabled_background
+                                    : colors.buttons.active_tab,
+                            color: list_mode === mode ? colors.buttons.disabled : colors.theme.text,
                         }}
                     >
                         {label}
@@ -168,20 +171,33 @@ function HunterSection({
                                 style={{ backgroundColor: colors.theme.background }}
                             >
                                 <span>{item.label}</span>
-                                <button
-                                    type="button"
-                                    className="rounded px-2 py-0.5 text-xs font-semibold"
-                                    style={{
-                                        backgroundColor: is_completed ? "#b91c1c" : "#16a34a",
-                                        color: "white",
-                                    }}
-                                    onClick={() =>
-                                        on_set_complete(section, item.value, !is_completed)
-                                    }
-                                    aria-label={`Mark ${item.label} ${is_completed ? "incomplete" : "complete"}`}
-                                >
-                                    {is_completed ? "Undo" : "Done"}
-                                </button>
+                                {is_completed ? (
+                                    <button
+                                        type="button"
+                                        className="flex items-center justify-center"
+                                        onClick={() =>
+                                            on_set_complete(section, item.value, false)
+                                        }
+                                        aria-label={`Mark ${item.label} incomplete`}
+                                    >
+                                        <X size="20" />
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="rounded px-2 py-0.5 text-xs font-semibold"
+                                        style={{
+                                            backgroundColor: "#16a34a",
+                                            color: "white",
+                                        }}
+                                        onClick={() =>
+                                            on_set_complete(section, item.value, true)
+                                        }
+                                        aria-label={`Mark ${item.label} complete`}
+                                    >
+                                        Done
+                                    </button>
+                                )}
                             </div>
                         );
                     })
