@@ -127,13 +127,6 @@ def _resolve_locator_from_cty(callsign: str) -> tuple[str, int | None, int | Non
     )
 
 
-def resolve_country_and_continent_from_list(callsign: str, callsign_type: str) -> tuple[str, str]:
-    result = resolve_country_and_continent_from_prefix_list(callsign)
-    if result is not None:
-        return result
-    raise GeoException(callsign, callsign_type, "country_and_continent")
-
-
 def resolve_country_and_continent_from_prefix_list(callsign: str) -> tuple[str, str] | None:
     callsign = callsign.upper()
     for regex, locator, country, continent in PREFIXES_TO_LOCATORS:
@@ -146,16 +139,6 @@ def _canonical_country_name(country: str) -> str:
     normalized = country.casefold().replace("&", "and")
     normalized = re.sub(r"[^a-z0-9]+", "", normalized)
     return _COUNTRY_NAME_ALIASES.get(normalized, normalized)
-
-
-_PREFIX_LIST_COUNTRY_NAMES_BY_CANONICAL = {
-    _canonical_country_name(country): country for regex, locator, country, continent in reversed(PREFIXES_TO_LOCATORS)
-}
-
-
-def _format_cty_country_for_output(cty_country: tuple[str, str]) -> tuple[str, str]:
-    country, continent = cty_country
-    return _PREFIX_LIST_COUNTRY_NAMES_BY_CANONICAL.get(_canonical_country_name(country), country), continent
 
 
 def _country_results_disagree(
@@ -189,10 +172,8 @@ def _resolve_cty_country(callsign: str) -> tuple[str, str] | None:
     return cty_country.country, cty_country.continent
 
 
-def _both_country_sources_miss(callsign: str) -> bool:
-    cty_country = _resolve_cty_country(callsign)
-    prefix_list_country = resolve_country_and_continent_from_prefix_list(callsign)
-    return cty_country is None and prefix_list_country is None
+def _cty_country_misses(callsign: str) -> bool:
+    return _resolve_cty_country(callsign) is None
 
 
 async def _push_country_mismatch_if_needed(
@@ -227,20 +208,19 @@ async def resolve_country_and_continent(
     report_country_mismatch: bool = False,
 ) -> tuple[str, str]:
     cty_country = _resolve_cty_country(callsign)
-    prefix_list_country = resolve_country_and_continent_from_prefix_list(callsign)
-    await _push_country_mismatch_if_needed(
-        valkey_client,
-        callsign,
-        callsign_type,
-        report_country_mismatch,
-        cty_country,
-        prefix_list_country,
+    if report_country_mismatch:
+        prefix_list_country = resolve_country_and_continent_from_prefix_list(callsign)
+        await _push_country_mismatch_if_needed(
+            valkey_client,
+            callsign,
+            callsign_type,
+            report_country_mismatch,
+            cty_country,
+            prefix_list_country,
     )
 
     if cty_country is not None:
-        return _format_cty_country_for_output(cty_country)
-    if prefix_list_country is not None:
-        return prefix_list_country
+        return cty_country
     raise GeoException(
         callsign,
         callsign_type,
@@ -298,7 +278,7 @@ async def get_geo_details(
                     callsign,
                     callsign_type,
                     "locator",
-                    notify_monitor=not _both_country_sources_miss(callsign),
+                    notify_monitor=not _cty_country_misses(callsign),
                 )
 
     country, continent = await resolve_country_and_continent(
