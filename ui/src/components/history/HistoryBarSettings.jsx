@@ -67,7 +67,7 @@ function HistoryBarSettings({
 
     function apply_step_input() {
         const v = Number.parseInt(step_input);
-        if (!isNaN(v) && v >= 1) {
+        if (!Number.isNaN(v) && v >= 1) {
             const new_ms = Math.min(v * 60_000, MAX_WINDOW_MS);
             set_step_size_ms(new_ms);
             set_step_input(String(Math.round(new_ms / 60_000)));

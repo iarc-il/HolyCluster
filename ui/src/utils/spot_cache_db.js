@@ -74,8 +74,8 @@ export async function fetch_gaps(gaps, signal) {
 }
 
 function normalize_band(band) {
-    if (band == 2) return "VHF";
-    if (band == 0.7) return "UHF";
+    if (band === 2) return "VHF";
+    if (band === 0.7) return "UHF";
     if (band < 1) return "SHF";
     return band;
 }
