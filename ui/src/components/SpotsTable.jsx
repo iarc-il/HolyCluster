@@ -167,6 +167,7 @@ const Spot = forwardRef(function Spot(
 
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
     const [is_reference_hovered, set_is_reference_hovered] = useState(false);
+    const [is_hunter_hovered, set_is_hunter_hovered] = useState(false);
     const state_name = STATES[spot.dx_country]?.[spot.dx_state];
 
     let dx_column;
@@ -205,6 +206,7 @@ const Spot = forwardRef(function Spot(
 
     const popup_anchor = useRef(null);
     const reference_popup_anchor = useRef(null);
+    const hunter_popup_anchor = useRef(null);
     const comment = (spot.comment ?? "").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 
     return (
@@ -294,6 +296,42 @@ const Spot = forwardRef(function Spot(
                     <span className="ml-1" title="DXpedition">
                         ⭐
                     </span>
+                )}
+                {spot.hunterNeeded?.is_needed && (
+                    <>
+                        <span
+                            ref={hunter_popup_anchor}
+                            className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold leading-none cursor-help"
+                            style={{ backgroundColor: "#22c55e", color: "white" }}
+                            onMouseEnter={() => set_is_hunter_hovered(true)}
+                            onMouseLeave={() => set_is_hunter_hovered(false)}
+                        >
+                            H
+                        </span>
+                        {is_hunter_hovered && (
+                            <Popup anchor_ref={hunter_popup_anchor}>
+                                <div
+                                    className="py-1 px-2 rounded shadow-lg max-w-xs whitespace-normal"
+                                    style={{
+                                        color: colors.theme.text,
+                                        background: colors.theme.background,
+                                    }}
+                                >
+                                    <div className="font-semibold text-xs mb-1">Needed:</div>
+                                    {spot.hunterNeeded.reasons.slice(0, 5).map((reason, index) => (
+                                        <div key={index} className="text-xs">
+                                            {reason.label}
+                                        </div>
+                                    ))}
+                                    {spot.hunterNeeded.reasons.length > 5 && (
+                                        <div className="text-xs opacity-75 mt-1">
+                                            +{spot.hunterNeeded.reasons.length - 5} more
+                                        </div>
+                                    )}
+                                </div>
+                            </Popup>
+                        )}
+                    </>
                 )}
             </td>
             <td className={cell_classes.freq} onClick={() => set_cat_to_spot(spot)}>
