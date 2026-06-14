@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseCtyCountryNames } from "../scripts/cty_entities.js";
+import { parseCtyCountryNames, parseCtyDxccCodeEntities } from "../scripts/cty_entities.js";
 
 describe("parseCtyCountryNames", () => {
     it("extracts unique CTY country names", () => {
@@ -21,6 +21,26 @@ describe("parseCtyCountryNames", () => {
         ].join("\n");
 
         expect(parseCtyCountryNames(csv_text)).toEqual(["Italy"]);
+    });
+
+    it("maps DXCC codes to active canonical countries", () => {
+        const csv_text = [
+            "K,United States,291,NA,5,8,37.53,91.67,5.0,K;",
+            "DL,Fed. Rep. of Germany,230,EU,14,28,51.00,-10.00,-1.0,DA DB DC DD;",
+            "*TEST,Test Island,291,NA,5,8,37.53,91.67,5.0,TEST;",
+            "BAD,Missing Code,,EU,14,28,0,0,0,BAD;",
+        ].join("\n");
+
+        expect(parseCtyDxccCodeEntities(csv_text)).toEqual({
+            230: "Fed. Rep. of Germany",
+            291: "United States",
+        });
+    });
+
+    it("does not create code mappings from starred rows without canonical active countries", () => {
+        const csv_text = "*IT9,Sicily,248,EU,15,28,37.50,-14.00,-1.0,IT9;";
+
+        expect(parseCtyDxccCodeEntities(csv_text)).toEqual({});
     });
 
     it("handles quoted CSV fields", () => {
