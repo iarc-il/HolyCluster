@@ -68,7 +68,6 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             settings.valkey_geo_expiration,
             http_client,
             "spotter",
-            report_country_mismatch=True,
         ),
         get_geo_details(
             valkey_client,
@@ -77,7 +76,6 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             settings.valkey_geo_expiration,
             http_client,
             "dx_callsign",
-            report_country_mismatch=True,
         ),
     )
 

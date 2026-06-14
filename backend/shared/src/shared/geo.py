@@ -3,12 +3,10 @@ import json
 import re
 from pathlib import Path
 
-from loguru import logger
 from pydantic import BaseModel
 
 from shared.coordinates import coordinates_to_locator, locator_to_coordinates
 from shared.cty import CtyCountry, get_cty_resolver
-from shared.metrics import push_country_mismatch_event
 from shared.qrz import get_locator_from_qrz
 
 
@@ -181,49 +179,11 @@ def _cty_country_misses(callsign: str) -> bool:
     return _resolve_cty_country(callsign) is None
 
 
-async def _push_country_mismatch_if_needed(
-    valkey_client,
+def resolve_country_and_continent(
     callsign: str,
     callsign_type: str,
-    report_country_mismatch: bool,
-    cty_country: tuple[str, str] | None,
-    prefix_list_country: tuple[str, str] | None,
-) -> None:
-    if not report_country_mismatch or valkey_client is None:
-        return
-    if not _country_results_disagree(cty_country, prefix_list_country):
-        return
-
-    try:
-        await push_country_mismatch_event(
-            valkey_client,
-            callsign,
-            callsign_type,
-            cty_country,
-            prefix_list_country,
-        )
-    except Exception:
-        logger.exception("Failed to push country mismatch event")
-
-
-async def resolve_country_and_continent(
-    valkey_client,
-    callsign: str,
-    callsign_type: str,
-    report_country_mismatch: bool = False,
 ) -> tuple[str, str]:
     cty_country = _resolve_cty_country(callsign)
-    if report_country_mismatch:
-        prefix_list_country = resolve_country_and_continent_from_prefix_list(callsign)
-        await _push_country_mismatch_if_needed(
-            valkey_client,
-            callsign,
-            callsign_type,
-            report_country_mismatch,
-            cty_country,
-            prefix_list_country,
-    )
-
     if cty_country is not None:
         return cty_country
     raise GeoException(
@@ -241,7 +201,6 @@ async def get_geo_details(
     geo_expiration: int,
     http_client,
     callsign_type,
-    report_country_mismatch: bool = False,
 ) -> GeoData:
     # Get geo details from cache
     if valkey_client is not None:
@@ -251,9 +210,7 @@ async def get_geo_details(
 
     if geo_data:
         geo_data = json.loads(geo_data)
-        country, continent = await resolve_country_and_continent(
-            valkey_client, callsign, callsign_type, report_country_mismatch
-        )
+        country, continent = resolve_country_and_continent(callsign, callsign_type)
         geo_data["country"] = country
         geo_data["continent"] = continent
         geo_data["cached"] = True
@@ -286,9 +243,7 @@ async def get_geo_details(
                     notify_monitor=not _cty_country_misses(callsign),
                 )
 
-    country, continent = await resolve_country_and_continent(
-        valkey_client, callsign, callsign_type, report_country_mismatch
-    )
+    country, continent = resolve_country_and_continent(callsign, callsign_type)
     lat, lon = locator_to_coordinates(locator)
 
     geo_data = {
