@@ -1,7 +1,5 @@
-import csv
 import json
 import re
-from pathlib import Path
 
 from pydantic import BaseModel
 
@@ -30,16 +28,6 @@ class GeoData(BaseModel):
     cq_zone: int | None = None
     itu_zone: int | None = None
 
-
-def read_csv_to_list_of_tuples(filename: str):
-    with open(filename, "r") as file:
-        csv_reader = csv.reader(file)
-        return [tuple(row) for row in csv_reader]
-
-
-current_folder = Path(__file__).parent
-callsign_to_locator_filename = f"{current_folder}/prefixes_list.csv"
-PREFIXES_TO_LOCATORS = read_csv_to_list_of_tuples(filename=callsign_to_locator_filename)
 
 _COUNTRY_NAME_ALIASES = {
     "agalegaandstbrandon": "agalegaandstbrandonislands",
@@ -104,11 +92,13 @@ _COUNTRY_OVERRIDES_BY_PREFIX = {
 }
 
 
-def resolve_locator_from_list(callsign: str) -> str | None:
+def _resolve_country_override(callsign: str) -> tuple[str, str] | None:
     callsign = callsign.upper()
-    for regex, locator, country, continent in PREFIXES_TO_LOCATORS:
-        if re.match(regex + ".*", callsign):
-            return locator
+    if callsign in _COUNTRY_OVERRIDES_BY_CALLSIGN:
+        return _COUNTRY_OVERRIDES_BY_CALLSIGN[callsign]
+    for prefix, country in _COUNTRY_OVERRIDES_BY_PREFIX.items():
+        if callsign.startswith(prefix):
+            return country
     return None
 
 
@@ -119,8 +109,35 @@ def _resolve_cty_country_details(callsign: str) -> CtyCountry | None:
     return cty_resolver.resolve_country(callsign)
 
 
-def _resolve_locator_from_cty(callsign: str) -> tuple[str, int | None, int | None] | None:
-    cty_country = _resolve_cty_country_details(callsign)
+def _canonical_country_name(country: str) -> str:
+    normalized = country.casefold().replace("&", "and")
+    normalized = re.sub(r"[^a-z0-9]+", "", normalized)
+    return _COUNTRY_NAME_ALIASES.get(normalized, normalized)
+
+
+def _find_cty_country_for_entity(country: tuple[str, str]) -> CtyCountry | None:
+    cty_resolver = get_cty_resolver()
+    if cty_resolver is None:
+        raise RuntimeError("CTY resolver is unavailable")
+
+    target_country, target_continent = country
+    target_country = _canonical_country_name(target_country)
+    fallback = None
+    seen_dxcc_codes = set()
+    for cty_country in cty_resolver.prefixes.values():
+        if cty_country.dxcc_code in seen_dxcc_codes:
+            continue
+        seen_dxcc_codes.add(cty_country.dxcc_code)
+        if _canonical_country_name(cty_country.country) != target_country:
+            continue
+        if cty_country.continent == target_continent:
+            return cty_country
+        if fallback is None:
+            fallback = cty_country
+    return fallback
+
+
+def _cty_locator_from_country(cty_country: CtyCountry | None) -> tuple[str, int | None, int | None] | None:
     if cty_country is None or cty_country.latitude is None or cty_country.longitude is None:
         return None
     return (
@@ -130,44 +147,17 @@ def _resolve_locator_from_cty(callsign: str) -> tuple[str, int | None, int | Non
     )
 
 
-def resolve_country_and_continent_from_prefix_list(callsign: str) -> tuple[str, str] | None:
-    callsign = callsign.upper()
-    for regex, locator, country, continent in PREFIXES_TO_LOCATORS:
-        if re.match(regex + ".*", callsign):
-            return country, continent
-    return None
-
-
-def _canonical_country_name(country: str) -> str:
-    normalized = country.casefold().replace("&", "and")
-    normalized = re.sub(r"[^a-z0-9]+", "", normalized)
-    return _COUNTRY_NAME_ALIASES.get(normalized, normalized)
-
-
-def _country_results_disagree(
-    cty_country: tuple[str, str] | None,
-    prefix_list_country: tuple[str, str] | None,
-) -> bool:
-    if cty_country is None and prefix_list_country is None:
-        return False
-    if cty_country is None or prefix_list_country is None:
-        return True
-
-    cty_country_name, cty_continent = cty_country
-    prefix_country_name, prefix_continent = prefix_list_country
-    return (
-        _canonical_country_name(cty_country_name) != _canonical_country_name(prefix_country_name)
-        or cty_continent != prefix_continent
-    )
+def _resolve_locator_from_cty(callsign: str) -> tuple[str, int | None, int | None] | None:
+    country_override = _resolve_country_override(callsign)
+    if country_override is not None:
+        return _cty_locator_from_country(_find_cty_country_for_entity(country_override))
+    return _cty_locator_from_country(_resolve_cty_country_details(callsign))
 
 
 def _resolve_cty_country(callsign: str) -> tuple[str, str] | None:
-    callsign = callsign.upper()
-    if callsign in _COUNTRY_OVERRIDES_BY_CALLSIGN:
-        return _COUNTRY_OVERRIDES_BY_CALLSIGN[callsign]
-    for prefix, country in _COUNTRY_OVERRIDES_BY_PREFIX.items():
-        if callsign.startswith(prefix):
-            return country
+    country_override = _resolve_country_override(callsign)
+    if country_override is not None:
+        return country_override
 
     cty_country = _resolve_cty_country_details(callsign)
     if cty_country is None:
@@ -232,16 +222,12 @@ async def get_geo_details(
             cq_zone = cq_zone if cq_zone is not None else cty_cq_zone
             itu_zone = itu_zone if itu_zone is not None else cty_itu_zone
         else:
-            locator = resolve_locator_from_list(callsign)
-            if locator:
-                locator_source = "prefixes list"
-            else:
-                raise GeoException(
-                    callsign,
-                    callsign_type,
-                    "locator",
-                    notify_monitor=not _cty_country_misses(callsign),
-                )
+            raise GeoException(
+                callsign,
+                callsign_type,
+                "locator",
+                notify_monitor=not _cty_country_misses(callsign),
+            )
 
     country, continent = resolve_country_and_continent(callsign, callsign_type)
     lat, lon = locator_to_coordinates(locator)
