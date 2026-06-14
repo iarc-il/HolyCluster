@@ -303,7 +303,7 @@ async def get_locator(callsign: str):
             "locator": geo_data.locator,
             "lat": geo_data.lat,
             "lon": geo_data.lon,
-            "source": "cache" if geo_data.cached else "qrz",
+            "source": "cache" if geo_data.cached else geo_data.locator_source,
         }
     else:
         return {"callsign": callsign, "error": "not found"}

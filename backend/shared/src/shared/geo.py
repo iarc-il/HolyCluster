@@ -6,8 +6,8 @@ from pathlib import Path
 from loguru import logger
 from pydantic import BaseModel
 
-from shared.coordinates import locator_to_coordinates
-from shared.cty import get_cty_resolver
+from shared.coordinates import coordinates_to_locator, locator_to_coordinates
+from shared.cty import CtyCountry, get_cty_resolver
 from shared.metrics import push_country_mismatch_event
 from shared.qrz import get_locator_from_qrz
 
@@ -109,6 +109,24 @@ def resolve_locator_from_list(callsign: str) -> str | None:
     return None
 
 
+def _resolve_cty_country_details(callsign: str) -> CtyCountry | None:
+    cty_resolver = get_cty_resolver()
+    if cty_resolver is None:
+        raise RuntimeError("CTY resolver is unavailable")
+    return cty_resolver.resolve_country(callsign)
+
+
+def _resolve_locator_from_cty(callsign: str) -> tuple[str, int | None, int | None] | None:
+    cty_country = _resolve_cty_country_details(callsign)
+    if cty_country is None or cty_country.latitude is None or cty_country.longitude is None:
+        return None
+    return (
+        coordinates_to_locator(cty_country.latitude, cty_country.longitude),
+        cty_country.cq_zone,
+        cty_country.itu_zone,
+    )
+
+
 def resolve_country_and_continent_from_list(callsign: str, callsign_type: str) -> tuple[str, str]:
     result = resolve_country_and_continent_from_prefix_list(callsign)
     if result is not None:
@@ -165,10 +183,10 @@ def _resolve_cty_country(callsign: str) -> tuple[str, str] | None:
         if callsign.startswith(prefix):
             return country
 
-    cty_resolver = get_cty_resolver()
-    if cty_resolver is None:
-        raise RuntimeError("CTY resolver is unavailable")
-    return cty_resolver.resolve(callsign)
+    cty_country = _resolve_cty_country_details(callsign)
+    if cty_country is None:
+        return None
+    return cty_country.country, cty_country.continent
 
 
 def _both_country_sources_miss(callsign: str) -> bool:
@@ -265,16 +283,23 @@ async def get_geo_details(
     if locator:
         locator_source = "qrz"
     else:
-        locator = resolve_locator_from_list(callsign)
-        if locator:
-            locator_source = "prefixes list"
+        cty_locator = _resolve_locator_from_cty(callsign)
+        if cty_locator is not None:
+            locator, cty_cq_zone, cty_itu_zone = cty_locator
+            locator_source = "cty"
+            cq_zone = cq_zone if cq_zone is not None else cty_cq_zone
+            itu_zone = itu_zone if itu_zone is not None else cty_itu_zone
         else:
-            raise GeoException(
-                callsign,
-                callsign_type,
-                "locator",
-                notify_monitor=not _both_country_sources_miss(callsign),
-            )
+            locator = resolve_locator_from_list(callsign)
+            if locator:
+                locator_source = "prefixes list"
+            else:
+                raise GeoException(
+                    callsign,
+                    callsign_type,
+                    "locator",
+                    notify_monitor=not _both_country_sources_miss(callsign),
+                )
 
     country, continent = await resolve_country_and_continent(
         valkey_client, callsign, callsign_type, report_country_mismatch

@@ -54,21 +54,27 @@ class CtyResolver:
     exact_callsigns: dict[str, CtyCountry]
     prefixes: dict[str, CtyCountry]
 
-    def resolve(self, callsign: str) -> tuple[str, str] | None:
+    def resolve_country(self, callsign: str) -> CtyCountry | None:
         normalized = normalize_callsign(callsign)
         if not normalized:
             return None
 
         country = self.exact_callsigns.get(normalized)
         if country is not None:
-            return country.country, country.continent
+            return country
 
         for end in range(len(normalized), 0, -1):
             country = self.prefixes.get(normalized[:end])
             if country is not None:
-                return country.country, country.continent
+                return country
 
         return None
+
+    def resolve(self, callsign: str) -> tuple[str, str] | None:
+        country = self.resolve_country(callsign)
+        if country is None:
+            return None
+        return country.country, country.continent
 
 
 def normalize_callsign(callsign: str) -> str:
