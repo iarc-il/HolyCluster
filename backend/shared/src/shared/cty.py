@@ -15,7 +15,13 @@ CTY_CACHE_DIR = Path.home() / ".cache" / "holycluster" / "country-files"
 CTY_CACHE_PATH = CTY_CACHE_DIR / "cty.csv"
 CTY_METADATA_PATH = CTY_CACHE_DIR / "cty_metadata.json"
 CTY_REFRESH_TIMEOUT = 30.0
+CTY_COUNTRY_FIELD_INDEX = 1
 CTY_DXCC_FIELD_INDEX = 2
+CTY_CONTINENT_FIELD_INDEX = 3
+CTY_CQ_ZONE_FIELD_INDEX = 4
+CTY_ITU_ZONE_FIELD_INDEX = 5
+CTY_LATITUDE_FIELD_INDEX = 6
+CTY_LONGITUDE_FIELD_INDEX = 7
 CTY_ALIAS_FIELD_INDEX = 9
 
 _CTY_TOKEN_MODIFIER_RE = re.compile(r"\(\d+\)|\[\d+\]|<[^>]+>|\{[^}]+}|~[^~]+~")
@@ -37,6 +43,10 @@ class CtyCountry:
     country: str
     continent: str
     dxcc_code: str
+    latitude: float | None
+    longitude: float | None
+    cq_zone: int | None
+    itu_zone: int | None
 
 
 @dataclass(frozen=True)
@@ -94,6 +104,33 @@ def _iter_cty_tokens(row: list[str]) -> list[tuple[bool, str]]:
     return tokens
 
 
+def _parse_optional_int(value: str) -> int | None:
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _parse_optional_float(value: str) -> float | None:
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _normal_longitude_from_cty(value: str) -> float | None:
+    longitude = _parse_optional_float(value)
+    if longitude is None:
+        return None
+    return -longitude
+
+
 def _build_canonical_countries_by_dxcc(rows: list[list[str]]) -> dict[str, str]:
     canonical_countries = {}
     for row in rows:
@@ -102,7 +139,7 @@ def _build_canonical_countries_by_dxcc(rows: list[list[str]]) -> dict[str, str]:
 
         primary_prefix = row[0].strip()
         dxcc_code = row[CTY_DXCC_FIELD_INDEX].strip()
-        country = row[1].strip()
+        country = row[CTY_COUNTRY_FIELD_INDEX].strip()
         if primary_prefix.startswith("*") or not dxcc_code or not country:
             continue
 
@@ -123,8 +160,8 @@ def build_cty_resolver(rows: list[list[str]]) -> CtyResolver:
 
         primary_prefix = row[0].strip()
         dxcc_code = row[CTY_DXCC_FIELD_INDEX].strip()
-        country = row[1].strip()
-        continent = row[3].strip().upper()
+        country = row[CTY_COUNTRY_FIELD_INDEX].strip()
+        continent = row[CTY_CONTINENT_FIELD_INDEX].strip().upper()
         if not country or not continent:
             logger.warning(f"Skipping CTY row with missing country or continent: {row}")
             continue
@@ -132,7 +169,15 @@ def build_cty_resolver(rows: list[list[str]]) -> CtyResolver:
         if primary_prefix.startswith("*"):
             country = canonical_countries_by_dxcc.get(dxcc_code, country)
 
-        cty_country = CtyCountry(country=country, continent=continent, dxcc_code=dxcc_code)
+        cty_country = CtyCountry(
+            country=country,
+            continent=continent,
+            dxcc_code=dxcc_code,
+            latitude=_parse_optional_float(row[CTY_LATITUDE_FIELD_INDEX]),
+            longitude=_normal_longitude_from_cty(row[CTY_LONGITUDE_FIELD_INDEX]),
+            cq_zone=_parse_optional_int(row[CTY_CQ_ZONE_FIELD_INDEX]),
+            itu_zone=_parse_optional_int(row[CTY_ITU_ZONE_FIELD_INDEX]),
+        )
         for exact, token in _iter_cty_tokens(row):
             if exact:
                 exact_callsigns.setdefault(token, cty_country)
