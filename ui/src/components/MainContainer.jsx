@@ -13,6 +13,7 @@ import use_radio from "@/hooks/useRadio";
 import { SpotDataProvider, useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { compare_version, get_max_radius, get_spots_center } from "@/utils.js";
+import { open_db_and_evict } from "@/utils/spot_cache_db.js";
 import Maidenhead from "maidenhead";
 
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
@@ -340,7 +341,7 @@ function MainContent({
 function MainContainer() {
     const {
         active_profile_data: {
-            history: { window_size_ms },
+            history: { window_size_ms, step_size_ms },
         },
         update_active_profile_section,
     } = useProfiles();
@@ -356,12 +357,26 @@ function MainContainer() {
                     : value_or_setter,
         }));
     }
+    useEffect(() => {
+        const handle =
+            typeof requestIdleCallback !== "undefined"
+                ? requestIdleCallback(() => open_db_and_evict())
+                : setTimeout(() => open_db_and_evict(), 2000);
+        const timer = setInterval(() => open_db_and_evict(), 3 * 60 * 60_000);
+        return () => {
+            typeof requestIdleCallback !== "undefined"
+                ? cancelIdleCallback(handle)
+                : clearTimeout(handle);
+            clearInterval(timer);
+        };
+    }, []);
 
     return (
         <SpotDataProvider
             startTime={history_start}
             endTime={history_end}
             window_size_ms={window_size_ms}
+            step_size_ms={step_size_ms}
         >
             <MainContent
                 history_start={history_start}

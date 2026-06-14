@@ -14,7 +14,13 @@ export function useSpotData() {
     return useContext(SpotDataContext);
 }
 
-export const SpotDataProvider = ({ children, startTime, endTime, window_size_ms }) => {
+export const SpotDataProvider = ({
+    children,
+    startTime,
+    endTime,
+    window_size_ms,
+    step_size_ms,
+}) => {
     const {
         raw_spots: ws_raw_spots,
         new_spot_ids: ws_new_spot_ids,
@@ -24,6 +30,7 @@ export const SpotDataProvider = ({ children, startTime, endTime, window_size_ms 
         startTime,
         endTime,
         window_size_ms,
+        step_size_ms,
     );
 
     const is_history_mode = !!(startTime && endTime);

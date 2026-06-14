@@ -282,6 +282,7 @@ export function create_default_table_sort() {
 export function create_default_history() {
     return {
         window_size_ms: DEFAULT_HISTORY_WINDOW_MS,
+        step_size_ms: DEFAULT_HISTORY_WINDOW_MS,
         display_hours: 24,
         time_between_shifts: 3,
     };
@@ -422,6 +423,11 @@ export function sanitize_history(value, defaults = create_default_history()) {
 
     return {
         window_size_ms: to_number(source.window_size_ms, defaults.window_size_ms, {
+            min: 60_000,
+            max: MAX_HISTORY_WINDOW_MS,
+            integer: true,
+        }),
+        step_size_ms: to_number(source.step_size_ms, defaults.step_size_ms, {
             min: 60_000,
             max: MAX_HISTORY_WINDOW_MS,
             integer: true,

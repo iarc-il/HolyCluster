@@ -352,17 +352,18 @@ function MapControls({
                                 ? { color: colors.buttons.active ?? "#3b82f6" }
                                 : {}),
                         }}
-                        aria-label={is_history_mode ? "Exit history mode" : "Enter history mode"}
-                        title={is_history_mode ? "Exit history mode" : "Enter history mode"}
+                        aria-label={is_history_mode ? "Exit playback mode" : "Enter playback mode"}
+                        title={is_history_mode ? "Exit playback mode" : "Enter playback mode"}
                     >
                         <svg
                             height="24"
                             width="24"
-                            viewBox="0 0 512 512"
+                            viewBox="0 0 16 16"
                             fill="currentColor"
                             aria-hidden="true"
                         >
-                            <path d="M256 8C119 8 8 119 8 256s111 248 248 248 248-111 248-248S393 8 256 8zm0 448c-110.5 0-200-89.5-200-200S145.5 56 256 56s200 89.5 200 200-89.5 200-200 200zm61.8-104.4l-84.9-61.7c-3.1-2.3-4.9-5.9-4.9-9.7V116c0-6.6 5.4-12 12-12h32c6.6 0 12 5.4 12 12v141.7l66.8 48.6c5.4 3.9 6.5 11.4 2.6 16.8L334.6 349c-3.9 5.3-11.4 6.5-16.8 2.6z" />
+                            <path d="M6.79 5.093A.5.5 0 0 0 6 5.5v5a.5.5 0 0 0 .79.407l3.5-2.5a.5.5 0 0 0 0-.814z" />
+                            <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z" />
                         </svg>
                     </button>
                     <button
