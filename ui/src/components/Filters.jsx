@@ -161,9 +161,9 @@ function FilterContent({ filter, listeners, attributes, colors }) {
                 listeners={listeners}
                 attributes={attributes}
                 className="cursor-grab active:cursor-grabbing w-24"
-                title={filter.value}
+                title={filter_value}
             >
-                {filter.value}
+                {filter_value}
             </FilterBadge>
         );
     }
@@ -192,8 +192,8 @@ function FilterContent({ filter, listeners, attributes, colors }) {
                     className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
                     disabled
                     disabled_text_color={colors.theme.text}
-                    title={filter.value}
-                    value={filter.value}
+                    title={filter_value}
+                    value={filter_value}
                 />
             </div>
             <Indicator text={FILTER_TYPE_LABELS[filter.type]} />
