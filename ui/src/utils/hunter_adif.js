@@ -11,6 +11,13 @@ import { AdifParser } from "adif-parser-ts";
 export const HUNTER_ADIF_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 export const HUNTER_ADIF_MAX_QSO_RECORDS = 50_000;
 export const HUNTER_RESOLVE_BATCH_SIZE = 100;
+export const HUNTER_IMPORT_PHASES = Object.freeze({
+    PARSING: "parsing",
+    PROCESSING: "processing",
+    RESOLVING: "resolving",
+    MERGING: "merging",
+    COMPLETE: "complete",
+});
 
 const HUNTER_IMPORT_COUNT_KEYS = ["dxcc", "cq_zone", "itu_zone", "us_state", "ca_province"];
 
@@ -239,9 +246,26 @@ export async function resolve_hunter_callsigns(callsigns) {
     return response.json();
 }
 
-async function resolve_callsign_batches(callsigns, resolve_batch) {
+function report_import_progress(on_progress, progress) {
+    if (typeof on_progress !== "function") return;
+
+    on_progress(progress);
+}
+
+function report_resolve_progress(on_progress, completed, total) {
+    const percentage = total === 0 ? 100 : Math.round((completed / total) * 100);
+    report_import_progress(on_progress, {
+        phase: HUNTER_IMPORT_PHASES.RESOLVING,
+        completed,
+        total,
+        percentage,
+    });
+}
+
+async function resolve_callsign_batches(callsigns, resolve_batch, on_progress) {
     const results = {};
     const errors = {};
+    report_resolve_progress(on_progress, 0, callsigns.length);
 
     for (let index = 0; index < callsigns.length; index += HUNTER_RESOLVE_BATCH_SIZE) {
         const batch = callsigns.slice(index, index + HUNTER_RESOLVE_BATCH_SIZE);
@@ -254,6 +278,11 @@ async function resolve_callsign_batches(callsigns, resolve_batch) {
                 errors[callsign] = error.message;
             }
         }
+        report_resolve_progress(
+            on_progress,
+            Math.min(index + HUNTER_RESOLVE_BATCH_SIZE, callsigns.length),
+            callsigns.length,
+        );
     }
 
     return { results, errors };
@@ -266,18 +295,26 @@ export async function import_hunter_adif({
     file_size = null,
     imported_at = Math.floor(Date.now() / 1000),
     resolve_callsigns = resolve_hunter_callsigns,
+    on_progress = null,
 } = {}) {
     validate_import_limits({ file_size, record_count: 0 });
 
+    report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.PARSING });
     const records = parse_hunter_adif_records(adif_text ?? "");
     validate_import_limits({ file_size, record_count: records.length });
 
+    report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.PROCESSING });
     const direct_records = records.map(extract_direct_record_features);
     const conflict_count = direct_records.filter(record => record.conflict).length;
     const callsigns_to_resolve = Array.from(
         new Set(direct_records.filter(record_needs_resolution).map(record => record.call)),
     );
-    const resolved = await resolve_callsign_batches(callsigns_to_resolve, resolve_callsigns);
+    const resolved = await resolve_callsign_batches(
+        callsigns_to_resolve,
+        resolve_callsigns,
+        on_progress,
+    );
+    report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.MERGING });
     const feature_sets = create_empty_feature_sets();
     let skipped_count = 0;
 
@@ -307,7 +344,7 @@ export async function import_hunter_adif({
         conflict_count,
     };
 
-    return {
+    const result = {
         hunter: {
             ...merged.hunter,
             imports: [...merged.hunter.imports, metadata],
@@ -315,4 +352,11 @@ export async function import_hunter_adif({
         metadata,
         resolver_errors: resolved.errors,
     };
+
+    report_import_progress(on_progress, {
+        phase: HUNTER_IMPORT_PHASES.COMPLETE,
+        percentage: 100,
+    });
+
+    return result;
 }

@@ -5,7 +5,8 @@ import { dxcc_entities } from "@/data/dxcc_entities.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
-import { HUNTER_ADIF_MAX_FILE_SIZE_BYTES, import_hunter_adif } from "@/utils/hunter_adif.js";
+import { HUNTER_ADIF_MAX_FILE_SIZE_BYTES, HUNTER_IMPORT_PHASES } from "@/utils/hunter_adif.js";
+import { import_hunter_adif_in_worker } from "@/utils/hunter_adif_worker_client.js";
 import { HUNTER_SECTION_KEYS } from "@/utils/profile_data.js";
 import { useMemo, useState } from "react";
 
@@ -15,6 +16,15 @@ const SECTION_LABELS = {
     itu_zone: "ITU Zones",
     us_state: "US States",
     ca_province: "Canada Provinces",
+};
+
+const IMPORT_PHASE_LABELS = {
+    reading: "Reading ADIF",
+    [HUNTER_IMPORT_PHASES.PARSING]: "Parsing ADIF",
+    [HUNTER_IMPORT_PHASES.PROCESSING]: "Processing QSOs",
+    [HUNTER_IMPORT_PHASES.RESOLVING]: "Resolving callsigns",
+    [HUNTER_IMPORT_PHASES.MERGING]: "Saving hunter data",
+    [HUNTER_IMPORT_PHASES.COMPLETE]: "Import complete",
 };
 
 function range(start, end) {
@@ -51,10 +61,44 @@ function create_section_items() {
     };
 }
 
-function read_file_text(file) {
+function clamp_percentage(value) {
+    return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function get_overall_import_percentage({ phase, percentage }) {
+    if (phase === "reading") return clamp_percentage((percentage ?? 0) * 0.1);
+    if (phase === HUNTER_IMPORT_PHASES.PARSING) return 15;
+    if (phase === HUNTER_IMPORT_PHASES.PROCESSING) return 25;
+    if (phase === HUNTER_IMPORT_PHASES.RESOLVING) {
+        return clamp_percentage(30 + (percentage ?? 0) * 0.65);
+    }
+    if (phase === HUNTER_IMPORT_PHASES.MERGING) return 98;
+    if (phase === HUNTER_IMPORT_PHASES.COMPLETE) return 100;
+    return clamp_percentage(percentage ?? 0);
+}
+
+function create_import_progress(update) {
+    const progress = {
+        phase: update?.phase ?? HUNTER_IMPORT_PHASES.RESOLVING,
+        percentage: update?.percentage,
+    };
+    return {
+        phase: progress.phase,
+        percentage: get_overall_import_percentage(progress),
+    };
+}
+
+function read_file_text(file, on_progress) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = event => resolve(event.target.result);
+        reader.onload = event => {
+            on_progress?.(100);
+            resolve(event.target.result);
+        };
+        reader.onprogress = event => {
+            if (!event.lengthComputable) return;
+            on_progress?.(clamp_percentage((event.loaded / event.total) * 100));
+        };
         reader.onerror = () => reject(new Error("Could not read the selected ADIF file."));
         reader.readAsText(file);
     });
@@ -248,6 +292,7 @@ export default function HunterPanel() {
     );
     const [import_error, set_import_error] = useState("");
     const [is_importing, set_is_importing] = useState(false);
+    const [import_progress, set_import_progress] = useState(null);
     const section_items = useMemo(create_section_items, []);
 
     function update_hunter(updater) {
@@ -298,24 +343,32 @@ export default function HunterPanel() {
 
         if (file.size > HUNTER_ADIF_MAX_FILE_SIZE_BYTES) {
             set_import_error("ADIF file is too large. Maximum size is 10 MB.");
+            set_import_progress(null);
             return;
         }
 
         set_is_importing(true);
         set_import_error("");
+        set_import_progress(create_import_progress({ phase: "reading", percentage: 0 }));
         try {
-            const adif_text = await read_file_text(file);
-            const result = await import_hunter_adif({
+            const adif_text = await read_file_text(file, percentage => {
+                set_import_progress(create_import_progress({ phase: "reading", percentage }));
+            });
+            const result = await import_hunter_adif_in_worker({
                 hunter,
                 adif_text,
                 file_name: file.name,
                 file_size: file.size,
+                on_progress: progress => {
+                    set_import_progress(create_import_progress(progress));
+                },
             });
             update_active_profile_section("hunter", result.hunter);
         } catch (error) {
             set_import_error(error.message || "Could not import the selected ADIF file.");
         } finally {
             set_is_importing(false);
+            set_import_progress(null);
         }
     }
 
@@ -353,6 +406,33 @@ export default function HunterPanel() {
                         </span>
                     </label>
                 </div>
+                {is_importing && import_progress != null ? (
+                    <div
+                        className="space-y-1"
+                        role="progressbar"
+                        aria-label="ADIF import progress"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={import_progress.percentage}
+                        tabIndex={0}
+                    >
+                        <div className="flex justify-between gap-2 text-xs font-semibold">
+                            <span>
+                                {IMPORT_PHASE_LABELS[import_progress.phase] ?? "Importing ADIF"}
+                            </span>
+                            <span>{import_progress.percentage}%</span>
+                        </div>
+                        <div
+                            className="h-2 rounded-full overflow-hidden"
+                            style={{ backgroundColor: colors.theme.background }}
+                        >
+                            <div
+                                className="h-full bg-green-500 transition-[width] duration-200"
+                                style={{ width: `${import_progress.percentage}%` }}
+                            />
+                        </div>
+                    </div>
+                ) : null}
                 {import_error ? <p className="text-sm text-red-500">{import_error}</p> : null}
             </section>
 

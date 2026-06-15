@@ -5,6 +5,9 @@ import { ctyDxccEntitiesPlugin } from "./scripts/cty_entities.js";
 
 export default defineConfig({
     plugins: [ctyDxccEntitiesPlugin(), react()],
+    worker: {
+        plugins: () => [ctyDxccEntitiesPlugin()],
+    },
     test: {
         environment: "jsdom",
         include: ["tests/**/*.{js,jsx}"],
