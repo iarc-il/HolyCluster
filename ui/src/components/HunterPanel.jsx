@@ -19,6 +19,14 @@ const SECTION_LABELS = {
     ca_province: "Canada Provinces",
 };
 
+const SECTION_COMPLETE_MESSAGES = {
+    dxcc: "No DXCC entities left",
+    cq_zone: "No CQ zones left",
+    itu_zone: "No ITU zones left",
+    us_state: "No US states left",
+    ca_province: "No Canadian provinces left",
+};
+
 const IMPORT_PHASE_LABELS = {
     reading: "Reading ADIF",
     [HUNTER_IMPORT_PHASES.PARSING]: "Parsing ADIF",
@@ -117,6 +125,36 @@ function sum_added_counts(added_counts) {
     return Object.values(added_counts ?? {}).reduce((sum, count) => sum + Number(count || 0), 0);
 }
 
+function TrophyIcon() {
+    return (
+        <svg
+            viewBox="0 0 64 64"
+            aria-label="Trophy"
+            role="img"
+            className="mx-auto h-14 w-14 drop-shadow"
+        >
+            <path
+                d="M18 10h28v8h8c0 11-4.7 18-14 20.5A14.7 14.7 0 0 1 35 42v8h10v6H19v-6h10v-8a14.7 14.7 0 0 1-5-3.5C14.7 36 10 29 10 18h8v-8Z"
+                fill="#facc15"
+            />
+            <path d="M18 18h-4c.5 6.8 2.9 11.2 7.1 13.4A24.3 24.3 0 0 1 18 18Z" fill="#eab308" />
+            <path d="M46 18h4c-.5 6.8-2.9 11.2-7.1 13.4A24.3 24.3 0 0 0 46 18Z" fill="#eab308" />
+            <path d="M24 16h16v4H24z" fill="#fde68a" opacity=".85" />
+            <path d="M25 56h14" stroke="#a16207" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+    );
+}
+
+function SectionCompleteState({ section }) {
+    return (
+        <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/10 px-4 py-5 text-center">
+            <TrophyIcon />
+            <p className="mt-2 text-sm font-bold">{SECTION_COMPLETE_MESSAGES[section]}</p>
+            <p>Well done!</p>
+        </div>
+    );
+}
+
 function HunterSection({
     section,
     items,
@@ -134,6 +172,7 @@ function HunterSection({
     const worked = new Set(worked_values);
     const completed_count = items.filter(item => worked.has(item.value)).length;
     const missing_count = items.length - completed_count;
+    const is_section_complete = missing_count === 0 && items.length > 0;
     const normalized_search = search.trim().toLowerCase();
     const visible_items = items.filter(item => {
         const is_completed = worked.has(item.value);
@@ -219,7 +258,11 @@ function HunterSection({
 
             <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
                 {visible_items.length === 0 ? (
-                    <p className="text-sm opacity-75">No {list_mode} items match.</p>
+                    is_section_complete && list_mode === "missing" ? (
+                        <SectionCompleteState section={section} />
+                    ) : (
+                        <p className="text-sm opacity-75">No {list_mode} items match.</p>
+                    )
                 ) : (
                     visible_items.map(item => {
                         const is_completed = worked.has(item.value);

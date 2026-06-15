@@ -151,6 +151,21 @@ describe("HunterPanel", () => {
         expect(within(states_section).queryByText("AL - Alabama")).toBeNull();
     });
 
+    it("shows a trophy message when a section has no missing items", () => {
+        const profile_data = create_default_profile_data();
+        profile_data.hunter.worked.cq_zone.global = Array.from(
+            { length: 40 },
+            (_, index) => index + 1,
+        );
+
+        render_hunter_panel(profile_data);
+
+        const cq_section = section_by_heading("CQ Zones");
+        expect(within(cq_section).getByRole("img", { name: "Trophy" })).toBeTruthy();
+        expect(within(cq_section).getByText("No CQ zones left. Well done!")).toBeTruthy();
+        expect(within(cq_section).queryByText("No missing items match.")).toBeNull();
+    });
+
     it("shows recent import metadata", () => {
         const profile_data = create_default_profile_data();
         profile_data.hunter.imports = [
