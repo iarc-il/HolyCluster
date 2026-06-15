@@ -1,5 +1,3 @@
-import { shorten_dxcc } from "@/data/flags.js";
-
 const DXCC_ENTITY_ALIASES = {
     "Agalega & St. Brandon": "Agalega and St. Brandon Islands",
     "Agalega & St. Brandon Is.": "Agalega and St. Brandon Islands",
@@ -62,6 +60,19 @@ const DXCC_ENTITY_ALIASES = {
     "Wallis & Futuna Islands": "Wallis and Futuna Islands",
 };
 
+const DXCC_SHORT_LABELS = {
+    "Czech Republic": "Czechia",
+    "International Telecommunication Union Headquarters": "ITU Headquarters",
+    "Slovak Republic": "Slovakia",
+    "United Arab Emirates": "UAE",
+    "United Nations Headquarters": "UN Headquarters",
+    "United States of America": "USA",
+};
+
+export function shorten_dxcc_label(dxcc_name) {
+    return DXCC_SHORT_LABELS[dxcc_name] ?? dxcc_name;
+}
+
 function expand_dxcc_island_abbreviations(dxcc_name) {
     return dxcc_name
         .replace(/\bIs\./g, "Islands")
@@ -78,7 +89,7 @@ export function normalize_dxcc_label(dxcc_name) {
 
     const entity_name =
         DXCC_ENTITY_ALIASES[trimmed_name] ?? expand_dxcc_island_abbreviations(trimmed_name);
-    return shorten_dxcc(entity_name);
+    return shorten_dxcc_label(entity_name);
 }
 
 export function normalize_dxcc_entity_value(value) {

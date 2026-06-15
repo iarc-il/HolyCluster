@@ -1,12 +1,71 @@
 import flags from "@/assets/flags.json";
+import {
+    dxcc_entities_by_code,
+    get_dxcc_label,
+    normalize_dxcc_code,
+} from "@/data/dxcc_entities.js";
+import { shorten_dxcc_label } from "@/data/dxcc_labels.js";
 
 const dxcc_to_country_flag = {
+    "Agalega and St. Brandon Islands": "Mauritius",
+    "Amsterdam & St. Paul Islands": "French Southern and Antarctic Lands",
+    "Andaman and Nicobar Islands": "India",
+    "Annobon Island": "Equatorial Guinea",
+    "Asiatic Turkey": "Turkey",
+    "Auckland & Campbell Islands": "New Zealand",
+    "Austral Islands": "French Polynesia",
+    "Aves Island": "Venezuela",
+    "Baker Howland Islands": "United States Minor Outlying Islands",
+    "Chagos Islands": "British Indian Ocean Territory",
+    "Chesterfield Islands": "New Caledonia",
+    "Clipperton Island": "France",
+    "Cocos Island": "Costa Rica",
+    "Conway Reef": "Fiji",
+    "Crozet Island": "French Southern and Antarctic Lands",
     "Czech Republic": "Czechia",
     "Slovak Republic": "Slovakia",
     "European Russia": "Russia",
     "Asiatic Russia": "Russia",
+    "Ducie Island": "Pitcairn Islands",
     Kaliningrad: "Russia",
     Sardinia: "Italy",
+    "Amsterdam & St. Paul Is.": "French Southern and Antarctic Lands",
+    "Fernando de Noronha": "Brazil",
+    "Franz Josef Land": "Russia",
+    "Heard Island": "Australia",
+    "Johnston Island": "United States Minor Outlying Islands",
+    "Juan de Nova, Europa": "French Southern and Antarctic Lands",
+    "Kerguelen Islands": "French Southern and Antarctic Lands",
+    "Kermadec Islands": "New Zealand",
+    "Lakshadweep Islands": "India",
+    "Marquesas Islands": "French Polynesia",
+    "Mellish Reef": "Australia",
+    "Midway Island": "United States Minor Outlying Islands",
+    "Mount Athos": "Greece",
+    "Navassa Island": "United States Minor Outlying Islands",
+    Ogasawara: "Japan",
+    "Palmyra & Jarvis Islands": "United States Minor Outlying Islands",
+    "Peter 1 Island": "Norway",
+    "Pratas Island": "Taiwan",
+    "Prince Edward & Marion Islands": "South Africa",
+    "Rotuma Island": "Fiji",
+    "San Felix Islands": "Chile",
+    "Scarborough Reef": "China",
+    "South Cook Islands": "Cook Islands",
+    "South Georgia Island": "South Georgia and South Sandwich Islands",
+    "South Orkney Islands": "Antarctica",
+    "South Sandwich Islands": "South Georgia and South Sandwich Islands",
+    "South Shetland Islands": "Antarctica",
+    "Sovereign Military Order of Malta": "Malta",
+    "Spratly Islands": "Philippines",
+    "St. Peter and St. Paul Rocks": "Brazil",
+    "Swains Island": "American Samoa",
+    "Tokelau Islands": "New Zealand",
+    "Trindade & Martim Vaz Islands": "Brazil",
+    "Tromelin Island": "France",
+    "Turks & Caicos Islands": "Turks and Caicos Islands",
+    "US Virgin Islands": "United States Virgin Islands",
+    "Willis Island": "Australia",
     "Madeira Islands": "Portugal",
     Azores: "Portugal",
     "Virgin Islands": "United States Virgin Islands",
@@ -73,29 +132,25 @@ const dxcc_to_country_flag = {
     "Juan Fernandez Islands": "Chile",
 };
 
-const dxcc_to_short_dxcc = {
-    "Czech Republic": "Czechia",
-    "International Telecommunication Union Headquarters": "ITU Headquarters",
-    "Slovak Republic": "Slovakia",
-    "United Arab Emirates": "UAE",
-    "United Nations Headquarters": "UN Headquarters",
-    "United States of America": "USA",
-};
-
 export function get_flag(dx_country) {
-    if (dxcc_to_country_flag[dx_country]) {
-        return flags[dxcc_to_country_flag[dx_country]];
-    }
     if (flags[dx_country]) {
         return flags[dx_country];
+    }
+    if (dxcc_to_country_flag[dx_country]) {
+        return flags[dxcc_to_country_flag[dx_country]];
     }
     return null;
 }
 
+export function get_dxcc_flag(dxcc_code) {
+    const code = normalize_dxcc_code(dxcc_code);
+    const entity = code ? dxcc_entities_by_code[code] : null;
+    const label = entity?.label ?? get_dxcc_label(code);
+    if (!label) return null;
+
+    return get_flag(label);
+}
+
 export function shorten_dxcc(dx_country) {
-    const shorted = dxcc_to_short_dxcc[dx_country];
-    if (shorted) {
-        return shorted;
-    }
-    return dx_country;
+    return shorten_dxcc_label(dx_country);
 }

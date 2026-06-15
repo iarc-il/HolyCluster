@@ -254,12 +254,37 @@ export function parseCtyCountryNames(csv_text) {
 }
 
 export function parseCtyDxccCodeEntities(csv_text) {
+    return Object.fromEntries(
+        Object.entries(parseCtyDxccEntities(csv_text)).map(([dxcc_code, entity]) => [
+            dxcc_code,
+            entity.raw_cty_name,
+        ]),
+    );
+}
+
+export function parseCtyDxccEntities(csv_text) {
     const rows = parse_cty_rows(csv_text);
     const canonical_countries_by_dxcc = build_canonical_countries_by_dxcc(rows);
 
     return Object.fromEntries(
         Array.from(canonical_countries_by_dxcc.entries())
             .filter(([dxcc_code]) => is_valid_dxcc_code(dxcc_code))
+            .map(([dxcc_code, raw_cty_name]) => {
+                const row = rows.find(
+                    candidate =>
+                        candidate.length > CTY_ALIAS_FIELD_INDEX &&
+                        !candidate[0].trim().startsWith("*") &&
+                        candidate[CTY_DXCC_FIELD_INDEX].trim() === dxcc_code,
+                );
+                return [
+                    dxcc_code,
+                    {
+                        code: Number(dxcc_code),
+                        raw_cty_name,
+                        continent: row?.[CTY_CONTINENT_FIELD_INDEX]?.trim().toUpperCase() ?? "",
+                    },
+                ];
+            })
             .sort(([code_a], [code_b]) => Number(code_a) - Number(code_b)),
     );
 }
@@ -273,6 +298,7 @@ export async function loadCtyDxccData({ refresh = true, cache_dir = CTY_CACHE_DI
     return {
         cache_result,
         country_names: parseCtyCountryNames(csv_text),
+        dxcc_entities: parseCtyDxccEntities(csv_text),
         dxcc_code_entities: parseCtyDxccCodeEntities(csv_text),
     };
 }
@@ -296,10 +322,11 @@ export function ctyDxccEntitiesPlugin({ refresh = true, cache_dir = CTY_CACHE_DI
         async load(id) {
             if (id !== resolved_virtual_module_id) return null;
 
-            const { cache_result, country_names, dxcc_code_entities } = await loadCtyDxccData({
-                refresh,
-                cache_dir,
-            });
+            const { cache_result, country_names, dxcc_entities, dxcc_code_entities } =
+                await loadCtyDxccData({
+                    refresh,
+                    cache_dir,
+                });
             const action = cache_result.downloaded ? "Downloaded" : "Loaded cached";
             this.info(
                 `${action} CTY country file for DXCC entity labels: ${cache_result.path} (${cache_result.message})`,
@@ -307,6 +334,7 @@ export function ctyDxccEntitiesPlugin({ refresh = true, cache_dir = CTY_CACHE_DI
 
             // The browser bundle receives only derived CTY data, never cty.csv.
             return [
+                `export const dxcc_entities_by_code = ${JSON.stringify(dxcc_entities)};`,
                 `export const dxcc_code_entities = ${JSON.stringify(dxcc_code_entities)};`,
                 `export default ${JSON.stringify(country_names)};`,
                 "",
