@@ -283,6 +283,67 @@ describe("hunter_adif", () => {
         expect(result.resolver_errors).toEqual({ BAD: "not found" });
     });
 
+    it("rejects empty ADIF imports", async () => {
+        for (const adif_text of ["", "   \n\t"]) {
+            await expect(
+                import_hunter_adif({
+                    adif_text,
+                    resolve_callsigns: failing_resolver,
+                }),
+            ).rejects.toThrow(HunterAdifImportError);
+            await expect(
+                import_hunter_adif({
+                    adif_text,
+                    resolve_callsigns: failing_resolver,
+                }),
+            ).rejects.toThrow("ADIF file is empty.");
+        }
+    });
+
+    it("rejects text and binary-looking files that do not look like ADIF", async () => {
+        for (const adif_text of ["not an adif", `\u007fELF${"a".repeat(1000)}<bad>`]) {
+            await expect(
+                import_hunter_adif({
+                    adif_text,
+                    resolve_callsigns: failing_resolver,
+                }),
+            ).rejects.toThrow(HunterAdifImportError);
+            await expect(
+                import_hunter_adif({
+                    adif_text,
+                    resolve_callsigns: failing_resolver,
+                }),
+            ).rejects.toThrow("Selected file does not look like an ADIF file.");
+        }
+    });
+
+    it("rejects ADIF-like files without QSO records", async () => {
+        await expect(
+            import_hunter_adif({
+                adif_text: "<EOH>",
+                resolve_callsigns: failing_resolver,
+            }),
+        ).rejects.toThrow("ADIF file does not contain any QSO records.");
+    });
+
+    it("hides raw parser details for malformed ADIF", async () => {
+        await expect(
+            import_hunter_adif({
+                adif_text: "<CALL:5>ABC<EOR><BAD>",
+                resolve_callsigns: failing_resolver,
+            }),
+        ).rejects.toThrow(
+            "Could not parse ADIF file. Make sure it is a text .adi or .adif export.",
+        );
+
+        await expect(
+            import_hunter_adif({
+                adif_text: "<CALL:5>ABC<EOR><BAD>",
+                resolve_callsigns: failing_resolver,
+            }),
+        ).rejects.not.toThrow("BAD>");
+    });
+
     it("respects file and record limits", async () => {
         await expect(
             import_hunter_adif({

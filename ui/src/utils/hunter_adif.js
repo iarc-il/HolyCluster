@@ -22,6 +22,12 @@ export const HUNTER_IMPORT_PHASES = Object.freeze({
 const HUNTER_IMPORT_COUNT_KEYS = ["dxcc", "cq_zone", "itu_zone", "us_state", "ca_province"];
 
 const US_STATE_COUNTRIES = new Set(["USA", "Alaska", "Hawaii"]);
+const ADIF_EMPTY_ERROR_MESSAGE = "ADIF file is empty.";
+const ADIF_NOT_ADIF_ERROR_MESSAGE =
+    "Selected file does not look like an ADIF file. Make sure it is a text .adi or .adif export.";
+const ADIF_PARSE_ERROR_MESSAGE =
+    "Could not parse ADIF file. Make sure it is a text .adi or .adif export.";
+const ADIF_NO_QSO_ERROR_MESSAGE = "ADIF file does not contain any QSO records.";
 
 export class HunterAdifImportError extends Error {
     constructor(message) {
@@ -218,8 +224,21 @@ export function parse_hunter_adif_records(adif_text) {
     try {
         const parsed = new AdifParser(adif_text).parseTopLevel();
         return Array.isArray(parsed.records) ? parsed.records : [];
-    } catch (error) {
-        throw new HunterAdifImportError(`Could not parse ADIF file: ${error.message}`);
+    } catch (_error) {
+        throw new HunterAdifImportError(ADIF_PARSE_ERROR_MESSAGE);
+    }
+}
+
+function looks_like_adif_text(adif_text) {
+    return /<\s*eo[hr]\s*>/i.test(adif_text) || /<\s*[a-z][a-z0-9_]*\s*:\s*\d+/i.test(adif_text);
+}
+
+function validate_adif_text(adif_text) {
+    if (adif_text.trim().length === 0) {
+        throw new HunterAdifImportError(ADIF_EMPTY_ERROR_MESSAGE);
+    }
+    if (!looks_like_adif_text(adif_text)) {
+        throw new HunterAdifImportError(ADIF_NOT_ADIF_ERROR_MESSAGE);
     }
 }
 
@@ -229,6 +248,12 @@ function validate_import_limits({ file_size, record_count }) {
     }
     if (record_count > HUNTER_ADIF_MAX_QSO_RECORDS) {
         throw new HunterAdifImportError("ADIF file has too many QSO records. Maximum is 50,000.");
+    }
+}
+
+function validate_adif_records(records) {
+    if (records.length === 0) {
+        throw new HunterAdifImportError(ADIF_NO_QSO_ERROR_MESSAGE);
     }
 }
 
@@ -300,8 +325,11 @@ export async function import_hunter_adif({
     validate_import_limits({ file_size, record_count: 0 });
 
     report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.PARSING });
-    const records = parse_hunter_adif_records(adif_text ?? "");
+    const source_adif_text = adif_text ?? "";
+    validate_adif_text(source_adif_text);
+    const records = parse_hunter_adif_records(source_adif_text);
     validate_import_limits({ file_size, record_count: records.length });
+    validate_adif_records(records);
 
     report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.PROCESSING });
     const direct_records = records.map(extract_direct_record_features);
