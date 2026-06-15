@@ -1210,7 +1210,7 @@ function draw_dxcc_labels(
             ? `900 ${Math.round(hovered_font_px)}px sans-serif`
             : `bold ${Math.round(font_px)}px sans-serif`;
         if (is_hovered) {
-            const action = dxcc_action_map.get(normalize_dxcc_entity_filter_value(entity));
+            const action = dxcc_action_map.get(entity);
             const action_style = action ? filter_action_styles[action] : null;
             context.strokeStyle = with_alpha(map_colors.label_outline, 0.95);
             context.lineWidth = 4;
