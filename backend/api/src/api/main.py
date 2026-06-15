@@ -166,14 +166,14 @@ def cleanup_spot(spot):
         cleaned_spot = {
             "spotter_callsign": spot["spotter_callsign"],
             "spotter_loc": [float(spot["spotter_lon"]), float(spot["spotter_lat"])],
-            "spotter_country": spot["spotter_country"],
+            "spotter_dxcc_code": int(spot["spotter_dxcc_code"]),
             "spotter_continent": spot["spotter_continent"],
             "spotter_state": spot.get("spotter_state"),
             "spotter_cq_zone": int(spot.get("spotter_cq_zone") or -1),
             "spotter_itu_zone": int(spot.get("spotter_itu_zone") or -1),
             "dx_callsign": spot["dx_callsign"],
             "dx_loc": [float(spot["dx_lon"]), float(spot["dx_lat"])],
-            "dx_country": spot["dx_country"],
+            "dx_dxcc_code": int(spot["dx_dxcc_code"]),
             "dx_continent": spot["dx_continent"],
             "dx_state": spot.get("dx_state"),
             "dx_cq_zone": int(spot.get("dx_cq_zone") or -1),
@@ -367,7 +367,7 @@ async def hunter_resolve(request: HunterResolveRequest):
 
         results[callsign] = {
             "callsign": callsign,
-            "country": geo_data.country,
+            "dxcc_code": geo_data.dxcc_code,
             "continent": geo_data.continent,
             "state": geo_data.state,
             "cq_zone": geo_data.cq_zone,

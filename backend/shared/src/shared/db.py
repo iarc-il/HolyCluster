@@ -11,7 +11,7 @@ class GeoCache(SQLModel, table=True):
     locator: str
     lat: str
     lon: str
-    country: str
+    dxcc_code: int
     continent: str
     date: date
     time: time
@@ -35,7 +35,7 @@ class HolySpot(SQLModel, table=True):
     spotter_locator_source: str
     spotter_lat: str
     spotter_lon: str
-    spotter_country: str
+    spotter_dxcc_code: int
     spotter_continent: str
     spotter_state: str
     spotter_cq_zone: Optional[int] = None
@@ -45,7 +45,7 @@ class HolySpot(SQLModel, table=True):
     dx_locator_source: str
     dx_lat: str
     dx_lon: str
-    dx_country: str
+    dx_dxcc_code: int
     dx_continent: str
     dx_state: str
     dx_cq_zone: Optional[int] = None
@@ -75,7 +75,7 @@ class SpotsWithIssues(SQLModel, table=True):
     spotter_locator_source: str
     spotter_lat: str
     spotter_lon: str
-    spotter_country: str
+    spotter_dxcc_code: Optional[int] = None
     spotter_continent: str
     spotter_state: str
     spotter_cq_zone: Optional[int] = None
@@ -85,7 +85,7 @@ class SpotsWithIssues(SQLModel, table=True):
     dx_locator_source: str
     dx_lat: str
     dx_lon: str
-    dx_country: str
+    dx_dxcc_code: Optional[int] = None
     dx_continent: str
     dx_state: str
     dx_cq_zone: Optional[int] = None

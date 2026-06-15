@@ -51,7 +51,7 @@ class HunterResolveEndpointTest(unittest.TestCase):
                 "results": {
                     "K1ABC": {
                         "callsign": "K1ABC",
-                        "country": "USA",
+                        "dxcc_code": 291,
                         "continent": "NA",
                         "state": "CA",
                         "cq_zone": 3,
@@ -63,7 +63,7 @@ class HunterResolveEndpointTest(unittest.TestCase):
                     },
                     "VE3XYZ": {
                         "callsign": "VE3XYZ",
-                        "country": "USA",
+                        "dxcc_code": 291,
                         "continent": "NA",
                         "state": "CA",
                         "cq_zone": 3,
