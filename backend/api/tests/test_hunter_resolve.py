@@ -15,6 +15,7 @@ def create_geo_data(callsign, *, cached=False, source="qrz"):
         locator="CM87",
         lon=-122.4,
         lat=37.7,
+        dxcc_code=291,
         country="USA",
         continent="NA",
         state="CA",
