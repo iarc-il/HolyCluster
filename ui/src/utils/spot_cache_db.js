@@ -1,5 +1,5 @@
 import { continents, modes } from "@/data/filters_data.js";
-import { shorten_dxcc } from "@/data/flags.js";
+import { normalize_spot_dxcc_fields } from "@/utils/spot_dxcc.js";
 import { openDB } from "idb";
 
 const DB_NAME = "holycluster_spot_cache";
@@ -87,11 +87,10 @@ export function normalize_spots(spots) {
             spot.id = `${spot.time}|${spot.spotter_callsign}|${spot.dx_callsign}`;
             if (spot.mode === "DIGITAL") spot.mode = "DIGI";
             spot.band = normalize_band(spot.band);
-            spot.dx_country = shorten_dxcc(spot.dx_country);
-            spot.spotter_country = shorten_dxcc(spot.spotter_country);
-            return spot;
+            return normalize_spot_dxcc_fields(spot);
         })
         .filter(spot => {
+            if (!spot.dx_dxcc_code || !spot.spotter_dxcc_code) return false;
             if (!modes.includes(spot.mode)) return false;
             if (!continents.includes(spot.dx_continent)) return false;
             if (!continents.includes(spot.spotter_continent)) return false;

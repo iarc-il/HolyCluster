@@ -1,5 +1,6 @@
+import { is_canada_dxcc_code, is_us_state_dxcc_code } from "@/data/dxcc_entities.js";
 import { continents, modes } from "@/data/filters_data.js";
-import { shorten_dxcc } from "@/data/flags.js";
+import { normalize_spot_dxcc_fields } from "@/utils/spot_dxcc.js";
 import { find_zone_number } from "@/utils/zones.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
@@ -32,17 +33,17 @@ export function enrich_spot_zones_if_missing(spot) {
     }
 
     if (!has_valid_enriched_value(spot.dx_state)) {
-        if (spot.dx_country === "USA") {
+        if (is_us_state_dxcc_code(spot.dx_dxcc_code)) {
             updates.dx_state = find_zone_number("us_state", spot.dx_loc);
-        } else if (spot.dx_country === "Canada") {
+        } else if (is_canada_dxcc_code(spot.dx_dxcc_code)) {
             updates.dx_state = find_zone_number("ca_province", spot.dx_loc);
         }
     }
 
     if (!has_valid_enriched_value(spot.spotter_state)) {
-        if (spot.spotter_country === "USA") {
+        if (is_us_state_dxcc_code(spot.spotter_dxcc_code)) {
             updates.spotter_state = find_zone_number("us_state", spot.spotter_loc);
-        } else if (spot.spotter_country === "Canada") {
+        } else if (is_canada_dxcc_code(spot.spotter_dxcc_code)) {
             updates.spotter_state = find_zone_number("ca_province", spot.spotter_loc);
         }
     }
@@ -87,16 +88,21 @@ export default function useSpotWebSocket() {
             let new_spots = data.spots
                 .map(spot => {
                     const mode = spot.mode === "DIGITAL" ? "DIGI" : spot.mode;
-                    return enrich_spot_zones_if_missing({
+                    const normalized_spot = {
                         ...spot,
                         id: next_spot_id_ref.current++,
                         mode,
                         band: normalize_band(spot.band),
-                        dx_country: shorten_dxcc(spot.dx_country),
-                        spotter_country: shorten_dxcc(spot.spotter_country),
-                    });
+                    };
+                    return enrich_spot_zones_if_missing(
+                        normalize_spot_dxcc_fields(normalized_spot),
+                    );
                 })
                 .filter(spot => {
+                    if (!spot.dx_dxcc_code || !spot.spotter_dxcc_code) {
+                        console.warn("Dropping spot with unknown DXCC code", spot);
+                        return false;
+                    }
                     if (!modes.includes(spot.mode)) {
                         console.warn(`Dropping spot with unknown mode: ${spot.mode}`, spot);
                         return false;

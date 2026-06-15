@@ -64,8 +64,8 @@ describe("enrich_spot_zones_if_missing", () => {
         spotter_itu_zone: 8,
         dx_state: "CA",
         spotter_state: "NY",
-        dx_country: "USA",
-        spotter_country: "USA",
+        dx_dxcc_code: 291,
+        spotter_dxcc_code: 291,
         dx_loc: [-75, 40],
         spotter_loc: [-74, 41],
     };
@@ -124,7 +124,7 @@ import { check_hunter_needed } from "@/hooks/useSpotFiltering.js";
 
 function make_spot(overrides) {
     return {
-        dx_country: "USA",
+        dx_dxcc_code: 291,
         dx_cq_zone: 5,
         dx_itu_zone: 8,
         dx_state: "CA",
@@ -159,17 +159,17 @@ describe("check_hunter_needed", () => {
     });
 
     it("returns null when all matching features are worked", () => {
-        const hunter = make_hunter({ dxcc: true }, { dxcc: { global: ["USA"] } });
+        const hunter = make_hunter({ dxcc: true }, { dxcc: { global: [291] } });
         expect(check_hunter_needed(make_spot(), hunter)).toBeNull();
     });
 
     it("marks a spot needed when a feature is missing", () => {
-        const hunter = make_hunter({ dxcc: true }, { dxcc: { global: ["Canada"] } });
+        const hunter = make_hunter({ dxcc: true }, { dxcc: { global: [1] } });
         const result = check_hunter_needed(make_spot(), hunter);
         expect(result).not.toBeNull();
         expect(result.is_needed).toBe(true);
         expect(result.reasons).toEqual([
-            { section: "dxcc", value: "USA", label: "Needed DXCC: USA" },
+            { section: "dxcc", value: 291, label: "Needed DXCC: USA" },
         ]);
     });
 
@@ -201,7 +201,7 @@ describe("check_hunter_needed", () => {
     it("matches US state", () => {
         const hunter = make_hunter({ us_state: true }, { us_state: { global: ["NY"] } });
         const result = check_hunter_needed(
-            make_spot({ dx_country: "USA", dx_state: "CA" }),
+            make_spot({ dx_dxcc_code: 291, dx_state: "CA" }),
             hunter,
         );
         expect(result.reasons[0]).toEqual({
@@ -214,14 +214,14 @@ describe("check_hunter_needed", () => {
     it("returns null for US state when country is not USA", () => {
         const hunter = make_hunter({ us_state: true }, { us_state: { global: [] } });
         expect(
-            check_hunter_needed(make_spot({ dx_country: "Canada", dx_state: "ON" }), hunter),
+            check_hunter_needed(make_spot({ dx_dxcc_code: 1, dx_state: "ON" }), hunter),
         ).toBeNull();
     });
 
     it("matches Canada province", () => {
         const hunter = make_hunter({ ca_province: true }, { ca_province: { global: ["QC"] } });
         const result = check_hunter_needed(
-            make_spot({ dx_country: "Canada", dx_state: "ON", dx_cq_zone: 4, dx_itu_zone: 4 }),
+            make_spot({ dx_dxcc_code: 1, dx_state: "ON", dx_cq_zone: 4, dx_itu_zone: 4 }),
             hunter,
         );
         expect(result.reasons[0]).toEqual({
@@ -234,7 +234,7 @@ describe("check_hunter_needed", () => {
     it("collects multiple reasons for multiple missing features", () => {
         const hunter = make_hunter(
             { dxcc: true, cq_zone: true },
-            { dxcc: { global: ["Canada"] }, cq_zone: { global: [3] } },
+            { dxcc: { global: [1] }, cq_zone: { global: [3] } },
         );
         const result = check_hunter_needed(make_spot({ dx_cq_zone: 5 }), hunter);
         expect(result.reasons).toHaveLength(2);
@@ -242,15 +242,15 @@ describe("check_hunter_needed", () => {
         expect(result.reasons[1].section).toBe("cq_zone");
     });
 
-    it("skips Alaska/Hawaii spots for us_state when dx_country is Alaska/Hawaii", () => {
+    it("matches Alaska/Hawaii spots for us_state when DXCC is Alaska/Hawaii", () => {
         const hunter = make_hunter({ us_state: true }, { us_state: { global: [] } });
         expect(
-            check_hunter_needed(make_spot({ dx_country: "Alaska", dx_state: "AK" }), hunter)
-                .reasons[0].value,
+            check_hunter_needed(make_spot({ dx_dxcc_code: 6, dx_state: "AK" }), hunter).reasons[0]
+                .value,
         ).toBe("AK");
         expect(
-            check_hunter_needed(make_spot({ dx_country: "Hawaii", dx_state: "HI" }), hunter)
-                .reasons[0].value,
+            check_hunter_needed(make_spot({ dx_dxcc_code: 110, dx_state: "HI" }), hunter).reasons[0]
+                .value,
         ).toBe("HI");
     });
 });
