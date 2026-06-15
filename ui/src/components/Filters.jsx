@@ -155,19 +155,6 @@ function FilterContent({ filter, listeners, attributes, colors }) {
         return <ZoneFilterBadge filter={filter} listeners={listeners} attributes={attributes} />;
     }
 
-    if (filter.type === "comment" && filter.quick_filter) {
-        return (
-            <FilterBadge
-                listeners={listeners}
-                attributes={attributes}
-                className="cursor-grab active:cursor-grabbing w-24"
-                title={filter_value}
-            >
-                {filter_value}
-            </FilterBadge>
-        );
-    }
-
     if (filter.type === "comment") {
         return (
             <div className="flex items-center gap-1">

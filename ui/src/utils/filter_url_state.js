@@ -118,11 +118,9 @@ function sanitize_filter_rule(value) {
     }
 
     if (type === "comment") {
-        const quick_filter = to_limited_text(value.quick_filter);
         return {
             ...filter,
             value: text_value,
-            ...(quick_filter ? { quick_filter } : {}),
         };
     }
 
