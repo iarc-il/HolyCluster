@@ -2,7 +2,7 @@ import CallsignInput from "@/components/CallsignInput.jsx";
 import Input from "@/components/ui/Input.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import Select from "@/components/ui/Select.jsx";
-import { dxcc_entity_options } from "@/data/dxcc_entities.js";
+import { dxcc_entity_options, get_dxcc_label } from "@/data/dxcc_entities.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
@@ -400,7 +400,10 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                 {temp_data.type === "entity" ? (
                                     <SearchSelect
                                         className="h-10 w-20"
-                                        value={{ value: temp_data.value, label: temp_data.value }}
+                                        value={{
+                                            value: temp_data.value,
+                                            label: get_dxcc_label(temp_data.value),
+                                        }}
                                         onChange={option => {
                                             set_temp_data({
                                                 ...temp_data,

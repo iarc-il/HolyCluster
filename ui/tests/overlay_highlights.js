@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("virtual:cty-dxcc-entities", () => ({
     default: ["United States", "Canada"],
+    dxcc_entities_by_code: {
+        1: { code: 1, raw_cty_name: "Canada", continent: "NA" },
+        291: { code: 291, raw_cty_name: "United States", continent: "NA" },
+    },
     dxcc_code_entities: {
         1: "Canada",
         291: "United States",
@@ -21,7 +25,7 @@ describe("build_hunter_overlay_highlights", () => {
             us_state: true,
             ca_province: true,
         };
-        hunter.worked.dxcc.global = ["USA"];
+        hunter.worked.dxcc.global = [291];
         hunter.worked.cq_zone.global = [5];
         hunter.worked.itu_zone.global = [8];
         hunter.worked.us_state.global = ["CA"];
@@ -29,8 +33,8 @@ describe("build_hunter_overlay_highlights", () => {
 
         const highlights = build_hunter_overlay_highlights(hunter);
 
-        expect(highlights.dxcc.get("canada")).toBe("alert");
-        expect(highlights.dxcc.has("usa")).toBe(false);
+        expect(highlights.dxcc.get(1)).toBe("alert");
+        expect(highlights.dxcc.has(291)).toBe(false);
         expect(highlights.zones.cq.get(1)).toBe("alert");
         expect(highlights.zones.cq.has(5)).toBe(false);
         expect(highlights.zones.itu.get(1)).toBe("alert");

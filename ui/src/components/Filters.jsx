@@ -4,6 +4,7 @@ import Input from "@/components/ui/Input.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
 
+import { get_dxcc_label } from "@/data/dxcc_entities.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
@@ -142,6 +143,7 @@ function ZoneFilterBadge({ filter, listeners, attributes }) {
 
 function FilterContent({ filter, listeners, attributes, colors }) {
     const is_special_filter = filter.type === "self_spotters" || filter.type === "dxpeditions";
+    const filter_value = filter.type === "entity" ? get_dxcc_label(filter.value) : filter.value;
 
     if (is_special_filter) {
         return (
@@ -174,8 +176,8 @@ function FilterContent({ filter, listeners, attributes, colors }) {
                         className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
                         disabled
                         disabled_text_color={colors.theme.text}
-                        title={filter.value}
-                        value={filter.value}
+                        title={filter_value}
+                        value={filter_value}
                     />
                 </div>
                 <Indicator text={FILTER_TYPE_LABELS[filter.type]} />

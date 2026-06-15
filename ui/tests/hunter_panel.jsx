@@ -5,6 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("virtual:cty-dxcc-entities", () => ({
     default: ["United States", "Fed. Rep. of Germany", "Canada"],
+    dxcc_entities_by_code: {
+        1: { code: 1, raw_cty_name: "Canada", continent: "NA" },
+        230: { code: 230, raw_cty_name: "Fed. Rep. of Germany", continent: "EU" },
+        291: { code: 291, raw_cty_name: "United States", continent: "NA" },
+    },
     dxcc_code_entities: {
         1: "Canada",
         230: "Fed. Rep. of Germany",

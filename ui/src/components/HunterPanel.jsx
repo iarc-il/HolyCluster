@@ -2,7 +2,7 @@ import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
-import { dxcc_entities } from "@/data/dxcc_entities.js";
+import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
@@ -38,7 +38,10 @@ function range(start, end) {
 
 function create_section_items() {
     return {
-        dxcc: dxcc_entities.map(value => ({ value, label: value, search: value.toLowerCase() })),
+        dxcc: dxcc_codes.map(value => {
+            const label = get_dxcc_label(value);
+            return { value, label, search: label.toLowerCase() };
+        }),
         cq_zone: range(1, 40).map(value => ({
             value,
             label: `CQ Zone ${value}`,
