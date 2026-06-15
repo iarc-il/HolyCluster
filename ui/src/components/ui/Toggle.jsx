@@ -8,7 +8,7 @@ function Toggle({ value, on_click }) {
             role="switch"
             aria-checked={value}
             onClick={on_click}
-            className={`w-12 h-6 flex items-center px-1 rounded-full cursor-pointer ${color_class}`}
+            className={`w-12 h-6 shrink-0 flex items-center px-1 rounded-full cursor-pointer ${color_class}`}
         >
             <div
                 className={`w-4 h-4 bg-white rounded-full shadow-md transform ${position_class}`}
