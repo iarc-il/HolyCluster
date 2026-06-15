@@ -191,6 +191,7 @@ export function do_redraw(
                         projection,
                         map_controls.is_globe,
                         render_state_ref.current.home_location,
+                        canvas_refs.hunter_flash_phase_ref.current,
                     );
                 });
                 profile_map(fast ? "draw_zone_labels.fast" : "draw_zone_labels", () => {

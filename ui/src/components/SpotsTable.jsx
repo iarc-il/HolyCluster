@@ -16,6 +16,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { get_hunter_alert_flash_phase } from "@/utils.js";
 
 const cell_classes = {
     time: "w-[15%] md:w-[11%] xl:w-[8%]",
@@ -27,6 +28,61 @@ const cell_classes = {
     mode: "w-[20%] md:w-[20%] xl:w-[9%]",
     comment: "w-[24%] text-left hidden whitespace-normal [overflow-wrap:anywhere] xl:table-cell",
 };
+
+const HUNTER_ALERT_FLASH_COLOR_VAR = "--hunter-alert-flash-color";
+const HUNTER_ALERT_FLASH_BORDER_COLOR_VAR = "--hunter-alert-flash-border-color";
+const HUNTER_ALERT_FLASH_BG_ALPHA_VAR = "--hunter-alert-flash-bg-alpha";
+const HUNTER_ALERT_FLASH_OUTLINE_ALPHA_VAR = "--hunter-alert-flash-outline-alpha";
+const HUNTER_ALERT_FLASH_GLOW_ALPHA_VAR = "--hunter-alert-flash-glow-alpha";
+const HUNTER_ALERT_FLASH_GLOW_RADIUS_VAR = "--hunter-alert-flash-glow-radius";
+const HUNTER_ALERT_FLASH_CSS_VAR_NAMES = [
+    HUNTER_ALERT_FLASH_COLOR_VAR,
+    HUNTER_ALERT_FLASH_BORDER_COLOR_VAR,
+    HUNTER_ALERT_FLASH_BG_ALPHA_VAR,
+    HUNTER_ALERT_FLASH_OUTLINE_ALPHA_VAR,
+    HUNTER_ALERT_FLASH_GLOW_ALPHA_VAR,
+    HUNTER_ALERT_FLASH_GLOW_RADIUS_VAR,
+];
+
+const hunter_alert_callsign_style = {
+    backgroundColor: `rgb(var(${HUNTER_ALERT_FLASH_COLOR_VAR}, 239 68 68) / var(${HUNTER_ALERT_FLASH_BG_ALPHA_VAR}, 0))`,
+    boxShadow: `0 0 0 2px rgb(var(${HUNTER_ALERT_FLASH_BORDER_COLOR_VAR}, 255 255 255) / var(${HUNTER_ALERT_FLASH_OUTLINE_ALPHA_VAR}, 0)), 0 0 var(${HUNTER_ALERT_FLASH_GLOW_RADIUS_VAR}, 0) rgb(var(${HUNTER_ALERT_FLASH_COLOR_VAR}, 239 68 68) / var(${HUNTER_ALERT_FLASH_GLOW_ALPHA_VAR}, 0))`,
+};
+
+function get_rgb_channels(color, fallback) {
+    if (typeof color !== "string") return fallback;
+
+    const value = color.trim();
+    const short_hex_match = value.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+    if (short_hex_match) {
+        const [, r, g, b] = short_hex_match;
+        return get_rgb_channels(`#${r}${r}${g}${g}${b}${b}`, fallback);
+    }
+
+    const hex_match = value.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+    if (!hex_match) return fallback;
+
+    const [, r, g, b] = hex_match;
+    return [r, g, b].map(channel => Number.parseInt(channel, 16)).join(" ");
+}
+
+function get_hunter_alert_flash_css_vars(colors) {
+    const phase = get_hunter_alert_flash_phase();
+    return {
+        [HUNTER_ALERT_FLASH_COLOR_VAR]: get_rgb_channels(
+            colors.spots.hunter_alert_flash,
+            "239 68 68",
+        ),
+        [HUNTER_ALERT_FLASH_BORDER_COLOR_VAR]: get_rgb_channels(
+            colors.spots.hunter_alert_flash_border,
+            "255 255 255",
+        ),
+        [HUNTER_ALERT_FLASH_BG_ALPHA_VAR]: String(0.12 + phase * 0.82),
+        [HUNTER_ALERT_FLASH_OUTLINE_ALPHA_VAR]: String(phase * 0.7),
+        [HUNTER_ALERT_FLASH_GLOW_ALPHA_VAR]: String(0.2 + phase * 0.7),
+        [HUNTER_ALERT_FLASH_GLOW_RADIUS_VAR]: `${2 + phase * 10}px`,
+    };
+}
 
 const pota_cell_classes = {
     ...cell_classes,
@@ -138,6 +194,7 @@ const Spot = forwardRef(function Spot(
     const { colors, dev_mode } = useColors();
     let row_classes;
 
+    const is_hunter_alerted = Boolean(spot.hunterNeeded?.is_needed);
     const is_regular_alerted = spot.is_alerted && !spot.is_dxpedition;
     const is_dxpedition_alerted = spot.is_alerted && spot.is_dxpedition;
 
@@ -309,7 +366,12 @@ const Spot = forwardRef(function Spot(
                     }}
                     onMouseLeave={() => set_is_hunter_hovered(false)}
                 >
-                    <Callsign callsign={spot.dx_callsign} />
+                    <span
+                        className={is_hunter_alerted ? "inline-block rounded px-1" : ""}
+                        style={is_hunter_alerted ? hunter_alert_callsign_style : undefined}
+                    >
+                        <Callsign callsign={spot.dx_callsign} />
+                    </span>
                     {is_dxpedition_alerted && (
                         <span className="ml-1" title="DXpedition">
                             ⭐
@@ -516,6 +578,41 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     } = useSpotInteraction();
     const { get_filter_add_status, add_filter_if_allowed } = useFilters();
     const row_refs = useRef({});
+    const table_flash_ref = useRef(null);
+    const has_hunter_alerted_spots = spots.some(spot => spot.hunterNeeded?.is_needed);
+
+    useEffect(() => {
+        const element = table_flash_ref.current;
+        if (!element) return;
+
+        if (!has_hunter_alerted_spots) {
+            for (const name of HUNTER_ALERT_FLASH_CSS_VAR_NAMES) {
+                element.style.removeProperty(name);
+            }
+            return;
+        }
+
+        const request_frame =
+            globalThis.requestAnimationFrame ?? (callback => setTimeout(callback, 16));
+        const cancel_frame = globalThis.cancelAnimationFrame ?? clearTimeout;
+        let animation_id = null;
+
+        function animate() {
+            const flash_vars = get_hunter_alert_flash_css_vars(colors);
+            for (const [name, value] of Object.entries(flash_vars)) {
+                element.style.setProperty(name, value);
+            }
+            animation_id = request_frame(animate);
+        }
+
+        animate();
+
+        return () => {
+            if (animation_id != null) {
+                cancel_frame(animation_id);
+            }
+        };
+    }, [has_hunter_alerted_spots, colors.spots]);
 
     const parity_map = useRef(new Map());
     const prev_sort = useRef(table_sort);
@@ -683,7 +780,10 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                 }}
             >
                 <CallsignSearch />
-                <div className="flex-1 min-h-0 overflow-y-scroll overflow-x-hidden">
+                <div
+                    ref={table_flash_ref}
+                    className="flex-1 min-h-0 overflow-y-scroll overflow-x-hidden"
+                >
                     <table
                         className="table-fixed w-full text-center border-separate border-spacing-0"
                         onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}

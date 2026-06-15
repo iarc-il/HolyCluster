@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+import { get_hunter_alert_flash_phase } from "@/utils.js";
 import { draw_zone_labels } from "./draw_map.js";
 import { draw_spots } from "./draw_spots.js";
 import { profile_map } from "./map_profile.js";
@@ -115,13 +116,15 @@ export function useMapRedraw({
             if (gesture_active_ref.current) return;
 
             const rs = render_state_ref.current;
-            if (!rs.spots.some(s => s.is_alerted)) return;
+            if (!rs.spots.some(s => s.is_alerted || s.hunterNeeded?.is_needed)) return;
 
             const dash_offset_ref = canvas_refs.dash_offset_ref;
             dash_offset_ref.current -= 0.5;
             if (dash_offset_ref.current < -20) {
                 dash_offset_ref.current = 0;
             }
+            const hunter_flash_phase_ref = canvas_refs.hunter_flash_phase_ref;
+            hunter_flash_phase_ref.current = get_hunter_alert_flash_phase();
 
             const spots_canvas = canvas_refs.spots_canvas_ref.current;
             const projection = projection_ref.current;
@@ -143,6 +146,7 @@ export function useMapRedraw({
                         projection,
                         rs.map_controls.is_globe,
                         rs.home_location,
+                        hunter_flash_phase_ref.current,
                     );
                 });
                 profile_map("draw_zone_labels.animation", () => {

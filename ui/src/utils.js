@@ -32,6 +32,12 @@ export function calculate_geographic_azimuth(from_lat, from_lon, to_lat, to_lon)
 
 export const mod = (n, m) => ((n % m) + m) % m;
 
+const HUNTER_ALERT_FLASH_PERIOD_MS = 800;
+
+export function get_hunter_alert_flash_phase(now = Date.now()) {
+    return (Math.sin((now / HUNTER_ALERT_FLASH_PERIOD_MS) * Math.PI * 2) + 1) / 2;
+}
+
 export function compare_version(a, b) {
     if (a == null && b == null) return 0;
     if (a == null) return -1;

@@ -9,6 +9,7 @@ export function useCanvasLayers(dims) {
     const shadow_canvas_ref = useRef(null);
     const map_cache_canvas_ref = useRef(null);
     const dash_offset_ref = useRef(0);
+    const hunter_flash_phase_ref = useRef(0);
     const shadow_render_state_ref = useRef(null);
 
     useEffect(() => {
@@ -43,6 +44,7 @@ export function useCanvasLayers(dims) {
         shadow_canvas_ref,
         map_cache_canvas_ref,
         dash_offset_ref,
+        hunter_flash_phase_ref,
         shadow_render_state_ref,
     };
 
@@ -53,6 +55,7 @@ export function useCanvasLayers(dims) {
         shadow_canvas_ref,
         map_cache_canvas_ref,
         dash_offset_ref,
+        hunter_flash_phase_ref,
         shadow_render_state_ref,
         canvas_refs,
     };
