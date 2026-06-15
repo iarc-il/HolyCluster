@@ -7,7 +7,7 @@ import Maidenhead from "maidenhead";
 import SpotContextMenu from "@/components/SpotContextMenu.jsx";
 import SpotPopup from "@/components/SpotPopup.jsx";
 import Popup from "@/components/ui/Popup.jsx";
-import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
+import { get_dxcc_label, is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
@@ -81,7 +81,7 @@ function CanvasMap({
                 map_context_menu.number,
                 map_context_menu.system,
             ),
-        map_context_menu.type === "dxcc" ? map_context_menu.entity : null,
+        map_context_menu.type === "dxcc" ? get_dxcc_label(map_context_menu.entity) : null,
         map_menu_has_invalid_dxcc_entity,
         map_menu_has_invalid_dxcc_entity ? "Unmapped DXCC" : null,
         get_filter_add_status,
@@ -344,7 +344,7 @@ function CanvasMap({
                             background: colors.theme.background,
                         }}
                     >
-                        {hovered_dxcc.entity}
+                        {get_dxcc_label(hovered_dxcc.entity) || hovered_dxcc.label}
                     </div>
                 </Popup>
             )}

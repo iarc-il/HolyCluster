@@ -1,13 +1,16 @@
-import { dxcc_entities, is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
-import { normalize_dxcc_entity_value } from "@/data/dxcc_labels.js";
+import {
+    dxcc_codes,
+    is_filterable_dxcc_entity,
+    normalize_dxcc_entity_code,
+} from "@/data/dxcc_entities.js";
 import { create_default_hunter, sanitize_hunter } from "@/utils/profile_data.js";
 import { get_valid_zone_values, normalize_zone_value } from "@/utils/zones.js";
 
 const HUNTER_SECTION_OVERLAYS = {
     dxcc: {
         type: "dxcc",
-        values: () => dxcc_entities,
-        normalize: normalize_dxcc_entity_value,
+        values: () => dxcc_codes,
+        normalize: normalize_dxcc_entity_code,
     },
     cq_zone: {
         type: "zone",
@@ -48,7 +51,7 @@ function create_empty_overlay_highlights() {
 function add_dxcc_highlight(highlights, value, action) {
     if (!is_filterable_dxcc_entity(value)) return;
 
-    const entity = normalize_dxcc_entity_value(value);
+    const entity = normalize_dxcc_entity_code(value);
     if (entity) highlights.dxcc.set(entity, action);
 }
 

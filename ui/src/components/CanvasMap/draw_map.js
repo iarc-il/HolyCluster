@@ -1,5 +1,10 @@
-import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
-import { normalize_dxcc_entity_value, normalize_dxcc_label } from "@/data/dxcc_labels.js";
+import {
+    get_dxcc_label,
+    is_filterable_dxcc_entity,
+    normalize_dxcc_code,
+    normalize_dxcc_entity_code,
+} from "@/data/dxcc_entities.js";
+import { normalize_dxcc_label } from "@/data/dxcc_labels.js";
 import { country_color_indices } from "@/data/map_colors.js";
 import dxcc_map from "@/maps/dxcc_map.json";
 import lakes from "@/maps/lakes.json";
@@ -679,6 +684,10 @@ const DXCC_LABEL_STYLE = {
 };
 
 export function get_dxcc_entity_name(feature) {
+    const dxcc_code = normalize_dxcc_code(feature?.properties?.dxcc_entity_code);
+    const label = get_dxcc_label(dxcc_code);
+    if (label) return label;
+
     const dxcc_name = feature?.properties?.dxcc_name;
     if (typeof dxcc_name !== "string") return "";
 
@@ -703,10 +712,6 @@ function get_zone_action_map(callsign_filters, system, overlay_highlights = null
     return zone_to_action;
 }
 
-function normalize_dxcc_entity_filter_value(value) {
-    return normalize_dxcc_entity_value(value);
-}
-
 function get_dxcc_action_map(callsign_filters, overlay_highlights = null) {
     const filters = callsign_filters?.filters ?? [];
     const entity_to_action = new Map();
@@ -718,7 +723,7 @@ function get_dxcc_action_map(callsign_filters, overlay_highlights = null) {
         if (!(filter.action in FILTER_ACTION_COLOR_KEYS)) continue;
         if (!is_filter_action_active(callsign_filters, filter.action)) continue;
         if (!is_filterable_dxcc_entity(filter.value)) continue;
-        const entity = normalize_dxcc_entity_filter_value(filter.value);
+        const entity = normalize_dxcc_entity_code(filter.value);
         if (!entity) continue;
         entity_to_action.set(entity, filter.action);
     }
@@ -732,7 +737,7 @@ function get_dxcc_filtered_feature_actions(dxcc_action_map) {
 
     for (let fi = 0; fi < dxcc_map.features.length; fi += 1) {
         const feature = dxcc_map.features[fi];
-        const entity = normalize_dxcc_entity_filter_value(get_dxcc_entity_name(feature));
+        const entity = normalize_dxcc_entity_code(feature?.properties?.dxcc_entity_code);
         const action = dxcc_action_map.get(entity);
         if (action) feature_actions.set(fi, action);
     }
@@ -1070,7 +1075,7 @@ export function get_dxcc_label_data(
 
     return {
         area_px,
-        entity: get_dxcc_entity_name(feature),
+        entity: normalize_dxcc_code(feature?.properties?.dxcc_entity_code),
         feature,
         feature_index,
         font_px,

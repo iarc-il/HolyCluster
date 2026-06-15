@@ -4,7 +4,12 @@ import { forwardRef, useEffect, useRef, useState } from "react";
 import SpotContextMenu from "./SpotContextMenu";
 import Popup from "./ui/Popup";
 
-import { get_flag } from "@/data/flags.js";
+import {
+    get_dxcc_label,
+    is_canada_dxcc_code,
+    is_us_state_dxcc_code,
+} from "@/data/dxcc_entities.js";
+import { get_dxcc_flag } from "@/data/flags.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
@@ -168,28 +173,35 @@ const Spot = forwardRef(function Spot(
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
     const [is_reference_hovered, set_is_reference_hovered] = useState(false);
     const [is_hunter_hovered, set_is_hunter_hovered] = useState(false);
-    const state_name = STATES[spot.dx_country]?.[spot.dx_state];
+    const dx_label = get_dxcc_label(spot.dx_dxcc_code) || spot.dx_country || "";
+    const is_us_state_entity = is_us_state_dxcc_code(spot.dx_dxcc_code);
+    const is_canada_entity = is_canada_dxcc_code(spot.dx_dxcc_code);
+    const state_name = is_canada_entity
+        ? STATES.Canada?.[spot.dx_state]
+        : is_us_state_entity
+          ? STATES.USA?.[spot.dx_state]
+          : null;
 
     let dx_column;
     let dx_state;
     if (
         settings.show_state_abbreviations &&
         spot.dx_state &&
-        (spot.dx_country === "USA" || spot.dx_country === "Canada" || dev_mode)
+        (is_us_state_entity || is_canada_entity || dev_mode)
     ) {
         dx_state = `(${spot.dx_state})`;
     } else {
         dx_state = "";
     }
     if (settings.show_flags) {
-        const flag = get_flag(spot.dx_country);
+        const flag = get_dxcc_flag(spot.dx_dxcc_code);
         dx_column = flag ? (
             <>
                 <img
                     className="m-auto"
                     width="16"
                     src={`data:image/webp;base64, ${flag}`}
-                    alt={`${spot.dx_country} flag`}
+                    alt={`${dx_label} flag`}
                 />
                 {dx_state}
             </>
@@ -199,7 +211,7 @@ const Spot = forwardRef(function Spot(
     } else {
         dx_column = (
             <small className="leading-none">
-                {spot.dx_country} {dx_state}
+                {dx_label} {dx_state}
             </small>
         );
     }
@@ -265,10 +277,8 @@ const Spot = forwardRef(function Spot(
                                 background: colors.theme.background,
                             }}
                         >
-                            {spot.dx_country}
-                            {spot.dx_state &&
-                            (spot.dx_country === "USA" || spot.dx_country === "Canada") &&
-                            state_name
+                            {dx_label}
+                            {spot.dx_state && (is_us_state_entity || is_canada_entity) && state_name
                                 ? `, ${state_name}`
                                 : ""}
                         </div>
@@ -547,32 +557,32 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         if (menu_type === "flag") {
             return [
                 build_filter_action({
-                    add_label: spot => `Add Alert for ${spot.dx_country}`,
-                    remove_label: spot => `Remove Alert for ${spot.dx_country}`,
+                    add_label: spot => `Add Alert for ${get_dxcc_label(spot.dx_dxcc_code)}`,
+                    remove_label: spot => `Remove Alert for ${get_dxcc_label(spot.dx_dxcc_code)}`,
                     build_filter: spot => ({
                         action: "alert",
                         type: "entity",
-                        value: spot.dx_country,
+                        value: spot.dx_dxcc_code,
                         spotter_or_dx: "dx",
                     }),
                 }),
                 build_filter_action({
-                    add_label: spot => `Add Show Only ${spot.dx_country}`,
-                    remove_label: spot => `Remove Show Only ${spot.dx_country}`,
+                    add_label: spot => `Add Show Only ${get_dxcc_label(spot.dx_dxcc_code)}`,
+                    remove_label: spot => `Remove Show Only ${get_dxcc_label(spot.dx_dxcc_code)}`,
                     build_filter: spot => ({
                         action: "show_only",
                         type: "entity",
-                        value: spot.dx_country,
+                        value: spot.dx_dxcc_code,
                         spotter_or_dx: "dx",
                     }),
                 }),
                 build_filter_action({
-                    add_label: spot => `Add Hide ${spot.dx_country}`,
-                    remove_label: spot => `Remove Hide ${spot.dx_country}`,
+                    add_label: spot => `Add Hide ${get_dxcc_label(spot.dx_dxcc_code)}`,
+                    remove_label: spot => `Remove Hide ${get_dxcc_label(spot.dx_dxcc_code)}`,
                     build_filter: spot => ({
                         action: "hide",
                         type: "entity",
-                        value: spot.dx_country,
+                        value: spot.dx_dxcc_code,
                         spotter_or_dx: "dx",
                     }),
                 }),

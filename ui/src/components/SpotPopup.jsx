@@ -1,3 +1,4 @@
+import { get_dxcc_label } from "@/data/dxcc_entities.js";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/hooks/useSettings";
 import { km_to_miles } from "@/utils.js";
@@ -46,7 +47,7 @@ function SpotPopup({
                     {"continent_dx" in spot_data ? `, ${spot_data.continent_dx}` : ""}
                 </p>
                 <p>Frequency: {spot_data.freq}</p>
-                <p>DX Country: {spot_data.dx_country}</p>
+                <p>DXCC: {get_dxcc_label(spot_data.dx_dxcc_code) || spot_data.dx_country}</p>
                 <p>Spotter: {spot_data.spotter_callsign}</p>
                 <p>
                     Distance: {settings.is_miles ? km_to_miles(distance) : distance}{" "}
