@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("virtual:cty-dxcc-entities", () => ({
     default: ["United States", "Fed. Rep. of Germany", "Canada", "Alaska", "Hawaii"],
+    dxcc_entities_by_code: {
+        1: { code: 1, raw_cty_name: "Canada", continent: "NA" },
+        6: { code: 6, raw_cty_name: "Alaska", continent: "NA" },
+        110: { code: 110, raw_cty_name: "Hawaii", continent: "NA" },
+        230: { code: 230, raw_cty_name: "Fed. Rep. of Germany", continent: "EU" },
+        291: { code: 291, raw_cty_name: "United States", continent: "NA" },
+    },
     dxcc_code_entities: {
         1: "Canada",
         6: "Alaska",
@@ -46,7 +53,7 @@ describe("hunter_adif", () => {
             resolve_callsigns: failing_resolver,
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual(["USA"]);
+        expect(result.hunter.worked.dxcc.global).toEqual([291]);
         expect(result.hunter.worked.cq_zone.global).toEqual([5]);
         expect(result.hunter.worked.itu_zone.global).toEqual([8]);
         expect(result.hunter.worked.us_state.global).toEqual(["CA"]);
@@ -81,7 +88,7 @@ describe("hunter_adif", () => {
             resolve_callsigns: failing_resolver,
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual(["Germany"]);
+        expect(result.hunter.worked.dxcc.global).toEqual([230]);
         expect(result.hunter.worked.cq_zone.global).toEqual([14]);
         expect(result.metadata.conflict_count).toBe(1);
     });
@@ -92,7 +99,7 @@ describe("hunter_adif", () => {
             resolve_callsigns: failing_resolver,
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual(["USA"]);
+        expect(result.hunter.worked.dxcc.global).toEqual([291]);
         expect(result.metadata.qso_count).toBe(2);
         expect(result.metadata.skipped_count).toBe(1);
         expect(result.metadata.unresolved_count).toBe(0);
@@ -100,7 +107,7 @@ describe("hunter_adif", () => {
 
     it("merges resolver features into existing worked state without replacing", async () => {
         const hunter = create_default_hunter();
-        hunter.worked.dxcc.global = ["USA"];
+        hunter.worked.dxcc.global = [291];
         hunter.imports = [{ file_name: "old.adi", imported_at: 1 }];
         const resolved_batches = [];
 
@@ -127,7 +134,7 @@ describe("hunter_adif", () => {
         });
 
         expect(resolved_batches).toEqual([["VE3XYZ"]]);
-        expect(result.hunter.worked.dxcc.global).toEqual(["USA", "Canada"]);
+        expect(result.hunter.worked.dxcc.global).toEqual([291, 1]);
         expect(result.hunter.worked.cq_zone.global).toEqual([4]);
         expect(result.hunter.worked.itu_zone.global).toEqual([4]);
         expect(result.hunter.worked.ca_province.global).toEqual(["ON"]);
@@ -201,7 +208,7 @@ describe("hunter_adif", () => {
             }),
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual(["USA"]);
+        expect(result.hunter.worked.dxcc.global).toEqual([291]);
         expect(result.metadata.resolved_count).toBe(1);
     });
 
@@ -223,7 +230,7 @@ describe("hunter_adif", () => {
             }),
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual(["USA"]);
+        expect(result.hunter.worked.dxcc.global).toEqual([291]);
         expect(result.hunter.worked.us_state.global).toEqual(["CA"]);
         expect(result.hunter.worked.cq_zone.global).toEqual([5]);
         expect(result.metadata.resolved_count).toBe(1);
@@ -277,7 +284,7 @@ describe("hunter_adif", () => {
             }),
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual(["USA"]);
+        expect(result.hunter.worked.dxcc.global).toEqual([291]);
         expect(result.metadata.resolved_count).toBe(1);
         expect(result.metadata.unresolved_count).toBe(1);
         expect(result.resolver_errors).toEqual({ BAD: "not found" });

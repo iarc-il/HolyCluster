@@ -188,7 +188,7 @@ describe("profile_data", () => {
                 dxcc: true,
             },
             worked: {
-                dxcc: { global: ["USA", "Germany"] },
+                dxcc: { global: [291, 230] },
                 cq_zone: { global: [1, 40] },
                 itu_zone: { global: [1, 90] },
                 us_state: { global: ["CA", "DC"] },
@@ -334,7 +334,7 @@ describe("profile_data", () => {
                     },
                     worked: {
                         ...defaults.hunter.worked,
-                        dxcc: { global: ["USA"] },
+                        dxcc: { global: [291] },
                     },
                 },
             },
@@ -357,7 +357,7 @@ describe("profile_data", () => {
         expect(imported.data.settings.callsign).toBe("N0CALL");
         expect(imported.data.filters.time_limit).toBe(900);
         expect(imported.data.hunter.enabled_sections.dxcc).toBe(true);
-        expect(imported.data.hunter.worked.dxcc.global).toEqual(["USA"]);
+        expect(imported.data.hunter.worked.dxcc.global).toEqual([291]);
         expect(imported.data.panels.frequency_bar_band).toBe(defaults.panels.frequency_bar_band);
     });
 

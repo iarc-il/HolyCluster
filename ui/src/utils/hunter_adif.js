@@ -1,5 +1,9 @@
-import { get_dxcc_entity_for_code, is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
-import { normalize_dxcc_label } from "@/data/dxcc_labels.js";
+import {
+    is_canada_dxcc_code,
+    is_filterable_dxcc_entity,
+    is_us_state_dxcc_code,
+    normalize_dxcc_entity_code,
+} from "@/data/dxcc_entities.js";
 import {
     HUNTER_SECTION_KEYS,
     create_default_hunter,
@@ -21,7 +25,6 @@ export const HUNTER_IMPORT_PHASES = Object.freeze({
 
 const HUNTER_IMPORT_COUNT_KEYS = ["dxcc", "cq_zone", "itu_zone", "us_state", "ca_province"];
 
-const US_STATE_COUNTRIES = new Set(["USA", "Alaska", "Hawaii"]);
 const ADIF_EMPTY_ERROR_MESSAGE = "ADIF file is empty.";
 const ADIF_NOT_ADIF_ERROR_MESSAGE =
     "Selected file does not look like an ADIF file. Make sure it is a text .adi or .adif export.";
@@ -52,8 +55,8 @@ function normalize_callsign(callsign) {
 }
 
 function normalize_country(country) {
-    const label = normalize_dxcc_label(country);
-    return label && is_filterable_dxcc_entity(label) ? label : null;
+    const code = normalize_dxcc_entity_code(country);
+    return code != null && is_filterable_dxcc_entity(code) ? code : null;
 }
 
 function normalize_number_feature(section, value) {
@@ -62,8 +65,8 @@ function normalize_number_feature(section, value) {
 }
 
 function get_state_section(country) {
-    if (US_STATE_COUNTRIES.has(country)) return "us_state";
-    if (country === "Canada") return "ca_province";
+    if (is_us_state_dxcc_code(country)) return "us_state";
+    if (is_canada_dxcc_code(country)) return "ca_province";
     return null;
 }
 
@@ -94,14 +97,14 @@ function extract_direct_record_features(record) {
     const features = {};
     const dxcc_code = get_field(record, ["dxcc"]);
     const country = get_field(record, ["country"]);
-    const dxcc_entity = dxcc_code ? get_dxcc_entity_for_code(dxcc_code) : null;
+    const dxcc_entity = dxcc_code ? normalize_dxcc_entity_code(dxcc_code) : null;
     const country_entity = country ? normalize_country(country) : null;
     const conflict = Boolean(dxcc_entity && country_entity && dxcc_entity !== country_entity);
     const record_country = dxcc_entity ?? country_entity;
 
     if (dxcc_entity) {
         add_feature(features, "dxcc", dxcc_entity);
-    } else if (!dxcc_code && country_entity) {
+    } else if (country_entity) {
         add_feature(features, "dxcc", country_entity);
     }
 
@@ -158,7 +161,8 @@ function merge_resolved_record_features(direct_record, resolved) {
     const features = { ...direct_record.features };
     if (!resolved) return features;
 
-    const resolved_country = normalize_country(resolved.country);
+    const resolved_country =
+        normalize_dxcc_entity_code(resolved.dxcc_code) ?? normalize_country(resolved.country);
     const state_country = resolved_country ?? direct_record.country;
 
     if (!features.dxcc && resolved_country) {

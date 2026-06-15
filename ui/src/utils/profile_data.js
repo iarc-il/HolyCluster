@@ -1,4 +1,4 @@
-import { normalize_dxcc_label } from "@/data/dxcc_labels.js";
+import { normalize_dxcc_entity_code } from "@/data/dxcc_entities.js";
 import { create_initial_callsign_filters, create_initial_filters } from "@/data/filter_defaults.js";
 import { bands, continents, modes } from "@/data/filters_data.js";
 import { STATES } from "@/data/states.js";
@@ -227,8 +227,7 @@ function sanitize_hunter_state_code(value, valid_codes) {
 }
 
 function sanitize_hunter_dxcc(value) {
-    const label = normalize_dxcc_label(value);
-    return label || null;
+    return normalize_dxcc_entity_code(value);
 }
 
 function sanitize_hunter_worked_value(section, value) {
