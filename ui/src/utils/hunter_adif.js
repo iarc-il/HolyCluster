@@ -12,7 +12,7 @@ import {
 import { find_zone_number, is_valid_zone_number, normalize_zone_value } from "@/utils/zones.js";
 import { AdifParser } from "adif-parser-ts";
 
-export const HUNTER_ADIF_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+export const HUNTER_ADIF_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 export const HUNTER_ADIF_MAX_QSO_RECORDS = 50_000;
 export const HUNTER_RESOLVE_BATCH_SIZE = 100;
 export const HUNTER_IMPORT_PHASES = Object.freeze({
@@ -248,7 +248,7 @@ function validate_adif_text(adif_text) {
 
 function validate_import_limits({ file_size, record_count }) {
     if (file_size != null && file_size > HUNTER_ADIF_MAX_FILE_SIZE_BYTES) {
-        throw new HunterAdifImportError("ADIF file is too large. Maximum size is 10 MB.");
+        throw new HunterAdifImportError("ADIF file is too large. Maximum size is 20 MB.");
     }
     if (record_count > HUNTER_ADIF_MAX_QSO_RECORDS) {
         throw new HunterAdifImportError("ADIF file has too many QSO records. Maximum is 50,000.");
