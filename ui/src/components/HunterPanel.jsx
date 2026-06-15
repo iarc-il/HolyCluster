@@ -1,4 +1,5 @@
 import Button from "@/components/ui/Button.jsx";
+import Modal from "@/components/ui/Modal.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
 import { dxcc_entities } from "@/data/dxcc_entities.js";
@@ -204,18 +205,12 @@ function HunterSection({
                     }}
                 />
                 {list_mode === "completed" && (
-                    <button
-                        type="button"
-                        className="shrink-0 rounded px-2 py-1 text-[11px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{
-                            backgroundColor: colors.buttons.active_tab,
-                            color: colors.theme.text,
-                        }}
-                        disabled={worked_values.length === 0}
-                        onClick={() => on_clear_completed(section)}
-                    >
-                        Clear
-                    </button>
+                    <ClearCompletedButton
+                        section={section}
+                        completed_count={completed_count}
+                        colors={colors}
+                        on_clear_completed={on_clear_completed}
+                    />
                 )}
             </div>
 
@@ -261,6 +256,44 @@ function HunterSection({
                 )}
             </div>
         </section>
+    );
+}
+
+function ClearCompletedButton({ section, completed_count, colors, on_clear_completed }) {
+    const button = (
+        <button
+            type="button"
+            className="shrink-0 rounded px-2 py-1 text-[11px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+                backgroundColor: colors.buttons.active_tab,
+                color: colors.theme.text,
+            }}
+            disabled={completed_count === 0}
+        >
+            Clear
+        </button>
+    );
+
+    if (completed_count === 0) return button;
+
+    return (
+        <Modal
+            title={<h2 className="font-bold">Clear Completed</h2>}
+            button={button}
+            apply_text="Clear"
+            cancel_text="Cancel"
+            on_cancel={() => {}}
+            on_apply={() => {
+                on_clear_completed(section);
+                return true;
+            }}
+        >
+            <div className="p-4 max-w-sm text-sm">
+                Clear {completed_count} completed {SECTION_LABELS[section]} item
+                {completed_count === 1 ? "" : "s"}?<br />
+                This cannot be undone.
+            </div>
+        </Modal>
     );
 }
 

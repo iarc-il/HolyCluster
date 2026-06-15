@@ -114,13 +114,20 @@ describe("HunterPanel", () => {
         await waitFor(() => expect(clear_button.disabled).toBe(false));
         await user.click(clear_button);
 
+        const dialog = await screen.findByRole("dialog");
+        expect(within(dialog).getByText("Clear Completed")).toBeTruthy();
+        expect(within(dialog).getByText(/Clear 1 completed DXCC item/)).toBeTruthy();
+        expect(within(dxcc_section).getByText("1/3 complete, 2 missing")).toBeTruthy();
+
+        await user.click(within(dialog).getByRole("button", { name: "Clear" }));
+
         await waitFor(() =>
             expect(within(dxcc_section).getByText("0/3 complete, 3 missing")).toBeTruthy(),
         );
         await user.click(within(dxcc_section).getByRole("button", { name: "Missing" }));
         expect(within(dxcc_section).getByText("Germany")).toBeTruthy();
         await user.click(within(dxcc_section).getByRole("button", { name: "Completed" }));
-        expect(clear_button.disabled).toBe(true);
+        expect(within(dxcc_section).getByRole("button", { name: "Clear" }).disabled).toBe(true);
     });
 
     it("filters the visible list", async () => {
