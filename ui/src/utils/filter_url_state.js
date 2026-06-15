@@ -1,3 +1,4 @@
+import { normalize_dxcc_entity_code } from "@/data/dxcc_entities.js";
 import { create_initial_callsign_filters, create_initial_filters } from "@/data/filter_defaults.js";
 import { get_valid_zone_values, normalize_zone_value } from "@/utils/zones.js";
 
@@ -122,6 +123,16 @@ function sanitize_filter_rule(value) {
             ...filter,
             value: text_value,
             ...(quick_filter ? { quick_filter } : {}),
+        };
+    }
+
+    if (type === "entity") {
+        const dxcc_code = normalize_dxcc_entity_code(value.value);
+        if (dxcc_code == null) return null;
+        return {
+            ...filter,
+            value: dxcc_code,
+            spotter_or_dx: SPOT_SIDES.has(value.spotter_or_dx) ? value.spotter_or_dx : "dx",
         };
     }
 

@@ -1,5 +1,11 @@
+import {
+    get_dxcc_label,
+    is_canada_dxcc_code,
+    is_us_state_dxcc_code,
+    normalize_dxcc_entity_code,
+} from "@/data/dxcc_entities.js";
 import { bands, modes } from "@/data/filters_data.js";
-import { get_flag } from "@/data/flags.js";
+import { get_dxcc_flag } from "@/data/flags.js";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { is_matching_list, sort_spots } from "@/utils.js";
 import { HUNTER_SECTION_KEYS } from "@/utils/profile_data.js";
@@ -11,10 +17,8 @@ import { useSpotInteraction } from "./useSpotInteraction";
 
 const reference_spot_types = new Set(["sota", "pota", "wwff"]);
 
-const US_STATE_COUNTRIES = new Set(["USA", "Alaska", "Hawaii"]);
-
 const SECTION_REASON_LABELS = {
-    dxcc: value => `Needed DXCC: ${value}`,
+    dxcc: value => `Needed DXCC: ${get_dxcc_label(value) || value}`,
     cq_zone: value => `Needed CQ Zone: ${value}`,
     itu_zone: value => `Needed ITU Zone: ${value}`,
     us_state: value => `Needed US State: ${value}`,
@@ -24,16 +28,16 @@ const SECTION_REASON_LABELS = {
 function get_spot_feature_value(section, spot) {
     switch (section) {
         case "dxcc":
-            return spot.dx_country || null;
+            return normalize_dxcc_entity_code(spot.dx_dxcc_code ?? spot.dx_country);
         case "cq_zone":
             return normalize_zone_value("cq", spot.dx_cq_zone);
         case "itu_zone":
             return normalize_zone_value("itu", spot.dx_itu_zone);
         case "us_state":
-            if (!US_STATE_COUNTRIES.has(spot.dx_country)) return null;
+            if (!is_us_state_dxcc_code(spot.dx_dxcc_code)) return null;
             return normalize_zone_value("us_state", spot.dx_state);
         case "ca_province":
-            if (spot.dx_country !== "Canada") return null;
+            if (!is_canada_dxcc_code(spot.dx_dxcc_code)) return null;
             return normalize_zone_value("ca_province", spot.dx_state);
         default:
             return null;
@@ -50,7 +54,12 @@ export function check_hunter_needed(spot, hunter) {
         const spot_value = get_spot_feature_value(section, spot);
         if (spot_value == null) continue;
 
-        const worked = hunter.worked[section]?.global ?? [];
+        const worked =
+            section === "dxcc"
+                ? (hunter.worked[section]?.global ?? [])
+                      .map(value => normalize_dxcc_entity_code(value))
+                      .filter(value => value != null)
+                : (hunter.worked[section]?.global ?? []);
         if (!worked.includes(spot_value)) {
             reasons.push({
                 section,
@@ -126,9 +135,9 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
             .filter(spot => {
                 if (filter_missing_flags) {
                     if (
-                        spot.dx_country !== "" &&
-                        spot.dx_country != null &&
-                        get_flag(spot.dx_country) == null
+                        spot.dx_dxcc_code !== "" &&
+                        spot.dx_dxcc_code != null &&
+                        get_dxcc_flag(spot.dx_dxcc_code) == null
                     ) {
                         return true;
                     }

@@ -1,3 +1,8 @@
+import {
+    is_canada_dxcc_code,
+    is_us_state_dxcc_code,
+    normalize_dxcc_entity_code,
+} from "@/data/dxcc_entities.js";
 import { find_zone_number, normalize_zone_value } from "@/utils/zones.js";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import Maidenhead from "maidenhead";
@@ -64,11 +69,11 @@ export function is_matching_list(list, spot) {
             } else if (system === "itu") {
                 spot_zone = normalize_zone_value(system, spot.dx_itu_zone);
             } else if (system === "us_state") {
-                if (spot.dx_country === "USA") {
+                if (is_us_state_dxcc_code(spot.dx_dxcc_code)) {
                     spot_zone = normalize_zone_value(system, spot.dx_state);
                 }
             } else if (system === "ca_province") {
-                if (spot.dx_country === "Canada") {
+                if (is_canada_dxcc_code(spot.dx_dxcc_code)) {
                     spot_zone = normalize_zone_value(system, spot.dx_state);
                 }
             }
@@ -85,13 +90,13 @@ export function is_matching_list(list, spot) {
             matched_value = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">").toLowerCase();
         } else if (filter.spotter_or_dx === "spotter") {
             if (filter.type === "entity") {
-                matched_value = spot.spotter_country;
+                matched_value = normalize_dxcc_entity_code(spot.spotter_dxcc_code);
             } else {
                 matched_value = spot.spotter_callsign;
             }
         } else if (filter.spotter_or_dx === "dx") {
             if (filter.type === "entity") {
-                matched_value = spot.dx_country;
+                matched_value = normalize_dxcc_entity_code(spot.dx_dxcc_code);
             } else {
                 matched_value = spot.dx_callsign;
             }
@@ -105,7 +110,7 @@ export function is_matching_list(list, spot) {
         } else if (filter.type === "suffix") {
             is_value_matching = matched_value.endsWith(filter.value);
         } else if (filter.type === "entity") {
-            is_value_matching = matched_value === filter.value;
+            is_value_matching = matched_value === normalize_dxcc_entity_code(filter.value);
         } else if (filter.type === "self_spotters") {
             is_value_matching = is_same_base_callsign(spot.dx_callsign, spot.spotter_callsign);
         } else if (filter.type === "dxpeditions") {

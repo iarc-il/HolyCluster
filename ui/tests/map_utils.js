@@ -95,8 +95,8 @@ describe("is_matching_list", () => {
     const spot = {
         dx_callsign: "K1ABC",
         spotter_callsign: "N0CALL",
-        dx_country: "USA",
-        spotter_country: "Canada",
+        dx_dxcc_code: 291,
+        spotter_dxcc_code: 1,
         comment: "Nice DX",
         mode: "CW",
         band: 20,
@@ -122,10 +122,8 @@ describe("is_matching_list", () => {
         expect(is_matching_list(filters, spot)).toBe(true);
     });
 
-    it("matches an entity filter on DX country", () => {
-        const filters = [
-            { type: "entity", value: "USA", spotter_or_dx: "dx", action: "show_only" },
-        ];
+    it("matches an entity filter on DXCC code", () => {
+        const filters = [{ type: "entity", value: 291, spotter_or_dx: "dx", action: "show_only" }];
         expect(is_matching_list(filters, spot)).toBe(true);
     });
 
