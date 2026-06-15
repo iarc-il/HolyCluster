@@ -10,6 +10,7 @@ import Popup from "@/components/ui/Popup.jsx";
 import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
@@ -22,6 +23,7 @@ import {
     build_filter_menu_actions,
     build_map_context_filter,
 } from "./map_context_menu.js";
+import { build_hunter_overlay_highlights } from "./overlay_highlights.js";
 import { DPR } from "./render_helpers.js";
 import { useCanvasLayers } from "./useCanvasLayers.js";
 import { useMapGestures } from "./useMapGestures.js";
@@ -41,6 +43,9 @@ function CanvasMap({
 }) {
     const { spots, current_freq_spots } = useSpotData();
     const { callsign_filters, get_filter_add_status, add_filter_if_allowed } = useFilters();
+    const {
+        active_profile_data: { hunter },
+    } = useProfiles();
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
@@ -113,6 +118,7 @@ function CanvasMap({
         return [lon, lat];
     }, [settings.locator]);
     const night_time_ms = night_time?.getTime() ?? null;
+    const overlay_highlights = useMemo(() => build_hunter_overlay_highlights(hunter), [hunter]);
 
     const render_state_ref = useRef({});
     render_state_ref.current = {
@@ -126,6 +132,7 @@ function CanvasMap({
         settings,
         radius_in_km,
         callsign_filters,
+        overlay_highlights,
         hovered_zone,
         hovered_dxcc,
         home_location,
@@ -173,6 +180,7 @@ function CanvasMap({
         pinned_spot,
         hovered_band,
         current_freq_spots,
+        overlay_highlights_key: overlay_highlights.key,
         hovered_zone,
         hovered_dxcc,
         home_location,

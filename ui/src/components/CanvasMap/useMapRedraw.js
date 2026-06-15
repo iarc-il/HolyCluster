@@ -23,6 +23,7 @@ export function useMapRedraw({
     pinned_spot,
     hovered_band,
     current_freq_spots,
+    overlay_highlights_key,
     hovered_zone,
     hovered_dxcc,
     home_location,
@@ -49,6 +50,7 @@ export function useMapRedraw({
         callsign_filters.is_alert_filters_active,
         callsign_filters.is_show_only_filters_active,
         callsign_filters.is_hide_filters_active,
+        overlay_highlights_key,
         map_controls.show_equator,
         colors.map,
         colors.map_countries,
@@ -158,6 +160,7 @@ export function useMapRedraw({
                         rs.hovered_zone,
                         rs.hovered_dxcc,
                         rs.callsign_filters,
+                        rs.overlay_highlights,
                         rs.colors.map,
                     );
                 });

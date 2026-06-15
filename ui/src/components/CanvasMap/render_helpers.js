@@ -110,6 +110,7 @@ export function do_redraw(
             pinned_spot,
             hovered_band,
             current_freq_spots,
+            overlay_highlights,
             night_time,
             voacap,
         } = render_state_ref.current;
@@ -142,6 +143,7 @@ export function do_redraw(
                     map_controls.show_can_states,
                     map_controls.show_maidenhead_grid,
                     callsign_filters,
+                    overlay_highlights,
                     colors.map,
                     colors.map_countries,
                     fast,
@@ -206,6 +208,7 @@ export function do_redraw(
                         hovered_zone,
                         hovered_dxcc,
                         callsign_filters,
+                        overlay_highlights,
                         colors.map,
                         fast,
                     );

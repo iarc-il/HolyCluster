@@ -663,6 +663,13 @@ function is_filter_action_active(callsign_filters, action) {
     return active_field == null || callsign_filters?.[active_field] !== false;
 }
 
+function merge_overlay_action_map(action_map, overlay_action_map) {
+    for (const [value, action] of overlay_action_map ?? []) {
+        if (!(action in FILTER_ACTION_COLOR_KEYS)) continue;
+        if (!action_map.has(value)) action_map.set(value, action);
+    }
+}
+
 const DXCC_LABEL_STYLE = {
     min_font_px: 9,
     max_font_px: 16,
@@ -678,9 +685,11 @@ export function get_dxcc_entity_name(feature) {
     return normalize_dxcc_label(dxcc_name);
 }
 
-function get_zone_action_map(callsign_filters, system) {
+function get_zone_action_map(callsign_filters, system, overlay_highlights = null) {
     const filters = callsign_filters?.filters ?? [];
     const zone_to_action = new Map();
+
+    merge_overlay_action_map(zone_to_action, overlay_highlights?.zones?.[system]);
 
     for (const filter of filters) {
         if (filter.type !== "zone" || filter.zone_system !== system) continue;
@@ -698,9 +707,11 @@ function normalize_dxcc_entity_filter_value(value) {
     return normalize_dxcc_entity_value(value);
 }
 
-function get_dxcc_action_map(callsign_filters) {
+function get_dxcc_action_map(callsign_filters, overlay_highlights = null) {
     const filters = callsign_filters?.filters ?? [];
     const entity_to_action = new Map();
+
+    merge_overlay_action_map(entity_to_action, overlay_highlights?.dxcc);
 
     for (const filter of filters) {
         if (filter.type !== "entity" || filter.spotter_or_dx !== "dx") continue;
@@ -1223,6 +1234,7 @@ export function draw_zone_labels(
     hovered_zone,
     hovered_dxcc,
     callsign_filters,
+    overlay_highlights,
     map_colors,
     fast = false,
 ) {
@@ -1250,7 +1262,7 @@ export function draw_zone_labels(
     for (const system of active_systems) {
         const config = ZONE_CONFIG[system];
         if (!config) continue;
-        const zone_action_map = get_zone_action_map(callsign_filters, system);
+        const zone_action_map = get_zone_action_map(callsign_filters, system, overlay_highlights);
         draw_zone_labels_for_system(
             context,
             projection,
@@ -1267,7 +1279,7 @@ export function draw_zone_labels(
     }
 
     if (show_dxcc_labels && active_systems.length === 0) {
-        const dxcc_action_map = get_dxcc_action_map(callsign_filters);
+        const dxcc_action_map = get_dxcc_action_map(callsign_filters, overlay_highlights);
         draw_dxcc_labels(
             context,
             projection,
@@ -1295,6 +1307,7 @@ export function draw_map(
     show_can_states,
     show_maidenhead_grid,
     callsign_filters,
+    overlay_highlights,
     map_colors,
     map_country_colors,
     fast = false,
@@ -1359,7 +1372,7 @@ export function draw_map(
     });
 
     const dxcc_feature_actions = profile_map("draw_map.dxcc_filter_actions", () => {
-        const dxcc_action_map = get_dxcc_action_map(callsign_filters);
+        const dxcc_action_map = get_dxcc_action_map(callsign_filters, overlay_highlights);
         return get_dxcc_filtered_feature_actions(dxcc_action_map);
     });
     const dxcc_feature_paths = profile_map("draw_map.dxcc_paths", () =>
@@ -1485,7 +1498,11 @@ export function draw_map(
         for (const system of active_systems) {
             const config = ZONE_CONFIG[system];
             if (!config) continue;
-            const zone_action_map = get_zone_action_map(callsign_filters, system);
+            const zone_action_map = get_zone_action_map(
+                callsign_filters,
+                system,
+                overlay_highlights,
+            );
             const action_numbers = get_zone_action_numbers(zone_action_map);
             draw_zone_overlay(
                 context,
