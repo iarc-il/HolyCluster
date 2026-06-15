@@ -124,6 +124,7 @@ function HunterSection({
     on_set_list_mode,
     on_set_search,
     on_set_complete,
+    on_clear_completed,
 }) {
     const worked_values = hunter.worked[section]?.global ?? [];
     const worked = new Set(worked_values);
@@ -189,18 +190,34 @@ function HunterSection({
                 ))}
             </div>
 
-            <input
-                type="search"
-                value={search}
-                onChange={event => on_set_search(section, event.target.value)}
-                placeholder={`Search ${SECTION_LABELS[section]}`}
-                className="w-full rounded px-2 py-1 text-sm"
-                style={{
-                    backgroundColor: colors.theme.input_background,
-                    color: colors.theme.text,
-                    border: `1px solid ${colors.theme.borders}`,
-                }}
-            />
+            <div className="flex gap-2">
+                <input
+                    type="search"
+                    value={search}
+                    onChange={event => on_set_search(section, event.target.value)}
+                    placeholder={`Search ${SECTION_LABELS[section]}`}
+                    className="min-w-0 flex-1 rounded px-2 py-1 text-sm"
+                    style={{
+                        backgroundColor: colors.theme.input_background,
+                        color: colors.theme.text,
+                        border: `1px solid ${colors.theme.borders}`,
+                    }}
+                />
+                {list_mode === "completed" && (
+                    <button
+                        type="button"
+                        className="shrink-0 rounded px-2 py-1 text-[11px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{
+                            backgroundColor: colors.buttons.active_tab,
+                            color: colors.theme.text,
+                        }}
+                        disabled={worked_values.length === 0}
+                        onClick={() => on_clear_completed(section)}
+                    >
+                        Clear
+                    </button>
+                )}
+            </div>
 
             <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
                 {visible_items.length === 0 ? (
@@ -328,6 +345,19 @@ export default function HunterPanel() {
         });
     }
 
+    function clear_completed(section) {
+        update_hunter(current => ({
+            ...current,
+            worked: {
+                ...current.worked,
+                [section]: {
+                    ...(current.worked[section] ?? {}),
+                    global: [],
+                },
+            },
+        }));
+    }
+
     function set_list_mode(section, mode) {
         set_list_modes(current => ({ ...current, [section]: mode }));
     }
@@ -449,6 +479,7 @@ export default function HunterPanel() {
                     on_set_list_mode={set_list_mode}
                     on_set_search={set_search}
                     on_set_complete={set_complete}
+                    on_clear_completed={clear_completed}
                 />
             ))}
 

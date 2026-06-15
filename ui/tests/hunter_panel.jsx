@@ -98,6 +98,31 @@ describe("HunterPanel", () => {
         );
     });
 
+    it("clears completed items in one section", async () => {
+        const user = userEvent.setup();
+        render_hunter_panel();
+
+        const dxcc_section = section_by_heading("DXCC");
+        expect(within(dxcc_section).queryByRole("button", { name: "Clear" })).toBeNull();
+
+        await user.click(
+            within(dxcc_section).getByRole("button", { name: "Mark Germany complete" }),
+        );
+        await user.click(within(dxcc_section).getByRole("button", { name: "Completed" }));
+
+        const clear_button = within(dxcc_section).getByRole("button", { name: "Clear" });
+        await waitFor(() => expect(clear_button.disabled).toBe(false));
+        await user.click(clear_button);
+
+        await waitFor(() =>
+            expect(within(dxcc_section).getByText("0/3 complete, 3 missing")).toBeTruthy(),
+        );
+        await user.click(within(dxcc_section).getByRole("button", { name: "Missing" }));
+        expect(within(dxcc_section).getByText("Germany")).toBeTruthy();
+        await user.click(within(dxcc_section).getByRole("button", { name: "Completed" }));
+        expect(clear_button.disabled).toBe(true);
+    });
+
     it("filters the visible list", async () => {
         const user = userEvent.setup();
         render_hunter_panel();
