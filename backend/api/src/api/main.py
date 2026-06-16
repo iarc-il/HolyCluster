@@ -197,6 +197,56 @@ app = fastapi.FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_
 
 MAX_HUNTER_RESOLVE_CALLSIGNS = 100
 HUNTER_CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/]{0,31}$")
+PROPAGATION_METRICS = ("a_index", "k_index", "sfi")
+MAX_PROPAGATION_HISTORY_RANGE_SECONDS = 86400
+
+
+def build_propagation_history_response(start_time, end_time, range_samples, previous_samples):
+    metrics = {metric: [] for metric in PROPAGATION_METRICS}
+    samples = sorted(
+        [*previous_samples, *range_samples],
+        key=lambda sample: (sample.timestamp, sample.metric),
+    )
+
+    for sample in samples:
+        metrics.setdefault(sample.metric, []).append(
+            {
+                "timestamp": sample.timestamp,
+                "value": sample.value,
+            }
+        )
+
+    return {
+        "start_time": start_time,
+        "end_time": end_time,
+        "metrics": metrics,
+    }
+
+
+async def get_propagation_history_data(start_time, end_time):
+    async with async_session() as session:
+        range_query = (
+            select(PropagationMeasurement)
+            .where(PropagationMeasurement.timestamp >= start_time)
+            .where(PropagationMeasurement.timestamp <= end_time)
+            .order_by(PropagationMeasurement.timestamp, PropagationMeasurement.metric)
+        )
+        range_samples = (await session.execute(range_query)).scalars().all()
+
+        previous_samples = []
+        for metric in PROPAGATION_METRICS:
+            previous_query = (
+                select(PropagationMeasurement)
+                .where(PropagationMeasurement.metric == metric)
+                .where(PropagationMeasurement.timestamp < start_time)
+                .order_by(desc(PropagationMeasurement.timestamp))
+                .limit(1)
+            )
+            previous_sample = (await session.execute(previous_query)).scalars().first()
+            if previous_sample is not None:
+                previous_samples.append(previous_sample)
+
+    return build_propagation_history_response(start_time, end_time, range_samples, previous_samples)
 
 
 class HunterResolveRequest(BaseModel):
@@ -462,6 +512,16 @@ async def spots_with_issues():
 @app.get("/propagation")
 def propagation_data():
     return app.state.propagation
+
+
+@app.get("/propagation/history")
+async def propagation_history(start_time: int, end_time: int):
+    if end_time <= start_time:
+        raise HTTPException(status_code=400, detail="end_time must be greater than start_time")
+    if end_time - start_time > MAX_PROPAGATION_HISTORY_RANGE_SECONDS:
+        raise HTTPException(status_code=400, detail="time range cannot exceed 24 hours")
+
+    return await get_propagation_history_data(start_time, end_time)
 
 
 @app.get("/voacap")
