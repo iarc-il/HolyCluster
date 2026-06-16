@@ -15,10 +15,11 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from pydantic import BaseModel
 from shared.cty import ensure_cty_available
-from shared.db import GeoCache, HolySpot, SpotsWithIssues
+from shared.db import GeoCache, HolySpot, PropagationMeasurement, SpotsWithIssues
 from shared.geo import GeoException, get_geo_details
 from shared.metrics import push_exception_event, set_timestamp, set_value
 from sqlalchemy import desc
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
@@ -27,13 +28,63 @@ from . import propagation, submit_spot, voacap
 from .settings import settings
 
 
+def build_propagation_measurement_rows(history, collected_at):
+    rows = []
+    for metric, samples in history.items():
+        for sample in samples:
+            value = sample.get("value")
+            timestamp = sample.get("timestamp")
+            if value is None or timestamp is None:
+                continue
+
+            rows.append(
+                {
+                    "metric": metric,
+                    "timestamp": int(timestamp),
+                    "value": float(value),
+                    "collected_at": collected_at,
+                }
+            )
+    return rows
+
+
+async def upsert_propagation_history(history):
+    rows = build_propagation_measurement_rows(history, datetime.now(UTC).replace(tzinfo=None))
+    if not rows:
+        return 0
+
+    statement = pg_insert(PropagationMeasurement.__table__).values(rows)
+    statement = statement.on_conflict_do_update(
+        index_elements=["metric", "timestamp"],
+        set_={
+            "value": statement.excluded.value,
+            "collected_at": statement.excluded.collected_at,
+        },
+    )
+
+    async with async_session() as session:
+        await session.execute(statement)
+        await session.commit()
+
+    return len(rows)
+
+
 async def propagation_data_collector(app):
     while True:
         sleep = 3600
         try:
-            app.state.propagation = await propagation.collect_propagation_data()
+            propagation_history = await propagation.collect_propagation_history()
+            app.state.propagation = propagation.latest_propagation_from_history(propagation_history)
             app.state.propagation["time"] = int(time.time())
             logger.info(f"Got propagation data: {app.state.propagation}")
+
+            try:
+                stored_samples = await upsert_propagation_history(propagation_history)
+                logger.info(f"Stored {stored_samples} propagation samples")
+            except Exception as e:
+                sleep = 10
+                logger.exception(f"Failed to persist propagation data: {str(e)}")
+                await push_exception_event(app.state.valkey_client, "api", f"propagation persist: {e}")
         except Exception as e:
             sleep = 10
             logger.exception(f"Failed to fetch propagation data: {str(e)}")
@@ -105,6 +156,7 @@ async def lifespan(app: fastapi.FastAPI):
         raise RuntimeError(f"UI directory does not exist: {settings.ui_dist_path}")
 
     app.state.active_connections = set()
+    app.state.propagation = None
 
     app.state.valkey_client = redis.asyncio.Redis(
         host=settings.valkey_effective_host,
