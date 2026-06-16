@@ -6,13 +6,14 @@ Create Date: 2026-06-15 16:30:00.000000
 
 """
 
+import asyncio
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
 import re
 
-from shared.cty import CtyResolver, load_cty_resolver
+from shared.cty import CtyResolver, load_cty_resolver, ensure_cty_available
 
 
 # revision identifiers, used by Alembic.
@@ -221,6 +222,7 @@ def _backfill_geo_cache(
 
 def upgrade() -> None:
     """Upgrade schema."""
+    asyncio.run(ensure_cty_available())
     resolver = _load_required_cty_resolver()
     lookup = _build_dxcc_code_lookup(resolver)
     connection = op.get_bind()
