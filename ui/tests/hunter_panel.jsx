@@ -162,7 +162,8 @@ describe("HunterPanel", () => {
 
         const cq_section = section_by_heading("CQ Zones");
         expect(within(cq_section).getByRole("img", { name: "Trophy" })).toBeTruthy();
-        expect(within(cq_section).getByText("No CQ zones left. Well done!")).toBeTruthy();
+        expect(within(cq_section).getByText("No CQ zones left")).toBeTruthy();
+        expect(within(cq_section).getByText("Well done!")).toBeTruthy();
         expect(within(cq_section).queryByText("No missing items match.")).toBeNull();
     });
 

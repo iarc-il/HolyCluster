@@ -69,10 +69,10 @@ export const RestDataProvider = ({
             return;
         }
 
+        set_propagation_history(null);
         if (!navigator.onLine) return;
 
         const controller = new AbortController();
-        set_propagation_history(null);
         const params = new URLSearchParams({
             start_time: String(propagation_start_time),
             end_time: String(propagation_end_time),
