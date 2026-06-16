@@ -10,6 +10,7 @@ import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import use_radio from "@/hooks/useRadio";
+import { RestDataProvider } from "@/hooks/useRestData";
 import { SpotDataProvider, useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { compare_version, get_max_radius, get_spots_center } from "@/utils.js";
@@ -372,21 +373,27 @@ function MainContainer() {
     }, []);
 
     return (
-        <SpotDataProvider
-            startTime={history_start}
-            endTime={history_end}
-            window_size_ms={window_size_ms}
-            step_size_ms={step_size_ms}
+        <RestDataProvider
+            propagation_range_start={history_start}
+            propagation_range_end={history_end}
+            propagation_time={history_end}
         >
-            <MainContent
-                history_start={history_start}
-                history_end={history_end}
-                set_history_start={set_history_start}
-                set_history_end={set_history_end}
+            <SpotDataProvider
+                startTime={history_start}
+                endTime={history_end}
                 window_size_ms={window_size_ms}
-                set_window_size_ms={set_window_size_ms}
-            />
-        </SpotDataProvider>
+                step_size_ms={step_size_ms}
+            >
+                <MainContent
+                    history_start={history_start}
+                    history_end={history_end}
+                    set_history_start={set_history_start}
+                    set_history_end={set_history_end}
+                    window_size_ms={window_size_ms}
+                    set_window_size_ms={set_window_size_ms}
+                />
+            </SpotDataProvider>
+        </RestDataProvider>
     );
 }
 
