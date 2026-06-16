@@ -18,7 +18,7 @@ from shared.cty import ensure_cty_available
 from shared.db import GeoCache, HolySpot, PropagationMeasurement, SpotsWithIssues
 from shared.geo import GeoException, get_geo_details
 from shared.metrics import push_exception_event, set_timestamp, set_value
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -227,24 +227,34 @@ async def get_propagation_history_data(start_time, end_time):
     async with async_session() as session:
         range_query = (
             select(PropagationMeasurement)
+            .where(PropagationMeasurement.metric.in_(PROPAGATION_METRICS))
             .where(PropagationMeasurement.timestamp >= start_time)
             .where(PropagationMeasurement.timestamp <= end_time)
             .order_by(PropagationMeasurement.timestamp, PropagationMeasurement.metric)
         )
         range_samples = (await session.execute(range_query)).scalars().all()
 
-        previous_samples = []
-        for metric in PROPAGATION_METRICS:
-            previous_query = (
-                select(PropagationMeasurement)
-                .where(PropagationMeasurement.metric == metric)
-                .where(PropagationMeasurement.timestamp < start_time)
-                .order_by(desc(PropagationMeasurement.timestamp))
-                .limit(1)
+        previous_sample_ids = (
+            select(
+                PropagationMeasurement.id,
+                func.row_number()
+                .over(
+                    partition_by=PropagationMeasurement.metric,
+                    order_by=desc(PropagationMeasurement.timestamp),
+                )
+                .label("row_number"),
             )
-            previous_sample = (await session.execute(previous_query)).scalars().first()
-            if previous_sample is not None:
-                previous_samples.append(previous_sample)
+            .where(PropagationMeasurement.metric.in_(PROPAGATION_METRICS))
+            .where(PropagationMeasurement.timestamp < start_time)
+            .subquery()
+        )
+        previous_query = (
+            select(PropagationMeasurement)
+            .join(previous_sample_ids, PropagationMeasurement.id == previous_sample_ids.c.id)
+            .where(previous_sample_ids.c.row_number == 1)
+            .order_by(PropagationMeasurement.timestamp, PropagationMeasurement.metric)
+        )
+        previous_samples = (await session.execute(previous_query)).scalars().all()
 
     return build_propagation_history_response(start_time, end_time, range_samples, previous_samples)
 
