@@ -156,11 +156,7 @@ async def get_geo_details(
         locator_source = "qrz"
     else:
         cty_country = _resolve_cty_entity(callsign)
-        if (
-            cty_country is not None
-            and cty_country.latitude is not None
-            and cty_country.longitude is not None
-        ):
+        if cty_country is not None and cty_country.latitude is not None and cty_country.longitude is not None:
             locator = coordinates_to_locator(cty_country.latitude, cty_country.longitude)
             locator_source = "cty"
             cq_zone = cq_zone if cq_zone is not None else cty_country.cq_zone

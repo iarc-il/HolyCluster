@@ -1,7 +1,7 @@
 from datetime import date, datetime, time
 from typing import Optional
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import Index, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -16,6 +16,20 @@ class GeoCache(SQLModel, table=True):
     date: date
     time: time
     date_time: datetime
+
+
+class PropagationMeasurement(SQLModel, table=True):
+    __tablename__ = "propagation_measurements"
+    __table_args__ = (
+        UniqueConstraint("metric", "timestamp", name="uc_propagation_measurements_metric_timestamp"),
+        Index("ix_propagation_measurements_timestamp", "timestamp"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    metric: str
+    timestamp: int
+    value: float
+    collected_at: datetime
 
 
 class HolySpot(SQLModel, table=True):

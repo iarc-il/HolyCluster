@@ -259,9 +259,7 @@ def _restore_country_columns(connection, resolver: CtyResolver) -> None:
         if spotter_country is not None and dx_country is not None:
             connection.execute(
                 sa.text(
-                    "UPDATE holy_spots2 "
-                    "SET spotter_country = :spotter_country, dx_country = :dx_country "
-                    "WHERE id = :id"
+                    "UPDATE holy_spots2 SET spotter_country = :spotter_country, dx_country = :dx_country WHERE id = :id"
                 ),
                 {"id": row["id"], "spotter_country": spotter_country, "dx_country": dx_country},
             )
@@ -269,9 +267,7 @@ def _restore_country_columns(connection, resolver: CtyResolver) -> None:
     if unresolved:
         raise RuntimeError("Cannot restore country columns: " + ", ".join(unresolved[:20]))
 
-    rows = connection.execute(
-        sa.text("SELECT id, spotter_dxcc_code, dx_dxcc_code FROM spots_with_issues2")
-    ).mappings()
+    rows = connection.execute(sa.text("SELECT id, spotter_dxcc_code, dx_dxcc_code FROM spots_with_issues2")).mappings()
     for row in rows:
         connection.execute(
             sa.text(
