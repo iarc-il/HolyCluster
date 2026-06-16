@@ -6,7 +6,6 @@ Create Date: 2026-06-15 16:30:00.000000
 
 """
 
-import asyncio
 from typing import Sequence, Union
 
 from alembic import op
@@ -220,9 +219,16 @@ def _backfill_geo_cache(
         raise RuntimeError("Cannot backfill GeoCache DXCC codes: " + ", ".join(unresolved[:20]))
 
 
+def ensure_cty():
+    async def call_ensure_cty_available(_dummy_http):
+        await ensure_cty_available()
+
+    op.run_async(async_function=call_ensure_cty_available)
+
+
 def upgrade() -> None:
     """Upgrade schema."""
-    asyncio.run(ensure_cty_available())
+    ensure_cty()
     resolver = _load_required_cty_resolver()
     lookup = _build_dxcc_code_lookup(resolver)
     connection = op.get_bind()
@@ -301,6 +307,7 @@ def _restore_country_columns(connection, resolver: CtyResolver) -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
+    ensure_cty()
     resolver = _load_required_cty_resolver()
     connection = op.get_bind()
 
