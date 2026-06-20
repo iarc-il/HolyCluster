@@ -1,33 +1,47 @@
-INPUT_FILE=presentation.md
-OUTPUT_FILE=presentation.html
-REVEALJS_DIR=./reveal.js
+INPUT_FILE := presentation.md
+OUTPUT_FILE := presentation.html
+REVEALJS_DIR := reveal.js
+REVEALJS_VERSION := 4.6.1
+TITLE := Holy Cluster - Friedrichshafen 2026
 
-.PHONY: all show dev watch clean
+PANDOC_FLAGS := \
+	-t revealjs \
+	--standalone \
+	--slide-level=2 \
+	-V revealjs-url=$(REVEALJS_DIR) \
+	--metadata title="$(TITLE)"
 
-all: $(OUTPUT_FILE)
+.PHONY: all final dev-build dev watch serve show clean distclean
 
-$(OUTPUT_FILE): $(INPUT_FILE) $(REVEALJS_DIR)
-	pandoc -t revealjs -s -o $(OUTPUT_FILE) $(INPUT_FILE) \
-	  --slide-level=2 \
-	  -V revealjs-url=$(REVEALJS_DIR) \
-	  --embed-resources --standalone \
-	  --metadata title="Holy Cluster - Freidrichshafen 2026"
+all: final
+
+final: $(REVEALJS_DIR)
+	pandoc $(INPUT_FILE) -o $(OUTPUT_FILE) $(PANDOC_FLAGS) --embed-resources
+
+dev-build: $(REVEALJS_DIR)
+	pandoc $(INPUT_FILE) -o $(OUTPUT_FILE) $(PANDOC_FLAGS)
 
 $(REVEALJS_DIR):
-	git clone --depth 1 --branch 4.6.1 https://github.com/hakimel/reveal.js.git $@
+	git clone --depth 1 --branch $(REVEALJS_VERSION) https://github.com/hakimel/reveal.js.git $@
 
-show: $(OUTPUT_FILE)
-	firefox $<
+show: final
+	firefox $(OUTPUT_FILE)
 
-dev:
-	# npm install -g browser-sync
+serve:
 	browser-sync start --server . --files $(OUTPUT_FILE)
 
-watch:
-	# cargo binstall watchexec-cli
-	watchexec -w $(INPUT_FILE) -- pandoc $(INPUT_FILE) -t revealjs -s -o $(OUTPUT_FILE) \
-		   --slide-level=2 \
-		   -V revealjs-url=$(REVEALJS_DIR)
+watch: $(REVEALJS_DIR)
+	watchexec -w $(INPUT_FILE) -- $(MAKE) dev-build
+
+dev: $(REVEALJS_DIR)
+	$(MAKE) dev-build
+	browser-sync start --server . --files "$(OUTPUT_FILE)" & \
+	server_pid=$$!; \
+	trap 'kill $$server_pid' EXIT INT TERM; \
+	watchexec -w "$(INPUT_FILE)" -- $(MAKE) dev-build
 
 clean:
 	rm -f $(OUTPUT_FILE)
+
+distclean: clean
+	rm -rf $(REVEALJS_DIR)
