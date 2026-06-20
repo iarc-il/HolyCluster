@@ -11,7 +11,8 @@ PANDOC_FLAGS := \
 	--slide-level=2 \
 	-V revealjs-url=$(REVEALJS_DIR) \
 	-V hash=true \
-	--metadata title="$(TITLE)"
+	-V theme=night \
+	-V pagetitle="$(TITLE)"
 
 .PHONY: all final dev-build dev clean distclean
 
