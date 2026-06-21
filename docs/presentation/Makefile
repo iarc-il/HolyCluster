@@ -29,10 +29,20 @@ $(REVEALJS_DIR):
 
 dev: $(REVEALJS_DIR)
 	$(MAKE) dev-build
-	browser-sync start --server . --index "$(OUTPUT_FILE)" --startPath "$(OUTPUT_FILE)" --files "$(OUTPUT_FILE)" & \
+	browser-sync start \
+		--server . \
+		--index "$(OUTPUT_FILE)" \
+		--startPath "$(OUTPUT_FILE)" \
+		--files "$(OUTPUT_FILE)" \
+		--no-open & \
 	server_pid=$$!; \
 	trap 'kill $$server_pid' EXIT INT TERM; \
-	watchexec -w . --filter "$(INPUT_FILE)" --filter "$(DEV_INCLUDE)" -- $(MAKE) dev-build
+	watchexec \
+		-w . \
+		--filter "$(INPUT_FILE)" \
+		--filter "$(DEV_INCLUDE)" \
+		--filter $(MAKEFILE_LIST) \
+		-- $(MAKE) dev-build
 
 clean:
 	rm -f $(OUTPUT_FILE)
