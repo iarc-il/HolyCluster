@@ -1,4 +1,5 @@
-# The Holy Cluster
+## The Holy Cluster
+#### Friedrichshafen 2026
 
 ---
 
@@ -9,77 +10,97 @@
 - Licensed since 2021
 - Software developer
 
-::: notes
-Introduce myself briefly. Mention my background in software development and how it relates to building this project.
-:::
-
 ---
 
 ## What is a "cluster"?
 
-- Network of interconnected nodes over the internet using the **telnet protocol**
-- Shares data about DX stations ("spots"), propagation, weather and more
-- Used to be a local network over **2M packet radio**
-- Now the nodes are mostly connected by the internet
+- Network of nodes
+- Shares data (Spots, propagation, weather, etc.)
+- Started as 2M packet radio
+- Today uses the telnet protocol
 
 ::: notes
-Explain the historical context - clusters started as radio-based local networks and have since migrated to the internet,
-making them accessible to a much wider audience.
-:::
-
----
-
-## What is the Holy Cluster?
-
-- A **web frontend** to the telnet clusters network
-- Shows published spots in a modern, interactive UI
-- Similar to: DXheat, DXSummit, DXWatch, etc.
-
-::: notes
-Position the Holy Cluster relative to existing solutions. It's not reinventing the wheel - it's building a better wheel.
+- Network of interconnected nodes over the internet using the **telnet protocol**.
+- Shares data about DX stations ("spots"), propagation, weather and more.
+- Used to be a local network over **2M packet radio**.
+- Now the nodes are mostly connected by the internet.
 :::
 
 ---
 
 ## A bit of history
 
-- **Dani 4Z5SL** used HA8TKS cluster with an azimuthal map and suggested improvements
-- But he wanted **his own**
-- **Gil 4Z1KD** and Dani wanted a cluster they could shape however they want
+- **Dani 4Z5SL** used HA8TKS's cluster
+- He talked to **Gil 4Z1KD**
+
   > *"What good is a cluster if we cannot control it?"*
-- Gil ...
+
+- Then they called me and **roy 4X5BR**
 
 ::: notes
-Tell the origin story here. This started as a "scratch your own itch" project - Dani wanted something tailored,
-not off-the-shelf. Gil's quote captures the core motivation.
+- **Dani 4Z5SL** used HA8TKS's cluster with an azimuthal map and suggested improvements But he wanted **his own**.
+- He talked to **Gil 4Z1KD** and they decided to create a cluster they could shape however they want.
+
+  > *"What good is a cluster if we cannot control it?"*
+
+- Then they called me and **roy 4X5BR** and asked us to join and create the dev team
 :::
 
 ---
 
-## Key features
+## What is the Holy Cluster?
 
-### What sets us apart
-
-- **Interactive azimuthal map** - visualize DX bearings in real time
-- **CAT Control** - integrate with your radio directly from the browser
-
-### Intentionally excluded?
-
-- ...
+- A **web frontend** to the telnet cluster network
+- Shows published spots in a modern UI
+- Similar to: DXheat, DXSummit, DXWatch, etc.
 
 ::: notes
-Highlight the differentiators. The azimuthal map and CAT control are the headline features that competing web clusters don't offer.
-Mention any features that were deliberately left out and why.
 :::
 
 ---
+
+## What sets us apart
+
+- Interactive azimuthal map
+- Advanced filtering system
+- Fully synchronized UI
+- CAT Control
+
+::: notes
+Fully synchronized UI mean:
+- Different spots displays - map, table, band bar
+- Color coded system for band - Same in left column, table, spots map
+- Filters are synced across map overlays and filters panels
+
+- All filters are displayed at once, no exceptions
+
+But that's all features, What really sets us apart is:
+- Breaking the conventional DX sites structure
+- Built by hams for hams with rapid improvements cycle
+- 
+:::
+
+---
+
+## Walkthrough
+
+
+::: notes
+- Demostration on non-CAT website
+- Demostration with CAT
+:::
 
 ## Future plans
 
-- What's next on the roadmap?
+- CAT Control for linux (And maybe mac)
+- Full history search since 1997
+- Rotator integration
+- DX AI Agent in discussions
+- Propagation prediction heatmap overlay
 
 ::: notes
-Discuss upcoming features, timeline, and how the community can contribute or provide feedback.
+You are more then welcome to suggest improvements.
+Also, this is open source software, you are more then welcome to participate.
 :::
 
 ---
@@ -88,14 +109,13 @@ Discuss upcoming features, timeline, and how the community can contribute or pro
 
 ---
 
-## Vote: Which feature should we release RIGHT NOW?
+## Vote
+#### Which feature should we release RIGHT NOW?
 
 - History playback
 - POTA / SOTA / WWFF Spots
 - Hunter View (Missing DXCC / CQ / ITU / States / Provinces tracker)
-- VOACAP Map overlay
 - Profiles / Layout settings / Maidenhead grid overlay
 
 ::: notes
-Run an interactive vote with the audience. This is a chance to get direct feedback on what the community values most.
 :::
