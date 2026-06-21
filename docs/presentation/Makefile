@@ -12,6 +12,7 @@ PANDOC_FLAGS := \
 	-V revealjs-url=$(REVEALJS_DIR) \
 	-V hash=true \
 	-V theme=night \
+	-V transition=none \
 	-V pagetitle="$(TITLE)"
 
 .PHONY: all final dev-build dev clean distclean
