@@ -21,6 +21,7 @@ PANDOC_FLAGS := \
 all: final
 
 final: $(REVEALJS_DIR)
+	cp -r imgs $(BUILD_DIR)
 	pandoc $(INPUT_FILE) -o $(OUTPUT_FILE) $(PANDOC_FLAGS) --embed-resources
 
 dev-build: $(REVEALJS_DIR) $(DEV_INCLUDE)
