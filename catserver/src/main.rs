@@ -58,6 +58,10 @@ struct Args {
     #[argh(switch)]
     local_ui: bool,
 
+    /// port for local connection
+    #[argh(option)]
+    port: Option<u16>,
+
     /// closes the running instance
     #[argh(switch)]
     close: bool,
@@ -155,19 +159,20 @@ fn main() -> Result<()> {
 
     tracing::info!("Version tag: {}", env!("VERSION"));
 
+    let local_port = args.port.unwrap_or(BASE_LOCAL_PORT);
     let server_config = if args.dev_server {
         tracing::info!("Using dev server");
         ServerConfig {
             dns: "holycluster-dev.iarc.org".into(),
             is_using_ssl: true,
-            local_port: BASE_LOCAL_PORT,
+            local_port,
         }
     } else {
         tracing::info!("Using production server");
         ServerConfig {
             dns: "holycluster.iarc.org".into(),
             is_using_ssl: true,
-            local_port: BASE_LOCAL_PORT,
+            local_port,
         }
     };
 
