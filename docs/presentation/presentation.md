@@ -37,6 +37,21 @@ Todo list before starting:
 
 ---
 
+## Current state of DX cluster {data-visibility="hidden"}
+
+- Works well, but old
+- "Legacy web" design, looks like the 90s web
+- Basic filtering, non-friendly UI
+- More recently - fully AI generated clusters
+
+::: notes
+AI clusters - uncomfortable in their own way.
+I don't want to insult the other websites, but technology has Advanced
+and we can have nicer things.
+:::
+
+---
+
 ## A bit of history
 
 - **Dani 4Z5SL** used HA8TKS's cluster
@@ -61,21 +76,6 @@ Todo list before starting:
 ---
 
 ![](imgs/early_cluster3.png)
-
----
-
-## Current state of DX cluster {data-visibility="hidden"}
-
-- Works well, but old
-- "Legacy web" design, looks like the 90s web
-- Basic filtering, non-friendly UI
-- More recently - fully AI generated clusters
-
-::: notes
-AI clusters - uncomfortable in their own way.
-I don't want to insult the other websites, but technology has Advanced
-and we can have nicer things.
-:::
 
 ---
 
