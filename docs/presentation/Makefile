@@ -1,7 +1,8 @@
+BUILD_DIR := build
 INPUT_FILE := presentation.md
-OUTPUT_FILE := presentation.html
+OUTPUT_FILE := $(BUILD_DIR)/presentation.html
+REVEALJS_DIR := $(BUILD_DIR)/reveal.js
 DEV_INCLUDE := dev-preserve-slide.html
-REVEALJS_DIR := reveal.js
 REVEALJS_VERSION := 4.6.1
 TITLE := Holy Cluster - Friedrichshafen 2026
 
@@ -48,5 +49,5 @@ dev: $(REVEALJS_DIR)
 clean:
 	rm -f $(OUTPUT_FILE)
 
-distclean: clean
-	rm -rf $(REVEALJS_DIR)
+distclean:
+	rm -rf $(BUILD_DIR)
