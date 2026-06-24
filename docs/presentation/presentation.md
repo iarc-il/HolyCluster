@@ -48,6 +48,21 @@
 
 ---
 
+## Current state of DX cluster
+
+- Works well, but old
+- "Legacy web" design, looks like the 90s web
+- Basic filtering, non-friendly UI
+- More recently - fully AI generated clusters
+
+::: notes
+AI clusters - uncomfortable in their own way.
+I don't want to insult the other websites, but technology has Advanced
+and we can have nicer things.
+:::
+
+---
+
 ## What is the Holy Cluster?
 
 - A **web frontend** to the telnet cluster network
@@ -64,6 +79,8 @@
 - Interactive azimuthal map
 - Advanced filtering system
 - Fully synchronized UI
+- Mobile friendly design
+- DX hunters focused design
 - CAT Control
 
 ::: notes
@@ -80,6 +97,19 @@ But that's all features, What really sets us apart is:
 - 
 :::
 
+## CAT Control
+
+- Local client that integrates the cluster with the radio
+- Current frequency is displayed
+- Clicking on a spot in map/table change frequency and mode
+- Undo to previous frequency and mode is available
+- Currently windows only using OmniRig
+
+::: notes
+- Demostration on non-CAT website
+- Demostration with CAT
+:::
+
 ---
 
 ## Walkthrough
@@ -93,14 +123,15 @@ But that's all features, What really sets us apart is:
 ## Future plans
 
 - CAT Control for linux (And maybe mac)
+- Playback of cluster activity in the last 72 hours
 - Full history search since 1997
 - Rotator integration
-- DX AI Agent in discussions
 - Propagation prediction heatmap overlay
+- DX AI Agent in discussions
 
 ::: notes
 You are more then welcome to suggest improvements.
-Also, this is open source software, you are more then welcome to participate.
+Also, this software is open source, you can contribute.
 :::
 
 ---
@@ -119,3 +150,7 @@ Also, this is open source software, you are more then welcome to participate.
 
 ::: notes
 :::
+
+# Thank you for listening!
+
+---
