@@ -48,7 +48,19 @@
 
 ---
 
-## Current state of DX cluster
+![](imgs/early_cluster1.jpeg)
+
+---
+
+![](imgs/early_cluster2.png)
+
+---
+
+![](imgs/early_cluster3.png)
+
+---
+
+## Current state of DX cluster {data-visibility="hidden"}
 
 - Works well, but old
 - "Legacy web" design, looks like the 90s web
