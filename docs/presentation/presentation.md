@@ -52,7 +52,7 @@ Todo list before starting:
 
 ---
 
-![](imgs/early_cluster1.jpeg)
+![](imgs/early_cluster1.jpeg){.r-stretch}
 
 ---
 
