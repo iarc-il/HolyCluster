@@ -38,7 +38,7 @@ function MapControls({
     is_history_mode,
     toggle_history,
 }) {
-    const { colors } = useColors();
+    const { colors, dev_mode } = useColors();
     const { propagation } = useRestData();
     const { radio_status } = use_radio();
     const { settings } = useSettings();
@@ -530,51 +530,58 @@ function MapControls({
                         <div className="flex items-center gap-3">
                             {overlay_buttons.map(render_overlay_button)}
                         </div>
-                        <div className="flex w-full items-center justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={toggle_voacap}
-                                onMouseEnter={() => set_zone_button_hover("voacap")}
-                                onMouseLeave={() => set_zone_button_hover(null)}
-                                className="flex min-h-9 items-center justify-center whitespace-nowrap rounded-md px-3 text-center text-sm leading-tight"
-                                style={{
-                                    ...zone_button_base_style,
-                                    ...(voacap_on ? zone_button_active_style : {}),
-                                    ...(zone_button_hover === "voacap"
-                                        ? zone_button_hover_style
-                                        : {}),
-                                    color: voacap_on
-                                        ? zone_label_active_color
-                                        : zone_label_inactive_color,
-                                }}
-                                aria-pressed={voacap_on}
-                                title={voacap_on ? "Hide VOACAP overlay" : "Show VOACAP overlay"}
-                            >
-                                <span className={voacap_on ? "font-bold" : "font-medium"}>
-                                    VOACAP
-                                </span>
-                            </button>
-                            {voacap_on && (
-                                <select
-                                    value={voacap_band}
-                                    onChange={event => set_voacap_band(event.target.value)}
-                                    className="h-9 rounded-md px-2 text-sm"
+                        {dev_mode ? (
+                            <div className="flex w-full items-center justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={toggle_voacap}
+                                    onMouseEnter={() => set_zone_button_hover("voacap")}
+                                    onMouseLeave={() => set_zone_button_hover(null)}
+                                    className="flex min-h-9 items-center justify-center whitespace-nowrap rounded-md px-3 text-center text-sm leading-tight"
                                     style={{
-                                        backgroundColor: colors.theme.input_background,
-                                        color: colors.theme.text,
-                                        border: `1px solid ${colors.theme.text}38`,
+                                        ...zone_button_base_style,
+                                        ...(voacap_on ? zone_button_active_style : {}),
+                                        ...(zone_button_hover === "voacap"
+                                            ? zone_button_hover_style
+                                            : {}),
+                                        color: voacap_on
+                                            ? zone_label_active_color
+                                            : zone_label_inactive_color,
                                     }}
-                                    title="VOACAP band"
-                                    aria-label="VOACAP band"
+                                    aria-pressed={voacap_on}
+                                    title={
+                                        voacap_on ? "Hide VOACAP overlay" : "Show VOACAP overlay"
+                                    }
                                 >
-                                    {VOACAP_BANDS.map(band => (
-                                        <option key={band} value={band}>
-                                            {band}m
-                                        </option>
-                                    ))}
-                                </select>
-                            )}
-                        </div>
+                                    <span className={voacap_on ? "font-bold" : "font-medium"}>
+                                        VOACAP
+                                    </span>
+                                </button>
+                                {voacap_on && (
+                                    <select
+                                        value={voacap_band}
+                                        onChange={event => set_voacap_band(event.target.value)}
+                                        className="h-9 rounded-md px-2 text-sm"
+                                        style={{
+                                            backgroundColor: colors.theme.input_background,
+                                            color: colors.theme.text,
+                                            border: `1px solid ${colors.theme.text}38`,
+                                        }}
+                                        title="VOACAP band"
+                                        aria-label="VOACAP band"
+                                    >
+                                        {VOACAP_BANDS.map(band => (
+                                            <option key={band} value={band}>
+                                                {band}m
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                        ) : (
+                            ""
+                        )}
+
                         <div className="flex w-full flex-wrap justify-end gap-2">
                             {country_zone_overlays.map(overlay => {
                                 const active = map_controls[overlay.map_control_key] ?? false;
