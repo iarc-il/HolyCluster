@@ -31,18 +31,13 @@
 ## A bit of history
 
 - **Dani 4Z5SL** used HA8TKS's cluster
+- He wanted his own cluster
 - He talked to **Gil 4Z1KD**
-
-  > *"What good is a cluster if we cannot control it?"*
-
 - Then they called me and **roy 4X5BR**
 
 ::: notes
 - **Dani 4Z5SL** used HA8TKS's cluster with an azimuthal map and suggested improvements But he wanted **his own**.
 - He talked to **Gil 4Z1KD** and they decided to create a cluster they could shape however they want.
-
-  > *"What good is a cluster if we cannot control it?"*
-
 - Then they called me and **roy 4X5BR** and asked us to join and create the dev team
 :::
 
