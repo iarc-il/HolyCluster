@@ -1,6 +1,15 @@
 ## The Holy Cluster
 #### Friedrichshafen 2026
 
+::: notes
+Todo list before starting:
+- Move to a clean desktop workspace
+- Mute whatsapp and slack
+- Open production
+- Open local development server
+- Start windows VM
+- Check CAT control
+:::
 ---
 
 ## Who am I?
