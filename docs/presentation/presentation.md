@@ -113,6 +113,22 @@ But that's all features, What really sets us apart is:
 - 
 :::
 
+## Walkthrough
+
+::: notes
+Non CAT - Open production: https://holycluster.iarc.org/
+- Show map - Azimuthal, globe, night, equator, overlays
+  - Emphesize synchronization with the table
+- Show spot submission, time limit, settings
+- Go over left and right columns
+  - Note: the colors are uniform across the cluster
+- Show advanced filter panel
+  - Some filter (DXCC/CQ/ITU/US/CAN) are visible also on the map and are color coded
+- Show band bar (More relevant with CAT)
+- Show heatmap
+- Show DXpeditions list
+---
+
 ## CAT Control
 
 - Local client that integrates the cluster with the radio
@@ -122,17 +138,12 @@ But that's all features, What really sets us apart is:
 - Currently windows only using OmniRig
 
 ::: notes
-- Demostration on non-CAT website
-- Demostration with CAT
+Open CAT server
 :::
 
 ---
 
-## Walkthrough
-
-
-::: notes
-- Demostration on non-CAT website
+## CAT Control 
 - Demostration with CAT
 :::
 
