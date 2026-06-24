@@ -7,6 +7,8 @@ impl Freq {
         Freq((freq * 1000.0) as u32)
     }
 
+    // Just to ignore dead code warning on linux
+    #[cfg(windows)]
     pub fn from_i32_hz(freq: i32) -> Self {
         Freq(freq as u32)
     }
