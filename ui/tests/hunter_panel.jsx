@@ -178,10 +178,10 @@ describe("HunterPanel", () => {
         await waitFor(() => expect(clear_button.disabled).toBe(false));
         await user.click(clear_button);
 
-        const clear_dialog = screen.getByText("Clear Completed").closest('[role="dialog"]');
-        expect(within(clear_dialog).getByText(/Clear 1 completed DXCC item/)).toBeTruthy();
+        expect(within(dialog).getByText(/Clear 1 completed DXCC item/)).toBeTruthy();
+        expect(screen.getAllByRole("dialog")).toHaveLength(1);
 
-        await user.click(within(clear_dialog).getByRole("button", { name: "Clear" }));
+        await user.click(within(dialog).getByRole("button", { name: "Clear" }));
 
         await waitFor(() => {
             expect(within(dialog).getByText("0/3 complete, 3 missing")).toBeTruthy();

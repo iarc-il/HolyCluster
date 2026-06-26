@@ -438,7 +438,57 @@ function HunterSection({
 }
 
 function ClearCompletedButton({ section, completed_count, colors, on_clear_completed }) {
-    const button = (
+    const [is_confirming, set_is_confirming] = useState(false);
+
+    if (completed_count === 0) {
+        return (
+            <button
+                type="button"
+                className="shrink-0 rounded px-2 py-1 text-[11px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{
+                    backgroundColor: colors.buttons.active_tab,
+                    color: colors.theme.text,
+                }}
+                disabled={true}
+            >
+                Clear
+            </button>
+        );
+    }
+
+    if (is_confirming) {
+        return (
+            <div className="shrink-0 flex items-center gap-1 text-[11px]">
+                <span className="font-semibold">
+                    Clear {completed_count} completed {SECTION_LABELS[section]} item
+                    {completed_count === 1 ? "" : "s"}?
+                </span>
+                <button
+                    type="button"
+                    className="rounded px-2 py-1 font-semibold"
+                    style={{
+                        backgroundColor: colors.buttons.active_tab,
+                        color: colors.theme.text,
+                    }}
+                    onClick={() => set_is_confirming(false)}
+                >
+                    Keep
+                </button>
+                <button
+                    type="button"
+                    className="rounded px-2 py-1 font-semibold text-white bg-red-600 hover:bg-red-700"
+                    onClick={() => {
+                        on_clear_completed(section);
+                        set_is_confirming(false);
+                    }}
+                >
+                    Clear
+                </button>
+            </div>
+        );
+    }
+
+    return (
         <button
             type="button"
             className="shrink-0 rounded px-2 py-1 text-[11px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
@@ -446,32 +496,10 @@ function ClearCompletedButton({ section, completed_count, colors, on_clear_compl
                 backgroundColor: colors.buttons.active_tab,
                 color: colors.theme.text,
             }}
-            disabled={completed_count === 0}
+            onClick={() => set_is_confirming(true)}
         >
             Clear
         </button>
-    );
-
-    if (completed_count === 0) return button;
-
-    return (
-        <Modal
-            title={<h2 className="font-bold">Clear Completed</h2>}
-            button={button}
-            apply_text="Clear"
-            cancel_text="Cancel"
-            on_cancel={() => {}}
-            on_apply={() => {
-                on_clear_completed(section);
-                return true;
-            }}
-        >
-            <div className="p-4 max-w-sm text-sm">
-                Clear {completed_count} completed {SECTION_LABELS[section]} item
-                {completed_count === 1 ? "" : "s"}?<br />
-                This cannot be undone.
-            </div>
-        </Modal>
     );
 }
 
