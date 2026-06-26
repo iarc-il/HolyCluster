@@ -3,6 +3,7 @@ import Input from "@/components/ui/Input.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import Select from "@/components/ui/Select.jsx";
 import { dxcc_entity_options, get_dxcc_label } from "@/data/dxcc_entities.js";
+import { HUNTER_SECTION_KEYS, HUNTER_SECTION_LABELS } from "@/data/hunter_sections.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
@@ -21,6 +22,7 @@ export const empty_filter_data = {
     value: "",
     spotter_or_dx: "dx",
     zone_system: "cq",
+    hunter_section: "dxcc",
 };
 
 function RadioButton({ children, disabled, on_click }) {
@@ -143,17 +145,28 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                 }
             }}
             on_apply={() => {
-                const draft_filter =
-                    temp_data.type === "zone" || temp_data.type === "zone_region"
-                        ? {
-                              ...temp_data,
-                              type: "zone",
-                              value: normalize_zone_value(
-                                  temp_data.zone_system || "cq",
-                                  temp_data.value,
-                              ),
-                          }
-                        : temp_data;
+                const draft_filter = (() => {
+                    if (temp_data.type === "zone" || temp_data.type === "zone_region") {
+                        return {
+                            ...temp_data,
+                            type: "zone",
+                            value: normalize_zone_value(
+                                temp_data.zone_system || "cq",
+                                temp_data.value,
+                            ),
+                        };
+                    }
+
+                    if (temp_data.type === "hunter") {
+                        return {
+                            action: temp_data.action,
+                            type: "hunter",
+                            hunter_section: temp_data.hunter_section,
+                        };
+                    }
+
+                    return temp_data;
+                })();
 
                 if (temp_data.type === "zone" || temp_data.type === "zone_region") {
                     if (!is_valid_zone_number(temp_data.zone_system, temp_data.value)) {
@@ -165,6 +178,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                 const is_value_required =
                     temp_data.type !== "self_spotters" &&
                     temp_data.type !== "dxpeditions" &&
+                    temp_data.type !== "hunter" &&
                     temp_data.type !== "zone" &&
                     temp_data.type !== "zone_region";
                 if (is_value_required && temp_data.value.toString().trim().length === 0) {
@@ -204,6 +218,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                         { label: "US/Canada", value: "zone_region" },
                         { label: "Zone", value: "zone" },
                         { label: "Comment", value: "comment" },
+                        { label: "Hunter", value: "hunter" },
                         { label: "Self Spotters", value: "self_spotters" },
                         { label: "DXpeditions", value: "dxpeditions" },
                     ]}
@@ -231,6 +246,15 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                 [field]: value,
                                 value: "1",
                                 zone_system: temp_data.zone_system || "cq",
+                                spotter_or_dx: "dx",
+                            };
+                        }
+                        if (value === "hunter") {
+                            return {
+                                ...temp_data,
+                                [field]: value,
+                                hunter_section: temp_data.hunter_section || "dxcc",
+                                value: "",
                                 spotter_or_dx: "dx",
                             };
                         }
@@ -344,6 +368,29 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                     )}
                                 </Select>
                             </div>
+                        </div>
+                    </>
+                ) : temp_data.type === "hunter" ? (
+                    <>
+                        <hr />
+                        <div className="flex justify-start space-x-5 items-center w-full">
+                            <div>section:</div>
+                            <Select
+                                value={temp_data.hunter_section || "dxcc"}
+                                className="h-10 w-48"
+                                onChange={event => {
+                                    set_temp_data({
+                                        ...temp_data,
+                                        hunter_section: event.target.value,
+                                    });
+                                }}
+                            >
+                                {HUNTER_SECTION_KEYS.map(section => (
+                                    <option key={section} value={section}>
+                                        {HUNTER_SECTION_LABELS[section]}
+                                    </option>
+                                ))}
+                            </Select>
                         </div>
                     </>
                 ) : temp_data.type !== "self_spotters" &&

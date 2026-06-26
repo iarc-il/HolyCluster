@@ -224,6 +224,16 @@ describe("profile_data", () => {
                         spotter_or_dx: "dx",
                         value: "VK",
                     },
+                    {
+                        action: "show_only",
+                        type: "hunter",
+                        hunter_section: "dxcc",
+                    },
+                    {
+                        action: "hide",
+                        type: "hunter",
+                        hunter_section: "unknown",
+                    },
                 ],
             }),
             map_controls: json({
@@ -267,6 +277,11 @@ describe("profile_data", () => {
                 type: "prefix",
                 value: "VK",
                 spotter_or_dx: "dx",
+            },
+            {
+                action: "show_only",
+                type: "hunter",
+                hunter_section: "dxcc",
             },
         ]);
         expect(data.map_controls.night).toBe(true);

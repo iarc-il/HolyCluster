@@ -5,6 +5,7 @@ import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
 
 import { get_dxcc_label } from "@/data/dxcc_entities.js";
+import { HUNTER_SECTION_LABELS } from "@/data/hunter_sections.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
@@ -18,6 +19,7 @@ const FILTER_TYPE_LABELS = {
     entity: "Ent",
     zone: "Zone",
     comment: "Cmt",
+    hunter: "Htr",
 };
 
 const SPOTTER_DX_LABELS = {
@@ -141,6 +143,26 @@ function ZoneFilterBadge({ filter, listeners, attributes }) {
     );
 }
 
+function HunterFilterBadge({ filter, listeners, attributes }) {
+    const section_label = HUNTER_SECTION_LABELS[filter.hunter_section] ?? filter.hunter_section;
+
+    return (
+        <div className="flex items-center gap-1">
+            <FilterBadge
+                listeners={listeners}
+                attributes={attributes}
+                className="cursor-grab active:cursor-grabbing w-24"
+                title={`Hunter ${section_label}`}
+            >
+                Hunter
+            </FilterBadge>
+            <FilterBadge className="px-2 w-fit max-w-40" title={section_label}>
+                {section_label}
+            </FilterBadge>
+        </div>
+    );
+}
+
 function FilterContent({ filter, listeners, attributes, colors }) {
     const is_special_filter = filter.type === "self_spotters" || filter.type === "dxpeditions";
     const filter_value = filter.type === "entity" ? get_dxcc_label(filter.value) : filter.value;
@@ -153,6 +175,10 @@ function FilterContent({ filter, listeners, attributes, colors }) {
 
     if (filter.type === "zone") {
         return <ZoneFilterBadge filter={filter} listeners={listeners} attributes={attributes} />;
+    }
+
+    if (filter.type === "hunter") {
+        return <HunterFilterBadge filter={filter} listeners={listeners} attributes={attributes} />;
     }
 
     if (filter.type === "comment") {

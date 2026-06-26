@@ -30,6 +30,8 @@ function normalize_filter_criteria(filter) {
     } else if (type === "zone") {
         normalized.zone_system = filter.zone_system || "cq";
         normalized.value = normalize_zone_value(normalized.zone_system, filter.value);
+    } else if (type === "hunter") {
+        normalized.hunter_section = filter.hunter_section;
     } else if (type === "comment") {
         normalized.value = normalize_filter_text(filter.value);
     }
@@ -65,6 +67,10 @@ function is_same_filter_criteria(filter_a, filter_b) {
 
     if (normalized_a.type === "comment") {
         return normalized_a.value === normalized_b.value;
+    }
+
+    if (normalized_a.type === "hunter") {
+        return normalized_a.hunter_section === normalized_b.hunter_section;
     }
 
     return true;
