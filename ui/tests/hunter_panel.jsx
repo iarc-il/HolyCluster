@@ -195,12 +195,12 @@ describe("HunterPanel", () => {
         const user = userEvent.setup();
         render_hunter_panel();
 
-        const states_section = section_by_heading("US States");
+        const states_section = section_by_heading("US");
         await user.click(within(states_section).getByRole("button", { name: "Edit" }));
         const dialog = await screen.findByRole("dialog");
         expect(within(dialog).getByText("AL - Alabama")).toBeTruthy();
 
-        await user.type(within(dialog).getByPlaceholderText("Search US States"), "District");
+        await user.type(within(dialog).getByPlaceholderText("Search US"), "District");
 
         expect(within(dialog).getByText("DC - District of Columbia")).toBeTruthy();
         expect(within(dialog).queryByText("AL - Alabama")).toBeNull();
@@ -216,7 +216,7 @@ describe("HunterPanel", () => {
 
         render_hunter_panel(profile_data);
 
-        const cq_section = section_by_heading("CQ Zones");
+        const cq_section = section_by_heading("CQ");
         expect(within(cq_section).getByText("40/40 done, 0 needed")).toBeTruthy();
 
         await user.click(within(cq_section).getByRole("button", { name: "Edit" }));
