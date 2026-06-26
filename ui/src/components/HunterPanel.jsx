@@ -173,6 +173,28 @@ function SectionDoneState({ section }) {
     );
 }
 
+function SectionStats({ done_count, needed_count, total_count }) {
+    return (
+        <div className="mt-2 space-y-1 text-sm">
+            <div className="flex items-baseline gap-3" aria-label={`${done_count} done`}>
+                <span className="w-14 opacity-80">Done</span>
+                <span className="text-lg font-bold tabular-nums text-green-500">{done_count}</span>
+            </div>
+            <div className="flex items-baseline gap-3" aria-label={`${needed_count} needed`}>
+                <span className="w-14 opacity-80">Needed</span>
+                <span className="text-lg font-bold tabular-nums text-red-500">{needed_count}</span>
+            </div>
+            <div
+                className="flex items-baseline gap-3 text-slate-400"
+                aria-label={`${total_count} total`}
+            >
+                <span className="w-14">Total</span>
+                <span className="text-lg font-semibold tabular-nums">{total_count}</span>
+            </div>
+        </div>
+    );
+}
+
 function HunterSectionCard({ section, items, hunter, colors, on_apply_section }) {
     const worked_values = hunter.worked[section]?.global ?? [];
     const { done_count, needed_count } = get_section_progress(items, worked_values);
@@ -186,9 +208,11 @@ function HunterSectionCard({ section, items, hunter, colors, on_apply_section })
             <div className="flex items-start justify-between gap-3">
                 <div>
                     <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
-                    <p className="text-xs opacity-75">
-                        {done_count}/{items.length} done, {needed_count} needed
-                    </p>
+                    <SectionStats
+                        done_count={done_count}
+                        needed_count={needed_count}
+                        total_count={items.length}
+                    />
                 </div>
             </div>
 
@@ -301,9 +325,11 @@ function HunterSection({
             <div className="flex items-start justify-between gap-3">
                 <div>
                     <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
-                    <p className="text-xs opacity-75">
-                        {done_count}/{items.length} done, {needed_count} needed
-                    </p>
+                    <SectionStats
+                        done_count={done_count}
+                        needed_count={needed_count}
+                        total_count={items.length}
+                    />
                 </div>
             </div>
 

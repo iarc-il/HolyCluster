@@ -51,6 +51,13 @@ function section_by_heading(name) {
     return screen.getByRole("heading", { name }).closest("section");
 }
 
+function expect_section_stats(container, { done, needed, total }) {
+    const scoped = within(container);
+    expect(scoped.getByLabelText(`${done} done`)).toBeTruthy();
+    expect(scoped.getByLabelText(`${needed} needed`)).toBeTruthy();
+    expect(scoped.getByLabelText(`${total} total`)).toBeTruthy();
+}
+
 describe("HunterPanel", () => {
     beforeEach(() => {
         window.localStorage.clear();
@@ -65,7 +72,7 @@ describe("HunterPanel", () => {
         render_hunter_panel();
 
         const dxcc_section = section_by_heading("DXCC");
-        expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+        expect_section_stats(dxcc_section, { done: 0, needed: 3, total: 3 });
         expect(within(dxcc_section).getByRole("button", { name: "Edit" })).toBeTruthy();
         expect(within(dxcc_section).queryByRole("switch")).toBeNull();
     });
@@ -79,7 +86,7 @@ describe("HunterPanel", () => {
 
         const dialog = await screen.findByRole("dialog");
         expect(within(dialog).getAllByRole("heading", { name: "DXCC" }).length).toBeGreaterThan(0);
-        expect(within(dialog).getByText("0/3 done, 3 needed")).toBeTruthy();
+        expect_section_stats(dialog, { done: 0, needed: 3, total: 3 });
         expect(within(dialog).getByText("Germany")).toBeTruthy();
         expect(within(dialog).queryByRole("switch")).toBeNull();
         expect(within(dialog).getByRole("button", { name: "Apply" })).toBeTruthy();
@@ -97,8 +104,8 @@ describe("HunterPanel", () => {
         await user.click(within(dialog).getByRole("button", { name: "Mark Germany done" }));
 
         await waitFor(() => {
-            expect(within(dialog).getByText("1/3 done, 2 needed")).toBeTruthy();
-            expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+            expect_section_stats(dialog, { done: 1, needed: 2, total: 3 });
+            expect_section_stats(dxcc_section, { done: 0, needed: 3, total: 3 });
         });
         expect(within(dialog).queryByText("Germany")).toBeNull();
 
@@ -106,7 +113,7 @@ describe("HunterPanel", () => {
 
         await waitFor(() => {
             expect(screen.queryByRole("dialog")).toBeNull();
-            expect(within(dxcc_section).getByText("1/3 done, 2 needed")).toBeTruthy();
+            expect_section_stats(dxcc_section, { done: 1, needed: 2, total: 3 });
         });
 
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
@@ -121,7 +128,7 @@ describe("HunterPanel", () => {
 
         await waitFor(() => {
             expect(screen.queryByRole("dialog")).toBeNull();
-            expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+            expect_section_stats(dxcc_section, { done: 0, needed: 3, total: 3 });
         });
     });
 
@@ -135,19 +142,19 @@ describe("HunterPanel", () => {
 
         await user.click(within(dialog).getByRole("button", { name: "Mark Germany done" }));
 
-        expect(within(dialog).getByText("1/3 done, 2 needed")).toBeTruthy();
-        expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+        expect_section_stats(dialog, { done: 1, needed: 2, total: 3 });
+        expect_section_stats(dxcc_section, { done: 0, needed: 3, total: 3 });
 
         await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
         await waitFor(() => {
             expect(screen.queryByRole("dialog")).toBeNull();
-            expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+            expect_section_stats(dxcc_section, { done: 0, needed: 3, total: 3 });
         });
 
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
         const reopened_dialog = await screen.findByRole("dialog");
-        expect(within(reopened_dialog).getByText("0/3 done, 3 needed")).toBeTruthy();
+        expect_section_stats(reopened_dialog, { done: 0, needed: 3, total: 3 });
         expect(within(reopened_dialog).getByText("Germany")).toBeTruthy();
         expect(within(reopened_dialog).queryByRole("switch")).toBeNull();
     });
@@ -159,7 +166,7 @@ describe("HunterPanel", () => {
         render_hunter_panel(profile_data);
 
         const dxcc_section = section_by_heading("DXCC");
-        expect(within(dxcc_section).getByText("1/3 done, 2 needed")).toBeTruthy();
+        expect_section_stats(dxcc_section, { done: 1, needed: 2, total: 3 });
 
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
         const dialog = await screen.findByRole("dialog");
@@ -175,8 +182,8 @@ describe("HunterPanel", () => {
         await user.click(within(dialog).getByRole("button", { name: "Clear" }));
 
         await waitFor(() => {
-            expect(within(dialog).getByText("0/3 done, 3 needed")).toBeTruthy();
-            expect(within(dxcc_section).getByText("1/3 done, 2 needed")).toBeTruthy();
+            expect_section_stats(dialog, { done: 0, needed: 3, total: 3 });
+            expect_section_stats(dxcc_section, { done: 1, needed: 2, total: 3 });
         });
         await user.click(within(dialog).getByRole("button", { name: "Needed" }));
         expect(within(dialog).getByText("Germany")).toBeTruthy();
@@ -187,7 +194,7 @@ describe("HunterPanel", () => {
 
         await waitFor(() => {
             expect(screen.queryByRole("dialog")).toBeNull();
-            expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+            expect_section_stats(dxcc_section, { done: 0, needed: 3, total: 3 });
         });
     });
 
@@ -217,7 +224,7 @@ describe("HunterPanel", () => {
         render_hunter_panel(profile_data);
 
         const cq_section = section_by_heading("CQ");
-        expect(within(cq_section).getByText("40/40 done, 0 needed")).toBeTruthy();
+        expect_section_stats(cq_section, { done: 40, needed: 0, total: 40 });
 
         await user.click(within(cq_section).getByRole("button", { name: "Edit" }));
         const dialog = await screen.findByRole("dialog");
