@@ -125,6 +125,30 @@ function sum_added_counts(added_counts) {
     return Object.values(added_counts ?? {}).reduce((sum, count) => sum + Number(count || 0), 0);
 }
 
+function get_section_progress(items, worked_values) {
+    const worked = new Set(worked_values);
+    const completed_count = items.filter(item => worked.has(item.value)).length;
+    const missing_count = items.length - completed_count;
+
+    return {
+        worked,
+        completed_count,
+        missing_count,
+        is_section_complete: missing_count === 0 && items.length > 0,
+    };
+}
+
+function get_visible_section_items(items, worked, list_mode, search) {
+    const normalized_search = search.trim().toLowerCase();
+
+    return items.filter(item => {
+        const is_completed = worked.has(item.value);
+        if (list_mode === "missing" && is_completed) return false;
+        if (list_mode === "completed" && !is_completed) return false;
+        return normalized_search.length === 0 || item.search.includes(normalized_search);
+    });
+}
+
 function TrophyIcon() {
     return (
         <svg
@@ -155,6 +179,82 @@ function SectionCompleteState({ section }) {
     );
 }
 
+function HunterSectionCard({
+    section,
+    items,
+    hunter,
+    list_mode,
+    search,
+    colors,
+    on_toggle_section,
+    on_set_list_mode,
+    on_set_search,
+    on_set_complete,
+    on_clear_completed,
+}) {
+    const worked_values = hunter.worked[section]?.global ?? [];
+    const { completed_count, missing_count } = get_section_progress(items, worked_values);
+    const progress_percentage = items.length === 0 ? 0 : (completed_count / items.length) * 100;
+
+    return (
+        <section
+            className="rounded-lg border p-3 space-y-3"
+            style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
+                    <p className="text-xs opacity-75">
+                        {completed_count}/{items.length} done, {missing_count} needed
+                    </p>
+                </div>
+                <Toggle
+                    value={hunter.enabled_sections[section]}
+                    on_click={() => on_toggle_section(section)}
+                />
+            </div>
+
+            <div className="h-2 rounded-full overflow-hidden bg-slate-500/30">
+                <div className="h-full bg-green-500" style={{ width: `${progress_percentage}%` }} />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 text-sm">
+                <span
+                    className="rounded-full px-2 py-1 text-xs font-semibold"
+                    style={{ backgroundColor: colors.theme.background }}
+                >
+                    {hunter.enabled_sections[section] ? "Enabled" : "Disabled"}
+                </span>
+                <Modal
+                    title={<h2 className="font-bold">{SECTION_LABELS[section]}</h2>}
+                    button={
+                        <Button type="button" color="blue" className="px-3 py-1">
+                            Edit
+                        </Button>
+                    }
+                    modal_style={{ width: "min(42rem, calc(100vw - 2rem))" }}
+                >
+                    <div className="p-3">
+                        <HunterSection
+                            section={section}
+                            items={items}
+                            hunter={hunter}
+                            list_mode={list_mode}
+                            search={search}
+                            colors={colors}
+                            on_toggle_section={on_toggle_section}
+                            on_set_list_mode={on_set_list_mode}
+                            on_set_search={on_set_search}
+                            on_set_complete={on_set_complete}
+                            on_clear_completed={on_clear_completed}
+                        />
+                    </div>
+                </Modal>
+            </div>
+        </section>
+    );
+}
+
 function HunterSection({
     section,
     items,
@@ -169,17 +269,11 @@ function HunterSection({
     on_clear_completed,
 }) {
     const worked_values = hunter.worked[section]?.global ?? [];
-    const worked = new Set(worked_values);
-    const completed_count = items.filter(item => worked.has(item.value)).length;
-    const missing_count = items.length - completed_count;
-    const is_section_complete = missing_count === 0 && items.length > 0;
-    const normalized_search = search.trim().toLowerCase();
-    const visible_items = items.filter(item => {
-        const is_completed = worked.has(item.value);
-        if (list_mode === "missing" && is_completed) return false;
-        if (list_mode === "completed" && !is_completed) return false;
-        return normalized_search.length === 0 || item.search.includes(normalized_search);
-    });
+    const { worked, completed_count, missing_count, is_section_complete } = get_section_progress(
+        items,
+        worked_values,
+    );
+    const visible_items = get_visible_section_items(items, worked, list_mode, search);
 
     return (
         <section
@@ -546,7 +640,7 @@ export default function HunterPanel() {
             </section>
 
             {HUNTER_SECTION_KEYS.map(section => (
-                <HunterSection
+                <HunterSectionCard
                     key={section}
                     section={section}
                     items={section_items[section]}

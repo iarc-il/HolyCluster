@@ -61,97 +61,114 @@ describe("HunterPanel", () => {
         window.localStorage.clear();
     });
 
-    it("shows the missing list by default and toggles a hunter section", async () => {
+    it("shows section summaries and toggles a hunter section", async () => {
         const user = userEvent.setup();
         render_hunter_panel();
 
         const dxcc_section = section_by_heading("DXCC");
-        expect(within(dxcc_section).getByText("0/3 complete, 3 missing")).toBeTruthy();
-        expect(within(dxcc_section).getByText("Germany")).toBeTruthy();
+        expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+        expect(within(dxcc_section).getByText("Disabled")).toBeTruthy();
 
         const dxcc_toggle = within(dxcc_section).getByRole("switch");
         expect(dxcc_toggle.getAttribute("aria-checked")).toBe("false");
 
         await user.click(dxcc_toggle);
 
-        await waitFor(() => expect(dxcc_toggle.getAttribute("aria-checked")).toBe("true"));
+        await waitFor(() => {
+            expect(dxcc_toggle.getAttribute("aria-checked")).toBe("true");
+            expect(within(dxcc_section).getByText("Enabled")).toBeTruthy();
+        });
     });
 
-    it("manually marks items complete and incomplete", async () => {
+    it("opens a section edit modal", async () => {
         const user = userEvent.setup();
         render_hunter_panel();
 
         const dxcc_section = section_by_heading("DXCC");
-        await user.click(
-            within(dxcc_section).getByRole("button", { name: "Mark Germany complete" }),
-        );
+        await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
 
-        await waitFor(() =>
-            expect(within(dxcc_section).getByText("1/3 complete, 2 missing")).toBeTruthy(),
-        );
-        expect(within(dxcc_section).queryByText("Germany")).toBeNull();
-
-        await user.click(within(dxcc_section).getByRole("button", { name: "Completed" }));
-        expect(within(dxcc_section).getByText("Germany")).toBeTruthy();
-
-        await user.click(
-            within(dxcc_section).getByRole("button", { name: "Mark Germany incomplete" }),
-        );
-
-        await waitFor(() =>
-            expect(within(dxcc_section).getByText("0/3 complete, 3 missing")).toBeTruthy(),
-        );
+        const dialog = await screen.findByRole("dialog");
+        expect(within(dialog).getAllByRole("heading", { name: "DXCC" }).length).toBeGreaterThan(0);
+        expect(within(dialog).getByText("0/3 complete, 3 missing")).toBeTruthy();
+        expect(within(dialog).getByText("Germany")).toBeTruthy();
     });
 
-    it("clears completed items in one section", async () => {
+    it("manually marks items complete and incomplete from the edit modal", async () => {
         const user = userEvent.setup();
         render_hunter_panel();
 
         const dxcc_section = section_by_heading("DXCC");
-        expect(within(dxcc_section).queryByRole("button", { name: "Clear" })).toBeNull();
+        await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
+        const dialog = await screen.findByRole("dialog");
 
-        await user.click(
-            within(dxcc_section).getByRole("button", { name: "Mark Germany complete" }),
-        );
-        await user.click(within(dxcc_section).getByRole("button", { name: "Completed" }));
+        await user.click(within(dialog).getByRole("button", { name: "Mark Germany complete" }));
 
-        const clear_button = within(dxcc_section).getByRole("button", { name: "Clear" });
+        await waitFor(() => {
+            expect(within(dialog).getByText("1/3 complete, 2 missing")).toBeTruthy();
+            expect(within(dxcc_section).getByText("1/3 done, 2 needed")).toBeTruthy();
+        });
+        expect(within(dialog).queryByText("Germany")).toBeNull();
+
+        await user.click(within(dialog).getByRole("button", { name: "Completed" }));
+        expect(within(dialog).getByText("Germany")).toBeTruthy();
+
+        await user.click(within(dialog).getByRole("button", { name: "Mark Germany incomplete" }));
+
+        await waitFor(() => {
+            expect(within(dialog).getByText("0/3 complete, 3 missing")).toBeTruthy();
+            expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+        });
+    });
+
+    it("clears completed items in one section from the edit modal", async () => {
+        const user = userEvent.setup();
+        render_hunter_panel();
+
+        const dxcc_section = section_by_heading("DXCC");
+        await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
+        const dialog = await screen.findByRole("dialog");
+        expect(within(dialog).queryByRole("button", { name: "Clear" })).toBeNull();
+
+        await user.click(within(dialog).getByRole("button", { name: "Mark Germany complete" }));
+        await user.click(within(dialog).getByRole("button", { name: "Completed" }));
+
+        const clear_button = within(dialog).getByRole("button", { name: "Clear" });
         await waitFor(() => expect(clear_button.disabled).toBe(false));
         await user.click(clear_button);
 
-        const dialog = await screen.findByRole("dialog");
-        expect(within(dialog).getByText("Clear Completed")).toBeTruthy();
-        expect(within(dialog).getByText(/Clear 1 completed DXCC item/)).toBeTruthy();
-        expect(within(dxcc_section).getByText("1/3 complete, 2 missing")).toBeTruthy();
+        const clear_dialog = screen.getByText("Clear Completed").closest('[role="dialog"]');
+        expect(within(clear_dialog).getByText(/Clear 1 completed DXCC item/)).toBeTruthy();
+        expect(within(dxcc_section).getByText("1/3 done, 2 needed")).toBeTruthy();
 
-        await user.click(within(dialog).getByRole("button", { name: "Clear" }));
+        await user.click(within(clear_dialog).getByRole("button", { name: "Clear" }));
 
-        await waitFor(() =>
-            expect(within(dxcc_section).getByText("0/3 complete, 3 missing")).toBeTruthy(),
-        );
-        await user.click(within(dxcc_section).getByRole("button", { name: "Missing" }));
-        expect(within(dxcc_section).getByText("Germany")).toBeTruthy();
-        await user.click(within(dxcc_section).getByRole("button", { name: "Completed" }));
-        expect(within(dxcc_section).getByRole("button", { name: "Clear" }).disabled).toBe(true);
+        await waitFor(() => {
+            expect(within(dialog).getByText("0/3 complete, 3 missing")).toBeTruthy();
+            expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+        });
+        await user.click(within(dialog).getByRole("button", { name: "Missing" }));
+        expect(within(dialog).getByText("Germany")).toBeTruthy();
+        await user.click(within(dialog).getByRole("button", { name: "Completed" }));
+        expect(within(dialog).getByRole("button", { name: "Clear" }).disabled).toBe(true);
     });
 
-    it("filters the visible list", async () => {
+    it("filters the visible list from the edit modal", async () => {
         const user = userEvent.setup();
         render_hunter_panel();
 
         const states_section = section_by_heading("US States");
-        expect(within(states_section).getByText("AL - Alabama")).toBeTruthy();
+        await user.click(within(states_section).getByRole("button", { name: "Edit" }));
+        const dialog = await screen.findByRole("dialog");
+        expect(within(dialog).getByText("AL - Alabama")).toBeTruthy();
 
-        await user.type(
-            within(states_section).getByPlaceholderText("Search US States"),
-            "District",
-        );
+        await user.type(within(dialog).getByPlaceholderText("Search US States"), "District");
 
-        expect(within(states_section).getByText("DC - District of Columbia")).toBeTruthy();
-        expect(within(states_section).queryByText("AL - Alabama")).toBeNull();
+        expect(within(dialog).getByText("DC - District of Columbia")).toBeTruthy();
+        expect(within(dialog).queryByText("AL - Alabama")).toBeNull();
     });
 
-    it("shows a trophy message when a section has no missing items", () => {
+    it("shows completed section progress in summaries and edit modal", async () => {
+        const user = userEvent.setup();
         const profile_data = create_default_profile_data();
         profile_data.hunter.worked.cq_zone.global = Array.from(
             { length: 40 },
@@ -161,10 +178,14 @@ describe("HunterPanel", () => {
         render_hunter_panel(profile_data);
 
         const cq_section = section_by_heading("CQ Zones");
-        expect(within(cq_section).getByRole("img", { name: "Trophy" })).toBeTruthy();
-        expect(within(cq_section).getByText("No CQ zones left")).toBeTruthy();
-        expect(within(cq_section).getByText("Well done!")).toBeTruthy();
-        expect(within(cq_section).queryByText("No missing items match.")).toBeNull();
+        expect(within(cq_section).getByText("40/40 done, 0 needed")).toBeTruthy();
+
+        await user.click(within(cq_section).getByRole("button", { name: "Edit" }));
+        const dialog = await screen.findByRole("dialog");
+        expect(within(dialog).getByRole("img", { name: "Trophy" })).toBeTruthy();
+        expect(within(dialog).getByText("No CQ zones left")).toBeTruthy();
+        expect(within(dialog).getByText("Well done!")).toBeTruthy();
+        expect(within(dialog).queryByText("No missing items match.")).toBeNull();
     });
 
     it("shows recent import metadata", () => {
