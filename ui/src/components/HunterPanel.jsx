@@ -179,19 +179,7 @@ function SectionCompleteState({ section }) {
     );
 }
 
-function HunterSectionCard({
-    section,
-    items,
-    hunter,
-    list_mode,
-    search,
-    colors,
-    on_toggle_section,
-    on_set_list_mode,
-    on_set_search,
-    on_set_complete,
-    on_clear_completed,
-}) {
+function HunterSectionCard({ section, items, hunter, colors, on_apply_section }) {
     const worked_values = hunter.worked[section]?.global ?? [];
     const { completed_count, missing_count } = get_section_progress(items, worked_values);
     const progress_percentage = items.length === 0 ? 0 : (completed_count / items.length) * 100;
@@ -208,50 +196,100 @@ function HunterSectionCard({
                         {completed_count}/{items.length} done, {missing_count} needed
                     </p>
                 </div>
-                <Toggle
-                    value={hunter.enabled_sections[section]}
-                    on_click={() => on_toggle_section(section)}
-                />
-            </div>
-
-            <div className="h-2 rounded-full overflow-hidden bg-slate-500/30">
-                <div className="h-full bg-green-500" style={{ width: `${progress_percentage}%` }} />
-            </div>
-
-            <div className="flex items-center justify-between gap-3 text-sm">
                 <span
                     className="rounded-full px-2 py-1 text-xs font-semibold"
                     style={{ backgroundColor: colors.theme.background }}
                 >
                     {hunter.enabled_sections[section] ? "Enabled" : "Disabled"}
                 </span>
-                <Modal
-                    title={<h2 className="font-bold">{SECTION_LABELS[section]}</h2>}
-                    button={
-                        <Button type="button" color="blue" className="px-3 py-1">
-                            Edit
-                        </Button>
-                    }
-                    modal_style={{ width: "min(42rem, calc(100vw - 2rem))" }}
-                >
-                    <div className="p-3">
-                        <HunterSection
-                            section={section}
-                            items={items}
-                            hunter={hunter}
-                            list_mode={list_mode}
-                            search={search}
-                            colors={colors}
-                            on_toggle_section={on_toggle_section}
-                            on_set_list_mode={on_set_list_mode}
-                            on_set_search={on_set_search}
-                            on_set_complete={on_set_complete}
-                            on_clear_completed={on_clear_completed}
-                        />
-                    </div>
-                </Modal>
             </div>
+
+            <div className="h-2 rounded-full overflow-hidden bg-slate-500/30">
+                <div className="h-full bg-green-500" style={{ width: `${progress_percentage}%` }} />
+            </div>
+
+            <HunterSectionModal
+                section={section}
+                items={items}
+                hunter={hunter}
+                colors={colors}
+                on_apply_section={on_apply_section}
+            />
         </section>
+    );
+}
+
+function HunterSectionModal({ section, items, hunter, colors, on_apply_section }) {
+    const [draft_enabled, set_draft_enabled] = useState(hunter.enabled_sections[section]);
+    const [draft_worked_values, set_draft_worked_values] = useState(
+        hunter.worked[section]?.global ?? [],
+    );
+    const [list_mode, set_list_mode] = useState("missing");
+    const [search, set_search] = useState("");
+    const draft_hunter = {
+        ...hunter,
+        enabled_sections: {
+            ...hunter.enabled_sections,
+            [section]: draft_enabled,
+        },
+        worked: {
+            ...hunter.worked,
+            [section]: {
+                ...(hunter.worked[section] ?? {}),
+                global: draft_worked_values,
+            },
+        },
+    };
+
+    function reset_draft() {
+        set_draft_enabled(hunter.enabled_sections[section]);
+        set_draft_worked_values([...(hunter.worked[section]?.global ?? [])]);
+        set_list_mode("missing");
+        set_search("");
+    }
+
+    function set_complete(_section, value, is_complete) {
+        set_draft_worked_values(current => {
+            if (is_complete) {
+                return current.includes(value) ? current : [...current, value];
+            }
+
+            return current.filter(existing_value => existing_value !== value);
+        });
+    }
+
+    return (
+        <Modal
+            title={<h2 className="font-bold">{SECTION_LABELS[section]}</h2>}
+            button={
+                <Button type="button" color="blue" className="px-3 py-1">
+                    Edit
+                </Button>
+            }
+            on_open={reset_draft}
+            on_cancel={reset_draft}
+            on_apply={() => {
+                on_apply_section(section, draft_enabled, draft_worked_values);
+                return true;
+            }}
+            modal_style={{ width: "min(42rem, calc(100vw - 2rem))" }}
+        >
+            <div className="p-3">
+                <HunterSection
+                    section={section}
+                    items={items}
+                    hunter={draft_hunter}
+                    list_mode={list_mode}
+                    search={search}
+                    colors={colors}
+                    on_toggle_section={() => set_draft_enabled(current => !current)}
+                    on_set_list_mode={(_section, mode) => set_list_mode(mode)}
+                    on_set_search={(_section, next_search) => set_search(next_search)}
+                    on_set_complete={set_complete}
+                    on_clear_completed={() => set_draft_worked_values([])}
+                />
+            </div>
+        </Modal>
     );
 }
 
@@ -474,12 +512,6 @@ export default function HunterPanel() {
         active_profile_data: { hunter },
         update_active_profile_section,
     } = useProfiles();
-    const [list_modes, set_list_modes] = useState(
-        Object.fromEntries(HUNTER_SECTION_KEYS.map(section => [section, "missing"])),
-    );
-    const [searches, set_searches] = useState(
-        Object.fromEntries(HUNTER_SECTION_KEYS.map(section => [section, ""])),
-    );
     const [import_error, set_import_error] = useState("");
     const [is_importing, set_is_importing] = useState(false);
     const [import_progress, set_import_progress] = useState(null);
@@ -489,54 +521,21 @@ export default function HunterPanel() {
         update_active_profile_section("hunter", current => updater(current));
     }
 
-    function toggle_section(section) {
+    function apply_section(section, enabled, worked_values) {
         update_hunter(current => ({
             ...current,
             enabled_sections: {
                 ...current.enabled_sections,
-                [section]: !current.enabled_sections[section],
+                [section]: enabled,
             },
-        }));
-    }
-
-    function set_complete(section, value, is_complete) {
-        update_hunter(current => {
-            const existing = current.worked[section]?.global ?? [];
-            const next_values = is_complete
-                ? existing.includes(value)
-                    ? existing
-                    : [...existing, value]
-                : existing.filter(existing_value => existing_value !== value);
-
-            return {
-                ...current,
-                worked: {
-                    ...current.worked,
-                    [section]: { global: next_values },
-                },
-            };
-        });
-    }
-
-    function clear_completed(section) {
-        update_hunter(current => ({
-            ...current,
             worked: {
                 ...current.worked,
                 [section]: {
                     ...(current.worked[section] ?? {}),
-                    global: [],
+                    global: worked_values,
                 },
             },
         }));
-    }
-
-    function set_list_mode(section, mode) {
-        set_list_modes(current => ({ ...current, [section]: mode }));
-    }
-
-    function set_search(section, search) {
-        set_searches(current => ({ ...current, [section]: search }));
     }
 
     async function handle_import_file(event) {
@@ -645,14 +644,8 @@ export default function HunterPanel() {
                     section={section}
                     items={section_items[section]}
                     hunter={hunter}
-                    list_mode={list_modes[section]}
-                    search={searches[section]}
                     colors={colors}
-                    on_toggle_section={toggle_section}
-                    on_set_list_mode={set_list_mode}
-                    on_set_search={set_search}
-                    on_set_complete={set_complete}
-                    on_clear_completed={clear_completed}
+                    on_apply_section={apply_section}
                 />
             ))}
 

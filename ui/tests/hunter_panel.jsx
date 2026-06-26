@@ -61,23 +61,14 @@ describe("HunterPanel", () => {
         window.localStorage.clear();
     });
 
-    it("shows section summaries and toggles a hunter section", async () => {
-        const user = userEvent.setup();
+    it("shows section summaries", () => {
         render_hunter_panel();
 
         const dxcc_section = section_by_heading("DXCC");
         expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
         expect(within(dxcc_section).getByText("Disabled")).toBeTruthy();
-
-        const dxcc_toggle = within(dxcc_section).getByRole("switch");
-        expect(dxcc_toggle.getAttribute("aria-checked")).toBe("false");
-
-        await user.click(dxcc_toggle);
-
-        await waitFor(() => {
-            expect(dxcc_toggle.getAttribute("aria-checked")).toBe("true");
-            expect(within(dxcc_section).getByText("Enabled")).toBeTruthy();
-        });
+        expect(within(dxcc_section).getByRole("button", { name: "Edit" })).toBeTruthy();
+        expect(within(dxcc_section).queryByRole("switch")).toBeNull();
     });
 
     it("opens a section edit modal", async () => {
@@ -91,9 +82,12 @@ describe("HunterPanel", () => {
         expect(within(dialog).getAllByRole("heading", { name: "DXCC" }).length).toBeGreaterThan(0);
         expect(within(dialog).getByText("0/3 complete, 3 missing")).toBeTruthy();
         expect(within(dialog).getByText("Germany")).toBeTruthy();
+        expect(within(dialog).getByRole("switch").getAttribute("aria-checked")).toBe("false");
+        expect(within(dialog).getByRole("button", { name: "Apply" })).toBeTruthy();
+        expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeTruthy();
     });
 
-    it("manually marks items complete and incomplete from the edit modal", async () => {
+    it("applies section edits from the edit modal", async () => {
         const user = userEvent.setup();
         render_hunter_panel();
 
@@ -101,35 +95,83 @@ describe("HunterPanel", () => {
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
         const dialog = await screen.findByRole("dialog");
 
+        await user.click(within(dialog).getByRole("switch"));
         await user.click(within(dialog).getByRole("button", { name: "Mark Germany complete" }));
 
         await waitFor(() => {
             expect(within(dialog).getByText("1/3 complete, 2 missing")).toBeTruthy();
-            expect(within(dxcc_section).getByText("1/3 done, 2 needed")).toBeTruthy();
+            expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+            expect(within(dxcc_section).getByText("Disabled")).toBeTruthy();
         });
         expect(within(dialog).queryByText("Germany")).toBeNull();
 
-        await user.click(within(dialog).getByRole("button", { name: "Completed" }));
-        expect(within(dialog).getByText("Germany")).toBeTruthy();
-
-        await user.click(within(dialog).getByRole("button", { name: "Mark Germany incomplete" }));
+        await user.click(within(dialog).getByRole("button", { name: "Apply" }));
 
         await waitFor(() => {
-            expect(within(dialog).getByText("0/3 complete, 3 missing")).toBeTruthy();
+            expect(screen.queryByRole("dialog")).toBeNull();
+            expect(within(dxcc_section).getByText("1/3 done, 2 needed")).toBeTruthy();
+            expect(within(dxcc_section).getByText("Enabled")).toBeTruthy();
+        });
+
+        await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
+        const reopened_dialog = await screen.findByRole("dialog");
+        await user.click(within(reopened_dialog).getByRole("button", { name: "Completed" }));
+        expect(within(reopened_dialog).getByText("Germany")).toBeTruthy();
+
+        await user.click(
+            within(reopened_dialog).getByRole("button", { name: "Mark Germany incomplete" }),
+        );
+        await user.click(within(reopened_dialog).getByRole("button", { name: "Apply" }));
+
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).toBeNull();
             expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+            expect(within(dxcc_section).getByText("Enabled")).toBeTruthy();
         });
     });
 
-    it("clears completed items in one section from the edit modal", async () => {
+    it("cancels section edit drafts", async () => {
         const user = userEvent.setup();
         render_hunter_panel();
 
         const dxcc_section = section_by_heading("DXCC");
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
         const dialog = await screen.findByRole("dialog");
-        expect(within(dialog).queryByRole("button", { name: "Clear" })).toBeNull();
 
+        await user.click(within(dialog).getByRole("switch"));
         await user.click(within(dialog).getByRole("button", { name: "Mark Germany complete" }));
+
+        expect(within(dialog).getByText("1/3 complete, 2 missing")).toBeTruthy();
+        expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+
+        await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).toBeNull();
+            expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+            expect(within(dxcc_section).getByText("Disabled")).toBeTruthy();
+        });
+
+        await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
+        const reopened_dialog = await screen.findByRole("dialog");
+        expect(within(reopened_dialog).getByText("0/3 complete, 3 missing")).toBeTruthy();
+        expect(within(reopened_dialog).getByText("Germany")).toBeTruthy();
+        expect(within(reopened_dialog).getByRole("switch").getAttribute("aria-checked")).toBe(
+            "false",
+        );
+    });
+
+    it("clears completed items in one section from the edit modal", async () => {
+        const user = userEvent.setup();
+        const profile_data = create_default_profile_data();
+        profile_data.hunter.worked.dxcc.global = [230];
+        render_hunter_panel(profile_data);
+
+        const dxcc_section = section_by_heading("DXCC");
+        expect(within(dxcc_section).getByText("1/3 done, 2 needed")).toBeTruthy();
+
+        await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
+        const dialog = await screen.findByRole("dialog");
         await user.click(within(dialog).getByRole("button", { name: "Completed" }));
 
         const clear_button = within(dialog).getByRole("button", { name: "Clear" });
@@ -138,18 +180,24 @@ describe("HunterPanel", () => {
 
         const clear_dialog = screen.getByText("Clear Completed").closest('[role="dialog"]');
         expect(within(clear_dialog).getByText(/Clear 1 completed DXCC item/)).toBeTruthy();
-        expect(within(dxcc_section).getByText("1/3 done, 2 needed")).toBeTruthy();
 
         await user.click(within(clear_dialog).getByRole("button", { name: "Clear" }));
 
         await waitFor(() => {
             expect(within(dialog).getByText("0/3 complete, 3 missing")).toBeTruthy();
-            expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+            expect(within(dxcc_section).getByText("1/3 done, 2 needed")).toBeTruthy();
         });
         await user.click(within(dialog).getByRole("button", { name: "Missing" }));
         expect(within(dialog).getByText("Germany")).toBeTruthy();
         await user.click(within(dialog).getByRole("button", { name: "Completed" }));
         expect(within(dialog).getByRole("button", { name: "Clear" }).disabled).toBe(true);
+
+        await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).toBeNull();
+            expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
+        });
     });
 
     it("filters the visible list from the edit modal", async () => {
