@@ -25,6 +25,8 @@ const SECTION_REASON_LABELS = {
     ca_province: value => `Needed CA Province: ${value}`,
 };
 
+const HUNTER_SECTION_SET = new Set(HUNTER_SECTION_KEYS);
+
 function get_spot_feature_value(section, spot) {
     switch (section) {
         case "dxcc":
@@ -44,12 +46,14 @@ function get_spot_feature_value(section, spot) {
     }
 }
 
-export function check_hunter_needed(spot, hunter) {
-    if (!hunter?.enabled_sections) return null;
+export function check_hunter_needed(spot, hunter, sections = []) {
+    if (!hunter?.worked || sections.length === 0) return null;
 
     const reasons = [];
-    for (const section of HUNTER_SECTION_KEYS) {
-        if (!hunter.enabled_sections[section]) continue;
+    const checked_sections = new Set();
+    for (const section of sections) {
+        if (!HUNTER_SECTION_SET.has(section) || checked_sections.has(section)) continue;
+        checked_sections.add(section);
 
         const spot_value = get_spot_feature_value(section, spot);
         if (spot_value == null) continue;
@@ -89,7 +93,7 @@ function limit_count(count) {
 export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     const { filters, callsign_filters } = useFilters();
     const {
-        active_profile_data: { table_sort, hunter },
+        active_profile_data: { table_sort },
     } = useProfiles();
     const { radio_band, radio_freq, radio_status } = use_radio();
     const { search_query, selected_reference_type } = useSpotInteraction();
@@ -118,16 +122,15 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
 
     const spots_with_alerts = useMemo(() => {
         return source_spots.map(spot => {
-            const hunter_needed_result = check_hunter_needed(spot, hunter);
             const is_alert_filter_match =
                 is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active;
             return {
                 ...spot,
-                is_alerted: is_alert_filter_match || Boolean(hunter_needed_result?.is_needed),
-                hunterNeeded: hunter_needed_result,
+                is_alerted: is_alert_filter_match,
+                hunterNeeded: null,
             };
         });
-    }, [source_spots, alerts, callsign_filters.is_alert_filters_active, hunter]);
+    }, [source_spots, alerts, callsign_filters.is_alert_filters_active]);
 
     const spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;

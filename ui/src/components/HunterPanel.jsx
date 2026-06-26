@@ -1,6 +1,5 @@
 import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
-import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
 import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
 import {
@@ -191,12 +190,6 @@ function HunterSectionCard({ section, items, hunter, colors, on_apply_section })
                         {done_count}/{items.length} done, {needed_count} needed
                     </p>
                 </div>
-                <span
-                    className="rounded-full px-2 py-1 text-xs font-semibold"
-                    style={{ backgroundColor: colors.theme.background }}
-                >
-                    {hunter.enabled_sections[section] ? "Enabled" : "Disabled"}
-                </span>
             </div>
 
             <div className="h-2 rounded-full overflow-hidden bg-slate-500/30">
@@ -215,7 +208,6 @@ function HunterSectionCard({ section, items, hunter, colors, on_apply_section })
 }
 
 function HunterSectionModal({ section, items, hunter, colors, on_apply_section }) {
-    const [draft_enabled, set_draft_enabled] = useState(hunter.enabled_sections[section]);
     const [draft_worked_values, set_draft_worked_values] = useState(
         hunter.worked[section]?.global ?? [],
     );
@@ -223,10 +215,6 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
     const [search, set_search] = useState("");
     const draft_hunter = {
         ...hunter,
-        enabled_sections: {
-            ...hunter.enabled_sections,
-            [section]: draft_enabled,
-        },
         worked: {
             ...hunter.worked,
             [section]: {
@@ -237,7 +225,6 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
     };
 
     function reset_draft() {
-        set_draft_enabled(hunter.enabled_sections[section]);
         set_draft_worked_values([...(hunter.worked[section]?.global ?? [])]);
         set_list_mode("needed");
         set_search("");
@@ -264,7 +251,7 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
             on_open={reset_draft}
             on_cancel={reset_draft}
             on_apply={() => {
-                on_apply_section(section, draft_enabled, draft_worked_values);
+                on_apply_section(section, draft_worked_values);
                 return true;
             }}
             modal_style={{ width: "min(42rem, calc(100vw - 2rem))" }}
@@ -277,7 +264,6 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
                     list_mode={list_mode}
                     search={search}
                     colors={colors}
-                    on_toggle_section={() => set_draft_enabled(current => !current)}
                     on_set_list_mode={(_section, mode) => set_list_mode(mode)}
                     on_set_search={(_section, next_search) => set_search(next_search)}
                     on_set_done={set_done}
@@ -295,7 +281,6 @@ function HunterSection({
     list_mode,
     search,
     colors,
-    on_toggle_section,
     on_set_list_mode,
     on_set_search,
     on_set_done,
@@ -320,10 +305,6 @@ function HunterSection({
                         {done_count}/{items.length} done, {needed_count} needed
                     </p>
                 </div>
-                <Toggle
-                    value={hunter.enabled_sections[section]}
-                    on_click={() => on_toggle_section(section)}
-                />
             </div>
 
             <div className="h-2 rounded-full overflow-hidden bg-slate-500/30">
@@ -544,13 +525,9 @@ export default function HunterPanel() {
         update_active_profile_section("hunter", current => updater(current));
     }
 
-    function apply_section(section, enabled, worked_values) {
+    function apply_section(section, worked_values) {
         update_hunter(current => ({
             ...current,
-            enabled_sections: {
-                ...current.enabled_sections,
-                [section]: enabled,
-            },
             worked: {
                 ...current.worked,
                 [section]: {

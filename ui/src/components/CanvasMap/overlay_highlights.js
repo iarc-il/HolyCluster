@@ -86,12 +86,13 @@ function get_worked_values(hunter, section, normalize) {
     );
 }
 
-export function build_hunter_overlay_highlights(hunter) {
+export function build_hunter_overlay_highlights(hunter, section_actions = []) {
     const highlights = create_empty_overlay_highlights();
     const source = sanitize_hunter(hunter ?? create_default_hunter());
 
-    for (const [section, overlay] of Object.entries(HUNTER_SECTION_OVERLAYS)) {
-        if (!source.enabled_sections[section]) continue;
+    for (const { section, action } of section_actions) {
+        const overlay = HUNTER_SECTION_OVERLAYS[section];
+        if (!overlay || !action) continue;
 
         const worked_values = get_worked_values(source, section, overlay.normalize);
         for (const value of overlay.values()) {
@@ -99,9 +100,9 @@ export function build_hunter_overlay_highlights(hunter) {
             if (normalized_value == null || worked_values.has(normalized_value)) continue;
 
             if (overlay.type === "dxcc") {
-                add_dxcc_highlight(highlights, value, "alert");
+                add_dxcc_highlight(highlights, value, action);
             } else {
-                add_zone_highlight(highlights, overlay.system, value, "alert");
+                add_zone_highlight(highlights, overlay.system, value, action);
             }
         }
     }

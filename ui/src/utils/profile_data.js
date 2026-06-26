@@ -56,7 +56,7 @@ export const PROFILE_SECTION_DEFINITIONS = {
     },
     hunter: {
         label: "Hunter Progress",
-        description: "Hunter section toggles, worked entities, and ADIF import metadata",
+        description: "Hunter worked entities and ADIF import metadata",
     },
     map_controls: {
         label: "Map Controls",
@@ -415,7 +415,6 @@ export function create_default_radio() {
 
 export function create_default_hunter() {
     return {
-        enabled_sections: Object.fromEntries(HUNTER_SECTION_KEYS.map(section => [section, false])),
         worked: Object.fromEntries(
             HUNTER_SECTION_KEYS.map(section => [
                 section,
@@ -607,7 +606,6 @@ export function sanitize_hunter(value, defaults = create_default_hunter()) {
     const source = is_plain_object(value) ? value : {};
 
     return {
-        enabled_sections: sanitize_boolean_map(source.enabled_sections, defaults.enabled_sections),
         worked: sanitize_hunter_worked(source.worked),
         imports: sanitize_hunter_imports(source.imports),
     };

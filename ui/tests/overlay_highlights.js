@@ -16,37 +16,36 @@ import { build_hunter_overlay_highlights } from "@/components/CanvasMap/overlay_
 import { create_default_hunter } from "@/utils/profile_data.js";
 
 describe("build_hunter_overlay_highlights", () => {
-    it("builds alert highlights for all enabled missing hunter values", () => {
+    it("builds highlights for selected missing hunter values", () => {
         const hunter = create_default_hunter();
-        hunter.enabled_sections = {
-            dxcc: true,
-            cq_zone: true,
-            itu_zone: true,
-            us_state: true,
-            ca_province: true,
-        };
         hunter.worked.dxcc.global = [291];
         hunter.worked.cq_zone.global = [5];
         hunter.worked.itu_zone.global = [8];
         hunter.worked.us_state.global = ["CA"];
         hunter.worked.ca_province.global = ["ON"];
 
-        const highlights = build_hunter_overlay_highlights(hunter);
+        const highlights = build_hunter_overlay_highlights(hunter, [
+            { section: "dxcc", action: "alert" },
+            { section: "cq_zone", action: "show_only" },
+            { section: "itu_zone", action: "hide" },
+            { section: "us_state", action: "alert" },
+            { section: "ca_province", action: "alert" },
+        ]);
 
         expect(highlights.dxcc.get(1)).toBe("alert");
         expect(highlights.dxcc.has(291)).toBe(false);
-        expect(highlights.zones.cq.get(1)).toBe("alert");
+        expect(highlights.zones.cq.get(1)).toBe("show_only");
         expect(highlights.zones.cq.has(5)).toBe(false);
-        expect(highlights.zones.itu.get(1)).toBe("alert");
+        expect(highlights.zones.itu.get(1)).toBe("hide");
         expect(highlights.zones.itu.has(8)).toBe(false);
         expect(highlights.zones.us_state.get("AL")).toBe("alert");
         expect(highlights.zones.us_state.has("CA")).toBe(false);
         expect(highlights.zones.ca_province.get("AB")).toBe("alert");
         expect(highlights.zones.ca_province.has("ON")).toBe(false);
-        expect(highlights.key).toContain("itu=1:alert");
+        expect(highlights.key).toContain("itu=1:hide");
     });
 
-    it("ignores disabled hunter sections", () => {
+    it("returns empty highlights without selected hunter sections", () => {
         const hunter = create_default_hunter();
         const highlights = build_hunter_overlay_highlights(hunter);
 

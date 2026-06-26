@@ -26,10 +26,6 @@ function create_storage(values) {
     };
 }
 
-function create_default_hunter_enabled_sections() {
-    return Object.fromEntries(HUNTER_SECTION_KEYS.map(section => [section, false]));
-}
-
 function create_default_hunter_worked() {
     return Object.fromEntries(HUNTER_SECTION_KEYS.map(section => [section, { global: [] }]));
 }
@@ -47,7 +43,6 @@ describe("profile_data", () => {
         expect(store.profiles[0].data.settings.main_view_order).toBe("map_table");
         expect(store.profiles[0].data.settings).not.toHaveProperty("show_equator");
         expect(store.profiles[0].data.hunter).toEqual({
-            enabled_sections: create_default_hunter_enabled_sections(),
             worked: create_default_hunter_worked(),
             imports: [],
         });
@@ -120,11 +115,6 @@ describe("profile_data", () => {
                 requested_rig: 3,
             },
             hunter: {
-                enabled_sections: {
-                    dxcc: true,
-                    cq_zone: "yes",
-                    unknown: true,
-                },
                 worked: {
                     dxcc: {
                         global: [
@@ -183,10 +173,6 @@ describe("profile_data", () => {
         expect(data.panels).toEqual(defaults.panels);
         expect(data.radio).toEqual(defaults.radio);
         expect(data.hunter).toEqual({
-            enabled_sections: {
-                ...create_default_hunter_enabled_sections(),
-                dxcc: true,
-            },
             worked: {
                 dxcc: { global: [291, 230] },
                 cq_zone: { global: [1, 40] },
@@ -328,10 +314,6 @@ describe("profile_data", () => {
                 },
                 hunter: {
                     ...defaults.hunter,
-                    enabled_sections: {
-                        ...defaults.hunter.enabled_sections,
-                        dxcc: true,
-                    },
                     worked: {
                         ...defaults.hunter.worked,
                         dxcc: { global: [291] },
@@ -356,7 +338,6 @@ describe("profile_data", () => {
         expect(imported.name).toBe("Portable");
         expect(imported.data.settings.callsign).toBe("N0CALL");
         expect(imported.data.filters.time_limit).toBe(900);
-        expect(imported.data.hunter.enabled_sections.dxcc).toBe(true);
         expect(imported.data.hunter.worked.dxcc.global).toEqual([291]);
         expect(imported.data.panels.frequency_bar_band).toBe(defaults.panels.frequency_bar_band);
     });

@@ -132,16 +132,8 @@ function make_spot(overrides) {
     };
 }
 
-function make_hunter(enabled = {}, worked = {}) {
+function make_hunter(worked = {}) {
     return {
-        enabled_sections: {
-            dxcc: false,
-            cq_zone: false,
-            itu_zone: false,
-            us_state: false,
-            ca_province: false,
-            ...enabled,
-        },
         worked: {
             dxcc: { global: [] },
             cq_zone: { global: [] },
@@ -154,18 +146,18 @@ function make_hunter(enabled = {}, worked = {}) {
 }
 
 describe("check_hunter_needed", () => {
-    it("returns null when all sections are disabled", () => {
-        expect(check_hunter_needed(make_spot(), make_hunter())).toBeNull();
+    it("returns null when no sections are selected", () => {
+        expect(check_hunter_needed(make_spot(), make_hunter(), [])).toBeNull();
     });
 
     it("returns null when all matching features are worked", () => {
-        const hunter = make_hunter({ dxcc: true }, { dxcc: { global: [291] } });
-        expect(check_hunter_needed(make_spot(), hunter)).toBeNull();
+        const hunter = make_hunter({ dxcc: { global: [291] } });
+        expect(check_hunter_needed(make_spot(), hunter, ["dxcc"])).toBeNull();
     });
 
     it("marks a spot needed when a feature is missing", () => {
-        const hunter = make_hunter({ dxcc: true }, { dxcc: { global: [1] } });
-        const result = check_hunter_needed(make_spot(), hunter);
+        const hunter = make_hunter({ dxcc: { global: [1] } });
+        const result = check_hunter_needed(make_spot(), hunter, ["dxcc"]);
         expect(result).not.toBeNull();
         expect(result.is_needed).toBe(true);
         expect(result.reasons).toEqual([
@@ -173,14 +165,14 @@ describe("check_hunter_needed", () => {
         ]);
     });
 
-    it("ignores disabled sections even if features are missing", () => {
-        const hunter = make_hunter({ dxcc: false }, { dxcc: { global: [] } });
-        expect(check_hunter_needed(make_spot(), hunter)).toBeNull();
+    it("ignores unselected sections even if features are missing", () => {
+        const hunter = make_hunter({ dxcc: { global: [] } });
+        expect(check_hunter_needed(make_spot(), hunter, [])).toBeNull();
     });
 
     it("matches CQ zone", () => {
-        const hunter = make_hunter({ cq_zone: true }, { cq_zone: { global: [3] } });
-        const result = check_hunter_needed(make_spot({ dx_cq_zone: 5 }), hunter);
+        const hunter = make_hunter({ cq_zone: { global: [3] } });
+        const result = check_hunter_needed(make_spot({ dx_cq_zone: 5 }), hunter, ["cq_zone"]);
         expect(result.reasons[0]).toEqual({
             section: "cq_zone",
             value: 5,
@@ -189,8 +181,8 @@ describe("check_hunter_needed", () => {
     });
 
     it("matches ITU zone", () => {
-        const hunter = make_hunter({ itu_zone: true }, { itu_zone: { global: [6] } });
-        const result = check_hunter_needed(make_spot({ dx_itu_zone: 8 }), hunter);
+        const hunter = make_hunter({ itu_zone: { global: [6] } });
+        const result = check_hunter_needed(make_spot({ dx_itu_zone: 8 }), hunter, ["itu_zone"]);
         expect(result.reasons[0]).toEqual({
             section: "itu_zone",
             value: 8,
@@ -199,10 +191,11 @@ describe("check_hunter_needed", () => {
     });
 
     it("matches US state", () => {
-        const hunter = make_hunter({ us_state: true }, { us_state: { global: ["NY"] } });
+        const hunter = make_hunter({ us_state: { global: ["NY"] } });
         const result = check_hunter_needed(
             make_spot({ dx_dxcc_code: 291, dx_state: "CA" }),
             hunter,
+            ["us_state"],
         );
         expect(result.reasons[0]).toEqual({
             section: "us_state",
@@ -212,17 +205,20 @@ describe("check_hunter_needed", () => {
     });
 
     it("returns null for US state when country is not USA", () => {
-        const hunter = make_hunter({ us_state: true }, { us_state: { global: [] } });
+        const hunter = make_hunter({ us_state: { global: [] } });
         expect(
-            check_hunter_needed(make_spot({ dx_dxcc_code: 1, dx_state: "ON" }), hunter),
+            check_hunter_needed(make_spot({ dx_dxcc_code: 1, dx_state: "ON" }), hunter, [
+                "us_state",
+            ]),
         ).toBeNull();
     });
 
     it("matches Canada province", () => {
-        const hunter = make_hunter({ ca_province: true }, { ca_province: { global: ["QC"] } });
+        const hunter = make_hunter({ ca_province: { global: ["QC"] } });
         const result = check_hunter_needed(
             make_spot({ dx_dxcc_code: 1, dx_state: "ON", dx_cq_zone: 4, dx_itu_zone: 4 }),
             hunter,
+            ["ca_province"],
         );
         expect(result.reasons[0]).toEqual({
             section: "ca_province",
@@ -232,25 +228,27 @@ describe("check_hunter_needed", () => {
     });
 
     it("collects multiple reasons for multiple missing features", () => {
-        const hunter = make_hunter(
-            { dxcc: true, cq_zone: true },
-            { dxcc: { global: [1] }, cq_zone: { global: [3] } },
-        );
-        const result = check_hunter_needed(make_spot({ dx_cq_zone: 5 }), hunter);
+        const hunter = make_hunter({ dxcc: { global: [1] }, cq_zone: { global: [3] } });
+        const result = check_hunter_needed(make_spot({ dx_cq_zone: 5 }), hunter, [
+            "dxcc",
+            "cq_zone",
+        ]);
         expect(result.reasons).toHaveLength(2);
         expect(result.reasons[0].section).toBe("dxcc");
         expect(result.reasons[1].section).toBe("cq_zone");
     });
 
     it("matches Alaska/Hawaii spots for us_state when DXCC is Alaska/Hawaii", () => {
-        const hunter = make_hunter({ us_state: true }, { us_state: { global: [] } });
+        const hunter = make_hunter({ us_state: { global: [] } });
         expect(
-            check_hunter_needed(make_spot({ dx_dxcc_code: 6, dx_state: "AK" }), hunter).reasons[0]
-                .value,
+            check_hunter_needed(make_spot({ dx_dxcc_code: 6, dx_state: "AK" }), hunter, [
+                "us_state",
+            ]).reasons[0].value,
         ).toBe("AK");
         expect(
-            check_hunter_needed(make_spot({ dx_dxcc_code: 110, dx_state: "HI" }), hunter).reasons[0]
-                .value,
+            check_hunter_needed(make_spot({ dx_dxcc_code: 110, dx_state: "HI" }), hunter, [
+                "us_state",
+            ]).reasons[0].value,
         ).toBe("HI");
     });
 });
