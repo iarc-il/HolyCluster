@@ -3,21 +3,16 @@ import Modal from "@/components/ui/Modal.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
 import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
+import {
+    HUNTER_SECTION_KEYS,
+    HUNTER_SECTION_LABELS as SECTION_LABELS,
+} from "@/data/hunter_sections.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { HUNTER_ADIF_MAX_FILE_SIZE_BYTES, HUNTER_IMPORT_PHASES } from "@/utils/hunter_adif.js";
 import { import_hunter_adif_in_worker } from "@/utils/hunter_adif_worker_client.js";
-import { HUNTER_SECTION_KEYS } from "@/utils/profile_data.js";
 import { useMemo, useState } from "react";
-
-const SECTION_LABELS = {
-    dxcc: "DXCC",
-    cq_zone: "CQ Zones",
-    itu_zone: "ITU Zones",
-    us_state: "US States",
-    ca_province: "Canada Provinces",
-};
 
 const SECTION_DONE_MESSAGES = {
     dxcc: "No DXCC entities left",

@@ -4,11 +4,8 @@ import {
     is_us_state_dxcc_code,
     normalize_dxcc_entity_code,
 } from "@/data/dxcc_entities.js";
-import {
-    HUNTER_SECTION_KEYS,
-    create_default_hunter,
-    sanitize_hunter,
-} from "@/utils/profile_data.js";
+import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
+import { create_default_hunter, sanitize_hunter } from "@/utils/profile_data.js";
 import { find_zone_number, is_valid_zone_number, normalize_zone_value } from "@/utils/zones.js";
 import { AdifParser } from "adif-parser-ts";
 

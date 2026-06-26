@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
 import {
     DEFAULT_PROFILE_NAME,
-    HUNTER_SECTION_KEYS,
     PROFILE_SECTION_KEYS,
     PROFILE_STORE_VERSION,
     create_default_profile_data,

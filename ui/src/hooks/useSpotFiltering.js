@@ -6,9 +6,9 @@ import {
 } from "@/data/dxcc_entities.js";
 import { bands, modes } from "@/data/filters_data.js";
 import { get_dxcc_flag } from "@/data/flags.js";
+import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { is_matching_list, sort_spots } from "@/utils.js";
-import { HUNTER_SECTION_KEYS } from "@/utils/profile_data.js";
 import { normalize_zone_value } from "@/utils/zones.js";
 import { useMemo, useState } from "react";
 import { useFilters } from "./useFilters";

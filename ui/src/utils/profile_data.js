@@ -1,6 +1,7 @@
 import { normalize_dxcc_entity_code } from "@/data/dxcc_entities.js";
 import { create_initial_callsign_filters, create_initial_filters } from "@/data/filter_defaults.js";
 import { bands, continents, modes } from "@/data/filters_data.js";
+import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
 import { STATES } from "@/data/states.js";
 import { sanitize_callsign_filters, sanitize_filters } from "@/utils/filter_url_state.js";
 import Maidenhead from "maidenhead";
@@ -22,7 +23,6 @@ const MAIN_VIEW_ORDERS = new Set(["map_table", "table_map"]);
 const VOACAP_BANDS = new Set(["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"]);
 const DXPEDITION_SORT_KEYS = new Set(["start", "end", "on_air"]);
 const DXPEDITION_FILTER_KEYS = new Set(["all", "active", "upcoming"]);
-export const HUNTER_SECTION_KEYS = ["dxcc", "cq_zone", "itu_zone", "us_state", "ca_province"];
 const HUNTER_US_STATE_CODES = new Set(Object.keys(STATES.USA));
 const HUNTER_CA_PROVINCE_CODES = new Set(Object.keys(STATES.Canada));
 const HUNTER_IMPORT_COUNT_KEYS = [
