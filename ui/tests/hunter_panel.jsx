@@ -225,6 +225,8 @@ describe("HunterPanel", () => {
 
         const cq_section = section_by_heading("CQ");
         expect_section_stats(cq_section, { done: 40, needed: 0, total: 40 });
+        expect(within(cq_section).getByRole("img", { name: "Trophy" })).toBeTruthy();
+        expect(within(cq_section).getByText("No CQ zones left")).toBeTruthy();
 
         await user.click(within(cq_section).getByRole("button", { name: "Edit" }));
         const dialog = await screen.findByRole("dialog");

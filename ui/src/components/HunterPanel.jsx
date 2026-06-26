@@ -197,7 +197,10 @@ function SectionStats({ done_count, needed_count, total_count }) {
 
 function HunterSectionCard({ section, items, hunter, colors, on_apply_section }) {
     const worked_values = hunter.worked[section]?.global ?? [];
-    const { done_count, needed_count } = get_section_progress(items, worked_values);
+    const { done_count, needed_count, is_section_done } = get_section_progress(
+        items,
+        worked_values,
+    );
     const progress_percentage = items.length === 0 ? 0 : (done_count / items.length) * 100;
 
     return (
@@ -216,9 +219,16 @@ function HunterSectionCard({ section, items, hunter, colors, on_apply_section })
                 </div>
             </div>
 
-            <div className="h-2 rounded-full overflow-hidden bg-slate-500/30">
-                <div className="h-full bg-green-500" style={{ width: `${progress_percentage}%` }} />
-            </div>
+            {is_section_done ? (
+                <SectionDoneState section={section} />
+            ) : (
+                <div className="h-2 rounded-full overflow-hidden bg-slate-500/30">
+                    <div
+                        className="h-full bg-green-500"
+                        style={{ width: `${progress_percentage}%` }}
+                    />
+                </div>
+            )}
 
             <HunterSectionModal
                 section={section}
