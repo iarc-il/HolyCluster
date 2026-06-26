@@ -23,7 +23,10 @@ import {
     build_filter_menu_actions,
     build_map_context_filter,
 } from "./map_context_menu.js";
-import { build_hunter_overlay_highlights } from "./overlay_highlights.js";
+import {
+    build_hunter_overlay_highlights,
+    get_active_hunter_filter_actions,
+} from "./overlay_highlights.js";
 import { DPR } from "./render_helpers.js";
 import { useCanvasLayers } from "./useCanvasLayers.js";
 import { useMapGestures } from "./useMapGestures.js";
@@ -118,7 +121,19 @@ function CanvasMap({
         return [lon, lat];
     }, [settings.locator]);
     const night_time_ms = night_time?.getTime() ?? null;
-    const overlay_highlights = useMemo(() => build_hunter_overlay_highlights(hunter), [hunter]);
+    const hunter_overlay_actions = useMemo(
+        () => get_active_hunter_filter_actions(callsign_filters),
+        [
+            callsign_filters.filters,
+            callsign_filters.is_alert_filters_active,
+            callsign_filters.is_show_only_filters_active,
+            callsign_filters.is_hide_filters_active,
+        ],
+    );
+    const overlay_highlights = useMemo(
+        () => build_hunter_overlay_highlights(hunter, hunter_overlay_actions),
+        [hunter, hunter_overlay_actions],
+    );
 
     const render_state_ref = useRef({});
     render_state_ref.current = {

@@ -12,7 +12,10 @@ vi.mock("virtual:cty-dxcc-entities", () => ({
     },
 }));
 
-import { build_hunter_overlay_highlights } from "@/components/CanvasMap/overlay_highlights.js";
+import {
+    build_hunter_overlay_highlights,
+    get_active_hunter_filter_actions,
+} from "@/components/CanvasMap/overlay_highlights.js";
 import { create_default_hunter } from "@/utils/profile_data.js";
 
 describe("build_hunter_overlay_highlights", () => {
@@ -51,5 +54,24 @@ describe("build_hunter_overlay_highlights", () => {
 
         expect(highlights.dxcc.size).toBe(0);
         expect(highlights.zones.itu.size).toBe(0);
+    });
+
+    it("returns active hunter filter actions", () => {
+        const actions = get_active_hunter_filter_actions({
+            is_alert_filters_active: false,
+            is_show_only_filters_active: true,
+            is_hide_filters_active: true,
+            filters: [
+                { action: "alert", type: "hunter", hunter_section: "dxcc" },
+                { action: "show_only", type: "hunter", hunter_section: "cq_zone" },
+                { action: "hide", type: "hunter", hunter_section: "itu_zone" },
+                { action: "hide", type: "prefix", value: "K", spotter_or_dx: "dx" },
+            ],
+        });
+
+        expect(actions).toEqual([
+            { section: "cq_zone", action: "show_only" },
+            { section: "itu_zone", action: "hide" },
+        ]);
     });
 });

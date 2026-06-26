@@ -93,7 +93,7 @@ function limit_count(count) {
 export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     const { filters, callsign_filters } = useFilters();
     const {
-        active_profile_data: { table_sort },
+        active_profile_data: { table_sort, hunter },
     } = useProfiles();
     const { radio_band, radio_freq, radio_status } = use_radio();
     const { search_query, selected_reference_type } = useSpotInteraction();
@@ -121,19 +121,36 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     }, [raw_spots, selected_reference_type]);
 
     const spots_with_alerts = useMemo(() => {
+        const regular_alerts = alerts.filter(filter => filter.type !== "hunter");
+        const alert_hunter_sections = callsign_filters.is_alert_filters_active
+            ? alerts.filter(filter => filter.type === "hunter").map(filter => filter.hunter_section)
+            : [];
+
         return source_spots.map(spot => {
+            const hunter_needed_result = check_hunter_needed(spot, hunter, alert_hunter_sections);
             const is_alert_filter_match =
-                is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active;
+                is_matching_list(regular_alerts, spot) && callsign_filters.is_alert_filters_active;
             return {
                 ...spot,
-                is_alerted: is_alert_filter_match,
-                hunterNeeded: null,
+                is_alerted: is_alert_filter_match || Boolean(hunter_needed_result?.is_needed),
+                hunterNeeded: hunter_needed_result,
             };
         });
-    }, [source_spots, alerts, callsign_filters.is_alert_filters_active]);
+    }, [source_spots, alerts, callsign_filters.is_alert_filters_active, hunter]);
 
     const spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;
+        const regular_show_only_filters = show_only_filters.filter(
+            filter => filter.type !== "hunter",
+        );
+        const show_only_hunter_sections = show_only_filters
+            .filter(filter => filter.type === "hunter")
+            .map(filter => filter.hunter_section);
+        const regular_hide_filters = hide_filters.filter(filter => filter.type !== "hunter");
+        const hide_hunter_sections = hide_filters
+            .filter(filter => filter.type === "hunter")
+            .map(filter => filter.hunter_section);
+
         let filtered = spots_with_alerts
             .filter(spot => {
                 if (filter_missing_flags) {
@@ -177,12 +194,18 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
 
                 const are_include_filters_empty = show_only_filters.length === 0;
                 const are_exclude_filters_empty = hide_filters.length === 0;
+                const is_matching_show_only_filters =
+                    is_matching_list(regular_show_only_filters, spot) ||
+                    Boolean(check_hunter_needed(spot, hunter, show_only_hunter_sections));
+                const is_matching_hide_filters =
+                    is_matching_list(regular_hide_filters, spot) ||
+                    Boolean(check_hunter_needed(spot, hunter, hide_hunter_sections));
                 const are_filters_including =
-                    is_matching_list(show_only_filters, spot) ||
+                    is_matching_show_only_filters ||
                     are_include_filters_empty ||
                     !callsign_filters.is_show_only_filters_active;
                 const are_filters_not_excluding =
-                    !is_matching_list(hide_filters, spot) ||
+                    !is_matching_hide_filters ||
                     are_exclude_filters_empty ||
                     !callsign_filters.is_hide_filters_active;
 
@@ -222,6 +245,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         hide_filters,
         callsign_filters.is_show_only_filters_active,
         callsign_filters.is_hide_filters_active,
+        hunter,
         radio_band,
         radio_status,
         table_sort,

@@ -39,6 +39,11 @@ const HUNTER_SECTION_OVERLAYS = {
 };
 
 const ZONE_SYSTEMS = ["cq", "itu", "us_state", "ca_province"];
+const FILTER_ACTION_ACTIVE_FIELDS = {
+    alert: "is_alert_filters_active",
+    show_only: "is_show_only_filters_active",
+    hide: "is_hide_filters_active",
+};
 
 function create_empty_overlay_highlights() {
     return {
@@ -84,6 +89,18 @@ function get_worked_values(hunter, section, normalize) {
             .map(value => normalize(value))
             .filter(value => value != null),
     );
+}
+
+export function get_active_hunter_filter_actions(callsign_filters) {
+    return (callsign_filters?.filters ?? [])
+        .filter(filter => {
+            const active_field = FILTER_ACTION_ACTIVE_FIELDS[filter.action];
+            return (
+                filter.type === "hunter" &&
+                (active_field == null || callsign_filters?.[active_field] !== false)
+            );
+        })
+        .map(filter => ({ section: filter.hunter_section, action: filter.action }));
 }
 
 export function build_hunter_overlay_highlights(hunter, section_actions = []) {
