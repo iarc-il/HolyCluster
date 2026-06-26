@@ -373,25 +373,15 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                 ) : temp_data.type === "hunter" ? (
                     <>
                         <hr />
-                        <div className="flex justify-start space-x-5 items-center w-full">
-                            <div>section:</div>
-                            <Select
-                                value={temp_data.hunter_section || "dxcc"}
-                                className="h-10 w-48"
-                                onChange={event => {
-                                    set_temp_data({
-                                        ...temp_data,
-                                        hunter_section: event.target.value,
-                                    });
-                                }}
-                            >
-                                {HUNTER_SECTION_KEYS.map(section => (
-                                    <option key={section} value={section}>
-                                        {HUNTER_SECTION_LABELS[section]}
-                                    </option>
-                                ))}
-                            </Select>
-                        </div>
+                        <SelectionLine
+                            states={HUNTER_SECTION_KEYS.map(section => ({
+                                label: HUNTER_SECTION_LABELS[section],
+                                value: section,
+                            }))}
+                            field="hunter_section"
+                            temp_data={temp_data}
+                            set_temp_data={set_temp_data}
+                        />
                     </>
                 ) : temp_data.type !== "self_spotters" &&
                   temp_data.type !== "dxpeditions" &&
