@@ -19,7 +19,7 @@ const SECTION_LABELS = {
     ca_province: "Canada Provinces",
 };
 
-const SECTION_COMPLETE_MESSAGES = {
+const SECTION_DONE_MESSAGES = {
     dxcc: "No DXCC entities left",
     cq_zone: "No CQ zones left",
     itu_zone: "No ITU zones left",
@@ -127,14 +127,14 @@ function sum_added_counts(added_counts) {
 
 function get_section_progress(items, worked_values) {
     const worked = new Set(worked_values);
-    const completed_count = items.filter(item => worked.has(item.value)).length;
-    const missing_count = items.length - completed_count;
+    const done_count = items.filter(item => worked.has(item.value)).length;
+    const needed_count = items.length - done_count;
 
     return {
         worked,
-        completed_count,
-        missing_count,
-        is_section_complete: missing_count === 0 && items.length > 0,
+        done_count,
+        needed_count,
+        is_section_done: needed_count === 0 && items.length > 0,
     };
 }
 
@@ -142,9 +142,9 @@ function get_visible_section_items(items, worked, list_mode, search) {
     const normalized_search = search.trim().toLowerCase();
 
     return items.filter(item => {
-        const is_completed = worked.has(item.value);
-        if (list_mode === "missing" && is_completed) return false;
-        if (list_mode === "completed" && !is_completed) return false;
+        const is_done = worked.has(item.value);
+        if (list_mode === "needed" && is_done) return false;
+        if (list_mode === "done" && !is_done) return false;
         return normalized_search.length === 0 || item.search.includes(normalized_search);
     });
 }
@@ -169,11 +169,11 @@ function TrophyIcon() {
     );
 }
 
-function SectionCompleteState({ section }) {
+function SectionDoneState({ section }) {
     return (
         <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/10 px-4 py-5 text-center">
             <TrophyIcon />
-            <p className="mt-2 text-sm font-bold">{SECTION_COMPLETE_MESSAGES[section]}</p>
+            <p className="mt-2 text-sm font-bold">{SECTION_DONE_MESSAGES[section]}</p>
             <p>Well done!</p>
         </div>
     );
@@ -181,8 +181,8 @@ function SectionCompleteState({ section }) {
 
 function HunterSectionCard({ section, items, hunter, colors, on_apply_section }) {
     const worked_values = hunter.worked[section]?.global ?? [];
-    const { completed_count, missing_count } = get_section_progress(items, worked_values);
-    const progress_percentage = items.length === 0 ? 0 : (completed_count / items.length) * 100;
+    const { done_count, needed_count } = get_section_progress(items, worked_values);
+    const progress_percentage = items.length === 0 ? 0 : (done_count / items.length) * 100;
 
     return (
         <section
@@ -193,7 +193,7 @@ function HunterSectionCard({ section, items, hunter, colors, on_apply_section })
                 <div>
                     <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
                     <p className="text-xs opacity-75">
-                        {completed_count}/{items.length} done, {missing_count} needed
+                        {done_count}/{items.length} done, {needed_count} needed
                     </p>
                 </div>
                 <span
@@ -224,7 +224,7 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
     const [draft_worked_values, set_draft_worked_values] = useState(
         hunter.worked[section]?.global ?? [],
     );
-    const [list_mode, set_list_mode] = useState("missing");
+    const [list_mode, set_list_mode] = useState("needed");
     const [search, set_search] = useState("");
     const draft_hunter = {
         ...hunter,
@@ -244,13 +244,13 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
     function reset_draft() {
         set_draft_enabled(hunter.enabled_sections[section]);
         set_draft_worked_values([...(hunter.worked[section]?.global ?? [])]);
-        set_list_mode("missing");
+        set_list_mode("needed");
         set_search("");
     }
 
-    function set_complete(_section, value, is_complete) {
+    function set_done(_section, value, is_done) {
         set_draft_worked_values(current => {
-            if (is_complete) {
+            if (is_done) {
                 return current.includes(value) ? current : [...current, value];
             }
 
@@ -285,8 +285,8 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
                     on_toggle_section={() => set_draft_enabled(current => !current)}
                     on_set_list_mode={(_section, mode) => set_list_mode(mode)}
                     on_set_search={(_section, next_search) => set_search(next_search)}
-                    on_set_complete={set_complete}
-                    on_clear_completed={() => set_draft_worked_values([])}
+                    on_set_done={set_done}
+                    on_clear_done={() => set_draft_worked_values([])}
                 />
             </div>
         </Modal>
@@ -303,11 +303,11 @@ function HunterSection({
     on_toggle_section,
     on_set_list_mode,
     on_set_search,
-    on_set_complete,
-    on_clear_completed,
+    on_set_done,
+    on_clear_done,
 }) {
     const worked_values = hunter.worked[section]?.global ?? [];
-    const { worked, completed_count, missing_count, is_section_complete } = get_section_progress(
+    const { worked, done_count, needed_count, is_section_done } = get_section_progress(
         items,
         worked_values,
     );
@@ -322,7 +322,7 @@ function HunterSection({
                 <div>
                     <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
                     <p className="text-xs opacity-75">
-                        {completed_count}/{items.length} complete, {missing_count} missing
+                        {done_count}/{items.length} done, {needed_count} needed
                     </p>
                 </div>
                 <Toggle
@@ -335,15 +335,15 @@ function HunterSection({
                 <div
                     className="h-full bg-green-500"
                     style={{
-                        width: `${items.length === 0 ? 0 : (completed_count / items.length) * 100}%`,
+                        width: `${items.length === 0 ? 0 : (done_count / items.length) * 100}%`,
                     }}
                 />
             </div>
 
             <div className="flex gap-2">
                 {[
-                    ["missing", "Missing"],
-                    ["completed", "Completed"],
+                    ["needed", "Needed"],
+                    ["done", "Done"],
                 ].map(([mode, label]) => (
                     <button
                         key={mode}
@@ -378,26 +378,26 @@ function HunterSection({
                         border: `1px solid ${colors.theme.borders}`,
                     }}
                 />
-                {list_mode === "completed" && (
-                    <ClearCompletedButton
+                {list_mode === "done" && (
+                    <ClearDoneButton
                         section={section}
-                        completed_count={completed_count}
+                        done_count={done_count}
                         colors={colors}
-                        on_clear_completed={on_clear_completed}
+                        on_clear_done={on_clear_done}
                     />
                 )}
             </div>
 
             <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
                 {visible_items.length === 0 ? (
-                    is_section_complete && list_mode === "missing" ? (
-                        <SectionCompleteState section={section} />
+                    is_section_done && list_mode === "needed" ? (
+                        <SectionDoneState section={section} />
                     ) : (
                         <p className="text-sm opacity-75">No {list_mode} items match.</p>
                     )
                 ) : (
                     visible_items.map(item => {
-                        const is_completed = worked.has(item.value);
+                        const is_done = worked.has(item.value);
                         return (
                             <div
                                 key={`${section}:${item.value}`}
@@ -405,12 +405,12 @@ function HunterSection({
                                 style={{ backgroundColor: colors.theme.background }}
                             >
                                 <span>{item.label}</span>
-                                {is_completed ? (
+                                {is_done ? (
                                     <button
                                         type="button"
                                         className="flex items-center justify-center"
-                                        onClick={() => on_set_complete(section, item.value, false)}
-                                        aria-label={`Mark ${item.label} incomplete`}
+                                        onClick={() => on_set_done(section, item.value, false)}
+                                        aria-label={`Mark ${item.label} needed`}
                                     >
                                         <X size="20" />
                                     </button>
@@ -422,8 +422,8 @@ function HunterSection({
                                             backgroundColor: "#16a34a",
                                             color: "white",
                                         }}
-                                        onClick={() => on_set_complete(section, item.value, true)}
-                                        aria-label={`Mark ${item.label} complete`}
+                                        onClick={() => on_set_done(section, item.value, true)}
+                                        aria-label={`Mark ${item.label} done`}
                                     >
                                         Done
                                     </button>
@@ -437,10 +437,10 @@ function HunterSection({
     );
 }
 
-function ClearCompletedButton({ section, completed_count, colors, on_clear_completed }) {
+function ClearDoneButton({ section, done_count, colors, on_clear_done }) {
     const [is_confirming, set_is_confirming] = useState(false);
 
-    if (completed_count === 0) {
+    if (done_count === 0) {
         return (
             <button
                 type="button"
@@ -460,8 +460,8 @@ function ClearCompletedButton({ section, completed_count, colors, on_clear_compl
         return (
             <div className="shrink-0 flex items-center gap-1 text-[11px]">
                 <span className="font-semibold">
-                    Clear {completed_count} completed {SECTION_LABELS[section]} item
-                    {completed_count === 1 ? "" : "s"}?
+                    Clear {done_count} done {SECTION_LABELS[section]} item
+                    {done_count === 1 ? "" : "s"}?
                 </span>
                 <button
                     type="button"
@@ -478,7 +478,7 @@ function ClearCompletedButton({ section, completed_count, colors, on_clear_compl
                     type="button"
                     className="rounded px-2 py-1 font-semibold text-white bg-red-600 hover:bg-red-700"
                     onClick={() => {
-                        on_clear_completed(section);
+                        on_clear_done(section);
                         set_is_confirming(false);
                     }}
                 >

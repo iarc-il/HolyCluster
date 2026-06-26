@@ -80,7 +80,7 @@ describe("HunterPanel", () => {
 
         const dialog = await screen.findByRole("dialog");
         expect(within(dialog).getAllByRole("heading", { name: "DXCC" }).length).toBeGreaterThan(0);
-        expect(within(dialog).getByText("0/3 complete, 3 missing")).toBeTruthy();
+        expect(within(dialog).getByText("0/3 done, 3 needed")).toBeTruthy();
         expect(within(dialog).getByText("Germany")).toBeTruthy();
         expect(within(dialog).getByRole("switch").getAttribute("aria-checked")).toBe("false");
         expect(within(dialog).getByRole("button", { name: "Apply" })).toBeTruthy();
@@ -96,10 +96,10 @@ describe("HunterPanel", () => {
         const dialog = await screen.findByRole("dialog");
 
         await user.click(within(dialog).getByRole("switch"));
-        await user.click(within(dialog).getByRole("button", { name: "Mark Germany complete" }));
+        await user.click(within(dialog).getByRole("button", { name: "Mark Germany done" }));
 
         await waitFor(() => {
-            expect(within(dialog).getByText("1/3 complete, 2 missing")).toBeTruthy();
+            expect(within(dialog).getByText("1/3 done, 2 needed")).toBeTruthy();
             expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
             expect(within(dxcc_section).getByText("Disabled")).toBeTruthy();
         });
@@ -115,11 +115,11 @@ describe("HunterPanel", () => {
 
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
         const reopened_dialog = await screen.findByRole("dialog");
-        await user.click(within(reopened_dialog).getByRole("button", { name: "Completed" }));
+        await user.click(within(reopened_dialog).getByRole("button", { name: "Done" }));
         expect(within(reopened_dialog).getByText("Germany")).toBeTruthy();
 
         await user.click(
-            within(reopened_dialog).getByRole("button", { name: "Mark Germany incomplete" }),
+            within(reopened_dialog).getByRole("button", { name: "Mark Germany needed" }),
         );
         await user.click(within(reopened_dialog).getByRole("button", { name: "Apply" }));
 
@@ -139,9 +139,9 @@ describe("HunterPanel", () => {
         const dialog = await screen.findByRole("dialog");
 
         await user.click(within(dialog).getByRole("switch"));
-        await user.click(within(dialog).getByRole("button", { name: "Mark Germany complete" }));
+        await user.click(within(dialog).getByRole("button", { name: "Mark Germany done" }));
 
-        expect(within(dialog).getByText("1/3 complete, 2 missing")).toBeTruthy();
+        expect(within(dialog).getByText("1/3 done, 2 needed")).toBeTruthy();
         expect(within(dxcc_section).getByText("0/3 done, 3 needed")).toBeTruthy();
 
         await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
@@ -154,14 +154,14 @@ describe("HunterPanel", () => {
 
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
         const reopened_dialog = await screen.findByRole("dialog");
-        expect(within(reopened_dialog).getByText("0/3 complete, 3 missing")).toBeTruthy();
+        expect(within(reopened_dialog).getByText("0/3 done, 3 needed")).toBeTruthy();
         expect(within(reopened_dialog).getByText("Germany")).toBeTruthy();
         expect(within(reopened_dialog).getByRole("switch").getAttribute("aria-checked")).toBe(
             "false",
         );
     });
 
-    it("clears completed items in one section from the edit modal", async () => {
+    it("clears done items in one section from the edit modal", async () => {
         const user = userEvent.setup();
         const profile_data = create_default_profile_data();
         profile_data.hunter.worked.dxcc.global = [230];
@@ -172,24 +172,24 @@ describe("HunterPanel", () => {
 
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
         const dialog = await screen.findByRole("dialog");
-        await user.click(within(dialog).getByRole("button", { name: "Completed" }));
+        await user.click(within(dialog).getByRole("button", { name: "Done" }));
 
         const clear_button = within(dialog).getByRole("button", { name: "Clear" });
         await waitFor(() => expect(clear_button.disabled).toBe(false));
         await user.click(clear_button);
 
-        expect(within(dialog).getByText(/Clear 1 completed DXCC item/)).toBeTruthy();
+        expect(within(dialog).getByText(/Clear 1 done DXCC item/)).toBeTruthy();
         expect(screen.getAllByRole("dialog")).toHaveLength(1);
 
         await user.click(within(dialog).getByRole("button", { name: "Clear" }));
 
         await waitFor(() => {
-            expect(within(dialog).getByText("0/3 complete, 3 missing")).toBeTruthy();
+            expect(within(dialog).getByText("0/3 done, 3 needed")).toBeTruthy();
             expect(within(dxcc_section).getByText("1/3 done, 2 needed")).toBeTruthy();
         });
-        await user.click(within(dialog).getByRole("button", { name: "Missing" }));
+        await user.click(within(dialog).getByRole("button", { name: "Needed" }));
         expect(within(dialog).getByText("Germany")).toBeTruthy();
-        await user.click(within(dialog).getByRole("button", { name: "Completed" }));
+        await user.click(within(dialog).getByRole("button", { name: "Done" }));
         expect(within(dialog).getByRole("button", { name: "Clear" }).disabled).toBe(true);
 
         await user.click(within(dialog).getByRole("button", { name: "Apply" }));
@@ -215,7 +215,7 @@ describe("HunterPanel", () => {
         expect(within(dialog).queryByText("AL - Alabama")).toBeNull();
     });
 
-    it("shows completed section progress in summaries and edit modal", async () => {
+    it("shows done section progress in summaries and edit modal", async () => {
         const user = userEvent.setup();
         const profile_data = create_default_profile_data();
         profile_data.hunter.worked.cq_zone.global = Array.from(
@@ -233,7 +233,7 @@ describe("HunterPanel", () => {
         expect(within(dialog).getByRole("img", { name: "Trophy" })).toBeTruthy();
         expect(within(dialog).getByText("No CQ zones left")).toBeTruthy();
         expect(within(dialog).getByText("Well done!")).toBeTruthy();
-        expect(within(dialog).queryByText("No missing items match.")).toBeNull();
+        expect(within(dialog).queryByText("No needed items match.")).toBeNull();
     });
 
     it("shows recent import metadata", () => {
