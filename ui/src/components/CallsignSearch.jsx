@@ -12,7 +12,7 @@ export default function CallsignSearch({
     compact = false,
     border_position = "bottom",
 }) {
-    const { colors } = useColors();
+    const { colors, dev_mode } = useColors();
     const {
         search_query,
         set_search_query,
@@ -97,16 +97,18 @@ export default function CallsignSearch({
                 }}
             />
             {search_query && <X size="24" on_click={() => set_search_query("")} />}
-            <Select
-                className={`${compact ? "h-9 !w-24 !px-2 !py-1 text-xs" : "ml-auto h-9 w-28 text-sm"} font-semibold`}
-                value={selected_reference_type ?? "cluster"}
-                onChange={e => select_reference_type(e.target.value)}
-            >
-                <option value="cluster">Cluster</option>
-                <option value="pota">POTA</option>
-                <option value="wwff">WWFF</option>
-                <option value="sota">SOTA</option>
-            </Select>
+            {dev_mode && (
+                <Select
+                    className={`${compact ? "h-9 !w-24 !px-2 !py-1 text-xs" : "ml-auto h-9 w-28 text-sm"} font-semibold`}
+                    value={selected_reference_type ?? "cluster"}
+                    onChange={e => select_reference_type(e.target.value)}
+                >
+                    <option value="cluster">Cluster</option>
+                    <option value="pota">POTA</option>
+                    <option value="wwff">WWFF</option>
+                    <option value="sota">SOTA</option>
+                </Select>
+            )}
             <button
                 type="button"
                 ref={single_spot_ref}
@@ -124,7 +126,7 @@ export default function CallsignSearch({
                     set_show_single_popup(false);
                     set_single_spot_hover(false);
                 }}
-                className={`flex items-center gap-1 cursor-pointer rounded-md ${compact ? "px-1 py-1" : "px-2 py-1"}`}
+                className={`flex items-center gap-1 cursor-pointer rounded-md ${!dev_mode && !compact ? "ml-auto " : ""}${compact ? "px-1 py-1" : "px-2 py-1"}`}
                 style={{
                     ...toggle_button_base,
                     ...(single_spot ? toggle_button_active : {}),
