@@ -113,12 +113,21 @@ export function useMapGestures({
             return { x: event.clientX - rect.left, y: event.clientY - rect.top };
         }
 
-        function is_inside_map_circle(x, y) {
+        function is_inside_map_circle(x, y, edge_buffer_px = 8) {
             const dx = x - dims.center_x;
             const dy = y - dims.center_y;
-            const edge_buffer_px = 8;
             const interactive_radius = dims.radius + edge_buffer_px;
             return dx * dx + dy * dy <= interactive_radius * interactive_radius;
+        }
+
+        function clear_label_hover() {
+            const current_hovered_zone = render_state_ref.current.hovered_zone;
+            if (current_hovered_zone.system != null || current_hovered_zone.number != null) {
+                set_hovered_zone({ system: null, number: null });
+            }
+            if (render_state_ref.current.hovered_dxcc != null) {
+                set_hovered_dxcc(null);
+            }
         }
 
         function get_pointer_distance() {
@@ -130,6 +139,11 @@ export function useMapGestures({
         }
 
         function update_label_hover(pos) {
+            if (!is_inside_map_circle(pos.x, pos.y, 0)) {
+                clear_label_hover();
+                return;
+            }
+
             const clickable_zone = get_clickable_zone_label(pos.x, pos.y);
             const current_hovered_zone = render_state_ref.current.hovered_zone;
             if (
@@ -274,7 +288,8 @@ export function useMapGestures({
 
         function handle_tap(x, y, event) {
             const searched = get_data_from_shadow_canvas(x, y);
-            const clickable_zone = get_clickable_zone_label(x, y);
+            const inside_map_circle = is_inside_map_circle(x, y, 0);
+            const clickable_zone = inside_map_circle ? get_clickable_zone_label(x, y) : null;
             if (clickable_zone != null) {
                 const { system, number } = clickable_zone;
                 callbacks_ref.current.open_zone_context_menu(
@@ -286,7 +301,7 @@ export function useMapGestures({
                 return;
             }
 
-            const clickable_dxcc = get_clickable_dxcc_label(x, y);
+            const clickable_dxcc = inside_map_circle ? get_clickable_dxcc_label(x, y) : null;
             if (clickable_dxcc?.entity) {
                 callbacks_ref.current.open_dxcc_context_menu(
                     event.clientX,
@@ -521,13 +536,7 @@ export function useMapGestures({
         function on_pointer_leave(event) {
             pointers.delete(event.pointerId);
             if (event.pointerType === "mouse") {
-                const current_hovered_zone = render_state_ref.current.hovered_zone;
-                if (current_hovered_zone.system != null || current_hovered_zone.number != null) {
-                    set_hovered_zone({ system: null, number: null });
-                }
-                if (render_state_ref.current.hovered_dxcc != null) {
-                    set_hovered_dxcc(null);
-                }
+                clear_label_hover();
                 const { hovered_spot: current_hovered } = render_state_ref.current;
                 if (current_hovered.source != null || current_hovered.id != null) {
                     callbacks_ref.current.set_hovered_spot({ source: null, id: null });
