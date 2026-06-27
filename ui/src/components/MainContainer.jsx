@@ -246,8 +246,8 @@ function MainContent({
             <UnsupportedVersion />
         );
 
-    const main_view_mode = settings.main_view_mode ?? "both";
-    const main_view_order = settings.main_view_order ?? "map_table";
+    const main_view_mode = dev_mode ? (settings.main_view_mode ?? "both") : "both";
+    const main_view_order = dev_mode ? (settings.main_view_order ?? "map_table") : "map_table";
     const ordered_panel_keys =
         main_view_order === "table_map" ? ["table", "map"] : ["map", "table"];
     const active_panel_keys =
