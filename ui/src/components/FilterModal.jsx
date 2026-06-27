@@ -218,7 +218,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                         { label: "US/Canada", value: "zone_region" },
                         { label: "Zone", value: "zone" },
                         { label: "Comment", value: "comment" },
-                        { label: "Hunter", value: "hunter" },
+                        { label: "Missing", value: "hunter" },
                         { label: "Self Spotters", value: "self_spotters" },
                         { label: "DXpeditions", value: "dxpeditions" },
                     ]}

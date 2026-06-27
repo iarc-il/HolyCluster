@@ -4,11 +4,12 @@ import Input from "@/components/ui/Input.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
 
-import { get_dxcc_label } from "@/data/dxcc_entities.js";
+import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
 import { HUNTER_SECTION_LABELS } from "@/data/hunter_sections.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { DndContext, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useState } from "react";
@@ -19,7 +20,7 @@ const FILTER_TYPE_LABELS = {
     entity: "Ent",
     zone: "Zone",
     comment: "Cmt",
-    hunter: "Htr",
+    hunter: "Mis",
 };
 
 const SPOTTER_DX_LABELS = {
@@ -30,6 +31,14 @@ const SPOTTER_DX_LABELS = {
 const SPECIAL_FILTER_LABELS = {
     self_spotters: "Self spotters",
     dxpeditions: "DXpedition",
+};
+
+const HUNTER_SECTION_TOTALS = {
+    dxcc: dxcc_codes.length,
+    cq_zone: 40,
+    itu_zone: 90,
+    us_state: Object.keys(STATES.USA).length,
+    ca_province: Object.keys(STATES.Canada).length,
 };
 
 function Indicator({ text }) {
@@ -144,20 +153,29 @@ function ZoneFilterBadge({ filter, listeners, attributes }) {
 }
 
 function HunterFilterBadge({ filter, listeners, attributes }) {
+    const {
+        active_profile_data: { hunter },
+    } = useProfiles();
     const section_label = HUNTER_SECTION_LABELS[filter.hunter_section] ?? filter.hunter_section;
+    const total_count = HUNTER_SECTION_TOTALS[filter.hunter_section] ?? 0;
+    const worked_count = new Set(hunter.worked[filter.hunter_section]?.global ?? []).size;
+    const missing_count = Math.max(total_count - worked_count, 0);
 
     return (
         <div className="flex items-center gap-1">
             <FilterBadge
                 listeners={listeners}
                 attributes={attributes}
-                className="cursor-grab active:cursor-grabbing w-24"
-                title={`Hunter ${section_label}`}
+                className="cursor-grab active:cursor-grabbing w-22"
+                title={`Missing ${section_label}`}
             >
-                Hunter
+                Missing
             </FilterBadge>
             <FilterBadge className="px-2 w-fit max-w-40" title={section_label}>
                 {section_label}
+            </FilterBadge>
+            <FilterBadge className="px-2 w-fit" title={`${missing_count} missing`}>
+                {missing_count}
             </FilterBadge>
         </div>
     );

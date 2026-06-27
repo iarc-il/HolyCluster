@@ -266,7 +266,7 @@ export async function resolve_hunter_callsigns(callsigns) {
     });
 
     if (!response.ok) {
-        throw new Error(`Hunter resolver failed with HTTP ${response.status}`);
+        throw new Error(`Missing resolver failed with HTTP ${response.status}`);
     }
 
     return response.json();

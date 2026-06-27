@@ -55,8 +55,8 @@ export const PROFILE_SECTION_DEFINITIONS = {
         description: "Alert, show only, and hide filter rules",
     },
     hunter: {
-        label: "Hunter Progress",
-        description: "Hunter worked entities and ADIF import metadata",
+        label: "Missing Progress",
+        description: "Worked entities and ADIF import metadata",
     },
     map_controls: {
         label: "Map Controls",

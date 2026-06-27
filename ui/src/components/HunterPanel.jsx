@@ -26,7 +26,7 @@ const IMPORT_PHASE_LABELS = {
     [HUNTER_IMPORT_PHASES.PARSING]: "Parsing ADIF",
     [HUNTER_IMPORT_PHASES.PROCESSING]: "Processing QSOs",
     [HUNTER_IMPORT_PHASES.RESOLVING]: "Resolving callsigns",
-    [HUNTER_IMPORT_PHASES.MERGING]: "Saving hunter data",
+    [HUNTER_IMPORT_PHASES.MERGING]: "Saving missing data",
     [HUNTER_IMPORT_PHASES.COMPLETE]: "Import complete",
 };
 
@@ -321,10 +321,7 @@ function HunterSection({
     on_clear_done,
 }) {
     const worked_values = hunter.worked[section]?.global ?? [];
-    const { worked, done_count, needed_count, is_section_done } = get_section_progress(
-        items,
-        worked_values,
-    );
+    const { worked, done_count, is_section_done } = get_section_progress(items, worked_values);
     const visible_items = get_visible_section_items(items, worked, list_mode, search);
 
     return (
@@ -332,16 +329,7 @@ function HunterSection({
             className="rounded-lg border p-3 space-y-3"
             style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
         >
-            <div className="flex items-start justify-between gap-3">
-                <div>
-                    <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
-                    <SectionStats
-                        done_count={done_count}
-                        needed_count={needed_count}
-                        total_count={items.length}
-                    />
-                </div>
-            </div>
+            <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
 
             <div className="h-2 rounded-full overflow-hidden bg-slate-500/30">
                 <div
@@ -616,7 +604,7 @@ export default function HunterPanel() {
                 className="rounded-lg border p-3 space-y-2"
                 style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
             >
-                <h2 className="text-lg font-bold">Hunter</h2>
+                <h2 className="text-lg font-bold">Missing</h2>
                 <div className="flex items-center justify-between gap-2">
                     <label>
                         <input
