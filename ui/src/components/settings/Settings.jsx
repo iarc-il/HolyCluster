@@ -65,7 +65,7 @@ const empty_temp_settings = {
 
 function Settings({ set_map_controls, set_radius_in_km }) {
     const [temp_settings, set_temp_settings] = useState(empty_temp_settings);
-    const { colors, setTheme } = useColors();
+    const { colors, setTheme, dev_mode } = useColors();
     const { settings, set_settings } = useSettings();
     const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
     const { is_radio_available } = use_radio();
@@ -141,7 +141,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
-        ...(!is_mobile_settings
+        ...(dev_mode && !is_mobile_settings
             ? [
                   {
                       label: "Layout",
@@ -165,13 +165,22 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
-        {
-            label: "Profiles",
-            content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
-        },
+        ...(dev_mode
+            ? [
+                  {
+                      label: "Profiles",
+                      content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
+                  },
+              ]
+            : []),
         {
             label: "Import/Export",
-            content: <ImportExport set_temp_settings={set_temp_settings} />,
+            content: (
+                <ImportExport
+                    set_temp_settings={set_temp_settings}
+                    apply_settings={apply_settings}
+                />
+            ),
         },
     ];
 

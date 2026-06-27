@@ -136,7 +136,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                 ) : (
                     ""
                 )}
-                {profiles.length > 1 && (
+                {dev_mode && profiles.length > 1 && (
                     <div className="hidden md:block">
                         <Select
                             value={active_profile_name}

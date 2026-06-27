@@ -16,7 +16,11 @@ vi.mock("@/hooks/useRadio", () => ({
     }),
 }));
 
-function render_settings_modal() {
+function render_settings_modal({ dev_mode = false } = {}) {
+    if (dev_mode) {
+        window.localStorage.setItem("dev_mode", "true");
+    }
+
     const map_controls = {
         location: {
             displayed_locator: "JJ00AA",
@@ -99,7 +103,7 @@ describe("settings modal", () => {
 
     it("applies layout from one direct workspace option", async () => {
         const user = userEvent.setup();
-        const { container } = render_settings_modal();
+        const { container } = render_settings_modal({ dev_mode: true });
 
         await user.click(container.querySelector(".cursor-pointer"));
         await user.click(screen.getByText("Layout"));
