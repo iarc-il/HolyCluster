@@ -52,7 +52,7 @@ function CanvasMap({
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
-    const { colors } = useColors();
+    const { colors, dev_mode } = useColors();
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
     const [hovered_dxcc, set_hovered_dxcc] = useState(null);
     const [map_context_menu, set_map_context_menu] = useState({
@@ -95,23 +95,34 @@ function CanvasMap({
 
     const is_max_xs_device = useMediaQuery("only screen and (max-width : 500px)");
     const is_sm_device = useMediaQuery("only screen and (min-width : 640px)");
-    const inner_padding = is_sm_device && !map_controls.is_globe ? 45 : 5;
+    const effective_map_controls = useMemo(
+        () =>
+            dev_mode
+                ? map_controls
+                : {
+                      ...map_controls,
+                      show_maidenhead_grid: false,
+                      voacap_enabled: false,
+                  },
+        [dev_mode, map_controls],
+    );
+    const inner_padding = is_sm_device && !effective_map_controls.is_globe ? 45 : 5;
 
     const dims = useMemo(
         () => (width && height ? new Dimensions(width, height, inner_padding) : null),
         [width, height, inner_padding],
     );
 
-    const [center_lon, center_lat] = map_controls.location.location;
+    const [center_lon, center_lat] = effective_map_controls.location.location;
     const voacap_state = useVoacap({
-        enabled: map_controls.voacap_enabled ?? false,
+        enabled: effective_map_controls.voacap_enabled ?? false,
         center_lat,
         center_lon,
-        band: map_controls.voacap_band ?? "20",
-        step_deg: map_controls.voacap_step_deg ?? 10,
+        band: effective_map_controls.voacap_band ?? "20",
+        step_deg: effective_map_controls.voacap_step_deg ?? 10,
     });
     const voacap_render_state =
-        map_controls.voacap_enabled && !voacap_state.loading && !voacap_state.stale
+        effective_map_controls.voacap_enabled && !voacap_state.loading && !voacap_state.stale
             ? voacap_state
             : null;
     const home_location = useMemo(() => {
@@ -143,7 +154,7 @@ function CanvasMap({
         pinned_spot,
         hovered_band,
         current_freq_spots,
-        map_controls,
+        map_controls: effective_map_controls,
         settings,
         radius_in_km,
         callsign_filters,
@@ -170,7 +181,7 @@ function CanvasMap({
         center_lon,
         center_lat,
         radius_in_km,
-        map_controls.is_globe,
+        effective_map_controls.is_globe,
         gesture_active_ref,
     );
 
@@ -186,7 +197,7 @@ function CanvasMap({
         center_lon,
         center_lat,
         radius_in_km,
-        map_controls,
+        map_controls: effective_map_controls,
         callsign_filters,
         colors,
         night_time_ms,
@@ -320,7 +331,7 @@ function CanvasMap({
                 dims={dims}
                 colors={colors}
                 settings={settings}
-                map_controls={map_controls}
+                map_controls={effective_map_controls}
                 radius_in_km={radius_in_km}
                 auto_radius={auto_radius}
                 set_auto_radius={set_auto_radius}

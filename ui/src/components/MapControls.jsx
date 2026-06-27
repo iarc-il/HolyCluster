@@ -249,13 +249,17 @@ function MapControls({
             map_control_key: "show_itu_zones",
             active: itu_zones_on,
         },
-        {
-            id: "maidenhead",
-            label: "MH",
-            map_control_key: "show_maidenhead_grid",
-            active: maidenhead_grid_on,
-            title: "Maidenhead grid",
-        },
+        ...(dev_mode
+            ? [
+                  {
+                      id: "maidenhead",
+                      label: "MH",
+                      map_control_key: "show_maidenhead_grid",
+                      active: maidenhead_grid_on,
+                      title: "Maidenhead grid",
+                  },
+              ]
+            : []),
     ];
 
     function render_overlay_button({
