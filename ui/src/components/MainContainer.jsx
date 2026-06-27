@@ -188,9 +188,11 @@ function MainContent({
     }
 
     const is_md_device = useMediaQuery("only screen and (max-width : 768px)");
-    const is_history_mode = !!(history_start && history_end);
+    const is_history_mode = dev_mode && !!(history_start && history_end);
 
     function toggle_history() {
+        if (!dev_mode) return;
+
         if (is_history_mode) {
             set_history_start(null);
             set_history_end(null);
@@ -340,6 +342,7 @@ function MainContent({
 }
 
 function MainContainer() {
+    const { dev_mode } = useColors();
     const {
         active_profile_data: {
             history: { window_size_ms, step_size_ms },
@@ -348,6 +351,8 @@ function MainContainer() {
     } = useProfiles();
     const [history_start, set_history_start] = useState(null);
     const [history_end, set_history_end] = useState(null);
+    const effective_history_start = dev_mode ? history_start : null;
+    const effective_history_end = dev_mode ? history_end : null;
 
     function set_window_size_ms(value_or_setter) {
         update_active_profile_section("history", history => ({
@@ -358,7 +363,17 @@ function MainContainer() {
                     : value_or_setter,
         }));
     }
+
     useEffect(() => {
+        if (!dev_mode) {
+            set_history_start(null);
+            set_history_end(null);
+        }
+    }, [dev_mode]);
+
+    useEffect(() => {
+        if (!dev_mode) return;
+
         const handle =
             typeof requestIdleCallback !== "undefined"
                 ? requestIdleCallback(() => open_db_and_evict())
@@ -370,23 +385,23 @@ function MainContainer() {
                 : clearTimeout(handle);
             clearInterval(timer);
         };
-    }, []);
+    }, [dev_mode]);
 
     return (
         <RestDataProvider
-            propagation_range_start={history_start}
-            propagation_range_end={history_end}
-            propagation_time={history_end}
+            propagation_range_start={effective_history_start}
+            propagation_range_end={effective_history_end}
+            propagation_time={effective_history_end}
         >
             <SpotDataProvider
-                startTime={history_start}
-                endTime={history_end}
+                startTime={effective_history_start}
+                endTime={effective_history_end}
                 window_size_ms={window_size_ms}
                 step_size_ms={step_size_ms}
             >
                 <MainContent
-                    history_start={history_start}
-                    history_end={history_end}
+                    history_start={effective_history_start}
+                    history_end={effective_history_end}
                     set_history_start={set_history_start}
                     set_history_end={set_history_end}
                     window_size_ms={window_size_ms}
