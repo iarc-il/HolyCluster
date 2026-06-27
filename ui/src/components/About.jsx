@@ -9,6 +9,17 @@ import use_radio from "@/hooks/useRadio.jsx";
 
 const RELEASES = [
     [
+        "28/06/2026",
+        [
+            "We had a vote in Friedrichshafen on the next feature to release!",
+            <>
+                The winner is <b key="hunter-panel">hunter panel 🏹</b>
+            </>,
+            "Hunter panel is for tracking needed DXCC entities, CQ zones, ITU zones, US states and Canada provinces",
+            "Import ADIF logs to update missing progress, with progress display and clearer invalid-file errors",
+        ],
+    ],
+    [
         "17/05/2026",
         [
             "Map update! 🗺️",
