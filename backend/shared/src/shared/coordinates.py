@@ -7,6 +7,25 @@ class Position:
         return f"{self.lat},{self.lon}"
 
 
+def coordinates_to_locator(lat: float, lon: float) -> str:
+    assert -90.0 <= lat <= 90.0
+    assert -180.0 <= lon <= 180.0
+
+    # Clamp upper bounds because Maidenhead field indexes are 0-17.
+    lat = min(lat, 89.999999)
+    lon = min(lon, 179.999999)
+
+    normalized_lon = lon + 180.0
+    normalized_lat = lat + 90.0
+
+    lon_field = int(normalized_lon // 20.0)
+    lat_field = int(normalized_lat // 10.0)
+    lon_square = int((normalized_lon % 20.0) // 2.0)
+    lat_square = int(normalized_lat % 10.0)
+
+    return chr(ord("A") + lon_field) + chr(ord("A") + lat_field) + str(lon_square) + str(lat_square)
+
+
 def locator_to_coordinates(locator: str) -> tuple[float, float]:
     # Many thanks to Dmitry (4X5DM) for the algorithm
 

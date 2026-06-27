@@ -1,14 +1,14 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
-import { use_object_local_storage } from "@/utils.js";
-import { normalize_zone_value } from "@/utils/zones.js";
-import { create_initial_callsign_filters, create_initial_filters } from "@/data/filter_defaults.js";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 import {
+    FILTER_URL_PARAM,
     build_filter_share_url,
     decode_filter_state,
-    FILTER_URL_PARAM,
     get_filter_url_param,
 } from "@/utils/filter_url_state.js";
+import { normalize_zone_value } from "@/utils/zones.js";
+import { useLocalStorage } from "@uidotdev/usehooks";
+import { createContext, useContext, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 
 const FiltersContext = createContext(undefined);
 const ZONE_CLICK_ACTION_CYCLE = ["hide", "show_only", "alert"];
@@ -31,6 +31,8 @@ function normalize_filter_criteria(filter) {
     } else if (type === "zone") {
         normalized.zone_system = filter.zone_system || "cq";
         normalized.value = normalize_zone_value(normalized.zone_system, filter.value);
+    } else if (type === "hunter") {
+        normalized.hunter_section = filter.hunter_section;
     } else if (type === "comment") {
         normalized.value = normalize_filter_text(filter.value);
     }
@@ -66,6 +68,10 @@ function is_same_filter_criteria(filter_a, filter_b) {
 
     if (normalized_a.type === "comment") {
         return normalized_a.value === normalized_b.value;
+    }
+
+    if (normalized_a.type === "hunter") {
+        return normalized_a.hunter_section === normalized_b.hunter_section;
     }
 
     return true;
@@ -118,15 +124,17 @@ export const useFilters = () => {
 export const FiltersProvider = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const initial_filters = useMemo(() => create_initial_filters(), []);
-    const initial_callsign_filters = useMemo(() => create_initial_callsign_filters(), []);
-    const filter_url_value = get_filter_url_param(location.search);
+    const [dev_mode] = useLocalStorage("dev_mode", false);
+    const {
+        active_profile_data: {
+            filters: profile_filters,
+            callsign_filters: profile_callsign_filters,
+        },
+        update_active_profile_data,
+        update_active_profile_section,
+    } = useProfiles();
+    const filter_url_value = dev_mode ? get_filter_url_param(location.search) : null;
 
-    const [stored_filters, setStoredFilters] = use_object_local_storage("filters", initial_filters);
-    const [stored_callsign_filters, setStoredCallsignFilters] = use_object_local_storage(
-        "callsign_filters",
-        initial_callsign_filters,
-    );
     const [shared_filter_state, set_shared_filter_state] = useState(() =>
         decode_filter_state(filter_url_value),
     );
@@ -136,10 +144,10 @@ export const FiltersProvider = ({ children }) => {
     }, [filter_url_value]);
 
     const is_shared_filter_state = shared_filter_state != null;
-    const filters = is_shared_filter_state ? shared_filter_state.filters : stored_filters;
+    const filters = is_shared_filter_state ? shared_filter_state.filters : profile_filters;
     const callsign_filters = is_shared_filter_state
         ? shared_filter_state.callsign_filters
-        : stored_callsign_filters;
+        : profile_callsign_filters;
 
     function apply_setter_value(previous_value, value_or_setter) {
         return typeof value_or_setter === "function"
@@ -147,9 +155,13 @@ export const FiltersProvider = ({ children }) => {
             : value_or_setter;
     }
 
+    function setProfileFilters(value_or_setter) {
+        update_active_profile_section("filters", value_or_setter);
+    }
+
     function setFilters(value_or_setter) {
         if (!is_shared_filter_state) {
-            setStoredFilters(value_or_setter);
+            setProfileFilters(value_or_setter);
             return;
         }
 
@@ -167,7 +179,7 @@ export const FiltersProvider = ({ children }) => {
 
     function setCallsignFilters(value_or_setter) {
         if (!is_shared_filter_state) {
-            setStoredCallsignFilters(value_or_setter);
+            update_active_profile_section("callsign_filters", value_or_setter);
             return;
         }
 
@@ -188,8 +200,11 @@ export const FiltersProvider = ({ children }) => {
             return;
         }
 
-        setStoredFilters(shared_filter_state.filters);
-        setStoredCallsignFilters(shared_filter_state.callsign_filters);
+        update_active_profile_data(data => ({
+            ...data,
+            filters: shared_filter_state.filters,
+            callsign_filters: shared_filter_state.callsign_filters,
+        }));
         set_shared_filter_state(null);
 
         const search_params = new URLSearchParams(location.search);
@@ -328,6 +343,7 @@ export const FiltersProvider = ({ children }) => {
             value={{
                 filters,
                 setFilters,
+                setProfileFilters,
                 setFilterKeys,
                 setOnlyFilterKeys,
                 setRadioModeFilter,

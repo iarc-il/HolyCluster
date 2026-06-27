@@ -5,7 +5,11 @@ export default function Hero() {
             <div className="container mx-auto text-center">
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-3 inline-flex items-center gap-4">
                     <a rel="external" href="/">
-                        <img className="h-12 md:h-16 lg:h-20 w-auto" src={Icon} />
+                        <img
+                            className="h-12 md:h-16 lg:h-20 w-auto"
+                            src={Icon}
+                            alt="Holy Cluster CAT Server"
+                        />
                     </a>
                     The Holy Cluster's CAT Server
                 </h1>

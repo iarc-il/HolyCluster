@@ -1,262 +1,38 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 
-import * as d3 from "d3";
+import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
 import haversine from "haversine-distance";
 import Maidenhead from "maidenhead";
-import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
 
-import { calculate_geographic_azimuth, km_to_miles, mod } from "@/utils.js";
-import { Dimensions } from "./dimensions.js";
-import { dxcc_map, draw_map, draw_zone_labels, find_dxcc_label } from "./draw_map.js";
-import { draw_spots } from "./draw_spots.js";
-import { color_to_spot, draw_shadow_map } from "./hit_detection.js";
-import { profile_map } from "./map_profile.js";
-import SpotPopup from "@/components/SpotPopup.jsx";
 import SpotContextMenu from "@/components/SpotContextMenu.jsx";
-import MapAngles from "@/components/MapAngles.jsx";
-import ToggleSVG from "@/components/ui/ToggleSVG";
+import SpotPopup from "@/components/SpotPopup.jsx";
 import Popup from "@/components/ui/Popup.jsx";
+import { get_dxcc_label, is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { useSettings } from "@/hooks/useSettings";
-import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
-import { find_zone_label_number, get_active_overlay_systems } from "@/utils/zones.js";
-
-const DPR = window.devicePixelRatio || 1;
-
-const MAP_FILTER_ACTIONS = [
-    {
-        action: "alert",
-        add_label: target_label => (target_label ? `Add Alert for ${target_label}` : "Add Alert"),
-        remove_label: target_label =>
-            target_label ? `Remove Alert for ${target_label}` : "Remove Alert",
-    },
-    {
-        action: "show_only",
-        add_label: target_label =>
-            target_label ? `Add Show Only ${target_label}` : "Add Show Only",
-        remove_label: target_label =>
-            target_label ? `Remove Show Only ${target_label}` : "Remove Show Only",
-    },
-    {
-        action: "hide",
-        add_label: target_label => (target_label ? `Add Hide ${target_label}` : "Add Hide"),
-        remove_label: target_label =>
-            target_label ? `Remove Hide ${target_label}` : "Remove Hide",
-    },
-];
-
-function with_dpr(ctx, fn) {
-    ctx.save();
-    ctx.scale(DPR, DPR);
-    fn(ctx);
-    ctx.restore();
-}
-
-function get_shadow_render_state(dims, projection, spots, is_globe, shadow_canvas) {
-    return {
-        canvas_height: shadow_canvas.height,
-        canvas_width: shadow_canvas.width,
-        center_x: dims.center_x,
-        center_y: dims.center_y,
-        height: dims.height,
-        is_globe,
-        radius: dims.radius,
-        rotate: projection.rotate(),
-        scale: projection.scale(),
-        spots,
-        translate: projection.translate(),
-        width: dims.width,
-    };
-}
-
-function are_number_arrays_equal(a, b) {
-    if (!a || !b || a.length !== b.length) return false;
-    for (let index = 0; index < a.length; index += 1) {
-        if (a[index] !== b[index]) return false;
-    }
-    return true;
-}
-
-function is_same_shadow_render_state(a, b) {
-    return (
-        a != null &&
-        b != null &&
-        a.canvas_height === b.canvas_height &&
-        a.canvas_width === b.canvas_width &&
-        a.center_x === b.center_x &&
-        a.center_y === b.center_y &&
-        a.height === b.height &&
-        a.is_globe === b.is_globe &&
-        a.radius === b.radius &&
-        a.scale === b.scale &&
-        a.spots === b.spots &&
-        a.width === b.width &&
-        are_number_arrays_equal(a.rotate, b.rotate) &&
-        are_number_arrays_equal(a.translate, b.translate)
-    );
-}
-
-function draw_shadow_layer(dims, projection, render_state_ref, canvas_refs) {
-    const shadow_canvas = canvas_refs.shadow_canvas_ref.current;
-    if (!shadow_canvas) return;
-
-    const { spots, map_controls } = render_state_ref.current;
-    const next_state = get_shadow_render_state(
-        dims,
-        projection,
-        spots,
-        map_controls.is_globe,
-        shadow_canvas,
-    );
-    if (is_same_shadow_render_state(canvas_refs.shadow_render_state_ref.current, next_state)) {
-        return;
-    }
-
-    const ctx = shadow_canvas.getContext("2d", { willReadFrequently: true });
-    ctx.clearRect(0, 0, shadow_canvas.width, shadow_canvas.height);
-    with_dpr(ctx, () => {
-        profile_map("draw_shadow_map", () => {
-            draw_shadow_map(ctx, spots, dims, projection, map_controls.is_globe);
-        });
-    });
-    canvas_refs.shadow_render_state_ref.current = next_state;
-}
-
-function do_redraw(
-    dims,
-    projection_ref,
-    render_state_ref,
-    canvas_refs,
-    { skip_map = false, skip_shadow = false, fast = false } = {},
-) {
-    const profile_label = skip_map
-        ? "do_redraw.overlay"
-        : fast
-          ? "do_redraw.fast"
-          : "do_redraw.full";
-    return profile_map(profile_label, () => {
-        const projection = projection_ref.current;
-        if (!dims || !projection) return;
-        const {
-            colors,
-            map_controls,
-            callsign_filters,
-            settings,
-            spots,
-            hovered_spot,
-            hovered_zone,
-            hovered_dxcc,
-            pinned_spot,
-            hovered_band,
-            current_freq_spots,
-            night_time,
-        } = render_state_ref.current;
-
-        const render_dpr = fast && DPR > 1 ? 1 : DPR;
-
-        const cache_canvas = canvas_refs.map_cache_canvas_ref.current;
-        if (!skip_map && cache_canvas) {
-            const target_w = dims.width * render_dpr;
-            const target_h = dims.height * render_dpr;
-            if (cache_canvas.width !== target_w || cache_canvas.height !== target_h) {
-                cache_canvas.width = target_w;
-                cache_canvas.height = target_h;
-            }
-            const cache_ctx = cache_canvas.getContext("2d");
-            cache_ctx.clearRect(0, 0, cache_canvas.width, cache_canvas.height);
-            cache_ctx.save();
-            cache_ctx.scale(render_dpr, render_dpr);
-            profile_map(fast ? "draw_map.fast" : "draw_map", () => {
-                draw_map(
-                    cache_ctx,
-                    dims,
-                    projection,
-                    map_controls.night,
-                    settings.show_equator,
-                    map_controls.is_globe,
-                    map_controls.show_cq_zones,
-                    map_controls.show_itu_zones,
-                    map_controls.show_us_states,
-                    map_controls.show_can_states,
-                    callsign_filters,
-                    colors.map,
-                    colors.map_countries,
-                    fast,
-                    night_time,
-                );
-            });
-            cache_ctx.restore();
-        }
-
-        const map_canvas = canvas_refs.map_canvas_ref.current;
-        if (!skip_map && map_canvas && cache_canvas) {
-            profile_map("blit_map_cache", () => {
-                const ctx = map_canvas.getContext("2d");
-                ctx.clearRect(0, 0, map_canvas.width, map_canvas.height);
-                ctx.drawImage(
-                    cache_canvas,
-                    0,
-                    0,
-                    cache_canvas.width,
-                    cache_canvas.height,
-                    0,
-                    0,
-                    map_canvas.width,
-                    map_canvas.height,
-                );
-            });
-        }
-
-        const spots_canvas = canvas_refs.spots_canvas_ref.current;
-        if (spots_canvas) {
-            const ctx = spots_canvas.getContext("2d");
-            ctx.clearRect(0, 0, spots_canvas.width, spots_canvas.height);
-            with_dpr(ctx, () => {
-                profile_map("draw_spots", () => {
-                    draw_spots(
-                        ctx,
-                        spots,
-                        colors,
-                        hovered_spot,
-                        pinned_spot,
-                        hovered_band,
-                        current_freq_spots,
-                        dims,
-                        canvas_refs.dash_offset_ref.current,
-                        projection,
-                        map_controls.is_globe,
-                        render_state_ref.current.home_location,
-                    );
-                });
-                profile_map(fast ? "draw_zone_labels.fast" : "draw_zone_labels", () => {
-                    draw_zone_labels(
-                        ctx,
-                        dims,
-                        projection,
-                        map_controls.is_globe,
-                        map_controls.show_cq_zones,
-                        map_controls.show_itu_zones,
-                        map_controls.show_dxcc_labels,
-                        map_controls.show_us_states,
-                        map_controls.show_can_states,
-                        hovered_zone,
-                        hovered_dxcc,
-                        callsign_filters,
-                        colors.map,
-                        fast,
-                    );
-                });
-            });
-        }
-
-        if (!skip_shadow) {
-            draw_shadow_layer(dims, projection, render_state_ref, canvas_refs);
-        }
-    });
-}
+import { useVoacap } from "@/hooks/useVoacap.jsx";
+import { calculate_geographic_azimuth } from "@/utils.js";
+import MapOverlay from "./MapOverlay.jsx";
+import { Dimensions } from "./dimensions.js";
+import {
+    MAP_FILTER_ACTIONS,
+    build_filter_menu_actions,
+    build_map_context_filter,
+} from "./map_context_menu.js";
+import {
+    build_hunter_overlay_highlights,
+    get_active_hunter_filter_actions,
+} from "./overlay_highlights.js";
+import { DPR } from "./render_helpers.js";
+import { useCanvasLayers } from "./useCanvasLayers.js";
+import { useMapGestures } from "./useMapGestures.js";
+import { useMapHitTest } from "./useMapHitTest.js";
+import { useMapProjection } from "./useMapProjection.js";
+import { useMapRedraw } from "./useMapRedraw.js";
 
 function CanvasMap({
     map_controls,
@@ -270,10 +46,13 @@ function CanvasMap({
 }) {
     const { spots, current_freq_spots } = useSpotData();
     const { callsign_filters, get_filter_add_status, add_filter_if_allowed } = useFilters();
+    const {
+        active_profile_data: { hunter },
+    } = useProfiles();
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
-    const { colors } = useColors();
+    const { colors, dev_mode } = useColors();
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
     const [hovered_dxcc, set_hovered_dxcc] = useState(null);
     const [map_context_menu, set_map_context_menu] = useState({
@@ -287,136 +66,85 @@ function CanvasMap({
         is_filterable_entity: false,
     });
 
-    const map_canvas_ref = useRef(null);
-    const spots_canvas_ref = useRef(null);
-    const shadow_canvas_ref = useRef(null);
-    const map_cache_canvas_ref = useRef(null);
-    const container_ref = useRef(null);
-    const dxcc_popup_anchor_ref = useRef(null);
-
     const animation_id_ref = useRef(null);
-    const dash_offset_ref = useRef(0);
-    const zoom_settle_timer_ref = useRef(null);
-    const last_gesture_draw_ref = useRef(0);
-    const shadow_render_state_ref = useRef(null);
+    const dxcc_popup_anchor_ref = useRef(null);
+    const hit_test_ref = useRef(null);
 
-    const projection_ref = useRef(null);
-    const base_scale_ref = useRef(null);
     const gesture_active_ref = useRef(false);
-    const callbacks_ref = useRef({});
-    callbacks_ref.current = {
-        set_map_controls,
-        set_cat_to_spot,
-        set_hovered_spot,
-        set_pinned_spot,
-        add_filter_if_allowed,
-        open_zone_context_menu: (x, y, system, number) => {
-            set_map_context_menu({
-                visible: true,
-                x,
-                y,
-                type: "zone",
-                system,
-                number,
-                entity: null,
-                is_filterable_entity: false,
-            });
-        },
-        open_dxcc_context_menu: (x, y, entity) => {
-            set_map_context_menu({
-                visible: true,
-                x,
-                y,
-                type: "dxcc",
-                system: null,
-                number: null,
-                entity,
-                is_filterable_entity: is_filterable_dxcc_entity(entity),
-            });
-        },
-    };
-
-    function build_map_context_filter(action) {
-        if (map_context_menu.type === "dxcc") {
-            return {
-                action,
-                type: "entity",
-                value: map_context_menu.entity,
-                spotter_or_dx: "dx",
-            };
-        }
-
-        return {
-            action,
-            type: "zone",
-            value: map_context_menu.number,
-            zone_system: map_context_menu.system,
-            spotter_or_dx: "dx",
-        };
-    }
-
-    function build_filter_menu_actions(
-        build_candidate_filter,
-        target_label = null,
-        disabled = false,
-        disabled_reason = null,
-    ) {
-        return MAP_FILTER_ACTIONS.map(action_config => {
-            const build_filter = () => build_candidate_filter(action_config.action);
-            const get_candidate_status = () => get_filter_add_status(build_filter());
-
-            return {
-                label: () =>
-                    !disabled && get_candidate_status().status === "remove"
-                        ? action_config.remove_label(target_label)
-                        : action_config.add_label(target_label),
-                disabled,
-                disabled_reason,
-                onClick: () => {
-                    add_filter_if_allowed(build_filter());
-                },
-            };
-        });
-    }
 
     const map_menu_has_invalid_dxcc_entity =
         map_context_menu.type === "dxcc" && !map_context_menu.is_filterable_entity;
     const map_menu_actions = build_filter_menu_actions(
-        build_map_context_filter,
-        map_context_menu.type === "dxcc" ? map_context_menu.entity : null,
+        MAP_FILTER_ACTIONS,
+        action =>
+            build_map_context_filter(
+                action,
+                map_context_menu.type,
+                map_context_menu.entity,
+                map_context_menu.number,
+                map_context_menu.system,
+            ),
+        map_context_menu.type === "dxcc" ? get_dxcc_label(map_context_menu.entity) : null,
         map_menu_has_invalid_dxcc_entity,
         map_menu_has_invalid_dxcc_entity ? "Unmapped DXCC" : null,
+        get_filter_add_status,
+        add_filter_if_allowed,
     );
-
-    const canvas_refs = {
-        map_canvas_ref,
-        spots_canvas_ref,
-        shadow_canvas_ref,
-        map_cache_canvas_ref,
-        dash_offset_ref,
-        shadow_render_state_ref,
-    };
 
     const [div_ref, { width, height }] = useMeasure();
 
     const is_max_xs_device = useMediaQuery("only screen and (max-width : 500px)");
     const is_sm_device = useMediaQuery("only screen and (min-width : 640px)");
-    const inner_padding = is_sm_device && !map_controls.is_globe ? 45 : 5;
+    const effective_map_controls = useMemo(
+        () =>
+            dev_mode
+                ? map_controls
+                : {
+                      ...map_controls,
+                      show_maidenhead_grid: false,
+                      voacap_enabled: false,
+                  },
+        [dev_mode, map_controls],
+    );
+    const inner_padding = is_sm_device && !effective_map_controls.is_globe ? 45 : 5;
 
     const dims = useMemo(
         () => (width && height ? new Dimensions(width, height, inner_padding) : null),
         [width, height, inner_padding],
     );
 
-    const [center_lon, center_lat] = map_controls.location.location;
+    const [center_lon, center_lat] = effective_map_controls.location.location;
+    const voacap_state = useVoacap({
+        enabled: effective_map_controls.voacap_enabled ?? false,
+        center_lat,
+        center_lon,
+        band: effective_map_controls.voacap_band ?? "20",
+        step_deg: effective_map_controls.voacap_step_deg ?? 10,
+    });
+    const voacap_render_state =
+        effective_map_controls.voacap_enabled && !voacap_state.loading && !voacap_state.stale
+            ? voacap_state
+            : null;
     const home_location = useMemo(() => {
         const locator = (settings.locator || "").trim().toUpperCase();
         if (!locator || !Maidenhead.valid(locator)) return null;
         const [lat, lon] = Maidenhead.toLatLon(locator);
         return [lon, lat];
     }, [settings.locator]);
-    const max_radius = 20000;
     const night_time_ms = night_time?.getTime() ?? null;
+    const hunter_overlay_actions = useMemo(
+        () => get_active_hunter_filter_actions(callsign_filters),
+        [
+            callsign_filters.filters,
+            callsign_filters.is_alert_filters_active,
+            callsign_filters.is_show_only_filters_active,
+            callsign_filters.is_hide_filters_active,
+        ],
+    );
+    const overlay_highlights = useMemo(
+        () => build_hunter_overlay_highlights(hunter, hunter_overlay_actions),
+        [hunter, hunter_overlay_actions],
+    );
 
     const render_state_ref = useRef({});
     render_state_ref.current = {
@@ -426,838 +154,114 @@ function CanvasMap({
         pinned_spot,
         hovered_band,
         current_freq_spots,
-        map_controls,
+        map_controls: effective_map_controls,
         settings,
         radius_in_km,
         callsign_filters,
+        overlay_highlights,
         hovered_zone,
         hovered_dxcc,
         home_location,
         night_time,
+        voacap: voacap_render_state,
     };
 
-    useMemo(() => {
-        if (!dims) {
-            projection_ref.current = null;
-            base_scale_ref.current = null;
-            return;
-        }
+    const {
+        map_canvas_ref,
+        voacap_canvas_ref,
+        spots_canvas_ref,
+        shadow_canvas_ref,
+        canvas_refs,
+        dash_offset_ref,
+        shadow_render_state_ref,
+    } = useCanvasLayers(dims);
 
-        // During active gesture, only update scale — don't replace the projection
-        // (replacing it resets the drag rotation and causes a flicker)
-        if (gesture_active_ref.current && projection_ref.current && base_scale_ref.current) {
-            projection_ref.current.scale((max_radius / radius_in_km) * base_scale_ref.current);
-            return;
-        }
-
-        const proj = map_controls.is_globe
-            ? d3.geoOrthographic().precision(0.1).clipAngle(90)
-            : d3.geoAzimuthalEquidistant().precision(0.1);
-
-        proj.fitSize(dims.padded_size, dxcc_map)
-            .rotate([-center_lon, -center_lat, 0])
-            .translate([dims.center_x, dims.center_y]);
-
-        base_scale_ref.current = proj.scale();
-        proj.scale((max_radius / radius_in_km) * proj.scale());
-        projection_ref.current = proj;
-    }, [dims, center_lon, center_lat, radius_in_km, map_controls.is_globe]);
-
-    // Off-screen canvas setup (cache + shadow)
-    useEffect(() => {
-        if (!dims) return;
-
-        const dpr_width = dims.width * DPR;
-        const dpr_height = dims.height * DPR;
-
-        if (!map_cache_canvas_ref.current) {
-            map_cache_canvas_ref.current = document.createElement("canvas");
-        }
-        const cache_canvas = map_cache_canvas_ref.current;
-        if (cache_canvas.width !== dpr_width || cache_canvas.height !== dpr_height) {
-            cache_canvas.width = dpr_width;
-            cache_canvas.height = dpr_height;
-        }
-
-        if (!shadow_canvas_ref.current) {
-            shadow_canvas_ref.current = document.createElement("canvas");
-        }
-        const shadow_canvas = shadow_canvas_ref.current;
-        if (shadow_canvas.width !== dpr_width || shadow_canvas.height !== dpr_height) {
-            shadow_canvas.width = dpr_width;
-            shadow_canvas.height = dpr_height;
-        }
-    }, [dims]);
-
-    // Base map changes are expensive; only redraw the cached map when inputs that affect it change.
-    useEffect(() => {
-        if (!dims || !projection_ref.current) return;
-        if (gesture_active_ref.current) return;
-        do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
-    }, [
+    const { projection_ref, base_scale_ref } = useMapProjection(
         dims,
         center_lon,
         center_lat,
         radius_in_km,
-        map_controls.night,
-        map_controls.is_globe,
-        map_controls.show_cq_zones,
-        map_controls.show_itu_zones,
-        map_controls.show_us_states,
-        map_controls.show_can_states,
-        callsign_filters.filters,
-        callsign_filters.is_alert_filters_active,
-        callsign_filters.is_show_only_filters_active,
-        callsign_filters.is_hide_filters_active,
-        settings.show_equator,
-        colors.map,
-        colors.map_countries,
-        night_time_ms,
-    ]);
+        effective_map_controls.is_globe,
+        gesture_active_ref,
+    );
 
-    useEffect(() => {
-        if (!dims || !projection_ref.current) return;
-        if (!map_controls.night || night_time_ms != null) return;
+    const hit_test = useMapHitTest(shadow_canvas_ref, projection_ref, render_state_ref);
+    hit_test_ref.current = hit_test;
 
-        let timeout_id = null;
-
-        function schedule_redraw() {
-            const ms_until_next_minute = 60_000 - (Date.now() % 60_000);
-            timeout_id = setTimeout(() => {
-                if (!gesture_active_ref.current) {
-                    do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
-                }
-                schedule_redraw();
-            }, ms_until_next_minute);
-        }
-
-        schedule_redraw();
-
-        return () => {
-            clearTimeout(timeout_id);
-        };
-    }, [dims, map_controls.night, night_time_ms]);
-
-    // Dynamic overlays can change frequently; redraw them without touching the cached base map.
-    useEffect(() => {
-        if (!dims || !projection_ref.current) return;
-        if (gesture_active_ref.current) return;
-        do_redraw(dims, projection_ref, render_state_ref, canvas_refs, { skip_map: true });
-    }, [
+    useMapRedraw({
         dims,
-        spots,
+        projection_ref,
+        canvas_refs,
+        render_state_ref,
+        gesture_active_ref,
+        center_lon,
+        center_lat,
+        radius_in_km,
+        map_controls: effective_map_controls,
+        callsign_filters,
         colors,
+        night_time_ms,
+        spots,
         hovered_spot,
         pinned_spot,
         hovered_band,
         current_freq_spots,
-        map_controls.show_dxcc_labels,
-        hovered_zone.system,
-        hovered_zone.number,
-        hovered_dxcc?.feature_index,
-        hovered_dxcc?.label,
-        hovered_dxcc?.entity,
+        overlay_highlights_key: overlay_highlights.key,
+        hovered_zone,
+        hovered_dxcc,
         home_location,
-    ]);
+        voacap_state,
+        animation_id_ref,
+    });
 
-    // Animation loop for alerted spots
-    useEffect(() => {
-        if (!dims) return;
-
-        function animate() {
-            animation_id_ref.current = requestAnimationFrame(animate);
-
-            if (gesture_active_ref.current) return;
-
-            const rs = render_state_ref.current;
-            if (!rs.spots.some(s => s.is_alerted)) return;
-
-            dash_offset_ref.current -= 0.5;
-            if (dash_offset_ref.current < -20) {
-                dash_offset_ref.current = 0;
-            }
-
-            const spots_canvas = spots_canvas_ref.current;
-            const projection = projection_ref.current;
-            if (!spots_canvas || !projection) return;
-            const ctx = spots_canvas.getContext("2d");
-            ctx.clearRect(0, 0, spots_canvas.width, spots_canvas.height);
-            with_dpr(ctx, () => {
-                profile_map("draw_spots.animation", () => {
-                    draw_spots(
-                        ctx,
-                        rs.spots,
-                        rs.colors,
-                        rs.hovered_spot,
-                        rs.pinned_spot,
-                        rs.hovered_band,
-                        rs.current_freq_spots,
-                        dims,
-                        dash_offset_ref.current,
-                        projection,
-                        rs.map_controls.is_globe,
-                        rs.home_location,
-                    );
-                });
-                profile_map("draw_zone_labels.animation", () => {
-                    draw_zone_labels(
-                        ctx,
-                        dims,
-                        projection,
-                        rs.map_controls.is_globe,
-                        rs.map_controls.show_cq_zones,
-                        rs.map_controls.show_itu_zones,
-                        rs.map_controls.show_dxcc_labels,
-                        rs.map_controls.show_us_states,
-                        rs.map_controls.show_can_states,
-                        rs.hovered_zone,
-                        rs.hovered_dxcc,
-                        rs.callsign_filters,
-                        rs.colors.map,
-                    );
-                });
-            });
-        }
-
-        animation_id_ref.current = requestAnimationFrame(animate);
-
-        return () => {
-            if (animation_id_ref.current != null) {
-                cancelAnimationFrame(animation_id_ref.current);
-                animation_id_ref.current = null;
-            }
-        };
-    }, [dims]);
-
-    // Wheel zoom (desktop)
-    useEffect(() => {
-        if (!dims || !projection_ref.current) return;
-        const container = container_ref.current;
-        if (!container) return;
-
-        let is_drawing = false;
-
-        function on_wheel(event) {
-            event.preventDefault();
-            const projection = projection_ref.current;
-            if (!projection) return;
-
-            const zoom_factor = event.deltaY > 0 ? 0.9 : 1.1;
-            const current_k = projection.scale() / base_scale_ref.current;
-            const new_k = Math.max(1, Math.min(max_radius / 1000, current_k * zoom_factor));
-            projection.scale(new_k * base_scale_ref.current);
-
-            if (!is_drawing) {
-                is_drawing = true;
-                requestAnimationFrame(() => {
-                    do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
-                    is_drawing = false;
-                });
-            }
-
-            clearTimeout(zoom_settle_timer_ref.current);
-            zoom_settle_timer_ref.current = setTimeout(() => {
-                const zoom_radius = Math.round(max_radius / new_k / 100) * 100;
-                set_auto_radius(false);
-                set_radius_in_km(Math.max(zoom_radius, 100));
-            }, 150);
-        }
-
-        container.addEventListener("wheel", on_wheel, { passive: false });
-
-        return () => {
-            clearTimeout(zoom_settle_timer_ref.current);
-            container.removeEventListener("wheel", on_wheel);
-        };
-    }, [dims]);
-
-    // Pointer interaction: drag, pinch-zoom, hover, tap, click
-    useEffect(() => {
-        if (!dims || !projection_ref.current) return;
-        const container = container_ref.current;
-        const shadow_canvas = shadow_canvas_ref.current;
-        if (!container || !shadow_canvas) return;
-
-        // Gesture state machine: idle | pending | dragging | pinching
-        let gesture_state = "idle";
-        function set_gesture(state) {
-            gesture_state = state;
-            gesture_active_ref.current = state === "dragging" || state === "pinching";
-        }
-        const pointers = new Map();
-
-        // Drag state
-        let rot_start = null;
-        let drag_start = null;
-        let current_rot = null;
-        let last_drag_pos = null;
-        let is_drawing = false;
-        const TARGET_GESTURE_FPS = 30;
-        const GESTURE_FRAME_MS = 1000 / TARGET_GESTURE_FPS;
-
-        // Tap detection
-        let pending_start_pos = null;
-        let pending_start_time = null;
-
-        // Pinch state
-        let pinch_start_distance = null;
-        let pinch_start_radius = null;
-        let suppress_tab_swipe = false;
-
-        const TAP_THRESHOLD_PX = 5;
-        const TAP_THRESHOLD_MS = 300;
-
-        function get_offset(event) {
-            const rect = container.getBoundingClientRect();
-            return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-        }
-
-        function is_inside_map_circle(x, y) {
-            const dx = x - dims.center_x;
-            const dy = y - dims.center_y;
-            const edge_buffer_px = 8;
-            const interactive_radius = dims.radius + edge_buffer_px;
-            return dx * dx + dy * dy <= interactive_radius * interactive_radius;
-        }
-
-        function get_pointer_distance() {
-            const pts = Array.from(pointers.values());
-            if (pts.length < 2) return 0;
-            const dx = pts[1].x - pts[0].x;
-            const dy = pts[1].y - pts[0].y;
-            return Math.sqrt(dx * dx + dy * dy);
-        }
-
-        function get_data_from_shadow_canvas(x, y) {
-            return profile_map("hit_test.shadow_canvas", () => {
-                const ctx = shadow_canvas.getContext("2d", { willReadFrequently: true });
-                const [r, g, b] = profile_map(
-                    "hit_test.getImageData",
-                    () => ctx.getImageData(x * DPR, y * DPR, 1, 1).data,
-                );
-                const result = color_to_spot(r, g, b);
-                if (result === null) return null;
-                const [type, spot_id] = result;
-                const { spots } = render_state_ref.current;
-                if (!spots.some(s => s.id === spot_id)) return null;
-                return [type, spot_id];
-            });
-        }
-
-        function get_clickable_zone_label(x, y) {
-            return profile_map("hit_test.zone_labels", () => {
-                const map_controls = render_state_ref.current.map_controls;
-                const projection = projection_ref.current;
-                if (!projection) return null;
-
-                const active_systems = get_active_overlay_systems(map_controls);
-                for (const zone_system of active_systems) {
-                    const zone_number = find_zone_label_number(
-                        zone_system,
-                        projection,
-                        x,
-                        y,
-                        map_controls.is_globe,
-                    );
-                    if (zone_number == null) continue;
-                    return { system: zone_system, number: zone_number };
-                }
-
-                return null;
-            });
-        }
-
-        function get_clickable_dxcc_label(x, y) {
-            return profile_map("hit_test.dxcc_labels", () => {
-                const { map_controls } = render_state_ref.current;
-                const projection = projection_ref.current;
-                if (!projection) return null;
-                if (!map_controls.show_dxcc_labels) return null;
-
-                const active_systems = get_active_overlay_systems(map_controls);
-                if (active_systems.length !== 0) return null;
-
-                return find_dxcc_label(projection, x, y, map_controls.is_globe);
-            });
-        }
-
-        function update_label_hover(pos) {
-            const clickable_zone = get_clickable_zone_label(pos.x, pos.y);
-            const current_hovered_zone = render_state_ref.current.hovered_zone;
-            if (
-                current_hovered_zone.system !== clickable_zone?.system ||
-                current_hovered_zone.number !== clickable_zone?.number
-            ) {
-                set_hovered_zone({
-                    system: clickable_zone?.system ?? null,
-                    number: clickable_zone?.number ?? null,
-                });
-            }
-
-            const clickable_dxcc =
-                clickable_zone == null ? get_clickable_dxcc_label(pos.x, pos.y) : null;
-            const next_hovered_dxcc = clickable_dxcc
-                ? {
-                      feature_index: clickable_dxcc.feature_index,
-                      label: clickable_dxcc.label,
-                      entity: clickable_dxcc.entity,
-                      x: clickable_dxcc.x,
-                      y: clickable_dxcc.y,
-                  }
-                : null;
-            const current_hovered_dxcc = render_state_ref.current.hovered_dxcc;
-            if (
-                current_hovered_dxcc?.feature_index !== next_hovered_dxcc?.feature_index ||
-                current_hovered_dxcc?.label !== next_hovered_dxcc?.label ||
-                current_hovered_dxcc?.entity !== next_hovered_dxcc?.entity ||
-                current_hovered_dxcc?.x !== next_hovered_dxcc?.x ||
-                current_hovered_dxcc?.y !== next_hovered_dxcc?.y
-            ) {
-                set_hovered_dxcc(next_hovered_dxcc);
-            }
-        }
-
-        function perform_drag(x, y) {
-            const projection = projection_ref.current;
-            if (!projection || rot_start == null) return;
-            const deg_per_px = 180 / (Math.PI * projection.scale());
-            const dx = (x - drag_start[0]) * deg_per_px;
-            const dy = (y - drag_start[1]) * deg_per_px;
-            const new_lon = mod(rot_start[0] + dx + 180, 360) - 180;
-            const new_lat = Math.max(-90, Math.min(90, rot_start[1] - dy));
-            current_rot = [new_lon, new_lat, 0];
-
-            projection.rotate(current_rot);
-            if (!is_drawing) {
-                is_drawing = true;
-                requestAnimationFrame(() => {
-                    // Re-apply drag rotation in case useMemo replaced the projection
-                    const cur_proj = projection_ref.current;
-                    if (cur_proj && current_rot) {
-                        cur_proj.rotate(current_rot);
-                    }
-                    if (!gesture_active_ref.current) {
-                        is_drawing = false;
-                        return;
-                    }
-                    const now = performance.now();
-                    if (now - last_gesture_draw_ref.current < GESTURE_FRAME_MS) {
-                        is_drawing = false;
-                        return;
-                    }
-                    last_gesture_draw_ref.current = now;
-                    do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
-                        skip_shadow: true,
-                        fast: true,
-                    });
-                    is_drawing = false;
-                });
-            }
-        }
-
-        function perform_globe_drag(x, y) {
-            const projection = projection_ref.current;
-            if (!projection || !last_drag_pos) return;
-            const scale = 360 / (2 * Math.PI * projection.scale());
-            const dx = (x - last_drag_pos[0]) * scale;
-            const dy = (y - last_drag_pos[1]) * scale;
-            const cur = current_rot || projection.rotate();
-            let rot_x = cur[0] + dx;
-            if (rot_x <= -180) {
-                rot_x = 180;
-            } else if (rot_x >= 180) {
-                rot_x = -180;
-            }
-            const rot_y = Math.max(-90, Math.min(90, cur[1] - dy));
-            current_rot = [rot_x, rot_y, cur[2]];
-            last_drag_pos = [x, y];
-
-            projection.rotate(current_rot);
-            if (!is_drawing) {
-                is_drawing = true;
-                requestAnimationFrame(() => {
-                    const cur_proj = projection_ref.current;
-                    if (cur_proj && current_rot) {
-                        cur_proj.rotate(current_rot);
-                    }
-                    if (!gesture_active_ref.current) {
-                        is_drawing = false;
-                        return;
-                    }
-                    const now = performance.now();
-                    if (now - last_gesture_draw_ref.current < GESTURE_FRAME_MS) {
-                        is_drawing = false;
-                        return;
-                    }
-                    last_gesture_draw_ref.current = now;
-                    do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
-                        skip_shadow: true,
-                        fast: true,
-                    });
-                    is_drawing = false;
-                });
-            }
-        }
-
-        function finalize_drag() {
-            do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
-            if (current_rot != null) {
-                const final_lon = -current_rot[0];
-                const final_lat = -current_rot[1];
-                const displayed_locator = new Maidenhead(final_lat, final_lon).locator.slice(0, 6);
-                callbacks_ref.current.set_map_controls(state => {
-                    state.location = {
-                        displayed_locator,
-                        location: [final_lon, final_lat],
-                    };
-                });
-            }
-            rot_start = null;
-            drag_start = null;
-            current_rot = null;
-            last_drag_pos = null;
-        }
-
-        function start_drag(x, y) {
-            drag_start = [x, y];
-            last_drag_pos = [x, y];
-            const projection = projection_ref.current;
-            if (projection) rot_start = projection.rotate();
-        }
-
-        function handle_tap(x, y, event) {
-            const searched = get_data_from_shadow_canvas(x, y);
-            const clickable_zone = get_clickable_zone_label(x, y);
-            if (clickable_zone != null) {
-                const { system, number } = clickable_zone;
-                callbacks_ref.current.open_zone_context_menu(
-                    event.clientX,
-                    event.clientY,
+    const { container_ref } = useMapGestures({
+        dims,
+        projection_ref,
+        base_scale_ref,
+        canvas_refs,
+        render_state_ref,
+        gesture_active_ref,
+        hit_test_ref,
+        set_auto_radius,
+        set_radius_in_km,
+        set_hovered_zone,
+        set_hovered_dxcc,
+        callbacks: {
+            set_map_controls,
+            set_cat_to_spot,
+            set_hovered_spot,
+            set_pinned_spot,
+            add_filter_if_allowed,
+            open_zone_context_menu: (x, y, system, number) => {
+                set_map_context_menu({
+                    visible: true,
+                    x,
+                    y,
+                    type: "zone",
                     system,
                     number,
-                );
-                return;
-            }
-
-            const clickable_dxcc = get_clickable_dxcc_label(x, y);
-            if (clickable_dxcc != null && clickable_dxcc.entity) {
-                callbacks_ref.current.open_dxcc_context_menu(
-                    event.clientX,
-                    event.clientY,
-                    clickable_dxcc.entity,
-                );
-                return;
-            }
-
-            if (event.pointerType === "mouse") {
-                if (searched != null) {
-                    const [, spot_id] = searched;
-                    callbacks_ref.current.set_pinned_spot(spot_id);
-                }
-            } else {
-                // Touch: tap to pin/unpin
-                const { pinned_spot: current_pinned } = render_state_ref.current;
-                if (searched != null) {
-                    const [, spot_id] = searched;
-                    if (current_pinned === spot_id) {
-                        callbacks_ref.current.set_pinned_spot(null);
-                    } else {
-                        callbacks_ref.current.set_pinned_spot(spot_id);
-                    }
-                } else {
-                    if (current_pinned != null) {
-                        callbacks_ref.current.set_pinned_spot(null);
-                    }
-                }
-            }
-        }
-
-        function on_pointer_down(event) {
-            // To allow clicking on the auto zoom toggle button
-            if (event.target.tagName !== "CANVAS") return;
-            const pos = get_offset(event);
-
-            // On touch devices, only capture gestures when interaction starts on the map circle.
-            // Starting outside should allow parent swipe handlers (tab switching) to run.
-            if (event.pointerType !== "mouse" && !is_inside_map_circle(pos.x, pos.y)) return;
-
-            pointers.set(event.pointerId, pos);
-            container.setPointerCapture(event.pointerId);
-
-            if (pointers.size === 1) {
-                // Single pointer — enter pending state
-                set_gesture("pending");
-                pending_start_pos = pos;
-                pending_start_time = event.timeStamp;
-            } else if (pointers.size === 2) {
-                // Second pointer — enter pinch mode
-                set_gesture("pinching");
-                pending_start_pos = null;
-                pending_start_time = null;
-                pinch_start_distance = get_pointer_distance();
-                pinch_start_radius = render_state_ref.current.radius_in_km;
-            }
-        }
-
-        function on_touch_start_capture(event) {
-            const touch = event.touches[0];
-            if (!touch) return;
-            const rect = container.getBoundingClientRect();
-            const x = touch.clientX - rect.left;
-            const y = touch.clientY - rect.top;
-            suppress_tab_swipe = is_inside_map_circle(x, y);
-
-            if (suppress_tab_swipe) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
-        }
-
-        function on_touch_move_capture(event) {
-            if (!suppress_tab_swipe) return;
-            event.preventDefault();
-            event.stopPropagation();
-        }
-
-        function on_touch_end_capture(event) {
-            if (!suppress_tab_swipe) return;
-            event.preventDefault();
-            event.stopPropagation();
-            if (event.touches.length === 0) {
-                suppress_tab_swipe = false;
-            }
-        }
-
-        function on_pointer_move(event) {
-            const pos = get_offset(event);
-
-            if (!pointers.has(event.pointerId)) {
-                // Mouse hover (desktop only)
-                if (event.pointerType === "mouse" && gesture_state !== "dragging") {
-                    update_label_hover(pos);
-
-                    const searched = get_data_from_shadow_canvas(pos.x, pos.y);
-                    const { hovered_spot: current_hovered } = render_state_ref.current;
-                    if (searched != null) {
-                        const [type, spot_id] = searched;
-                        if (current_hovered.source !== type || current_hovered.id !== spot_id) {
-                            callbacks_ref.current.set_hovered_spot({ source: type, id: spot_id });
-                        }
-                    } else {
-                        if (current_hovered.source != null || current_hovered.id != null) {
-                            callbacks_ref.current.set_hovered_spot({ source: null, id: null });
-                        }
-                    }
-                }
-                return;
-            }
-
-            pointers.set(event.pointerId, pos);
-
-            // If no buttons are pressed but we're still dragging, the pointerup event was missed
-            if (
-                (gesture_state === "dragging" || gesture_state === "pending") &&
-                event.buttons === 0
-            ) {
-                if (gesture_state === "dragging") {
-                    finalize_drag();
-                }
-                pending_start_pos = null;
-                pending_start_time = null;
-                set_gesture("idle");
-                return;
-            }
-
-            const is_globe = render_state_ref.current.map_controls.is_globe;
-            const do_drag = is_globe ? perform_globe_drag : perform_drag;
-
-            if (gesture_state === "pending") {
-                const dx = pos.x - pending_start_pos.x;
-                const dy = pos.y - pending_start_pos.y;
-                if (Math.sqrt(dx * dx + dy * dy) > TAP_THRESHOLD_PX) {
-                    set_gesture("dragging");
-                    start_drag(pending_start_pos.x, pending_start_pos.y);
-                    pending_start_pos = null;
-                    pending_start_time = null;
-                    do_drag(pos.x, pos.y);
-                }
-            } else if (gesture_state === "dragging") {
-                do_drag(pos.x, pos.y);
-            } else if (gesture_state === "pinching") {
-                const new_distance = get_pointer_distance();
-                if (pinch_start_distance > 0 && new_distance > 0) {
-                    const scale_ratio = new_distance / pinch_start_distance;
-                    const new_radius = Math.round(pinch_start_radius / scale_ratio / 100) * 100;
-                    const clamped_radius = Math.max(100, Math.min(max_radius, new_radius));
-
-                    const projection = projection_ref.current;
-                    if (projection) {
-                        const new_k = max_radius / clamped_radius;
-                        projection.scale(new_k * base_scale_ref.current);
-                        if (!is_drawing) {
-                            is_drawing = true;
-                            requestAnimationFrame(() => {
-                                if (!gesture_active_ref.current) {
-                                    is_drawing = false;
-                                    return;
-                                }
-                                const now = performance.now();
-                                if (now - last_gesture_draw_ref.current < GESTURE_FRAME_MS) {
-                                    is_drawing = false;
-                                    return;
-                                }
-                                last_gesture_draw_ref.current = now;
-                                do_redraw(dims, projection_ref, render_state_ref, canvas_refs, {
-                                    skip_shadow: true,
-                                    fast: true,
-                                });
-                                is_drawing = false;
-                            });
-                        }
-                    }
-                }
-            }
-
-            // Mouse hover (desktop only)
-            if (event.pointerType === "mouse" && gesture_state !== "dragging") {
-                update_label_hover(pos);
-
-                const searched = get_data_from_shadow_canvas(pos.x, pos.y);
-                const { hovered_spot: current_hovered } = render_state_ref.current;
-                if (searched != null) {
-                    const [type, spot_id] = searched;
-                    if (current_hovered.source !== type || current_hovered.id !== spot_id) {
-                        callbacks_ref.current.set_hovered_spot({ source: type, id: spot_id });
-                    }
-                } else {
-                    if (current_hovered.source != null || current_hovered.id != null) {
-                        callbacks_ref.current.set_hovered_spot({ source: null, id: null });
-                    }
-                }
-            }
-        }
-
-        function on_pointer_up(event) {
-            const was_state = gesture_state;
-            pointers.delete(event.pointerId);
-
-            if (was_state === "pending") {
-                const elapsed = event.timeStamp - pending_start_time;
-                if (elapsed < TAP_THRESHOLD_MS) {
-                    handle_tap(pending_start_pos.x, pending_start_pos.y, event);
-                }
-                pending_start_pos = null;
-                pending_start_time = null;
-                set_gesture("idle");
-            } else if (was_state === "dragging") {
-                finalize_drag();
-                set_gesture("idle");
-            } else if (was_state === "pinching") {
-                if (pointers.size === 1) {
-                    // Transition pinching -> dragging with remaining pointer
-                    const remaining = Array.from(pointers.values())[0];
-                    start_drag(remaining.x, remaining.y);
-                    // Settle the pinch zoom radius
-                    const projection = projection_ref.current;
-                    if (projection) {
-                        const current_k = projection.scale() / base_scale_ref.current;
-                        const zoom_radius = Math.round(max_radius / current_k / 100) * 100;
-                        set_auto_radius(false);
-                        set_radius_in_km(Math.max(zoom_radius, 100));
-                    }
-                    set_gesture("dragging");
-                } else {
-                    // Both pointers lifted — full redraw with shadow
-                    const projection = projection_ref.current;
-                    if (projection) {
-                        const current_k = projection.scale() / base_scale_ref.current;
-                        const zoom_radius = Math.round(max_radius / current_k / 100) * 100;
-                        set_auto_radius(false);
-                        set_radius_in_km(Math.max(zoom_radius, 100));
-                    }
-                    do_redraw(dims, projection_ref, render_state_ref, canvas_refs);
-                    set_gesture("idle");
-                }
-                pinch_start_distance = null;
-                pinch_start_radius = null;
-            }
-        }
-
-        function on_pointer_leave(event) {
-            pointers.delete(event.pointerId);
-            if (event.pointerType === "mouse") {
-                const current_hovered_zone = render_state_ref.current.hovered_zone;
-                if (current_hovered_zone.system != null || current_hovered_zone.number != null) {
-                    set_hovered_zone({ system: null, number: null });
-                }
-                if (render_state_ref.current.hovered_dxcc != null) {
-                    set_hovered_dxcc(null);
-                }
-                const { hovered_spot: current_hovered } = render_state_ref.current;
-                if (current_hovered.source != null || current_hovered.id != null) {
-                    callbacks_ref.current.set_hovered_spot({ source: null, id: null });
-                }
-            }
-            if (pointers.size === 0) {
-                if (gesture_state === "dragging") {
-                    finalize_drag();
-                }
-                set_gesture("idle");
-            }
-        }
-
-        // Desktop double-click (mouse only)
-        function on_dblclick(event) {
-            const pos = get_offset(event);
-            const searched = get_data_from_shadow_canvas(pos.x, pos.y);
-            if (searched != null) {
-                const [, spot_id] = searched;
-                const { spots } = render_state_ref.current;
-                const spot = spots.find(s => s.id === spot_id);
-                if (spot) callbacks_ref.current.set_cat_to_spot(spot);
-            }
-        }
-
-        container.addEventListener("pointerdown", on_pointer_down);
-        container.addEventListener("pointermove", on_pointer_move);
-        container.addEventListener("pointerup", on_pointer_up);
-        container.addEventListener("pointerleave", on_pointer_leave);
-        container.addEventListener("pointercancel", on_pointer_leave);
-        container.addEventListener("dblclick", on_dblclick);
-        container.addEventListener("touchstart", on_touch_start_capture, {
-            capture: true,
-            passive: false,
-        });
-        container.addEventListener("touchmove", on_touch_move_capture, {
-            capture: true,
-            passive: false,
-        });
-        container.addEventListener("touchend", on_touch_end_capture, {
-            capture: true,
-            passive: false,
-        });
-        container.addEventListener("touchcancel", on_touch_end_capture, {
-            capture: true,
-            passive: false,
-        });
-
-        return () => {
-            container.removeEventListener("pointerdown", on_pointer_down);
-            container.removeEventListener("pointermove", on_pointer_move);
-            container.removeEventListener("pointerup", on_pointer_up);
-            container.removeEventListener("pointerleave", on_pointer_leave);
-            container.removeEventListener("pointercancel", on_pointer_leave);
-            container.removeEventListener("dblclick", on_dblclick);
-            container.removeEventListener("touchstart", on_touch_start_capture, true);
-            container.removeEventListener("touchmove", on_touch_move_capture, true);
-            container.removeEventListener("touchend", on_touch_end_capture, true);
-            container.removeEventListener("touchcancel", on_touch_end_capture, true);
-        };
-    }, [dims]);
+                    entity: null,
+                    is_filterable_entity: false,
+                });
+            },
+            open_dxcc_context_menu: (x, y, entity) => {
+                set_map_context_menu({
+                    visible: true,
+                    x,
+                    y,
+                    type: "dxcc",
+                    system: null,
+                    number: null,
+                    entity,
+                    is_filterable_entity: is_filterable_dxcc_entity(entity),
+                });
+            },
+        },
+    });
 
     // Compute azimuth for hovered/pinned spot
-    const hovered_spot_data = spots.find(spot => spot.id == hovered_spot.id);
-    const pinned_spot_data = spots.find(spot => spot.id == pinned_spot);
+    const hovered_spot_data = spots.find(spot => spot.id === hovered_spot.id);
+    const pinned_spot_data = spots.find(spot => spot.id === pinned_spot);
 
     const hovered_spot_distance =
         hovered_spot_data != null
@@ -1279,10 +283,6 @@ function CanvasMap({
             spot_data.dx_loc[0],
         );
     }
-
-    const text_height = 20;
-    const text_x = is_max_xs_device ? 10 : 20;
-    const text_y = is_max_xs_device ? 20 : 30;
 
     const canvas_width = width ? width * DPR : 0;
     const canvas_height = height ? height * DPR : 0;
@@ -1315,54 +315,31 @@ function CanvasMap({
             />
             <canvas
                 className="absolute top-0 left-0"
+                ref={voacap_canvas_ref}
+                width={canvas_width}
+                height={canvas_height}
+                style={canvas_style}
+            />
+            <canvas
+                className="absolute top-0 left-0"
                 ref={spots_canvas_ref}
                 width={canvas_width}
                 height={canvas_height}
                 style={canvas_style}
             />
-            <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
-                <g className="font-medium text-lg select-none">
-                    <text x={text_x} y={text_y} fill={colors.theme.text}>
-                        Radius: {settings.is_miles ? km_to_miles(radius_in_km) : radius_in_km}{" "}
-                        {settings.is_miles ? "Miles" : "KM"}
-                        {!map_controls.is_globe ? " | Auto" : ""}
-                    </text>
-
-                    {!map_controls.is_globe && (
-                        <foreignObject
-                            x={text_x + 220}
-                            y={text_y - 18}
-                            width="67"
-                            height="40"
-                            className="pointer-events-auto"
-                        >
-                            <div xmlns="http://www.w3.org/1999/xhtml">
-                                <ToggleSVG
-                                    auto_radius={auto_radius}
-                                    set_auto_radius={set_auto_radius}
-                                />
-                            </div>
-                        </foreignObject>
-                    )}
-
-                    <text x={text_x} y={text_y + text_height} fill={colors.theme.text}>
-                        Center: {map_controls.location.displayed_locator}
-                    </text>
-
-                    <text x={text_x} y={text_y + 2 * text_height} fill={colors.theme.text}>
-                        Spots: {spots.length}
-                    </text>
-                </g>
-                {dims && !map_controls.is_globe && (
-                    <MapAngles
-                        radius={dims.radius + 25 * dims.scale}
-                        center_x={dims.center_x}
-                        center_y={dims.center_y}
-                        degrees_diff={15}
-                        hovered_azimuth={azimuth}
-                    />
-                )}
-            </svg>
+            <MapOverlay
+                dims={dims}
+                colors={colors}
+                settings={settings}
+                map_controls={effective_map_controls}
+                radius_in_km={radius_in_km}
+                auto_radius={auto_radius}
+                set_auto_radius={set_auto_radius}
+                azimuth={azimuth}
+                spots={spots}
+                is_max_xs_device={is_max_xs_device}
+                voacap_state={voacap_state}
+            />
             {(pinned_spot_data || hovered_spot_data) && (
                 <SpotPopup
                     hovered_spot={hovered_spot}
@@ -1393,7 +370,7 @@ function CanvasMap({
                             background: colors.theme.background,
                         }}
                     >
-                        {hovered_dxcc.entity}
+                        {get_dxcc_label(hovered_dxcc.entity) || hovered_dxcc.label}
                     </div>
                 </Popup>
             )}

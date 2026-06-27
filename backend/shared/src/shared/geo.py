@@ -1,14 +1,10 @@
-import csv
 import json
-import re
-from pathlib import Path
+from dataclasses import replace
 
-from loguru import logger
 from pydantic import BaseModel
 
-from shared.coordinates import locator_to_coordinates
-from shared.cty import get_cty_resolver
-from shared.metrics import push_country_mismatch_event
+from shared.coordinates import coordinates_to_locator, locator_to_coordinates
+from shared.cty import CtyCountry, get_cty_resolver
 from shared.qrz import get_locator_from_qrz
 
 
@@ -26,6 +22,7 @@ class GeoData(BaseModel):
     locator: str
     lon: float
     lat: float
+    dxcc_code: int
     country: str
     continent: str
     state: str
@@ -33,188 +30,96 @@ class GeoData(BaseModel):
     itu_zone: int | None = None
 
 
-def read_csv_to_list_of_tuples(filename: str):
-    with open(filename, "r") as file:
-        csv_reader = csv.reader(file)
-        return [tuple(row) for row in csv_reader]
-
-
-current_folder = Path(__file__).parent
-callsign_to_locator_filename = f"{current_folder}/prefixes_list.csv"
-PREFIXES_TO_LOCATORS = read_csv_to_list_of_tuples(filename=callsign_to_locator_filename)
-
-_COUNTRY_NAME_ALIASES = {
-    "agalegaandstbrandon": "agalegaandstbrandonislands",
-    "amsterdamandstpaulis": "amsterdamandstpaulislands",
-    "asiaticturkey": "turkey",
-    "bosniaherzegovina": "bosniaandherzegovina",
-    "bouvet": "bouvetisland",
-    "bruneidarussalam": "brunei",
-    "congodemrepublicof": "democraticrepublicofthecongo",
-    "cotedivoire": "ivorycoast",
-    "demrepofthecongo": "democraticrepublicofthecongo",
-    "dprofkorea": "northkorea",
-    "fedrepofgermany": "germany",
-    "juandenovaisland": "juandenovaandeuropa",
-    "kingdomofeswatini": "eswatini",
-    "nzsubantarcticis": "newzealandsubantarcticislands",
-    "republicofkorea": "southkorea",
-    "republicofkosovo": "kosovo",
-    "republicofsouthsudan": "southsudan",
-    "republicofthecongo": "congo",
-    "southgeorgiaislands": "southgeorgiaisland",
-    "stbarthelemy": "saintbarthelemy",
-    "stlucia": "saintlucia",
-    "stmaarten": "sintmaarten",
-    "stmartin": "saintmartin",
-    "stpierreandmiquelon": "saintpierreandmiquelon",
-    "stvincent": "saintvincentandthegrenadines",
-    "sovmilorderofmalta": "sovereignmilitaryorderofmalta",
-    "ukbaseareasoncyprus": "uksovereignbaseareasoncyprus",
-    "usa": "unitedstatesofamerica",
-    "unitedstates": "unitedstatesofamerica",
-    "usvirginislands": "virginislands",
+_DXCC_OVERRIDES_BY_CALLSIGN = {
+    "2R0PLA": (223, "England", "EU"),
+    "4U5ITU": (117, "ITU HQ", "EU"),
+    "BB4IA": (318, "China", "AS"),
+    "BB4TVU": (318, "China", "AS"),
+    "KH7X": (110, "Hawaii", "OC"),
+    "KL2A": (6, "Alaska", "NA"),
+    "NL5Y": (6, "Alaska", "NA"),
+    "R95WTA": (15, "Asiatic Russia", "AS"),
+    "RP2F": (126, "Kaliningrad", "EU"),
+    "RI0SP": (15, "Asiatic Russia", "AS"),
+    "T94A": (501, "Bosnia and Herzegovina", "EU"),
+    "T9BLB/IH9": (501, "Bosnia and Herzegovina", "EU"),
+    "VD9WH": (1, "Canada", "NA"),
+    "VO/DF6MS": (1, "Canada", "NA"),
+    "VO3A": (1, "Canada", "NA"),
+    "VQ0X": (89, "Turks and Caicos Islands", "NA"),
+    "VS6AI": (321, "Hong Kong", "AS"),
+    "YZ5W": (296, "Serbia", "EU"),
 }
 
-_COUNTRY_OVERRIDES_BY_CALLSIGN = {
-    "2R0PLA": ("England", "EU"),
-    "4U5ITU": ("ITU HQ", "EU"),
-    "BB4IA": ("China", "AS"),
-    "DP0MIR": ("Antarctica", "AN"),
-    "RP2F": ("Kaliningrad", "EU"),
-    "RI0SP": ("Asiatic Russia", "AS"),
-    "T94A": ("Bosnia and Herzegovina", "EU"),
-    "VD9WH": ("Canada", "NA"),
-    "VS6AI": ("Hong Kong", "AS"),
-    "YZ5W": ("Serbia", "EU"),
+_DXCC_OVERRIDES_BY_PREFIX = {
+    "BE": (318, "China", "AS"),
+    "DP0": (13, "Antarctica", "AN"),
+    "EA9": (32, "Ceuta and Melilla", "AF"),
+    "JD/": (192, "Ogasawara", "AS"),
+    "VO0": (1, "Canada", "NA"),
 }
 
 
-def resolve_locator_from_list(callsign: str) -> str | None:
+def _resolve_dxcc_override(callsign: str) -> tuple[int, str, str] | None:
     callsign = callsign.upper()
-    for regex, locator, country, continent in PREFIXES_TO_LOCATORS:
-        if re.match(regex + ".*", callsign):
-            return locator
+    if callsign in _DXCC_OVERRIDES_BY_CALLSIGN:
+        return _DXCC_OVERRIDES_BY_CALLSIGN[callsign]
+    for prefix, dxcc_code in _DXCC_OVERRIDES_BY_PREFIX.items():
+        if callsign.startswith(prefix):
+            return dxcc_code
     return None
 
 
-def resolve_country_and_continent_from_list(callsign: str, callsign_type: str) -> tuple[str, str]:
-    result = resolve_country_and_continent_from_prefix_list(callsign)
-    if result is not None:
-        return result
-    raise GeoException(callsign, callsign_type, "country_and_continent")
-
-
-def resolve_country_and_continent_from_prefix_list(callsign: str) -> tuple[str, str] | None:
-    callsign = callsign.upper()
-    for regex, locator, country, continent in PREFIXES_TO_LOCATORS:
-        if re.match(regex + ".*", callsign):
-            return country, continent
-    return None
-
-
-def _canonical_country_name(country: str) -> str:
-    normalized = country.casefold().replace("&", "and")
-    normalized = re.sub(r"[^a-z0-9]+", "", normalized)
-    return _COUNTRY_NAME_ALIASES.get(normalized, normalized)
-
-
-_PREFIX_LIST_COUNTRY_NAMES_BY_CANONICAL = {
-    _canonical_country_name(country): country for regex, locator, country, continent in reversed(PREFIXES_TO_LOCATORS)
-}
-
-
-def _format_cty_country_for_output(cty_country: tuple[str, str]) -> tuple[str, str]:
-    country, continent = cty_country
-    return _PREFIX_LIST_COUNTRY_NAMES_BY_CANONICAL.get(_canonical_country_name(country), country), continent
-
-
-def _country_results_disagree(
-    cty_country: tuple[str, str] | None,
-    prefix_list_country: tuple[str, str] | None,
-) -> bool:
-    if cty_country is None and prefix_list_country is None:
-        return False
-    if cty_country is None or prefix_list_country is None:
-        return True
-
-    cty_country_name, cty_continent = cty_country
-    prefix_country_name, prefix_continent = prefix_list_country
-    return (
-        _canonical_country_name(cty_country_name) != _canonical_country_name(prefix_country_name)
-        or cty_continent != prefix_continent
-    )
-
-
-def _resolve_cty_country(callsign: str) -> tuple[str, str] | None:
-    callsign = callsign.upper()
-    if callsign in _COUNTRY_OVERRIDES_BY_CALLSIGN:
-        return _COUNTRY_OVERRIDES_BY_CALLSIGN[callsign]
-
+def _resolve_cty_entity(callsign: str) -> CtyCountry | None:
     cty_resolver = get_cty_resolver()
     if cty_resolver is None:
         raise RuntimeError("CTY resolver is unavailable")
-    return cty_resolver.resolve(callsign)
+
+    dxcc_override = _resolve_dxcc_override(callsign)
+    if dxcc_override is not None:
+        dxcc_code, country, continent = dxcc_override
+        cty_country = cty_resolver.get_entity_by_dxcc_code(dxcc_code)
+        if cty_country is None:
+            cty_country = next(
+                (entity for entity in cty_resolver.prefixes.values() if entity.dxcc_code == dxcc_code),
+                None,
+            )
+        if cty_country is None:
+            return None
+        return replace(cty_country, country=country, continent=continent)
+
+    return cty_resolver.resolve_entity(callsign)
 
 
-def _both_country_sources_miss(callsign: str) -> bool:
-    cty_country = _resolve_cty_country(callsign)
-    prefix_list_country = resolve_country_and_continent_from_prefix_list(callsign)
-    return cty_country is None and prefix_list_country is None
-
-
-async def _push_country_mismatch_if_needed(
-    valkey_client,
+def resolve_dxcc_entity(
     callsign: str,
     callsign_type: str,
-    report_country_mismatch: bool,
-    cty_country: tuple[str, str] | None,
-    prefix_list_country: tuple[str, str] | None,
-) -> None:
-    if not report_country_mismatch or valkey_client is None:
-        return
-    if not _country_results_disagree(cty_country, prefix_list_country):
-        return
-
-    try:
-        await push_country_mismatch_event(
-            valkey_client,
-            callsign,
-            callsign_type,
-            cty_country,
-            prefix_list_country,
-        )
-    except Exception:
-        logger.exception("Failed to push country mismatch event")
-
-
-async def resolve_country_and_continent(
-    valkey_client,
-    callsign: str,
-    callsign_type: str,
-    report_country_mismatch: bool = False,
-) -> tuple[str, str]:
-    cty_country = _resolve_cty_country(callsign)
-    prefix_list_country = resolve_country_and_continent_from_prefix_list(callsign)
-    await _push_country_mismatch_if_needed(
-        valkey_client,
-        callsign,
-        callsign_type,
-        report_country_mismatch,
-        cty_country,
-        prefix_list_country,
-    )
-
+) -> CtyCountry:
+    cty_country = _resolve_cty_entity(callsign)
     if cty_country is not None:
-        return _format_cty_country_for_output(cty_country)
-    if prefix_list_country is not None:
-        return prefix_list_country
+        return cty_country
     raise GeoException(
         callsign,
         callsign_type,
-        "country_and_continent",
+        "dxcc_code",
         notify_monitor=False,
     )
+
+
+def resolve_dxcc_and_continent(
+    callsign: str,
+    callsign_type: str,
+) -> tuple[int, str]:
+    cty_country = resolve_dxcc_entity(callsign, callsign_type)
+    return cty_country.dxcc_code, cty_country.continent
+
+
+def resolve_country_and_continent(
+    callsign: str,
+    callsign_type: str,
+) -> tuple[str, str]:
+    cty_country = resolve_dxcc_entity(callsign, callsign_type)
+    return cty_country.country, cty_country.continent
 
 
 async def get_geo_details(
@@ -224,7 +129,6 @@ async def get_geo_details(
     geo_expiration: int,
     http_client,
     callsign_type,
-    report_country_mismatch: bool = False,
 ) -> GeoData:
     # Get geo details from cache
     if valkey_client is not None:
@@ -234,11 +138,10 @@ async def get_geo_details(
 
     if geo_data:
         geo_data = json.loads(geo_data)
-        country, continent = await resolve_country_and_continent(
-            valkey_client, callsign, callsign_type, report_country_mismatch
-        )
-        geo_data["country"] = country
-        geo_data["continent"] = continent
+        cty_country = resolve_dxcc_entity(callsign, callsign_type)
+        geo_data["dxcc_code"] = cty_country.dxcc_code
+        geo_data["country"] = cty_country.country
+        geo_data["continent"] = cty_country.continent
         geo_data["cached"] = True
         return GeoData(**geo_data)
 
@@ -248,23 +151,26 @@ async def get_geo_details(
     state = qrz_locator_dict.get("state")
     cq_zone = qrz_locator_dict.get("cq_zone")
     itu_zone = qrz_locator_dict.get("itu_zone")
+    cty_country = None
     if locator:
         locator_source = "qrz"
     else:
-        locator = resolve_locator_from_list(callsign)
-        if locator:
-            locator_source = "prefixes list"
+        cty_country = _resolve_cty_entity(callsign)
+        if cty_country is not None and cty_country.latitude is not None and cty_country.longitude is not None:
+            locator = coordinates_to_locator(cty_country.latitude, cty_country.longitude)
+            locator_source = "cty"
+            cq_zone = cq_zone if cq_zone is not None else cty_country.cq_zone
+            itu_zone = itu_zone if itu_zone is not None else cty_country.itu_zone
         else:
             raise GeoException(
                 callsign,
                 callsign_type,
                 "locator",
-                notify_monitor=not _both_country_sources_miss(callsign),
+                notify_monitor=cty_country is not None,
             )
 
-    country, continent = await resolve_country_and_continent(
-        valkey_client, callsign, callsign_type, report_country_mismatch
-    )
+    if cty_country is None:
+        cty_country = resolve_dxcc_entity(callsign, callsign_type)
     lat, lon = locator_to_coordinates(locator)
 
     geo_data = {
@@ -272,8 +178,9 @@ async def get_geo_details(
         "locator": locator,
         "lat": lat,
         "lon": lon,
-        "country": country,
-        "continent": continent,
+        "dxcc_code": cty_country.dxcc_code,
+        "country": cty_country.country,
+        "continent": cty_country.continent,
         "state": state or "",
         "cq_zone": cq_zone,
         "itu_zone": itu_zone,

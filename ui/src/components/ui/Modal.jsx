@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@/components/ui/Button.jsx";
 import { useColors } from "@/hooks/useColors";
+
+const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 function Modal({
     title = null,
@@ -20,48 +22,85 @@ function Modal({
 }) {
     const [show_modal, set_show_modal] = useState(false);
     const { colors } = useColors();
+    const trigger_ref = useRef(null);
+    const modal_ref = useRef(null);
+    const previously_focused_ref = useRef(null);
 
-    function on_keydown(event) {
-        if (!show_modal) return;
-
-        if (event.key == "Escape") {
-            if (on_cancel != null) {
-                on_cancel();
-            }
-            set_show_modal(false);
-        } else if (event.key == "Enter") {
-            if (on_apply && !apply_disabled) {
-                event.preventDefault();
-                set_show_modal(!on_apply());
-            }
-        }
+    function close() {
+        set_show_modal(false);
+        previously_focused_ref.current?.focus();
     }
+
+    const on_keydown = useCallback(
+        event => {
+            if (!show_modal) return;
+
+            if (event.key === "Escape") {
+                if (on_cancel != null) {
+                    on_cancel();
+                }
+                close();
+            } else if (event.key === "Enter") {
+                if (on_apply && !apply_disabled) {
+                    event.preventDefault();
+                    set_show_modal(!on_apply());
+                }
+            }
+        },
+        [show_modal, on_apply, apply_disabled, on_cancel],
+    );
 
     useEffect(() => {
         if (external_open) {
             if (on_open != null) on_open();
-
             set_show_modal(true);
         }
     }, [external_open]);
+
     useEffect(() => {
-        if (!external_close) {
+        if (external_close === false) {
             set_show_modal(false);
         }
     }, [external_close]);
 
     useEffect(() => {
         if (show_modal) {
+            previously_focused_ref.current = document.activeElement;
             document.addEventListener("keydown", on_keydown);
             return () => {
                 document.removeEventListener("keydown", on_keydown);
             };
         }
-    }, [show_modal, on_apply, apply_disabled, on_cancel]);
+    }, [show_modal, on_keydown]);
+
+    useEffect(() => {
+        if (!show_modal) return;
+        const modal = modal_ref.current;
+        if (!modal) return;
+
+        const focusable = modal.querySelectorAll(FOCUSABLE);
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        first?.focus();
+
+        function trap(event) {
+            if (event.key !== "Tab") return;
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+            }
+        }
+        modal.addEventListener("keydown", trap);
+        return () => modal.removeEventListener("keydown", trap);
+    }, [show_modal]);
 
     return (
         <>
             <div
+                ref={trigger_ref}
                 className="cursor-pointer"
                 onClick={() => {
                     if (on_open != null) {
@@ -75,6 +114,9 @@ function Modal({
             {show_modal &&
                 createPortal(
                     <div
+                        ref={modal_ref}
+                        role="dialog"
+                        aria-modal={true}
                         className="flex pt-24 fixed inset-0 z-[60] outline-none focus:outline-none overflow-y-auto"
                         style={{ color: colors.theme.text }}
                     >
@@ -88,7 +130,7 @@ function Modal({
                                         if (on_cancel != null) {
                                             on_cancel();
                                         }
-                                        set_show_modal(false);
+                                        close();
                                     }}
                                 >
                                     <path
@@ -118,7 +160,7 @@ function Modal({
                                                 color="red"
                                                 on_click={() => {
                                                     on_cancel();
-                                                    set_show_modal(false);
+                                                    close();
                                                 }}
                                             >
                                                 {cancel_text}

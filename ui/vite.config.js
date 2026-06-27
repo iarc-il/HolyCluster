@@ -1,9 +1,17 @@
-import path from "path";
-import { defineConfig } from "vite";
+import path from "node:path";
 import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
+import { ctyDxccEntitiesPlugin } from "./scripts/cty_entities.js";
 
 export default defineConfig({
-    plugins: [react()],
+    plugins: [ctyDxccEntitiesPlugin(), react()],
+    worker: {
+        plugins: () => [ctyDxccEntitiesPlugin()],
+    },
+    test: {
+        environment: "jsdom",
+        include: ["tests/**/*.{js,jsx}"],
+    },
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "./src"),
@@ -17,6 +25,7 @@ export default defineConfig({
             "/dxpeditions": "https://holycluster-dev.iarc.org",
             "/cluster_stats": "https://holycluster-dev.iarc.org",
             "/history": "https://holycluster-dev.iarc.org",
+            "/hunter/resolve": "https://holycluster-dev.iarc.org",
             "/spots_ws": {
                 target: "wss://holycluster-dev.iarc.org",
                 ws: true,
@@ -34,7 +43,7 @@ export default defineConfig({
     build: {
         rollupOptions: {
             output: {
-                manualChunks: function (id) {
+                manualChunks: id => {
                     if (id.includes("node_modules")) {
                         return "vendor";
                     }

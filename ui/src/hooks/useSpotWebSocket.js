@@ -1,57 +1,57 @@
+import { is_canada_dxcc_code, is_us_state_dxcc_code } from "@/data/dxcc_entities.js";
+import { continents, modes } from "@/data/filters_data.js";
+import { normalize_spot_dxcc_fields } from "@/utils/spot_dxcc.js";
+import { find_zone_number } from "@/utils/zones.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
-import { modes, continents } from "@/data/filters_data.js";
-import { shorten_dxcc } from "@/data/flags.js";
-import { find_zone_number } from "@/utils/zones.js";
 
-function normalize_band(band) {
-    if (band == 2) return "VHF";
-    if (band == 0.7) return "UHF";
+export function normalize_band(band) {
+    if (band === 2) return "VHF";
+    if (band === 0.7) return "UHF";
     if (band < 1) return "SHF";
     return band;
 }
 
-function has_valid_enriched_value(value) {
+export function has_valid_enriched_value(value) {
     return value !== undefined && value !== null && value !== "" && value !== -1 && value !== "-1";
 }
 
-function enrich_spot_zones_if_missing(spot) {
-    // if (spot.dx_callsign == "E70Y") {
-    //     console.log(spot);
-    // }
+export function enrich_spot_zones_if_missing(spot) {
+    const updates = {};
+
     if (!has_valid_enriched_value(spot.dx_cq_zone)) {
-        spot.dx_cq_zone = find_zone_number("cq", spot.dx_loc);
+        updates.dx_cq_zone = find_zone_number("cq", spot.dx_loc);
     }
     if (!has_valid_enriched_value(spot.dx_itu_zone)) {
-        spot.dx_itu_zone = find_zone_number("itu", spot.dx_loc);
+        updates.dx_itu_zone = find_zone_number("itu", spot.dx_loc);
     }
     if (!has_valid_enriched_value(spot.spotter_cq_zone)) {
-        spot.spotter_cq_zone = find_zone_number("cq", spot.spotter_loc);
+        updates.spotter_cq_zone = find_zone_number("cq", spot.spotter_loc);
     }
     if (!has_valid_enriched_value(spot.spotter_itu_zone)) {
-        spot.spotter_itu_zone = find_zone_number("itu", spot.spotter_loc);
+        updates.spotter_itu_zone = find_zone_number("itu", spot.spotter_loc);
     }
 
     if (!has_valid_enriched_value(spot.dx_state)) {
-        if (spot.dx_country === "USA") {
-            spot.dx_state = find_zone_number("us_state", spot.dx_loc);
-        } else if (spot.dx_country === "Canada") {
-            spot.dx_state = find_zone_number("ca_province", spot.dx_loc);
+        if (is_us_state_dxcc_code(spot.dx_dxcc_code)) {
+            updates.dx_state = find_zone_number("us_state", spot.dx_loc);
+        } else if (is_canada_dxcc_code(spot.dx_dxcc_code)) {
+            updates.dx_state = find_zone_number("ca_province", spot.dx_loc);
         }
     }
 
     if (!has_valid_enriched_value(spot.spotter_state)) {
-        if (spot.spotter_country === "USA") {
-            spot.spotter_state = find_zone_number("us_state", spot.spotter_loc);
-        } else if (spot.spotter_country === "Canada") {
-            spot.spotter_state = find_zone_number("ca_province", spot.spotter_loc);
+        if (is_us_state_dxcc_code(spot.spotter_dxcc_code)) {
+            updates.spotter_state = find_zone_number("us_state", spot.spotter_loc);
+        } else if (is_canada_dxcc_code(spot.spotter_dxcc_code)) {
+            updates.spotter_state = find_zone_number("ca_province", spot.spotter_loc);
         }
     }
 
-    return spot;
+    return Object.keys(updates).length > 0 ? { ...spot, ...updates } : spot;
 }
 
-function trim_spots_to_last_hour(spots) {
+export function trim_spots_to_last_hour(spots) {
     const current_time = Math.round(Date.now() / 1000);
     return spots.filter(spot => spot.time > current_time - 3600);
 }
@@ -76,9 +76,8 @@ export default function useSpotWebSocket() {
                     sendJsonMessage({ last_time: last_spot_time_ref.current });
                 }
             },
-            reconnectAttempts: Infinity,
-            reconnectInterval: attemptNumber =>
-                Math.min(5000 * Math.pow(2, attemptNumber - 1), 30000),
+            reconnectAttempts: Number.POSITIVE_INFINITY,
+            reconnectInterval: attemptNumber => Math.min(5000 * 2 ** (attemptNumber - 1), 30000),
             shouldReconnect: () => true,
         },
     );
@@ -88,14 +87,22 @@ export default function useSpotWebSocket() {
             const data = lastJsonMessage;
             let new_spots = data.spots
                 .map(spot => {
-                    spot.id = next_spot_id_ref.current++;
-                    if (spot.mode === "DIGITAL") spot.mode = "DIGI";
-                    spot.band = normalize_band(spot.band);
-                    spot.dx_country = shorten_dxcc(spot.dx_country);
-                    spot.spotter_country = shorten_dxcc(spot.spotter_country);
-                    return enrich_spot_zones_if_missing(spot);
+                    const mode = spot.mode === "DIGITAL" ? "DIGI" : spot.mode;
+                    const normalized_spot = {
+                        ...spot,
+                        id: next_spot_id_ref.current++,
+                        mode,
+                        band: normalize_band(spot.band),
+                    };
+                    return enrich_spot_zones_if_missing(
+                        normalize_spot_dxcc_fields(normalized_spot),
+                    );
                 })
                 .filter(spot => {
+                    if (!spot.dx_dxcc_code || !spot.spotter_dxcc_code) {
+                        console.warn("Dropping spot with unknown DXCC code", spot);
+                        return false;
+                    }
                     if (!modes.includes(spot.mode)) {
                         console.warn(`Dropping spot with unknown mode: ${spot.mode}`, spot);
                         return false;

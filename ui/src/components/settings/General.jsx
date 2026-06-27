@@ -1,13 +1,13 @@
-import { useRef, useState } from "react";
-import Input from "@/components/ui/Input.jsx";
 import CallsignInput from "@/components/CallsignInput.jsx";
+import HelpIcon from "@/components/ui/HelpIcon.jsx";
+import Input from "@/components/ui/Input.jsx";
+import Popup from "@/components/ui/Popup.jsx";
 import Select from "@/components/ui/Select.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
-import Popup from "@/components/ui/Popup.jsx";
-import HelpIcon from "@/components/ui/HelpIcon.jsx";
 import { themes_names, useColors } from "@/hooks/useColors";
 import { play_alert_sound } from "@/utils.js";
 import Maidenhead from "maidenhead";
+import { useRef, useState } from "react";
 
 function PlayIcon({ size }) {
     const { colors } = useColors();
@@ -43,7 +43,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
     const is_default_radius_valid =
         temp_settings.default_radius >= 1000 &&
         temp_settings.default_radius <= 20000 &&
-        temp_settings.default_radius % 1000 == 0;
+        temp_settings.default_radius % 1000 === 0;
 
     return (
         <div
@@ -66,7 +66,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                         callsign: new_callsign,
                                     });
 
-                                    if (temp_settings.locator == "" || is_locator_queried) {
+                                    if (temp_settings.locator === "" || is_locator_queried) {
                                         const locator = await fetch_locator(new_callsign);
                                         if (locator) {
                                             set_is_locator_queried(true);
@@ -204,20 +204,6 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                         ...temp_settings,
                                         show_state_abbreviations:
                                             !temp_settings.show_state_abbreviations,
-                                    });
-                                }}
-                            />
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Show equator:&nbsp;&nbsp;</td>
-                        <td>
-                            <Toggle
-                                value={temp_settings.show_equator}
-                                on_click={() => {
-                                    set_temp_settings({
-                                        ...temp_settings,
-                                        show_equator: !temp_settings.show_equator,
                                     });
                                 }}
                             />

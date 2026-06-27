@@ -15,11 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from collectors.db.valkey_config import get_valkey_client
 from collectors.enrichers.dxpeditions import is_active_dxpedition
-from collectors.enrichers.frequencies import InvalidBandError, find_band_and_mode
+from collectors.enrichers.frequencies import InvalidBandError, find_band, find_band_and_mode
+from collectors.pota import run_pota_collector
 from collectors.settings import settings
+from collectors.sota import run_sota_collector
 from collectors.telnet.runner import (
     run_concurrent_telnet_connections,
 )
+from collectors.utils import STREAM_ARRIVALS
+from collectors.wwff import run_wwff_collector
 
 import aiomonitor
 
@@ -39,9 +43,19 @@ def validate_callsign(callsign, role):
 
 
 async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_client) -> dict:
-    spot["timestamp"] = datetime.now(timezone.utc).timestamp()
+    spot["timestamp"] = float(spot.get("timestamp") or datetime.now(timezone.utc).timestamp())
 
-    band, mode, mode_selection = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"])
+    source_mode = (spot.get("mode") or "").strip().upper()
+    if source_mode:
+        if source_mode in ("USB", "LSB"):
+            source_mode = "SSB"
+        band = find_band(spot["frequency"])
+        if not band:
+            raise InvalidBandError(f"Band not found for frequency={spot['frequency']}")
+        mode = source_mode
+        mode_selection = "source"
+    else:
+        band, mode, mode_selection = find_band_and_mode(frequency=spot["frequency"], comment=spot["comment"])
 
     validate_callsign(spot["spotter_callsign"], "spotter")
     validate_callsign(spot["dx_callsign"], "dx")
@@ -54,7 +68,6 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             settings.valkey_geo_expiration,
             http_client,
             "spotter",
-            report_country_mismatch=True,
         ),
         get_geo_details(
             valkey_client,
@@ -63,7 +76,6 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             settings.valkey_geo_expiration,
             http_client,
             "dx_callsign",
-            report_country_mismatch=True,
         ),
     )
 
@@ -79,7 +91,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             "spotter_locator": spotter_geo.locator,
             "spotter_lat": spotter_geo.lat,
             "spotter_lon": spotter_geo.lon,
-            "spotter_country": spotter_geo.country,
+            "spotter_dxcc_code": spotter_geo.dxcc_code,
             "spotter_continent": spotter_geo.continent,
             "spotter_state": spotter_geo.state,
             "spotter_cq_zone": spotter_geo.cq_zone or -1,
@@ -90,7 +102,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             "dx_locator": dx_geo.locator,
             "dx_lat": dx_geo.lat,
             "dx_lon": dx_geo.lon,
-            "dx_country": dx_geo.country,
+            "dx_dxcc_code": dx_geo.dxcc_code,
             "dx_continent": dx_geo.continent,
             "dx_state": dx_geo.state,
             "dx_cq_zone": dx_geo.cq_zone or -1,
@@ -117,7 +129,7 @@ async def add_spot_to_postgres(engine, spot: dict):
         spotter_locator_source=spot["spotter_locator_source"],
         spotter_lat=str(spot["spotter_lat"]),
         spotter_lon=str(spot["spotter_lon"]),
-        spotter_country=spot["spotter_country"],
+        spotter_dxcc_code=spot["spotter_dxcc_code"],
         spotter_continent=spot["spotter_continent"],
         spotter_state=spot["spotter_state"],
         spotter_cq_zone=spot.get("spotter_cq_zone"),
@@ -127,11 +139,15 @@ async def add_spot_to_postgres(engine, spot: dict):
         dx_locator_source=spot["dx_locator_source"],
         dx_lat=str(spot["dx_lat"]),
         dx_lon=str(spot["dx_lon"]),
-        dx_country=spot["dx_country"],
+        dx_dxcc_code=spot["dx_dxcc_code"],
         dx_continent=spot["dx_continent"],
         dx_state=spot["dx_state"],
         dx_cq_zone=spot.get("dx_cq_zone"),
         dx_itu_zone=spot.get("dx_itu_zone"),
+        pota_reference=spot.get("pota_reference"),
+        pota_name=spot.get("pota_name"),
+        pota_description=spot.get("pota_description"),
+        sota_points=spot.get("sota_points"),
         comment=spot["comment"],
         is_dxpedition=spot["is_dxpedition"],
     )
@@ -219,7 +235,6 @@ async def refresh_dxpedition_data(valkey_client):
         await asyncio.sleep(sleep)
 
 
-STREAM_ARRIVALS = "stream-arrivals"
 STREAM_ARRIVALS_RETENTION_SECONDS = 7 * 86400
 
 
@@ -259,6 +274,9 @@ async def run_collector():
     trim_task = asyncio.create_task(trim_arrivals_stream(valkey_client), name="trim_arrivals_stream")
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
     collector_tasks = run_concurrent_telnet_connections(spots_queue)
+    collector_tasks.append(asyncio.create_task(run_pota_collector(spots_queue), name="pota.app"))
+    collector_tasks.append(asyncio.create_task(run_sota_collector(spots_queue), name="sota"))
+    collector_tasks.append(asyncio.create_task(run_wwff_collector(spots_queue), name="spots.wwff.co"))
 
     tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task, trim_task]
     tasks.extend(collector_tasks)

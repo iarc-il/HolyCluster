@@ -1,18 +1,20 @@
-import { useState, useEffect } from "react";
 import Maidenhead from "maidenhead";
+import { useEffect, useState } from "react";
 
 import Modal from "@/components/ui/Modal.jsx";
-import { useColors } from "@/hooks/useColors";
-import { useLocalStorage } from "@uidotdev/usehooks";
-import { useFilters } from "@/hooks/useFilters";
-import { useSettings } from "@/hooks/useSettings";
-import ImportExport from "./ImportExport";
-import General from "./General";
-import CatControl from "./CatControl";
-import Bands from "./Bands";
-import use_radio from "@/hooks/useRadio";
 import Tabs from "@/components/ui/Tabs";
 import { bands, modes } from "@/data/filters_data.js";
+import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
+import use_radio from "@/hooks/useRadio";
+import { useSettings } from "@/hooks/useSettings";
+import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
+import Bands from "./Bands";
+import CatControl from "./CatControl";
+import General from "./General";
+import ImportExport from "./ImportExport";
+import Layout from "./Layout";
+import Profiles from "./Profiles";
 
 function SettingsIcon({ size }) {
     const { colors } = useColors();
@@ -50,6 +52,8 @@ const empty_temp_settings = {
     callsign: "",
     is_miles: false,
     propagation_displayed: true,
+    main_view_mode: "both",
+    main_view_order: "map_table",
     highlight_enabled: true,
     highlight_port: 2237,
     alert_sound_enabled: false,
@@ -61,61 +65,63 @@ const empty_temp_settings = {
 
 function Settings({ set_map_controls, set_radius_in_km }) {
     const [temp_settings, set_temp_settings] = useState(empty_temp_settings);
-    const { colors, setTheme } = useColors();
+    const { colors, setTheme, dev_mode } = useColors();
     const { settings, set_settings } = useSettings();
-    const { filters, setFilters } = useFilters();
+    const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
     const { is_radio_available } = use_radio();
+    const is_mobile_settings = useMediaQuery("only screen and (max-width : 768px)");
 
     const [first_launch, set_first_launch] = useLocalStorage("first_launch", true);
     const [should_open_settings, set_should_open_settings] = useState(false);
-    const [should_close_settings, set_should_close_settings] = useState(true);
+
+    function disable_settings_filters(current_filters, new_settings) {
+        const updated_bands = { ...current_filters.bands };
+        const updated_modes = { ...current_filters.modes };
+
+        bands.forEach(band => {
+            if (new_settings.disabled_bands[band]) {
+                updated_bands[band] = false;
+            }
+        });
+
+        modes.forEach(mode => {
+            if (new_settings.disabled_modes[mode]) {
+                updated_modes[mode] = false;
+            }
+        });
+
+        return {
+            ...current_filters,
+            bands: updated_bands,
+            modes: updated_modes,
+        };
+    }
 
     function apply_settings(new_settings) {
-        let locator;
-        if (locator && locator != "") {
-            locator = new_settings.locator;
-        } else {
-            locator = "JJ00AA";
-        }
+        const locator = new_settings.locator || "JJ00AA";
         const [lat, lon] = Maidenhead.toLatLon(locator);
         set_map_controls(map_controls => {
             map_controls.location.displayed_locator = locator;
             map_controls.location.location = [lon, lat];
-            if (settings.default_radius != new_settings.default_radius) {
+            if (settings.default_radius !== new_settings.default_radius) {
                 set_radius_in_km(new_settings.default_radius);
             }
         });
         setTheme(new_settings.theme);
         set_settings(new_settings);
 
-        setFilters(current_filters => {
-            const updated_bands = { ...current_filters.bands };
-            const updated_modes = { ...current_filters.modes };
-
-            bands.forEach(band => {
-                if (new_settings.disabled_bands[band]) {
-                    updated_bands[band] = false;
-                }
-            });
-
-            modes.forEach(mode => {
-                if (new_settings.disabled_modes[mode]) {
-                    updated_modes[mode] = false;
-                }
-            });
-
-            return {
-                ...current_filters,
-                bands: updated_bands,
-                modes: updated_modes,
-            };
-        });
+        const update_disabled_filters = current_filters =>
+            disable_settings_filters(current_filters, new_settings);
+        setFilters(update_disabled_filters);
+        if (is_shared_filter_state) {
+            setProfileFilters(update_disabled_filters);
+        }
     }
 
     useEffect(() => {
         set_first_launch(false);
 
-        if (first_launch == true && settings.locator === "JJ00AA") {
+        if (first_launch === true && (settings.locator === "" || settings.locator === "JJ00AA")) {
             set_should_open_settings(true);
         }
     }, [first_launch]);
@@ -135,6 +141,20 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
+        ...(dev_mode && !is_mobile_settings
+            ? [
+                  {
+                      label: "Layout",
+                      content: (
+                          <Layout
+                              temp_settings={temp_settings}
+                              set_temp_settings={set_temp_settings}
+                              colors={colors}
+                          />
+                      ),
+                  },
+              ]
+            : []),
         {
             label: "Bands & Modes",
             content: (
@@ -145,15 +165,20 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
+        ...(dev_mode
+            ? [
+                  {
+                      label: "Profiles",
+                      content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
+                  },
+              ]
+            : []),
         {
             label: "Import/Export",
             content: (
                 <ImportExport
-                    settings={settings}
-                    set_settings={set_settings}
                     set_temp_settings={set_temp_settings}
                     apply_settings={apply_settings}
-                    set_should_close_settings={set_should_close_settings}
                 />
             ),
         },
@@ -172,12 +197,13 @@ function Settings({ set_map_controls, set_radius_in_km }) {
         });
     }
 
-    const is_settings_valid =
-        temp_settings.locator === "" ||
-        (Maidenhead.valid(temp_settings.locator || "JJ0AA") &&
-            temp_settings.default_radius >= 1000 &&
-            temp_settings.default_radius <= 20000 &&
-            temp_settings.default_radius % 1000 == 0);
+    const is_locator_valid =
+        temp_settings.locator === "" || Maidenhead.valid(temp_settings.locator);
+    const is_default_radius_valid =
+        temp_settings.default_radius >= 1000 &&
+        temp_settings.default_radius <= 20000 &&
+        temp_settings.default_radius % 1000 === 0;
+    const is_settings_valid = is_locator_valid && is_default_radius_valid;
 
     return (
         <Modal
@@ -186,12 +212,11 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                     Settings
                 </h3>
             }
-            button={<SettingsIcon size="40"></SettingsIcon>}
+            button={<SettingsIcon size="40" />}
             on_open={() => {
                 set_temp_settings(settings);
             }}
             external_open={should_open_settings}
-            external_close={should_close_settings}
             on_apply={() => {
                 if (is_settings_valid) {
                     apply_settings(temp_settings);

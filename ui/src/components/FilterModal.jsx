@@ -1,7 +1,10 @@
+import CallsignInput from "@/components/CallsignInput.jsx";
+import Input from "@/components/ui/Input.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import Select from "@/components/ui/Select.jsx";
-import Input from "@/components/ui/Input.jsx";
-import CallsignInput from "@/components/CallsignInput.jsx";
+import { dxcc_entity_options, get_dxcc_label } from "@/data/dxcc_entities.js";
+import { HUNTER_SECTION_KEYS, HUNTER_SECTION_LABELS } from "@/data/hunter_sections.js";
+import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import {
@@ -9,11 +12,9 @@ import {
     is_valid_zone_number,
     normalize_zone_value,
 } from "@/utils/zones.js";
-import { STATES } from "@/data/states.js";
-import { dxcc_entity_options } from "@/data/dxcc_entities.js";
 
-import { default as SearchSelect } from "react-select";
 import { useEffect, useState } from "react";
+import { default as SearchSelect } from "react-select";
 
 export const empty_filter_data = {
     action: "show_only",
@@ -21,14 +22,8 @@ export const empty_filter_data = {
     value: "",
     spotter_or_dx: "dx",
     zone_system: "cq",
+    hunter_section: "dxcc",
 };
-
-const QUICK_COMMENT_FILTERS = [
-    { label: "WWFF", value: "wwff", comment: "WWFF" },
-    { label: "POTA", value: "pota", comment: "POTA" },
-    { label: "SOTA", value: "sota", comment: "SOTA" },
-    { label: "IOTA", value: "iota", comment: "IOTA" },
-];
 
 function RadioButton({ children, disabled, on_click }) {
     let classes = [
@@ -46,12 +41,15 @@ function RadioButton({ children, disabled, on_click }) {
         "cursor-pointer",
         "select-none",
     ];
-    let color = disabled ? "gray" : "green";
-    classes = [...classes, `bg-${color}-600`, `active:bg-${color}-800`, `hover:bg-${color}-700`];
+    const color = disabled ? "gray" : "green";
+    const bg_class = color === "green" ? "bg-green-600" : "bg-gray-600";
+    const active_class = color === "green" ? "active:bg-green-800" : "active:bg-gray-800";
+    const hover_class = color === "green" ? "hover:bg-green-700" : "hover:bg-gray-700";
+    classes = [...classes, bg_class, active_class, hover_class];
     return (
-        <div className={classes.join(" ")} onClick={on_click}>
+        <button type="button" className={classes.join(" ")} onClick={on_click}>
             {children}
-        </div>
+        </button>
     );
 }
 
@@ -107,13 +105,6 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
             return empty_filter_data;
         }
 
-        if (filter_data.type === "comment" && filter_data.quick_filter) {
-            return {
-                ...filter_data,
-                type: "quick_comment",
-            };
-        }
-
         if (
             filter_data.type === "zone" &&
             (filter_data.zone_system === "us_state" || filter_data.zone_system === "ca_province")
@@ -154,24 +145,30 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                 }
             }}
             on_apply={() => {
-                const draft_filter =
-                    temp_data.type == "zone" || temp_data.type == "zone_region"
-                        ? {
-                              ...temp_data,
-                              type: "zone",
-                              value: normalize_zone_value(
-                                  temp_data.zone_system || "cq",
-                                  temp_data.value,
-                              ),
-                          }
-                        : temp_data.type == "quick_comment"
-                          ? {
-                                ...temp_data,
-                                type: "comment",
-                            }
-                          : temp_data;
+                const draft_filter = (() => {
+                    if (temp_data.type === "zone" || temp_data.type === "zone_region") {
+                        return {
+                            ...temp_data,
+                            type: "zone",
+                            value: normalize_zone_value(
+                                temp_data.zone_system || "cq",
+                                temp_data.value,
+                            ),
+                        };
+                    }
 
-                if (temp_data.type == "zone" || temp_data.type == "zone_region") {
+                    if (temp_data.type === "hunter") {
+                        return {
+                            action: temp_data.action,
+                            type: "hunter",
+                            hunter_section: temp_data.hunter_section,
+                        };
+                    }
+
+                    return temp_data;
+                })();
+
+                if (temp_data.type === "zone" || temp_data.type === "zone_region") {
                     if (!is_valid_zone_number(temp_data.zone_system, temp_data.value)) {
                         set_error_message("Please choose a valid zone.");
                         return false;
@@ -179,11 +176,12 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                 }
 
                 const is_value_required =
-                    temp_data.type != "self_spotters" &&
-                    temp_data.type != "dxpeditions" &&
-                    temp_data.type != "zone" &&
-                    temp_data.type != "zone_region";
-                if (is_value_required && temp_data.value.toString().trim().length == 0) {
+                    temp_data.type !== "self_spotters" &&
+                    temp_data.type !== "dxpeditions" &&
+                    temp_data.type !== "hunter" &&
+                    temp_data.type !== "zone" &&
+                    temp_data.type !== "zone_region";
+                if (is_value_required && temp_data.value.toString().trim().length === 0) {
                     set_error_message("Please enter a filter value.");
                     return false;
                 }
@@ -219,8 +217,8 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                         { label: "Entity", value: "entity" },
                         { label: "US/Canada", value: "zone_region" },
                         { label: "Zone", value: "zone" },
-                        { label: "Quick Filter", value: "quick_comment" },
                         { label: "Comment", value: "comment" },
+                        { label: "Missing", value: "hunter" },
                         { label: "Self Spotters", value: "self_spotters" },
                         { label: "DXpeditions", value: "dxpeditions" },
                     ]}
@@ -229,48 +227,45 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                     set_temp_data={set_temp_data}
                     build_temp_data={(temp_data, field, value) => {
                         if (
-                            value == "entity" ||
-                            temp_data.type == "entity" ||
-                            value == "zone_region"
+                            value === "entity" ||
+                            temp_data.type === "entity" ||
+                            value === "zone_region"
                         ) {
                             return {
                                 ...temp_data,
                                 [field]: value,
-                                value: value == "zone_region" ? "AL" : "",
+                                value: value === "zone_region" ? "AL" : "",
                                 zone_system:
-                                    value == "zone_region" ? "us_state" : temp_data.zone_system,
+                                    value === "zone_region" ? "us_state" : temp_data.zone_system,
                                 spotter_or_dx: "dx",
-                                quick_filter: undefined,
                             };
-                        } else if (value == "quick_comment") {
-                            const quick_filter = QUICK_COMMENT_FILTERS[0];
-                            return {
-                                ...temp_data,
-                                [field]: value,
-                                value: quick_filter.comment,
-                                quick_filter: quick_filter.value,
-                            };
-                        } else if (value == "zone") {
+                        }
+                        if (value === "zone") {
                             return {
                                 ...temp_data,
                                 [field]: value,
                                 value: "1",
                                 zone_system: temp_data.zone_system || "cq",
                                 spotter_or_dx: "dx",
-                                quick_filter: undefined,
                             };
-                        } else {
+                        }
+                        if (value === "hunter") {
                             return {
                                 ...temp_data,
                                 [field]: value,
-                                quick_filter:
-                                    value === "quick_comment" ? temp_data.quick_filter : undefined,
+                                hunter_section: temp_data.hunter_section || "dxcc",
+                                value: "",
+                                spotter_or_dx: "dx",
                             };
                         }
+                        return {
+                            ...temp_data,
+                            [field]: value,
+                        };
                     }}
                 />
 
-                {temp_data.type == "zone" ? (
+                {temp_data.type === "zone" ? (
                     <>
                         <hr />
                         <SelectionLine
@@ -318,7 +313,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             </div>
                         </div>
                     </>
-                ) : temp_data.type == "zone_region" ? (
+                ) : temp_data.type === "zone_region" ? (
                     <>
                         <hr />
                         <SelectionLine
@@ -375,10 +370,22 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             </div>
                         </div>
                     </>
-                ) : temp_data.type != "self_spotters" &&
-                  temp_data.type != "dxpeditions" &&
-                  temp_data.type != "comment" &&
-                  temp_data.type != "quick_comment" ? (
+                ) : temp_data.type === "hunter" ? (
+                    <>
+                        <hr />
+                        <SelectionLine
+                            states={HUNTER_SECTION_KEYS.map(section => ({
+                                label: HUNTER_SECTION_LABELS[section],
+                                value: section,
+                            }))}
+                            field="hunter_section"
+                            temp_data={temp_data}
+                            set_temp_data={set_temp_data}
+                        />
+                    </>
+                ) : temp_data.type !== "self_spotters" &&
+                  temp_data.type !== "dxpeditions" &&
+                  temp_data.type !== "comment" ? (
                     <>
                         <hr />
                         <SelectionLine
@@ -393,10 +400,13 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                         <div className="flex justify-start space-x-5 items-center w-96">
                             <div>{temp_data.type}:</div>
                             <div>
-                                {temp_data.type == "entity" ? (
+                                {temp_data.type === "entity" ? (
                                     <SearchSelect
                                         className="h-10 w-20"
-                                        value={{ value: temp_data.value, label: temp_data.value }}
+                                        value={{
+                                            value: temp_data.value,
+                                            label: get_dxcc_label(temp_data.value),
+                                        }}
                                         onChange={option => {
                                             set_temp_data({
                                                 ...temp_data,
@@ -451,7 +461,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             </div>
                         </div>
                     </>
-                ) : temp_data.type == "comment" ? (
+                ) : temp_data.type === "comment" ? (
                     <>
                         <hr />
                         <div className="flex justify-start space-x-5 items-center w-full">
@@ -470,33 +480,6 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                 />
                             </div>
                         </div>
-                    </>
-                ) : temp_data.type == "quick_comment" ? (
-                    <>
-                        <hr />
-                        <b className="text-xl flex mt-2">Select:</b>
-                        <SelectionLine
-                            states={QUICK_COMMENT_FILTERS.map(quick_filter => ({
-                                label: quick_filter.label,
-                                value: quick_filter.value,
-                            }))}
-                            field="quick_filter"
-                            temp_data={temp_data}
-                            set_temp_data={set_temp_data}
-                            build_temp_data={(current_data, field, value) => {
-                                const selected_filter = QUICK_COMMENT_FILTERS.find(
-                                    filter => filter.value === value,
-                                );
-                                if (!selected_filter) {
-                                    return current_data;
-                                }
-                                return {
-                                    ...current_data,
-                                    [field]: selected_filter.value,
-                                    value: selected_filter.comment,
-                                };
-                            }}
-                        />
                     </>
                 ) : (
                     ""

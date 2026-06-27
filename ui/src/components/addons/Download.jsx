@@ -14,7 +14,7 @@ export default function Download() {
                         </h2>
                         <div className="text-center mb-4">
                             <h3 className="text-xl font-bold addons-primary mb-2">{filename}</h3>
-                            <p className="text-gray-600"></p>
+                            <p className="text-gray-600" />
                         </div>
 
                         <div className="grid md:grid-cols-3 gap-4 mb-4">

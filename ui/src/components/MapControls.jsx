@@ -1,17 +1,23 @@
-import { useEffect, useRef, useState } from "react";
-import Button from "@/components/ui/Button.jsx";
-import Radio from "@/components/ui/Radio.jsx";
 import Night from "@/components/Night.jsx";
 import PropagationBar from "@/components/PropagationBar.jsx";
+import Button from "@/components/ui/Button.jsx";
 import Popup from "@/components/ui/Popup.jsx";
+import Radio from "@/components/ui/Radio.jsx";
 import { useColors } from "@/hooks/useColors";
-import { useRestData } from "@/hooks/useRestData";
-import use_radio from "@/hooks/useRadio";
-import { useSettings } from "@/hooks/useSettings";
 import { useFilters } from "@/hooks/useFilters";
+import use_radio from "@/hooks/useRadio";
+import { useRestData } from "@/hooks/useRestData";
+import { useSettings } from "@/hooks/useSettings";
 import Maidenhead from "maidenhead";
+import { useEffect, useRef, useState } from "react";
 
-const EXCLUSIVE_OVERLAY_CONTROL_KEYS = ["show_dxcc_labels", "show_cq_zones", "show_itu_zones"];
+const EXCLUSIVE_OVERLAY_CONTROL_KEYS = [
+    "show_dxcc_labels",
+    "show_cq_zones",
+    "show_itu_zones",
+    "show_maidenhead_grid",
+];
+const VOACAP_BANDS = ["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"];
 
 function clear_exclusive_overlays(state) {
     EXCLUSIVE_OVERLAY_CONTROL_KEYS.forEach(control_key => {
@@ -32,7 +38,7 @@ function MapControls({
     is_history_mode,
     toggle_history,
 }) {
-    const { colors } = useColors();
+    const { colors, dev_mode } = useColors();
     const { propagation } = useRestData();
     const { radio_status } = use_radio();
     const { settings } = useSettings();
@@ -50,6 +56,10 @@ function MapControls({
     const itu_zones_on = map_controls.show_itu_zones;
     const us_states_on = map_controls.show_us_states ?? false;
     const can_states_on = map_controls.show_can_states ?? false;
+    const maidenhead_grid_on = map_controls.show_maidenhead_grid ?? false;
+    const equator_on = map_controls.show_equator ?? false;
+    const voacap_on = map_controls.voacap_enabled ?? false;
+    const voacap_band = map_controls.voacap_band ?? "20";
 
     const active_zone_systems = cq_zones_on
         ? ["cq"]
@@ -196,6 +206,27 @@ function MapControls({
         });
     }
 
+    function toggle_equator() {
+        set_map_controls(state => {
+            state.show_equator = !state.show_equator;
+        });
+    }
+
+    function toggle_voacap() {
+        set_map_controls(state => {
+            state.voacap_enabled = !(state.voacap_enabled ?? false);
+            state.voacap_band = state.voacap_band ?? "20";
+            state.voacap_step_deg = state.voacap_step_deg ?? 10;
+        });
+    }
+
+    function set_voacap_band(band) {
+        if (!VOACAP_BANDS.includes(band)) return;
+        set_map_controls(state => {
+            state.voacap_band = band;
+        });
+    }
+
     const overlay_buttons = [
         {
             id: "dxcc",
@@ -218,6 +249,17 @@ function MapControls({
             map_control_key: "show_itu_zones",
             active: itu_zones_on,
         },
+        ...(dev_mode
+            ? [
+                  {
+                      id: "maidenhead",
+                      label: "MH",
+                      map_control_key: "show_maidenhead_grid",
+                      active: maidenhead_grid_on,
+                      title: "Maidenhead grid",
+                  },
+              ]
+            : []),
     ];
 
     function render_overlay_button({
@@ -304,29 +346,34 @@ function MapControls({
                             </svg>
                         </button>
                     )}
-                    <button
-                        type="button"
-                        onClick={toggle_history}
-                        className="flex h-10 w-10 items-center justify-center rounded-lg"
-                        style={{
-                            ...control_button_style,
-                            ...(is_history_mode
-                                ? { color: colors.buttons.active ?? "#3b82f6" }
-                                : {}),
-                        }}
-                        aria-label={is_history_mode ? "Exit history mode" : "Enter history mode"}
-                        title={is_history_mode ? "Exit history mode" : "Enter history mode"}
-                    >
-                        <svg
-                            height="24"
-                            width="24"
-                            viewBox="0 0 512 512"
-                            fill="currentColor"
-                            aria-hidden="true"
+                    {dev_mode && (
+                        <button
+                            type="button"
+                            onClick={toggle_history}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg"
+                            style={{
+                                ...control_button_style,
+                                ...(is_history_mode
+                                    ? { color: colors.buttons.active ?? "#3b82f6" }
+                                    : {}),
+                            }}
+                            aria-label={
+                                is_history_mode ? "Exit playback mode" : "Enter playback mode"
+                            }
+                            title={is_history_mode ? "Exit playback mode" : "Enter playback mode"}
                         >
-                            <path d="M256 8C119 8 8 119 8 256s111 248 248 248 248-111 248-248S393 8 256 8zm0 448c-110.5 0-200-89.5-200-200S145.5 56 256 56s200 89.5 200 200-89.5 200-200 200zm61.8-104.4l-84.9-61.7c-3.1-2.3-4.9-5.9-4.9-9.7V116c0-6.6 5.4-12 12-12h32c6.6 0 12 5.4 12 12v141.7l66.8 48.6c5.4 3.9 6.5 11.4 2.6 16.8L334.6 349c-3.9 5.3-11.4 6.5-16.8 2.6z" />
-                        </svg>
-                    </button>
+                            <svg
+                                height="24"
+                                width="24"
+                                viewBox="0 0 16 16"
+                                fill="currentColor"
+                                aria-hidden="true"
+                            >
+                                <path d="M6.79 5.093A.5.5 0 0 0 6 5.5v5a.5.5 0 0 0 .79.407l3.5-2.5a.5.5 0 0 0 0-.814z" />
+                                <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z" />
+                            </svg>
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={toggle_controls_panel}
@@ -369,7 +416,7 @@ function MapControls({
                         }}
                     >
                         <div className="flex items-center gap-3">
-                            {radio_status != "unavailable" && can_undo_cat ? (
+                            {radio_status !== "unavailable" && can_undo_cat ? (
                                 <Button
                                     color="utility"
                                     className="p-1"
@@ -390,12 +437,48 @@ function MapControls({
                             ) : (
                                 ""
                             )}
-                            {radio_status != "unavailable" ? (
-                                <Radio
-                                    color={radio_status_to_color[radio_status]}
-                                    size="40"
-                                ></Radio>
+                            {radio_status !== "unavailable" ? (
+                                <Radio color={radio_status_to_color[radio_status]} size="40" />
                             ) : null}
+                            <button
+                                type="button"
+                                onClick={toggle_equator}
+                                className="flex h-10 w-10 items-center justify-center rounded-md"
+                                style={{
+                                    color: equator_on
+                                        ? colors.buttons.utility
+                                        : colors.buttons.disabled,
+                                }}
+                                aria-label={equator_on ? "Hide equator" : "Show equator"}
+                                aria-pressed={equator_on}
+                                title={equator_on ? "Hide equator" : "Show equator"}
+                            >
+                                <svg
+                                    width="40"
+                                    height="40"
+                                    viewBox="0 0 40 40"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <circle cx="20" cy="20" r="15.5" strokeWidth="2.2" />
+                                    <path
+                                        d="M20 4.5c-4.4 4.4-6.8 9.7-6.8 15.5S15.6 31.1 20 35.5"
+                                        strokeWidth="1.7"
+                                        opacity="0.65"
+                                    />
+                                    <path
+                                        d="M20 4.5c4.4 4.4 6.8 9.7 6.8 15.5S24.4 31.1 20 35.5"
+                                        strokeWidth="1.7"
+                                        opacity="0.65"
+                                    />
+                                    <path d="M7.5 14h25" strokeWidth="1.5" opacity="0.45" />
+                                    <path d="M7.5 26h25" strokeWidth="1.5" opacity="0.45" />
+                                    <path d="M4 20h32" strokeWidth="3.6" />
+                                </svg>
+                            </button>
                             <button
                                 ref={mode_button_ref}
                                 onClick={() =>
@@ -455,6 +538,58 @@ function MapControls({
                         <div className="flex items-center gap-3">
                             {overlay_buttons.map(render_overlay_button)}
                         </div>
+                        {dev_mode ? (
+                            <div className="flex w-full items-center justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={toggle_voacap}
+                                    onMouseEnter={() => set_zone_button_hover("voacap")}
+                                    onMouseLeave={() => set_zone_button_hover(null)}
+                                    className="flex min-h-9 items-center justify-center whitespace-nowrap rounded-md px-3 text-center text-sm leading-tight"
+                                    style={{
+                                        ...zone_button_base_style,
+                                        ...(voacap_on ? zone_button_active_style : {}),
+                                        ...(zone_button_hover === "voacap"
+                                            ? zone_button_hover_style
+                                            : {}),
+                                        color: voacap_on
+                                            ? zone_label_active_color
+                                            : zone_label_inactive_color,
+                                    }}
+                                    aria-pressed={voacap_on}
+                                    title={
+                                        voacap_on ? "Hide VOACAP overlay" : "Show VOACAP overlay"
+                                    }
+                                >
+                                    <span className={voacap_on ? "font-bold" : "font-medium"}>
+                                        VOACAP
+                                    </span>
+                                </button>
+                                {voacap_on && (
+                                    <select
+                                        value={voacap_band}
+                                        onChange={event => set_voacap_band(event.target.value)}
+                                        className="h-9 rounded-md px-2 text-sm"
+                                        style={{
+                                            backgroundColor: colors.theme.input_background,
+                                            color: colors.theme.text,
+                                            border: `1px solid ${colors.theme.text}38`,
+                                        }}
+                                        title="VOACAP band"
+                                        aria-label="VOACAP band"
+                                    >
+                                        {VOACAP_BANDS.map(band => (
+                                            <option key={band} value={band}>
+                                                {band}m
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                        ) : (
+                            ""
+                        )}
+
                         <div className="flex w-full flex-wrap justify-end gap-2">
                             {country_zone_overlays.map(overlay => {
                                 const active = map_controls[overlay.map_control_key] ?? false;

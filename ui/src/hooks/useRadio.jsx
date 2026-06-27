@@ -1,7 +1,8 @@
+import { compare_version } from "@/utils.js";
+import { createContext, useContext, useEffect, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
-import { useState, useEffect, createContext, useContext } from "react";
-import { useSettings } from "./useSettings";
 import raw_band_plans from "../../../shared/band_plans.json";
+import { useSettings } from "./useSettings";
 
 const band_plans = Object.fromEntries(
     Object.entries(raw_band_plans).map(([band, info]) => [
@@ -22,10 +23,10 @@ function parse_version(raw_version) {
 
     const [, major, minor, patch, _, commit] = match;
     return [
-        parseInt(major, 10),
-        parseInt(minor, 10),
-        parseInt(patch, 10),
-        commit ? parseInt(commit, 10) : 0,
+        Number.parseInt(major, 10),
+        Number.parseInt(minor, 10),
+        Number.parseInt(patch, 10),
+        commit ? Number.parseInt(commit, 10) : 0,
     ];
 }
 
@@ -49,7 +50,7 @@ export function useCatserverVersion(raw_local_version) {
                 const raw_remote_version = data.slice(0, data.lastIndexOf("."));
                 set_raw_remote_version(raw_remote_version);
 
-                if (local_version > parse_version(raw_remote_version)) {
+                if (compare_version(local_version, parse_version(raw_remote_version)) > 0) {
                     set_new_version_available(true);
                     console.log(
                         `New version available - Remote: ${raw_remote_version}, Local: ${local_version}`,
@@ -75,7 +76,7 @@ export function RadioProvider({ children }) {
 
     const host = window.location.host;
     const protocol = window.location.protocol;
-    const websocket_url = (protocol == "https:" ? "wss:" : "ws:") + "//" + host + "/radio";
+    const websocket_url = `${protocol === "https:" ? "wss:" : "ws:"}//${host}/radio`;
 
     const { sendJsonMessage, readyState, lastJsonMessage } = useWebSocket(websocket_url);
     const [radio_status, set_radio_status] = useState("unavailable");
@@ -86,7 +87,7 @@ export function RadioProvider({ children }) {
     const [raw_local_version, set_raw_local_version] = useState(null);
 
     function get_band_from_freq(freq) {
-        for (let band of Object.keys(band_plans)) {
+        for (const band of Object.keys(band_plans)) {
             if (freq <= band_plans[band].max && freq >= band_plans[band].min) {
                 return band;
             }
@@ -119,7 +120,7 @@ export function RadioProvider({ children }) {
     }, [lastJsonMessage]);
 
     function send_message_to_radio(message) {
-        if (readyState == ReadyState.OPEN) {
+        if (readyState === ReadyState.OPEN) {
             sendJsonMessage(message);
         }
     }
@@ -133,7 +134,7 @@ export function RadioProvider({ children }) {
     const tagged_api_version = [1, 1, 0, 0];
 
     function highlight_spot(spot, udp_port) {
-        if (spot && version_data.local_version > tagged_api_version) {
+        if (spot && compare_version(version_data.local_version, tagged_api_version) > 0) {
             send_message_to_radio({
                 type: "HighlightSpot",
                 dx_callsign: spot.dx_callsign,
@@ -150,7 +151,7 @@ export function RadioProvider({ children }) {
             return;
         }
 
-        if (version_data.local_version > tagged_api_version) {
+        if (compare_version(version_data.local_version, tagged_api_version) > 0) {
             send_message_to_radio({
                 type: "SetRig",
                 rig: rig,
@@ -163,7 +164,7 @@ export function RadioProvider({ children }) {
     }
 
     function set_mode_and_freq(mode, freq) {
-        if (version_data.local_version > tagged_api_version) {
+        if (compare_version(version_data.local_version, tagged_api_version) > 0) {
             send_message_to_radio({
                 type: "SetModeAndFreq",
                 mode,

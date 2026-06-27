@@ -6,7 +6,12 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from shared.db import GeoCache, HolySpot, SpotsWithIssues  # noqa: F401 - imported so models are registered
+from shared.db import (  # noqa: F401 - imported so models are registered
+    GeoCache,
+    HolySpot,
+    PropagationMeasurement,
+    SpotsWithIssues,
+)
 from shared.settings import PostgresSettings
 from sqlmodel import SQLModel
 

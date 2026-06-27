@@ -1,30 +1,31 @@
 import CanvasMap from "@/components/CanvasMap/index.jsx";
-import MapControls from "@/components/MapControls.jsx";
-import TopBar from "@/components/TopBar.jsx";
-import SpotsTable from "@/components/SpotsTable.jsx";
-import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
+import MapControls from "@/components/MapControls.jsx";
 import SidePanel from "@/components/SidePanel.jsx";
-import Tabs from "@/components/ui/Tabs.jsx";
+import SpotsTable from "@/components/SpotsTable.jsx";
+import TopBar from "@/components/TopBar.jsx";
+import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import HistoryBar from "@/components/history/HistoryBar.jsx";
-import Maidenhead from "maidenhead";
-import {
-    use_object_local_storage,
-    is_matching_list,
-    get_max_radius,
-    get_spots_center,
-} from "@/utils.js";
-import { useSpotData, SpotDataProvider } from "@/hooks/useSpotData";
-import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 import use_radio from "@/hooks/useRadio";
-import { useSettings } from "@/hooks/useSettings";
+import { RestDataProvider } from "@/hooks/useRestData";
+import { SpotDataProvider, useSpotData } from "@/hooks/useSpotData";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { compare_version, get_max_radius, get_spots_center } from "@/utils.js";
+import { open_db_and_evict } from "@/utils/spot_cache_db.js";
+import Maidenhead from "maidenhead";
 
-import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
+import { useEffect, useRef, useState } from "react";
 
 const AUTO_RADIUS_PADDING_KM = 1000;
 const AUTO_RADIUS_RECENTER_ENABLED = false;
+const MAP_TAB_ICON =
+    "M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 7 7 0 0 1 .597-.933A7.03 7.03 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a7 7 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zM8.5 5v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7 7 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7 7 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a7 7 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7 7 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z";
+const TABLE_TAB_ICON =
+    "M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 2h-4v3h4zm0 4h-4v3h4zm0 4h-4v3h3a1 1 0 0 0 1-1zm-5 3v-3H6v3zm-5 0v-3H1v2a1 1 0 0 0 1 1zm-4-4h4V8H1zm0-4h4V4H1zm5-3v3h4V4zm4 4H6v3h4z";
 
 function MainContent({
     history_start,
@@ -41,24 +42,17 @@ function MainContent({
     }, [colors.theme.background]);
     const [toggled_ui, set_toggled_ui] = useState({ left_visible: true, right_visible: true });
     const { local_version } = use_radio();
-    const { settings, set_settings } = useSettings();
+    const {
+        active_profile_data: {
+            settings,
+            map_controls,
+            map_view: { auto_radius, radius_in_km },
+            table_sort,
+        },
+        update_active_profile_section,
+    } = useProfiles();
     const { spots, filter_missing_flags, set_filter_missing_flags } = useSpotData();
     const { set_pinned_spot } = useSpotInteraction();
-
-    const [map_controls, set_map_controls_inner] = use_object_local_storage("map_controls", {
-        night: false,
-        is_globe: false,
-        show_cq_zones: false,
-        show_itu_zones: false,
-        show_dxcc_labels: false,
-        show_us_states: false,
-        show_can_states: false,
-        location: {
-            displayed_locator: "JJ00AA",
-            // Longitude, latitude
-            location: [0, 0],
-        },
-    });
 
     const [prev_freqs, set_prev_freqs] = useState([]);
     const prev_freq_limit = 1; // Set the max number of undos a user can do
@@ -66,22 +60,39 @@ function MainContent({
     const [is_map_fullscreen, set_is_map_fullscreen] = useState(false);
 
     const set_map_controls = change_func => {
-        set_map_controls_inner(previous_state => {
+        update_active_profile_section("map_controls", previous_state => {
             const state = structuredClone(previous_state);
             change_func(state);
             return state;
         });
     };
 
-    const [table_sort, set_table_sort] = use_object_local_storage("table_sort", {
-        column: "time",
-        ascending: false,
-    });
+    function set_table_sort(value_or_setter) {
+        update_active_profile_section("table_sort", value_or_setter);
+    }
+
+    function set_auto_radius(value_or_setter) {
+        update_active_profile_section("map_view", map_view => ({
+            ...map_view,
+            auto_radius:
+                typeof value_or_setter === "function"
+                    ? value_or_setter(map_view.auto_radius)
+                    : value_or_setter,
+        }));
+    }
+
+    function set_radius_in_km(value_or_setter) {
+        update_active_profile_section("map_view", map_view => ({
+            ...map_view,
+            radius_in_km:
+                typeof value_or_setter === "function"
+                    ? value_or_setter(map_view.radius_in_km)
+                    : value_or_setter,
+        }));
+    }
 
     const max_radius = get_max_radius(map_controls.location.location, spots);
 
-    const [radius_in_km, set_radius_in_km] = useState(settings.default_radius);
-    const [auto_radius, set_auto_radius] = useLocalStorage("auto_radius", true);
     const prev_auto_radius_ref = useRef(auto_radius);
     useEffect(() => {
         const just_activated = auto_radius && !prev_auto_radius_ref.current;
@@ -132,14 +143,14 @@ function MainContent({
     const [active_view, set_active_view] = useLocalStorage("active_view", 0);
 
     function on_key_down(event) {
-        if (event.key == "Escape") {
+        if (event.key === "Escape") {
             set_pinned_spot(null);
         }
 
         if (event.ctrlKey && event.altKey) {
-            if (event.key == "f") {
+            if (event.key === "f") {
                 set_filter_missing_flags(!filter_missing_flags);
-            } else if (event.key == "p" || event.key == "s") {
+            } else if (event.key === "p" || event.key === "s") {
                 set_dev_mode(!dev_mode);
             }
         }
@@ -177,9 +188,11 @@ function MainContent({
     }
 
     const is_md_device = useMediaQuery("only screen and (max-width : 768px)");
-    const is_history_mode = !!(history_start && history_end);
+    const is_history_mode = dev_mode && !!(history_start && history_end);
 
     function toggle_history() {
+        if (!dev_mode) return;
+
         if (is_history_mode) {
             set_history_start(null);
             set_history_end(null);
@@ -223,7 +236,7 @@ function MainContent({
     );
 
     const table =
-        local_version > [1, 0, 0, 0] || local_version == null ? (
+        compare_version(local_version, [1, 0, 0, 0]) > 0 || local_version == null ? (
             <SpotsTable
                 set_cat_to_spot={set_cat_to_spot}
                 table_sort={table_sort}
@@ -232,6 +245,49 @@ function MainContent({
         ) : (
             <UnsupportedVersion />
         );
+
+    const main_view_mode = dev_mode ? (settings.main_view_mode ?? "both") : "both";
+    const main_view_order = dev_mode ? (settings.main_view_order ?? "map_table") : "map_table";
+    const ordered_panel_keys =
+        main_view_order === "table_map" ? ["table", "map"] : ["map", "table"];
+    const active_panel_keys =
+        main_view_mode === "map"
+            ? ["map"]
+            : main_view_mode === "table"
+              ? ["table"]
+              : ordered_panel_keys;
+    const desktop_panel_widths =
+        main_view_mode === "both"
+            ? {
+                  map: "flex-[0_0_57%]",
+                  table: "flex-[0_0_43%]",
+              }
+            : {
+                  map: "flex-1",
+                  table: "flex-1",
+              };
+    const main_panel_content = {
+        map,
+        table,
+    };
+    const mobile_tab_by_panel = {
+        map: {
+            label: "Map",
+            content: map,
+            icon: MAP_TAB_ICON,
+            viewbox: "0 0 16 16",
+            size: "16",
+        },
+        table: {
+            label: "Table",
+            content: table,
+            icon: TABLE_TAB_ICON,
+            viewbox: "0 0 16 16",
+            size: "16",
+        },
+    };
+    const mobile_tabs = active_panel_keys.map(panel_key => mobile_tab_by_panel[panel_key]);
+    const mobile_tabs_key = `${main_view_mode}-${main_view_order}`;
 
     return (
         <div className="flex flex-col h-full">
@@ -247,28 +303,20 @@ function MainContent({
                     <LeftColumn toggled_ui={toggled_ui} />
                     {is_md_device ? (
                         <Tabs
-                            local_storage_name="mobile_tab"
-                            tabs={[
-                                {
-                                    label: "Map",
-                                    content: map,
-                                    icon: "M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 7 7 0 0 1 .597-.933A7.03 7.03 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a7 7 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zM8.5 5v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7 7 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7 7 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a7 7 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7 7 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z",
-                                    viewbox: "0 0 16 16",
-                                    size: "16",
-                                },
-                                {
-                                    label: "Table",
-                                    content: table,
-                                    icon: "M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 2h-4v3h4zm0 4h-4v3h4zm0 4h-4v3h3a1 1 0 0 0 1-1zm-5 3v-3H6v3zm-5 0v-3H1v2a1 1 0 0 0 1 1zm-4-4h4V8H1zm0-4h4V4H1zm5-3v3h4V4zm4 4H6v3h4z",
-                                    viewbox: "0 0 16 16",
-                                    size: "16",
-                                },
-                            ]}
-                        ></Tabs>
+                            key={mobile_tabs_key}
+                            local_storage_name={mobile_tabs.length > 1 ? "mobile_tab" : null}
+                            tabs={mobile_tabs}
+                        />
                     ) : (
                         <div className="flex flex-1 min-w-0 h-full">
-                            <div className="flex-[0_0_57%] min-w-0">{map}</div>
-                            <div className="flex-[0_0_43%] min-w-0">{table}</div>
+                            {active_panel_keys.map(panel_key => (
+                                <div
+                                    key={panel_key}
+                                    className={`${desktop_panel_widths[panel_key]} min-w-0 h-full`}
+                                >
+                                    {main_panel_content[panel_key]}
+                                </div>
+                            ))}
                         </div>
                     )}
                     <SidePanel
@@ -294,28 +342,73 @@ function MainContent({
 }
 
 function MainContainer() {
+    const { dev_mode } = useColors();
+    const {
+        active_profile_data: {
+            history: { window_size_ms, step_size_ms },
+        },
+        update_active_profile_section,
+    } = useProfiles();
     const [history_start, set_history_start] = useState(null);
     const [history_end, set_history_end] = useState(null);
-    const [window_size_ms, set_window_size_ms] = useLocalStorage(
-        "history-window-size",
-        15 * 60_000,
-    );
+    const effective_history_start = dev_mode ? history_start : null;
+    const effective_history_end = dev_mode ? history_end : null;
+
+    function set_window_size_ms(value_or_setter) {
+        update_active_profile_section("history", history => ({
+            ...history,
+            window_size_ms:
+                typeof value_or_setter === "function"
+                    ? value_or_setter(history.window_size_ms)
+                    : value_or_setter,
+        }));
+    }
+
+    useEffect(() => {
+        if (!dev_mode) {
+            set_history_start(null);
+            set_history_end(null);
+        }
+    }, [dev_mode]);
+
+    useEffect(() => {
+        if (!dev_mode) return;
+
+        const handle =
+            typeof requestIdleCallback !== "undefined"
+                ? requestIdleCallback(() => open_db_and_evict())
+                : setTimeout(() => open_db_and_evict(), 2000);
+        const timer = setInterval(() => open_db_and_evict(), 3 * 60 * 60_000);
+        return () => {
+            typeof requestIdleCallback !== "undefined"
+                ? cancelIdleCallback(handle)
+                : clearTimeout(handle);
+            clearInterval(timer);
+        };
+    }, [dev_mode]);
 
     return (
-        <SpotDataProvider
-            startTime={history_start}
-            endTime={history_end}
-            window_size_ms={window_size_ms}
+        <RestDataProvider
+            propagation_range_start={effective_history_start}
+            propagation_range_end={effective_history_end}
+            propagation_time={effective_history_end}
         >
-            <MainContent
-                history_start={history_start}
-                history_end={history_end}
-                set_history_start={set_history_start}
-                set_history_end={set_history_end}
+            <SpotDataProvider
+                startTime={effective_history_start}
+                endTime={effective_history_end}
                 window_size_ms={window_size_ms}
-                set_window_size_ms={set_window_size_ms}
-            />
-        </SpotDataProvider>
+                step_size_ms={step_size_ms}
+            >
+                <MainContent
+                    history_start={effective_history_start}
+                    history_end={effective_history_end}
+                    set_history_start={set_history_start}
+                    set_history_end={set_history_end}
+                    window_size_ms={window_size_ms}
+                    set_window_size_ms={set_window_size_ms}
+                />
+            </SpotDataProvider>
+        </RestDataProvider>
     );
 }
 

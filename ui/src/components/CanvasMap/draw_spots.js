@@ -1,6 +1,6 @@
-import * as d3 from "d3";
 import { get_mode_shape } from "@/data/mode_shapes.js";
 import { calculate_geographic_azimuth } from "@/utils.js";
+import * as d3 from "d3";
 
 function with_alpha(color, alpha) {
     if (typeof color !== "string") return color;
@@ -16,7 +16,7 @@ function with_alpha(color, alpha) {
     if (!hex_match) return value;
 
     const [, r, g, b] = hex_match;
-    return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${alpha})`;
+    return `rgba(${Number.parseInt(r, 16)}, ${Number.parseInt(g, 16)}, ${Number.parseInt(b, 16)}, ${alpha})`;
 }
 
 export function make_visibility_check(projection) {
@@ -37,11 +37,7 @@ export function build_geojson_line(spot) {
     };
 }
 
-function draw_spot_dx(context, spot, color, stroke_color, dx_x, dx_y, dx_size) {
-    context.beginPath();
-    context.strokeStyle = stroke_color;
-    context.fillStyle = color;
-    context.lineWidth = 1;
+function draw_dx_shape_path(context, spot, dx_x, dx_y, dx_size) {
     const shape = get_mode_shape(spot.mode);
     if (shape === "square") {
         context.rect(dx_x - dx_size / 2, dx_y - dx_size / 2, dx_size, dx_size);
@@ -50,12 +46,12 @@ function draw_spot_dx(context, spot, color, stroke_color, dx_x, dx_y, dx_size) {
         context.lineTo(dx_x - dx_size / 2, dx_y + dx_size / 2);
         context.lineTo(dx_x + dx_size / 2, dx_y + dx_size / 2);
     } else {
-        dx_size = dx_size / 1.6;
+        const local_dx_size = dx_size / 1.6;
         const hex_points = [];
         for (let i = 0; i < 6; i++) {
             const angle = (Math.PI / 3) * i;
-            const x = dx_x + dx_size * Math.cos(angle);
-            const y = dx_y + dx_size * Math.sin(angle);
+            const x = dx_x + local_dx_size * Math.cos(angle);
+            const y = dx_y + local_dx_size * Math.sin(angle);
             hex_points.push([x, y]);
         }
         context.moveTo(hex_points[0][0], hex_points[0][1]);
@@ -64,7 +60,41 @@ function draw_spot_dx(context, spot, color, stroke_color, dx_x, dx_y, dx_size) {
         }
     }
     context.closePath();
+}
+
+function draw_spot_dx(
+    context,
+    spot,
+    color,
+    stroke_color,
+    dx_x,
+    dx_y,
+    dx_size,
+    hunter_flash_phase,
+    hunter_flash_color,
+) {
+    const is_hunter_alerted = Boolean(spot.hunterNeeded?.is_needed);
+
+    if (is_hunter_alerted) {
+        context.beginPath();
+        draw_dx_shape_path(context, spot, dx_x, dx_y, dx_size + 5 + hunter_flash_phase * 5);
+        context.strokeStyle = with_alpha(hunter_flash_color, 0.45 + hunter_flash_phase * 0.45);
+        context.lineWidth = 2 + hunter_flash_phase * 2;
+        context.stroke();
+    }
+
+    context.beginPath();
+    context.strokeStyle = stroke_color;
+    context.fillStyle = color;
+    context.lineWidth = 1;
+    draw_dx_shape_path(context, spot, dx_x, dx_y, dx_size);
     context.fill();
+    if (is_hunter_alerted) {
+        context.fillStyle = with_alpha(hunter_flash_color, 0.2 + hunter_flash_phase * 0.65);
+        context.fill();
+        context.strokeStyle = with_alpha(hunter_flash_color, 0.85);
+        context.lineWidth = 1.5;
+    }
     context.stroke();
 }
 
@@ -73,6 +103,7 @@ function draw_spot(
     spot,
     colors,
     dash_offset,
+    hunter_flash_phase,
     { is_bold, path_generator, projection, is_visible },
 ) {
     const line = build_geojson_line(spot);
@@ -97,11 +128,22 @@ function draw_spot(
     }
     path_generator(line);
     context.stroke();
+    context.setLineDash([]);
 
     if (is_visible(spot.dx_loc)) {
         const dx_size = is_bold ? 12 : 10;
         const [dx_x, dx_y] = projection(spot.dx_loc);
-        draw_spot_dx(context, spot, color, colors.map.spot_outline, dx_x, dx_y, dx_size);
+        draw_spot_dx(
+            context,
+            spot,
+            color,
+            colors.map.spot_outline,
+            dx_x,
+            dx_y,
+            dx_size,
+            hunter_flash_phase,
+            colors.spots?.hunter_alert_flash ?? "#ef4444",
+        );
     }
 
     if (is_visible(spot.spotter_loc)) {
@@ -131,6 +173,7 @@ export function draw_spots(
     projection,
     is_globe,
     home_location,
+    hunter_flash_phase = 0,
 ) {
     const path_generator = d3.geoPath().projection(projection).context(context);
     const is_visible = is_globe ? make_visibility_check(projection) : () => true;
@@ -141,34 +184,34 @@ export function draw_spots(
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
     context.clip();
 
-    let bold_spots = [];
-    spots.forEach(spot => {
+    const bold_spots = [];
+    for (const spot of spots) {
         const is_band_highlighted = hovered_band != null && spot.band === hovered_band;
         const is_freq_highlighted = current_freq_spots.includes(spot.id);
-        if (hovered_spot.id == spot.id || pinned_spot == spot.id) {
+        if (hovered_spot.id === spot.id || pinned_spot === spot.id) {
             bold_spots.push(spot);
         } else if (is_band_highlighted || is_freq_highlighted) {
-            draw_spot(context, spot, colors, dash_offset, {
+            draw_spot(context, spot, colors, dash_offset, hunter_flash_phase, {
                 is_bold: true,
                 path_generator,
                 projection,
                 is_visible,
             });
         } else {
-            draw_spot(context, spot, colors, dash_offset, {
+            draw_spot(context, spot, colors, dash_offset, hunter_flash_phase, {
                 is_bold: false,
                 path_generator,
                 projection,
                 is_visible,
             });
         }
-    });
+    }
 
     // Draw azimuth line before the bold spot so it appears under it
     let azimuth_spot;
     if (pinned_spot) {
-        for (let spot of bold_spots) {
-            if (spot.id == pinned_spot) {
+        for (const spot of bold_spots) {
+            if (spot.id === pinned_spot) {
                 azimuth_spot = spot;
                 break;
             }
@@ -177,7 +220,7 @@ export function draw_spots(
         azimuth_spot = bold_spots[bold_spots.length - 1];
     }
 
-    if (azimuth_spot && !is_globe && hovered_spot.source != "table") {
+    if (azimuth_spot && !is_globe && hovered_spot.source !== "table") {
         const [center_lon, center_lat] = projection.rotate().map(x => -x);
         const azimuth = calculate_geographic_azimuth(
             center_lat,
@@ -201,8 +244,8 @@ export function draw_spots(
     }
 
     // Bold spot drawn last (on top)
-    for (let spot of bold_spots) {
-        draw_spot(context, spot, colors, dash_offset, {
+    for (const spot of bold_spots) {
+        draw_spot(context, spot, colors, dash_offset, hunter_flash_phase, {
             is_bold: true,
             path_generator,
             projection,

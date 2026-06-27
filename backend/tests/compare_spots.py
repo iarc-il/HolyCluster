@@ -45,10 +45,10 @@ class SpotId:
 class FullSpot:
     id: SpotId
     spotter_loc: List[float]
-    spotter_country: str
+    spotter_dxcc_code: int
     spotter_continent: str
     dx_loc: List[float]
-    dx_country: str
+    dx_dxcc_code: int
     dx_continent: str
     band: str
     mode: str
@@ -67,10 +67,10 @@ class FullSpot:
         return cls(
             id=id,
             spotter_loc=spot_data["spotter_loc"],
-            spotter_country=spot_data["spotter_country"],
+            spotter_dxcc_code=spot_data["spotter_dxcc_code"],
             spotter_continent=spot_data["spotter_continent"],
             dx_loc=spot_data["dx_loc"],
-            dx_country=spot_data["dx_country"],
+            dx_dxcc_code=spot_data["dx_dxcc_code"],
             dx_continent=spot_data["dx_continent"],
             band=spot_data["band"],
             mode=spot_data["mode"],

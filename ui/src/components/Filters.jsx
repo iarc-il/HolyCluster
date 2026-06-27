@@ -1,15 +1,18 @@
-import Input from "@/components/ui/Input.jsx";
+import { default as FilterModal, empty_filter_data } from "@/components/FilterModal.jsx";
 import Button from "@/components/ui/Button.jsx";
+import Input from "@/components/ui/Input.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
-import { empty_filter_data, default as FilterModal } from "@/components/FilterModal.jsx";
 
+import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
+import { HUNTER_SECTION_LABELS } from "@/data/hunter_sections.js";
+import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
-import { STATES } from "@/data/states.js";
-import { useState } from "react";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { DndContext, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { useState } from "react";
 
 const FILTER_TYPE_LABELS = {
     prefix: "Pfx",
@@ -17,6 +20,7 @@ const FILTER_TYPE_LABELS = {
     entity: "Ent",
     zone: "Zone",
     comment: "Cmt",
+    hunter: "Mis",
 };
 
 const SPOTTER_DX_LABELS = {
@@ -27,6 +31,14 @@ const SPOTTER_DX_LABELS = {
 const SPECIAL_FILTER_LABELS = {
     self_spotters: "Self spotters",
     dxpeditions: "DXpedition",
+};
+
+const HUNTER_SECTION_TOTALS = {
+    dxcc: dxcc_codes.length,
+    cq_zone: 40,
+    itu_zone: 90,
+    us_state: Object.keys(STATES.USA).length,
+    ca_province: Object.keys(STATES.Canada).length,
 };
 
 function Indicator({ text }) {
@@ -55,6 +67,7 @@ function EditSymbol({ size }) {
 
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <title>Edit filter</title>
             <path
                 d="M21.2799 6.40005L11.7399 15.94C10.7899 16.89 7.96987 17.33 7.33987 16.7C6.70987 16.07 7.13987 13.25 8.08987 12.3L17.6399 2.75002C17.8754 2.49308 18.1605 2.28654 18.4781 2.14284C18.7956 1.99914 19.139 1.92124 19.4875 1.9139C19.8359 1.90657 20.1823 1.96991 20.5056 2.10012C20.8289 2.23033 21.1225 2.42473 21.3686 2.67153C21.6147 2.91833 21.8083 3.21243 21.9376 3.53609C22.0669 3.85976 22.1294 4.20626 22.1211 4.55471C22.1128 4.90316 22.0339 5.24635 21.8894 5.5635C21.7448 5.88065 21.5375 6.16524 21.2799 6.40005V6.40005Z"
                 stroke={colors.buttons.utility}
@@ -139,8 +152,38 @@ function ZoneFilterBadge({ filter, listeners, attributes }) {
     );
 }
 
+function HunterFilterBadge({ filter, listeners, attributes }) {
+    const {
+        active_profile_data: { hunter },
+    } = useProfiles();
+    const section_label = HUNTER_SECTION_LABELS[filter.hunter_section] ?? filter.hunter_section;
+    const total_count = HUNTER_SECTION_TOTALS[filter.hunter_section] ?? 0;
+    const worked_count = new Set(hunter.worked[filter.hunter_section]?.global ?? []).size;
+    const missing_count = Math.max(total_count - worked_count, 0);
+
+    return (
+        <div className="flex items-center gap-1">
+            <FilterBadge
+                listeners={listeners}
+                attributes={attributes}
+                className="cursor-grab active:cursor-grabbing w-22"
+                title={`Missing ${section_label}`}
+            >
+                Missing
+            </FilterBadge>
+            <FilterBadge className="px-2 w-fit max-w-40" title={section_label}>
+                {section_label}
+            </FilterBadge>
+            <FilterBadge className="px-2 w-fit" title={`${missing_count} missing`}>
+                {missing_count}
+            </FilterBadge>
+        </div>
+    );
+}
+
 function FilterContent({ filter, listeners, attributes, colors }) {
     const is_special_filter = filter.type === "self_spotters" || filter.type === "dxpeditions";
+    const filter_value = filter.type === "entity" ? get_dxcc_label(filter.value) : filter.value;
 
     if (is_special_filter) {
         return (
@@ -152,17 +195,8 @@ function FilterContent({ filter, listeners, attributes, colors }) {
         return <ZoneFilterBadge filter={filter} listeners={listeners} attributes={attributes} />;
     }
 
-    if (filter.type === "comment" && filter.quick_filter) {
-        return (
-            <FilterBadge
-                listeners={listeners}
-                attributes={attributes}
-                className="cursor-grab active:cursor-grabbing w-24"
-                title={filter.value}
-            >
-                {filter.value}
-            </FilterBadge>
-        );
+    if (filter.type === "hunter") {
+        return <HunterFilterBadge filter={filter} listeners={listeners} attributes={attributes} />;
     }
 
     if (filter.type === "comment") {
@@ -173,8 +207,8 @@ function FilterContent({ filter, listeners, attributes, colors }) {
                         className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
                         disabled
                         disabled_text_color={colors.theme.text}
-                        title={filter.value}
-                        value={filter.value}
+                        title={filter_value}
+                        value={filter_value}
                     />
                 </div>
                 <Indicator text={FILTER_TYPE_LABELS[filter.type]} />
@@ -189,8 +223,8 @@ function FilterContent({ filter, listeners, attributes, colors }) {
                     className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
                     disabled
                     disabled_text_color={colors.theme.text}
-                    title={filter.value}
-                    value={filter.value}
+                    title={filter_value}
+                    value={filter_value}
                 />
             </div>
             <Indicator text={FILTER_TYPE_LABELS[filter.type]} />

@@ -1,6 +1,7 @@
-import { km_to_miles } from "@/utils.js";
+import { get_dxcc_label } from "@/data/dxcc_entities.js";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/hooks/useSettings";
+import { km_to_miles } from "@/utils.js";
 
 function SpotPopup({
     hovered_spot,
@@ -25,7 +26,16 @@ function SpotPopup({
             className="absolute w-fit z-40 bottom-2 left-2 border-l-4 pl-2"
             onMouseOver={() => set_hovered_spot(hovered_spot)}
             onMouseLeave={() => set_hovered_spot({ source: null, id: null })}
+            onFocus={() => set_hovered_spot(hovered_spot)}
+            onBlur={() => set_hovered_spot({ source: null, id: null })}
             onClick={() => set_pinned_spot(hovered_spot)}
+            onKeyDown={event => {
+                if (event.key === "Enter") {
+                    set_pinned_spot(hovered_spot);
+                }
+            }}
+            role="button"
+            tabIndex={0}
             style={{
                 borderColor: colors.bands[spot_data.band],
                 color: colors.theme.text,
@@ -34,16 +44,25 @@ function SpotPopup({
             <div className="text-sm font-bold">
                 <p>
                     DX: {spot_data.dx_callsign}
-                    {"continent_dx" in spot_data ? ", " + spot_data.continent_dx : ""}
+                    {"continent_dx" in spot_data ? `, ${spot_data.continent_dx}` : ""}
                 </p>
                 <p>Frequency: {spot_data.freq}</p>
-                <p>DX Country: {spot_data.dx_country}</p>
+                <p>DXCC: {get_dxcc_label(spot_data.dx_dxcc_code) || spot_data.dx_country}</p>
                 <p>Spotter: {spot_data.spotter_callsign}</p>
                 <p>
                     Distance: {settings.is_miles ? km_to_miles(distance) : distance}{" "}
                     {settings.is_miles ? "Miles" : "KM"}
                 </p>
                 <p>Azimuth: {Math.round(azimuth)}°</p>
+                {spot_data.hunterNeeded?.is_needed && (
+                    <p className="mt-1">
+                        {spot_data.hunterNeeded.reasons
+                            .slice(0, 3)
+                            .map(r => r.label)
+                            .join(", ")}
+                        {spot_data.hunterNeeded.reasons.length > 3 && "..."}
+                    </p>
+                )}
             </div>
         </div>
     );

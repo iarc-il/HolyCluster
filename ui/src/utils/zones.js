@@ -1,8 +1,8 @@
-import * as d3 from "d3";
+import ca_provinces from "@/maps/canada_provinces.json";
 import cq_zones from "@/maps/cqzones.json";
 import itu_zones from "@/maps/ituzones.json";
 import us_states from "@/maps/us_states.json";
-import ca_provinces from "@/maps/canada_provinces.json";
+import * as d3 from "d3";
 
 export const ZONE_CONFIG = {
     cq: {

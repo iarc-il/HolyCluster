@@ -1,10 +1,82 @@
+import {
+    get_dxcc_label,
+    is_canada_dxcc_code,
+    is_us_state_dxcc_code,
+    normalize_dxcc_entity_code,
+} from "@/data/dxcc_entities.js";
+import { bands, modes } from "@/data/filters_data.js";
+import { get_dxcc_flag } from "@/data/flags.js";
+import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { is_matching_list, sort_spots } from "@/utils.js";
+import { normalize_zone_value } from "@/utils/zones.js";
 import { useMemo, useState } from "react";
 import { useFilters } from "./useFilters";
 import use_radio from "./useRadio";
 import { useSpotInteraction } from "./useSpotInteraction";
-import { is_matching_list, sort_spots, use_object_local_storage } from "@/utils.js";
-import { bands, modes } from "@/data/filters_data.js";
-import { get_flag } from "@/data/flags.js";
+
+const reference_spot_types = new Set(["sota", "pota", "wwff"]);
+
+const SECTION_REASON_LABELS = {
+    dxcc: value => `Needed DXCC: ${get_dxcc_label(value) || value}`,
+    cq_zone: value => `Needed CQ Zone: ${value}`,
+    itu_zone: value => `Needed ITU Zone: ${value}`,
+    us_state: value => `Needed US State: ${value}`,
+    ca_province: value => `Needed CA Province: ${value}`,
+};
+
+const HUNTER_SECTION_SET = new Set(HUNTER_SECTION_KEYS);
+
+function get_spot_feature_value(section, spot) {
+    switch (section) {
+        case "dxcc":
+            return normalize_dxcc_entity_code(spot.dx_dxcc_code ?? spot.dx_country);
+        case "cq_zone":
+            return normalize_zone_value("cq", spot.dx_cq_zone);
+        case "itu_zone":
+            return normalize_zone_value("itu", spot.dx_itu_zone);
+        case "us_state":
+            if (!is_us_state_dxcc_code(spot.dx_dxcc_code)) return null;
+            return normalize_zone_value("us_state", spot.dx_state);
+        case "ca_province":
+            if (!is_canada_dxcc_code(spot.dx_dxcc_code)) return null;
+            return normalize_zone_value("ca_province", spot.dx_state);
+        default:
+            return null;
+    }
+}
+
+export function check_hunter_needed(spot, hunter, sections = []) {
+    if (!hunter?.worked || sections.length === 0) return null;
+
+    const reasons = [];
+    const checked_sections = new Set();
+    for (const section of sections) {
+        if (!HUNTER_SECTION_SET.has(section) || checked_sections.has(section)) continue;
+        checked_sections.add(section);
+
+        const spot_value = get_spot_feature_value(section, spot);
+        if (spot_value == null) continue;
+
+        const worked =
+            section === "dxcc"
+                ? (hunter.worked[section]?.global ?? [])
+                      .map(value => normalize_dxcc_entity_code(value))
+                      .filter(value => value != null)
+                : (hunter.worked[section]?.global ?? []);
+        if (!worked.includes(spot_value)) {
+            reasons.push({
+                section,
+                value: spot_value,
+                label: SECTION_REASON_LABELS[section](spot_value),
+            });
+        }
+    }
+
+    if (reasons.length === 0) return null;
+
+    return { is_needed: true, reasons };
+}
 
 const freq_error_range = {
     FT8: 0.2,
@@ -20,62 +92,94 @@ function limit_count(count) {
 
 export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     const { filters, callsign_filters } = useFilters();
+    const {
+        active_profile_data: { table_sort, hunter },
+    } = useProfiles();
     const { radio_band, radio_freq, radio_status } = use_radio();
-    const { search_query } = useSpotInteraction();
+    const { search_query, selected_reference_type } = useSpotInteraction();
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
-    const [table_sort] = use_object_local_storage("table_sort", {
-        column: "time",
-        ascending: false,
-    });
-
     const show_only_filters = useMemo(
-        () => callsign_filters.filters.filter(filter => filter.action == "show_only"),
+        () => callsign_filters.filters.filter(filter => filter.action === "show_only"),
         [callsign_filters.filters],
     );
     const hide_filters = useMemo(
-        () => callsign_filters.filters.filter(filter => filter.action == "hide"),
+        () => callsign_filters.filters.filter(filter => filter.action === "hide"),
         [callsign_filters.filters],
     );
     const alerts = useMemo(
-        () => callsign_filters.filters.filter(filter => filter.action == "alert"),
+        () => callsign_filters.filters.filter(filter => filter.action === "alert"),
         [callsign_filters.filters],
     );
 
+    const source_spots = useMemo(() => {
+        if (selected_reference_type) {
+            return raw_spots.filter(spot => spot.type === selected_reference_type);
+        }
+        return raw_spots.filter(spot => !reference_spot_types.has(spot.type));
+    }, [raw_spots, selected_reference_type]);
+
     const spots_with_alerts = useMemo(() => {
-        return raw_spots.map(spot => ({
-            ...spot,
-            is_alerted: is_matching_list(alerts, spot) && callsign_filters.is_alert_filters_active,
-        }));
-    }, [raw_spots, alerts, callsign_filters.is_alert_filters_active]);
+        const regular_alerts = alerts.filter(filter => filter.type !== "hunter");
+        const alert_hunter_sections = callsign_filters.is_alert_filters_active
+            ? alerts.filter(filter => filter.type === "hunter").map(filter => filter.hunter_section)
+            : [];
+
+        return source_spots.map(spot => {
+            const hunter_needed_result = check_hunter_needed(spot, hunter, alert_hunter_sections);
+            const is_alert_filter_match =
+                is_matching_list(regular_alerts, spot) && callsign_filters.is_alert_filters_active;
+            return {
+                ...spot,
+                is_alerted: is_alert_filter_match || Boolean(hunter_needed_result?.is_needed),
+                hunterNeeded: hunter_needed_result,
+            };
+        });
+    }, [source_spots, alerts, callsign_filters.is_alert_filters_active, hunter]);
 
     const spots = useMemo(() => {
         const current_time = new Date().getTime() / 1000;
+        const regular_show_only_filters = show_only_filters.filter(
+            filter => filter.type !== "hunter",
+        );
+        const show_only_hunter_sections = show_only_filters
+            .filter(filter => filter.type === "hunter")
+            .map(filter => filter.hunter_section);
+        const regular_hide_filters = hide_filters.filter(filter => filter.type !== "hunter");
+        const hide_hunter_sections = hide_filters
+            .filter(filter => filter.type === "hunter")
+            .map(filter => filter.hunter_section);
+
         let filtered = spots_with_alerts
             .filter(spot => {
                 if (filter_missing_flags) {
                     if (
-                        spot.dx_country != "" &&
-                        spot.dx_country != null &&
-                        get_flag(spot.dx_country) == null
+                        spot.dx_dxcc_code !== "" &&
+                        spot.dx_dxcc_code != null &&
+                        get_dxcc_flag(spot.dx_dxcc_code) == null
                     ) {
                         return true;
-                    } else {
-                        return false;
                     }
+                    return false;
                 }
 
                 const is_in_time_limit =
                     is_history_mode || current_time - spot.time < filters.time_limit;
 
-                const is_matching_search = spot.dx_callsign
-                    .toLowerCase()
-                    .startsWith(search_query.toLowerCase());
+                const normalized_search = search_query.toLowerCase();
+                const is_matching_search = [
+                    spot.dx_callsign,
+                    spot.spotter_callsign,
+                    spot.pota_reference,
+                ].some(value => (value ?? "").toLowerCase().startsWith(normalized_search));
+                const is_matching_pota_text = [spot.pota_name, spot.pota_description].some(value =>
+                    (value ?? "").toLowerCase().includes(normalized_search),
+                );
 
                 // If the search is not empty, it override everything else
                 if (search_query.length > 0) {
-                    return is_matching_search && is_in_time_limit;
+                    return (is_matching_search || is_matching_pota_text) && is_in_time_limit;
                 }
 
                 // Alerted spots are always displayed
@@ -84,18 +188,24 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
                 }
 
                 const is_band_and_mode_active =
-                    ((filters.radio_band && radio_band == spot.band) ||
+                    ((filters.radio_band && radio_band === spot.band) ||
                         (!filters.radio_band && filters.bands[spot.band])) &&
                     filters.modes[spot.mode];
 
-                const are_include_filters_empty = show_only_filters.length == 0;
-                const are_exclude_filters_empty = hide_filters.length == 0;
+                const are_include_filters_empty = show_only_filters.length === 0;
+                const are_exclude_filters_empty = hide_filters.length === 0;
+                const is_matching_show_only_filters =
+                    is_matching_list(regular_show_only_filters, spot) ||
+                    Boolean(check_hunter_needed(spot, hunter, show_only_hunter_sections));
+                const is_matching_hide_filters =
+                    is_matching_list(regular_hide_filters, spot) ||
+                    Boolean(check_hunter_needed(spot, hunter, hide_hunter_sections));
                 const are_filters_including =
-                    is_matching_list(show_only_filters, spot) ||
+                    is_matching_show_only_filters ||
                     are_include_filters_empty ||
                     !callsign_filters.is_show_only_filters_active;
                 const are_filters_not_excluding =
-                    !is_matching_list(hide_filters, spot) ||
+                    !is_matching_hide_filters ||
                     are_exclude_filters_empty ||
                     !callsign_filters.is_hide_filters_active;
 
@@ -135,6 +245,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         hide_filters,
         callsign_filters.is_show_only_filters_active,
         callsign_filters.is_hide_filters_active,
+        hunter,
         radio_band,
         radio_status,
         table_sort,
@@ -145,7 +256,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
 
     const spots_per_band_count = useMemo(() => {
         return Object.fromEntries(
-            bands.map(band => [band, limit_count(spots.filter(spot => spot.band == band).length)]),
+            bands.map(band => [band, limit_count(spots.filter(spot => spot.band === band).length)]),
         );
     }, [spots]);
 

@@ -1,7 +1,12 @@
-import { useLocalStorage } from "@uidotdev/usehooks";
-import { useEffect } from "react";
-import Maidenhead from "maidenhead";
+import {
+    is_canada_dxcc_code,
+    is_us_state_dxcc_code,
+    normalize_dxcc_entity_code,
+} from "@/data/dxcc_entities.js";
 import { find_zone_number, normalize_zone_value } from "@/utils/zones.js";
+import { useLocalStorage } from "@uidotdev/usehooks";
+import Maidenhead from "maidenhead";
+import { useEffect } from "react";
 
 export function to_radian(deg) {
     return deg * (Math.PI / 180);
@@ -20,24 +25,44 @@ export function calculate_geographic_azimuth(from_lat, from_lon, to_lat, to_lon)
     const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
     const x =
         Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
-    let azimuth = Math.atan2(y, x);
+    const azimuth = Math.atan2(y, x);
 
     return mod(to_degrees(azimuth), 360);
 }
 
 export const mod = (n, m) => ((n % m) + m) % m;
 
+const HUNTER_ALERT_FLASH_PERIOD_MS = 800;
+
+export function get_hunter_alert_flash_phase(now = Date.now()) {
+    return (Math.sin((now / HUNTER_ALERT_FLASH_PERIOD_MS) * Math.PI * 2) + 1) / 2;
+}
+
+export function compare_version(a, b) {
+    if (a == null && b == null) return 0;
+    if (a == null) return -1;
+    if (b == null) return 1;
+
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+        const av = a[i] ?? 0;
+        const bv = b[i] ?? 0;
+        if (av !== bv) return av - bv;
+    }
+    return 0;
+}
+
 function find_base_callsign(callsign) {
     return callsign.split("/").reduce((a, b) => (a.length > b.length ? a : b));
 }
 
 export function is_same_base_callsign(callsign1, callsign2) {
-    return find_base_callsign(callsign1) == find_base_callsign(callsign2) && callsign1.length > 0;
+    return find_base_callsign(callsign1) === find_base_callsign(callsign2) && callsign1.length > 0;
 }
 
 export function is_matching_list(list, spot) {
     return list.some(filter => {
-        if (filter.type == "zone") {
+        if (filter.type === "zone") {
             const system = filter.zone_system;
             const selected_zone = normalize_zone_value(system, filter.value);
             if (!system || selected_zone == null) {
@@ -50,11 +75,11 @@ export function is_matching_list(list, spot) {
             } else if (system === "itu") {
                 spot_zone = normalize_zone_value(system, spot.dx_itu_zone);
             } else if (system === "us_state") {
-                if (spot.dx_country === "USA") {
+                if (is_us_state_dxcc_code(spot.dx_dxcc_code)) {
                     spot_zone = normalize_zone_value(system, spot.dx_state);
                 }
             } else if (system === "ca_province") {
-                if (spot.dx_country === "Canada") {
+                if (is_canada_dxcc_code(spot.dx_dxcc_code)) {
                     spot_zone = normalize_zone_value(system, spot.dx_state);
                 }
             }
@@ -67,34 +92,34 @@ export function is_matching_list(list, spot) {
         }
 
         let matched_value;
-        if (filter.type == "comment") {
+        if (filter.type === "comment") {
             matched_value = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">").toLowerCase();
-        } else if (filter.spotter_or_dx == "spotter") {
-            if (filter.type == "entity") {
-                matched_value = spot.spotter_country;
+        } else if (filter.spotter_or_dx === "spotter") {
+            if (filter.type === "entity") {
+                matched_value = normalize_dxcc_entity_code(spot.spotter_dxcc_code);
             } else {
                 matched_value = spot.spotter_callsign;
             }
-        } else if (filter.spotter_or_dx == "dx") {
-            if (filter.type == "entity") {
-                matched_value = spot.dx_country;
+        } else if (filter.spotter_or_dx === "dx") {
+            if (filter.type === "entity") {
+                matched_value = normalize_dxcc_entity_code(spot.dx_dxcc_code);
             } else {
                 matched_value = spot.dx_callsign;
             }
         }
 
         let is_value_matching;
-        if (filter.type == "comment") {
+        if (filter.type === "comment") {
             is_value_matching = matched_value.includes(filter.value.toLowerCase());
-        } else if (filter.type == "prefix") {
+        } else if (filter.type === "prefix") {
             is_value_matching = matched_value.startsWith(filter.value);
-        } else if (filter.type == "suffix") {
+        } else if (filter.type === "suffix") {
             is_value_matching = matched_value.endsWith(filter.value);
-        } else if (filter.type == "entity") {
-            is_value_matching = matched_value == filter.value;
-        } else if (filter.type == "self_spotters") {
+        } else if (filter.type === "entity") {
+            is_value_matching = matched_value === normalize_dxcc_entity_code(filter.value);
+        } else if (filter.type === "self_spotters") {
             is_value_matching = is_same_base_callsign(spot.dx_callsign, spot.spotter_callsign);
-        } else if (filter.type == "dxpeditions") {
+        } else if (filter.type === "dxpeditions") {
             is_value_matching = spot.is_dxpedition;
         }
         return is_value_matching;
@@ -106,11 +131,11 @@ function is_object(item) {
 }
 
 function deep_merge(target, source) {
-    let output = Object.assign({}, target);
+    const output = Object.assign({}, target);
     let new_keys_added;
     if (is_object(target) && is_object(source)) {
         new_keys_added =
-            new Set(Object.keys(target)).difference(new Set(Object.keys(source))).size != 0;
+            new Set(Object.keys(target)).difference(new Set(Object.keys(source))).size !== 0;
 
         Object.keys(source).forEach(key => {
             if (is_object(source[key])) {
@@ -193,15 +218,16 @@ export function play_alert_sound() {
 }
 
 function band_to_number(band) {
-    if (band == "VHF") {
+    if (band === "VHF") {
         return 2;
-    } else if (band == "UHF") {
-        return 0.7;
-    } else if (band == "SHF") {
-        return 0.23;
-    } else {
-        return band;
     }
+    if (band === "UHF") {
+        return 0.7;
+    }
+    if (band === "SHF") {
+        return 0.23;
+    }
+    return band;
 }
 
 export function sort_spots(spots, table_sort, radio_status = null, radio_band = null) {
@@ -211,8 +237,8 @@ export function sort_spots(spots, table_sort, radio_status = null, radio_band = 
             radio_status === "connected" &&
             (table_sort.column === "freq" || table_sort.column === "band")
         ) {
-            const a_is_active = spot_a.band == radio_band;
-            const b_is_active = spot_b.band == radio_band;
+            const a_is_active = spot_a.band === radio_band;
+            const b_is_active = spot_b.band === radio_band;
 
             if (a_is_active && !b_is_active) return -1;
             if (!a_is_active && b_is_active) return 1;
@@ -232,8 +258,19 @@ export function sort_spots(spots, table_sort, radio_status = null, radio_band = 
         }
 
         const column = table_sort.column;
-        const value_a = spot_a[column];
-        const value_b = spot_b[column];
+        const raw_value_a = spot_a[column];
+        const raw_value_b = spot_b[column];
+        if (raw_value_a == null && raw_value_b == null) {
+            return spot_b.time - spot_a.time;
+        }
+        if (raw_value_a == null) {
+            return 1;
+        }
+        if (raw_value_b == null) {
+            return -1;
+        }
+        const value_a = raw_value_a ?? "";
+        const value_b = raw_value_b ?? "";
 
         if (typeof value_a === "string" && typeof value_b === "string") {
             let comparison = table_sort.ascending
@@ -243,7 +280,8 @@ export function sort_spots(spots, table_sort, radio_status = null, radio_band = 
                 comparison = spot_b.time - spot_a.time;
             }
             return comparison;
-        } else if (typeof value_a === "number" && typeof value_b === "number") {
+        }
+        if (typeof value_a === "number" && typeof value_b === "number") {
             let comparison = table_sort.ascending ? value_a - value_b : value_b - value_a;
 
             // Secondary sorting by dx callsign and spotter callsign for consistent order
@@ -254,15 +292,8 @@ export function sort_spots(spots, table_sort, radio_status = null, radio_band = 
                 comparison = spot_a.spotter_callsign.localeCompare(spot_b.spotter_callsign);
             }
             return comparison;
-        } else {
-            console.log(
-                `Bad values of column ${table_sort.column}`,
-                value_a,
-                value_b,
-                spot_a,
-                spot_b,
-            );
-            return 0;
         }
+        console.log(`Bad values of column ${table_sort.column}`, value_a, value_b, spot_a, spot_b);
+        return 0;
     });
 }

@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
 import { useColors } from "@/hooks/useColors";
+import { useEffect, useState } from "react";
 
 function clock() {
     const { colors } = useColors();
     const [time, set_current_time] = useState(new Date());
 
     useEffect(() => {
-        let interval_id = setInterval(() => set_current_time(new Date()), 1000);
+        const interval_id = setInterval(() => set_current_time(new Date()), 1000);
         return () => {
             clearInterval(interval_id);
         };

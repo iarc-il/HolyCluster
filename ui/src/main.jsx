@@ -1,52 +1,52 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route } from "react-router";
+import { BrowserRouter, Route, Routes } from "react-router";
 
 import MainContainer from "@/components/MainContainer.jsx";
-import Addons from "@/components/addons/Addons";
 import OmniRigError from "@/components/OmniRigError.jsx";
-import { SpotInteractionProvider } from "@/hooks/useSpotInteraction";
-import { RestDataProvider } from "@/hooks/useRestData";
-import { FiltersProvider } from "@/hooks/useFilters";
+import Addons from "@/components/addons/Addons";
 import { ColorsProvider } from "@/hooks/useColors";
+import { FiltersProvider } from "@/hooks/useFilters";
+import { ProfilesProvider } from "@/hooks/useProfiles";
 import { RadioProvider } from "@/hooks/useRadio";
 import { SettingsProvider } from "@/hooks/useSettings";
+import { SpotInteractionProvider } from "@/hooks/useSpotInteraction";
 import "@/index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
     <React.StrictMode>
         <BrowserRouter>
-            <Routes>
-                <Route
-                    path="/"
-                    element={
-                        <ColorsProvider>
-                            <FiltersProvider>
-                                <SettingsProvider>
-                                    <RadioProvider>
-                                        <RestDataProvider>
+            <ProfilesProvider>
+                <Routes>
+                    <Route
+                        path="/"
+                        element={
+                            <ColorsProvider>
+                                <FiltersProvider>
+                                    <SettingsProvider>
+                                        <RadioProvider>
                                             <SpotInteractionProvider>
                                                 <MainContainer />
                                             </SpotInteractionProvider>
-                                        </RestDataProvider>
-                                    </RadioProvider>
-                                </SettingsProvider>
-                            </FiltersProvider>
-                        </ColorsProvider>
-                    }
-                />
-                <Route
-                    path="/addons"
-                    element={
-                        <SettingsProvider>
-                            <RadioProvider>
-                                <Addons />
-                            </RadioProvider>
-                        </SettingsProvider>
-                    }
-                />
-                <Route path="/omnirig-error" element={<OmniRigError />} />
-            </Routes>
+                                        </RadioProvider>
+                                    </SettingsProvider>
+                                </FiltersProvider>
+                            </ColorsProvider>
+                        }
+                    />
+                    <Route
+                        path="/addons"
+                        element={
+                            <SettingsProvider>
+                                <RadioProvider>
+                                    <Addons />
+                                </RadioProvider>
+                            </SettingsProvider>
+                        }
+                    />
+                    <Route path="/omnirig-error" element={<OmniRigError />} />
+                </Routes>
+            </ProfilesProvider>
         </BrowserRouter>
     </React.StrictMode>,
 );

@@ -1,15 +1,17 @@
-import { useState, useEffect, useRef } from "react";
-import { useColors } from "@/hooks/useColors";
-import Button from "@/components/ui/Button.jsx";
-import Popup from "@/components/ui/Popup.jsx";
-import Input from "@/components/ui/Input";
 import { SettingsIcon } from "@/components/settings/Settings";
+import Button from "@/components/ui/Button.jsx";
+import Input from "@/components/ui/Input";
+import Popup from "@/components/ui/Popup.jsx";
+import { useColors } from "@/hooks/useColors";
+import { useEffect, useRef, useState } from "react";
 
 const MAX_WINDOW_MS = 8 * 60 * 60_000;
 
 function HistoryBarSettings({
     window_ms,
     set_window_size_ms,
+    step_size_ms,
+    set_step_size_ms,
     start,
     set_end,
     time_between_shifts,
@@ -18,22 +20,26 @@ function HistoryBarSettings({
     const { colors } = useColors();
     const [show_settings, set_show_settings] = useState(false);
     const [window_input, set_window_input] = useState("");
+    const [step_input, set_step_input] = useState("");
     const [speed_input, set_speed_input] = useState("");
 
     const settings_btn_ref = useRef(null);
     const settings_popup_ref = useRef(null);
 
     const window_min = Math.round(window_ms / 60_000);
+    const step_min = Math.round((step_size_ms || window_ms) / 60_000);
 
     useEffect(() => {
         if (show_settings) {
             set_window_input(String(window_min));
+            set_step_input(String(step_min));
         }
-    }, [window_ms]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [window_ms, step_size_ms]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (!show_settings) return;
         set_window_input(String(window_min));
+        set_step_input(String(step_min));
         set_speed_input(String(time_between_shifts));
         function handle_click(e) {
             if (
@@ -48,8 +54,8 @@ function HistoryBarSettings({
     }, [show_settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
     function apply_window_input() {
-        const v = parseInt(window_input);
-        if (!isNaN(v) && v >= 1) {
+        const v = Number.parseInt(window_input);
+        if (!Number.isNaN(v) && v >= 1) {
             const new_ms = Math.min(v * 60_000, MAX_WINDOW_MS);
             set_window_size_ms(new_ms);
             set_end(new Date(start.getTime() + new_ms));
@@ -59,9 +65,20 @@ function HistoryBarSettings({
         }
     }
 
+    function apply_step_input() {
+        const v = Number.parseInt(step_input);
+        if (!Number.isNaN(v) && v >= 1) {
+            const new_ms = Math.min(v * 60_000, MAX_WINDOW_MS);
+            set_step_size_ms(new_ms);
+            set_step_input(String(Math.round(new_ms / 60_000)));
+        } else {
+            set_step_input(String(step_min));
+        }
+    }
+
     function apply_speed_input() {
-        const v = parseInt(speed_input);
-        if (!isNaN(v) && v >= 1 && v <= 60) {
+        const v = Number.parseInt(speed_input);
+        if (!Number.isNaN(v) && v >= 1 && v <= 60) {
             set_time_between_shifts(v);
         } else {
             set_speed_input(String(time_between_shifts));
@@ -116,6 +133,26 @@ function HistoryBarSettings({
                                     }
                                     if (e.key === "Escape") {
                                         set_window_input(String(window_min));
+                                        e.target.blur();
+                                    }
+                                }}
+                                className="w-16 text-right"
+                            />
+                        </label>
+                        <label className="flex items-center justify-between gap-3">
+                            <span>Step size (min)</span>
+                            <Input
+                                type="text"
+                                value={step_input}
+                                onChange={e => set_step_input(e.target.value)}
+                                onBlur={apply_step_input}
+                                onKeyDown={e => {
+                                    if (e.key === "Enter") {
+                                        apply_step_input();
+                                        e.target.blur();
+                                    }
+                                    if (e.key === "Escape") {
+                                        set_step_input(String(step_min));
                                         e.target.blur();
                                     }
                                 }}

@@ -9,7 +9,6 @@ function FilterButton({
     color,
     text_color = "#000000",
     className,
-    hover_brightness = "110",
 }) {
     const { colors } = useColors();
 
@@ -18,7 +17,7 @@ function FilterButton({
         "cursor-pointer",
         "select-none",
         "w-14",
-        `hover:brightness-${hover_brightness}`,
+        "hover:brightness-110",
         "outline",
         "outline-1",
         "outline-slate-700",
@@ -27,7 +26,8 @@ function FilterButton({
     ];
 
     return (
-        <div
+        <button
+            type="button"
             className={box_style.join(" ")}
             onClick={on_click}
             onMouseEnter={on_mouse_enter}
@@ -38,7 +38,7 @@ function FilterButton({
             }}
         >
             <span className="inline-flex items-center space-x-2">{text}</span>
-        </div>
+        </button>
     );
 }
 

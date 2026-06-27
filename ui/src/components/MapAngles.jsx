@@ -1,6 +1,6 @@
+import { useColors } from "@/hooks/useColors";
 import { to_radian } from "@/utils.js";
 import { useMediaQuery } from "@uidotdev/usehooks";
-import { useColors } from "@/hooks/useColors";
 
 function MapAngles({ radius, center_x, center_y, degrees_diff, hovered_azimuth }) {
     const { colors } = useColors();
@@ -14,10 +14,9 @@ function MapAngles({ radius, center_x, center_y, degrees_diff, hovered_azimuth }
             let closest_angle =
                 Math.round(Math.round(hovered_azimuth) / degrees_diff) * degrees_diff;
             closest_angle %= 360;
-            return angles.map(angle => (closest_angle == angle ? hovered_azimuth : angle));
-        } else {
-            return angles;
+            return angles.map(angle => (closest_angle === angle ? hovered_azimuth : angle));
         }
+        return angles;
     };
 
     const angle_labels = generate_angles().map(angle_degrees => {

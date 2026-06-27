@@ -1,17 +1,22 @@
-import * as d3 from "d3";
-import { century, equationOfTime, declination } from "solar-calculator";
+import {
+    get_dxcc_label,
+    is_filterable_dxcc_entity,
+    normalize_dxcc_code,
+    normalize_dxcc_entity_code,
+} from "@/data/dxcc_entities.js";
+import { normalize_dxcc_label } from "@/data/dxcc_labels.js";
+import { country_color_indices } from "@/data/map_colors.js";
 import dxcc_map from "@/maps/dxcc_map.json";
 import lakes from "@/maps/lakes.json";
-import { is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
-import { shorten_dxcc } from "@/data/flags.js";
-import { country_color_indices } from "@/data/map_colors.js";
 import {
+    ZONE_CONFIG,
     get_active_overlay_systems,
     get_label_min_area_px,
     is_label_anchor_outside_feature,
     normalize_zone_value,
-    ZONE_CONFIG,
 } from "@/utils/zones.js";
+import * as d3 from "d3";
+import { century, declination, equationOfTime } from "solar-calculator";
 import { profile_map } from "./map_profile.js";
 
 export { dxcc_map };
@@ -48,7 +53,7 @@ function with_alpha(color, alpha) {
     if (!hex_match) return value;
 
     const [, r, g, b] = hex_match;
-    return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${alpha})`;
+    return `rgba(${Number.parseInt(r, 16)}, ${Number.parseInt(g, 16)}, ${Number.parseInt(b, 16)}, ${alpha})`;
 }
 
 function get_filter_action_styles(map_colors) {
@@ -95,6 +100,547 @@ function generate_radial_lines(center_x, center_y, radius, degrees_diff) {
     return lines;
 }
 
+const ZONE_LABEL_STYLE = {
+    min_font_px: 9,
+    max_font_px: 14,
+    outside_max_font_px: 20,
+    hover_max_font_px: 16,
+    outside_hover_max_font_px: 22,
+    font_scale: 0.25,
+    outside_font_multiplier: 1.7,
+    text_width_factor: 0.62,
+};
+
+const MAIDENHEAD_LABEL_STYLE = {
+    min_font_px: 8,
+    max_font_px: 13,
+    hover_max_font_px: 14,
+    font_scale: 0.25,
+    outside_font_multiplier: 1,
+    text_width_factor: 0.62,
+};
+
+const MAIDENHEAD_FIELD_LETTERS = "ABCDEFGHIJKLMNOPQR";
+const MAIDENHEAD_SUBSQUARE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWX";
+const MAIDENHEAD_GRID_LEVELS = {
+    2: {
+        precision: 2,
+        lon_step: 20,
+        lat_step: 10,
+        line_alpha: 0.82,
+        line_width: 1.1,
+        min_label_width_px: 22,
+        min_label_height_px: 14,
+        max_grid_lines: 100,
+        max_label_cells: 700,
+    },
+    4: {
+        precision: 4,
+        lon_step: 2,
+        lat_step: 1,
+        line_alpha: 0.72,
+        line_width: 1,
+        min_label_width_px: 26,
+        min_label_height_px: 14,
+        max_grid_lines: 700,
+        max_label_cells: 3000,
+    },
+    6: {
+        precision: 6,
+        lon_step: 2 / 24,
+        lat_step: 1 / 24,
+        line_alpha: 0.45,
+        line_width: 0.8,
+        min_label_width_px: 34,
+        min_label_height_px: 16,
+        max_grid_lines: 1600,
+        max_label_cells: 2600,
+    },
+};
+const MAIDENHEAD_FOUR_GRID_MIN_SIZE_PX = { width: 28, height: 14 };
+const MAIDENHEAD_SIX_GRID_MIN_SIZE_PX = { width: 32, height: 16 };
+const GRID_EPSILON = 1e-9;
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function normalize_lon(lon) {
+    return ((((lon + 180) % 360) + 360) % 360) - 180;
+}
+
+function unwrap_lon_around(lon, center_lon) {
+    let unwrapped = lon;
+    while (unwrapped - center_lon > 180) unwrapped -= 360;
+    while (unwrapped - center_lon < -180) unwrapped += 360;
+    return unwrapped;
+}
+
+function round_grid_value(value) {
+    return Math.round(value * 1e10) / 1e10;
+}
+
+function get_grid_start(value, origin, step) {
+    return round_grid_value(Math.floor((value - origin) / step) * step + origin);
+}
+
+function get_grid_value_count(min_value, max_value, origin, step) {
+    if (max_value < min_value) return 0;
+    const start = get_grid_start(min_value, origin, step);
+    return Math.max(0, Math.floor((max_value - start) / step) + 1);
+}
+
+function get_adaptive_label_font_px(area_px, is_outside_polygon, style) {
+    const outside_font_multiplier = is_outside_polygon ? style.outside_font_multiplier : 1;
+    const max_font_px = is_outside_polygon
+        ? (style.outside_max_font_px ?? style.max_font_px)
+        : style.max_font_px;
+    return Math.max(
+        style.min_font_px,
+        Math.min(max_font_px, Math.sqrt(area_px) * style.font_scale * outside_font_multiplier),
+    );
+}
+
+function get_adaptive_label_hover_font_px(base_font_px, is_outside_polygon, style) {
+    const hover_max_font_px = is_outside_polygon
+        ? (style.outside_hover_max_font_px ?? style.hover_max_font_px)
+        : style.hover_max_font_px;
+    return Math.max(style.min_font_px + 1, Math.min(hover_max_font_px, base_font_px + 2));
+}
+
+function estimate_adaptive_label_width_px(label, font_px, style) {
+    return label.length * font_px * style.text_width_factor;
+}
+
+function draw_adaptive_label(
+    context,
+    label,
+    x,
+    y,
+    { font_px, hover_font_px, is_hovered = false, map_colors, hover_fill = null },
+) {
+    context.font = is_hovered
+        ? `900 ${Math.round(hover_font_px)}px sans-serif`
+        : `bold ${Math.round(font_px)}px sans-serif`;
+    if (is_hovered) {
+        context.strokeStyle = with_alpha(map_colors.label_outline, 0.95);
+        context.lineWidth = 4;
+        context.lineJoin = "round";
+        context.miterLimit = 2;
+        context.strokeText(label, x, y);
+        context.fillStyle = hover_fill ?? with_alpha(map_colors.label_hover, 0.9);
+    } else {
+        context.fillStyle = with_alpha(map_colors.label, 0.8);
+    }
+    context.fillText(label, x, y);
+}
+
+function get_label_box(x, y, label_width_px, font_px) {
+    const padding_x = 4;
+    const padding_y = 2;
+    const half_width = label_width_px / 2 + padding_x;
+    const half_height = font_px / 2 + padding_y;
+
+    return {
+        x0: x - half_width,
+        y0: y - half_height,
+        x1: x + half_width,
+        y1: y + half_height,
+    };
+}
+
+function label_boxes_overlap(box_a, box_b) {
+    return !(
+        box_a.x1 <= box_b.x0 ||
+        box_a.x0 >= box_b.x1 ||
+        box_a.y1 <= box_b.y0 ||
+        box_a.y0 >= box_b.y1
+    );
+}
+
+function has_label_collision(box, placements, ignored_index = null) {
+    for (let index = 0; index < placements.length; index += 1) {
+        if (index === ignored_index) continue;
+        if (label_boxes_overlap(box, placements[index].box)) return true;
+    }
+    return false;
+}
+
+export function get_maidenhead_locator_label(lon, lat, precision = 6) {
+    const wrapped_lon = normalize_lon(lon);
+    const normalized_lon = clamp(
+        wrapped_lon === -180 && lon > 0 ? 179.999999999 : wrapped_lon,
+        -180,
+        179.999999999,
+    );
+    const normalized_lat = clamp(lat, -90, 89.999999999);
+    const lon_from_origin = normalized_lon + 180;
+    const lat_from_origin = normalized_lat + 90;
+
+    const field_lon = clamp(Math.floor(lon_from_origin / 20), 0, 17);
+    const field_lat = clamp(Math.floor(lat_from_origin / 10), 0, 17);
+    let locator = `${MAIDENHEAD_FIELD_LETTERS[field_lon]}${MAIDENHEAD_FIELD_LETTERS[field_lat]}`;
+    if (precision <= 2) return locator;
+
+    const square_lon = clamp(Math.floor((lon_from_origin - field_lon * 20) / 2), 0, 9);
+    const square_lat = clamp(Math.floor(lat_from_origin - field_lat * 10), 0, 9);
+
+    locator += `${square_lon}${square_lat}`;
+    if (precision <= 4) return locator;
+
+    const lon_remainder = lon_from_origin - field_lon * 20 - square_lon * 2;
+    const lat_remainder = lat_from_origin - field_lat * 10 - square_lat;
+    const subsquare_lon = clamp(
+        Math.floor(lon_remainder / MAIDENHEAD_GRID_LEVELS[6].lon_step),
+        0,
+        23,
+    );
+    const subsquare_lat = clamp(
+        Math.floor(lat_remainder / MAIDENHEAD_GRID_LEVELS[6].lat_step),
+        0,
+        23,
+    );
+
+    locator += `${MAIDENHEAD_SUBSQUARE_LETTERS[subsquare_lon]}${MAIDENHEAD_SUBSQUARE_LETTERS[subsquare_lat]}`;
+    return locator;
+}
+
+function get_projected_center_cell_size(projection, dims, lon_step, lat_step) {
+    const center_lon_lat = projection.invert([dims.center_x, dims.center_y]);
+    if (!center_lon_lat) return { width: 0, height: 0 };
+
+    const [lon, lat] = center_lon_lat;
+    const clamped_lat = clamp(lat, -89.9, 89.9);
+    const center = projection([normalize_lon(lon), clamped_lat]);
+    const lon_edge = projection([normalize_lon(lon + lon_step), clamped_lat]);
+    const lat_edge_lat =
+        clamped_lat + lat_step <= 89.9 ? clamped_lat + lat_step : clamped_lat - lat_step;
+    const lat_edge = projection([normalize_lon(lon), lat_edge_lat]);
+    if (!center || !lon_edge || !lat_edge) return { width: 0, height: 0 };
+
+    return {
+        width: Math.hypot(lon_edge[0] - center[0], lon_edge[1] - center[1]),
+        height: Math.hypot(lat_edge[0] - center[0], lat_edge[1] - center[1]),
+    };
+}
+
+function get_maidenhead_grid_level(projection, dims) {
+    const six_cell_size = get_projected_center_cell_size(
+        projection,
+        dims,
+        MAIDENHEAD_GRID_LEVELS[6].lon_step,
+        MAIDENHEAD_GRID_LEVELS[6].lat_step,
+    );
+    if (
+        six_cell_size.width >= MAIDENHEAD_SIX_GRID_MIN_SIZE_PX.width &&
+        six_cell_size.height >= MAIDENHEAD_SIX_GRID_MIN_SIZE_PX.height
+    ) {
+        return MAIDENHEAD_GRID_LEVELS[6];
+    }
+
+    const four_cell_size = get_projected_center_cell_size(
+        projection,
+        dims,
+        MAIDENHEAD_GRID_LEVELS[4].lon_step,
+        MAIDENHEAD_GRID_LEVELS[4].lat_step,
+    );
+    if (
+        four_cell_size.width >= MAIDENHEAD_FOUR_GRID_MIN_SIZE_PX.width &&
+        four_cell_size.height >= MAIDENHEAD_FOUR_GRID_MIN_SIZE_PX.height
+    ) {
+        return MAIDENHEAD_GRID_LEVELS[4];
+    }
+
+    return MAIDENHEAD_GRID_LEVELS[2];
+}
+
+function add_visible_geo_sample(projection, x, y, center_lon, samples) {
+    const lon_lat = projection.invert([x, y]);
+    if (!lon_lat) return;
+    const [lon, lat] = lon_lat;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
+
+    samples.push({
+        lon: unwrap_lon_around(normalize_lon(lon), center_lon),
+        lat: clamp(lat, -90, 90),
+    });
+}
+
+function get_visible_geo_bounds(projection, dims, lon_step, lat_step) {
+    const center_lon_lat = projection.invert([dims.center_x, dims.center_y]) ?? [0, 0];
+    const center_lon = normalize_lon(center_lon_lat[0] ?? 0);
+    const samples = [];
+    const sample_count = 8;
+
+    for (let y_index = 0; y_index <= sample_count; y_index += 1) {
+        const y = dims.center_y - dims.radius + (2 * dims.radius * y_index) / sample_count;
+        for (let x_index = 0; x_index <= sample_count; x_index += 1) {
+            const x = dims.center_x - dims.radius + (2 * dims.radius * x_index) / sample_count;
+            const dx = x - dims.center_x;
+            const dy = y - dims.center_y;
+            if (dx * dx + dy * dy > dims.radius * dims.radius) continue;
+            add_visible_geo_sample(projection, x, y, center_lon, samples);
+        }
+    }
+
+    for (let index = 0; index < 32; index += 1) {
+        const angle = (index / 32) * 2 * Math.PI;
+        add_visible_geo_sample(
+            projection,
+            dims.center_x + Math.cos(angle) * dims.radius,
+            dims.center_y + Math.sin(angle) * dims.radius,
+            center_lon,
+            samples,
+        );
+    }
+
+    if (samples.length === 0) {
+        return {
+            center_lon,
+            lon_min: center_lon - 180,
+            lon_max: center_lon + 180,
+            lat_min: -90,
+            lat_max: 90,
+        };
+    }
+
+    const lon_values = samples.map(sample => sample.lon);
+    const lat_values = samples.map(sample => sample.lat);
+    const lon_padding = lon_step * 2;
+    const lat_padding = lat_step * 2;
+
+    return {
+        center_lon,
+        lon_min: Math.max(center_lon - 180, Math.min(...lon_values) - lon_padding),
+        lon_max: Math.min(center_lon + 180, Math.max(...lon_values) + lon_padding),
+        lat_min: clamp(Math.min(...lat_values) - lat_padding, -90, 90),
+        lat_max: clamp(Math.max(...lat_values) + lat_padding, -90, 90),
+    };
+}
+
+function get_maidenhead_grid_render_state(projection, dims) {
+    let config = get_maidenhead_grid_level(projection, dims);
+    let bounds = get_visible_geo_bounds(projection, dims, config.lon_step, config.lat_step);
+    const line_count =
+        get_grid_value_count(bounds.lon_min, bounds.lon_max, -180, config.lon_step) +
+        get_grid_value_count(bounds.lat_min, bounds.lat_max, -90, config.lat_step);
+
+    if (config.precision === 6 && line_count > config.max_grid_lines) {
+        config = MAIDENHEAD_GRID_LEVELS[4];
+        bounds = get_visible_geo_bounds(projection, dims, config.lon_step, config.lat_step);
+    }
+
+    const center_cell_size = get_projected_center_cell_size(
+        projection,
+        dims,
+        config.lon_step,
+        config.lat_step,
+    );
+
+    return { bounds, center_cell_size, config };
+}
+
+function build_segmented_line(start, end, step, build_coordinate) {
+    const coordinates = [];
+    if (end < start) return coordinates;
+
+    coordinates.push(build_coordinate(start));
+    let current = round_grid_value(start + step);
+    while (current < end - GRID_EPSILON) {
+        coordinates.push(build_coordinate(current));
+        current = round_grid_value(current + step);
+    }
+    coordinates.push(build_coordinate(end));
+
+    return coordinates;
+}
+
+function build_maidenhead_grid_lines(bounds, config) {
+    const lines = [];
+    const lon_segment_step = Math.min(1, config.lon_step);
+    const lat_segment_step = Math.min(1, config.lat_step);
+
+    for (
+        let lon = get_grid_start(bounds.lon_min, -180, config.lon_step);
+        lon <= bounds.lon_max + GRID_EPSILON;
+        lon = round_grid_value(lon + config.lon_step)
+    ) {
+        lines.push(
+            build_segmented_line(bounds.lat_min, bounds.lat_max, lat_segment_step, lat => [
+                normalize_lon(lon),
+                lat,
+            ]),
+        );
+    }
+
+    for (
+        let lat = get_grid_start(bounds.lat_min, -90, config.lat_step);
+        lat <= bounds.lat_max + GRID_EPSILON;
+        lat = round_grid_value(lat + config.lat_step)
+    ) {
+        lines.push(
+            build_segmented_line(bounds.lon_min, bounds.lon_max, lon_segment_step, lon => [
+                normalize_lon(lon),
+                lat,
+            ]),
+        );
+    }
+
+    return lines.filter(line => line.length >= 2);
+}
+
+function draw_maidenhead_grid(context, path_generator, projection, dims, map_colors) {
+    const { bounds, config } = get_maidenhead_grid_render_state(projection, dims);
+    const lines = build_maidenhead_grid_lines(bounds, config);
+    if (lines.length === 0) return;
+
+    context.beginPath();
+    path_generator({ type: "MultiLineString", coordinates: lines });
+    context.strokeStyle = with_alpha(map_colors.graticule, config.line_alpha);
+    context.lineWidth = config.line_width;
+    context.stroke();
+}
+
+function get_projected_cell_metrics(projection, dims, lon_min, lat_min, config) {
+    const lon_max = lon_min + config.lon_step;
+    const lat_max = lat_min + config.lat_step;
+    const center_lon = normalize_lon(lon_min + config.lon_step / 2);
+    const center_lat = lat_min + config.lat_step / 2;
+    const center = projection([center_lon, center_lat]);
+    if (!center) return null;
+
+    const [x, y] = center;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    const dx = x - dims.center_x;
+    const dy = y - dims.center_y;
+    if (dx * dx + dy * dy > dims.radius * dims.radius) return null;
+
+    const corners = [
+        [normalize_lon(lon_min), lat_min],
+        [normalize_lon(lon_max), lat_min],
+        [normalize_lon(lon_max), lat_max],
+        [normalize_lon(lon_min), lat_max],
+    ]
+        .map(corner => projection(corner))
+        .filter(Boolean);
+    if (corners.length !== 4) return null;
+
+    let area_px = 0;
+    for (let index = 0; index < corners.length; index += 1) {
+        const [x1, y1] = corners[index];
+        const [x2, y2] = corners[(index + 1) % corners.length];
+        if (
+            !Number.isFinite(x1) ||
+            !Number.isFinite(y1) ||
+            !Number.isFinite(x2) ||
+            !Number.isFinite(y2)
+        ) {
+            return null;
+        }
+        area_px += x1 * y2 - x2 * y1;
+    }
+    area_px = Math.abs(area_px) / 2;
+
+    const xs = corners.map(corner => corner[0]);
+    const ys = corners.map(corner => corner[1]);
+    return {
+        area_px,
+        center_lat,
+        center_lon,
+        height_px: Math.max(...ys) - Math.min(...ys),
+        width_px: Math.max(...xs) - Math.min(...xs),
+        x,
+        y,
+    };
+}
+
+function draw_maidenhead_labels(context, dims, projection, is_globe, map_colors) {
+    const { bounds, center_cell_size, config } = get_maidenhead_grid_render_state(projection, dims);
+    if (
+        center_cell_size.width < config.min_label_width_px ||
+        center_cell_size.height < config.min_label_height_px
+    ) {
+        return;
+    }
+
+    const lon_cell_count = get_grid_value_count(
+        bounds.lon_min,
+        bounds.lon_max,
+        -180,
+        config.lon_step,
+    );
+    const lat_cell_count = get_grid_value_count(
+        bounds.lat_min,
+        bounds.lat_max,
+        -90,
+        config.lat_step,
+    );
+    if (lon_cell_count * lat_cell_count > config.max_label_cells) return;
+
+    const rotation = projection.rotate();
+    const placements = [];
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    for (
+        let lat = get_grid_start(bounds.lat_min, -90, config.lat_step);
+        lat < bounds.lat_max - GRID_EPSILON;
+        lat = round_grid_value(lat + config.lat_step)
+    ) {
+        if (lat < -90 || lat + config.lat_step > 90 + GRID_EPSILON) continue;
+
+        for (
+            let lon = get_grid_start(bounds.lon_min, -180, config.lon_step);
+            lon < bounds.lon_max - GRID_EPSILON;
+            lon = round_grid_value(lon + config.lon_step)
+        ) {
+            const center_lon = normalize_lon(lon + config.lon_step / 2);
+            const center_lat = lat + config.lat_step / 2;
+            if (is_globe) {
+                const dist = d3.geoDistance([center_lon, center_lat], [-rotation[0], -rotation[1]]);
+                if (dist > Math.PI / 2) continue;
+            }
+
+            const metrics = get_projected_cell_metrics(projection, dims, lon, lat, config);
+            if (!metrics || !Number.isFinite(metrics.area_px) || metrics.area_px <= 0) continue;
+
+            const label = get_maidenhead_locator_label(center_lon, center_lat, config.precision);
+            const font_px = get_adaptive_label_font_px(
+                metrics.area_px,
+                false,
+                MAIDENHEAD_LABEL_STYLE,
+            );
+            const label_width_px = estimate_adaptive_label_width_px(
+                label,
+                font_px,
+                MAIDENHEAD_LABEL_STYLE,
+            );
+            if (label_width_px > metrics.width_px * 0.9 || font_px > metrics.height_px * 0.85) {
+                continue;
+            }
+
+            const box = get_label_box(metrics.x, metrics.y, label_width_px, font_px);
+            if (has_label_collision(box, placements)) continue;
+
+            placements.push({
+                box,
+                font_px,
+                label,
+                x: metrics.x,
+                y: metrics.y,
+            });
+        }
+    }
+
+    for (const placement of placements) {
+        draw_adaptive_label(context, placement.label, placement.x, placement.y, {
+            font_px: placement.font_px,
+            hover_font_px: placement.font_px,
+            map_colors,
+        });
+    }
+}
+
 function draw_night_circle(context, path_generator, map_colors, time = null) {
     const now = time ?? new Date();
     const day = new Date(+now).setUTCHours(0, 0, 0, 0);
@@ -122,6 +668,13 @@ function is_filter_action_active(callsign_filters, action) {
     return active_field == null || callsign_filters?.[active_field] !== false;
 }
 
+function merge_overlay_action_map(action_map, overlay_action_map) {
+    for (const [value, action] of overlay_action_map ?? []) {
+        if (!(action in FILTER_ACTION_COLOR_KEYS)) continue;
+        if (!action_map.has(value)) action_map.set(value, action);
+    }
+}
+
 const DXCC_LABEL_STYLE = {
     min_font_px: 9,
     max_font_px: 16,
@@ -130,68 +683,22 @@ const DXCC_LABEL_STYLE = {
     text_width_factor: 0.62,
 };
 
-const DXCC_ENTITY_ALIASES = {
-    "Agalega & St. Brandon Is.": "Agalega and St. Brandon Islands",
-    "Andaman & Nicobar Is.": "Andaman and Nicobar Islands",
-    "Antigua & Barbuda": "Antigua and Barbuda",
-    "Baker & Howland Is.": "Baker Howland Islands",
-    "Banaba I. (Ocean I.)": "Banaba Island",
-    "Bosnia-Herzegovina": "Bosnia and Herzegovina",
-    Bouvet: "Bouvet Island",
-    "Brunei Darussalam": "Brunei",
-    "C. Kiribati (British Phoenix Is.)": "Central Kiribati",
-    "Central Africa": "Central African Republic",
-    "Ceuta & Melilla": "Ceuta and Melilla",
-    "Cote de'Ivoire": "Ivory Coast",
-    "Democratic People's Rep. of Korea": "North Korea",
-    "E. Kiribati (Line Is.)": "Eastern Kiribati",
-    "Federal Republic of Germany": "Germany",
-    Macedonia: "North Macedonia",
-    "New Zealand Subantarctic Islands": "Auckland & Campbell Islands",
-    "Peter 1 I.": "Peter I Island",
-    "Republic of Korea": "South Korea",
-    "Republic of the Congo": "Congo",
-    "San Andres & Providencia": "San Andres and Providencia",
-    "San Felix & San Ambrosio": "San Felix Islands",
-    "South Shetland Is.": "Antarctica",
-    "South Sudan (Republic of)": "South Sudan",
-    "St Maarten": "Sint Maarten",
-    "St. Barthelemy": "Saint Barthelemy",
-    "St. Kitts & Nevis": "St. Kitts and Nevis",
-    "St. Lucia": "Saint Lucia",
-    "St. Peter & St. Paul Rocks": "St. Peter and St. Paul Rocks",
-    "St. Pierre & Miquelon": "Saint Pierre and Miquelon",
-    "St. Vincent": "Saint Vincent and the Grenadines",
-    Swaziland: "Eswatini",
-    "Trinidad & Tobago": "Trinidad and Tobago",
-    "Tristan da Cunha & Gough I.": "Tristan da Cunha & Gough Islands",
-    "Turks & Caicos Is.": "Turks and Caicos Islands",
-    Vatican: "Vatican City",
-    "Viet Nam": "Vietnam",
-    "W. Kiribati (Gilbert Is.)": "Western Kiribati",
-    "Wallis & Futuna Is.": "Wallis and Futuna Islands",
-};
-
-function expand_dxcc_island_abbreviations(dxcc_name) {
-    return dxcc_name
-        .replace(/\bIs\./g, "Islands")
-        .replace(/\bI\./g, "Island")
-        .replace(/\s+/g, " ")
-        .trim();
-}
-
 export function get_dxcc_entity_name(feature) {
+    const dxcc_code = normalize_dxcc_code(feature?.properties?.dxcc_entity_code);
+    const label = get_dxcc_label(dxcc_code);
+    if (label) return label;
+
     const dxcc_name = feature?.properties?.dxcc_name;
     if (typeof dxcc_name !== "string") return "";
 
-    const entity_name =
-        DXCC_ENTITY_ALIASES[dxcc_name] ?? expand_dxcc_island_abbreviations(dxcc_name);
-    return shorten_dxcc(entity_name);
+    return normalize_dxcc_label(dxcc_name);
 }
 
-function get_zone_action_map(callsign_filters, system) {
+function get_zone_action_map(callsign_filters, system, overlay_highlights = null) {
     const filters = callsign_filters?.filters ?? [];
     const zone_to_action = new Map();
+
+    merge_overlay_action_map(zone_to_action, overlay_highlights?.zones?.[system]);
 
     for (const filter of filters) {
         if (filter.type !== "zone" || filter.zone_system !== system) continue;
@@ -205,20 +712,18 @@ function get_zone_action_map(callsign_filters, system) {
     return zone_to_action;
 }
 
-function normalize_dxcc_entity_filter_value(value) {
-    return (value ?? "").toString().trim().toLowerCase();
-}
-
-function get_dxcc_action_map(callsign_filters) {
+function get_dxcc_action_map(callsign_filters, overlay_highlights = null) {
     const filters = callsign_filters?.filters ?? [];
     const entity_to_action = new Map();
+
+    merge_overlay_action_map(entity_to_action, overlay_highlights?.dxcc);
 
     for (const filter of filters) {
         if (filter.type !== "entity" || filter.spotter_or_dx !== "dx") continue;
         if (!(filter.action in FILTER_ACTION_COLOR_KEYS)) continue;
         if (!is_filter_action_active(callsign_filters, filter.action)) continue;
         if (!is_filterable_dxcc_entity(filter.value)) continue;
-        const entity = normalize_dxcc_entity_filter_value(filter.value);
+        const entity = normalize_dxcc_entity_code(filter.value);
         if (!entity) continue;
         entity_to_action.set(entity, filter.action);
     }
@@ -232,7 +737,7 @@ function get_dxcc_filtered_feature_actions(dxcc_action_map) {
 
     for (let fi = 0; fi < dxcc_map.features.length; fi += 1) {
         const feature = dxcc_map.features[fi];
-        const entity = normalize_dxcc_entity_filter_value(get_dxcc_entity_name(feature));
+        const entity = normalize_dxcc_entity_code(feature?.properties?.dxcc_entity_code);
         const action = dxcc_action_map.get(entity);
         if (action) feature_actions.set(fi, action);
     }
@@ -411,12 +916,6 @@ function draw_zone_labels_for_system(
     filter_action_styles,
 ) {
     const zone_path = d3.geoPath().projection(projection);
-    const MIN_FONT_PX = 9;
-    const MAX_FONT_PX = 14;
-    const OUTSIDE_MAX_FONT_PX = 20;
-    const HOVER_MAX_FONT_PX = 16;
-    const OUTSIDE_HOVER_MAX_FONT_PX = 22;
-    const FONT_SCALE = 0.25;
 
     context.lineWidth = 1;
     const rotation = projection.rotate();
@@ -441,40 +940,30 @@ function draw_zone_labels_for_system(
         const pos = projection([lon, lat]);
         if (!pos) continue;
         const [x, y] = pos;
-        if (!isFinite(x) || !isFinite(y)) continue;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
 
         const zone_number = feature.properties[label_key];
         const label = String(zone_number);
         const is_hovered = hovered_zone_number != null && zone_number === hovered_zone_number;
-        const outside_font_multiplier = is_outside_polygon ? 1.7 : 1;
-        const max_font_px = is_outside_polygon ? OUTSIDE_MAX_FONT_PX : MAX_FONT_PX;
-        const hover_max_font_px = is_outside_polygon
-            ? OUTSIDE_HOVER_MAX_FONT_PX
-            : HOVER_MAX_FONT_PX;
-        const base_font_px = Math.max(
-            MIN_FONT_PX,
-            Math.min(max_font_px, Math.sqrt(area_px) * FONT_SCALE * outside_font_multiplier),
+        const base_font_px = get_adaptive_label_font_px(
+            area_px,
+            is_outside_polygon,
+            ZONE_LABEL_STYLE,
         );
-        const hovered_font_px = Math.max(
-            MIN_FONT_PX + 1,
-            Math.min(hover_max_font_px, base_font_px + 2),
+        const hovered_font_px = get_adaptive_label_hover_font_px(
+            base_font_px,
+            is_outside_polygon,
+            ZONE_LABEL_STYLE,
         );
-        context.font = is_hovered
-            ? `900 ${Math.round(hovered_font_px)}px sans-serif`
-            : `bold ${Math.round(base_font_px)}px sans-serif`;
-        if (is_hovered) {
-            const action = zone_action_map.get(zone_number);
-            const action_style = action ? filter_action_styles[action] : null;
-            context.strokeStyle = with_alpha(map_colors.label_outline, 0.95);
-            context.lineWidth = 4;
-            context.lineJoin = "round";
-            context.miterLimit = 2;
-            context.strokeText(label, x, y);
-            context.fillStyle = action_style?.stroke ?? with_alpha(map_colors.label_hover, 0.9);
-        } else {
-            context.fillStyle = with_alpha(map_colors.label, 0.8);
-        }
-        context.fillText(label, x, y);
+        const action = is_hovered ? zone_action_map.get(zone_number) : null;
+        const action_style = action ? filter_action_styles[action] : null;
+        draw_adaptive_label(context, label, x, y, {
+            font_px: base_font_px,
+            hover_font_px: hovered_font_px,
+            is_hovered,
+            map_colors,
+            hover_fill: action_style?.stroke,
+        });
     }
 }
 
@@ -515,37 +1004,6 @@ function get_dxcc_label_width_limit_px(feature, dxcc_path, area_px) {
     if (!Number.isFinite(bounds_width) || bounds_width <= 0) return 0;
 
     return Math.min(bounds_width * 0.88, Math.sqrt(area_px) * 2.6);
-}
-
-function get_dxcc_label_box(x, y, label_width_px, font_px) {
-    const padding_x = 4;
-    const padding_y = 2;
-    const half_width = label_width_px / 2 + padding_x;
-    const half_height = font_px / 2 + padding_y;
-
-    return {
-        x0: x - half_width,
-        y0: y - half_height,
-        x1: x + half_width,
-        y1: y + half_height,
-    };
-}
-
-function dxcc_label_boxes_overlap(box_a, box_b) {
-    return !(
-        box_a.x1 <= box_b.x0 ||
-        box_a.x0 >= box_b.x1 ||
-        box_a.y1 <= box_b.y0 ||
-        box_a.y0 >= box_b.y1
-    );
-}
-
-function has_dxcc_label_collision(box, placements, ignored_index = null) {
-    for (let index = 0; index < placements.length; index += 1) {
-        if (index === ignored_index) continue;
-        if (dxcc_label_boxes_overlap(box, placements[index].box)) return true;
-    }
-    return false;
 }
 
 function get_dxcc_label_placement_cache_key(projection, is_globe) {
@@ -595,7 +1053,7 @@ export function get_dxcc_label_data(
     const pos = projection([lon, lat]);
     if (!pos) return null;
     const [x, y] = pos;
-    if (!isFinite(x) || !isFinite(y)) return null;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
 
     const prefix_items = get_dxcc_labels_from_prefix(feature?.properties?.dxcc_prefix);
     if (prefix_items.length === 0) return null;
@@ -605,19 +1063,19 @@ export function get_dxcc_label_data(
     if (!single_label) return null;
 
     const single_label_width_px = estimate_dxcc_label_width_px(single_label, font_px);
-    const single_box = get_dxcc_label_box(x, y, single_label_width_px, font_px);
+    const single_box = get_label_box(x, y, single_label_width_px, font_px);
     const full_label = prefix_items.join(", ");
     const full_label_width_px = estimate_dxcc_label_width_px(full_label, font_px);
     const full_label_fits_feature =
         full_label !== single_label &&
         full_label_width_px <= get_dxcc_label_width_limit_px(feature, path, area_px);
     const full_box = full_label_fits_feature
-        ? get_dxcc_label_box(x, y, full_label_width_px, font_px)
+        ? get_label_box(x, y, full_label_width_px, font_px)
         : null;
 
     return {
         area_px,
-        entity: get_dxcc_entity_name(feature),
+        entity: normalize_dxcc_code(feature?.properties?.dxcc_entity_code),
         feature,
         feature_index,
         font_px,
@@ -662,7 +1120,7 @@ export function get_visible_dxcc_label_placements(projection, is_globe) {
 
         const placements = [];
         for (const candidate of candidates) {
-            if (has_dxcc_label_collision(candidate.single_box, placements)) continue;
+            if (has_label_collision(candidate.single_box, placements)) continue;
 
             placements.push({
                 ...candidate,
@@ -675,7 +1133,7 @@ export function get_visible_dxcc_label_placements(projection, is_globe) {
         for (let index = 0; index < placements.length; index += 1) {
             const placement = placements[index];
             if (!placement.full_label_fits_feature || !placement.full_box) continue;
-            if (has_dxcc_label_collision(placement.full_box, placements, index)) continue;
+            if (has_label_collision(placement.full_box, placements, index)) continue;
 
             placement.box = placement.full_box;
             placement.label = placement.full_label;
@@ -752,7 +1210,7 @@ function draw_dxcc_labels(
             ? `900 ${Math.round(hovered_font_px)}px sans-serif`
             : `bold ${Math.round(font_px)}px sans-serif`;
         if (is_hovered) {
-            const action = dxcc_action_map.get(normalize_dxcc_entity_filter_value(entity));
+            const action = dxcc_action_map.get(entity);
             const action_style = action ? filter_action_styles[action] : null;
             context.strokeStyle = with_alpha(map_colors.label_outline, 0.95);
             context.lineWidth = 4;
@@ -777,9 +1235,11 @@ export function draw_zone_labels(
     show_dxcc_labels,
     show_us_states,
     show_can_states,
+    show_maidenhead_grid,
     hovered_zone,
     hovered_dxcc,
     callsign_filters,
+    overlay_highlights,
     map_colors,
     fast = false,
 ) {
@@ -792,6 +1252,12 @@ export function draw_zone_labels(
     context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
     context.clip();
 
+    if (show_maidenhead_grid) {
+        draw_maidenhead_labels(context, dims, projection, is_globe, map_colors);
+        context.restore();
+        return;
+    }
+
     const active_systems = get_active_overlay_systems({
         show_cq_zones,
         show_itu_zones,
@@ -801,7 +1267,7 @@ export function draw_zone_labels(
     for (const system of active_systems) {
         const config = ZONE_CONFIG[system];
         if (!config) continue;
-        const zone_action_map = get_zone_action_map(callsign_filters, system);
+        const zone_action_map = get_zone_action_map(callsign_filters, system, overlay_highlights);
         draw_zone_labels_for_system(
             context,
             projection,
@@ -818,7 +1284,7 @@ export function draw_zone_labels(
     }
 
     if (show_dxcc_labels && active_systems.length === 0) {
-        const dxcc_action_map = get_dxcc_action_map(callsign_filters);
+        const dxcc_action_map = get_dxcc_action_map(callsign_filters, overlay_highlights);
         draw_dxcc_labels(
             context,
             projection,
@@ -844,7 +1310,9 @@ export function draw_map(
     show_itu_zones,
     show_us_states,
     show_can_states,
+    show_maidenhead_grid,
     callsign_filters,
+    overlay_highlights,
     map_colors,
     map_country_colors,
     fast = false,
@@ -871,7 +1339,7 @@ export function draw_map(
     context.lineWidth = 1;
 
     profile_map("draw_map.graticule", () => {
-        if (!show_cq_zones && !show_itu_zones) {
+        if (!show_maidenhead_grid && !show_cq_zones && !show_itu_zones) {
             if (is_globe) {
                 context.beginPath();
                 path_generator(d3.geoGraticule10());
@@ -881,24 +1349,27 @@ export function draw_map(
                 const full_globe_radius = projection.scale() * Math.PI;
 
                 context.beginPath();
-                generate_concentric_circles(
+                for (const circle of generate_concentric_circles(
                     dims.center_x,
                     dims.center_y,
                     full_globe_radius,
-                ).forEach(circle => {
+                )) {
                     context.moveTo(circle.cx + circle.r, circle.cy);
                     context.arc(circle.cx, circle.cy, circle.r, 0, 2 * Math.PI);
-                });
+                }
                 context.strokeStyle = map_colors.graticule;
                 context.stroke();
 
                 context.beginPath();
-                generate_radial_lines(dims.center_x, dims.center_y, full_globe_radius, 15).forEach(
-                    line => {
-                        context.moveTo(line.x1, line.y1);
-                        context.lineTo(line.x2, line.y2);
-                    },
-                );
+                for (const line of generate_radial_lines(
+                    dims.center_x,
+                    dims.center_y,
+                    full_globe_radius,
+                    15,
+                )) {
+                    context.moveTo(line.x1, line.y1);
+                    context.lineTo(line.x2, line.y2);
+                }
                 context.strokeStyle = map_colors.graticule;
                 context.stroke();
             }
@@ -906,7 +1377,7 @@ export function draw_map(
     });
 
     const dxcc_feature_actions = profile_map("draw_map.dxcc_filter_actions", () => {
-        const dxcc_action_map = get_dxcc_action_map(callsign_filters);
+        const dxcc_action_map = get_dxcc_action_map(callsign_filters, overlay_highlights);
         return get_dxcc_filtered_feature_actions(dxcc_action_map);
     });
     const dxcc_feature_paths = profile_map("draw_map.dxcc_paths", () =>
@@ -983,9 +1454,7 @@ export function draw_map(
             );
         } else {
             context.beginPath();
-            dxcc_map.features.forEach(feature => {
-                path_generator(feature);
-            });
+            dxcc_map.features.forEach(path_generator);
             context.strokeStyle = map_colors.land_borders;
             context.stroke();
 
@@ -1016,17 +1485,29 @@ export function draw_map(
         });
     }
 
-    profile_map("draw_map.zone_overlays", () => {
-        const active_systems = get_active_overlay_systems({
-            show_cq_zones,
-            show_itu_zones,
-            show_us_states,
-            show_can_states,
+    if (show_maidenhead_grid) {
+        profile_map("draw_map.maidenhead_grid", () => {
+            draw_maidenhead_grid(context, path_generator, projection, dims, map_colors);
         });
+    }
+
+    profile_map("draw_map.zone_overlays", () => {
+        const active_systems = show_maidenhead_grid
+            ? []
+            : get_active_overlay_systems({
+                  show_cq_zones,
+                  show_itu_zones,
+                  show_us_states,
+                  show_can_states,
+              });
         for (const system of active_systems) {
             const config = ZONE_CONFIG[system];
             if (!config) continue;
-            const zone_action_map = get_zone_action_map(callsign_filters, system);
+            const zone_action_map = get_zone_action_map(
+                callsign_filters,
+                system,
+                overlay_highlights,
+            );
             const action_numbers = get_zone_action_numbers(zone_action_map);
             draw_zone_overlay(
                 context,

@@ -1,19 +1,20 @@
-import { useEffect, useRef, useCallback, useState } from "react";
-import { createPortal } from "react-dom";
-import FilterOptions from "@/components/FilterOptions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
+import FilterOptions from "@/components/FilterOptions.jsx";
 import { bands, modes } from "@/data/filters_data.js";
 import { get_mode_shape } from "@/data/mode_shapes.js";
+import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
+import use_radio from "@/hooks/useRadio";
+import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { useFilters } from "@/hooks/useFilters";
-import { useColors } from "@/hooks/useColors";
-import { useSettings } from "@/hooks/useSettings";
-import use_radio from "@/hooks/useRadio";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 function Hex(color) {
     return (
         <svg width="16" height="16" viewBox="0 0 256 256">
+            <title>Hexagon</title>
             <path
                 fill={color}
                 d="M228,80.668V175.332a16.0255,16.0255,0,0,1-8.12695,13.9292l-84,47.47852a16.08782,16.08782,0,0,1-15.7461,0l-84-47.478A16.02688,16.02688,0,0,1,28,175.332V80.668a16.0255,16.0255,0,0,1,8.127-13.9292l84-47.47852a16.08654,16.08654,0,0,1,15.7461,0l84,47.478A16.02688,16.02688,0,0,1,228,80.668Z"
@@ -25,6 +26,7 @@ function Hex(color) {
 function Triangle(color) {
     return (
         <svg width="16" height="16" viewBox="0 0 512 512">
+            <title>Triangle</title>
             <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
                 <g id="drop" fill={color} transform="translate(32.000000, 42.666667)">
                     <path d="M246.312928,5.62892705 C252.927596,9.40873724 258.409564,14.8907053 262.189374,21.5053731 L444.667042,340.84129 C456.358134,361.300701 449.250007,387.363834 428.790595,399.054926 C422.34376,402.738832 415.04715,404.676552 407.622001,404.676552 L42.6666667,404.676552 C19.1025173,404.676552 7.10542736e-15,385.574034 7.10542736e-15,362.009885 C7.10542736e-15,354.584736 1.93772021,347.288125 5.62162594,340.84129 L188.099293,21.5053731 C199.790385,1.04596203 225.853517,-6.06216498 246.312928,5.62892705 Z" />
@@ -37,6 +39,7 @@ function Triangle(color) {
 function Square(color) {
     return (
         <svg className="ml-1" width="12" height="12" viewBox="0 0 16 16">
+            <title>Square</title>
             <rect fill={color} width="100" height="100" />
         </svg>
     );
@@ -66,10 +69,10 @@ function SpotCount({ count, toggled_ui, overlay_el }) {
 
         const anchor_rect = anchor.getBoundingClientRect();
         const container_rect = scroll_container.getBoundingClientRect();
+        const badge_rect = badge.getBoundingClientRect();
 
-        badge.style.top =
-            anchor_rect.top - container_rect.top + scroll_container.scrollTop - 4 + "px";
-        badge.style.left = anchor_rect.left - container_rect.left + 20 + "px";
+        badge.style.top = `${anchor_rect.top - container_rect.top + scroll_container.scrollTop - 4}px`;
+        badge.style.left = `${anchor_rect.left + container_rect.right - badge_rect.width * 0.75}px`;
     }, []);
 
     useEffect(() => {
@@ -211,17 +214,17 @@ function LeftColumn({ toggled_ui }) {
 
     return (
         <div
-            className={toggled_classes + "2xl:flex w-18 flex-col h-full shrink-0 relative"}
+            className={`${toggled_classes}2xl:flex w-18 flex-col h-full shrink-0 relative`}
             style={{
                 backgroundColor: colors.theme.columns,
                 borderColor: colors.theme.borders,
             }}
         >
             <div ref={scroll_ref} className="flex flex-col h-full items-center overflow-y-auto">
-                <div className={filter_group_classes + "pb-4 border-b-2 border-slate-300"}>
+                <div className={`${filter_group_classes}pb-4 border-b-2 border-slate-300`}>
                     {visible_bands.map(band => {
                         const color = colors.bands[band];
-                        let label = Number.isInteger(band) ? band + "m" : band;
+                        const label = Number.isInteger(band) ? `${band}m` : band;
                         return (
                             <FilterOptions
                                 key={band}
@@ -264,8 +267,8 @@ function LeftColumn({ toggled_ui }) {
                     })}
                 </div>
 
-                {radio_status != "unavailable" || filters.radio_band ? (
-                    <div className={filter_group_classes + "py-4 border-b-2 border-slate-300"}>
+                {radio_status !== "unavailable" || filters.radio_band ? (
+                    <div className={`${filter_group_classes}py-4 border-b-2 border-slate-300`}>
                         <div>
                             <SpotCount
                                 count={spots_per_band_count[radio_band]}
@@ -286,7 +289,7 @@ function LeftColumn({ toggled_ui }) {
                     ""
                 )}
 
-                <div className={filter_group_classes + " pt-4"}>
+                <div className={`${filter_group_classes} pt-4`}>
                     {visible_modes.map(mode => {
                         return (
                             <FilterOptions

@@ -1,17 +1,17 @@
 import Select from "@/components/ui/Select.jsx";
-import { useRef, useMemo } from "react";
+import { band_plans } from "@/data/band_plans.js";
+import { get_mode_shape } from "@/data/mode_shapes.js";
 import { useColors } from "@/hooks/useColors";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
+import use_radio from "@/hooks/useRadio";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { useLocalStorage } from "@uidotdev/usehooks";
-import use_radio from "@/hooks/useRadio";
-import { get_mode_shape } from "@/data/mode_shapes.js";
-import { band_plans } from "@/data/band_plans.js";
+import { useMemo, useRef } from "react";
 
 function useBandSpots(spots, band) {
     const sorted = useMemo(() => {
         return spots
-            .filter(spot => spot.band == band)
+            .filter(spot => spot.band === band)
             .slice(0, 30)
             .sort((a, b) => a.freq - b.freq);
     }, [spots, band]);
@@ -53,6 +53,7 @@ function ModeShape({ mode, x, y, fill }) {
                 fill={fill}
                 className="group-hover:fill-blue-500"
             >
+                <title>Triangle shape</title>
                 <polygon points="50 5, 100 90, 0 90" />
             </svg>
         );
@@ -66,6 +67,7 @@ function ModeShape({ mode, x, y, fill }) {
             viewBox="0 0 280 360"
             className="group-hover:fill-blue-500"
         >
+            <title>Hexagon shape</title>
             <polygon
                 points="150,15 258,77 258,202 150,265 42,202 42,77"
                 strokeWidth={1}
@@ -77,7 +79,7 @@ function ModeShape({ mode, x, y, fill }) {
 }
 
 function FrequencyBracket({ radio_freq, freq_spots, bracket_y, bracket_height, stroke }) {
-    if (radio_freq == 0 || radio_freq === undefined) return null;
+    if (radio_freq === 0 || radio_freq === undefined) return null;
 
     if (freq_spots.length >= 1) {
         return (
@@ -88,6 +90,7 @@ function FrequencyBracket({ radio_freq, freq_spots, bracket_y, bracket_height, s
                 y={`${bracket_y}%`}
                 style={{ position: "absolute", pointerEvents: "none" }}
             >
+                <title>Frequency bracket</title>
                 <line x1="50%" y1="0" x2="50%" y2="100%" stroke={stroke} strokeWidth="2" />
                 <line x1="50%" y1="0" x2="53%" y2="0" stroke={stroke} strokeWidth="2" />
                 <line x1="50%" y1="100%" x2="53%" y2="100%" stroke={stroke} strokeWidth="2" />
@@ -97,6 +100,7 @@ function FrequencyBracket({ radio_freq, freq_spots, bracket_y, bracket_height, s
 
     return (
         <svg viewBox="0 0 50 90" height="8%" width="5%" y={`${bracket_y - 2.5}%`} x="47.5%">
+            <title>Frequency marker</title>
             <polygon points="0 0, 50 45, 0 90" fill="transparent" stroke="red" strokeWidth={5} />
         </svg>
     );
@@ -190,18 +194,34 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
     const { spots, current_freq_spots: freq_spots } = useSpotData();
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot } = useSpotInteraction();
     // Set to -1 to use the current band that the radio is on
-    const [selected_band, set_selected_band] = useLocalStorage("freq_bar_selected_freq", 20);
+    const {
+        active_profile_data: {
+            panels: { frequency_bar_band: selected_band },
+        },
+        update_active_profile_section,
+    } = useProfiles();
+
+    function set_selected_band(value) {
+        update_active_profile_section("panels", panels => ({
+            ...panels,
+            frequency_bar_band: value,
+        }));
+    }
 
     let { radio_band, radio_freq, radio_status } = use_radio();
 
     radio_freq = radio_freq && radio_freq >= 0 ? Math.round((radio_freq / 1000) * 10) / 10 : 0;
 
-    let band = selected_band == -1 ? radio_band : selected_band;
+    const band = selected_band === -1 ? radio_band : selected_band;
 
     const sorted_spots = useBandSpots(spots, band);
     const callsign_refs = useRef([]);
 
-    let freq_offset, max_freq, min_freq, features, ranges;
+    let freq_offset;
+    let max_freq;
+    let min_freq;
+    let features;
+    let ranges;
 
     if (band_plans[band]) {
         freq_offset = (band_plans[band].max - band_plans[band].min) / 50;
@@ -218,14 +238,15 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
         } else {
             set_pinned_spot(spot_id);
 
-            if (!(radio_status == "connected")) return;
+            if (!(radio_status === "connected")) return;
 
             set_cat_to_spot(spot);
             set_selected_band(-1);
         }
     }
 
-    let bracket_y, bracket_height;
+    let bracket_y;
+    let bracket_height;
 
     if (radio_freq) {
         ({ bracket_y, bracket_height } = calculate_bracket_position(
@@ -240,14 +261,14 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
 
     return (
         <div className={className}>
-            <span className={`w-full flex flex-row items-center justify-between h-[10%]`}>
+            <span className={"w-full flex flex-row items-center justify-between h-[10%]"}>
                 <Select
                     value={selected_band}
                     onChange={event => {
                         set_selected_band(event.target.value);
                     }}
-                    text_color={selected_band == -1 ? colors.bands[radio_band] : undefined}
-                    className={`text-lg p-2 w-full text-center`}
+                    text_color={selected_band === -1 ? colors.bands[radio_band] : undefined}
+                    className={"text-lg p-2 w-full text-center"}
                 >
                     {radio_status === "connected" && (
                         <option style={{ color: colors.bands[radio_band] }} value={-1}>
@@ -272,12 +293,13 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                 </Select>
             </span>
 
-            {!(selected_band == -1 && radio_band == -1) && (
+            {!(selected_band === -1 && radio_band === -1) && (
                 <>
                     <svg
-                        className={`w-full h-[85%] left-0 box-border`}
+                        className={"w-full h-[85%] left-0 box-border"}
                         style={{ background: colors.theme.background }}
                     >
+                        <title>Frequency bar chart</title>
                         <Ruler
                             min_freq={min_freq}
                             max_freq={max_freq}
@@ -289,7 +311,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                         {sorted_spots.map((spot, i) => {
                             const highlight_spot =
                                 (radio_status === "connected" && freq_spots.includes(spot.id)) ||
-                                (radio_status !== "connected" && spot.id == pinned_spot) ||
+                                (radio_status !== "connected" && spot.id === pinned_spot) ||
                                 spot.id === hovered_spot.id;
 
                             const spot_y_pct = `${(i * 100) / sorted_spots.length + 3}%`;
@@ -412,7 +434,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                 </>
             )}
 
-            {selected_band == -1 && radio_band == -1 && (
+            {selected_band === -1 && radio_band === -1 && (
                 <>
                     <p style={{ color: colors.theme.text }} className="px-2 pt-2 text-md">
                         The radio could not be reached!
@@ -470,7 +492,7 @@ function Ruler({ max_freq, min_freq, radio_freq, band, radio_status }) {
                             x2={"30%"}
                             stroke={colors.theme.text}
                             strokeWidth="1"
-                        ></line>
+                        />
                     </g>
                 ) : (
                     <line
@@ -481,7 +503,7 @@ function Ruler({ max_freq, min_freq, radio_freq, band, radio_status }) {
                         stroke={colors.theme.text}
                         strokeWidth="1"
                         key={`ruler_${mark}`}
-                    ></line>
+                    />
                 );
             })}
 
@@ -494,7 +516,7 @@ function Ruler({ max_freq, min_freq, radio_freq, band, radio_status }) {
                         x2={"30%"}
                         stroke={feature.color}
                         strokeWidth="2"
-                    ></line>
+                    />
                 </g>
             ))}
 
@@ -507,11 +529,11 @@ function Ruler({ max_freq, min_freq, radio_freq, band, radio_status }) {
                         x2={"30%"}
                         stroke={range.color}
                         strokeWidth="1"
-                    ></line>
+                    />
                 </g>
             ))}
 
-            {radio_status === "connected" && radio_freq != 0 && radio_freq !== undefined && (
+            {radio_status === "connected" && radio_freq !== 0 && radio_freq !== undefined && (
                 <svg
                     viewBox="0 0 50 90"
                     height="8%"

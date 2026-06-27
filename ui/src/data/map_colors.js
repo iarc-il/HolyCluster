@@ -2,10 +2,10 @@ import dxcc_map from "@/maps/dxcc_map.json";
 import { geoContains } from "d3-geo";
 
 function compute_bounding_box(geometry) {
-    let minLon = Infinity,
-        maxLon = -Infinity,
-        minLat = Infinity,
-        maxLat = -Infinity;
+    let minLon = Number.POSITIVE_INFINITY;
+    let maxLon = Number.NEGATIVE_INFINITY;
+    let minLat = Number.POSITIVE_INFINITY;
+    let maxLat = Number.NEGATIVE_INFINITY;
     const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
     for (const polygon of polygons) {
         for (const ring of polygon) {

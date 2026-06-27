@@ -1,36 +1,90 @@
 import asyncio
 import json
+import re
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 import fastapi
 import httpx
 import redis.asyncio
-from fastapi import HTTPException, websockets
+from fastapi import HTTPException, Query, websockets
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
+from pydantic import BaseModel
 from shared.cty import ensure_cty_available
-from shared.db import GeoCache, HolySpot, SpotsWithIssues
-from shared.geo import get_geo_details, GeoException
+from shared.db import GeoCache, HolySpot, PropagationMeasurement, SpotsWithIssues
+from shared.geo import GeoException, get_geo_details
 from shared.metrics import push_exception_event, set_timestamp, set_value
-from sqlalchemy import desc
+from sqlalchemy import desc, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
 
-from . import propagation, submit_spot
+from . import propagation, submit_spot, voacap
 from .settings import settings
+
+
+def build_propagation_measurement_rows(history, collected_at):
+    rows = []
+    for metric, samples in history.items():
+        for sample in samples:
+            value = sample.get("value")
+            timestamp = sample.get("timestamp")
+            if value is None or timestamp is None:
+                continue
+
+            rows.append(
+                {
+                    "metric": metric,
+                    "timestamp": int(timestamp),
+                    "value": float(value),
+                    "collected_at": collected_at,
+                }
+            )
+    return rows
+
+
+async def upsert_propagation_history(history):
+    rows = build_propagation_measurement_rows(history, datetime.now(UTC).replace(tzinfo=None))
+    if not rows:
+        return 0
+
+    statement = pg_insert(PropagationMeasurement.__table__).values(rows)
+    statement = statement.on_conflict_do_update(
+        index_elements=["metric", "timestamp"],
+        set_={
+            "value": statement.excluded.value,
+            "collected_at": statement.excluded.collected_at,
+        },
+    )
+
+    async with async_session() as session:
+        await session.execute(statement)
+        await session.commit()
+
+    return len(rows)
 
 
 async def propagation_data_collector(app):
     while True:
         sleep = 3600
         try:
-            app.state.propagation = await propagation.collect_propagation_data()
+            propagation_history = await propagation.collect_propagation_history()
+            app.state.propagation = propagation.latest_propagation_from_history(propagation_history)
             app.state.propagation["time"] = int(time.time())
             logger.info(f"Got propagation data: {app.state.propagation}")
+
+            try:
+                stored_samples = await upsert_propagation_history(propagation_history)
+                logger.info(f"Stored {stored_samples} propagation samples")
+            except Exception as e:
+                sleep = 10
+                logger.exception(f"Failed to persist propagation data: {str(e)}")
+                await push_exception_event(app.state.valkey_client, "api", f"propagation persist: {e}")
         except Exception as e:
             sleep = 10
             logger.exception(f"Failed to fetch propagation data: {str(e)}")
@@ -102,6 +156,7 @@ async def lifespan(app: fastapi.FastAPI):
         raise RuntimeError(f"UI directory does not exist: {settings.ui_dist_path}")
 
     app.state.active_connections = set()
+    app.state.propagation = None
 
     app.state.valkey_client = redis.asyncio.Redis(
         host=settings.valkey_effective_host,
@@ -140,6 +195,73 @@ async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False
 
 app = fastapi.FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
 
+MAX_HUNTER_RESOLVE_CALLSIGNS = 100
+HUNTER_CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/]{0,31}$")
+PROPAGATION_METRICS = ("a_index", "k_index", "sfi")
+MAX_PROPAGATION_HISTORY_RANGE_SECONDS = 86400
+
+
+def build_propagation_history_response(start_time, end_time, range_samples, previous_samples):
+    metrics = {metric: [] for metric in PROPAGATION_METRICS}
+    samples = sorted(
+        [*previous_samples, *range_samples],
+        key=lambda sample: (sample.timestamp, sample.metric),
+    )
+
+    for sample in samples:
+        metrics.setdefault(sample.metric, []).append(
+            {
+                "timestamp": sample.timestamp,
+                "value": sample.value,
+            }
+        )
+
+    return {
+        "start_time": start_time,
+        "end_time": end_time,
+        "metrics": metrics,
+    }
+
+
+async def get_propagation_history_data(start_time, end_time):
+    async with async_session() as session:
+        range_query = (
+            select(PropagationMeasurement)
+            .where(PropagationMeasurement.metric.in_(PROPAGATION_METRICS))
+            .where(PropagationMeasurement.timestamp >= start_time)
+            .where(PropagationMeasurement.timestamp <= end_time)
+            .order_by(PropagationMeasurement.timestamp, PropagationMeasurement.metric)
+        )
+        range_samples = (await session.execute(range_query)).scalars().all()
+
+        previous_sample_ids = (
+            select(
+                PropagationMeasurement.id,
+                func.row_number()
+                .over(
+                    partition_by=PropagationMeasurement.metric,
+                    order_by=desc(PropagationMeasurement.timestamp),
+                )
+                .label("row_number"),
+            )
+            .where(PropagationMeasurement.metric.in_(PROPAGATION_METRICS))
+            .where(PropagationMeasurement.timestamp < start_time)
+            .subquery()
+        )
+        previous_query = (
+            select(PropagationMeasurement)
+            .join(previous_sample_ids, PropagationMeasurement.id == previous_sample_ids.c.id)
+            .where(previous_sample_ids.c.row_number == 1)
+            .order_by(PropagationMeasurement.timestamp, PropagationMeasurement.metric)
+        )
+        previous_samples = (await session.execute(previous_query)).scalars().all()
+
+    return build_propagation_history_response(start_time, end_time, range_samples, previous_samples)
+
+
+class HunterResolveRequest(BaseModel):
+    callsigns: list[str]
+
 
 def cleanup_spot(spot):
     try:
@@ -153,17 +275,17 @@ def cleanup_spot(spot):
         else:
             band = spot["band"]
 
-        return {
+        cleaned_spot = {
             "spotter_callsign": spot["spotter_callsign"],
             "spotter_loc": [float(spot["spotter_lon"]), float(spot["spotter_lat"])],
-            "spotter_country": spot["spotter_country"],
+            "spotter_dxcc_code": int(spot["spotter_dxcc_code"]),
             "spotter_continent": spot["spotter_continent"],
             "spotter_state": spot.get("spotter_state"),
             "spotter_cq_zone": int(spot.get("spotter_cq_zone") or -1),
             "spotter_itu_zone": int(spot.get("spotter_itu_zone") or -1),
             "dx_callsign": spot["dx_callsign"],
             "dx_loc": [float(spot["dx_lon"]), float(spot["dx_lat"])],
-            "dx_country": spot["dx_country"],
+            "dx_dxcc_code": int(spot["dx_dxcc_code"]),
             "dx_continent": spot["dx_continent"],
             "dx_state": spot.get("dx_state"),
             "dx_cq_zone": int(spot.get("dx_cq_zone") or -1),
@@ -175,6 +297,23 @@ def cleanup_spot(spot):
             "comment": spot["comment"],
             "is_dxpedition": bool(int(spot.get("is_dxpedition", 0))),
         }
+        spot_type = spot.get("type")
+        if not spot_type and spot.get("cluster") == "pota.app":
+            spot_type = "pota"
+        if not spot_type and spot.get("cluster") == "spots.wwff.co":
+            spot_type = "wwff"
+        if not spot_type and spot.get("cluster") == "sota":
+            spot_type = "sota"
+        if spot_type:
+            cleaned_spot["type"] = spot_type
+        for key in ("pota_reference", "pota_name", "pota_description"):
+            value = spot.get(key)
+            if value is not None:
+                cleaned_spot[key] = value
+        sota_points = spot.get("sota_points")
+        if sota_points is not None:
+            cleaned_spot["sota_points"] = int(sota_points)
+        return cleaned_spot
     except (KeyError, ValueError):
         logger.exception(f"Failed to process spot: {spot}")
         return None
@@ -285,10 +424,73 @@ async def get_locator(callsign: str):
             "locator": geo_data.locator,
             "lat": geo_data.lat,
             "lon": geo_data.lon,
-            "source": "cache" if geo_data.cached else "qrz",
+            "source": "cache" if geo_data.cached else geo_data.locator_source,
         }
     else:
         return {"callsign": callsign, "error": "not found"}
+
+
+@app.post("/hunter/resolve")
+async def hunter_resolve(request: HunterResolveRequest):
+    if len(request.callsigns) > MAX_HUNTER_RESOLVE_CALLSIGNS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"maximum {MAX_HUNTER_RESOLVE_CALLSIGNS} callsigns per request",
+        )
+
+    normalized_callsigns = []
+    errors = {}
+    seen_callsigns = set()
+
+    for callsign in request.callsigns:
+        normalized = callsign.strip().upper()
+        if not HUNTER_CALLSIGN_PATTERN.fullmatch(normalized):
+            errors[normalized] = "invalid callsign"
+            continue
+        if normalized in seen_callsigns:
+            continue
+        seen_callsigns.add(normalized)
+        normalized_callsigns.append(normalized)
+
+    try:
+        qrz_session_key = await get_qrz_session_key_from_redis()
+    except Exception as e:
+        logger.warning(f"QRZ session key unavailable for hunter resolve; continuing with CTY fallback: {e}")
+        qrz_session_key = ""
+
+    results = {}
+    for callsign in normalized_callsigns:
+        try:
+            geo_data = await get_geo_details(
+                app.state.valkey_client,
+                qrz_session_key,
+                callsign,
+                settings.valkey_geo_expiration,
+                app.state.http_client,
+                "hunter_import",
+            )
+        except GeoException as e:
+            errors[callsign] = f"{e.data_type} not found"
+            continue
+        except Exception:
+            logger.exception(f"Failed to resolve hunter callsign: {callsign}")
+            errors[callsign] = "not found"
+            continue
+
+        results[callsign] = {
+            "callsign": callsign,
+            "dxcc_code": geo_data.dxcc_code,
+            "continent": geo_data.continent,
+            "state": geo_data.state,
+            "cq_zone": geo_data.cq_zone,
+            "itu_zone": geo_data.itu_zone,
+            "locator": geo_data.locator,
+            "lat": geo_data.lat,
+            "lon": geo_data.lon,
+            "source": "cache" if geo_data.cached else geo_data.locator_source,
+        }
+
+    return {"results": results, "errors": errors}
 
 
 @app.get("/geocache/all")
@@ -320,6 +522,44 @@ async def spots_with_issues():
 @app.get("/propagation")
 def propagation_data():
     return app.state.propagation
+
+
+@app.get("/propagation/history")
+async def propagation_history(start_time: int, end_time: int):
+    if end_time <= start_time:
+        raise HTTPException(status_code=400, detail="end_time must be greater than start_time")
+    if end_time - start_time > MAX_PROPAGATION_HISTORY_RANGE_SECONDS:
+        raise HTTPException(status_code=400, detail="time range cannot exceed 24 hours")
+
+    return await get_propagation_history_data(start_time, end_time)
+
+
+@app.get("/voacap")
+async def voacap_grid(
+    center_lat: float = Query(..., ge=-90.0, le=90.0),
+    center_lon: float = Query(..., ge=-180.0, le=180.0),
+    band: str = Query(...),
+    utc_hour: int | None = Query(default=None, ge=0, le=23),
+    month: int | None = Query(default=None, ge=1, le=12),
+    ssn: float = Query(default=voacap.DEFAULT_SSN, ge=0.0, le=300.0),
+    step_deg: float = Query(default=voacap.DEFAULT_STEP_DEG, ge=1.0, le=30.0),
+    metric: voacap.VoacapMetric = voacap.DEFAULT_METRIC,
+):
+    now = datetime.now(UTC)
+    try:
+        return await asyncio.to_thread(
+            voacap.generate_voacap_grid,
+            center_lat=center_lat,
+            center_lon=center_lon,
+            band=band,
+            utc_hour=utc_hour if utc_hour is not None else now.hour,
+            month=month if month is not None else now.month,
+            ssn=ssn,
+            step_deg=step_deg,
+            metric=metric,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.get("/dxpeditions")

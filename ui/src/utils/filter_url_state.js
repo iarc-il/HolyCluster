@@ -1,4 +1,6 @@
+import { normalize_dxcc_entity_code } from "@/data/dxcc_entities.js";
 import { create_initial_callsign_filters, create_initial_filters } from "@/data/filter_defaults.js";
+import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
 import { get_valid_zone_values, normalize_zone_value } from "@/utils/zones.js";
 
 export const FILTER_URL_PARAM = "filters";
@@ -11,11 +13,13 @@ const FILTER_TYPES = new Set([
     "entity",
     "zone",
     "comment",
+    "hunter",
     "self_spotters",
     "dxpeditions",
 ]);
 const SPOT_SIDES = new Set(["spotter", "dx"]);
 const ZONE_SYSTEMS = new Set(["cq", "itu", "us_state", "ca_province"]);
+const HUNTER_SECTIONS = new Set(HUNTER_SECTION_KEYS);
 const MAX_FILTER_RULES = 200;
 const MAX_TEXT_LENGTH = 160;
 
@@ -95,6 +99,14 @@ function sanitize_filter_rule(value) {
         return filter;
     }
 
+    if (type === "hunter") {
+        if (!HUNTER_SECTIONS.has(value.hunter_section)) return null;
+        return {
+            ...filter,
+            hunter_section: value.hunter_section,
+        };
+    }
+
     if (type === "zone") {
         const zone_system = ZONE_SYSTEMS.has(value.zone_system) ? value.zone_system : "cq";
         const normalized_value = normalize_zone_value(zone_system, value.value);
@@ -117,11 +129,19 @@ function sanitize_filter_rule(value) {
     }
 
     if (type === "comment") {
-        const quick_filter = to_limited_text(value.quick_filter);
         return {
             ...filter,
             value: text_value,
-            ...(quick_filter ? { quick_filter } : {}),
+        };
+    }
+
+    if (type === "entity") {
+        const dxcc_code = normalize_dxcc_entity_code(value.value);
+        if (dxcc_code == null) return null;
+        return {
+            ...filter,
+            value: dxcc_code,
+            spotter_or_dx: SPOT_SIDES.has(value.spotter_or_dx) ? value.spotter_or_dx : "dx",
         };
     }
 

@@ -1,16 +1,21 @@
-import { useMemo, useEffect, useRef } from "react";
-import { useLocalStorage } from "@uidotdev/usehooks";
-import simpleheat from "simpleheat";
-import { useColors } from "@/hooks/useColors";
-import { useSpotData } from "@/hooks/useSpotData";
-import { useSettings } from "@/hooks/useSettings";
 import { bands, continents } from "@/data/filters_data.js";
+import { useColors } from "@/hooks/useColors";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { useSettings } from "@/hooks/useSettings";
+import { useSpotData } from "@/hooks/useSpotData";
+import { useEffect, useMemo, useRef } from "react";
+import simpleheat from "simpleheat";
 
 function Heatmap() {
     const { colors } = useColors();
     const { raw_spots } = useSpotData();
     const { settings } = useSettings();
-    const [selected_continent, set_selected_continent] = useLocalStorage("heatmap_continent", "EU");
+    const {
+        active_profile_data: {
+            panels: { heatmap_continent: selected_continent },
+        },
+        update_active_profile_section,
+    } = useProfiles();
     const canvas_ref = useRef(null);
     const heatmap_instance_ref = useRef(null);
 
@@ -22,9 +27,6 @@ function Heatmap() {
     });
 
     const heatmap_data = useMemo(() => {
-        const current_time = Math.floor(Date.now() / 1000);
-        const one_hour_ago = current_time - 3600;
-
         const counts = {};
 
         for (const band of visible_bands) {
@@ -36,9 +38,9 @@ function Heatmap() {
 
         for (const spot of raw_spots) {
             if (visible_bands.includes(spot.band)) {
-                if (spot.spotter_continent == selected_continent) {
+                if (spot.spotter_continent === selected_continent) {
                     counts[spot.band][spot.dx_continent] += 1;
-                } else if (spot.dx_continent == selected_continent) {
+                } else if (spot.dx_continent === selected_continent) {
                     counts[spot.band][spot.spotter_continent] += 1;
                 }
             }
@@ -81,7 +83,7 @@ function Heatmap() {
         visible_bands.forEach((band, band_index) => {
             continents.forEach((continent, continent_index) => {
                 const value = heatmap_data[band]?.[continent] || 0;
-                let point = [
+                const point = [
                     left_margin + continent_index * cell_width + cell_width / 2,
                     top_margin + band_index * cell_height + cell_height / 2,
                     Math.min(value, 20),
@@ -168,7 +170,12 @@ function Heatmap() {
                     <span className="text-sm">Continent:</span>
                     <select
                         value={selected_continent}
-                        onChange={e => set_selected_continent(e.target.value)}
+                        onChange={event =>
+                            update_active_profile_section("panels", panels => ({
+                                ...panels,
+                                heatmap_continent: event.target.value,
+                            }))
+                        }
                         className="h-7 px-2 rounded-md text-sm ml-1"
                         style={{
                             backgroundColor: colors.theme.input_background,

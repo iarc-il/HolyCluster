@@ -1,11 +1,21 @@
-import { useLocalStorage } from "@uidotdev/usehooks";
-import { useEffect, useState } from "react";
-import { useSwipeable } from "react-swipeable";
 import { useColors } from "@/hooks/useColors";
+import { useLocalStorage } from "@uidotdev/usehooks";
+import { useEffect } from "react";
+import { useSwipeable } from "react-swipeable";
+
+function get_clamped_tab_index(index, tab_count) {
+    const numeric_index = Number(index);
+    if (!Number.isInteger(numeric_index) || numeric_index < 0 || tab_count <= 0) {
+        return 0;
+    }
+
+    return Math.min(numeric_index, tab_count - 1);
+}
 
 function Tabs({ tabs, active_color = null, local_storage_name = null, external_tab = null }) {
     const { colors } = useColors();
     const [active_tab, set_active_tab] = useLocalStorage(local_storage_name, 0);
+    const active_tab_index = get_clamped_tab_index(active_tab, tabs.length);
 
     useEffect(() => {
         if (local_storage_name == null) {
@@ -19,15 +29,21 @@ function Tabs({ tabs, active_color = null, local_storage_name = null, external_t
         }
     }, [external_tab]);
 
+    useEffect(() => {
+        if (active_tab !== active_tab_index) {
+            set_active_tab(active_tab_index);
+        }
+    }, [active_tab, active_tab_index, set_active_tab]);
+
     const handlers = useSwipeable({
         onSwipedLeft: () => {
-            if (active_tab < tabs.length - 1) {
-                set_active_tab(active_tab + 1);
+            if (active_tab_index < tabs.length - 1) {
+                set_active_tab(active_tab_index + 1);
             }
         },
         onSwipedRight: () => {
-            if (active_tab > 0) {
-                set_active_tab(active_tab - 1);
+            if (active_tab_index > 0) {
+                set_active_tab(active_tab_index - 1);
             }
         },
         trackMouse: false,
@@ -55,7 +71,7 @@ function Tabs({ tabs, active_color = null, local_storage_name = null, external_t
                             <div
                                 className="absolute bottom-0 left-0 right-0 h-1"
                                 style={{
-                                    backgroundColor: active_tab == index ? active_color : bg,
+                                    backgroundColor: active_tab_index === index ? active_color : bg,
                                 }}
                             />
                             <div
@@ -83,7 +99,7 @@ function Tabs({ tabs, active_color = null, local_storage_name = null, external_t
             </div>
 
             <div {...handlers} className="w-full h-[calc(100%-42px)]">
-                {tabs[active_tab].content}
+                {tabs[active_tab_index]?.content ?? null}
             </div>
         </div>
     );

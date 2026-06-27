@@ -1,32 +1,43 @@
-import { useRef, useState } from "react";
 import Input from "@/components/ui/Input.jsx";
-import X from "@/components/ui/X.jsx";
 import Popup from "@/components/ui/Popup.jsx";
+import Select from "@/components/ui/Select.jsx";
+import X from "@/components/ui/X.jsx";
 import { useColors } from "@/hooks/useColors";
-import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useFilters } from "@/hooks/useFilters";
+import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { useRef, useState } from "react";
 
-export default function CallsignSearch() {
-    const { colors } = useColors();
-    const { search_query, set_search_query } = useSpotInteraction();
+export default function CallsignSearch({
+    className = "hidden md:flex",
+    compact = false,
+    border_position = "bottom",
+}) {
+    const { colors, dev_mode } = useColors();
+    const {
+        search_query,
+        set_search_query,
+        selected_reference_type,
+        set_selected_reference_type,
+        set_pinned_spot,
+    } = useSpotInteraction();
     const { filters, setFilters, callsign_filters, setCallsignFilters } = useFilters();
     const single_spot = filters.show_only_latest_spot;
     const single_spot_ref = useRef(null);
-    const [show_popup, set_show_popup] = useState(false);
+    const [show_single_popup, set_show_single_popup] = useState(false);
     const [single_spot_hover, set_single_spot_hover] = useState(false);
 
-    const single_spot_button_base = {
+    const toggle_button_base = {
         border: `1px solid ${colors.theme.text}38`,
         background: `${colors.theme.text}14`,
         transition: "background-color 140ms ease, border-color 140ms ease, color 140ms ease",
     };
 
-    const single_spot_button_active = {
+    const toggle_button_active = {
         border: `1px solid ${colors.theme.text}80`,
         background: `${colors.theme.text}2E`,
     };
 
-    const single_spot_button_hover_style = {
+    const toggle_button_hover_style = {
         border: `1px solid ${colors.theme.text}66`,
         background: `${colors.theme.text}24`,
     };
@@ -45,26 +56,36 @@ export default function CallsignSearch() {
         set_search_query("");
     };
 
+    const select_reference_type = value => {
+        set_selected_reference_type(value === "cluster" ? null : value);
+        set_pinned_spot(null);
+    };
+    const border_style =
+        border_position === "top"
+            ? { borderTop: `1px solid ${colors.theme.borders}` }
+            : { borderBottom: `1px solid ${colors.theme.borders}` };
+
     return (
         <div
-            className="hidden md:flex items-center gap-1.5 px-2 py-1 shrink-0"
-            style={{
-                borderBottom: `1px solid ${colors.theme.borders}`,
-            }}
+            className={`${className} items-center gap-1.5 px-2 py-1 shrink-0`}
+            style={border_style}
         >
-            <svg
-                width="24"
-                height="24"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke={colors.theme.text}
-                strokeWidth="2"
-            >
-                <circle cx="6" cy="6" r="5" />
-                <path d="M15 15L10 10" strokeLinecap="round" />
-            </svg>
+            {!compact && (
+                <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke={colors.theme.text}
+                    strokeWidth="2"
+                >
+                    <title>Search</title>
+                    <circle cx="6" cy="6" r="5" />
+                    <path d="M15 15L10 10" strokeLinecap="round" />
+                </svg>
+            )}
             <Input
-                className={`w-48 h-10 text-lg border-2`}
+                className={`${compact ? "min-w-0 flex-1 h-9 text-base" : "w-48 h-10 text-lg"} border-2`}
                 border_color={colors.table.header_arrow}
                 placeholder="Search callsign..."
                 value={search_query}
@@ -76,7 +97,20 @@ export default function CallsignSearch() {
                 }}
             />
             {search_query && <X size="24" on_click={() => set_search_query("")} />}
+            {dev_mode && (
+                <Select
+                    className={`${compact ? "h-9 !w-24 !px-2 !py-1 text-xs" : "ml-auto h-9 w-28 text-sm"} font-semibold`}
+                    value={selected_reference_type ?? "cluster"}
+                    onChange={e => select_reference_type(e.target.value)}
+                >
+                    <option value="cluster">Cluster</option>
+                    <option value="pota">POTA</option>
+                    <option value="wwff">WWFF</option>
+                    <option value="sota">SOTA</option>
+                </Select>
+            )}
             <button
+                type="button"
                 ref={single_spot_ref}
                 onClick={() =>
                     setFilters({
@@ -85,18 +119,18 @@ export default function CallsignSearch() {
                     })
                 }
                 onMouseEnter={() => {
-                    set_show_popup(true);
+                    set_show_single_popup(true);
                     set_single_spot_hover(true);
                 }}
                 onMouseLeave={() => {
-                    set_show_popup(false);
+                    set_show_single_popup(false);
                     set_single_spot_hover(false);
                 }}
-                className="ml-auto flex items-center gap-1 cursor-pointer rounded-md px-2 py-1"
+                className={`flex items-center gap-1 cursor-pointer rounded-md ${!dev_mode && !compact ? "ml-auto " : ""}${compact ? "px-1 py-1" : "px-2 py-1"}`}
                 style={{
-                    ...single_spot_button_base,
-                    ...(single_spot ? single_spot_button_active : {}),
-                    ...(single_spot_hover ? single_spot_button_hover_style : {}),
+                    ...toggle_button_base,
+                    ...(single_spot ? toggle_button_active : {}),
+                    ...(single_spot_hover ? toggle_button_hover_style : {}),
                 }}
             >
                 <svg
@@ -109,6 +143,7 @@ export default function CallsignSearch() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                 >
+                    <title>Toggle single spot mode</title>
                     <rect
                         x="3"
                         y="3"
@@ -129,7 +164,7 @@ export default function CallsignSearch() {
                     <line x1="14" y1="17" x2="21" y2="17" opacity={single_spot ? "0.3" : "1"} />
                 </svg>
             </button>
-            {show_popup && (
+            {show_single_popup && (
                 <Popup anchor_ref={single_spot_ref} keep_in_view={true}>
                     <div
                         className="py-1 px-2 rounded shadow-lg"

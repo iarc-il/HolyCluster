@@ -26,12 +26,14 @@ const Bar = ({
     const getBarColor = percentage => {
         if (percentage <= (100 * low_mid) / (max - min)) {
             return reverse_colors ? "red" : "green";
-        } else if (
+        }
+        if (
             percentage > (100 * low_mid) / (max - min) &&
             percentage <= (100 * mid_high) / (max - min)
         ) {
             return "orange";
-        } else if (percentage > (100 * mid_high) / (max - min)) {
+        }
+        if (percentage > (100 * mid_high) / (max - min)) {
             return reverse_colors ? "green" : "red";
         }
     };
@@ -45,12 +47,12 @@ const Bar = ({
                 <div
                     className=" w-2 transition-all duration-300 mr-0.5 border border-solid border-gray-900"
                     style={{
-                        height: `100%`,
+                        height: "100%",
                         background: reverse_colors
                             ? `linear-gradient(to top, red ${(100 * low_mid) / (max - min)}%, orange ${(100 * low_mid) / (max - min)}% ${(100 * mid_high) / (max - min)}%, green ${(100 * mid_high) / (max - min)}%)`
                             : `linear-gradient(to top, green ${(100 * low_mid) / (max - min)}%, orange ${(100 * low_mid) / (max - min)}% ${(100 * mid_high) / (max - min)}%, red ${(100 * mid_high) / (max - min)}%)`,
                     }}
-                ></div>
+                />
                 <div
                     className=" w-4 transition-all duration-300"
                     style={{
@@ -58,7 +60,7 @@ const Bar = ({
                         background: `${getBarColor(percentage)}`,
                         opacity: "90%",
                     }}
-                ></div>
+                />
             </div>
             <span className="mt-1 text-sm" style={{ color: colors.theme.text }}>
                 {value}

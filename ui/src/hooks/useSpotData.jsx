@@ -1,12 +1,12 @@
+import { play_alert_sound } from "@/utils.js";
 import { createContext, useContext, useEffect } from "react";
-import useSpotWebSocket from "./useSpotWebSocket";
+import { useFilters } from "./useFilters";
 import useHistorySpots from "./useHistorySpots";
+import use_radio from "./useRadio";
+import { useSettings } from "./useSettings";
 import useSpotFiltering from "./useSpotFiltering";
 import { useSpotInteraction } from "./useSpotInteraction";
-import { useFilters } from "./useFilters";
-import { useSettings } from "./useSettings";
-import use_radio from "./useRadio";
-import { play_alert_sound } from "@/utils.js";
+import useSpotWebSocket from "./useSpotWebSocket";
 
 const SpotDataContext = createContext(undefined);
 
@@ -14,7 +14,13 @@ export function useSpotData() {
     return useContext(SpotDataContext);
 }
 
-export const SpotDataProvider = ({ children, startTime, endTime, window_size_ms }) => {
+export const SpotDataProvider = ({
+    children,
+    startTime,
+    endTime,
+    window_size_ms,
+    step_size_ms,
+}) => {
     const {
         raw_spots: ws_raw_spots,
         new_spot_ids: ws_new_spot_ids,
@@ -24,6 +30,7 @@ export const SpotDataProvider = ({ children, startTime, endTime, window_size_ms 
         startTime,
         endTime,
         window_size_ms,
+        step_size_ms,
     );
 
     const is_history_mode = !!(startTime && endTime);
@@ -71,7 +78,7 @@ export const SpotDataProvider = ({ children, startTime, endTime, window_size_ms 
     useEffect(() => {
         if (pinned_spot && settings.highlight_enabled && is_radio_available()) {
             highlight_spot(
-                raw_spots.find(spot => spot.id == pinned_spot),
+                raw_spots.find(spot => spot.id === pinned_spot),
                 settings.highlight_port,
             );
         }

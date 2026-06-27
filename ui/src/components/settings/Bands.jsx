@@ -1,5 +1,5 @@
-import Toggle from "@/components/ui/Toggle.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
+import Toggle from "@/components/ui/Toggle.jsx";
 import { bands, modes } from "@/data/filters_data.js";
 
 function Bands({ temp_settings, set_temp_settings, colors }) {

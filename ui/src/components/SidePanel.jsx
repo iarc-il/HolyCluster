@@ -1,27 +1,28 @@
+import DXpeditions from "@/components/DXpeditions.jsx";
+import FilterButton from "@/components/FilterButton.jsx";
+import FilterOptions from "@/components/FilterOptions.jsx";
 import Filters from "@/components/Filters.jsx";
 import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Heatmap from "@/components/Heatmap.jsx";
-import DXpeditions from "@/components/DXpeditions.jsx";
-import FilterOptions from "@/components/FilterOptions.jsx";
-import FilterButton from "@/components/FilterButton.jsx";
+import HunterPanel from "@/components/HunterPanel.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
 import { continents } from "@/data/filters_data.js";
-import { useFilters } from "@/hooks/useFilters";
 import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
 
 const continent_title = { dx: "DX", spotter: "DE" };
 
 function ContinentColumn({ spot_type, colors }) {
     const { filters, setFilters } = useFilters();
     const filter_key = `${spot_type}_continents`;
-    const color = colors.buttons[spot_type + "_continents"];
+    const color = colors.buttons[`${spot_type}_continents`];
 
     return (
         <div className="flex flex-col gap-3 items-center p-1">
             <strong style={{ color: colors.theme.text }}>{continent_title[spot_type]}</strong>
             {continents.map(continent => (
                 <FilterOptions
-                    key={spot_type + "_" + continent}
+                    key={`${spot_type}_${continent}`}
                     filter_key={filter_key}
                     filter_value={continent}
                     orientation="left"
@@ -64,7 +65,8 @@ function SwapButton({ colors }) {
     };
 
     return (
-        <div
+        <button
+            type="button"
             onClick={swapContinents}
             className={`w-16 rounded-full select-none border border-slate-700 flex justify-center py-0.5 ${
                 areFiltersEqual
@@ -73,8 +75,10 @@ function SwapButton({ colors }) {
             }`}
             style={{ backgroundColor: colors.buttons.disabled_background }}
             title="Swap DX and DE continent filters"
+            disabled={areFiltersEqual}
         >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <title>Swap continents</title>
                 <path
                     d="M7 4L7 20M7 4L3 8M7 4L11 8"
                     stroke="#000000"
@@ -90,7 +94,7 @@ function SwapButton({ colors }) {
                     strokeLinejoin="round"
                 />
             </svg>
-        </div>
+        </button>
     );
 }
 
@@ -156,12 +160,12 @@ const view_options = [
         is_disabled: false,
     },
     {
-        label: "",
-        bg: "",
-        icon: "",
+        label: "Missing",
+        bg: "#22c55e",
+        icon: "M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z",
         viewbox: "0 0 24 24",
         size: 32,
-        is_disabled: true,
+        is_disabled: false,
     },
 ];
 
@@ -183,16 +187,27 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                                 set_active_view(index);
                             }
                         }}
-                        className={
-                            "flex items-center justify-center flex-1 py-0.5 transition-colors rounded-md" +
-                            (!is_active && !option.is_disabled
+                        onKeyDown={event => {
+                            if (
+                                !is_active &&
+                                !option.is_disabled &&
+                                (event.key === "Enter" || event.key === " ")
+                            ) {
+                                event.preventDefault();
+                                set_active_view(index);
+                            }
+                        }}
+                        className={`flex items-center justify-center flex-1 py-0.5 transition-colors rounded-md${
+                            !is_active && !option.is_disabled
                                 ? " cursor-pointer opacity-60 hover:opacity-100"
-                                : "")
-                        }
+                                : ""
+                        }`}
                         style={{
                             backgroundColor: is_active ? colors.buttons.active_tab : undefined,
                         }}
                         title={option.label}
+                        role="button"
+                        tabIndex={0}
                     >
                         <svg
                             width={option.size}
@@ -200,6 +215,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                             viewBox={option.viewbox}
                             fill={is_active ? option.bg : colors.buttons.utility}
                         >
+                            <title>{option.label || "View option"}</title>
                             <path d={option.icon} />
                         </svg>
                     </div>
@@ -216,12 +232,17 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
     if (active_view === null) return null;
 
     const content = [
-        <Filters toggled_ui={toggled_ui} />,
-        <FrequencyBar set_cat_to_spot={set_cat_to_spot} className={"px-2 h-full"} />,
-        <div className="p-2">
+        <Filters key="filters" toggled_ui={toggled_ui} />,
+        <FrequencyBar
+            key="frequency-bar"
+            set_cat_to_spot={set_cat_to_spot}
+            className={"px-2 h-full"}
+        />,
+        <div key="heatmap" className="p-2">
             <Heatmap />
         </div>,
-        <DXpeditions />,
+        <DXpeditions key="dxpeditions" />,
+        <HunterPanel key="hunter" />,
     ];
 
     const toggled_classes = toggled_ui.right_visible
@@ -229,10 +250,7 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
         : "hidden";
     return (
         <div
-            className={
-                toggled_classes +
-                " 2xl:flex flex-col h-full z-50 max-2xl:max-h-full max-2xl:overflow-auto"
-            }
+            className={`${toggled_classes} 2xl:flex flex-col h-full z-50 max-2xl:max-h-full max-2xl:overflow-auto`}
             style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}
         >
             <ViewSelectorTabs

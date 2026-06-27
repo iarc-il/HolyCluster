@@ -1,8 +1,8 @@
 import { useState } from "react";
 
 import Modal from "@/components/ui/Modal.jsx";
-import Tabs from "@/components/ui/Tabs.jsx";
 import Select from "@/components/ui/Select.jsx";
+import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors.jsx";
 
 function StatsIcon({ size }) {
@@ -84,7 +84,7 @@ function PairwiseTable({ data, colors }) {
         1,
         ...clusters.flatMap(c1 =>
             clusters.map(c2 => {
-                const value = (overlap[c1] && overlap[c1][c2]) || 0;
+                const value = overlap[c1]?.[c2] || 0;
                 return totals[c1] > 0 ? (value / totals[c1]) * 100 : 0;
             }),
         ),
@@ -110,7 +110,7 @@ function PairwiseTable({ data, colors }) {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                     <tr>
-                        <th style={header_style}></th>
+                        <th style={header_style} />
                         {clusters.map(name => (
                             <th key={name} style={header_style}>
                                 {name}
@@ -135,7 +135,7 @@ function PairwiseTable({ data, colors }) {
                                         </td>
                                     );
                                 }
-                                const value = (overlap[col] && overlap[col][row]) || 0;
+                                const value = overlap[col]?.[row] || 0;
                                 const percent = totals[col] > 0 ? (value / totals[col]) * 100 : 0;
                                 const intensity = max_percent > 0 ? percent / max_percent : 0;
                                 const bg = `rgba(59, 130, 246, ${intensity * 0.5})`;
@@ -186,7 +186,7 @@ function ClusterStats() {
 
     function on_hours_change(event) {
         const value = event.target.value;
-        const new_hours = value === "" ? "" : parseInt(value);
+        const new_hours = value === "" ? "" : Number.parseInt(value);
         set_hours(new_hours);
         fetch_stats(new_hours);
     }

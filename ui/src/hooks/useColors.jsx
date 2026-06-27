@@ -1,9 +1,10 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 
 import { useLocalStorage } from "@uidotdev/usehooks";
 
+import { bands, continents, modes } from "@/data/filters_data.js";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { use_object_local_storage } from "@/utils.js";
-import { bands, modes, continents } from "@/data/filters_data.js";
 
 const ColorsContext = createContext(undefined);
 
@@ -15,31 +16,41 @@ export const useColors = () => {
 // Taken from: https://github.com/PimpTrizkit/PJs/wiki/12.-Shade,-Blend-and-Convert-a-Web-Color-(pSBC.js)
 // biome-ignore format: This code is a mess and should not be touched.
 function pSBC(p,c0,c1,l) {
-	let r,g,b,P,f,t,h,i=parseInt,m=Math.round,a=typeof(c1)=="string";
-	if(typeof(p)!="number"||p<-1||p>1||typeof(c0)!="string"||(c0[0]!='r'&&c0[0]!='#')||(c1&&!a))
+	let r;
+	let g;
+	let b;
+	let P;
+	let f;
+	let t;
+	let h;
+	const i=Number.parseInt;
+	const m=Math.round;
+	let a=typeof(c1)==="string";
+	if(typeof(p)!=="number"||p<-1||p>1||typeof(c0)!=="string"||(c0[0]!=='r'&&c0[0]!=='#')||(c1&&!a))
         return null;
 	if(!this.pSBCr)this.pSBCr=(d)=>{
-		let n=d.length,x={};
+		let n=d.length;
+		const x={};
 		if(n>9){
 			[r,g,b,a]=d=d.split(","),n=d.length;
 			if(n<3||n>4)return null;
-			x.r=i(r[3]=="a"?r.slice(5):r.slice(4)),x.g=i(g),x.b=i(b),x.a=a?parseFloat(a):-1
+			x.r=i(r[3]==="a"?r.slice(5):r.slice(4)),x.g=i(g),x.b=i(b),x.a=a?Number.parseFloat(a):-1
 		}else{
-			if(n==8||n==6||n<4)return null;
-			if(n<6)d="#"+d[1]+d[1]+d[2]+d[2]+d[3]+d[3]+(n>4?d[4]+d[4]:"");
+			if(n===8||n===6||n<4)return null;
+			if(n<6)d=`#${d[1]}${d[1]}${d[2]}${d[2]}${d[3]}${d[3]}${n>4?d[4]+d[4]:""}`;
 			d=i(d.slice(1),16);
-			if(n==9||n==5)x.r=d>>24&255,x.g=d>>16&255,x.b=d>>8&255,x.a=m((d&255)/0.255)/1000;
+			if(n===9||n===5)x.r=d>>24&255,x.g=d>>16&255,x.b=d>>8&255,x.a=m((d&255)/0.255)/1000;
 			else x.r=d>>16,x.g=d>>8&255,x.b=d&255,x.a=-1
 		}return x};
-	h=c0.length>9,h=a?c1.length>9?true:c1=="c"?!h:false:h,f=this.pSBCr(c0),P=p<0,t=c1&&c1!="c"?this.pSBCr(c1):P?{r:0,g:0,b:0,a:-1}:{r:255,g:255,b:255,a:-1},p=P?p*-1:p,P=1-p;
+	h=c0.length>9,h=a?c1.length>9?true:c1==="c"?!h:false:h,f=this.pSBCr(c0),P=p<0,t=c1&&c1!=="c"?this.pSBCr(c1):P?{r:0,g:0,b:0,a:-1}:{r:255,g:255,b:255,a:-1},p=P?p*-1:p,P=1-p;
 	if(!f||!t)return null;
 	if(l)r=m(P*f.r+p*t.r),g=m(P*f.g+p*t.g),b=m(P*f.b+p*t.b);
 	else r=m((P*f.r**2+p*t.r**2)**0.5),g=m((P*f.g**2+p*t.g**2)**0.5),b=m((P*f.b**2+p*t.b**2)**0.5);
 	a=f.a,t=t.a,f=a>=0||t>=0,a=f?a<0?t:t<0?a:a*P+t*p:0;
 	if(h)
-        return"rgb"+(f?"a(":"(")+r+","+g+","+b+(f?","+m(a*1000)/1000:"")+")";
-	else
-        return"#"+(4294967296+r*16777216+g*65536+b*256+(f?m(a*255):0)).toString(16).slice(1,f?undefined:-2)
+        return`rgb${f?"a(":"("}${r},${g},${b}${f?`,${m(a*1000)/1000}`:""})`;
+	
+        return`#${(4294967296+r*16777216+g*65536+b*256+(f?m(a*255):0)).toString(16).slice(1,f?undefined:-2)}`
 }
 pSBC = pSBC.bind({});
 
@@ -92,6 +103,8 @@ const base_theme = {
     spots: {
         alert_border: "white",
         dxpedition_alert: "#FFD700",
+        hunter_alert_flash: "#ef4444",
+        hunter_alert_flash_border: "#ffffff",
     },
     map: {
         background: "#e3f3f0",
@@ -200,6 +213,9 @@ const themes = {
         dxpeditions: {
             progress_track: "#d1d5db",
         },
+        spots: {
+            hunter_alert_flash_border: "#111827",
+        },
         seven_segment: {
             on: "#ef4444",
             off: "#e2e8f0",
@@ -302,6 +318,9 @@ const themes = {
             even_text: "#000000",
             odd_text: "#000000",
         },
+        spots: {
+            hunter_alert_flash_border: "#111827",
+        },
         seven_segment: {
             on: "#ef4444",
             off: "#505050",
@@ -312,23 +331,38 @@ const themes = {
 export const themes_names = Object.entries(themes).map(([name, theme]) => name);
 
 export const ColorsProvider = ({ children }) => {
+    const {
+        active_profile_data: {
+            settings: { theme: profile_theme },
+        },
+    } = useProfiles();
     const [dev_mode, set_dev_mode] = useLocalStorage("dev_mode", false);
-    const [current_theme, set_current_theme] = useLocalStorage("currnet_theme", "Dark");
     const [colors_inner, set_colors_inner] = use_object_local_storage("colors", themes.Dark);
+    const profile_theme_name = themes[profile_theme] ? profile_theme : "Dark";
 
-    let colors = dev_mode ? colors_inner : themes[current_theme];
+    const raw_colors = dev_mode ? colors_inner : themes[profile_theme_name];
 
-    colors.light_bands = Object.fromEntries(
-        Object.entries(colors.bands).map(([band, color]) => [band, pSBC(0.25, colors.bands[band])]),
-    );
+    const colors = useMemo(() => {
+        const light_bands = Object.fromEntries(
+            Object.entries(raw_colors.bands).map(([band, color]) => [
+                band,
+                pSBC(0.25, raw_colors.bands[band]),
+            ]),
+        );
 
-    for (const band in colors.text) {
-        if (colors.text[band] == "default_dark") {
-            colors.text[band] = colors.dark_text;
-        } else if (colors.text[band] == "default_bright") {
-            colors.text[band] = colors.bright_text;
+        const text = {};
+        for (const band in raw_colors.text) {
+            let resolved = raw_colors.text[band];
+            if (resolved === "default_dark") {
+                resolved = raw_colors.dark_text;
+            } else if (resolved === "default_bright") {
+                resolved = raw_colors.bright_text;
+            }
+            text[band] = resolved;
         }
-    }
+
+        return { ...raw_colors, light_bands, text };
+    }, [raw_colors]);
 
     function setSectionColor(section, name, color) {
         set_colors_inner(state => ({
@@ -341,12 +375,12 @@ export const ColorsProvider = ({ children }) => {
     }
 
     function setTheme(theme_name) {
-        set_current_theme(theme_name);
-        set_colors_inner(themes[theme_name]);
+        const next_theme = themes[theme_name] ? theme_name : "Dark";
+        set_colors_inner(themes[next_theme]);
     }
 
     function resetToCurrentTheme() {
-        set_colors_inner(themes[current_theme]);
+        set_colors_inner(themes[profile_theme_name]);
     }
 
     return (

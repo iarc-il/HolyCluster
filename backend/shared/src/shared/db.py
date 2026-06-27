@@ -1,7 +1,7 @@
 from datetime import date, datetime, time
 from typing import Optional
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import Index, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -11,11 +11,25 @@ class GeoCache(SQLModel, table=True):
     locator: str
     lat: str
     lon: str
-    country: str
+    dxcc_code: int
     continent: str
     date: date
     time: time
     date_time: datetime
+
+
+class PropagationMeasurement(SQLModel, table=True):
+    __tablename__ = "propagation_measurements"
+    __table_args__ = (
+        UniqueConstraint("metric", "timestamp", name="uc_propagation_measurements_metric_timestamp"),
+        Index("ix_propagation_measurements_timestamp", "timestamp"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    metric: str
+    timestamp: int
+    value: float
+    collected_at: datetime
 
 
 class HolySpot(SQLModel, table=True):
@@ -35,7 +49,7 @@ class HolySpot(SQLModel, table=True):
     spotter_locator_source: str
     spotter_lat: str
     spotter_lon: str
-    spotter_country: str
+    spotter_dxcc_code: int
     spotter_continent: str
     spotter_state: str
     spotter_cq_zone: Optional[int] = None
@@ -45,11 +59,15 @@ class HolySpot(SQLModel, table=True):
     dx_locator_source: str
     dx_lat: str
     dx_lon: str
-    dx_country: str
+    dx_dxcc_code: int
     dx_continent: str
     dx_state: str
     dx_cq_zone: Optional[int] = None
     dx_itu_zone: Optional[int] = None
+    pota_reference: Optional[str] = None
+    pota_name: Optional[str] = None
+    pota_description: Optional[str] = None
+    sota_points: Optional[int] = None
     comment: str
     is_dxpedition: int
 
@@ -71,7 +89,7 @@ class SpotsWithIssues(SQLModel, table=True):
     spotter_locator_source: str
     spotter_lat: str
     spotter_lon: str
-    spotter_country: str
+    spotter_dxcc_code: Optional[int] = None
     spotter_continent: str
     spotter_state: str
     spotter_cq_zone: Optional[int] = None
@@ -81,7 +99,7 @@ class SpotsWithIssues(SQLModel, table=True):
     dx_locator_source: str
     dx_lat: str
     dx_lon: str
-    dx_country: str
+    dx_dxcc_code: Optional[int] = None
     dx_continent: str
     dx_state: str
     dx_cq_zone: Optional[int] = None
