@@ -50,6 +50,7 @@ export function useProfiles() {
 export function ProfilesProvider({ children }) {
     const location = useLocation();
     const navigate = useNavigate();
+    const [dev_mode] = useLocalStorage("dev_mode", false);
     const initial_profile_store = useMemo(
         () => sanitize_profile_store(null, read_legacy_profile_data()),
         [],
@@ -73,12 +74,21 @@ export function ProfilesProvider({ children }) {
         }
     }, [stored_profile_store, profile_store, set_stored_profile_store]);
 
+    const effective_active_profile_name = dev_mode
+        ? profile_store.active_profile_name
+        : profile_store.profiles[0].name;
     const active_profile =
-        profile_store.profiles.find(
-            profile => profile.name === profile_store.active_profile_name,
-        ) ?? profile_store.profiles[0];
+        profile_store.profiles.find(profile => profile.name === effective_active_profile_name) ??
+        profile_store.profiles[0];
+    const effective_profiles = dev_mode ? profile_store.profiles : [active_profile];
 
     useEffect(() => {
+        if (!dev_mode) {
+            previous_active_profile_name_ref.current = profile_store.active_profile_name;
+            should_clear_filter_url_ref.current = false;
+            return;
+        }
+
         if (previous_active_profile_name_ref.current === profile_store.active_profile_name) {
             return;
         }
@@ -105,6 +115,7 @@ export function ProfilesProvider({ children }) {
             { replace: true },
         );
     }, [
+        dev_mode,
         profile_store.active_profile_name,
         location.pathname,
         location.search,
@@ -124,6 +135,8 @@ export function ProfilesProvider({ children }) {
     }
 
     function set_active_profile_name(name) {
+        if (!dev_mode) return;
+
         if (
             name !== profile_store.active_profile_name &&
             profile_store.profiles.some(profile => profile.name === name)
@@ -144,6 +157,8 @@ export function ProfilesProvider({ children }) {
     }
 
     function create_profile(name, data = active_profile.data) {
+        if (!dev_mode) return;
+
         should_clear_filter_url_ref.current = true;
 
         update_profile_store(store => {
@@ -163,6 +178,8 @@ export function ProfilesProvider({ children }) {
     }
 
     function rename_profile(current_name, requested_name) {
+        if (!dev_mode) return;
+
         update_profile_store(store => {
             if (!store.profiles.some(profile => profile.name === current_name)) {
                 return store;
@@ -188,6 +205,8 @@ export function ProfilesProvider({ children }) {
     }
 
     function delete_profile(name) {
+        if (!dev_mode) return;
+
         if (name === profile_store.active_profile_name && profile_store.profiles.length > 1) {
             should_clear_filter_url_ref.current = true;
         }
@@ -214,10 +233,12 @@ export function ProfilesProvider({ children }) {
     }
 
     function update_active_profile_data(value_or_setter) {
+        const target_profile_name = active_profile.name;
+
         update_profile_store(store => ({
             ...store,
             profiles: store.profiles.map(profile =>
-                profile.name === store.active_profile_name
+                profile.name === target_profile_name
                     ? {
                           ...profile,
                           data: sanitize_profile_data(
@@ -240,9 +261,9 @@ export function ProfilesProvider({ children }) {
         <ProfilesContext.Provider
             value={{
                 profile_store,
-                profiles: profile_store.profiles,
+                profiles: effective_profiles,
                 active_profile,
-                active_profile_name: profile_store.active_profile_name,
+                active_profile_name: active_profile.name,
                 active_profile_data: active_profile.data,
                 set_active_profile_name,
                 create_profile,

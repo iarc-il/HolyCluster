@@ -168,6 +168,7 @@ describe("profile provider integration", () => {
 
     it("keeps profile updates isolated when creating and switching profiles", async () => {
         const user = userEvent.setup();
+        window.localStorage.setItem("dev_mode", "true");
 
         render_with_router(
             <ProfilesProvider>
@@ -214,6 +215,7 @@ describe("profile provider integration", () => {
 
     it("clears shared filter URLs only when the active profile actually switches", async () => {
         const user = userEvent.setup();
+        window.localStorage.setItem("dev_mode", "true");
         write_profile_store({
             profiles: [
                 { name: "Default", data: create_profile_data() },
