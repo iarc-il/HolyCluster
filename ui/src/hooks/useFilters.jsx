@@ -6,6 +6,7 @@ import {
     get_filter_url_param,
 } from "@/utils/filter_url_state.js";
 import { normalize_zone_value } from "@/utils/zones.js";
+import { useLocalStorage } from "@uidotdev/usehooks";
 import { createContext, useContext, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
@@ -123,6 +124,7 @@ export const useFilters = () => {
 export const FiltersProvider = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
+    const [dev_mode] = useLocalStorage("dev_mode", false);
     const {
         active_profile_data: {
             filters: profile_filters,
@@ -131,7 +133,7 @@ export const FiltersProvider = ({ children }) => {
         update_active_profile_data,
         update_active_profile_section,
     } = useProfiles();
-    const filter_url_value = get_filter_url_param(location.search);
+    const filter_url_value = dev_mode ? get_filter_url_param(location.search) : null;
 
     const [shared_filter_state, set_shared_filter_state] = useState(() =>
         decode_filter_state(filter_url_value),

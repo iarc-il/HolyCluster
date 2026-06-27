@@ -241,6 +241,7 @@ describe("profile provider integration", () => {
 
     it("keeps shared filter URL state temporary until it is saved", async () => {
         const user = userEvent.setup();
+        window.localStorage.setItem("dev_mode", "true");
         const stored_profile_data = create_profile_data({
             filters: {
                 ...create_default_profile_data().filters,
