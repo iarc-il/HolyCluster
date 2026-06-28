@@ -1,6 +1,8 @@
 import dxcc_map from "@/maps/dxcc_map.json";
 import { geoContains } from "d3-geo";
 
+const COUNTRY_COLOR_COUNT = 8;
+
 function compute_bounding_box(geometry) {
     let minLon = Number.POSITIVE_INFINITY;
     let maxLon = Number.NEGATIVE_INFINITY;
@@ -190,14 +192,20 @@ function compute_coloring(features) {
 
     const order = [...Array(N).keys()].sort((a, b) => adjacency[b].size - adjacency[a].size);
     const colors = new Array(N).fill(-1);
+    const color_counts = Array(COUNTRY_COLOR_COUNT).fill(0);
     for (const i of order) {
         const used = new Set();
         for (const n of adjacency[i]) {
             if (colors[n] !== -1) used.add(colors[n]);
         }
-        let c = 0;
-        while (used.has(c)) c++;
+        const available_colors = color_counts
+            .map((count, color) => ({ color, count }))
+            .filter(({ color }) => !used.has(color));
+        const c = available_colors.length
+            ? available_colors.sort((a, b) => a.count - b.count || a.color - b.color)[0].color
+            : color_counts.length;
         colors[i] = c;
+        color_counts[c] = (color_counts[c] ?? 0) + 1;
     }
 
     return colors;
