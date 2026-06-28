@@ -10,6 +10,7 @@ import fastapi
 import httpx
 import redis.asyncio
 from fastapi import HTTPException, Query, websockets
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
@@ -194,6 +195,7 @@ engine = create_async_engine(
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 app = fastapi.FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 MAX_HUNTER_RESOLVE_CALLSIGNS = 100
 HUNTER_CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/]{0,31}$")
@@ -663,6 +665,8 @@ async def spot_history(start_time: int, end_time: int):
     if end_time - start_time > 86400:
         raise HTTPException(status_code=400, detail="time range cannot exceed 24 hours")
 
+    perf = {}
+
     async with async_session() as session:
         query = (
             select(HolySpot)
@@ -670,8 +674,24 @@ async def spot_history(start_time: int, end_time: int):
             .where(HolySpot.timestamp <= end_time)
             .order_by(HolySpot.timestamp)
         )
-        spots = cleanup_spots((await session.execute(query)).scalars())
-        return {"spots": spots}
+
+        t0 = time.perf_counter()
+        result = (await session.execute(query)).scalars().all()
+        perf["db_query_ms"] = round((time.perf_counter() - t0) * 1000, 2)
+        perf["row_count"] = len(result)
+
+        t1 = time.perf_counter()
+        spots = cleanup_spots(result)
+        perf["cleanup_ms"] = round((time.perf_counter() - t1) * 1000, 2)
+
+        t2 = time.perf_counter()
+        payload = json.dumps({"spots": spots, "perf": perf})
+        perf["serialize_ms"] = round((time.perf_counter() - t2) * 1000, 2)
+        perf["payload_bytes"] = len(payload)
+
+        logger.info(f"history perf: {perf}")
+
+    return fastapi.Response(content=payload, media_type="application/json")
 
 
 @app.get("/health")
