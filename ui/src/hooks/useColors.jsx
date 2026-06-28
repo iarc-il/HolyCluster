@@ -107,8 +107,8 @@ const base_theme = {
         hunter_alert_flash_border: "#ffffff",
     },
     map: {
-        background: "#e3f3f0",
-        graticule: "#c4c4c4",
+        background: "#b8e8ee",
+        graticule: "#6bb7c4",
         land_borders: "#777777",
         borders: "#000000",
         night_overlay: "#0000aa",
@@ -133,9 +133,10 @@ const base_theme = {
         country_2: "#f3a15f",
         country_3: "#e97972",
         country_4: "#a884cc",
-        country_5: "#73c7cb",
+        country_5: "#98d4c1",
         country_6: "#e7c276",
         country_7: "#ee9bbb",
+        country_8: "#f6faf9",
     },
     map_controls: {
         zone_label_active: "#FFFFFF",

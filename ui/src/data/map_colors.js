@@ -1,216 +1,367 @@
 import dxcc_map from "@/maps/dxcc_map.json";
-import { geoContains } from "d3-geo";
 
-const COUNTRY_COLOR_COUNT = 8;
+const COUNTRY_COLOR_BY_DXCC_NAME = {
+    "ITU HQ": 5,
+    "Conway Reef": 4,
+    Afghanistan: 5,
+    "Rodriguez I.": 7,
+    Mauritius: 2,
+    Monaco: 7,
+    "Agalega & St. Brandon Is.": 5,
+    Angola: 6,
+    Albania: 4,
+    "United Arab Emirates": 3,
+    Argentina: 4,
+    Armenia: 3,
+    Antarctica: 8,
+    Australia: 1,
+    Austria: 0,
+    Azerbaijan: 2,
+    Burundi: 7,
+    Belgium: 6,
+    Benin: 7,
+    "Burkina Faso": 0,
+    Bangladesh: 7,
+    Bulgaria: 1,
+    Bahamas: 0,
+    "Bosnia-Herzegovina": 7,
+    Belarus: 5,
+    Belize: 2,
+    Bolivia: 7,
+    Brazil: 1,
+    "Brunei Darussalam": 5,
+    Bhutan: 4,
+    Botswana: 4,
+    "Central Africa": 4,
+    Canada: 0,
+    Switzerland: 3,
+    Chile: 2,
+    China: 2,
+    "Cote de'Ivoire": 2,
+    Cameroon: 6,
+    "Democratic Republic of the Congo": 5,
+    "Republic of the Congo": 3,
+    Colombia: 2,
+    "Costa Rica": 1,
+    Cuba: 7,
+    "UK Sovereign Base Areas on Cyprus": 5,
+    Cyprus: 2,
+    "Czech Republic": 4,
+    "Federal Republic of Germany": 7,
+    Djibouti: 3,
+    Denmark: 1,
+    "Dominican Republic": 6,
+    Algeria: 6,
+    Ecuador: 5,
+    Egypt: 0,
+    Eritrea: 7,
+    Spain: 0,
+    Estonia: 3,
+    Ethiopia: 1,
+    Finland: 2,
+    Fiji: 5,
+    "Falkland Is.": 6,
+    France: 2,
+    Gabon: 0,
+    "Northern Ireland": 7,
+    Georgia: 4,
+    Ghana: 1,
+    Guinea: 3,
+    "The Gambia": 6,
+    "Guinea-Bissau": 5,
+    "Equatorial Guinea": 4,
+    Greece: 0,
+    Greenland: 8,
+    Guatemala: 3,
+    Guyana: 5,
+    Honduras: 5,
+    Croatia: 2,
+    Haiti: 3,
+    Hungary: 6,
+    Indonesia: 3,
+    India: 3,
+    Ireland: 1,
+    Iran: 1,
+    Iraq: 6,
+    Iceland: 6,
+    Israel: 5,
+    Italy: 5,
+    "Sovereign Military Order of Malta": 4,
+    "San Marino": 1,
+    Sardinia: 2,
+    Jamaica: 1,
+    Jordan: 7,
+    Japan: 0,
+    Kazakhstan: 4,
+    Kenya: 7,
+    Kyrgyzstan: 0,
+    Cambodia: 4,
+    "Republic of Korea": 3,
+    Kuwait: 5,
+    Laos: 6,
+    Lebanon: 3,
+    Liberia: 4,
+    Libya: 7,
+    "Sri Lanka": 7,
+    Lesotho: 5,
+    Lithuania: 6,
+    Luxembourg: 5,
+    Latvia: 7,
+    Morocco: 2,
+    Moldova: 5,
+    Madagascar: 6,
+    Mexico: 4,
+    Macedonia: 5,
+    Mali: 7,
+    Myanmar: 5,
+    Montenegro: 3,
+    Mongolia: 7,
+    Mozambique: 2,
+    Mauritania: 2,
+    Malawi: 3,
+    Namibia: 7,
+    "New Caledonia": 0,
+    Niger: 4,
+    Nigeria: 2,
+    Nicaragua: 0,
+    Netherlands: 4,
+    Norway: 1,
+    Nepal: 5,
+    "New Zealand": 3,
+    Oman: 5,
+    Pakistan: 0,
+    Panama: 6,
+    Peru: 6,
+    Philippines: 6,
+    "Papua New Guinea": 4,
+    Poland: 0,
+    "Puerto Rico": 5,
+    "Democratic People's Rep. of Korea": 1,
+    Portugal: 7,
+    Paraguay: 0,
+    Palestine: 4,
+    Qatar: 1,
+    Romania: 3,
+    "Asiatic Russia": 6,
+    "European Russia": 0,
+    Rwanda: 2,
+    "Western Sahara": 7,
+    "Saudi Arabia": 0,
+    Sudan: 5,
+    "South Sudan (Republic of)": 3,
+    Senegal: 1,
+    "Solomon Is.": 7,
+    "Sierra Leone": 0,
+    "El Salvador": 7,
+    Somalia: 6,
+    Serbia: 0,
+    Suriname: 7,
+    "Slovak Republic": 2,
+    Slovenia: 4,
+    Sweden: 4,
+    Swaziland: 7,
+    Syria: 2,
+    Chad: 2,
+    Togo: 5,
+    Thailand: 0,
+    Tajikistan: 3,
+    Turkmenistan: 0,
+    "Timor-Leste": 5,
+    "Trinidad & Tobago": 3,
+    Tunisia: 2,
+    Turkey: 5,
+    Taiwan: 5,
+    Tanzania: 0,
+    Uganda: 4,
+    Ukraine: 1,
+    Uruguay: 3,
+    "United States of America": 1,
+    "United Nations HQ": 5,
+    Alaska: 1,
+    Hawaii: 1,
+    Uzbekistan: 7,
+    Venezuela: 0,
+    "Viet Nam": 5,
+    Vanuatu: 6,
+    Yemen: 4,
+    "South Africa": 0,
+    Zambia: 1,
+    Zimbabwe: 3,
+    "Annobon I.": 3,
+    "Rotuma I.": 1,
+    Bouvet: 5,
+    "Peter 1 I.": 7,
+    Barbados: 2,
+    Maldives: 5,
+    "East Malaysia": 1,
+    "West Malaysia": 7,
+    Malta: 0,
+    Singapore: 4,
+    Bahrain: 2,
+    "Scarborough Reef": 3,
+    "Pratas I.": 4,
+    Nauru: 3,
+    Andorra: 4,
+    "Easter I.": 5,
+    "Juan Fernandez Is.": 7,
+    "San Felix & San Ambrosio": 1,
+    "Madeira Is.": 2,
+    Azores: 5,
+    "Sable I.": 7,
+    "St. Paul I.": 1,
+    "Cape Verde": 7,
+    Comoros: 0,
+    "North Cook Is.": 3,
+    "South Cook Is.": 2,
+    Niue: 5,
+    "Balearic Is.": 1,
+    "Canary Is.": 0,
+    "Ceuta & Melilla": 6,
+    Guadeloupe: 4,
+    Mayotte: 3,
+    "St. Barthelemy": 5,
+    "Chesterfield Is.": 2,
+    Martinique: 6,
+    "Austral Is.": 1,
+    "Clipperton I.": 0,
+    "Marquesas Is.": 7,
+    "St. Pierre & Miquelon": 5,
+    "Reunion I.": 1,
+    "Glorioso Is.": 5,
+    "Juan de Nova, Europa": 2,
+    "Tromelin I.": 4,
+    "Saint Martin": 1,
+    "Crozet I.": 6,
+    "Kerguelen Is.": 3,
+    "Amsterdam & St. Paul Is.": 5,
+    "French Guiana": 6,
+    "French Polynesia": 6,
+    Wales: 0,
+    Scotland: 4,
+    England: 7,
+    "Isle of Man": 6,
+    Jersey: 5,
+    Guernsey: 4,
+    "Temotu Province": 5,
+    Liechtenstein: 0,
+    "Galapagos Is.": 2,
+    "Malpelo I.": 7,
+    "San Andres & Providencia": 0,
+    Grenada: 5,
+    "St. Lucia": 7,
+    Dominica: 1,
+    "St. Vincent": 6,
+    "Minami Torishima": 0,
+    Ogasawara: 5,
+    Svalbard: 5,
+    "Jan Mayen": 6,
+    "Mariana Is.": 4,
+    Guam: 7,
+    "Johnston I.": 2,
+    "Baker & Howland Is.": 0,
+    "Palmyra & Jarvis Is.": 5,
+    "American Samoa": 7,
+    "Swains I.": 2,
+    "Wake I.": 6,
+    "Navassa I.": 4,
+    "Virgin Is.": 1,
+    "Desecheo I.": 3,
+    "Aland Is.": 3,
+    "Market Reef": 4,
+    "Faroe Is.": 2,
+    Aruba: 0,
+    Curacao: 5,
+    Bonaire: 1,
+    "Saba & St. Eustatius": 3,
+    "St Maarten": 7,
+    "Fernando de Noronha": 4,
+    "St. Peter & St. Paul Rocks": 6,
+    "Trindade & Martim Vaz Is.": 0,
+    Seychelles: 5,
+    "Sao Tome & Principe": 7,
+    Crete: 6,
+    "Mount Athos": 3,
+    Dodecanese: 7,
+    Tuvalu: 1,
+    "Banaba I. (Ocean I.)": 5,
+    "W. Kiribati (Gilbert Is.)": 0,
+    "C. Kiribati (British Phoenix Is.)": 7,
+    "E. Kiribati (Line Is.)": 3,
+    Palau: 2,
+    "Cocos I.": 5,
+    Corsica: 4,
+    "Antigua & Barbuda": 6,
+    "St. Kitts & Nevis": 2,
+    Micronesia: 6,
+    "Marshall Is.": 1,
+    "Heard I.": 5,
+    "Macquarie I.": 7,
+    "Cocos (Keeling) Is.": 3,
+    "Lord Howe I.": 4,
+    "Mellish Reef": 6,
+    "Norfolk I.": 0,
+    "Willis I.": 7,
+    "Christmas I.": 5,
+    Anguilla: 0,
+    Montserrat: 7,
+    "British Virgin Is.": 4,
+    "Turks & Caicos Is.": 1,
+    "Pitcairn I.": 3,
+    "Ducie I.": 5,
+    Bermuda: 2,
+    "South Georgia I.": 6,
+    "South Orkney Is.": 0,
+    "South Sandwich Is.": 4,
+    "South Shetland Is.": 7,
+    "Chagos Is.": 2,
+    "Andaman & Nicobar Is.": 6,
+    "Lakshadweep Is.": 4,
+    Revillagigedo: 2,
+    Macao: 3,
+    "Hong Kong": 5,
+    "Aves I.": 6,
+    Gibraltar: 5,
+    "St. Helena": 1,
+    "Ascension I.": 4,
+    "Tristan da Cunha & Gough I.": 7,
+    "Cayman Is.": 6,
+    "Tokelau Is.": 4,
+    "Chatham Is.": 6,
+    "Wallis & Futuna Is.": 2,
+    Samoa: 0,
+    Tonga: 4,
+    "Kermadec Is.": 5,
+    "New Zealand Subantarctic Islands": 1,
+    "Prince Edward & Marion Is.": 6,
+    "Guantanamo Bay": 5,
+    Kaliningrad: 3,
+    "Franz Josef Land": 5,
+    Vatican: 6,
+    "Spratly Is.": 1,
+    "Midway I.": 3,
+    "Kure I.": 7,
+};
 
-function compute_bounding_box(geometry) {
-    let minLon = Number.POSITIVE_INFINITY;
-    let maxLon = Number.NEGATIVE_INFINITY;
-    let minLat = Number.POSITIVE_INFINITY;
-    let maxLat = Number.NEGATIVE_INFINITY;
-    const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
-    for (const polygon of polygons) {
-        for (const ring of polygon) {
-            for (const [lon, lat] of ring) {
-                if (lon < minLon) minLon = lon;
-                if (lon > maxLon) maxLon = lon;
-                if (lat < minLat) minLat = lat;
-                if (lat > maxLat) maxLat = lat;
-            }
-        }
-    }
-    return { minLon, maxLon, minLat, maxLat };
+const COUNTRY_COLOR_BY_FEATURE_INDEX = {
+    96: 7,
+    189: 0,
+    153: 2,
+};
+
+function get_country_color_index(feature, feature_index) {
+    const color_by_index = COUNTRY_COLOR_BY_FEATURE_INDEX[feature_index];
+    if (color_by_index != null) return color_by_index;
+
+    return COUNTRY_COLOR_BY_DXCC_NAME[feature.properties.dxcc_name];
 }
 
-function extract_edges(geometry, snap) {
-    const edges = [];
-    const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
-    for (const polygon of polygons) {
-        for (const ring of polygon) {
-            for (let i = 0; i < ring.length - 1; i++) {
-                const a = `${snap(ring[i][0])},${snap(ring[i][1])}`;
-                const b = `${snap(ring[i + 1][0])},${snap(ring[i + 1][1])}`;
-                edges.push(a < b ? `${a}|${b}` : `${b}|${a}`);
-            }
-        }
+const country_color_indices = dxcc_map.features.map((feature, feature_index) => {
+    const color_index = get_country_color_index(feature, feature_index);
+    if (color_index == null) {
+        const label = feature.properties.dxcc_name ?? `feature ${feature_index}`;
+        throw new Error(`Missing hardcoded map color for ${label}`);
     }
-    return edges;
-}
-
-function compute_centroid(geometry) {
-    let lon_sum = 0;
-    let lat_sum = 0;
-    let count = 0;
-    const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
-    for (const polygon of polygons) {
-        for (const ring of polygon) {
-            for (let i = 0; i < ring.length - 1; i++) {
-                lon_sum += ring[i][0];
-                lat_sum += ring[i][1];
-                count++;
-            }
-        }
-    }
-    return count > 0 ? [lon_sum / count, lat_sum / count] : [0, 0];
-}
-
-function sample_boundary(geometry, step) {
-    const points = [];
-    const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
-    for (const polygon of polygons) {
-        for (const ring of polygon) {
-            for (let i = 0; i < ring.length - 1; i++) {
-                const [lon1, lat1] = ring[i];
-                const [lon2, lat2] = ring[i + 1];
-                const diff_lon = lon2 - lon1;
-                const diff_lat = lat2 - lat1;
-                const length = Math.sqrt(diff_lon * diff_lon + diff_lat * diff_lat);
-                const steps = Math.max(1, Math.ceil(length / step));
-                for (let s = 0; s <= steps; s++) {
-                    const t = s / steps;
-                    points.push([lon1 + diff_lon * t, lat1 + diff_lat * t]);
-                }
-            }
-        }
-    }
-    return points;
-}
-
-const ADJ_OFFSETS = [
-    [0.05, 0],
-    [-0.05, 0],
-    [0, 0.05],
-    [0, -0.05],
-];
-
-function check_contains_with_offsets(feature, lon, lat) {
-    for (const [oLon, oLat] of ADJ_OFFSETS) {
-        if (geoContains(feature, [lon + oLon, lat + oLat])) return true;
-    }
-    return false;
-}
-
-function compute_coloring(features) {
-    const N = features.length;
-    const adjacency = Array.from({ length: N }, () => new Set());
-
-    const snap = v => Math.round(v * 1e4) / 1e4;
-    const edge_to_features = new Map();
-    for (let i = 0; i < N; i++) {
-        for (const edge of extract_edges(features[i].geometry, snap)) {
-            if (!edge_to_features.has(edge)) edge_to_features.set(edge, []);
-            edge_to_features.get(edge).push(i);
-        }
-    }
-    for (const [, fis] of edge_to_features) {
-        for (let i = 0; i < fis.length; i++) {
-            for (let j = i + 1; j < fis.length; j++) {
-                adjacency[fis[i]].add(fis[j]);
-                adjacency[fis[j]].add(fis[i]);
-            }
-        }
-    }
-
-    const bounding_boxes = features.map(f => compute_bounding_box(f.geometry));
-    const centroids = features.map(f => compute_centroid(f.geometry));
-
-    const CELL_SIZE = 5;
-    const grid = new Map();
-    for (let i = 0; i < N; i++) {
-        const box = bounding_boxes[i];
-        for (
-            let cx = Math.floor(box.minLon / CELL_SIZE);
-            cx <= Math.floor(box.maxLon / CELL_SIZE);
-            cx++
-        ) {
-            for (
-                let cy = Math.floor(box.minLat / CELL_SIZE);
-                cy <= Math.floor(box.maxLat / CELL_SIZE);
-                cy++
-            ) {
-                const key = `${cx},${cy}`;
-                if (!grid.has(key)) grid.set(key, []);
-                grid.get(key).push(i);
-            }
-        }
-    }
-
-    for (let i = 0; i < N; i++) {
-        const points = sample_boundary(features[i].geometry, 0.5);
-        const local_checked = new Set();
-        for (const [lon, lat] of points) {
-            const cx = Math.floor(lon / CELL_SIZE);
-            const cy = Math.floor(lat / CELL_SIZE);
-            for (let dx = -1; dx <= 1; dx++) {
-                for (let dy = -1; dy <= 1; dy++) {
-                    const candidates = grid.get(`${cx + dx},${cy + dy}`);
-                    if (!candidates) continue;
-                    for (const j of candidates) {
-                        if (j === i || adjacency[i].has(j) || local_checked.has(j)) continue;
-                        local_checked.add(j);
-                        const box = bounding_boxes[j];
-                        if (
-                            lon < box.minLon ||
-                            lon > box.maxLon ||
-                            lat < box.minLat ||
-                            lat > box.maxLat
-                        )
-                            continue;
-                        if (check_contains_with_offsets(features[j], lon, lat)) {
-                            adjacency[i].add(j);
-                            adjacency[j].add(i);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    for (let i = 0; i < N; i++) {
-        for (let j = i + 1; j < N; j++) {
-            if (adjacency[i].has(j)) continue;
-            const box_i = bounding_boxes[i];
-            const box_j = bounding_boxes[j];
-            if (
-                box_i.minLon > box_j.maxLon ||
-                box_i.maxLon < box_j.minLon ||
-                box_i.minLat > box_j.maxLat ||
-                box_i.maxLat < box_j.minLat
-            )
-                continue;
-            if (check_contains_with_offsets(features[j], centroids[i][0], centroids[i][1])) {
-                adjacency[i].add(j);
-                adjacency[j].add(i);
-                continue;
-            }
-            if (check_contains_with_offsets(features[i], centroids[j][0], centroids[j][1])) {
-                adjacency[i].add(j);
-                adjacency[j].add(i);
-            }
-        }
-    }
-
-    const order = [...Array(N).keys()].sort((a, b) => adjacency[b].size - adjacency[a].size);
-    const colors = new Array(N).fill(-1);
-    const color_counts = Array(COUNTRY_COLOR_COUNT).fill(0);
-    for (const i of order) {
-        const used = new Set();
-        for (const n of adjacency[i]) {
-            if (colors[n] !== -1) used.add(colors[n]);
-        }
-        const available_colors = color_counts
-            .map((count, color) => ({ color, count }))
-            .filter(({ color }) => !used.has(color));
-        const c = available_colors.length
-            ? available_colors.sort((a, b) => a.count - b.count || a.color - b.color)[0].color
-            : color_counts.length;
-        colors[i] = c;
-        color_counts[c] = (color_counts[c] ?? 0) + 1;
-    }
-
-    return colors;
-}
-
-const country_color_indices = compute_coloring(dxcc_map.features);
+    return color_index;
+});
 
 export { country_color_indices };
