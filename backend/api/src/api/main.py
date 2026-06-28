@@ -528,7 +528,7 @@ def propagation_data():
 
 @app.get("/propagation/history")
 async def propagation_history(start_time: int, end_time: int):
-    if end_time <= start_time:
+    if end_time < start_time:
         raise HTTPException(status_code=400, detail="end_time must be greater than start_time")
     if end_time - start_time > MAX_PROPAGATION_HISTORY_RANGE_SECONDS:
         raise HTTPException(status_code=400, detail="time range cannot exceed 24 hours")
@@ -660,9 +660,11 @@ def download_catserver():
 
 @app.get("/history")
 async def spot_history(start_time: int, end_time: int):
-    if end_time <= start_time:
+    if end_time < start_time:
+        logger.info("test 1s")
         raise HTTPException(status_code=400, detail="end_time must be greater than start_time")
     if end_time - start_time > 86400:
+        logger.info("test")
         raise HTTPException(status_code=400, detail="time range cannot exceed 24 hours")
 
     perf = {}
