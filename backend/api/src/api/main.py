@@ -216,6 +216,7 @@ class WsErrorType(StrEnum):
 
 class WsMessageType(StrEnum):
     SPOTS = "spots"
+    SUBMIT = "submit"
 
 
 class WsSpotAction(StrEnum):
@@ -677,6 +678,10 @@ async def ws(websocket: fastapi.WebSocket):
             await send_ws_spots(websocket, message)
             continue
 
+        if message.get("type") == WsMessageType.SUBMIT.value:
+            await send_ws_submit(websocket, message)
+            continue
+
         await websocket.send_json(
             build_ws_error(
                 WsErrorType.NOT_IMPLEMENTED,
@@ -684,6 +689,14 @@ async def ws(websocket: fastapi.WebSocket):
                 received_type=message.get("type"),
             )
         )
+
+
+async def send_ws_submit(websocket: fastapi.WebSocket, message: dict):
+    response = await submit_spot.handle_spot(message, app.state.valkey_client)
+    if "type" in response:
+        response = {**response, "error_type": response["type"]}
+        del response["type"]
+    await websocket.send_json(build_ws_message(WsMessageType.SUBMIT, **response))
 
 
 async def get_initial_spots():
