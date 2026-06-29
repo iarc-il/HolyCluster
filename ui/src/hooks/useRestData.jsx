@@ -1,9 +1,10 @@
 import {
+    PROPAGATION_METRICS,
     normalize_propagation_history,
     select_propagation_for_time,
     to_unix_seconds,
 } from "@/utils/propagation_history.js";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 const RestDataContext = createContext(undefined);
 
@@ -17,6 +18,30 @@ function find_cached_propagation_history(cache, start_time, end_time) {
     );
 }
 
+function propagation_history_covers_range(history, start_time, end_time) {
+    return (
+        history != null &&
+        history.start_time !== null &&
+        history.end_time !== null &&
+        history.start_time <= start_time &&
+        history.end_time >= end_time
+    );
+}
+
+function is_same_propagation(left, right) {
+    if (left === right) return true;
+    if (!left || !right) return false;
+
+    return PROPAGATION_METRICS.every(metric => {
+        const left_metric = left[metric];
+        const right_metric = right[metric];
+        return (
+            left_metric?.timestamp === right_metric?.timestamp &&
+            left_metric?.value === right_metric?.value
+        );
+    });
+}
+
 export const RestDataProvider = ({
     children,
     propagation_range_start = null,
@@ -25,6 +50,7 @@ export const RestDataProvider = ({
 }) => {
     const [live_propagation, set_live_propagation] = useState();
     const [propagation_history, set_propagation_history] = useState(null);
+    const [displayed_history_propagation, set_displayed_history_propagation] = useState(null);
     const [dxpeditions, set_dxpeditions] = useState([]);
     const propagation_history_cache_ref = useRef([]);
 
@@ -114,8 +140,38 @@ export const RestDataProvider = ({
         return () => clearInterval(interval_id);
     }, []);
 
+    const has_propagation_history_for_range =
+        is_history_propagation_mode &&
+        propagation_history_covers_range(
+            propagation_history,
+            propagation_start_time,
+            propagation_end_time,
+        );
+    const selected_history_propagation = useMemo(() => {
+        if (!has_propagation_history_for_range) return null;
+        return select_propagation_for_time(propagation_history, propagation_time);
+    }, [has_propagation_history_for_range, propagation_history, propagation_time]);
+
+    useEffect(() => {
+        if (!is_history_propagation_mode) {
+            set_displayed_history_propagation(null);
+            return;
+        }
+        if (!has_propagation_history_for_range) return;
+
+        set_displayed_history_propagation(previous =>
+            is_same_propagation(previous, selected_history_propagation)
+                ? previous
+                : selected_history_propagation,
+        );
+    }, [
+        is_history_propagation_mode,
+        has_propagation_history_for_range,
+        selected_history_propagation,
+    ]);
+
     const propagation = is_history_propagation_mode
-        ? select_propagation_for_time(propagation_history, propagation_time)
+        ? displayed_history_propagation
         : live_propagation;
 
     return (
