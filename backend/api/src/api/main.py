@@ -208,8 +208,24 @@ WS_PROTOCOL_VERSION = 1
 class WsErrorType(StrEnum):
     MALFORMED_MESSAGE = "MalformedMessage"
     MISSING_VERSION = "MissingVersion"
+    MISSING_FIELD = "MissingField"
+    UNSUPPORTED_ACTION = "UnsupportedAction"
     UNSUPPORTED_VERSION = "UnsupportedVersion"
     NOT_IMPLEMENTED = "NotImplemented"
+
+
+class WsMessageType(StrEnum):
+    SPOTS = "spots"
+
+
+class WsSpotAction(StrEnum):
+    INITIAL = "initial"
+    CATCH_UP = "catch_up"
+
+
+class WsSpotEvent(StrEnum):
+    INITIAL = "initial"
+    UPDATE = "update"
 
 
 def build_ws_error(error_type: WsErrorType, message: str, **data):
@@ -218,6 +234,15 @@ def build_ws_error(error_type: WsErrorType, message: str, **data):
         "type": "error",
         "error_type": error_type.value,
         "message": message,
+    }
+    response.update(data)
+    return response
+
+
+def build_ws_message(message_type: WsMessageType, **data):
+    response = {
+        "version": WS_PROTOCOL_VERSION,
+        "type": message_type.value,
     }
     response.update(data)
     return response
@@ -648,6 +673,10 @@ async def ws(websocket: fastapi.WebSocket):
             await websocket.send_json(error)
             continue
 
+        if message.get("type") == WsMessageType.SPOTS.value:
+            await send_ws_spots(websocket, message)
+            continue
+
         await websocket.send_json(
             build_ws_error(
                 WsErrorType.NOT_IMPLEMENTED,
@@ -657,26 +686,61 @@ async def ws(websocket: fastapi.WebSocket):
         )
 
 
-async def send_spots(websocket: fastapi.WebSocket, message: dict):
+async def get_initial_spots():
     async with async_session() as session:
-        if "initial" in message:
-            query = (
-                select(HolySpot)
-                .where(HolySpot.timestamp > (time.time() - 3600))
-                .order_by(desc(HolySpot.timestamp))
-                .limit(500)
+        query = (
+            select(HolySpot)
+            .where(HolySpot.timestamp > (time.time() - 3600))
+            .order_by(desc(HolySpot.timestamp))
+            .limit(500)
+        )
+        return cleanup_spots((await session.execute(query)).scalars())
+
+
+async def get_spots_after(last_time):
+    async with async_session() as session:
+        query = (
+            select(HolySpot)
+            .where(HolySpot.timestamp > last_time)
+            .order_by(desc(HolySpot.timestamp))
+            .limit(500)
+        )
+        return cleanup_spots((await session.execute(query)).scalars())
+
+
+async def send_ws_spots(websocket: fastapi.WebSocket, message: dict):
+    action = message.get("action")
+    if action == WsSpotAction.INITIAL.value:
+        spots = await get_initial_spots()
+        await websocket.send_json(
+            build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.INITIAL.value, spots=spots)
+        )
+    elif action == WsSpotAction.CATCH_UP.value:
+        if "last_time" not in message:
+            await websocket.send_json(build_ws_error(WsErrorType.MISSING_FIELD, "Missing last_time", field="last_time"))
+            return
+
+        spots = await get_spots_after(message["last_time"])
+        await websocket.send_json(
+            build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots)
+        )
+    else:
+        await websocket.send_json(
+            build_ws_error(
+                WsErrorType.UNSUPPORTED_ACTION,
+                "Unsupported spots action",
+                received_action=action,
             )
-            spots = cleanup_spots((await session.execute(query)).scalars())
-            await websocket.send_json({"type": "initial", "spots": spots})
-        elif "last_time" in message:
-            query = (
-                select(HolySpot)
-                .where(HolySpot.timestamp > message["last_time"])
-                .order_by(desc(HolySpot.timestamp))
-                .limit(500)
-            )
-            spots = cleanup_spots((await session.execute(query)).scalars())
-            await websocket.send_json({"type": "update", "spots": spots})
+        )
+
+
+async def send_spots(websocket: fastapi.WebSocket, message: dict):
+    if "initial" in message:
+        spots = await get_initial_spots()
+        await websocket.send_json({"type": "initial", "spots": spots})
+    elif "last_time" in message:
+        spots = await get_spots_after(message["last_time"])
+        await websocket.send_json({"type": "update", "spots": spots})
 
 
 @app.websocket("/spots_ws")
