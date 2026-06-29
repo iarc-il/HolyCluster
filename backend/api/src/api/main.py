@@ -5,6 +5,7 @@ import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from enum import StrEnum
 
 import fastapi
 import httpx
@@ -201,6 +202,42 @@ MAX_HUNTER_RESOLVE_CALLSIGNS = 100
 HUNTER_CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/]{0,31}$")
 PROPAGATION_METRICS = ("a_index", "k_index", "sfi")
 MAX_PROPAGATION_HISTORY_RANGE_SECONDS = 86400
+WS_PROTOCOL_VERSION = 1
+
+
+class WsErrorType(StrEnum):
+    MALFORMED_MESSAGE = "MalformedMessage"
+    MISSING_VERSION = "MissingVersion"
+    UNSUPPORTED_VERSION = "UnsupportedVersion"
+    NOT_IMPLEMENTED = "NotImplemented"
+
+
+def build_ws_error(error_type: WsErrorType, message: str, **data):
+    response = {
+        "version": WS_PROTOCOL_VERSION,
+        "type": "error",
+        "error_type": error_type.value,
+        "message": message,
+    }
+    response.update(data)
+    return response
+
+
+def validate_ws_protocol_message(message):
+    if not isinstance(message, dict):
+        return build_ws_error(WsErrorType.MALFORMED_MESSAGE, "WebSocket message must be a JSON object")
+
+    if "version" not in message:
+        return build_ws_error(WsErrorType.MISSING_VERSION, "Missing websocket protocol version")
+
+    if message["version"] != WS_PROTOCOL_VERSION:
+        return build_ws_error(
+            WsErrorType.UNSUPPORTED_VERSION,
+            "Unsupported websocket protocol version",
+            received_version=message["version"],
+        )
+
+    return None
 
 
 def build_propagation_history_response(start_time, end_time, range_samples, previous_samples):
@@ -588,6 +625,36 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
             await submit_spot.handle_one_spot(websocket, app.state.valkey_client)
         except websockets.WebSocketDisconnect:
             break
+
+
+@app.websocket("/ws")
+async def ws(websocket: fastapi.WebSocket):
+    await websocket.accept()
+
+    while True:
+        try:
+            raw_message = await websocket.receive_text()
+        except websockets.WebSocketDisconnect:
+            break
+
+        try:
+            message = json.loads(raw_message)
+        except json.JSONDecodeError:
+            await websocket.send_json(build_ws_error(WsErrorType.MALFORMED_MESSAGE, "WebSocket message must be valid JSON"))
+            continue
+
+        error = validate_ws_protocol_message(message)
+        if error is not None:
+            await websocket.send_json(error)
+            continue
+
+        await websocket.send_json(
+            build_ws_error(
+                WsErrorType.NOT_IMPLEMENTED,
+                "WebSocket protocol v1 routing is not implemented yet",
+                received_type=message.get("type"),
+            )
+        )
 
 
 async def send_spots(websocket: fastapi.WebSocket, message: dict):
