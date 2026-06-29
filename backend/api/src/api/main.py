@@ -217,6 +217,7 @@ class WsErrorType(StrEnum):
 class WsMessageType(StrEnum):
     SPOTS = "spots"
     SUBMIT = "submit"
+    RADIO = "radio"
 
 
 class WsSpotAction(StrEnum):
@@ -227,6 +228,10 @@ class WsSpotAction(StrEnum):
 class WsSpotEvent(StrEnum):
     INITIAL = "initial"
     UPDATE = "update"
+
+
+class WsRadioEvent(StrEnum):
+    STATUS = "status"
 
 
 def build_ws_error(error_type: WsErrorType, message: str, **data):
@@ -680,6 +685,12 @@ async def ws(websocket: fastapi.WebSocket):
 
         if message.get("type") == WsMessageType.SUBMIT.value:
             await send_ws_submit(websocket, message)
+            continue
+
+        if message.get("type") == WsMessageType.RADIO.value:
+            await websocket.send_json(
+                build_ws_message(WsMessageType.RADIO, event=WsRadioEvent.STATUS.value, status="unavailable")
+            )
             continue
 
         await websocket.send_json(
