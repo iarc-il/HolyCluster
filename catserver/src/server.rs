@@ -75,6 +75,7 @@ impl Server {
         let http_client = Client::new();
 
         let app = Router::new()
+            .route("/ws", any(ws_handler))
             .route("/radio", any(cat_control_handler))
             .route(
                 "/submit_spot",
@@ -278,6 +279,153 @@ async fn cat_control_handler(
         })
 }
 
+async fn ws_handler(
+    websocket: WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let receiver = state.sender.subscribe();
+    let radio = state.radio;
+    let server_config = state.server_config;
+
+    websocket
+        .write_buffer_size(0)
+        .read_buffer_size(0)
+        .accept_unmasked_frames(true)
+        .on_upgrade(async move |websocket: WebSocket| {
+            let result = handle_ws_socket(websocket, server_config, radio, receiver).await;
+            if let Err(error) = result {
+                tracing::error!(?error, "Unified WebSocket handler failed");
+            }
+        })
+}
+
+async fn handle_ws_socket(
+    socket: WebSocket,
+    server_config: ServerConfig,
+    radio: AnyRadio,
+    mut receiver: Receiver<UserEvent>,
+) -> Result<()> {
+    let (mut client_sender, mut client_receiver) = socket.split();
+    let (stream, _response) = connect_async(server_config.build_uri("ws", "/ws")).await?;
+    let (mut server_sender, mut server_receiver) = stream.split();
+
+    let message = RadioInitMessage {
+        status: "connected".into(),
+        catserver_version: env!("VERSION").into(),
+    };
+    client_sender
+        .send(ws_radio_message(WS_RADIO_EVENT_STATUS, &message)?)
+        .await?;
+
+    let mut interval = tokio::time::interval(Duration::from_millis(500));
+    let mut previous_data = None;
+
+    use tokio_tungstenite::tungstenite;
+
+    loop {
+        tokio::select! {
+            Some(message) = client_receiver.next() => {
+                match message? {
+                    Message::Text(text) => {
+                        if is_ws_radio_message(text.as_ref()) {
+                            process_ws_radio_message(text.to_string(), &radio).await?;
+                            let status = radio.write().get_status();
+                            client_sender
+                                .send(ws_radio_message(WS_RADIO_EVENT_STATUS, &status)?)
+                                .await?;
+                        } else {
+                            let result = server_sender
+                                .send(utils::axum_to_tungstenite_message(Message::Text(text)))
+                                .await;
+                            if let Err(error) = &result {
+                                use tungstenite::Error;
+                                match error {
+                                    Error::ConnectionClosed => {
+                                        break;
+                                    }
+                                    _ => {
+                                        result?;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Message::Close(_) => {
+                        break;
+                    }
+                    message => {
+                        let result = server_sender
+                            .send(utils::axum_to_tungstenite_message(message))
+                            .await;
+                        if let Err(error) = &result {
+                            use tungstenite::Error;
+                            match error {
+                                Error::ConnectionClosed => {
+                                    break;
+                                }
+                                _ => {
+                                    result?;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Some(Ok(message)) = server_receiver.next() => {
+                let Some(message) = utils::tungstenite_to_axum_message(message) else {
+                    continue;
+                };
+                let result = client_sender
+                    .send(message)
+                    .await;
+                if result.is_err() {
+                    break;
+                }
+            }
+            event = receiver.recv() => {
+                match event? {
+                    UserEvent::Quit => {
+                        let message = CloseMessage { close: true };
+                        let message = ws_radio_message(WS_RADIO_EVENT_CLOSE, &message)?;
+                        let _ = client_sender.send(message).await;
+                        break;
+                    },
+                    UserEvent::OpenBrowser => {
+                        let message = FocusMessage { focus: true };
+                        let message = ws_radio_message(WS_RADIO_EVENT_FOCUS, &message)?;
+                        client_sender.send(message).await?;
+                    },
+                }
+            },
+            _ = interval.tick() => {
+                let data = radio.write().get_status();
+                if previous_data.as_ref() != Some(&data) {
+                    let message = ws_radio_message(WS_RADIO_EVENT_STATUS, &data)?;
+                    client_sender.send(message).await?;
+                    previous_data = Some(data);
+                }
+            }
+        }
+    }
+
+    let _ = server_sender
+        .send(tungstenite::Message::Close(Some(
+            tungstenite::protocol::CloseFrame {
+                code: tungstenite::protocol::frame::coding::CloseCode::Normal,
+                reason: tungstenite::Utf8Bytes::from_static("Goodbye"),
+            },
+        )))
+        .await;
+    let _ = client_sender
+        .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+            code: axum::extract::ws::close_code::NORMAL,
+            reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
+        })))
+        .await;
+
+    Ok(())
+}
+
 async fn handle_cat_control_socket(
     socket: WebSocket,
     radio: AnyRadio,
@@ -360,6 +508,63 @@ struct InitMessage {
     version: String,
 }
 
+const WS_PROTOCOL_VERSION: u8 = 1;
+const WS_MESSAGE_TYPE_RADIO: &str = "radio";
+const WS_RADIO_EVENT_STATUS: &str = "status";
+const WS_RADIO_EVENT_FOCUS: &str = "focus";
+const WS_RADIO_EVENT_CLOSE: &str = "close";
+
+#[derive(Serialize)]
+struct WsRadioServerMessage<'a, T: Serialize> {
+    version: u8,
+    #[serde(rename = "type")]
+    message_type: &'static str,
+    event: &'static str,
+    #[serde(flatten)]
+    data: &'a T,
+}
+
+#[derive(Serialize)]
+struct RadioInitMessage {
+    status: String,
+    catserver_version: String,
+}
+
+#[derive(Serialize)]
+struct CloseMessage {
+    close: bool,
+}
+
+#[derive(Serialize)]
+struct FocusMessage {
+    focus: bool,
+}
+
+#[derive(Deserialize)]
+struct WsEnvelope {
+    version: u8,
+    #[serde(rename = "type")]
+    message_type: String,
+}
+
+fn ws_radio_message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
+    let message = WsRadioServerMessage {
+        version: WS_PROTOCOL_VERSION,
+        message_type: WS_MESSAGE_TYPE_RADIO,
+        event,
+        data,
+    };
+    Ok(Message::Text(serde_json::to_string(&message)?.into()))
+}
+
+fn is_ws_radio_message(message: &str) -> bool {
+    let Ok(message) = serde_json::from_str::<WsEnvelope>(message) else {
+        return false;
+    };
+
+    message.version == WS_PROTOCOL_VERSION && message.message_type == WS_MESSAGE_TYPE_RADIO
+}
+
 #[derive(Deserialize)]
 struct SetModeAndFreq {
     mode: String,
@@ -388,6 +593,14 @@ enum ClientMessage {
     HighlightSpot(HighlightSpot),
 }
 
+#[derive(Deserialize)]
+#[serde(tag = "action")]
+enum WsRadioClientMessage {
+    SetRig(SetRig),
+    SetModeAndFreq(SetModeAndFreq),
+    HighlightSpot(HighlightSpot),
+}
+
 fn is_upper_sideband(freq: f32) -> bool {
     !(1800.0..=2000.0).contains(&freq)
         && !(3500.0..=4000.0).contains(&freq)
@@ -399,6 +612,23 @@ async fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
         tracing::error!("Failed to parse message: {message}");
         return Ok(());
     };
+    process_client_message(message, radio).await
+}
+
+async fn process_ws_radio_message(message: String, radio: &AnyRadio) -> Result<()> {
+    let Ok(message) = serde_json::from_str::<WsRadioClientMessage>(&message) else {
+        tracing::error!("Failed to parse radio message: {message}");
+        return Ok(());
+    };
+    let message = match message {
+        WsRadioClientMessage::SetRig(message) => ClientMessage::SetRig(message),
+        WsRadioClientMessage::SetModeAndFreq(message) => ClientMessage::SetModeAndFreq(message),
+        WsRadioClientMessage::HighlightSpot(message) => ClientMessage::HighlightSpot(message),
+    };
+    process_client_message(message, radio).await
+}
+
+async fn process_client_message(message: ClientMessage, radio: &AnyRadio) -> Result<()> {
     match message {
         ClientMessage::SetRig(set_rig) => {
             tracing::debug!("Setting rig to {}", set_rig.rig);
