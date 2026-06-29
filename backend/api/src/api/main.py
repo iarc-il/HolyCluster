@@ -94,6 +94,27 @@ async def propagation_data_collector(app):
         await asyncio.sleep(sleep)
 
 
+async def send_json_to_websockets(websockets, message):
+    disconnected = set()
+    for websocket in websockets.copy():
+        try:
+            await websocket.send_json(message)
+        except Exception as e:
+            logger.warning(f"Failed to send to websocket: {e}")
+            disconnected.add(websocket)
+
+    for websocket in disconnected:
+        websockets.discard(websocket)
+
+
+async def broadcast_spots(app, spots):
+    await send_json_to_websockets(app.state.active_connections, {"type": "update", "spots": spots})
+    await send_json_to_websockets(
+        app.state.active_ws_spot_connections,
+        build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots),
+    )
+
+
 async def spots_broadcast_task(app):
     STREAM_NAME = "stream-api"
     CONSUMER_GROUP = "api-group"
@@ -131,21 +152,14 @@ async def spots_broadcast_task(app):
                     if spot is not None:
                         spots.append(spot)
 
-                message = {"type": "update", "spots": spots}
-
-                disconnected = set()
-                for websocket in app.state.active_connections.copy():
-                    try:
-                        await websocket.send_json(message)
-                    except Exception as e:
-                        logger.warning(f"Failed to send to websocket: {e}")
-                        disconnected.add(websocket)
-
-                for websocket in disconnected:
-                    app.state.active_connections.discard(websocket)
+                await broadcast_spots(app, spots)
 
                 await set_timestamp(valkey_client, "api:last_broadcast_time")
-                await set_value(valkey_client, "api:ws_clients", len(app.state.active_connections))
+                await set_value(
+                    valkey_client,
+                    "api:ws_clients",
+                    len(app.state.active_connections) + len(app.state.active_ws_spot_connections),
+                )
 
         except Exception as e:
             logger.exception(f"Error in spots broadcast task: {e}")
@@ -158,6 +172,7 @@ async def lifespan(app: fastapi.FastAPI):
         raise RuntimeError(f"UI directory does not exist: {settings.ui_dist_path}")
 
     app.state.active_connections = set()
+    app.state.active_ws_spot_connections = set()
     app.state.propagation = None
 
     app.state.valkey_client = redis.asyncio.Redis(
@@ -662,44 +677,49 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
 async def ws(websocket: fastapi.WebSocket):
     await websocket.accept()
 
-    while True:
-        try:
-            raw_message = await websocket.receive_text()
-        except websockets.WebSocketDisconnect:
-            break
+    try:
+        while True:
+            try:
+                raw_message = await websocket.receive_text()
+            except websockets.WebSocketDisconnect:
+                break
 
-        try:
-            message = json.loads(raw_message)
-        except json.JSONDecodeError:
-            await websocket.send_json(build_ws_error(WsErrorType.MALFORMED_MESSAGE, "WebSocket message must be valid JSON"))
-            continue
+            try:
+                message = json.loads(raw_message)
+            except json.JSONDecodeError:
+                await websocket.send_json(
+                    build_ws_error(WsErrorType.MALFORMED_MESSAGE, "WebSocket message must be valid JSON")
+                )
+                continue
 
-        error = validate_ws_protocol_message(message)
-        if error is not None:
-            await websocket.send_json(error)
-            continue
+            error = validate_ws_protocol_message(message)
+            if error is not None:
+                await websocket.send_json(error)
+                continue
 
-        if message.get("type") == WsMessageType.SPOTS.value:
-            await send_ws_spots(websocket, message)
-            continue
+            if message.get("type") == WsMessageType.SPOTS.value:
+                await send_ws_spots(websocket, message)
+                continue
 
-        if message.get("type") == WsMessageType.SUBMIT.value:
-            await send_ws_submit(websocket, message)
-            continue
+            if message.get("type") == WsMessageType.SUBMIT.value:
+                await send_ws_submit(websocket, message)
+                continue
 
-        if message.get("type") == WsMessageType.RADIO.value:
+            if message.get("type") == WsMessageType.RADIO.value:
+                await websocket.send_json(
+                    build_ws_message(WsMessageType.RADIO, event=WsRadioEvent.STATUS.value, status="unavailable")
+                )
+                continue
+
             await websocket.send_json(
-                build_ws_message(WsMessageType.RADIO, event=WsRadioEvent.STATUS.value, status="unavailable")
+                build_ws_error(
+                    WsErrorType.NOT_IMPLEMENTED,
+                    "WebSocket protocol v1 routing is not implemented yet",
+                    received_type=message.get("type"),
+                )
             )
-            continue
-
-        await websocket.send_json(
-            build_ws_error(
-                WsErrorType.NOT_IMPLEMENTED,
-                "WebSocket protocol v1 routing is not implemented yet",
-                received_type=message.get("type"),
-            )
-        )
+    finally:
+        app.state.active_ws_spot_connections.discard(websocket)
 
 
 async def send_ws_submit(websocket: fastapi.WebSocket, message: dict):
@@ -735,6 +755,7 @@ async def get_spots_after(last_time):
 async def send_ws_spots(websocket: fastapi.WebSocket, message: dict):
     action = message.get("action")
     if action == WsSpotAction.INITIAL.value:
+        app.state.active_ws_spot_connections.add(websocket)
         spots = await get_initial_spots()
         await websocket.send_json(
             build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.INITIAL.value, spots=spots)
@@ -744,6 +765,7 @@ async def send_ws_spots(websocket: fastapi.WebSocket, message: dict):
             await websocket.send_json(build_ws_error(WsErrorType.MISSING_FIELD, "Missing last_time", field="last_time"))
             return
 
+        app.state.active_ws_spot_connections.add(websocket)
         spots = await get_spots_after(message["last_time"])
         await websocket.send_json(
             build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots)
