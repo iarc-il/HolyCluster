@@ -1,6 +1,6 @@
 import { compare_version } from "@/utils.js";
 import { createContext, useContext, useEffect, useState } from "react";
-import useWebSocket, { ReadyState } from "react-use-websocket";
+import { useWs, useWsMessage } from "./useWs";
 import raw_band_plans from "../../../shared/band_plans.json";
 import { useSettings } from "./useSettings";
 
@@ -72,19 +72,16 @@ export function useCatserverVersion(raw_local_version) {
 const RadioContext = createContext(null);
 
 export function RadioProvider({ children }) {
-    const { settings } = useSettings();
-
-    const host = window.location.host;
-    const protocol = window.location.protocol;
-    const websocket_url = `${protocol === "https:" ? "wss:" : "ws:"}//${host}/radio`;
-
-    const { sendJsonMessage, readyState, lastJsonMessage } = useWebSocket(websocket_url);
     const [radio_status, set_radio_status] = useState("unavailable");
     const [radio_freq, set_radio_freq] = useState(0);
     const [radio_mode, set_radio_mode] = useState("");
     const [rig, set_rig_inner] = useState(1);
     const [radio_band, set_radio_band] = useState(-1);
     const [raw_local_version, set_raw_local_version] = useState(null);
+    const { send } = useWs();
+    const [radio_ready, set_radio_ready] = useState(false);
+
+    const { settings } = useSettings();
 
     function get_band_from_freq(freq) {
         for (const band of Object.keys(band_plans)) {
@@ -96,37 +93,36 @@ export function RadioProvider({ children }) {
         return -1;
     }
 
-    useEffect(() => {
-        if (lastJsonMessage != null) {
-            if ("status" in lastJsonMessage) {
-                if ("version" in lastJsonMessage) {
-                    set_raw_local_version(lastJsonMessage.version);
-                }
-                set_radio_status(lastJsonMessage.status);
-                set_radio_freq(lastJsonMessage.freq);
-                set_radio_mode(lastJsonMessage.mode);
-                set_rig_inner(lastJsonMessage.current_rig);
-                set_radio_band(get_band_from_freq(lastJsonMessage.freq));
+    useWsMessage("radio", data => {
+        if (data.event === "status") {
+            if (data.catserver_version) {
+                set_raw_local_version(data.catserver_version);
+            } else if (data.version) {
+                set_raw_local_version(data.version);
             }
-
-            if ("focus" in lastJsonMessage && lastJsonMessage.focus) {
-                window.focus();
-            }
-
-            if ("close" in lastJsonMessage && lastJsonMessage.close) {
-                window.close();
-            }
+            set_radio_status(data.status);
+            set_radio_freq(data.freq || 0);
+            set_radio_mode(data.mode || "");
+            set_rig_inner(data.current_rig || 1);
+            set_radio_band(get_band_from_freq(data.freq || 0));
+            set_radio_ready(true);
         }
-    }, [lastJsonMessage]);
+
+        if (data.event === "focus" && data.focus) {
+            window.focus();
+        }
+
+        if (data.event === "close" && data.close) {
+            window.close();
+        }
+    });
 
     function send_message_to_radio(message) {
-        if (readyState === ReadyState.OPEN) {
-            sendJsonMessage(message);
-        }
+        send("radio", message);
     }
 
     function is_radio_available() {
-        return readyState === ReadyState.OPEN && radio_status !== "unavailable";
+        return radio_ready && radio_status !== "unavailable";
     }
 
     const version_data = useCatserverVersion(raw_local_version);
@@ -136,7 +132,7 @@ export function RadioProvider({ children }) {
     function highlight_spot(spot, udp_port) {
         if (spot && compare_version(version_data.local_version, tagged_api_version) > 0) {
             send_message_to_radio({
-                type: "HighlightSpot",
+                action: "HighlightSpot",
                 dx_callsign: spot.dx_callsign,
                 de_callsign: settings.callsign,
                 freq: Math.round(spot.freq * 1000),
@@ -151,31 +147,18 @@ export function RadioProvider({ children }) {
             return;
         }
 
-        if (compare_version(version_data.local_version, tagged_api_version) > 0) {
-            send_message_to_radio({
-                type: "SetRig",
-                rig: rig,
-            });
-        } else {
-            send_message_to_radio({
-                rig: rig,
-            });
-        }
+        send_message_to_radio({
+            action: "SetRig",
+            rig: rig,
+        });
     }
 
     function set_mode_and_freq(mode, freq) {
-        if (compare_version(version_data.local_version, tagged_api_version) > 0) {
-            send_message_to_radio({
-                type: "SetModeAndFreq",
-                mode,
-                freq,
-            });
-        } else {
-            send_message_to_radio({
-                mode,
-                freq,
-            });
-        }
+        send_message_to_radio({
+            action: "SetModeAndFreq",
+            mode,
+            freq,
+        });
     }
 
     return (

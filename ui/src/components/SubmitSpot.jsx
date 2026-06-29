@@ -1,7 +1,6 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect, useState } from "react";
 import { ToastContainer, toast } from "react-toastify";
-import useWebSocket, { ReadyState } from "react-use-websocket";
 
 import CallsignInput from "@/components/CallsignInput.jsx";
 import Button from "@/components/ui/Button.jsx";
@@ -12,6 +11,7 @@ import { band_plans } from "@/data/band_plans.js";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
+import { ReadyState, useWs, useWsMessage } from "@/hooks/useWs";
 
 function SubmitIcon({ size }) {
     const { colors } = useColors();
@@ -59,6 +59,7 @@ function connect_to_submit_spot_endpoint(on_response) {
 
 function SubmitSpot({ dev_mode }) {
     const [temp_data, set_temp_data] = useState(empty_temp_data);
+    const { send, network_state } = useWs();
     const [submit_status, set_submit_status] = useState({
         status: "pending",
         reason: "",
@@ -83,7 +84,7 @@ function SubmitSpot({ dev_mode }) {
         }));
     }, [radio_freq, is_open]);
 
-    function on_response(response) {
+    useWsMessage("submit", response => {
         if (response.status === "success") {
             set_submit_status({ status: "success", reason: "" });
             set_is_open(false);
@@ -96,19 +97,11 @@ function SubmitSpot({ dev_mode }) {
             }
             toast.success("Spot submitted successfully!", { theme });
         } else if (response.status === "failure") {
-            set_submit_status({ status: "failure", reason: response.type });
+            set_submit_status({ status: "failure", reason: response.error_type });
         }
-    }
-    const { sendJsonMessage, readyState } = connect_to_submit_spot_endpoint(on_response);
+    });
 
-    useEffect(() => {
-        if (readyState === ReadyState.OPEN) {
-            set_submit_status({
-                status: "pending",
-                reason: "",
-            });
-        }
-    }, [readyState]);
+    const readyState = network_state === "connected" ? ReadyState.OPEN : ReadyState.CLOSED;
 
     function reset_temp_data() {
         set_temp_data(empty_temp_data);
@@ -136,7 +129,7 @@ function SubmitSpot({ dev_mode }) {
             if (is_testing) {
                 message.testing = true;
             }
-            sendJsonMessage(message);
+            send("submit", message);
         }
     }
 
