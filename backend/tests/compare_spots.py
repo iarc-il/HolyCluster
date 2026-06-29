@@ -93,6 +93,7 @@ class ServerMonitor:
             logger.info(f"[{self.name}] Connecting to {self.url}")
             async with websockets.connect(self.url) as websocket:
                 self.websocket = websocket
+                await websocket.send(json.dumps({"version": 1, "type": "spots", "action": "initial"}))
                 logger.info(f"[{self.name}] Connected successfully")
 
                 while self.running:
@@ -107,7 +108,7 @@ class ServerMonitor:
                         break
 
     async def _process_message(self, data: dict):
-        if data.get("type") == "update":
+        if data.get("type") == "spots" and data.get("event") == "update":
             spots = data.get("spots", [])
             arrival_time = time.time()
             new_spots = []
@@ -204,10 +205,10 @@ class SpotComparator:
 def main():
     parser = argparse.ArgumentParser(description="Compare spots between two HolyCluster API servers")
     parser.add_argument(
-        "--ref-server", help="Reference server WebSocket URL", default="wss://holycluster.iarc.org/spots_ws"
+        "--ref-server", help="Reference server WebSocket URL", default="wss://holycluster.iarc.org/ws"
     )
     parser.add_argument(
-        "--target-server", help="Target server WebSocket URL", default="wss://holycluster-dev.iarc.org/spots_ws"
+        "--target-server", help="Target server WebSocket URL", default="wss://holycluster-dev.iarc.org/ws"
     )
     parser.add_argument(
         "-v",

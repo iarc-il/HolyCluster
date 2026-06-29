@@ -11,12 +11,12 @@ async def check_websocket(ws_url: str, state: CheckState, timeout: float = 30) -
     try:
         async with asyncio.timeout(timeout):
             async with websockets.connect(ws_url) as ws:
-                await ws.send(json.dumps({"initial": True}))
+                await ws.send(json.dumps({"version": 1, "type": "spots", "action": "initial"}))
                 response = await ws.recv()
                 data = json.loads(response)
-                if data.get("type") in ("initial", "update"):
+                if data.get("type") == "spots" and data.get("event") in ("initial", "update"):
                     return state.update(HealthStatus.HEALTHY, f"WebSocket OK, got {len(data.get('spots', []))} spots")
-                return state.update(HealthStatus.UNHEALTHY, f"Unexpected response: {data.get('type')}")
+                return state.update(HealthStatus.UNHEALTHY, f"Unexpected response: {data.get('type')}/{data.get('event')}")
     except TimeoutError:
         return state.update(HealthStatus.UNHEALTHY, "WebSocket connection timed out")
     except Exception as e:

@@ -38,6 +38,10 @@ export default defineConfig({
                 target: "wss://holycluster-dev.iarc.org",
                 ws: true,
             },
+            "/ws": {
+                target: "wss://holycluster-dev.iarc.org",
+                ws: true,
+            },
         },
     },
     build: {
