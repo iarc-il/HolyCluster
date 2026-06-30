@@ -743,12 +743,7 @@ async def get_initial_spots():
 
 async def get_spots_after(last_time):
     async with async_session() as session:
-        query = (
-            select(HolySpot)
-            .where(HolySpot.timestamp > last_time)
-            .order_by(desc(HolySpot.timestamp))
-            .limit(500)
-        )
+        query = select(HolySpot).where(HolySpot.timestamp > last_time).order_by(desc(HolySpot.timestamp)).limit(500)
         return cleanup_spots((await session.execute(query)).scalars())
 
 
@@ -757,9 +752,7 @@ async def send_ws_spots(websocket: fastapi.WebSocket, message: dict):
     if action == WsSpotAction.INITIAL.value:
         app.state.active_ws_spot_connections.add(websocket)
         spots = await get_initial_spots()
-        await websocket.send_json(
-            build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.INITIAL.value, spots=spots)
-        )
+        await websocket.send_json(build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.INITIAL.value, spots=spots))
     elif action == WsSpotAction.CATCH_UP.value:
         if "last_time" not in message:
             await websocket.send_json(build_ws_error(WsErrorType.MISSING_FIELD, "Missing last_time", field="last_time"))
@@ -767,9 +760,7 @@ async def send_ws_spots(websocket: fastapi.WebSocket, message: dict):
 
         app.state.active_ws_spot_connections.add(websocket)
         spots = await get_spots_after(message["last_time"])
-        await websocket.send_json(
-            build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots)
-        )
+        await websocket.send_json(build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots))
     else:
         await websocket.send_json(
             build_ws_error(

@@ -16,7 +16,9 @@ async def check_websocket(ws_url: str, state: CheckState, timeout: float = 30) -
                 data = json.loads(response)
                 if data.get("type") == "spots" and data.get("event") in ("initial", "update"):
                     return state.update(HealthStatus.HEALTHY, f"WebSocket OK, got {len(data.get('spots', []))} spots")
-                return state.update(HealthStatus.UNHEALTHY, f"Unexpected response: {data.get('type')}/{data.get('event')}")
+                return state.update(
+                    HealthStatus.UNHEALTHY, f"Unexpected response: {data.get('type')}/{data.get('event')}"
+                )
     except TimeoutError:
         return state.update(HealthStatus.UNHEALTHY, "WebSocket connection timed out")
     except Exception as e:

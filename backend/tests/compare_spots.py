@@ -204,9 +204,7 @@ class SpotComparator:
 
 def main():
     parser = argparse.ArgumentParser(description="Compare spots between two HolyCluster API servers")
-    parser.add_argument(
-        "--ref-server", help="Reference server WebSocket URL", default="wss://holycluster.iarc.org/ws"
-    )
+    parser.add_argument("--ref-server", help="Reference server WebSocket URL", default="wss://holycluster.iarc.org/ws")
     parser.add_argument(
         "--target-server", help="Target server WebSocket URL", default="wss://holycluster-dev.iarc.org/ws"
     )

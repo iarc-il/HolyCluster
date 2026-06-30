@@ -1,8 +1,8 @@
 import { compare_version } from "@/utils.js";
 import { createContext, useContext, useEffect, useState } from "react";
-import { useWs, useWsMessage } from "./useWs";
 import raw_band_plans from "../../../shared/band_plans.json";
 import { useSettings } from "./useSettings";
+import { useWs, useWsMessage } from "./useWs";
 
 const band_plans = Object.fromEntries(
     Object.entries(raw_band_plans).map(([band, info]) => [

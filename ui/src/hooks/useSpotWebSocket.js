@@ -73,7 +73,11 @@ export default function useSpotWebSocket() {
     }, [readyState, send]);
 
     useEffect(() => {
-        if (readyState === ReadyState.OPEN && started_ref.current && last_spot_time_ref.current > 0) {
+        if (
+            readyState === ReadyState.OPEN &&
+            started_ref.current &&
+            last_spot_time_ref.current > 0
+        ) {
             send("spots", { action: "catch_up", last_time: last_spot_time_ref.current });
         }
     }, [readyState]);
@@ -88,9 +92,7 @@ export default function useSpotWebSocket() {
                     mode,
                     band: normalize_band(spot.band),
                 };
-                return enrich_spot_zones_if_missing(
-                    normalize_spot_dxcc_fields(normalized_spot),
-                );
+                return enrich_spot_zones_if_missing(normalize_spot_dxcc_fields(normalized_spot));
             })
             .filter(spot => {
                 if (!spot.dx_dxcc_code || !spot.spotter_dxcc_code) {
@@ -130,9 +132,7 @@ export default function useSpotWebSocket() {
                 const merged_spots = trim_spots_to_last_hour(new_spots.concat(previous_spots));
 
                 if (merged_spots.length > 0) {
-                    last_spot_time_ref.current = Math.max(
-                        ...merged_spots.map(spot => spot.time),
-                    );
+                    last_spot_time_ref.current = Math.max(...merged_spots.map(spot => spot.time));
                 }
 
                 return merged_spots;

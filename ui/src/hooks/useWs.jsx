@@ -32,7 +32,7 @@ export function WsProvider({ children }) {
     }, [readyState]);
 
     useEffect(() => {
-        if (lastJsonMessage != null && lastJsonMessage.type) {
+        if (lastJsonMessage?.type) {
             const handlers = subscribers_ref.current.get(lastJsonMessage.type);
             if (handlers) {
                 for (const handler of handlers) {
@@ -50,7 +50,7 @@ export function WsProvider({ children }) {
             const handlers = subscribers_ref.current.get(type) || [];
             subscribers_ref.current.set(
                 type,
-                handlers.filter(h => h !== handler)
+                handlers.filter(h => h !== handler),
             );
         };
     }, []);
