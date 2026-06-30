@@ -130,6 +130,7 @@ function Modal({
                                     width="24"
                                     height="24"
                                     viewBox="0 0 1024 1024"
+                                    data-tour="modal-close-button"
                                     onClick={() => {
                                         if (on_cancel != null) {
                                             on_cancel();
@@ -162,6 +163,7 @@ function Modal({
                                         {on_cancel != null ? (
                                             <Button
                                                 color="red"
+                                                data-tour="modal-cancel-button"
                                                 on_click={() => {
                                                     on_cancel();
                                                     close();
@@ -173,6 +175,7 @@ function Modal({
                                         {on_apply != null ? (
                                             <Button
                                                 color="blue"
+                                                data-tour="modal-apply-button"
                                                 disabled={apply_disabled}
                                                 on_click={() => set_show_modal(!on_apply())}
                                             >
