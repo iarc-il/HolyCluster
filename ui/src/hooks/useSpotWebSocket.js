@@ -61,20 +61,22 @@ export default function useSpotWebSocket() {
     const [raw_spots, set_spots] = useState([]);
     const [new_spot_ids, set_new_spot_ids] = useState(new Set());
 
-    const [is_first_connection, set_is_first_connection] = useState(true);
+    const started_ref = useRef(false);
     const last_spot_time_ref = useRef(0);
     const next_spot_id_ref = useRef(0);
 
     useEffect(() => {
-        if (readyState === ReadyState.OPEN) {
-            if (is_first_connection) {
-                send("spots", { action: "initial" });
-                set_is_first_connection(false);
-            } else {
-                send("spots", { action: "catch_up", last_time: last_spot_time_ref.current });
-            }
+        if (readyState === ReadyState.OPEN && !started_ref.current) {
+            started_ref.current = true;
+            send("spots", { action: "initial" });
         }
-    }, [readyState, is_first_connection, send]);
+    }, [readyState, send]);
+
+    useEffect(() => {
+        if (readyState === ReadyState.OPEN && started_ref.current && last_spot_time_ref.current > 0) {
+            send("spots", { action: "catch_up", last_time: last_spot_time_ref.current });
+        }
+    }, [readyState]);
 
     useWsMessage("spots", data => {
         let new_spots = data.spots
