@@ -1,6 +1,6 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useCallback, useMemo, useState } from "react";
-import Joyride, { ACTIONS, EVENTS, STATUS } from "react-joyride";
+import { ACTIONS, EVENTS, Joyride, STATUS } from "react-joyride";
 import TourLauncher from "./TourLauncher.jsx";
 import {
     DEFAULT_TOUR_CHAPTER_ID,
@@ -90,6 +90,14 @@ function WebsiteTour() {
                 callback={handle_callback}
                 continuous={true}
                 disableOverlayClose={true}
+                options={{
+                    primaryColor: "#3b82f6",
+                    backgroundColor: "#182229",
+                    textColor: "#f4f0f0",
+                    arrowColor: "#182229",
+                    overlayColor: "rgba(0, 0, 0, 0.65)",
+                    zIndex: 10000,
+                }}
                 run={tour_state.is_running}
                 scrollToFirstStep={true}
                 showProgress={true}
@@ -97,9 +105,46 @@ function WebsiteTour() {
                 stepIndex={tour_state.step_index}
                 steps={steps}
                 styles={{
-                    options: {
-                        primaryColor: "#2563eb",
-                        zIndex: 10000,
+                    tooltip: {
+                        border: "1px solid #334155",
+                        borderRadius: 12,
+                        boxShadow: "0 18px 60px rgba(0, 0, 0, 0.45)",
+                        padding: 16,
+                    },
+                    tooltipTitle: {
+                        fontSize: 18,
+                        fontWeight: 700,
+                    },
+                    tooltipContent: {
+                        fontSize: 14,
+                        lineHeight: "1.5",
+                    },
+                    buttonPrimary: {
+                        backgroundColor: "#3b82f6",
+                        borderRadius: 8,
+                        color: "#ffffff",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        padding: "8px 16px",
+                    },
+                    buttonBack: {
+                        color: "#f4f0f0",
+                        fontSize: 14,
+                        fontWeight: 500,
+                    },
+                    buttonSkip: {
+                        color: "#9ca3af",
+                        fontSize: 13,
+                        fontWeight: 500,
+                    },
+                    buttonClose: {
+                        color: "#9ca3af",
+                        height: 24,
+                        width: 24,
+                    },
+                    overlay: {
+                        height: "100%",
+                        width: "100%",
                     },
                 }}
             />

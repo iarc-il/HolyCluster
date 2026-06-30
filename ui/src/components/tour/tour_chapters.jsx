@@ -6,7 +6,16 @@ export const TOUR_CHAPTERS = {
         id: "quick_start",
         title: "Quick Start",
         description: "A short introduction to the main Holy Cluster workflow.",
-        steps: [],
+        steps: [
+            {
+                target: "[data-tour='top-bar']",
+                content:
+                    "Welcome to The Holy Cluster! This quick tour will walk you through the main interface.",
+                placement: "bottom",
+                title: "Welcome",
+                skipBeacon: true,
+            },
+        ],
     },
 };
 
