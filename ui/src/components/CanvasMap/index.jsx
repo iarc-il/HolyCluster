@@ -295,6 +295,7 @@ function CanvasMap({
                 div_ref(node);
             }}
             className="relative h-full w-full"
+            data-tour="map-canvas"
             style={{
                 backgroundColor: colors.theme.background,
                 touchAction: "none",
@@ -381,6 +382,7 @@ function CanvasMap({
                     spot={null}
                     on_close={() => set_map_context_menu(state => ({ ...state, visible: false }))}
                     actions={map_menu_actions}
+                    data_tour="map-context-menu"
                 />
             )}
         </div>

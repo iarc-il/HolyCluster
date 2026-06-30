@@ -12,6 +12,7 @@ function PropagationBar({
     low_mid,
     mid_high,
     reverse_colors = false,
+    data_tour = null,
 }) {
     const { colors } = useColors();
     const bar_ref = useRef(null);
@@ -25,6 +26,7 @@ function PropagationBar({
     return (
         <div
             ref={bar_ref}
+            data-tour={data_tour}
             onMouseEnter={() => set_show_popup(true)}
             onMouseLeave={() => set_show_popup(false)}
         >

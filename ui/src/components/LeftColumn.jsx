@@ -101,7 +101,10 @@ function SpotCount({ count, toggled_ui, overlay_el }) {
                 overlay_el &&
                 createPortal(
                     <span ref={badge_ref} className="absolute flex w-5 pointer-events-none">
-                        <span className="inline-flex border border-gray-900 bg-red-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-[12px]">
+                        <span
+                            className="inline-flex border border-gray-900 bg-red-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-[12px]"
+                            data-tour="filter-spot-count"
+                        >
                             {count}
                         </span>
                     </span>,
@@ -215,13 +218,17 @@ function LeftColumn({ toggled_ui }) {
     return (
         <div
             className={`${toggled_classes}2xl:flex w-18 flex-col h-full shrink-0 relative`}
+            data-tour="left-column"
             style={{
                 backgroundColor: colors.theme.columns,
                 borderColor: colors.theme.borders,
             }}
         >
             <div ref={scroll_ref} className="flex flex-col h-full items-center overflow-y-auto">
-                <div className={`${filter_group_classes}pb-4 border-b-2 border-slate-300`}>
+                <div
+                    className={`${filter_group_classes}pb-4 border-b-2 border-slate-300`}
+                    data-tour="band-filter-group"
+                >
                     {visible_bands.map(band => {
                         const color = colors.bands[band];
                         const label = Number.isInteger(band) ? `${band}m` : band;
@@ -245,6 +252,7 @@ function LeftColumn({ toggled_ui }) {
                                     is_active={filters.bands[band]}
                                     color={color}
                                     text_color={colors.text[band]}
+                                    data_tour={`band-filter-${band}`}
                                     on_click={_ => {
                                         if (!filters.radio_band)
                                             setFilters(_filters => ({
@@ -268,8 +276,11 @@ function LeftColumn({ toggled_ui }) {
                 </div>
 
                 {radio_status !== "unavailable" || filters.radio_band ? (
-                    <div className={`${filter_group_classes}py-4 border-b-2 border-slate-300`}>
-                        <div>
+                    <div
+                        className={`${filter_group_classes}py-4 border-b-2 border-slate-300`}
+                        data-tour="radio-band-filter-group"
+                    >
+                        <div data-tour="radio-band-filter">
                             <SpotCount
                                 count={spots_per_band_count[radio_band]}
                                 toggled_ui={toggled_ui}
@@ -280,6 +291,7 @@ function LeftColumn({ toggled_ui }) {
                                 is_active={filters.radio_band}
                                 color={colors.bands[radio_band] ?? "black"}
                                 text_color={colors.text[radio_band] ?? "white"}
+                                data_tour="radio-band-filter-button"
                                 on_click={_ => setRadioModeFilter(!filters.radio_band)}
                                 hover_brightness="125"
                             />
@@ -289,7 +301,7 @@ function LeftColumn({ toggled_ui }) {
                     ""
                 )}
 
-                <div className={`${filter_group_classes} pt-4`}>
+                <div className={`${filter_group_classes} pt-4`} data-tour="mode-filter-group">
                     {visible_modes.map(mode => {
                         return (
                             <FilterOptions
@@ -328,6 +340,7 @@ function LeftColumn({ toggled_ui }) {
                                     }
                                     color={colors.buttons.modes}
                                     className="text-[0.94rem]"
+                                    data_tour={`mode-filter-${mode}`}
                                 />
                             </FilterOptions>
                         );

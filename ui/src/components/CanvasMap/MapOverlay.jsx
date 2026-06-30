@@ -38,7 +38,10 @@ export default function MapOverlay({
 
     return (
         <>
-            <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
+            <svg
+                className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                data-tour="map-overlay"
+            >
                 <title>Map overlay</title>
                 <g className="font-medium text-lg select-none">
                     <text x={text_x} y={text_y} fill={colors.theme.text}>
@@ -54,6 +57,7 @@ export default function MapOverlay({
                             width="67"
                             height="40"
                             className="pointer-events-auto"
+                            data-tour="map-auto-radius"
                         >
                             <div xmlns="http://www.w3.org/1999/xhtml">
                                 <ToggleSVG
@@ -85,6 +89,7 @@ export default function MapOverlay({
             {show_voacap_legend && (
                 <div
                     className="absolute bottom-3 left-1/2 z-20 pointer-events-none flex -translate-x-1/2 items-center gap-2 rounded-full px-2 py-1 text-[10px] shadow-lg select-none"
+                    data-tour="map-voacap-legend"
                     style={{
                         color: colors.theme.text,
                         backgroundColor: colors.theme.background,

@@ -223,6 +223,8 @@ function ClusterStats() {
     return (
         <Modal
             button={<StatsIcon size="36" />}
+            data_tour="top-bar-cluster-stats"
+            dialog_data_tour="cluster-stats-modal"
             on_open={on_open}
             on_cancel={() => true}
             cancel_text="Close"

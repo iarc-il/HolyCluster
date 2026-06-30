@@ -213,6 +213,8 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 </h3>
             }
             button={<SettingsIcon size="40" />}
+            data_tour="top-bar-settings"
+            dialog_data_tour="settings-modal"
             on_open={() => {
                 set_temp_settings(settings);
             }}

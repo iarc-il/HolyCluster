@@ -1,10 +1,11 @@
-function Night({ is_active, size, on_click }) {
+function Night({ is_active, size, on_click, data_tour = null }) {
     return (
         <button
             type="button"
             onClick={on_click}
             className="cursor-pointer p-0 border-0 bg-transparent"
             style={{ lineHeight: 0 }}
+            data-tour={data_tour}
         >
             <svg
                 height={size}

@@ -285,6 +285,7 @@ function MapControls({
                     ...(zone_button_hover === id ? zone_button_hover_style : {}),
                 }}
                 title={title}
+                data-tour={`map-overlay-${id}`}
             >
                 <span
                     className={`${width_class} h-8 flex items-center justify-center text-xl leading-none ${active ? "font-bold" : "font-medium"}`}
@@ -303,6 +304,7 @@ function MapControls({
             <div
                 ref={controls_panel_ref}
                 className="absolute z-40 top-0 right-0 flex flex-col items-end m-2 gap-2"
+                data-tour="map-controls"
             >
                 <div className="flex items-center gap-2">
                     {is_mobile && (
@@ -318,6 +320,7 @@ function MapControls({
                             className="flex h-10 w-10 items-center justify-center rounded-lg disabled:opacity-60"
                             style={control_button_style}
                             aria_label="Center map on current GPS location"
+                            data_tour="map-gps"
                         />
                     )}
                     <button
@@ -327,6 +330,7 @@ function MapControls({
                         style={control_button_style}
                         aria-label="Reset map"
                         title="Reset map"
+                        data-tour="map-reset"
                     >
                         <svg
                             height="24"
@@ -346,6 +350,7 @@ function MapControls({
                             style={control_button_style}
                             aria-label={is_map_fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
                             title={is_map_fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                            data-tour="map-fullscreen"
                         >
                             <svg
                                 height="24"
@@ -377,6 +382,7 @@ function MapControls({
                                 is_history_mode ? "Exit playback mode" : "Enter playback mode"
                             }
                             title={is_history_mode ? "Exit playback mode" : "Enter playback mode"}
+                            data-tour="map-history-toggle"
                         >
                             <svg
                                 height="24"
@@ -398,6 +404,7 @@ function MapControls({
                         aria-label={show_controls_panel ? "Hide map controls" : "Show map controls"}
                         aria-expanded={show_controls_panel}
                         title={show_controls_panel ? "Hide map controls" : "Show map controls"}
+                        data-tour="map-controls-toggle"
                     >
                         <svg
                             width="24"
@@ -425,6 +432,7 @@ function MapControls({
                 {show_controls_panel && (
                     <div
                         className="flex flex-col items-end gap-2 rounded-xl p-3 shadow-xl max-w-[calc(100vw-1rem)]"
+                        data-tour="map-controls-panel"
                         style={{
                             backgroundColor: colors.theme.background,
                             border: `1px solid ${colors.theme.text}2E`,
@@ -436,6 +444,7 @@ function MapControls({
                                 <Button
                                     color="utility"
                                     className="p-1"
+                                    data-tour="map-cat-undo"
                                     on_click={() => {
                                         if (!can_undo_cat) return;
                                         undo_cat();
@@ -454,7 +463,9 @@ function MapControls({
                                 ""
                             )}
                             {radio_status !== "unavailable" ? (
-                                <Radio color={radio_status_to_color[radio_status]} size="40" />
+                                <span data-tour="map-radio-status">
+                                    <Radio color={radio_status_to_color[radio_status]} size="40" />
+                                </span>
                             ) : null}
                             <button
                                 type="button"
@@ -468,6 +479,7 @@ function MapControls({
                                 aria-label={equator_on ? "Hide equator" : "Show equator"}
                                 aria-pressed={equator_on}
                                 title={equator_on ? "Hide equator" : "Show equator"}
+                                data-tour="map-equator-toggle"
                             >
                                 <svg
                                     width="40"
@@ -503,6 +515,7 @@ function MapControls({
                                 onMouseEnter={() => set_show_mode_popup(true)}
                                 onMouseLeave={() => set_show_mode_popup(false)}
                                 className="flex items-center justify-center relative"
+                                data-tour="map-projection-toggle"
                             >
                                 {map_controls.is_globe ? (
                                     <svg
@@ -546,16 +559,20 @@ function MapControls({
                             <Night
                                 is_active={map_controls.night}
                                 size="40"
+                                data_tour="map-night-toggle"
                                 on_click={event =>
                                     set_map_controls(state => (state.night = !state.night))
                                 }
                             />
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3" data-tour="map-overlays">
                             {overlay_buttons.map(render_overlay_button)}
                         </div>
                         {dev_mode ? (
-                            <div className="flex w-full items-center justify-end gap-2">
+                            <div
+                                className="flex w-full items-center justify-end gap-2"
+                                data-tour="map-voacap-controls"
+                            >
                                 <button
                                     type="button"
                                     onClick={toggle_voacap}
@@ -576,6 +593,7 @@ function MapControls({
                                     title={
                                         voacap_on ? "Hide VOACAP overlay" : "Show VOACAP overlay"
                                     }
+                                    data-tour="map-voacap-toggle"
                                 >
                                     <span className={voacap_on ? "font-bold" : "font-medium"}>
                                         VOACAP
@@ -593,6 +611,7 @@ function MapControls({
                                         }}
                                         title="VOACAP band"
                                         aria-label="VOACAP band"
+                                        data-tour="map-voacap-band"
                                     >
                                         {VOACAP_BANDS.map(band => (
                                             <option key={band} value={band}>
@@ -606,7 +625,10 @@ function MapControls({
                             ""
                         )}
 
-                        <div className="flex w-full flex-wrap justify-end gap-2">
+                        <div
+                            className="flex w-full flex-wrap justify-end gap-2"
+                            data-tour="map-region-overlays"
+                        >
                             {country_zone_overlays.map(overlay => {
                                 const active = map_controls[overlay.map_control_key] ?? false;
                                 return (
@@ -629,6 +651,7 @@ function MapControls({
                                                 : zone_label_inactive_color,
                                         }}
                                         title={overlay.title}
+                                        data-tour={`map-region-overlay-${overlay.id}`}
                                     >
                                         <span className={active ? "font-bold" : "font-medium"}>
                                             {overlay.label}
@@ -679,6 +702,7 @@ function MapControls({
             {propagation && settings.propagation_displayed && (
                 <div
                     className="fixed md:absolute bottom-0 md:bottom-2 right-2 z-40 flex justify-end md:justify-center gap-2"
+                    data-tour="propagation-bars"
                     style={{ backgroundColor: colors.theme.background }}
                 >
                     <PropagationBar
@@ -689,6 +713,7 @@ function MapControls({
                         max={100}
                         low_mid={14}
                         mid_high={80}
+                        data_tour="propagation-a-index"
                     />
                     <PropagationBar
                         value={propagation.k_index.value}
@@ -698,6 +723,7 @@ function MapControls({
                         max={9}
                         low_mid={3}
                         mid_high={5}
+                        data_tour="propagation-k-index"
                     />
                     <PropagationBar
                         value={propagation.sfi.value}
@@ -708,6 +734,7 @@ function MapControls({
                         low_mid={83}
                         mid_high={120}
                         reverse_colors={true}
+                        data_tour="propagation-sfi"
                     />
                 </div>
             )}

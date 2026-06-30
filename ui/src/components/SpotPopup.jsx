@@ -24,6 +24,7 @@ function SpotPopup({
     return (
         <div
             className="absolute w-fit z-40 bottom-2 left-2 border-l-4 pl-2"
+            data-tour="spot-popup"
             onMouseOver={() => set_hovered_spot(hovered_spot)}
             onMouseLeave={() => set_hovered_spot({ source: null, id: null })}
             onFocus={() => set_hovered_spot(hovered_spot)}

@@ -281,6 +281,7 @@ const Spot = forwardRef(function Spot(
     return (
         <tr
             ref={ref}
+            data-tour="spot-row"
             style={{
                 backgroundColor: background_color,
                 outlineColor: is_regular_alerted ? colors.light_bands[spot.band] : "",
@@ -316,6 +317,7 @@ const Spot = forwardRef(function Spot(
                     on_context_menu(event, spot, "flag");
                 }}
                 className={cell_classes.flag}
+                data-tour="spot-row-flag"
             >
                 <div
                     className="relative cursor-pointer"
@@ -346,6 +348,7 @@ const Spot = forwardRef(function Spot(
             </td>
             <td
                 className={`${cell_classes.dx_callsign} font-semibold`}
+                data-tour="spot-row-dx-callsign"
                 style={{
                     outline: is_dxpedition_alerted
                         ? `2px solid ${colors.spots.dxpedition_alert}`
@@ -401,7 +404,11 @@ const Spot = forwardRef(function Spot(
                     </Popup>
                 )}
             </td>
-            <td className={cell_classes.freq} onClick={() => set_cat_to_spot(spot)}>
+            <td
+                className={cell_classes.freq}
+                data-tour="spot-row-frequency"
+                onClick={() => set_cat_to_spot(spot)}
+            >
                 <div
                     className="inline-block min-w-[3.25rem] px-1 rounded-full cursor-pointer md:hidden"
                     style={{ backgroundColor: color, color: colors.text[spot.band] }}
@@ -412,7 +419,7 @@ const Spot = forwardRef(function Spot(
                     {spot.freq}
                 </div>
             </td>
-            <td className={cell_classes.band}>
+            <td className={cell_classes.band} data-tour="spot-row-band">
                 <p
                     className="inline-block min-w-[2.75rem] px-1 rounded-full font-medium whitespace-nowrap"
                     style={{
@@ -425,6 +432,7 @@ const Spot = forwardRef(function Spot(
             </td>
             <td
                 className={cell_classes.spotter_callsign}
+                data-tour="spot-row-spotter"
                 onContextMenu={event => {
                     event.preventDefault();
                     on_context_menu(event, spot, "callsign", true);
@@ -432,7 +440,9 @@ const Spot = forwardRef(function Spot(
             >
                 <Callsign callsign={spot.spotter_callsign} />
             </td>
-            <td className={cell_classes.mode}>{spot.mode}</td>
+            <td className={cell_classes.mode} data-tour="spot-row-mode">
+                {spot.mode}
+            </td>
             {is_pota_mode ? (
                 <>
                     <td className={cell_classes.pota_reference}>
@@ -478,7 +488,7 @@ const Spot = forwardRef(function Spot(
                     )}
                 </>
             ) : (
-                <td className={cell_classes.comment} title={comment}>
+                <td className={cell_classes.comment} title={comment} data-tour="spot-row-comment">
                     {comment}
                 </td>
             )}
@@ -550,6 +560,7 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
     return (
         <td
             className={`sticky top-0 z-40 h-8 ${sorting ? "cursor-pointer " : ""}${cell_classes[field]}`}
+            data-tour={`table-header-${field}`}
             style={{
                 backgroundColor: colors.table.header,
                 color: colors.table.header_text,
@@ -774,12 +785,13 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         <>
             <div
                 className="relative text-sm h-full w-full border-x-4 flex flex-col min-h-0"
+                data-tour="spots-table"
                 style={{
                     borderColor: colors.theme.borders,
                     backgroundColor: colors.theme.background,
                 }}
             >
-                <CallsignSearch />
+                <CallsignSearch data_tour="table-search" />
                 <div
                     ref={table_flash_ref}
                     className="flex-1 min-h-0 overflow-y-scroll overflow-x-hidden"
@@ -789,7 +801,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                         onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
                     >
                         <tbody className="divide-y">
-                            <tr>
+                            <tr data-tour="table-header-row">
                                 {table_columns.map(col => (
                                     <HeaderCell
                                         key={col.field}
@@ -823,7 +835,12 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                         </tbody>
                     </table>
                 </div>
-                <CallsignSearch className="flex md:hidden" compact={true} border_position="top" />
+                <CallsignSearch
+                    className="flex md:hidden"
+                    compact={true}
+                    border_position="top"
+                    data_tour="table-search-mobile"
+                />
             </div>
             {context_menu.visible && (
                 <SpotContextMenu
@@ -833,6 +850,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     is_spotter={context_menu.is_spotter}
                     on_close={() => set_context_menu({ ...context_menu, visible: false })}
                     actions={get_context_menu_actions(context_menu.menu_type)}
+                    data_tour="table-context-menu"
                 />
             )}
         </>

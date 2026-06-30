@@ -206,6 +206,8 @@ function SubmitSpot({ dev_mode }) {
                     )
                 }
                 button={<SubmitIcon size="32" />}
+                data_tour="top-bar-submit-spot"
+                dialog_data_tour="submit-spot-modal"
                 on_open={() => {
                     set_is_open(true);
                     set_external_close(true);

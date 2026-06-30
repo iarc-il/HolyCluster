@@ -12,7 +12,13 @@ function get_clamped_tab_index(index, tab_count) {
     return Math.min(numeric_index, tab_count - 1);
 }
 
-function Tabs({ tabs, active_color = null, local_storage_name = null, external_tab = null }) {
+function Tabs({
+    tabs,
+    active_color = null,
+    local_storage_name = null,
+    external_tab = null,
+    data_tour = null,
+}) {
     const { colors } = useColors();
     const [active_tab, set_active_tab] = useLocalStorage(local_storage_name, 0);
     const active_tab_index = get_clamped_tab_index(active_tab, tabs.length);
@@ -53,8 +59,8 @@ function Tabs({ tabs, active_color = null, local_storage_name = null, external_t
     active_color = active_color || colors.theme.highlighted_tab;
 
     return (
-        <div className="h-full w-full">
-            <div className="flex border-b">
+        <div className="h-full w-full" data-tour={data_tour}>
+            <div className="flex border-b" data-tour={data_tour ? `${data_tour}-tabs` : null}>
                 {tabs.map((tab, index) => {
                     const bg = tab.bg || colors.theme.background;
                     const text_color = tab.text_color || colors.theme.text;
@@ -63,6 +69,7 @@ function Tabs({ tabs, active_color = null, local_storage_name = null, external_t
                         <button
                             key={index}
                             className="flex-1 text-center py-2 text-sm font-medium relative after:absolute after:bottom-0 after:left-0 after:right-0 after:h-1 after:transition-colors"
+                            data-tour={tab.data_tour}
                             style={{
                                 backgroundColor: bg,
                             }}

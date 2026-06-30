@@ -9,6 +9,7 @@ function FilterButton({
     color,
     text_color = "#000000",
     className,
+    data_tour = null,
 }) {
     const { colors } = useColors();
 
@@ -32,6 +33,7 @@ function FilterButton({
             onClick={on_click}
             onMouseEnter={on_mouse_enter}
             onMouseLeave={on_mouse_leave}
+            data-tour={data_tour}
             style={{
                 backgroundColor: is_active ? color : colors.buttons.disabled_background,
                 color: is_active ? text_color : colors.buttons.disabled,

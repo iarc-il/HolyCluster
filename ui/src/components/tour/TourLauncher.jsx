@@ -10,6 +10,7 @@ function TourLauncher({ completed_chapters, on_start_tour }) {
     return (
         <div
             className="fixed bottom-3 left-3 z-[90] flex items-center gap-2 rounded-lg border px-2 py-1 text-sm shadow-lg"
+            data-tour="tour-launcher"
             style={{
                 color: colors.theme.text,
                 backgroundColor: colors.theme.background,

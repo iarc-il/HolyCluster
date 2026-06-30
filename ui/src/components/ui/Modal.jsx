@@ -18,6 +18,8 @@ function Modal({
     external_close = null,
     apply_disabled = false,
     modal_style = null,
+    data_tour = null,
+    dialog_data_tour = null,
     children,
 }) {
     const [show_modal, set_show_modal] = useState(false);
@@ -102,6 +104,7 @@ function Modal({
             <div
                 ref={trigger_ref}
                 className="cursor-pointer"
+                data-tour={data_tour}
                 onClick={() => {
                     if (on_open != null) {
                         on_open();
@@ -117,6 +120,7 @@ function Modal({
                         ref={modal_ref}
                         role="dialog"
                         aria-modal={true}
+                        data-tour={dialog_data_tour}
                         className="flex pt-24 fixed inset-0 z-[60] outline-none focus:outline-none overflow-y-auto"
                         style={{ color: colors.theme.text }}
                     >

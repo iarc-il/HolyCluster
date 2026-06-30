@@ -12,6 +12,7 @@ export default function CallsignSearch({
     className = "hidden md:flex",
     compact = false,
     border_position = "bottom",
+    data_tour = "callsign-search",
 }) {
     const { colors, dev_mode } = useColors();
     const {
@@ -69,6 +70,7 @@ export default function CallsignSearch({
     return (
         <div
             className={`${className} items-center gap-1.5 px-2 py-1 shrink-0`}
+            data-tour={data_tour}
             style={border_style}
         >
             {!compact && <SearchIcon color={colors.theme.text} />}
@@ -88,6 +90,7 @@ export default function CallsignSearch({
             {dev_mode && (
                 <Select
                     className={`${compact ? "h-9 !w-24 !px-2 !py-1 text-xs" : "ml-auto h-9 w-28 text-sm"} font-semibold`}
+                    data-tour={`${data_tour}-reference-selector`}
                     value={selected_reference_type ?? "cluster"}
                     onChange={e => select_reference_type(e.target.value)}
                 >
@@ -115,6 +118,7 @@ export default function CallsignSearch({
                     set_single_spot_hover(false);
                 }}
                 className={`flex items-center gap-1 cursor-pointer rounded-md ${!dev_mode && !compact ? "ml-auto " : ""}${compact ? "px-1 py-1" : "px-2 py-1"}`}
+                data-tour={`${data_tour}-single-spot-toggle`}
                 style={{
                     ...toggle_button_base,
                     ...(single_spot ? toggle_button_active : {}),

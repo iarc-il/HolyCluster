@@ -68,12 +68,13 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
     return (
         <div
             className="flex flex-row z-[60] justify-between items-center h-[4rem] border-b-2"
+            data-tour="top-bar"
             style={{
                 backgroundColor: colors.theme.background,
                 borderColor: colors.theme.borders,
             }}
         >
-            <div className="p-2 hidden max-2xl:block">
+            <div className="p-2 hidden max-2xl:block" data-tour="top-bar-left-menu">
                 <OpenMenu
                     size="32"
                     on_click={() =>
@@ -84,7 +85,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                     }
                 />
             </div>
-            <div className="hidden xs:flex h-full p-2 gap-3">
+            <div className="hidden xs:flex h-full p-2 gap-3" data-tour="top-bar-logo">
                 <img
                     className="object-contain max-h-12 w-10 m-auto"
                     src={Icon}
@@ -93,6 +94,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
             </div>
             <h1
                 className="hidden lg:block md:text-2xl text-4xl m-auto w-fit font-bold"
+                data-tour="top-bar-title"
                 style={{ color: colors.theme.text }}
             >
                 The Holy Cluster
@@ -101,7 +103,10 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
             <div className="flex items-center h-full p-2 gap-3">
                 {radio_status !== "unavailable" ? (
                     <>
-                        <div className="flex flex-col w-[42px] h-full justify-around">
+                        <div
+                            className="flex flex-col w-[42px] h-full justify-around"
+                            data-tour="top-bar-rig-selector"
+                        >
                             {[1, 2].map(rig_val => {
                                 const rig_active = rig === rig_val;
                                 return (
@@ -126,18 +131,20 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                             })}
                         </div>
 
-                        <SevenSegmentDisplay
-                            height="10"
-                            display_size={radio_freq ? radio_freq.toString().length : 8}
-                            value={radio_freq ? radio_freq : undefined}
-                            error={radio_status !== "connected"}
-                        />
+                        <div data-tour="top-bar-radio-frequency">
+                            <SevenSegmentDisplay
+                                height="10"
+                                display_size={radio_freq ? radio_freq.toString().length : 8}
+                                value={radio_freq ? radio_freq : undefined}
+                                error={radio_status !== "connected"}
+                            />
+                        </div>
                     </>
                 ) : (
                     ""
                 )}
                 {dev_mode && profiles.length > 1 && (
-                    <div className="hidden md:block">
+                    <div className="hidden md:block" data-tour="top-bar-profile-selector">
                         <Select
                             value={active_profile_name}
                             onChange={event => set_active_profile_name(event.target.value)}
@@ -155,6 +162,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                 <Clock />
 
                 <Select
+                    data-tour="top-bar-time-limit"
                     value={filters.time_limit}
                     onChange={event =>
                         setFilters(state => ({
@@ -172,7 +180,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                     })}
                 </Select>
 
-                <div className="hidden xs:block">
+                <div className="hidden xs:block" data-tour="top-bar-network-state">
                     {network_state === "connecting" ? (
                         <Spinner size="32" color="lightblue" />
                     ) : (
@@ -188,7 +196,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                 <Settings set_map_controls={set_map_controls} set_radius_in_km={set_radius_in_km} />
                 {dev_mode ? <ClusterStats /> : ""}
                 {dev_mode ? <ColorPicker /> : ""}
-                <div className="p-2 hidden max-2xl:block">
+                <div className="p-2 hidden max-2xl:block" data-tour="top-bar-right-menu">
                     <OpenMenu
                         size="32"
                         on_click={() =>

@@ -84,6 +84,8 @@ export function ColorPicker(_props) {
                 </h3>
             }
             button={<Rainbow size="32" />}
+            data_tour="top-bar-color-picker"
+            dialog_data_tour="color-picker-modal"
             on_cancel={() => {}}
             cancel_text="Close"
         >

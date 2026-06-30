@@ -291,7 +291,7 @@ function MainContent({
     const mobile_tabs_key = `${main_view_mode}-${main_view_order}`;
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full" data-tour="app-shell">
             <TopBar
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
@@ -299,14 +299,15 @@ function MainContent({
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
             />
-            <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex relative flex-1 min-h-0">
+            <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
+                <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
                     <LeftColumn toggled_ui={toggled_ui} />
                     {is_md_device ? (
                         <Tabs
                             key={mobile_tabs_key}
                             local_storage_name={mobile_tabs.length > 1 ? "mobile_tab" : null}
                             tabs={mobile_tabs}
+                            data_tour="mobile-main-tabs"
                         />
                     ) : (
                         <div className="flex flex-1 min-w-0 h-full">
@@ -314,6 +315,7 @@ function MainContent({
                                 <div
                                     key={panel_key}
                                     className={`${desktop_panel_widths[panel_key]} min-w-0 h-full`}
+                                    data-tour={`${panel_key}-panel`}
                                 >
                                     {main_panel_content[panel_key]}
                                 </div>

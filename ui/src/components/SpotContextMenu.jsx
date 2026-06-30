@@ -2,7 +2,7 @@ import { useColors } from "@/hooks/useColors";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
+export default function SpotContextMenu({ x, y, on_close, spot, actions, data_tour = null }) {
     const menu_ref = useRef(null);
     const { colors } = useColors();
     const [position, set_position] = useState({ x, y });
@@ -61,6 +61,7 @@ export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
         <div
             ref={menu_ref}
             className="fixed z-50 min-w-[200px] py-2 rounded-lg shadow-lg"
+            data-tour={data_tour}
             style={{
                 top: `${position.y}px`,
                 left: `${position.x}px`,
