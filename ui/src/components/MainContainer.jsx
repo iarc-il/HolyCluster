@@ -6,6 +6,7 @@ import SpotsTable from "@/components/SpotsTable.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import HistoryBar from "@/components/history/HistoryBar.jsx";
+import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
@@ -337,6 +338,7 @@ function MainContent({
                     />
                 )}
             </div>
+            <WebsiteTour />
         </div>
     );
 }
