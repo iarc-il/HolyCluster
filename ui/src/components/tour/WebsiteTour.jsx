@@ -64,6 +64,7 @@ function WebsiteTour() {
     const handle_callback = useCallback(
         data => {
             const { action, index, status, type } = data;
+            const next_step_index = index + (action === ACTIONS.PREV ? -1 : 1);
 
             if (completed_statuses.includes(status)) {
                 if (tour_state.current_chapter_id) {
@@ -73,35 +74,48 @@ function WebsiteTour() {
                 return;
             }
 
+            if (action === ACTIONS.CLOSE) {
+                stop_tour();
+                return;
+            }
+
             if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
+                if (next_step_index < 0 || next_step_index >= steps.length) {
+                    if (tour_state.current_chapter_id) {
+                        mark_chapter_done(tour_state.current_chapter_id, STATUS.FINISHED);
+                    }
+                    stop_tour();
+                    return;
+                }
+
                 set_tour_state(state => ({
                     ...state,
-                    step_index: index + (action === ACTIONS.PREV ? -1 : 1),
+                    step_index: next_step_index,
                 }));
             }
         },
-        [mark_chapter_done, stop_tour, tour_state.current_chapter_id],
+        [mark_chapter_done, steps.length, stop_tour, tour_state.current_chapter_id],
     );
 
     return (
         <>
             <TourLauncher completed_chapters={completed_chapters} on_start_tour={start_tour} />
             <Joyride
-                callback={handle_callback}
                 continuous={true}
-                disableOverlayClose={true}
+                onEvent={handle_callback}
                 options={{
                     primaryColor: "#3b82f6",
                     backgroundColor: "#182229",
+                    buttons: ["skip", "back", "close", "primary"],
                     textColor: "#f4f0f0",
                     arrowColor: "#182229",
                     overlayColor: "rgba(0, 0, 0, 0.65)",
+                    overlayClickAction: null,
+                    showProgress: true,
                     zIndex: 10000,
                 }}
                 run={tour_state.is_running}
                 scrollToFirstStep={true}
-                showProgress={true}
-                showSkipButton={true}
                 stepIndex={tour_state.step_index}
                 steps={steps}
                 styles={{
