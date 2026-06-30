@@ -16,7 +16,9 @@ function GPSButton({ on_location, className, style, aria_label }) {
         navigator.geolocation.getCurrentPosition(
             position => {
                 const { latitude, longitude } = position.coords;
-                const locator = new Maidenhead(latitude, longitude).locator.slice(0, 6);
+                const locator = new Maidenhead(latitude, longitude).locator
+                    .slice(0, 6)
+                    .toUpperCase();
                 on_location({ latitude, longitude, locator });
                 set_is_locating(false);
             },
