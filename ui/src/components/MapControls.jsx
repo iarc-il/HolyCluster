@@ -1,3 +1,4 @@
+import GPSButton from "@/components/GPSButton.jsx";
 import Night from "@/components/Night.jsx";
 import PropagationBar from "@/components/PropagationBar.jsx";
 import Button from "@/components/ui/Button.jsx";
@@ -47,8 +48,6 @@ function MapControls({
     const controls_panel_ref = useRef(null);
     const [show_mode_popup, set_show_mode_popup] = useState(false);
     const [show_controls_panel, set_show_controls_panel] = useState(false);
-    const [is_locating, set_is_locating] = useState(false);
-    const [location_error, set_location_error] = useState(null);
 
     const zone_filters = filters.zone_filters ?? {};
     const disabled_by_system = zone_filters.disabled_by_system ?? {};
@@ -174,46 +173,6 @@ function MapControls({
             }
             state.location = { displayed_locator: locator, location: [lon, lat] };
         });
-    }
-
-    function center_map_on_current_location() {
-        if (typeof navigator === "undefined" || !navigator.geolocation) {
-            set_location_error("GPS is not available");
-            return;
-        }
-
-        set_is_locating(true);
-        set_location_error(null);
-        navigator.geolocation.getCurrentPosition(
-            position => {
-                const { latitude, longitude } = position.coords;
-                const displayed_locator = new Maidenhead(latitude, longitude).locator.slice(0, 6);
-                set_map_controls(state => {
-                    state.location = {
-                        displayed_locator,
-                        location: [longitude, latitude],
-                    };
-                });
-                set_is_locating(false);
-            },
-            error => {
-                set_is_locating(false);
-                if (error.code === error.PERMISSION_DENIED) {
-                    set_location_error("Location permission denied");
-                } else if (error.code === error.POSITION_UNAVAILABLE) {
-                    set_location_error("Current location is unavailable");
-                } else if (error.code === error.TIMEOUT) {
-                    set_location_error("Location request timed out");
-                } else {
-                    set_location_error("Could not get current location");
-                }
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 60000,
-            },
-        );
     }
 
     const radio_status_to_color = {
@@ -347,37 +306,19 @@ function MapControls({
             >
                 <div className="flex items-center gap-2">
                     {is_mobile && (
-                        <button
-                            type="button"
-                            onClick={center_map_on_current_location}
-                            disabled={is_locating}
+                        <GPSButton
+                            on_location={({ latitude, longitude, locator }) => {
+                                set_map_controls(state => {
+                                    state.location = {
+                                        displayed_locator: locator,
+                                        location: [longitude, latitude],
+                                    };
+                                });
+                            }}
                             className="flex h-10 w-10 items-center justify-center rounded-lg disabled:opacity-60"
                             style={control_button_style}
-                            aria-label="Center map on current GPS location"
-                            title={
-                                location_error ??
-                                (is_locating ? "Getting current location" : "Use current location")
-                            }
-                        >
-                            <svg
-                                height="24"
-                                width="24"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                aria-hidden="true"
-                            >
-                                <path d="M12 2v3" />
-                                <path d="M12 19v3" />
-                                <path d="M2 12h3" />
-                                <path d="M19 12h3" />
-                                <circle cx="12" cy="12" r="7" />
-                                <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
-                            </svg>
-                        </button>
+                            aria_label="Center map on current GPS location"
+                        />
                     )}
                     <button
                         type="button"
