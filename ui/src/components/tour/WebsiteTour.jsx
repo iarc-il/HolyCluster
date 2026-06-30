@@ -211,6 +211,7 @@ function WebsiteTour() {
         find_available_step_index,
         finish_tour,
         should_skip_step,
+        steps,
         tour_state.is_running,
         tour_state.step_index,
     ]);
