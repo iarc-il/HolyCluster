@@ -241,13 +241,17 @@ function SubmitSpot({ dev_mode }) {
             >
                 <table
                     className="mt-3 mx-2 w-full border-separate border-spacing-y-2"
+                    data-tour="submit-spot-form"
                     style={{ color: colors.theme.text }}
                 >
                     <tbody>
                         <tr>
                             <td>Spotter callsign:</td>
                             <td>
-                                <span className="inline-block w-32 uppercase font-bold text-lg text-center">
+                                <span
+                                    className="inline-block w-32 uppercase font-bold text-lg text-center"
+                                    data-tour="submit-spot-spotter-callsign"
+                                >
                                     {settings.callsign}
                                 </span>
                             </td>
@@ -260,6 +264,7 @@ function SubmitSpot({ dev_mode }) {
                                     className="w-32"
                                     maxLength={11}
                                     autoFocus={true}
+                                    data-tour="submit-spot-dx-callsign"
                                     onChange={event => {
                                         set_temp_data({
                                             ...temp_data,
@@ -275,6 +280,7 @@ function SubmitSpot({ dev_mode }) {
                                 <Input
                                     value={temp_data.freq}
                                     className="w-32"
+                                    data-tour="submit-spot-frequency"
                                     onChange={event => {
                                         const value = event.target.value;
                                         if (/^\d*\.?\d{0,1}$/.test(value)) {
@@ -301,6 +307,7 @@ function SubmitSpot({ dev_mode }) {
                                 <Input
                                     value={temp_data.comment}
                                     className="w-18"
+                                    data-tour="submit-spot-comment"
                                     onChange={event => {
                                         set_temp_data({
                                             ...temp_data,
@@ -317,6 +324,7 @@ function SubmitSpot({ dev_mode }) {
                                     <input
                                         type="checkbox"
                                         checked={is_testing}
+                                        data-tour="submit-spot-testing-only"
                                         onChange={_ => set_is_testing(!is_testing)}
                                     />
                                 </td>

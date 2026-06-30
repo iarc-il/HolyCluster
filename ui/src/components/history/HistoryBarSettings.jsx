@@ -92,7 +92,11 @@ function HistoryBarSettings({
     };
 
     return (
-        <div ref={settings_btn_ref} className="relative flex items-center gap-x-2">
+        <div
+            ref={settings_btn_ref}
+            className="relative flex items-center gap-x-2"
+            data-tour="history-settings"
+        >
             <Button
                 onClick={() => set_show_settings(v => !v)}
                 className="h-full aspect-square rounded"
@@ -103,6 +107,7 @@ function HistoryBarSettings({
                     color: show_settings ? "white" : btn_style.color,
                 }}
                 title="Playback settings"
+                data-tour="history-settings-toggle"
             >
                 <SettingsIcon />
             </Button>
@@ -112,6 +117,7 @@ function HistoryBarSettings({
                     <div
                         ref={settings_popup_ref}
                         className="pointer-events-auto rounded-lg shadow-xl px-4 py-3 flex flex-col gap-3 text-sm"
+                        data-tour="history-settings-popup"
                         style={{
                             background: colors.theme.background,
                             border: `1px solid ${colors.theme.borders}`,
@@ -137,6 +143,7 @@ function HistoryBarSettings({
                                     }
                                 }}
                                 className="w-16 text-right"
+                                data-tour="history-window-size"
                             />
                         </label>
                         <label className="flex items-center justify-between gap-3">
@@ -157,6 +164,7 @@ function HistoryBarSettings({
                                     }
                                 }}
                                 className="w-16 text-right"
+                                data-tour="history-step-size"
                             />
                         </label>
                         <div className="flex items-center justify-between gap-3">
@@ -182,6 +190,7 @@ function HistoryBarSettings({
                                             }
                                         }}
                                         className="w-10 py-2 pl-3 pr-1 leading-tight text-center outline-none"
+                                        data-tour="history-playback-speed"
                                         style={{
                                             backgroundColor: "transparent",
                                             color: colors.theme.text,

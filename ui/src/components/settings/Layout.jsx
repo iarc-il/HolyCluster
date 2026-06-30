@@ -87,6 +87,7 @@ function OptionCard({ option, selected, colors, on_select }) {
             aria-pressed={selected}
             onClick={on_select}
             className="rounded-xl border-2 p-3 text-left transition hover:-translate-y-0.5"
+            data-tour={`settings-layout-${option.value}`}
             style={{
                 color: colors.theme.text,
                 borderColor: selected ? colors.theme.highlighted_tab : colors.theme.borders,
@@ -133,7 +134,11 @@ function Layout({ temp_settings, set_temp_settings, colors }) {
     }
 
     return (
-        <div className="space-y-6 p-4" style={{ color: colors.theme.text }}>
+        <div
+            className="space-y-6 p-4"
+            data-tour="settings-layout"
+            style={{ color: colors.theme.text }}
+        >
             <section>
                 <div className="grid gap-3 md:grid-cols-4">
                     {layout_options.map(option => (

@@ -14,7 +14,7 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
 
     return (
         <>
-            <div className="p-4">
+            <div className="p-4" data-tour="settings-cat-control">
                 <table
                     className="table-fixed border-separate border-spacing-y-2"
                     style={{ color: colors.theme.text }}
@@ -25,6 +25,7 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                             <td className="flex gap-2">
                                 <Toggle
                                     value={temp_settings.highlight_enabled}
+                                    data_tour="settings-cat-logger-toggle"
                                     on_click={() => {
                                         set_temp_settings({
                                             ...temp_settings,
@@ -42,6 +43,8 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                         </h3>
                                     }
                                     button={<HelpIcon size="20" />}
+                                    data_tour="settings-cat-log4om-help"
+                                    dialog_data_tour="settings-cat-log4om-modal"
                                 >
                                     <p>
                                         When clicking on a callsign, the CAT server can notify
@@ -64,6 +67,7 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                 <Input
                                     value={temp_settings.highlight_port}
                                     className={is_port_valid ? "" : "bg-red-200"}
+                                    data-tour="settings-cat-udp-port"
                                     type="number"
                                     min="1024"
                                     max="65535"

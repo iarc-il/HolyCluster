@@ -133,6 +133,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const tabs = [
         {
             label: "General",
+            data_tour: "settings-tab-general",
             content: (
                 <General
                     temp_settings={temp_settings}
@@ -145,6 +146,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             ? [
                   {
                       label: "Layout",
+                      data_tour: "settings-tab-layout",
                       content: (
                           <Layout
                               temp_settings={temp_settings}
@@ -157,6 +159,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             : []),
         {
             label: "Bands & Modes",
+            data_tour: "settings-tab-bands-modes",
             content: (
                 <Bands
                     temp_settings={temp_settings}
@@ -169,12 +172,14 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             ? [
                   {
                       label: "Profiles",
+                      data_tour: "settings-tab-profiles",
                       content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
                   },
               ]
             : []),
         {
             label: "Import/Export",
+            data_tour: "settings-tab-import-export",
             content: (
                 <ImportExport
                     set_temp_settings={set_temp_settings}
@@ -187,6 +192,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     if (is_radio_available()) {
         tabs.splice(1, 0, {
             label: "CAT Control",
+            data_tour: "settings-tab-cat-control",
             content: (
                 <CatControl
                     temp_settings={temp_settings}
@@ -230,7 +236,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             on_cancel={() => reset_temp_settings()}
         >
             <div className="h-full w-[21rem] md:w-[42rem]">
-                <Tabs tabs={tabs} />
+                <Tabs tabs={tabs} data_tour="settings-tabs" />
             </div>
         </Modal>
     );

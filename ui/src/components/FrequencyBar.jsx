@@ -260,10 +260,14 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
     }
 
     return (
-        <div className={className}>
-            <span className={"w-full flex flex-row items-center justify-between h-[10%]"}>
+        <div className={className} data-tour="band-bar-panel">
+            <span
+                className={"w-full flex flex-row items-center justify-between h-[10%]"}
+                data-tour="band-bar-selector"
+            >
                 <Select
                     value={selected_band}
+                    data-tour="band-bar-band-select"
                     onChange={event => {
                         set_selected_band(event.target.value);
                     }}
@@ -297,6 +301,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                 <>
                     <svg
                         className={"w-full h-[85%] left-0 box-border"}
+                        data-tour="band-bar-chart"
                         style={{ background: colors.theme.background }}
                     >
                         <title>Frequency bar chart</title>
@@ -420,7 +425,10 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                             stroke={colors.theme.text}
                         />
                     </svg>
-                    <div className="h-[4%] w-full flex justify-center items-center bg-gray-100 rounded-full border border-gray-300">
+                    <div
+                        className="h-[4%] w-full flex justify-center items-center bg-gray-100 rounded-full border border-gray-300"
+                        data-tour="band-bar-legend"
+                    >
                         {ranges.concat(features).map(legend => (
                             <p
                                 style={{ color: legend.color }}

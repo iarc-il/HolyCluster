@@ -24,8 +24,8 @@ function Bands({ temp_settings, set_temp_settings, colors }) {
     };
 
     return (
-        <div className="p-4 grid grid-cols-2 gap-4">
-            <div className="flex flex-col items-center">
+        <div className="p-4 grid grid-cols-2 gap-4" data-tour="settings-bands-modes">
+            <div className="flex flex-col items-center" data-tour="settings-bands-section">
                 <table
                     className="table-fixed border-separate border-spacing-y-2 mb-4"
                     style={{ color: colors.theme.text }}
@@ -36,6 +36,7 @@ function Bands({ temp_settings, set_temp_settings, colors }) {
                             <td>
                                 <Toggle
                                     value={temp_settings.show_disabled_bands}
+                                    data_tour="settings-show-disabled-bands"
                                     on_click={() => {
                                         set_temp_settings({
                                             ...temp_settings,
@@ -61,6 +62,7 @@ function Bands({ temp_settings, set_temp_settings, colors }) {
                                 is_active={is_enabled}
                                 color={color}
                                 text_color={colors.text[band]}
+                                data_tour={`settings-band-${band}`}
                                 on_click={() => handle_band_toggle(band)}
                             />
                         );
@@ -68,7 +70,7 @@ function Bands({ temp_settings, set_temp_settings, colors }) {
                 </div>
             </div>
 
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center" data-tour="settings-modes-section">
                 <table
                     className="table-fixed border-separate border-spacing-y-2 mb-4"
                     style={{ color: colors.theme.text }}
@@ -79,6 +81,7 @@ function Bands({ temp_settings, set_temp_settings, colors }) {
                             <td>
                                 <Toggle
                                     value={temp_settings.show_disabled_modes}
+                                    data_tour="settings-show-disabled-modes"
                                     on_click={() => {
                                         set_temp_settings({
                                             ...temp_settings,
@@ -101,6 +104,7 @@ function Bands({ temp_settings, set_temp_settings, colors }) {
                                 text={mode}
                                 is_active={is_enabled}
                                 color={colors.buttons.modes}
+                                data_tour={`settings-mode-${mode}`}
                                 on_click={() => handle_mode_toggle(mode)}
                             />
                         );

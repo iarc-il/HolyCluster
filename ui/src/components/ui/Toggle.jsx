@@ -1,4 +1,4 @@
-function Toggle({ value, on_click }) {
+function Toggle({ value, on_click, data_tour = null }) {
     const color_class = value ? "bg-green-500" : "bg-gray-300";
     const position_class = value ? "translate-x-6" : "translate-x-0";
 
@@ -9,6 +9,7 @@ function Toggle({ value, on_click }) {
             aria-checked={value}
             onClick={on_click}
             className={`w-12 h-6 shrink-0 flex items-center px-1 rounded-full cursor-pointer ${color_class}`}
+            data-tour={data_tour}
         >
             <div
                 className={`w-4 h-4 bg-white rounded-full shadow-md transform ${position_class}`}

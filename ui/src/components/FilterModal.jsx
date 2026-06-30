@@ -25,7 +25,7 @@ export const empty_filter_data = {
     hunter_section: "dxcc",
 };
 
-function RadioButton({ children, disabled, on_click }) {
+function RadioButton({ children, disabled, on_click, data_tour = null }) {
     let classes = [
         "flex",
         "border",
@@ -47,13 +47,25 @@ function RadioButton({ children, disabled, on_click }) {
     const hover_class = color === "green" ? "hover:bg-green-700" : "hover:bg-gray-700";
     classes = [...classes, bg_class, active_class, hover_class];
     return (
-        <button type="button" className={classes.join(" ")} onClick={on_click}>
+        <button
+            type="button"
+            className={classes.join(" ")}
+            data-tour={data_tour}
+            onClick={on_click}
+        >
             {children}
         </button>
     );
 }
 
-function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_data = null }) {
+function SelectionLine({
+    states,
+    field,
+    temp_data,
+    set_temp_data,
+    build_temp_data = null,
+    data_tour_prefix = null,
+}) {
     if (build_temp_data == null) {
         build_temp_data = (temp_data, field, value) => {
             return { ...temp_data, [field]: value };
@@ -67,6 +79,9 @@ function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_dat
                         <RadioButton
                             color="green"
                             disabled={temp_data[field] !== state.value}
+                            data_tour={
+                                data_tour_prefix ? `${data_tour_prefix}-${state.value}` : null
+                            }
                             on_click={event =>
                                 set_temp_data(build_temp_data(temp_data, field, state.value))
                             }
@@ -80,7 +95,14 @@ function SelectionLine({ states, field, temp_data, set_temp_data, build_temp_dat
     );
 }
 
-function FilterModal({ initial_data = null, on_apply, button, exclude_filter_index = null }) {
+function FilterModal({
+    initial_data = null,
+    on_apply,
+    button,
+    exclude_filter_index = null,
+    data_tour = null,
+    dialog_data_tour = "filter-modal",
+}) {
     const [temp_data, set_temp_data] = useState(empty_filter_data);
     const [error_message, set_error_message] = useState("");
     const { colors } = useColors();
@@ -133,11 +155,17 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             field="action"
                             temp_data={temp_data}
                             set_temp_data={set_temp_data}
+                            data_tour_prefix="filter-modal-action"
                         />
                     </div>
                 </>
             }
             button={button}
+            data_tour={
+                data_tour ??
+                (initial_data?.action ? `filter-modal-trigger-${initial_data.action}` : null)
+            }
+            dialog_data_tour={dialog_data_tour}
             on_open={() => {
                 set_error_message("");
                 if (initial_data != null) {
@@ -209,7 +237,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                 set_temp_data(empty_filter_data);
             }}
         >
-            <div className="space-y-2 p-2 pb-4 w-96">
+            <div className="space-y-2 p-2 pb-4 w-96" data-tour="filter-modal-content">
                 <SelectionLine
                     states={[
                         { label: "Prefix", value: "prefix" },
@@ -225,6 +253,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                     field="type"
                     temp_data={temp_data}
                     set_temp_data={set_temp_data}
+                    data_tour_prefix="filter-modal-type"
                     build_temp_data={(temp_data, field, value) => {
                         if (
                             value === "entity" ||
@@ -276,6 +305,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             field="zone_system"
                             temp_data={temp_data}
                             set_temp_data={set_temp_data}
+                            data_tour_prefix="filter-modal-zone-system"
                             build_temp_data={(current_data, field, system_value) => {
                                 const zones = get_valid_zone_values(system_value);
                                 const parsed_zone = Number.parseInt(current_data.value, 10);
@@ -296,6 +326,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                 <Select
                                     value={selected_zone_value}
                                     className="h-10 w-40"
+                                    data-tour="filter-modal-zone-value"
                                     onChange={event => {
                                         set_temp_data({
                                             ...temp_data,
@@ -324,6 +355,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             field="zone_system"
                             temp_data={temp_data}
                             set_temp_data={set_temp_data}
+                            data_tour_prefix="filter-modal-region-system"
                             build_temp_data={(current_data, field, system_value) => {
                                 const zones = get_valid_zone_values(system_value);
                                 const next_zone = zones.includes(current_data.value)
@@ -343,6 +375,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                 <Select
                                     value={temp_data.value}
                                     className="h-10 w-40"
+                                    data-tour="filter-modal-region-value"
                                     onChange={event => {
                                         set_temp_data({
                                             ...temp_data,
@@ -381,6 +414,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             field="hunter_section"
                             temp_data={temp_data}
                             set_temp_data={set_temp_data}
+                            data_tour_prefix="filter-modal-hunter-section"
                         />
                     </>
                 ) : temp_data.type !== "self_spotters" &&
@@ -396,60 +430,64 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                             field="spotter_or_dx"
                             temp_data={temp_data}
                             set_temp_data={set_temp_data}
+                            data_tour_prefix="filter-modal-spot-role"
                         />
                         <div className="flex justify-start space-x-5 items-center w-96">
                             <div>{temp_data.type}:</div>
                             <div>
                                 {temp_data.type === "entity" ? (
-                                    <SearchSelect
-                                        className="h-10 w-20"
-                                        value={{
-                                            value: temp_data.value,
-                                            label: get_dxcc_label(temp_data.value),
-                                        }}
-                                        onChange={option => {
-                                            set_temp_data({
-                                                ...temp_data,
-                                                value: option.value,
-                                            });
-                                        }}
-                                        styles={{
-                                            control: (base_style, state) => ({
-                                                ...base_style,
-                                                backgroundColor: colors.theme.input_background,
-                                                borderColor: colors.theme.borders,
-                                                color: colors.theme.text,
-                                                width: "16rem",
-                                            }),
-                                            menu: (base_style, state) => ({
-                                                ...base_style,
-                                                backgroundColor: colors.theme.input_background,
-                                                borderColor: colors.theme.borders,
-                                                width: "16rem",
-                                            }),
-                                            option: (base_style, { isFocused }) => ({
-                                                ...base_style,
-                                                backgroundColor: isFocused
-                                                    ? colors.theme.disabled_text
-                                                    : colors.theme.input_background,
-                                                color: colors.theme.text,
-                                            }),
-                                            input: (base_style, state) => ({
-                                                ...base_style,
-                                                color: colors.theme.text,
-                                            }),
-                                            singleValue: (base_style, state) => ({
-                                                ...base_style,
-                                                color: colors.theme.text,
-                                            }),
-                                        }}
-                                        options={dxcc_entity_options}
-                                    />
+                                    <div data-tour="filter-modal-entity-value">
+                                        <SearchSelect
+                                            className="h-10 w-20"
+                                            value={{
+                                                value: temp_data.value,
+                                                label: get_dxcc_label(temp_data.value),
+                                            }}
+                                            onChange={option => {
+                                                set_temp_data({
+                                                    ...temp_data,
+                                                    value: option.value,
+                                                });
+                                            }}
+                                            styles={{
+                                                control: (base_style, state) => ({
+                                                    ...base_style,
+                                                    backgroundColor: colors.theme.input_background,
+                                                    borderColor: colors.theme.borders,
+                                                    color: colors.theme.text,
+                                                    width: "16rem",
+                                                }),
+                                                menu: (base_style, state) => ({
+                                                    ...base_style,
+                                                    backgroundColor: colors.theme.input_background,
+                                                    borderColor: colors.theme.borders,
+                                                    width: "16rem",
+                                                }),
+                                                option: (base_style, { isFocused }) => ({
+                                                    ...base_style,
+                                                    backgroundColor: isFocused
+                                                        ? colors.theme.disabled_text
+                                                        : colors.theme.input_background,
+                                                    color: colors.theme.text,
+                                                }),
+                                                input: (base_style, state) => ({
+                                                    ...base_style,
+                                                    color: colors.theme.text,
+                                                }),
+                                                singleValue: (base_style, state) => ({
+                                                    ...base_style,
+                                                    color: colors.theme.text,
+                                                }),
+                                            }}
+                                            options={dxcc_entity_options}
+                                        />
+                                    </div>
                                 ) : (
                                     <CallsignInput
                                         value={temp_data.value}
                                         autoFocus={true}
                                         className="h-10"
+                                        data-tour="filter-modal-text-value"
                                         onChange={event => {
                                             set_temp_data({
                                                 ...temp_data,
@@ -471,6 +509,7 @@ function FilterModal({ initial_data = null, on_apply, button, exclude_filter_ind
                                     value={temp_data.value}
                                     autoFocus={true}
                                     className="h-10 w-40"
+                                    data-tour="filter-modal-comment-value"
                                     onChange={event => {
                                         set_temp_data({
                                             ...temp_data,

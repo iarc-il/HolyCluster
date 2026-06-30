@@ -51,6 +51,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
     return (
         <div
             className="p-4 flex flex-col md:flex-row md:gap-8"
+            data-tour="settings-general"
             style={{ color: colors.theme.text }}
         >
             <table className="table-fixed border-separate border-spacing-y-2">
@@ -62,6 +63,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                 value={temp_settings.callsign}
                                 maxLength={11}
                                 autoFocus={true}
+                                data-tour="settings-callsign"
                                 onChange={async event => {
                                     const new_callsign = event.target.value;
                                     set_temp_settings({
@@ -90,6 +92,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                 <Input
                                     value={temp_settings.locator}
                                     className={is_locator_valid ? "" : "bg-red-200"}
+                                    data-tour="settings-locator"
                                     onChange={event => {
                                         set_is_locator_queried(false);
                                         set_temp_settings({
@@ -114,6 +117,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                             color: colors.buttons.utility,
                                         }}
                                         aria_label="Set locator from current GPS location"
+                                        data_tour="settings-locator-gps"
                                     />
                                 )}
                             </div>
@@ -125,6 +129,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                             <Input
                                 value={temp_settings.default_radius}
                                 className={is_default_radius_valid ? "" : "bg-red-200"}
+                                data-tour="settings-default-radius"
                                 type="number"
                                 step="1000"
                                 min="1000"
@@ -143,6 +148,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         <td>
                             <Select
                                 value={temp_settings.theme}
+                                data-tour="settings-theme"
                                 onChange={event => {
                                     set_temp_settings(state => ({
                                         ...state,
@@ -165,6 +171,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         <td>
                             <Select
                                 value={temp_settings.is_miles}
+                                data-tour="settings-distance-units"
                                 onChange={event => {
                                     set_temp_settings({
                                         ...temp_settings,
@@ -194,6 +201,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         <td>
                             <Toggle
                                 value={temp_settings.propagation_displayed}
+                                data_tour="settings-propagation-toggle"
                                 on_click={() => {
                                     set_temp_settings({
                                         ...temp_settings,
@@ -208,6 +216,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         <td>
                             <Toggle
                                 value={temp_settings.show_flags}
+                                data_tour="settings-flags-toggle"
                                 on_click={() => {
                                     set_temp_settings({
                                         ...temp_settings,
@@ -222,6 +231,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         <td>
                             <Toggle
                                 value={temp_settings.show_state_abbreviations}
+                                data_tour="settings-state-abbreviations-toggle"
                                 on_click={() => {
                                     set_temp_settings({
                                         ...temp_settings,
@@ -237,6 +247,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         <td className="flex gap-2">
                             <Toggle
                                 value={temp_settings.alert_sound_enabled}
+                                data_tour="settings-alert-sound-toggle"
                                 on_click={() => {
                                     set_temp_settings({
                                         ...temp_settings,
@@ -244,7 +255,11 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                     });
                                 }}
                             />
-                            <button onClick={play_alert_sound} className="h-full">
+                            <button
+                                onClick={play_alert_sound}
+                                className="h-full"
+                                data-tour="settings-alert-sound-test"
+                            >
                                 <PlayIcon size="24" />
                             </button>
                             <button

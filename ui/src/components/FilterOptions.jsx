@@ -49,6 +49,7 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
         <div
             ref={trigger_ref}
             className="relative"
+            data-tour={`filter-options-trigger-${filter_key}-${filter_value}`}
             onMouseEnter={() => {
                 if (!disabled) {
                     set_is_parent_hovered(true);
@@ -62,6 +63,7 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
                 createPortal(
                     <div
                         className="fixed flex flex-col z-[100] border border-gray-500 shadow-xl rounded-lg p-3 w-[5.6rem]"
+                        data-tour="filter-options-popup"
                         style={{
                             backgroundColor: colors.theme.background,
                             top: position.top,
@@ -74,6 +76,7 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
                             <Button
                                 color="blue"
                                 className="w-16 px-2"
+                                data-tour="filter-options-only"
                                 on_click={() => {
                                     setOnlyFilterKeys(filter_key, filter_value);
                                     close_popup();
@@ -84,6 +87,7 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
                             <Button
                                 color="green"
                                 className="w-16 px-2"
+                                data-tour="filter-options-all"
                                 on_click={() => {
                                     setFilterKeys(filter_key, true, disabled_filters);
                                     close_popup();

@@ -213,7 +213,11 @@ function ImportExport({ set_temp_settings, apply_settings }) {
 
     if (!dev_mode) {
         return (
-            <div className="p-4" style={{ color: colors.theme.text }}>
+            <div
+                className="p-4"
+                data-tour="settings-import-export"
+                style={{ color: colors.theme.text }}
+            >
                 <div className="space-y-2 mb-4">
                     {Object.entries(LEGACY_EXPORTABLE_SETTINGS).map(
                         ([key, { label, description }]) => (
@@ -224,6 +228,7 @@ function ImportExport({ set_temp_settings, apply_settings }) {
                                 </div>
                                 <Toggle
                                     value={selected_settings[key]}
+                                    data_tour={`settings-export-section-${key}`}
                                     on_click={() =>
                                         set_selected_settings(prev => ({
                                             ...prev,
@@ -243,15 +248,21 @@ function ImportExport({ set_temp_settings, apply_settings }) {
                             onChange={handle_legacy_import}
                             className="hidden"
                             id="settings-import"
+                            data-tour="settings-import-file-input"
                         />
                         <Button
                             color="blue"
                             on_click={() => document.getElementById("settings-import").click()}
+                            data-tour="settings-import-file"
                         >
                             Import from File
                         </Button>
                     </div>
-                    <Button color="green" on_click={handle_legacy_export}>
+                    <Button
+                        color="green"
+                        on_click={handle_legacy_export}
+                        data-tour="settings-export-file"
+                    >
                         Export to File
                     </Button>
                 </div>
@@ -261,7 +272,11 @@ function ImportExport({ set_temp_settings, apply_settings }) {
     }
 
     return (
-        <div className="p-4" style={{ color: colors.theme.text }}>
+        <div
+            className="p-4"
+            data-tour="settings-import-export"
+            style={{ color: colors.theme.text }}
+        >
             <div className="space-y-2 mb-4">
                 {Object.entries(PROFILE_SECTION_DEFINITIONS).map(
                     ([key, { label, description }]) => (
@@ -272,6 +287,7 @@ function ImportExport({ set_temp_settings, apply_settings }) {
                             </div>
                             <Toggle
                                 value={selected_sections[key]}
+                                data_tour={`settings-profile-section-${key}`}
                                 on_click={() =>
                                     set_selected_sections(prev => ({
                                         ...prev,
@@ -291,21 +307,24 @@ function ImportExport({ set_temp_settings, apply_settings }) {
                         onChange={handle_import}
                         className="hidden"
                         id="profile-import"
+                        data-tour="settings-profile-import-input"
                     />
                     <Button
                         color="blue"
                         on_click={() => document.getElementById("profile-import").click()}
+                        data-tour="settings-profile-import"
                     >
                         Import as New Profile
                     </Button>
                 </div>
-                <Button color="green" on_click={handle_export}>
+                <Button color="green" on_click={handle_export} data-tour="settings-profile-export">
                     Export Profile
                 </Button>
             </div>
             {file_status ? <p className="mt-3 text-sm opacity-75">{file_status}</p> : null}
             <div
                 className="mt-4 pt-4 border-t space-y-3"
+                data-tour="settings-filter-url-sharing"
                 style={{ borderColor: colors.theme.borders }}
             >
                 <div>
@@ -316,11 +335,19 @@ function ImportExport({ set_temp_settings, apply_settings }) {
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-between">
-                    <Button color="blue" on_click={handle_copy_filter_url}>
+                    <Button
+                        color="blue"
+                        on_click={handle_copy_filter_url}
+                        data-tour="settings-copy-filter-link"
+                    >
                         Copy Filter Link
                     </Button>
                     {is_shared_filter_state ? (
-                        <Button color="green" on_click={handle_save_shared_filters}>
+                        <Button
+                            color="green"
+                            on_click={handle_save_shared_filters}
+                            data-tour="settings-save-shared-filters"
+                        >
                             Save Shared Filters
                         </Button>
                     ) : null}

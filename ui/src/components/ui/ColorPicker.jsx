@@ -41,7 +41,11 @@ function ThemeSection({ section }) {
     const { colors, setSectionColor } = useColors();
 
     return (
-        <table className="w-72 table-fixed" style={{ color: colors.theme.text }}>
+        <table
+            className="w-72 table-fixed"
+            data-tour={`color-picker-section-${section}`}
+            style={{ color: colors.theme.text }}
+        >
             <tbody>
                 <tr className="text-center">
                     <td className="text-xl font-bold pb-2" colSpan="2">
@@ -89,7 +93,7 @@ export function ColorPicker(_props) {
             on_cancel={() => {}}
             cancel_text="Close"
         >
-            <div className="flex flex-row p-3">
+            <div className="flex flex-row p-3" data-tour="color-picker-sections">
                 <div>
                     <ThemeSection section="bands" />
                     <ThemeSection section="map" />
@@ -101,7 +105,7 @@ export function ColorPicker(_props) {
                     <ThemeSection section="map_countries" />
                 </div>
             </div>
-            <div className="flex justify-around items-end pb-2">
+            <div className="flex justify-around items-end pb-2" data-tour="color-picker-actions">
                 <Button>
                     <a
                         className="h-full w-full p-2"

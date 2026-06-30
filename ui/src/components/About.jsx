@@ -303,6 +303,8 @@ function About() {
     return (
         <Modal
             button={<Info size="36" />}
+            data_tour="about-trigger"
+            dialog_data_tour="about-modal"
             on_cancel={() => true}
             cancel_text="close"
             external_open={should_display_release_notes}
@@ -312,6 +314,7 @@ function About() {
                     tabs={[
                         {
                             label: <h1 className="text-xl">About</h1>,
+                            data_tour: "about-tab-about",
                             text_color: colors.theme.text,
                             content: (
                                 <div className="max-h-[60vh] overflow-y-auto w-[38rem]">
@@ -321,6 +324,7 @@ function About() {
                         },
                         {
                             label: <h1 className="text-xl">Release Notes</h1>,
+                            data_tour: "about-tab-release-notes",
                             text_color: colors.theme.text,
                             content: (
                                 <div className="max-h-[60vh] overflow-y-auto w-[38rem]">
@@ -329,6 +333,7 @@ function About() {
                             ),
                         },
                     ]}
+                    data_tour="about-tabs"
                     external_tab={should_display_release_notes ? 1 : null}
                 />
             </div>

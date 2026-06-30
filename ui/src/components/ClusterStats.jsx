@@ -197,9 +197,11 @@ function ClusterStats() {
         <div className="flex items-center justify-center p-8 text-red-500">Error: {error}</div>
     ) : data ? (
         <Tabs
+            data_tour="cluster-stats-tabs"
             tabs={[
                 {
                     label: <span className="text-base">Overview</span>,
+                    data_tour: "cluster-stats-tab-overview",
                     text_color: colors.theme.text,
                     content: (
                         <div className="max-h-[60vh] overflow-y-auto p-4">
@@ -209,6 +211,7 @@ function ClusterStats() {
                 },
                 {
                     label: <span className="text-base">Pairwise Overlap</span>,
+                    data_tour: "cluster-stats-tab-pairwise",
                     text_color: colors.theme.text,
                     content: (
                         <div className="max-h-[60vh] overflow-auto p-4">
@@ -232,12 +235,18 @@ function ClusterStats() {
             <div className="text-left w-[40rem]" style={{ color: colors.theme.text }}>
                 <div
                     className="flex items-center justify-between p-4 border-b"
+                    data-tour="cluster-stats-controls"
                     style={{ borderColor: colors.theme.borders }}
                 >
                     <span className="text-lg font-bold">Cluster Statistics</span>
                     <div className="flex items-center gap-3 px-6">
                         <span className="text-sm opacity-70">Period: </span>
-                        <Select value={hours} onChange={on_hours_change} className="!w-24">
+                        <Select
+                            value={hours}
+                            onChange={on_hours_change}
+                            className="!w-24"
+                            data-tour="cluster-stats-period"
+                        >
                             {HOURS_OPTIONS.map(opt => (
                                 <option key={opt.value} value={opt.value}>
                                     {opt.label}

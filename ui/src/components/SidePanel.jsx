@@ -18,7 +18,10 @@ function ContinentColumn({ spot_type, colors }) {
     const color = colors.buttons[`${spot_type}_continents`];
 
     return (
-        <div className="flex flex-col gap-3 items-center p-1">
+        <div
+            className="flex flex-col gap-3 items-center p-1"
+            data-tour={`${spot_type}-continent-filters`}
+        >
             <strong style={{ color: colors.theme.text }}>{continent_title[spot_type]}</strong>
             {continents.map(continent => (
                 <FilterOptions
@@ -32,6 +35,7 @@ function ContinentColumn({ spot_type, colors }) {
                         text={continent}
                         text_color={colors.theme.text}
                         is_active={filters[filter_key][continent]}
+                        data_tour={`${spot_type}-continent-filter-${continent}`}
                         on_click={_ => {
                             setFilters(state => ({
                                 ...state,
@@ -76,6 +80,7 @@ function SwapButton({ colors }) {
             style={{ backgroundColor: colors.buttons.disabled_background }}
             title="Swap DX and DE continent filters"
             disabled={areFiltersEqual}
+            data-tour="swap-continent-filters"
         >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <title>Swap continents</title>
@@ -106,6 +111,7 @@ function RightColumnContent({ colors }) {
     return (
         <div
             className="flex flex-col gap-2 w-16 h-full overflow-y-auto shrink-0"
+            data-tour="continent-filter-column"
             style={{
                 backgroundColor: colors.theme.columns,
                 borderLeft: `1px solid ${colors.theme.borders}`,
@@ -173,6 +179,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
     return (
         <div
             className="flex shrink-0 border-b-2"
+            data-tour="side-panel-tabs"
             style={{
                 borderColor: colors.table.header_arrow,
             }}
@@ -208,6 +215,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                         title={option.label}
                         role="button"
                         tabIndex={0}
+                        data-tour={`side-panel-tab-${option.label.toLowerCase().replaceAll(" ", "-")}`}
                     >
                         <svg
                             width={option.size}
@@ -244,6 +252,7 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
         <DXpeditions key="dxpeditions" />,
         <HunterPanel key="hunter" />,
     ];
+    const active_view_label = view_options[active_view]?.label.toLowerCase().replaceAll(" ", "-");
 
     const toggled_classes = toggled_ui.right_visible
         ? "max-2xl:absolute max-2xl:flex right-0 top-0"
@@ -251,6 +260,7 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
     return (
         <div
             className={`${toggled_classes} 2xl:flex flex-col h-full z-50 max-2xl:max-h-full max-2xl:overflow-auto`}
+            data-tour="side-panel"
             style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}
         >
             <ViewSelectorTabs
@@ -258,8 +268,11 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
                 set_active_view={set_active_view}
                 colors={colors}
             />
-            <div className="flex flex-1 overflow-hidden">
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64 min-w-0">
+            <div className="flex flex-1 overflow-hidden" data-tour="side-panel-body">
+                <div
+                    className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64 min-w-0"
+                    data-tour={active_view_label ? `side-panel-view-${active_view_label}` : null}
+                >
                     {content[active_view]}
                 </div>
                 <RightColumnContent colors={colors} />

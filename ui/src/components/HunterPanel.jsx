@@ -233,6 +233,7 @@ function HunterSectionCard({ section, items, hunter, colors, on_apply_section })
     return (
         <section
             className="rounded-lg border p-3 space-y-3"
+            data-tour={`hunter-section-${section}`}
             style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
         >
             <div className="flex items-start justify-between gap-3">
@@ -304,6 +305,8 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
     return (
         <Modal
             title={<h2 className="font-bold">{SECTION_LABELS[section]}</h2>}
+            data_tour={`hunter-section-edit-${section}`}
+            dialog_data_tour="hunter-section-modal"
             button={
                 <Button type="button" color="blue" className="px-3 py-1">
                     Edit
@@ -354,6 +357,7 @@ function HunterSection({
     return (
         <section
             className="rounded-lg border p-3 space-y-3"
+            data-tour="hunter-section-editor"
             style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
         >
             <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
@@ -547,6 +551,7 @@ function RecentImports({ imports, colors }) {
     return (
         <section
             className="rounded-lg border p-3 space-y-2"
+            data-tour="hunter-recent-imports"
             style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
         >
             <h3 className="font-bold">Recent Imports</h3>
@@ -637,9 +642,14 @@ export default function HunterPanel() {
     }
 
     return (
-        <div className="p-3 space-y-3" style={{ color: colors.theme.text }}>
+        <div
+            className="p-3 space-y-3"
+            data-tour="hunter-panel"
+            style={{ color: colors.theme.text }}
+        >
             <section
                 className="rounded-lg border p-3 space-y-2"
+                data-tour="hunter-adif-import"
                 style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
             >
                 <h2 className="text-lg font-bold">Missing</h2>
@@ -652,12 +662,14 @@ export default function HunterPanel() {
                             className="hidden"
                             disabled={is_importing}
                             data-testid="hunter-adif-input"
+                            data-tour="hunter-adif-input"
                         />
                         <span>
                             <Button
                                 type="button"
                                 color="blue"
                                 disabled={is_importing}
+                                data-tour="hunter-adif-import-button"
                                 on_click={event => {
                                     event.currentTarget
                                         .closest("label")
