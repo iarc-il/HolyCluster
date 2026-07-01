@@ -44,12 +44,24 @@ describe("tour chapters", () => {
 
     it("requires user action for wait steps", () => {
         for (const { chapter, step } of all_steps()) {
-            if (!step.waitFor && !step.waitForGone) continue;
+            if (!step.waitFor && !step.waitForGone && !step.waitForChange) continue;
 
             expect(step.buttons, `${chapter.id}: ${step.title}`).toBeDefined();
             expect(step.buttons, `${chapter.id}: ${step.title}`).not.toContain("primary");
             expect(step.buttons, `${chapter.id}: ${step.title}`).not.toContain("skip");
         }
+    });
+
+    it("asks users to try safe map controls", () => {
+        const interactive_targets = TOUR_CHAPTERS.map.steps
+            .filter(step => step.waitForChange)
+            .map(step => step.target);
+
+        expect(interactive_targets).toContain("[data-tour='map-projection-toggle']");
+        expect(interactive_targets).toContain("[data-tour='map-night-toggle']");
+        expect(interactive_targets).toContain("[data-tour='map-equator-toggle']");
+        expect(interactive_targets).toContain("[data-tour='map-overlay-dxcc']");
+        expect(interactive_targets).toContain("[data-tour='map-region-overlay-us_state']");
     });
 
     it("has stable target selectors for every step", () => {

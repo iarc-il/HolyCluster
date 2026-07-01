@@ -1,6 +1,7 @@
 import GPSButton from "@/components/GPSButton.jsx";
 import Night from "@/components/Night.jsx";
 import PropagationBar from "@/components/PropagationBar.jsx";
+import { TOUR_CLOSE_MAP_CONTROLS_EVENT } from "@/components/tour/tour_events.js";
 import Button from "@/components/ui/Button.jsx";
 import Popup from "@/components/ui/Popup.jsx";
 import Radio from "@/components/ui/Radio.jsx";
@@ -169,6 +170,17 @@ function MapControls({
         };
     }, [show_controls_panel]);
 
+    useEffect(() => {
+        function close_panel_for_tour() {
+            close_controls_panel();
+        }
+
+        document.addEventListener(TOUR_CLOSE_MAP_CONTROLS_EVENT, close_panel_for_tour);
+        return () => {
+            document.removeEventListener(TOUR_CLOSE_MAP_CONTROLS_EVENT, close_panel_for_tour);
+        };
+    }, []);
+
     function reset_map() {
         const locator = settings.locator || "JJ00AA";
         const [lat, lon] = Maidenhead.toLatLon(locator);
@@ -280,10 +292,12 @@ function MapControls({
         return (
             <button
                 key={id}
+                type="button"
                 onClick={() => set_exclusive_overlay(map_control_key, !active)}
                 onMouseEnter={() => set_zone_button_hover(id)}
                 onMouseLeave={() => set_zone_button_hover(null)}
                 className={`flex items-center justify-center relative rounded-md ${padding_class} min-w-10`}
+                aria-pressed={active}
                 style={{
                     ...zone_button_base_style,
                     ...(active ? zone_button_active_style : {}),
@@ -291,6 +305,7 @@ function MapControls({
                 }}
                 title={title}
                 data-tour={`map-overlay-${id}`}
+                data-tour-state={active ? "on" : "off"}
             >
                 <span
                     className={`${width_class} h-8 flex items-center justify-center text-xl leading-none ${active ? "font-bold" : "font-medium"}`}
@@ -485,6 +500,7 @@ function MapControls({
                                 aria-pressed={equator_on}
                                 title={equator_on ? "Hide equator" : "Show equator"}
                                 data-tour="map-equator-toggle"
+                                data-tour-state={equator_on ? "on" : "off"}
                             >
                                 <svg
                                     width="40"
@@ -513,6 +529,7 @@ function MapControls({
                                 </svg>
                             </button>
                             <button
+                                type="button"
                                 ref={mode_button_ref}
                                 onClick={() =>
                                     set_map_controls(state => (state.is_globe = !state.is_globe))
@@ -520,7 +537,14 @@ function MapControls({
                                 onMouseEnter={() => set_show_mode_popup(true)}
                                 onMouseLeave={() => set_show_mode_popup(false)}
                                 className="flex items-center justify-center relative"
+                                aria-label={
+                                    map_controls.is_globe
+                                        ? "Switch to azimuthal projection"
+                                        : "Switch to globe projection"
+                                }
+                                aria-pressed={map_controls.is_globe}
                                 data-tour="map-projection-toggle"
+                                data-tour-state={map_controls.is_globe ? "globe" : "azimuthal"}
                             >
                                 {map_controls.is_globe ? (
                                     <svg
@@ -638,6 +662,7 @@ function MapControls({
                                 const active = map_controls[overlay.map_control_key] ?? false;
                                 return (
                                     <button
+                                        type="button"
                                         key={overlay.id}
                                         onClick={() =>
                                             toggle_country_overlay(overlay.map_control_key, !active)
@@ -655,8 +680,10 @@ function MapControls({
                                                 ? zone_label_active_color
                                                 : zone_label_inactive_color,
                                         }}
+                                        aria-pressed={active}
                                         title={overlay.title}
                                         data-tour={`map-region-overlay-${overlay.id}`}
+                                        data-tour-state={active ? "on" : "off"}
                                     >
                                         <span className={active ? "font-bold" : "font-medium"}>
                                             {overlay.label}

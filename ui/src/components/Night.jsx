@@ -5,7 +5,9 @@ function Night({ is_active, size, on_click, data_tour = null }) {
             onClick={on_click}
             className="cursor-pointer p-0 border-0 bg-transparent"
             style={{ lineHeight: 0 }}
+            aria-pressed={is_active}
             data-tour={data_tour}
+            data-tour-state={is_active ? "on" : "off"}
         >
             <svg
                 height={size}

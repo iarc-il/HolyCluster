@@ -10,6 +10,7 @@ import {
     TOUR_COMPLETED_CHAPTERS_KEY,
     get_tour_chapter,
 } from "./tour_chapters.jsx";
+import { TOUR_CLOSE_MAP_CONTROLS_EVENT } from "./tour_events.js";
 
 const completed_statuses = new Set([STATUS.FINISHED, STATUS.SKIPPED]);
 const wait_poll_interval_ms = 150;
@@ -55,6 +56,20 @@ function step_wait_is_satisfied(step) {
     if (step.waitFor && are_selectors_visible(step.waitFor)) return true;
     if (step.waitForGone && are_selectors_gone(step.waitForGone)) return true;
     return false;
+}
+
+function get_wait_for_change_value(wait_for_change) {
+    const target = document.querySelector(wait_for_change.selector);
+    if (!is_element_visible(target)) return null;
+
+    if (wait_for_change.attribute) return target.getAttribute(wait_for_change.attribute);
+    return target.textContent;
+}
+
+function cleanup_chapter(chapter_id) {
+    if (chapter_id !== "map" || typeof document === "undefined") return;
+
+    document.dispatchEvent(new Event(TOUR_CLOSE_MAP_CONTROLS_EVENT));
 }
 
 function WebsiteTour() {
@@ -106,6 +121,7 @@ function WebsiteTour() {
                 mark_chapter_done(tour_state.current_chapter_id, status);
             }
 
+            cleanup_chapter(tour_state.current_chapter_id);
             stop_tour();
         },
         [mark_chapter_done, stop_tour, tour_state.current_chapter_id],
@@ -227,12 +243,32 @@ function WebsiteTour() {
     ]);
 
     useEffect(() => {
-        if (!tour_state.is_running || (!current_step?.waitFor && !current_step?.waitForGone))
+        if (
+            !tour_state.is_running ||
+            (!current_step?.waitFor && !current_step?.waitForGone && !current_step?.waitForChange)
+        )
             return;
 
         let has_advanced = false;
+        let initial_change_value = current_step.waitForChange
+            ? get_wait_for_change_value(current_step.waitForChange)
+            : null;
         const try_advance = () => {
-            if (has_advanced || !step_wait_is_satisfied(current_step)) return;
+            if (has_advanced) return;
+
+            if (current_step.waitForChange) {
+                const current_change_value = get_wait_for_change_value(current_step.waitForChange);
+                if (current_change_value == null) return;
+
+                if (initial_change_value == null) {
+                    initial_change_value = current_change_value;
+                    return;
+                }
+
+                if (current_change_value === initial_change_value) return;
+            } else if (!step_wait_is_satisfied(current_step)) {
+                return;
+            }
 
             has_advanced = true;
             advance_tour(tour_state.step_index, 1);
@@ -266,6 +302,7 @@ function WebsiteTour() {
             }
 
             if (action === ACTIONS.CLOSE) {
+                cleanup_chapter(tour_state.current_chapter_id);
                 stop_tour();
                 return;
             }
