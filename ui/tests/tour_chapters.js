@@ -64,6 +64,28 @@ describe("tour chapters", () => {
         expect(interactive_targets).toContain("[data-tour='map-region-overlay-us_state']");
     });
 
+    it("asks users to try safe table controls", () => {
+        const interactive_targets = TOUR_CHAPTERS.spots_table.steps
+            .filter(step => step.waitForChange)
+            .map(step => step.target);
+
+        expect(interactive_targets).toContain("[data-tour='table-search-single-spot-toggle']");
+        expect(interactive_targets).toContain(
+            "[data-tour='table-search-mobile-single-spot-toggle']",
+        );
+        expect(interactive_targets).toContain("[data-tour='table-header-dx_callsign']");
+        expect(interactive_targets).toContain("[data-tour='spot-row']");
+    });
+
+    it("asks users to try safe filter controls", () => {
+        const interactive_targets = TOUR_CHAPTERS.filters.steps
+            .filter(step => step.waitForChange)
+            .map(step => step.target);
+
+        expect(interactive_targets).toContain("[data-tour='band-filter-20']");
+        expect(interactive_targets).toContain("[data-tour='mode-filter-SSB']");
+    });
+
     it("has stable target selectors for every step", () => {
         for (const { chapter, step } of all_steps()) {
             expect(step.target, `${chapter.id}: ${step.title}`).toMatch(/^\[data-tour='[^']+'\]$/);

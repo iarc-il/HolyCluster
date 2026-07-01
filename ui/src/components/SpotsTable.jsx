@@ -282,6 +282,7 @@ const Spot = forwardRef(function Spot(
         <tr
             ref={ref}
             data-tour="spot-row"
+            data-tour-state={is_pinned ? "pinned" : "unpinned"}
             style={{
                 backgroundColor: background_color,
                 outlineColor: is_regular_alerted ? colors.light_bands[spot.band] : "",
@@ -561,6 +562,13 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
         <td
             className={`sticky top-0 z-40 h-8 ${sorting ? "cursor-pointer " : ""}${cell_classes[field]}`}
             data-tour={`table-header-${field}`}
+            data-tour-state={
+                sorting && table_sort.column === field
+                    ? table_sort.ascending
+                        ? "ascending"
+                        : "descending"
+                    : "inactive"
+            }
             style={{
                 backgroundColor: colors.table.header,
                 color: colors.table.header_text,

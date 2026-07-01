@@ -216,6 +216,8 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                         role="button"
                         tabIndex={0}
                         data-tour={`side-panel-tab-${option.label.toLowerCase().replaceAll(" ", "-")}`}
+                        data-tour-state={is_active ? "active" : "inactive"}
+                        aria-pressed={is_active}
                     >
                         <svg
                             width={option.size}

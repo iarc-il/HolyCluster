@@ -70,6 +70,8 @@ function Tabs({
                             key={index}
                             className="flex-1 text-center py-2 text-sm font-medium relative after:absolute after:bottom-0 after:left-0 after:right-0 after:h-1 after:transition-colors"
                             data-tour={tab.data_tour}
+                            data-tour-state={active_tab_index === index ? "active" : "inactive"}
+                            aria-pressed={active_tab_index === index}
                             style={{
                                 backgroundColor: bg,
                             }}

@@ -285,32 +285,54 @@ export const TOUR_CHAPTERS = {
             {
                 target: "[data-tour='table-search-single-spot-toggle']",
                 title: "Single Spot Mode",
-                content: "This toggles whether only the newest spot per station is shown.",
+                content:
+                    "Click this toggle to switch between all spots and only the newest spot per station.",
                 desktopOnly: true,
                 optional: true,
+                buttons: action_buttons,
                 placement: "bottom",
+                waitForChange: {
+                    selector: "[data-tour='table-search-single-spot-toggle']",
+                    attribute: "data-tour-state",
+                },
             },
             {
                 target: "[data-tour='table-search-mobile-single-spot-toggle']",
                 title: "Single Spot Mode",
-                content: "This toggles whether only the newest spot per station is shown.",
+                content:
+                    "Tap this toggle to switch between all spots and only the newest spot per station.",
                 mobileOnly: true,
                 optional: true,
+                buttons: action_buttons,
                 placement: "top",
+                waitForChange: {
+                    selector: "[data-tour='table-search-mobile-single-spot-toggle']",
+                    attribute: "data-tour-state",
+                },
             },
             {
-                target: "[data-tour='table-header-row']",
+                target: "[data-tour='table-header-dx_callsign']",
                 title: "Columns And Sorting",
-                content: "Click sortable headers to change the table order.",
+                content: "Click the DX column header to change the table order.",
+                buttons: action_buttons,
                 placement: "bottom",
+                waitForChange: {
+                    selector: "[data-tour='table-header-dx_callsign']",
+                    attribute: "data-tour-state",
+                },
             },
             {
                 target: "[data-tour='spot-row']",
                 title: "Spot Row",
-                content: "Each row is one received spot. Click a row to pin it on the map.",
+                content: "Click this row to pin the spot on the map.",
                 optional: true,
                 requires: "has_spots",
+                buttons: action_buttons,
                 placement: "top",
+                waitForChange: {
+                    selector: "[data-tour='spot-row']",
+                    attribute: "data-tour-state",
+                },
             },
             {
                 target: "[data-tour='spot-row-flag']",
@@ -388,18 +410,29 @@ export const TOUR_CHAPTERS = {
                 skipBeacon: true,
             },
             {
-                target: "[data-tour='band-filter-group']",
+                target: "[data-tour='band-filter-20']",
                 title: "Band Filters",
-                content: "Toggle bands on or off here. Counts show how many current spots match.",
+                content: "Click the 20m band button to toggle that band in the live spot stream.",
                 optional: true,
+                requires: "manual_band_filter_available",
+                buttons: action_buttons,
                 placement: "right",
+                waitForChange: {
+                    selector: "[data-tour='band-filter-20']",
+                    attribute: "data-tour-state",
+                },
             },
             {
-                target: "[data-tour='mode-filter-group']",
+                target: "[data-tour='mode-filter-SSB']",
                 title: "Mode Filters",
-                content: "Use these buttons to limit the table and map to selected modes.",
+                content: "Click SSB to toggle that mode in the table and map.",
                 optional: true,
+                buttons: action_buttons,
                 placement: "right",
+                waitForChange: {
+                    selector: "[data-tour='mode-filter-SSB']",
+                    attribute: "data-tour-state",
+                },
             },
             {
                 target: "[data-tour='radio-band-filter-group']",

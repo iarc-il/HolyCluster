@@ -119,6 +119,8 @@ export default function CallsignSearch({
                 }}
                 className={`flex items-center gap-1 cursor-pointer rounded-md ${!dev_mode && !compact ? "ml-auto " : ""}${compact ? "px-1 py-1" : "px-2 py-1"}`}
                 data-tour={`${data_tour}-single-spot-toggle`}
+                data-tour-state={single_spot ? "on" : "off"}
+                aria-pressed={single_spot}
                 style={{
                     ...toggle_button_base,
                     ...(single_spot ? toggle_button_active : {}),

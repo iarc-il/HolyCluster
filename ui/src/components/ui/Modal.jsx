@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { TOUR_CLOSE_MODAL_EVENT } from "@/components/tour/tour_events.js";
 import Button from "@/components/ui/Button.jsx";
 import { useColors } from "@/hooks/useColors";
 
@@ -74,6 +75,21 @@ function Modal({
             };
         }
     }, [show_modal, on_keydown]);
+
+    useEffect(() => {
+        if (!show_modal) return;
+
+        function close_for_tour() {
+            if (on_cancel != null) {
+                on_cancel();
+            }
+
+            close();
+        }
+
+        document.addEventListener(TOUR_CLOSE_MODAL_EVENT, close_for_tour);
+        return () => document.removeEventListener(TOUR_CLOSE_MODAL_EVENT, close_for_tour);
+    }, [show_modal, on_cancel]);
 
     useEffect(() => {
         if (!show_modal) return;

@@ -1,3 +1,4 @@
+import { useFilters } from "@/hooks/useFilters";
 import use_radio from "@/hooks/useRadio";
 import { useRestData } from "@/hooks/useRestData";
 import { useSpotData } from "@/hooks/useSpotData";
@@ -10,7 +11,7 @@ import {
     TOUR_COMPLETED_CHAPTERS_KEY,
     get_tour_chapter,
 } from "./tour_chapters.jsx";
-import { TOUR_CLOSE_MAP_CONTROLS_EVENT } from "./tour_events.js";
+import { TOUR_CLOSE_MAP_CONTROLS_EVENT, TOUR_CLOSE_MODAL_EVENT } from "./tour_events.js";
 
 const completed_statuses = new Set([STATUS.FINISHED, STATUS.SKIPPED]);
 const wait_poll_interval_ms = 150;
@@ -67,13 +68,20 @@ function get_wait_for_change_value(wait_for_change) {
 }
 
 function cleanup_chapter(chapter_id) {
-    if (chapter_id !== "map" || typeof document === "undefined") return;
+    if (typeof document === "undefined") return;
 
-    document.dispatchEvent(new Event(TOUR_CLOSE_MAP_CONTROLS_EVENT));
+    if (chapter_id === "map") {
+        document.dispatchEvent(new Event(TOUR_CLOSE_MAP_CONTROLS_EVENT));
+    }
+
+    if (["filters", "settings", "submit_spot"].includes(chapter_id)) {
+        document.dispatchEvent(new Event(TOUR_CLOSE_MODAL_EVENT));
+    }
 }
 
 function WebsiteTour() {
     const { propagation } = useRestData();
+    const { filters } = useFilters();
     const { radio_status } = use_radio();
     const { spots } = useSpotData();
     const is_mobile = useMediaQuery("only screen and (max-width : 768px)");
@@ -92,10 +100,11 @@ function WebsiteTour() {
     const runtime_conditions = useMemo(
         () => ({
             has_spots: spots.length > 0,
+            manual_band_filter_available: !filters.radio_band,
             propagation_loaded: Boolean(propagation),
             radio_available: radio_status !== "unavailable",
         }),
-        [propagation, radio_status, spots.length],
+        [filters.radio_band, propagation, radio_status, spots.length],
     );
 
     const mark_chapter_done = useCallback(
@@ -280,7 +289,14 @@ function WebsiteTour() {
         const observer = new MutationObserver(try_advance);
         observer.observe(document.body, {
             attributes: true,
-            attributeFilter: ["aria-hidden", "class", "hidden", "style"],
+            attributeFilter: [
+                "aria-hidden",
+                "aria-pressed",
+                "class",
+                "data-tour-state",
+                "hidden",
+                "style",
+            ],
             childList: true,
             subtree: true,
         });
