@@ -97,8 +97,6 @@ export function RadioProvider({ children }) {
         if (data.event === "status") {
             if (data.catserver_version) {
                 set_raw_local_version(data.catserver_version);
-            } else if (data.version) {
-                set_raw_local_version(data.version);
             }
             set_radio_status(data.status);
             set_radio_freq(data.freq || 0);
