@@ -14,7 +14,7 @@ export const TOUR_CHAPTERS = {
                 title: "Welcome",
                 content:
                     "Welcome to The Holy Cluster. This short tour shows where the main controls live.",
-                placement: "bottom",
+                placement: "center",
                 skipBeacon: true,
             },
             {
@@ -67,7 +67,8 @@ export const TOUR_CHAPTERS = {
                     "The map shows where spots are coming from and gives quick geographic context.",
                 desktopOnly: true,
                 optional: true,
-                placement: "left",
+                placement: "right",
+                spotlightPadding: 0,
             },
             {
                 target: "[data-tour='table-panel']",
@@ -125,8 +126,9 @@ export const TOUR_CHAPTERS = {
                     "The map shows active spots geographically and helps you spot regional openings.",
                 desktopOnly: true,
                 optional: true,
-                placement: "left",
+                placement: "right",
                 skipBeacon: true,
+                spotlightPadding: 0,
             },
             {
                 target: "[data-tour='map-controls']",
