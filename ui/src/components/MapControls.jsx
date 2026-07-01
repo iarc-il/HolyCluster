@@ -18,6 +18,7 @@ const EXCLUSIVE_OVERLAY_CONTROL_KEYS = [
     "show_itu_zones",
     "show_maidenhead_grid",
 ];
+const JOYRIDE_PORTAL_SELECTOR = "#react-joyride-portal";
 const VOACAP_BANDS = ["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"];
 
 function clear_exclusive_overlays(state) {
@@ -145,6 +146,10 @@ function MapControls({
         if (!show_controls_panel) return;
 
         function close_panel_on_click_outside(event) {
+            if (event.target instanceof Element && event.target.closest(JOYRIDE_PORTAL_SELECTOR)) {
+                return;
+            }
+
             if (!controls_panel_ref.current?.contains(event.target)) {
                 close_controls_panel();
             }

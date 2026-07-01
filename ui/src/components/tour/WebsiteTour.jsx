@@ -73,8 +73,7 @@ function WebsiteTour() {
     });
 
     const current_chapter = get_tour_chapter(tour_state.current_chapter_id);
-    const steps = useMemo(() => current_chapter?.steps ?? [], [current_chapter]);
-    const current_step = steps[tour_state.step_index];
+    const chapter_steps = useMemo(() => current_chapter?.steps ?? [], [current_chapter]);
     const runtime_conditions = useMemo(
         () => ({
             has_spots: spots.length > 0,
@@ -125,6 +124,17 @@ function WebsiteTour() {
         },
         [is_mobile, runtime_conditions],
     );
+
+    const get_available_steps = useCallback(
+        step_list => step_list.filter(step => !should_skip_step(step)),
+        [should_skip_step],
+    );
+
+    const steps = useMemo(
+        () => get_available_steps(chapter_steps),
+        [chapter_steps, get_available_steps],
+    );
+    const current_step = steps[tour_state.step_index];
 
     const find_available_step_index = useCallback(
         (step_list, start_index, direction) => {
@@ -179,8 +189,8 @@ function WebsiteTour() {
                 return;
             }
 
-            const step_index = find_available_step_index(chapter.steps, 0, 1);
-            if (step_index == null) {
+            const available_steps = get_available_steps(chapter.steps);
+            if (available_steps.length === 0) {
                 mark_chapter_done(chapter.id, STATUS.FINISHED);
                 stop_tour();
                 return;
@@ -189,10 +199,10 @@ function WebsiteTour() {
             set_tour_state({
                 current_chapter_id: chapter.id,
                 is_running: true,
-                step_index,
+                step_index: 0,
             });
         },
-        [find_available_step_index, mark_chapter_done, stop_tour],
+        [get_available_steps, mark_chapter_done, stop_tour],
     );
 
     useEffect(() => {
