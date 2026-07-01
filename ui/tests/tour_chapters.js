@@ -77,6 +77,19 @@ describe("tour chapters", () => {
         expect(interactive_targets).toContain("[data-tour='spot-row']");
     });
 
+    it("asks users to right-click table callsigns and flags", () => {
+        const context_menu_steps = TOUR_CHAPTERS.spots_table.steps.filter(step =>
+            step.waitFor?.startsWith("[data-tour='table-context-menu']"),
+        );
+        const targets = context_menu_steps.map(step => step.target);
+        const waits = context_menu_steps.map(step => step.waitFor);
+
+        expect(targets).toContain("[data-tour='spot-row-dx-callsign']");
+        expect(targets).toContain("[data-tour='spot-row-flag']");
+        expect(waits).toContain("[data-tour='table-context-menu'][data-tour-state='callsign']");
+        expect(waits).toContain("[data-tour='table-context-menu'][data-tour-state='flag']");
+    });
+
     it("asks users to try safe filter controls", () => {
         const interactive_targets = TOUR_CHAPTERS.filters.steps
             .filter(step => step.waitForChange)

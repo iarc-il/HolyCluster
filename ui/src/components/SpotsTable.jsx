@@ -859,6 +859,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     on_close={() => set_context_menu({ ...context_menu, visible: false })}
                     actions={get_context_menu_actions(context_menu.menu_type)}
                     data_tour="table-context-menu"
+                    data_tour_state={context_menu.menu_type}
                 />
             )}
         </>

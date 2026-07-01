@@ -3,7 +3,7 @@ import use_radio from "@/hooks/useRadio";
 import { useRestData } from "@/hooks/useRestData";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ACTIONS, EVENTS, Joyride, STATUS } from "react-joyride";
 import TourLauncher from "./TourLauncher.jsx";
 import {
@@ -94,6 +94,7 @@ function WebsiteTour() {
         is_running: false,
         step_index: 0,
     });
+    const wait_for_change_ref = useRef({ key: null, value: null });
 
     const current_chapter = get_tour_chapter(tour_state.current_chapter_id);
     const chapter_steps = useMemo(() => current_chapter?.steps ?? [], [current_chapter]);
@@ -252,16 +253,31 @@ function WebsiteTour() {
     ]);
 
     useEffect(() => {
-        if (
-            !tour_state.is_running ||
-            (!current_step?.waitFor && !current_step?.waitForGone && !current_step?.waitForChange)
-        )
+        if (!tour_state.is_running) {
+            wait_for_change_ref.current = { key: null, value: null };
             return;
+        }
+
+        if (!current_step?.waitForChange) {
+            wait_for_change_ref.current = { key: null, value: null };
+        }
+
+        if (!current_step?.waitFor && !current_step?.waitForGone && !current_step?.waitForChange) {
+            return;
+        }
 
         let has_advanced = false;
-        let initial_change_value = current_step.waitForChange
-            ? get_wait_for_change_value(current_step.waitForChange)
+        const wait_for_change_key = current_step.waitForChange
+            ? `${tour_state.current_chapter_id}:${tour_state.step_index}:${current_step.waitForChange.selector}:${current_step.waitForChange.attribute ?? "text"}`
             : null;
+
+        if (current_step.waitForChange && wait_for_change_ref.current.key !== wait_for_change_key) {
+            wait_for_change_ref.current = {
+                key: wait_for_change_key,
+                value: get_wait_for_change_value(current_step.waitForChange),
+            };
+        }
+
         const try_advance = () => {
             if (has_advanced) return;
 
@@ -269,12 +285,15 @@ function WebsiteTour() {
                 const current_change_value = get_wait_for_change_value(current_step.waitForChange);
                 if (current_change_value == null) return;
 
-                if (initial_change_value == null) {
-                    initial_change_value = current_change_value;
+                if (wait_for_change_ref.current.value == null) {
+                    wait_for_change_ref.current = {
+                        key: wait_for_change_key,
+                        value: current_change_value,
+                    };
                     return;
                 }
 
-                if (current_change_value === initial_change_value) return;
+                if (current_change_value === wait_for_change_ref.current.value) return;
             } else if (!step_wait_is_satisfied(current_step)) {
                 return;
             }
@@ -306,7 +325,13 @@ function WebsiteTour() {
             observer.disconnect();
             clearInterval(poll_timer);
         };
-    }, [advance_tour, current_step, tour_state.is_running, tour_state.step_index]);
+    }, [
+        advance_tour,
+        current_step,
+        tour_state.current_chapter_id,
+        tour_state.is_running,
+        tour_state.step_index,
+    ]);
 
     const handle_callback = useCallback(
         data => {
