@@ -146,6 +146,25 @@ describe("tour chapters", () => {
         }
     });
 
+    it("keeps dynamic advanced filter flow targets available", () => {
+        const modal_targets = [
+            "[data-tour='side-panel-tab-filters']",
+            "[data-tour='filters-panel']",
+            "[data-tour='filter-section-alert']",
+            "[data-tour='filter-section-show_only']",
+            "[data-tour='filter-section-hide']",
+            "[data-tour='add-filter-button-alert']",
+            "[data-tour='filter-modal-content']",
+            "[data-tour='modal-cancel-button']",
+        ];
+
+        for (const target of modal_targets) {
+            const step = TOUR_CHAPTERS.filters.steps.find(candidate => candidate.target === target);
+            expect(step, target).toBeDefined();
+            expect(step.optional, target).not.toBe(true);
+        }
+    });
+
     it("has stable target selectors for every step", () => {
         for (const { chapter, step } of all_steps()) {
             expect(step.target, `${chapter.id}: ${step.title}`).toMatch(/^\[data-tour='[^']+'\]$/);

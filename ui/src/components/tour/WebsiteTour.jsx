@@ -377,12 +377,19 @@ function WebsiteTour() {
                 return;
             }
 
-            if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
+            if (type === EVENTS.TARGET_NOT_FOUND) {
+                if (steps[index]?.optional) {
+                    advance_tour(index, 1);
+                }
+                return;
+            }
+
+            if (type === EVENTS.STEP_AFTER) {
                 const direction = action === ACTIONS.PREV ? -1 : 1;
                 advance_tour(index, direction);
             }
         },
-        [advance_tour, finish_tour, stop_tour],
+        [advance_tour, finish_tour, steps, stop_tour],
     );
 
     return (
