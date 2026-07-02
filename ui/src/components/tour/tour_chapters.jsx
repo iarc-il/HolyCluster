@@ -258,13 +258,6 @@ export const TOUR_CHAPTERS = {
                 skipBeacon: true,
             },
             {
-                target: "[data-tour='spots-table']",
-                title: "Spots Table",
-                content:
-                    "New spots appear here with callsign, frequency, band, mode, and comment data.",
-                placement: "left",
-            },
-            {
                 target: "[data-tour='table-search']",
                 title: "Callsign Search",
                 content:
