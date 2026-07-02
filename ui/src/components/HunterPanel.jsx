@@ -31,6 +31,18 @@ const IMPORT_PHASE_LABELS = {
     [HUNTER_IMPORT_PHASES.COMPLETE]: "Import complete",
 };
 
+const SECTION_ITEM_SORT_OPTIONS = { numeric: true, sensitivity: "base" };
+
+function sort_section_items(items) {
+    return [...items].sort((first, second) =>
+        String(first.sort_label ?? first.label).localeCompare(
+            String(second.sort_label ?? second.label),
+            undefined,
+            SECTION_ITEM_SORT_OPTIONS,
+        ),
+    );
+}
+
 function range(start, end) {
     const values = [];
     for (let value = start; value <= end; value += 1) {
@@ -41,30 +53,44 @@ function range(start, end) {
 
 function create_section_items() {
     return {
-        dxcc: dxcc_codes.map(value => {
-            const label = get_dxcc_label(value);
-            return { value, label, search: label.toLowerCase() };
-        }),
-        cq_zone: range(1, 40).map(value => ({
-            value,
-            label: `CQ Zone ${value}`,
-            search: `cq zone ${value} ${value}`,
-        })),
-        itu_zone: range(1, 90).map(value => ({
-            value,
-            label: `ITU Zone ${value}`,
-            search: `itu zone ${value} ${value}`,
-        })),
-        us_state: Object.entries(STATES.USA).map(([value, name]) => ({
-            value,
-            label: `${value} - ${name}`,
-            search: `${value} ${name}`.toLowerCase(),
-        })),
-        ca_province: Object.entries(STATES.Canada).map(([value, name]) => ({
-            value,
-            label: `${value} - ${name}`,
-            search: `${value} ${name}`.toLowerCase(),
-        })),
+        dxcc: sort_section_items(
+            dxcc_codes.map(value => {
+                const label = get_dxcc_label(value);
+                return { value, label, search: label.toLowerCase() };
+            }),
+        ),
+        cq_zone: sort_section_items(
+            range(1, 40).map(value => ({
+                value,
+                label: `CQ Zone ${value}`,
+                search: `cq zone ${value} ${value}`,
+                sort_label: value,
+            })),
+        ),
+        itu_zone: sort_section_items(
+            range(1, 90).map(value => ({
+                value,
+                label: `ITU Zone ${value}`,
+                search: `itu zone ${value} ${value}`,
+                sort_label: value,
+            })),
+        ),
+        us_state: sort_section_items(
+            Object.entries(STATES.USA).map(([value, name]) => ({
+                value,
+                label: `${value} - ${name}`,
+                search: `${value} ${name}`.toLowerCase(),
+                sort_label: name,
+            })),
+        ),
+        ca_province: sort_section_items(
+            Object.entries(STATES.Canada).map(([value, name]) => ({
+                value,
+                label: `${value} - ${name}`,
+                search: `${value} ${name}`.toLowerCase(),
+                sort_label: name,
+            })),
+        ),
     };
 }
 
