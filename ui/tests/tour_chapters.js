@@ -155,7 +155,12 @@ describe("tour chapters", () => {
             "[data-tour='filter-section-hide']",
             "[data-tour='add-filter-button-alert']",
             "[data-tour='filter-modal-content']",
-            "[data-tour='modal-cancel-button']",
+            "[data-tour='filter-modal-action-alert']",
+            "[data-tour='filter-modal-type-prefix']",
+            "[data-tour='filter-modal-spot-role-dx']",
+            "[data-tour='filter-modal-text-value']",
+            "[data-tour='modal-apply-button']",
+            "[data-tour='filter-line-alert']",
         ];
 
         for (const target of modal_targets) {
@@ -163,6 +168,28 @@ describe("tour chapters", () => {
             expect(step, target).toBeDefined();
             expect(step.optional, target).not.toBe(true);
         }
+    });
+
+    it("asks users to add and drag an advanced filter", () => {
+        const value_step = TOUR_CHAPTERS.filters.steps.find(
+            step => step.target === "[data-tour='filter-modal-text-value']",
+        );
+        const apply_step = TOUR_CHAPTERS.filters.steps.find(
+            step => step.target === "[data-tour='modal-apply-button']",
+        );
+        const drag_step = TOUR_CHAPTERS.filters.steps.find(
+            step => step.target === "[data-tour='filter-line-alert']",
+        );
+
+        expect(value_step?.waitForChange).toBeUndefined();
+        expect(apply_step?.waitForChange).toEqual({
+            selector: "[data-tour='filter-section-alert']",
+            attribute: "data-tour-state",
+        });
+        expect(drag_step?.waitForChange).toEqual({
+            selector: "[data-tour='filter-section-show_only']",
+            attribute: "data-tour-state",
+        });
     });
 
     it("has stable target selectors for every step", () => {

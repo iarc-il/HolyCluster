@@ -67,7 +67,15 @@ function get_wait_for_change_value(wait_for_change) {
     const target = document.querySelector(wait_for_change.selector);
     if (!is_element_visible(target)) return null;
 
-    if (wait_for_change.attribute) return target.getAttribute(wait_for_change.attribute);
+    if (wait_for_change.attribute) {
+        if (
+            wait_for_change.attribute === "value" &&
+            (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
+        ) {
+            return target.value;
+        }
+        return target.getAttribute(wait_for_change.attribute);
+    }
     return target.textContent;
 }
 

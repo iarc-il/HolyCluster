@@ -533,16 +533,66 @@ export const TOUR_CHAPTERS = {
                 target: "[data-tour='filter-modal-content']",
                 title: "Filter Editor",
                 content:
-                    "The editor lets you define callsign, entity, zone, comment, and missing-worked filters.",
+                    "The editor combines an action, a match type, and the required values for that type.",
                 placement: "left",
             },
             {
-                target: "[data-tour='modal-cancel-button']",
-                title: "Close The Editor",
-                content: "Click Cancel or close the dialog to return to the filter panel.",
-                waitForGone: "[data-tour='filter-modal']",
+                target: "[data-tour='filter-modal-action-alert']",
+                title: "Filter Action",
+                content:
+                    "The action decides what happens when a spot matches: highlight it, show only matching spots, or hide matching spots. Keep Alert selected for this exercise.",
+                placement: "left",
+            },
+            {
+                target: "[data-tour='filter-modal-type-prefix']",
+                title: "Filter Type",
+                content:
+                    "The type decides what the filter matches. You can match callsigns, entities, zones, comments, missing-worked status, self spots, or DXpeditions.",
+                placement: "left",
+            },
+            {
+                target: "[data-tour='filter-modal-spot-role-dx']",
+                title: "DX Or Spotter",
+                content:
+                    "Use this to decide whether the callsign-style filter applies to the spotted DX station or the reporting spotter.",
+                placement: "left",
+            },
+            {
+                target: "[data-tour='filter-modal-text-value']",
+                title: "Type A Value",
+                content: "Focus this input and type a callsign prefix or any valid filter value.",
+                placement: "left",
+            },
+            {
+                target: "[data-tour='modal-apply-button']",
+                title: "Add A Filter",
+                content:
+                    "Enter any valid value, leave the action as Alert, then click Apply to create the filter.",
                 buttons: action_buttons,
                 placement: "top",
+                waitForChange: {
+                    selector: "[data-tour='filter-section-alert']",
+                    attribute: "data-tour-state",
+                },
+            },
+            {
+                target: "[data-tour='filter-line-alert']",
+                title: "Drag The New Filter",
+                content:
+                    "Drag the new alert filter into the Show-Only section to change what it does.",
+                buttons: action_buttons,
+                placement: "left",
+                waitForChange: {
+                    selector: "[data-tour='filter-section-show_only']",
+                    attribute: "data-tour-state",
+                },
+            },
+            {
+                target: "[data-tour='filter-section-show_only']",
+                title: "Filter Moved",
+                content:
+                    "The same filter now lives in Show-Only. Dragging between sections changes the filter action without rebuilding it.",
+                placement: "left",
             },
         ],
     },
