@@ -86,7 +86,7 @@ function cleanup_chapter(chapter_id) {
         document.dispatchEvent(new Event(TOUR_CLOSE_MAP_CONTROLS_EVENT));
     }
 
-    if (["filters", "settings", "submit_spot"].includes(chapter_id)) {
+    if (["filters", "settings"].includes(chapter_id)) {
         document.dispatchEvent(new Event(TOUR_CLOSE_MODAL_EVENT));
     }
 }

@@ -144,24 +144,16 @@ describe("tour chapters", () => {
         }
     });
 
-    it("targets visible modal content for dialog overview steps", () => {
+    it("targets visible settings modal content for dialog overview steps", () => {
         const settings_open_step = TOUR_CHAPTERS.settings.steps.find(
             step => step.target === "[data-tour='top-bar-settings']",
         );
         const settings_dialog_step = TOUR_CHAPTERS.settings.steps.find(
             step => step.title === "Settings Dialog",
         );
-        const submit_open_step = TOUR_CHAPTERS.submit_spot.steps.find(
-            step => step.target === "[data-tour='top-bar-submit-spot']",
-        );
-        const submit_dialog_step = TOUR_CHAPTERS.submit_spot.steps.find(
-            step => step.title === "Submit Spot Dialog",
-        );
 
         expect(settings_open_step?.waitFor).toBe("[data-tour='settings-modal-content']");
         expect(settings_dialog_step?.target).toBe("[data-tour='settings-modal-content']");
-        expect(submit_open_step?.waitFor).toBe("[data-tour='submit-spot-modal-content']");
-        expect(submit_dialog_step?.target).toBe("[data-tour='submit-spot-modal-content']");
     });
 
     it("keeps DXpeditions panel steps required", () => {
