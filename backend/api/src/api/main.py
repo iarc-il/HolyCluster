@@ -4,6 +4,7 @@ import re
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 
@@ -214,6 +215,8 @@ app = fastapi.FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 MAX_HUNTER_RESOLVE_CALLSIGNS = 100
+HUNTER_RESOLVE_RESULT_BATCH_SIZE = 50
+HUNTER_RESOLVE_WORKER_COUNT = 4
 HUNTER_CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/]{0,31}$")
 PROPAGATION_METRICS = ("a_index", "k_index", "sfi")
 MAX_PROPAGATION_HISTORY_RANGE_SECONDS = 86400
@@ -227,12 +230,14 @@ class WsErrorType(StrEnum):
     UNSUPPORTED_ACTION = "UnsupportedAction"
     UNSUPPORTED_VERSION = "UnsupportedVersion"
     NOT_IMPLEMENTED = "NotImplemented"
+    UNKNOWN_JOB = "UnknownJob"
 
 
 class WsMessageType(StrEnum):
     SPOTS = "spots"
     SUBMIT = "submit"
     RADIO = "radio"
+    HUNTER = "hunter"
 
 
 class WsSpotAction(StrEnum):
@@ -247,6 +252,18 @@ class WsSpotEvent(StrEnum):
 
 class WsRadioEvent(StrEnum):
     STATUS = "status"
+
+
+class WsHunterAction(StrEnum):
+    START = "start"
+    ADD = "add"
+    FINISH = "finish"
+
+
+class WsHunterEvent(StrEnum):
+    ACCEPTED = "accepted"
+    RESULTS = "results"
+    COMPLETE = "complete"
 
 
 def build_ws_error(error_type: WsErrorType, message: str, **data):
@@ -348,6 +365,15 @@ class HunterResolveRequest(BaseModel):
     callsigns: list[str]
 
 
+@dataclass
+class HunterWsJob:
+    job_id: str
+    callsigns: list[str] = field(default_factory=list)
+    seen_callsigns: set[str] = field(default_factory=set)
+    errors: dict[str, str] = field(default_factory=dict)
+    task: asyncio.Task | None = None
+
+
 def cleanup_spot(spot):
     try:
         if spot["mode"].upper() in ("SSB", "USB", "LSB"):
@@ -415,6 +441,62 @@ async def get_qrz_session_key_from_redis() -> str:
     if not qrz_key:
         raise HTTPException(status_code=503, detail="QRZ session key not available")
     return qrz_key
+
+
+def normalize_hunter_callsigns(callsigns):
+    normalized_callsigns = []
+    errors = {}
+    seen_callsigns = set()
+
+    for callsign in callsigns:
+        if not isinstance(callsign, str):
+            errors[str(callsign)] = "invalid callsign"
+            continue
+        normalized = callsign.strip().upper()
+        if not HUNTER_CALLSIGN_PATTERN.fullmatch(normalized):
+            errors[normalized] = "invalid callsign"
+            continue
+        if normalized in seen_callsigns:
+            continue
+        seen_callsigns.add(normalized)
+        normalized_callsigns.append(normalized)
+
+    return normalized_callsigns, errors
+
+
+async def get_hunter_qrz_session_key():
+    try:
+        return await get_qrz_session_key_from_redis()
+    except Exception as e:
+        logger.warning(f"QRZ session key unavailable for hunter resolve; continuing with CTY fallback: {e}")
+        return ""
+
+
+def build_hunter_geo_result(callsign, geo_data):
+    return {
+        "callsign": callsign,
+        "dxcc_code": geo_data.dxcc_code,
+        "continent": geo_data.continent,
+        "state": geo_data.state,
+        "cq_zone": geo_data.cq_zone,
+        "itu_zone": geo_data.itu_zone,
+        "locator": geo_data.locator,
+        "lat": geo_data.lat,
+        "lon": geo_data.lon,
+        "source": "cache" if geo_data.cached else geo_data.locator_source,
+    }
+
+
+async def resolve_hunter_callsign(callsign, qrz_session_key):
+    geo_data = await get_geo_details(
+        app.state.valkey_client,
+        qrz_session_key,
+        callsign,
+        settings.valkey_geo_expiration,
+        app.state.http_client,
+        "hunter_import",
+    )
+    return build_hunter_geo_result(callsign, geo_data)
 
 
 async def compute_cluster_stats(valkey_client, hours: int | None = None):
@@ -523,37 +605,13 @@ async def hunter_resolve(request: HunterResolveRequest):
             detail=f"maximum {MAX_HUNTER_RESOLVE_CALLSIGNS} callsigns per request",
         )
 
-    normalized_callsigns = []
-    errors = {}
-    seen_callsigns = set()
-
-    for callsign in request.callsigns:
-        normalized = callsign.strip().upper()
-        if not HUNTER_CALLSIGN_PATTERN.fullmatch(normalized):
-            errors[normalized] = "invalid callsign"
-            continue
-        if normalized in seen_callsigns:
-            continue
-        seen_callsigns.add(normalized)
-        normalized_callsigns.append(normalized)
-
-    try:
-        qrz_session_key = await get_qrz_session_key_from_redis()
-    except Exception as e:
-        logger.warning(f"QRZ session key unavailable for hunter resolve; continuing with CTY fallback: {e}")
-        qrz_session_key = ""
+    normalized_callsigns, errors = normalize_hunter_callsigns(request.callsigns)
+    qrz_session_key = await get_hunter_qrz_session_key()
 
     results = {}
     for callsign in normalized_callsigns:
         try:
-            geo_data = await get_geo_details(
-                app.state.valkey_client,
-                qrz_session_key,
-                callsign,
-                settings.valkey_geo_expiration,
-                app.state.http_client,
-                "hunter_import",
-            )
+            results[callsign] = await resolve_hunter_callsign(callsign, qrz_session_key)
         except GeoException as e:
             errors[callsign] = f"{e.data_type} not found"
             continue
@@ -561,19 +619,6 @@ async def hunter_resolve(request: HunterResolveRequest):
             logger.exception(f"Failed to resolve hunter callsign: {callsign}")
             errors[callsign] = "not found"
             continue
-
-        results[callsign] = {
-            "callsign": callsign,
-            "dxcc_code": geo_data.dxcc_code,
-            "continent": geo_data.continent,
-            "state": geo_data.state,
-            "cq_zone": geo_data.cq_zone,
-            "itu_zone": geo_data.itu_zone,
-            "locator": geo_data.locator,
-            "lat": geo_data.lat,
-            "lon": geo_data.lon,
-            "source": "cache" if geo_data.cached else geo_data.locator_source,
-        }
 
     return {"results": results, "errors": errors}
 
@@ -676,6 +721,8 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
 @app.websocket("/ws")
 async def ws(websocket: fastapi.WebSocket):
     await websocket.accept()
+    hunter_jobs = {}
+    send_lock = asyncio.Lock()
 
     try:
         while True:
@@ -711,6 +758,10 @@ async def ws(websocket: fastapi.WebSocket):
                 )
                 continue
 
+            if message.get("type") == WsMessageType.HUNTER.value:
+                await send_ws_hunter(websocket, send_lock, hunter_jobs, message)
+                continue
+
             await websocket.send_json(
                 build_ws_error(
                     WsErrorType.NOT_IMPLEMENTED,
@@ -719,6 +770,7 @@ async def ws(websocket: fastapi.WebSocket):
                 )
             )
     finally:
+        await cancel_hunter_jobs(hunter_jobs)
         app.state.active_ws_spot_connections.discard(websocket)
 
 
@@ -728,6 +780,214 @@ async def send_ws_submit(websocket: fastapi.WebSocket, message: dict):
         response = {**response, "error_type": response["type"]}
         del response["type"]
     await websocket.send_json(build_ws_message(WsMessageType.SUBMIT, **response))
+
+
+async def send_ws_json(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
+    async with send_lock:
+        await websocket.send_json(message)
+
+
+async def cancel_hunter_jobs(hunter_jobs):
+    tasks = [job.task for job in hunter_jobs.values() if job.task is not None]
+    for task in tasks:
+        if not task.done():
+            task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def send_ws_hunter(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, hunter_jobs, message: dict):
+    action = message.get("action")
+    job_id = message.get("job_id")
+    if not job_id:
+        await send_ws_json(websocket, send_lock, build_ws_error(WsErrorType.MISSING_FIELD, "Missing job_id", field="job_id"))
+        return
+
+    if action == WsHunterAction.START.value:
+        old_job = hunter_jobs.get(job_id)
+        if old_job is not None and old_job.task is not None and not old_job.task.done():
+            old_job.task.cancel()
+        hunter_jobs[job_id] = HunterWsJob(job_id=job_id)
+        return
+
+    job = hunter_jobs.get(job_id)
+    if job is None:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(WsErrorType.UNKNOWN_JOB, "Unknown hunter job", job_id=job_id),
+        )
+        return
+
+    if action == WsHunterAction.ADD.value:
+        if job.task is not None:
+            await send_ws_json(
+                websocket,
+                send_lock,
+                build_ws_error(WsErrorType.UNSUPPORTED_ACTION, "Hunter job is already running", job_id=job_id),
+            )
+            return
+
+        callsigns = message.get("callsigns")
+        if not isinstance(callsigns, list):
+            await send_ws_json(
+                websocket,
+                send_lock,
+                build_ws_error(WsErrorType.MISSING_FIELD, "Missing callsigns", field="callsigns", job_id=job_id),
+            )
+            return
+
+        normalized_callsigns, errors = normalize_hunter_callsigns(callsigns)
+        job.errors.update(errors)
+        for callsign in normalized_callsigns:
+            if callsign in job.seen_callsigns:
+                continue
+            job.seen_callsigns.add(callsign)
+            job.callsigns.append(callsign)
+        return
+
+    if action == WsHunterAction.FINISH.value:
+        if job.task is not None and not job.task.done():
+            await send_ws_json(
+                websocket,
+                send_lock,
+                build_ws_error(WsErrorType.UNSUPPORTED_ACTION, "Hunter job is already running", job_id=job_id),
+            )
+            return
+        job.task = asyncio.create_task(run_hunter_resolve_job(websocket, send_lock, job))
+        return
+
+    await send_ws_json(
+        websocket,
+        send_lock,
+        build_ws_error(WsErrorType.UNSUPPORTED_ACTION, "Unsupported hunter action", received_action=action, job_id=job_id),
+    )
+
+
+async def run_hunter_resolve_job(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, job: HunterWsJob):
+    total = len(job.callsigns) + len(job.errors)
+    completed = 0
+    await send_ws_json(
+        websocket,
+        send_lock,
+        build_ws_message(WsMessageType.HUNTER, event=WsHunterEvent.ACCEPTED.value, job_id=job.job_id, total=total),
+    )
+
+    if job.errors:
+        completed = len(job.errors)
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(
+                WsMessageType.HUNTER,
+                event=WsHunterEvent.RESULTS.value,
+                job_id=job.job_id,
+                completed=completed,
+                total=total,
+                results={},
+                errors=dict(job.errors),
+            ),
+        )
+
+    if not job.callsigns:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(
+                WsMessageType.HUNTER,
+                event=WsHunterEvent.COMPLETE.value,
+                job_id=job.job_id,
+                completed=completed,
+                total=total,
+            ),
+        )
+        return
+
+    qrz_session_key = await get_hunter_qrz_session_key()
+    queue = asyncio.Queue()
+    result_queue = asyncio.Queue()
+
+    for callsign in job.callsigns:
+        queue.put_nowait(callsign)
+
+    worker_count = min(HUNTER_RESOLVE_WORKER_COUNT, len(job.callsigns))
+    workers = [
+        asyncio.create_task(resolve_hunter_queue_worker(queue, result_queue, qrz_session_key))
+        for _ in range(worker_count)
+    ]
+    for _ in workers:
+        queue.put_nowait(None)
+
+    batch_results = {}
+    batch_errors = {}
+    try:
+        while completed < total:
+            callsign, result, error = await result_queue.get()
+            completed += 1
+            if error is None:
+                batch_results[callsign] = result
+            else:
+                batch_errors[callsign] = error
+
+            if len(batch_results) + len(batch_errors) >= HUNTER_RESOLVE_RESULT_BATCH_SIZE:
+                await send_hunter_result_batch(websocket, send_lock, job.job_id, completed, total, batch_results, batch_errors)
+                batch_results = {}
+                batch_errors = {}
+
+        if batch_results or batch_errors:
+            await send_hunter_result_batch(websocket, send_lock, job.job_id, completed, total, batch_results, batch_errors)
+
+        await asyncio.gather(*workers)
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(
+                WsMessageType.HUNTER,
+                event=WsHunterEvent.COMPLETE.value,
+                job_id=job.job_id,
+                completed=completed,
+                total=total,
+            ),
+        )
+    finally:
+        for worker in workers:
+            if not worker.done():
+                worker.cancel()
+        await asyncio.gather(*workers, return_exceptions=True)
+
+
+async def send_hunter_result_batch(websocket, send_lock, job_id, completed, total, results, errors):
+    await send_ws_json(
+        websocket,
+        send_lock,
+        build_ws_message(
+            WsMessageType.HUNTER,
+            event=WsHunterEvent.RESULTS.value,
+            job_id=job_id,
+            completed=completed,
+            total=total,
+            results=results,
+            errors=errors,
+        ),
+    )
+
+
+async def resolve_hunter_queue_worker(queue, result_queue, qrz_session_key):
+    while True:
+        callsign = await queue.get()
+        try:
+            if callsign is None:
+                return
+            try:
+                result = await resolve_hunter_callsign(callsign, qrz_session_key)
+                await result_queue.put((callsign, result, None))
+            except GeoException as e:
+                await result_queue.put((callsign, None, f"{e.data_type} not found"))
+            except Exception:
+                logger.exception(f"Failed to resolve hunter callsign: {callsign}")
+                await result_queue.put((callsign, None, "not found"))
+        finally:
+            queue.task_done()
 
 
 async def get_initial_spots():

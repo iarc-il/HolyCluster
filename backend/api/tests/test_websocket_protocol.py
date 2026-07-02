@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from api.main import app, broadcast_spots
+from shared.geo import GeoData, GeoException
 
 
 class FakeExecuteResult:
@@ -36,6 +37,22 @@ class FakeWebSocket:
 
     async def send_json(self, message):
         self.messages.append(message)
+
+
+def create_geo_data(callsign, *, cached=False, source="qrz"):
+    return GeoData(
+        cached=cached,
+        locator_source=source,
+        locator="CM87",
+        lon=-122.4,
+        lat=37.7,
+        dxcc_code=291,
+        country="USA",
+        continent="NA",
+        state="CA",
+        cq_zone=3,
+        itu_zone=6,
+    )
 
 
 class WebSocketProtocolTest(unittest.TestCase):
@@ -232,6 +249,101 @@ class WebSocketProtocolTest(unittest.TestCase):
                 },
             )
             self.assertEqual(len(app.state.active_ws_spot_connections), 0)
+
+    def test_ws_hunter_resolves_streamed_job(self):
+        app.state.valkey_client = object()
+        app.state.http_client = object()
+        resolved_callsigns = []
+
+        async def fake_get_geo_details(_valkey_client, _qrz_key, callsign, *_args):
+            resolved_callsigns.append(callsign)
+            if callsign == "BAD":
+                raise GeoException(callsign, "hunter_import", "locator")
+            return create_geo_data(callsign, cached=callsign == "K1ABC", source="cty")
+
+        with (
+            patch("api.main.get_qrz_session_key_from_redis", new=AsyncMock(return_value="session")),
+            patch("api.main.get_geo_details", new=fake_get_geo_details),
+            self.client.websocket_connect("/ws") as websocket,
+        ):
+            websocket.send_json({"version": 1, "type": "hunter", "action": "start", "job_id": "job-1"})
+            websocket.send_json(
+                {
+                    "version": 1,
+                    "type": "hunter",
+                    "action": "add",
+                    "job_id": "job-1",
+                    "callsigns": ["k1abc", "BAD", "BAD!", "K1ABC"],
+                }
+            )
+            websocket.send_json({"version": 1, "type": "hunter", "action": "finish", "job_id": "job-1"})
+
+            self.assertEqual(
+                websocket.receive_json(),
+                {
+                    "version": 1,
+                    "type": "hunter",
+                    "event": "accepted",
+                    "job_id": "job-1",
+                    "total": 3,
+                },
+            )
+
+            results = {}
+            errors = {}
+            complete = None
+            while complete is None:
+                message = websocket.receive_json()
+                if message["event"] == "results":
+                    results.update(message["results"])
+                    errors.update(message["errors"])
+                else:
+                    complete = message
+
+        self.assertEqual(set(resolved_callsigns), {"K1ABC", "BAD"})
+        self.assertEqual(results["K1ABC"]["source"], "cache")
+        self.assertEqual(errors, {"BAD!": "invalid callsign", "BAD": "locator not found"})
+        self.assertEqual(
+            complete,
+            {
+                "version": 1,
+                "type": "hunter",
+                "event": "complete",
+                "job_id": "job-1",
+                "completed": 3,
+                "total": 3,
+            },
+        )
+
+    def test_ws_hunter_requires_job_id(self):
+        with self.client.websocket_connect("/ws") as websocket:
+            websocket.send_json({"version": 1, "type": "hunter", "action": "start"})
+
+            self.assertEqual(
+                websocket.receive_json(),
+                {
+                    "version": 1,
+                    "type": "error",
+                    "error_type": "MissingField",
+                    "message": "Missing job_id",
+                    "field": "job_id",
+                },
+            )
+
+    def test_ws_hunter_rejects_unknown_job(self):
+        with self.client.websocket_connect("/ws") as websocket:
+            websocket.send_json({"version": 1, "type": "hunter", "action": "finish", "job_id": "job-1"})
+
+            self.assertEqual(
+                websocket.receive_json(),
+                {
+                    "version": 1,
+                    "type": "error",
+                    "error_type": "UnknownJob",
+                    "message": "Unknown hunter job",
+                    "job_id": "job-1",
+                },
+            )
 
     def test_ws_returns_not_implemented_for_unrouted_v1_type(self):
         with self.client.websocket_connect("/ws") as websocket:
