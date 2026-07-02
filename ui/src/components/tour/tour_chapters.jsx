@@ -423,7 +423,6 @@ export const TOUR_CHAPTERS = {
                 title: "Quick Filters",
                 content:
                     "The left rail contains fast band and mode filters for the live spot stream.",
-                optional: true,
                 placement: "right",
                 skipBeacon: true,
             },
@@ -431,7 +430,6 @@ export const TOUR_CHAPTERS = {
                 target: "[data-tour='band-filter-20']",
                 title: "Band Filters",
                 content: "Click the 20m band button to toggle that band in the live spot stream.",
-                optional: true,
                 requires: "manual_band_filter_available",
                 buttons: action_buttons,
                 placement: "right",
@@ -441,10 +439,30 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                target: "[data-tour='filter-options-trigger-bands-20']",
+                title: "Open Band Options",
+                content: "Hover over the 20m band button to open its ONLY and ALL shortcuts.",
+                requires: "manual_band_filter_available",
+                buttons: action_buttons,
+                placement: "right",
+                waitFor: "[data-tour='filter-options-popup'][data-tour-state='bands-20']",
+            },
+            {
+                target: "[data-tour='filter-options-popup']",
+                title: "ONLY And ALL",
+                content:
+                    "ONLY keeps just this band enabled. ALL turns the available band buttons back on.",
+                requires: "manual_band_filter_available",
+                forceFilterOptions: {
+                    filter_key: "bands",
+                    filter_value: 20,
+                },
+                placement: "right",
+            },
+            {
                 target: "[data-tour='mode-filter-SSB']",
                 title: "Mode Filters",
                 content: "Click SSB to toggle that mode in the table and map.",
-                optional: true,
                 buttons: action_buttons,
                 placement: "right",
                 waitForChange: {

@@ -110,6 +110,42 @@ describe("tour chapters", () => {
         expect(interactive_targets).toContain("[data-tour='mode-filter-SSB']");
     });
 
+    it("asks users to open the band ONLY/ALL popup", () => {
+        const hover_step = TOUR_CHAPTERS.filters.steps.find(
+            step => step.target === "[data-tour='filter-options-trigger-bands-20']",
+        );
+        const popup_step = TOUR_CHAPTERS.filters.steps.find(
+            step => step.target === "[data-tour='filter-options-popup']",
+        );
+
+        expect(hover_step?.waitFor).toBe(
+            "[data-tour='filter-options-popup'][data-tour-state='bands-20']",
+        );
+        expect(popup_step?.forceFilterOptions).toEqual({
+            filter_key: "bands",
+            filter_value: 20,
+        });
+        expect(popup_step?.waitForGone).toBeUndefined();
+        expect(hover_step?.optional).not.toBe(true);
+        expect(popup_step?.optional).not.toBe(true);
+    });
+
+    it("keeps sidebar filter steps available after opening the rail", () => {
+        const sidebar_targets = [
+            "[data-tour='left-column']",
+            "[data-tour='band-filter-20']",
+            "[data-tour='filter-options-trigger-bands-20']",
+            "[data-tour='filter-options-popup']",
+            "[data-tour='mode-filter-SSB']",
+        ];
+
+        for (const target of sidebar_targets) {
+            const step = TOUR_CHAPTERS.filters.steps.find(candidate => candidate.target === target);
+            expect(step, target).toBeDefined();
+            expect(step.optional, target).not.toBe(true);
+        }
+    });
+
     it("has stable target selectors for every step", () => {
         for (const { chapter, step } of all_steps()) {
             expect(step.target, `${chapter.id}: ${step.title}`).toMatch(/^\[data-tour='[^']+'\]$/);

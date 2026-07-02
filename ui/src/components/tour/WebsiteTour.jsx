@@ -11,7 +11,11 @@ import {
     TOUR_COMPLETED_CHAPTERS_KEY,
     get_tour_chapter,
 } from "./tour_chapters.jsx";
-import { TOUR_CLOSE_MAP_CONTROLS_EVENT, TOUR_CLOSE_MODAL_EVENT } from "./tour_events.js";
+import {
+    TOUR_CLOSE_MAP_CONTROLS_EVENT,
+    TOUR_CLOSE_MODAL_EVENT,
+    TOUR_FILTER_OPTIONS_EVENT,
+} from "./tour_events.js";
 
 const completed_statuses = new Set([STATUS.FINISHED, STATUS.SKIPPED]);
 const wait_poll_interval_ms = 150;
@@ -251,6 +255,24 @@ function WebsiteTour() {
         tour_state.is_running,
         tour_state.step_index,
     ]);
+
+    useEffect(() => {
+        if (!tour_state.is_running || !current_step?.forceFilterOptions) return;
+
+        document.dispatchEvent(
+            new CustomEvent(TOUR_FILTER_OPTIONS_EVENT, {
+                detail: { ...current_step.forceFilterOptions, open: true },
+            }),
+        );
+
+        return () => {
+            document.dispatchEvent(
+                new CustomEvent(TOUR_FILTER_OPTIONS_EVENT, {
+                    detail: { ...current_step.forceFilterOptions, open: false },
+                }),
+            );
+        };
+    }, [current_step, tour_state.is_running]);
 
     useEffect(() => {
         if (!tour_state.is_running) {
