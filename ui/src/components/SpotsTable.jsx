@@ -43,6 +43,16 @@ const HUNTER_ALERT_FLASH_CSS_VAR_NAMES = [
     HUNTER_ALERT_FLASH_GLOW_ALPHA_VAR,
     HUNTER_ALERT_FLASH_GLOW_RADIUS_VAR,
 ];
+const tour_table_header_height = 32;
+const tour_table_row_height = 28;
+
+export function get_tour_row_index(spots_count, table_height) {
+    if (spots_count <= 0) return -1;
+
+    const usable_height = Math.max(0, table_height - tour_table_header_height);
+    const visible_rows = Math.max(1, Math.floor(usable_height / tour_table_row_height));
+    return Math.min(spots_count - 1, Math.floor((visible_rows - 1) / 2));
+}
 
 const hunter_alert_callsign_style = {
     backgroundColor: `rgb(var(${HUNTER_ALERT_FLASH_COLOR_VAR}, 239 68 68) / var(${HUNTER_ALERT_FLASH_BG_ALPHA_VAR}, 0))`,
@@ -164,6 +174,7 @@ const Spot = forwardRef(function Spot(
         cell_classes,
         is_pota_mode,
         show_sota_points,
+        is_tour_row,
     },
     ref,
 ) {
@@ -281,8 +292,8 @@ const Spot = forwardRef(function Spot(
     return (
         <tr
             ref={ref}
-            data-tour="spot-row"
-            data-tour-state={is_pinned ? "pinned" : "unpinned"}
+            data-tour={is_tour_row ? "spot-row" : undefined}
+            data-tour-state={is_tour_row ? (is_pinned ? "pinned" : "unpinned") : undefined}
             style={{
                 backgroundColor: background_color,
                 outlineColor: is_regular_alerted ? colors.light_bands[spot.band] : "",
@@ -318,7 +329,7 @@ const Spot = forwardRef(function Spot(
                     on_context_menu(event, spot, "flag");
                 }}
                 className={cell_classes.flag}
-                data-tour="spot-row-flag"
+                data-tour={is_tour_row ? "spot-row-flag" : undefined}
             >
                 <div
                     className="relative cursor-pointer"
@@ -349,7 +360,7 @@ const Spot = forwardRef(function Spot(
             </td>
             <td
                 className={`${cell_classes.dx_callsign} font-semibold`}
-                data-tour="spot-row-dx-callsign"
+                data-tour={is_tour_row ? "spot-row-dx-callsign" : undefined}
                 style={{
                     outline: is_dxpedition_alerted
                         ? `2px solid ${colors.spots.dxpedition_alert}`
@@ -407,7 +418,7 @@ const Spot = forwardRef(function Spot(
             </td>
             <td
                 className={cell_classes.freq}
-                data-tour="spot-row-frequency"
+                data-tour={is_tour_row ? "spot-row-frequency" : undefined}
                 onClick={() => set_cat_to_spot(spot)}
             >
                 <div
@@ -420,7 +431,7 @@ const Spot = forwardRef(function Spot(
                     {spot.freq}
                 </div>
             </td>
-            <td className={cell_classes.band} data-tour="spot-row-band">
+            <td className={cell_classes.band} data-tour={is_tour_row ? "spot-row-band" : undefined}>
                 <p
                     className="inline-block min-w-[2.75rem] px-1 rounded-full font-medium whitespace-nowrap"
                     style={{
@@ -441,7 +452,7 @@ const Spot = forwardRef(function Spot(
             >
                 <Callsign callsign={spot.spotter_callsign} />
             </td>
-            <td className={cell_classes.mode} data-tour="spot-row-mode">
+            <td className={cell_classes.mode} data-tour={is_tour_row ? "spot-row-mode" : undefined}>
                 {spot.mode}
             </td>
             {is_pota_mode ? (
@@ -489,7 +500,11 @@ const Spot = forwardRef(function Spot(
                     )}
                 </>
             ) : (
-                <td className={cell_classes.comment} title={comment} data-tour="spot-row-comment">
+                <td
+                    className={cell_classes.comment}
+                    title={comment}
+                    data-tour={is_tour_row ? "spot-row-comment" : undefined}
+                >
                     {comment}
                 </td>
             )}
@@ -598,6 +613,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const { get_filter_add_status, add_filter_if_allowed } = useFilters();
     const row_refs = useRef({});
     const table_flash_ref = useRef(null);
+    const [tour_row_index, set_tour_row_index] = useState(4);
     const has_hunter_alerted_spots = spots.some(spot => spot.hunterNeeded?.is_needed);
 
     useEffect(() => {
@@ -633,6 +649,26 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         };
     }, [has_hunter_alerted_spots, colors.spots]);
 
+    useEffect(() => {
+        const element = table_flash_ref.current;
+        if (!element) return;
+
+        function update_tour_row_index() {
+            set_tour_row_index(get_tour_row_index(spots.length, element.clientHeight));
+        }
+
+        update_tour_row_index();
+
+        if (typeof ResizeObserver === "undefined") {
+            window.addEventListener("resize", update_tour_row_index);
+            return () => window.removeEventListener("resize", update_tour_row_index);
+        }
+
+        const resize_observer = new ResizeObserver(update_tour_row_index);
+        resize_observer.observe(element);
+        return () => resize_observer.disconnect();
+    }, [spots.length]);
+
     const parity_map = useRef(new Map());
     const prev_sort = useRef(table_sort);
     update_parity_map(parity_map.current, prev_sort, table_sort, spots);
@@ -643,6 +679,8 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
           ? pota_cell_classes
           : cell_classes;
     const table_columns = show_sota_points ? sota_columns : is_pota_mode ? pota_columns : columns;
+    const selected_tour_row_index =
+        spots.length > 0 ? Math.min(tour_row_index, spots.length - 1) : -1;
 
     const [context_menu, set_context_menu] = useState({
         visible: false,
@@ -822,7 +860,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     />
                                 ))}
                             </tr>
-                            {spots.map(spot => (
+                            {spots.map((spot, index) => (
                                 <Spot
                                     ref={element => (row_refs.current[spot.id] = element)}
                                     key={spot.id}
@@ -838,6 +876,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     cell_classes={table_cell_classes}
                                     is_pota_mode={is_pota_mode}
                                     show_sota_points={show_sota_points}
+                                    is_tour_row={index === selected_tour_row_index}
                                 />
                             ))}
                         </tbody>

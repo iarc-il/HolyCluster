@@ -90,6 +90,17 @@ describe("tour chapters", () => {
         expect(waits).toContain("[data-tour='table-context-menu'][data-tour-state='flag']");
     });
 
+    it("keeps dynamic table context menu targets available", () => {
+        const context_menu_target_steps = TOUR_CHAPTERS.spots_table.steps.filter(
+            step => step.target === "[data-tour='table-context-menu']",
+        );
+
+        expect(context_menu_target_steps.length).toBeGreaterThan(0);
+        for (const step of context_menu_target_steps) {
+            expect(step.optional, step.title).not.toBe(true);
+        }
+    });
+
     it("asks users to try safe filter controls", () => {
         const interactive_targets = TOUR_CHAPTERS.filters.steps
             .filter(step => step.waitForChange)

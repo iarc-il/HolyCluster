@@ -350,7 +350,6 @@ export const TOUR_CHAPTERS = {
                 title: "Callsign Actions",
                 content:
                     "This menu can open QRZ, pin the spot, or create callsign filters. Click outside it or press Esc to close it.",
-                optional: true,
                 requires: "has_spots",
                 buttons: action_buttons,
                 placement: "top",
@@ -371,7 +370,6 @@ export const TOUR_CHAPTERS = {
                 title: "Entity Actions",
                 content:
                     "This menu creates alert, show-only, or hide filters for the entity. Click outside it or press Esc to close it.",
-                optional: true,
                 requires: "has_spots",
                 buttons: action_buttons,
                 placement: "top",
