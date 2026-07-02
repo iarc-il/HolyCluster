@@ -83,7 +83,7 @@ function WebsiteTour() {
     const { propagation } = useRestData();
     const { filters } = useFilters();
     const { radio_status } = use_radio();
-    const { spots } = useSpotData();
+    const { spots, set_spot_buffering } = useSpotData();
     const is_mobile = useMediaQuery("only screen and (max-width : 768px)");
     const [completed_chapters, set_completed_chapters] = useLocalStorage(
         TOUR_COMPLETED_CHAPTERS_KEY,
@@ -332,6 +332,13 @@ function WebsiteTour() {
         tour_state.is_running,
         tour_state.step_index,
     ]);
+
+    useEffect(() => {
+        if (!tour_state.is_running) return;
+
+        set_spot_buffering(true);
+        return () => set_spot_buffering(false);
+    }, [set_spot_buffering, tour_state.is_running]);
 
     const handle_callback = useCallback(
         data => {

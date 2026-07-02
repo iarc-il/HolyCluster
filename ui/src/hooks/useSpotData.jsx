@@ -25,6 +25,7 @@ export const SpotDataProvider = ({
         raw_spots: ws_raw_spots,
         new_spot_ids: ws_new_spot_ids,
         network_state,
+        set_spot_buffering,
     } = useSpotWebSocket();
     const { raw_spots: history_raw_spots, fetch_state } = useHistorySpots(
         startTime,
@@ -95,6 +96,7 @@ export const SpotDataProvider = ({
                 spots_per_band_count,
                 spots_per_mode_count,
                 network_state,
+                set_spot_buffering,
                 current_freq_spots,
                 is_history_mode,
                 fetch_state,

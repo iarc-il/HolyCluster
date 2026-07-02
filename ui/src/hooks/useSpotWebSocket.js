@@ -2,7 +2,7 @@ import { is_canada_dxcc_code, is_us_state_dxcc_code } from "@/data/dxcc_entities
 import { continents, modes } from "@/data/filters_data.js";
 import { normalize_spot_dxcc_fields } from "@/utils/spot_dxcc.js";
 import { find_zone_number } from "@/utils/zones.js";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ReadyState, useWs, useWsMessage } from "./useWs";
 
 export function normalize_band(band) {
@@ -56,6 +56,10 @@ export function trim_spots_to_last_hour(spots) {
     return spots.filter(spot => spot.time > current_time - 3600);
 }
 
+export function flatten_buffered_spot_batches(spot_batches) {
+    return [...spot_batches].reverse().flat();
+}
+
 export default function useSpotWebSocket() {
     const { send, network_state, readyState } = useWs();
     const [raw_spots, set_spots] = useState([]);
@@ -64,6 +68,59 @@ export default function useSpotWebSocket() {
     const started_ref = useRef(false);
     const last_spot_time_ref = useRef(0);
     const next_spot_id_ref = useRef(0);
+    const is_buffering_spots_ref = useRef(false);
+    const buffered_spot_batches_ref = useRef([]);
+
+    const track_latest_spot_time = useCallback(spots => {
+        if (spots.length === 0) return;
+
+        last_spot_time_ref.current = Math.max(
+            last_spot_time_ref.current,
+            ...spots.map(spot => spot.time),
+        );
+    }, []);
+
+    const apply_spot_update = useCallback(
+        new_spots => {
+            const new_ids = new Set(new_spots.map(spot => spot.id));
+            set_new_spot_ids(new_ids);
+
+            setTimeout(() => {
+                set_new_spot_ids(new Set());
+            }, 3000);
+
+            set_spots(previous_spots => {
+                const merged_spots = trim_spots_to_last_hour(new_spots.concat(previous_spots));
+                track_latest_spot_time(merged_spots);
+
+                return merged_spots;
+            });
+        },
+        [track_latest_spot_time],
+    );
+
+    const release_buffered_spots = useCallback(() => {
+        if (buffered_spot_batches_ref.current.length === 0) return;
+
+        const buffered_spots = flatten_buffered_spot_batches(buffered_spot_batches_ref.current);
+        buffered_spot_batches_ref.current = [];
+
+        if (buffered_spots.length > 0) {
+            apply_spot_update(buffered_spots);
+        }
+    }, [apply_spot_update]);
+
+    const set_spot_buffering = useCallback(
+        should_buffer_spots => {
+            const was_buffering_spots = is_buffering_spots_ref.current;
+            is_buffering_spots_ref.current = should_buffer_spots;
+
+            if (was_buffering_spots && !should_buffer_spots) {
+                release_buffered_spots();
+            }
+        },
+        [release_buffered_spots],
+    );
 
     useEffect(() => {
         if (readyState === ReadyState.OPEN && !started_ref.current) {
@@ -121,22 +178,13 @@ export default function useSpotWebSocket() {
             });
 
         if (data.event === "update") {
-            const new_ids = new Set(new_spots.map(spot => spot.id));
-            set_new_spot_ids(new_ids);
+            if (is_buffering_spots_ref.current) {
+                buffered_spot_batches_ref.current.push(new_spots);
+                track_latest_spot_time(new_spots);
+                return;
+            }
 
-            setTimeout(() => {
-                set_new_spot_ids(new Set());
-            }, 3000);
-
-            set_spots(previous_spots => {
-                const merged_spots = trim_spots_to_last_hour(new_spots.concat(previous_spots));
-
-                if (merged_spots.length > 0) {
-                    last_spot_time_ref.current = Math.max(...merged_spots.map(spot => spot.time));
-                }
-
-                return merged_spots;
-            });
+            apply_spot_update(new_spots);
         } else {
             new_spots = trim_spots_to_last_hour(new_spots);
             set_spots(new_spots);
@@ -147,5 +195,5 @@ export default function useSpotWebSocket() {
         }
     });
 
-    return { raw_spots, new_spot_ids, network_state };
+    return { raw_spots, new_spot_ids, network_state, set_spot_buffering };
 }
