@@ -1,5 +1,6 @@
 import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
+import SearchIcon from "@/components/ui/SearchIcon.jsx";
 import X from "@/components/ui/X.jsx";
 import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
 import {
@@ -366,18 +367,29 @@ function HunterSection({
             </div>
 
             <div className="flex gap-2">
-                <input
-                    type="search"
-                    value={search}
-                    onChange={event => on_set_search(section, event.target.value)}
-                    placeholder={`Search ${SECTION_LABELS[section]}`}
-                    className="min-w-0 flex-1 rounded px-2 py-1 text-sm"
+                <div
+                    className="min-w-0 flex-1 rounded px-2 py-1 text-sm flex items-center gap-2"
                     style={{
                         backgroundColor: colors.theme.input_background,
                         color: colors.theme.text,
                         border: `1px solid ${colors.theme.borders}`,
                     }}
-                />
+                >
+                    <SearchIcon
+                        color={colors.theme.text}
+                        className="shrink-0"
+                        width="18"
+                        height="18"
+                    />
+                    <input
+                        type="search"
+                        value={search}
+                        onChange={event => on_set_search(section, event.target.value)}
+                        placeholder={`Search ${SECTION_LABELS[section]}`}
+                        className="min-w-0 flex-1 bg-transparent outline-none"
+                        style={{ color: colors.theme.text }}
+                    />
+                </div>
                 {list_mode === "done" && (
                     <ClearDoneButton
                         section={section}

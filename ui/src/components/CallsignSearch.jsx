@@ -1,5 +1,6 @@
 import Input from "@/components/ui/Input.jsx";
 import Popup from "@/components/ui/Popup.jsx";
+import SearchIcon from "@/components/ui/SearchIcon.jsx";
 import Select from "@/components/ui/Select.jsx";
 import X from "@/components/ui/X.jsx";
 import { useColors } from "@/hooks/useColors";
@@ -70,20 +71,7 @@ export default function CallsignSearch({
             className={`${className} items-center gap-1.5 px-2 py-1 shrink-0`}
             style={border_style}
         >
-            {!compact && (
-                <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke={colors.theme.text}
-                    strokeWidth="2"
-                >
-                    <title>Search</title>
-                    <circle cx="6" cy="6" r="5" />
-                    <path d="M15 15L10 10" strokeLinecap="round" />
-                </svg>
-            )}
+            {!compact && <SearchIcon color={colors.theme.text} />}
             <Input
                 className={`${compact ? "min-w-0 flex-1 h-9 text-base" : "w-48 h-10 text-lg"} border-2`}
                 border_color={colors.table.header_arrow}
