@@ -124,6 +124,46 @@ describe("tour chapters", () => {
         }
     });
 
+    it("lets already-active settings tab steps continue", () => {
+        const settings_tab_targets = [
+            "[data-tour='settings-tab-cat-control']",
+            "[data-tour='settings-tab-bands-modes']",
+            "[data-tour='settings-tab-import-export']",
+        ];
+
+        for (const target of settings_tab_targets) {
+            const step = TOUR_CHAPTERS.settings.steps.find(
+                candidate => candidate.target === target,
+            );
+            expect(step, target).toBeDefined();
+            expect(step.waitForChange, target).toEqual({
+                selector: target,
+                attribute: "data-tour-state",
+                satisfiedValue: "active",
+            });
+        }
+    });
+
+    it("targets visible modal content for dialog overview steps", () => {
+        const settings_open_step = TOUR_CHAPTERS.settings.steps.find(
+            step => step.target === "[data-tour='top-bar-settings']",
+        );
+        const settings_dialog_step = TOUR_CHAPTERS.settings.steps.find(
+            step => step.title === "Settings Dialog",
+        );
+        const submit_open_step = TOUR_CHAPTERS.submit_spot.steps.find(
+            step => step.target === "[data-tour='top-bar-submit-spot']",
+        );
+        const submit_dialog_step = TOUR_CHAPTERS.submit_spot.steps.find(
+            step => step.title === "Submit Spot Dialog",
+        );
+
+        expect(settings_open_step?.waitFor).toBe("[data-tour='settings-modal-content']");
+        expect(settings_dialog_step?.target).toBe("[data-tour='settings-modal-content']");
+        expect(submit_open_step?.waitFor).toBe("[data-tour='submit-spot-modal-content']");
+        expect(submit_dialog_step?.target).toBe("[data-tour='submit-spot-modal-content']");
+    });
+
     it("keeps DXpeditions panel steps required", () => {
         const dxpeditions_targets = [
             "[data-tour='dxpeditions-panel']",

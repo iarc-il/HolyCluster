@@ -161,6 +161,7 @@ function Modal({
                                 </svg>
                             </div>
                             <div
+                                data-tour={dialog_data_tour ? `${dialog_data_tour}-content` : null}
                                 className="rounded-lg shadow-xl relative flex flex-col w-full outline-none focus:outline-none border"
                                 style={{
                                     backgroundColor: colors.theme.modals,

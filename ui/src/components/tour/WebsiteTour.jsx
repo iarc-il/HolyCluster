@@ -150,23 +150,32 @@ function WebsiteTour() {
         [mark_chapter_done, stop_tour, tour_state.current_chapter_id],
     );
 
-    const should_skip_step = useCallback(
+    const should_exclude_step = useCallback(
         step => {
             if (!step) return true;
             if (step.desktopOnly && is_mobile) return true;
             if (step.mobileOnly && !is_mobile) return true;
             if (step.requires && !requirements_are_met(step.requires, runtime_conditions))
                 return true;
-            if (step.optional && step.target && !is_selector_visible(step.target)) return true;
 
             return false;
         },
         [is_mobile, runtime_conditions],
     );
 
+    const should_skip_step = useCallback(
+        step => {
+            if (should_exclude_step(step)) return true;
+            if (step.optional && step.target && !is_selector_visible(step.target)) return true;
+
+            return false;
+        },
+        [should_exclude_step],
+    );
+
     const get_available_steps = useCallback(
-        step_list => step_list.filter(step => !should_skip_step(step)),
-        [should_skip_step],
+        step_list => step_list.filter(step => !should_exclude_step(step)),
+        [should_exclude_step],
     );
 
     const steps = useMemo(
