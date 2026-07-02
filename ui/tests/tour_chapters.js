@@ -110,6 +110,37 @@ describe("tour chapters", () => {
         expect(interactive_targets).toContain("[data-tour='mode-filter-SSB']");
     });
 
+    it("lets already-active side panel tab steps continue", () => {
+        const side_panel_tab_steps = all_steps().filter(({ step }) =>
+            step.target.startsWith("[data-tour='side-panel-tab-"),
+        );
+
+        for (const { chapter, step } of side_panel_tab_steps) {
+            expect(step.waitForChange, `${chapter.id}: ${step.title}`).toEqual({
+                selector: step.target,
+                attribute: "data-tour-state",
+                satisfiedValue: "active",
+            });
+        }
+    });
+
+    it("keeps DXpeditions panel steps required", () => {
+        const dxpeditions_targets = [
+            "[data-tour='dxpeditions-panel']",
+            "[data-tour='dxpeditions-summary']",
+            "[data-tour='dxpeditions-filter']",
+            "[data-tour='dxpeditions-sort']",
+        ];
+
+        for (const target of dxpeditions_targets) {
+            const step = TOUR_CHAPTERS.side_panel.steps.find(
+                candidate => candidate.target === target,
+            );
+            expect(step, target).toBeDefined();
+            expect(step.optional, target).not.toBe(true);
+        }
+    });
+
     it("asks users to open the band ONLY/ALL popup", () => {
         const hover_step = TOUR_CHAPTERS.filters.steps.find(
             step => step.target === "[data-tour='filter-options-trigger-bands-20']",

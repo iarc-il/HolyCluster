@@ -275,14 +275,6 @@ function DXpeditions() {
     const active_count = useMemo(() => dxpeditions.filter(is_active).length, [dxpeditions]);
     const upcoming_count = dxpeditions.length - active_count;
 
-    if (sorted_dxpeditions.length === 0) {
-        return (
-            <div className="p-4 text-center text-sm" style={{ color: colors.theme.text }}>
-                <span data-tour="dxpeditions-empty">No active DXpeditions</span>
-            </div>
-        );
-    }
-
     return (
         <div
             className="p-2 text-sm flex flex-col gap-2 overflow-y-auto h-full"
@@ -362,34 +354,40 @@ function DXpeditions() {
                     </div>
                 </div>
             </div>
-            {sorted_dxpeditions.map(dxpedition => (
-                <DXpeditionCard
-                    key={dxpedition.id}
-                    dxpedition={dxpedition}
-                    colors={colors}
-                    is_spotted={spotted_dxpedition_spots.has(dxpedition.id)}
-                    is_highlighted={hovered_dxpedition_id === dxpedition.id}
-                    onMouseEnter={() => {
-                        const entry = spotted_dxpedition_spots.get(dxpedition.id);
-                        if (entry != null) {
-                            set_hovered_spot({
-                                source: "dxpedition",
-                                id: entry.id,
-                                dxpedition_id: dxpedition.id,
-                            });
-                        }
-                    }}
-                    onMouseLeave={() => {
-                        if (spotted_dxpedition_spots.has(dxpedition.id)) {
-                            set_hovered_spot({ source: null, id: null });
-                        }
-                    }}
-                    card_ref={element => {
-                        if (element) card_refs.current[dxpedition.id] = element;
-                        else delete card_refs.current[dxpedition.id];
-                    }}
-                />
-            ))}
+            {sorted_dxpeditions.length === 0 ? (
+                <div className="p-4 text-center text-sm" style={{ color: colors.theme.text }}>
+                    <span data-tour="dxpeditions-empty">No active DXpeditions</span>
+                </div>
+            ) : (
+                sorted_dxpeditions.map(dxpedition => (
+                    <DXpeditionCard
+                        key={dxpedition.id}
+                        dxpedition={dxpedition}
+                        colors={colors}
+                        is_spotted={spotted_dxpedition_spots.has(dxpedition.id)}
+                        is_highlighted={hovered_dxpedition_id === dxpedition.id}
+                        onMouseEnter={() => {
+                            const entry = spotted_dxpedition_spots.get(dxpedition.id);
+                            if (entry != null) {
+                                set_hovered_spot({
+                                    source: "dxpedition",
+                                    id: entry.id,
+                                    dxpedition_id: dxpedition.id,
+                                });
+                            }
+                        }}
+                        onMouseLeave={() => {
+                            if (spotted_dxpedition_spots.has(dxpedition.id)) {
+                                set_hovered_spot({ source: null, id: null });
+                            }
+                        }}
+                        card_ref={element => {
+                            if (element) card_refs.current[dxpedition.id] = element;
+                            else delete card_refs.current[dxpedition.id];
+                        }}
+                    />
+                ))
+            )}
         </div>
     );
 }

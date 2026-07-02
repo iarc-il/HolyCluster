@@ -106,6 +106,7 @@ function WebsiteTour() {
         is_running: false,
         step_index: 0,
     });
+    const [already_satisfied_wait_key, set_already_satisfied_wait_key] = useState(null);
     const wait_for_change_ref = useRef({ key: null, value: null });
 
     const current_chapter = get_tour_chapter(tour_state.current_chapter_id);
@@ -173,6 +174,27 @@ function WebsiteTour() {
         [chapter_steps, get_available_steps],
     );
     const current_step = steps[tour_state.step_index];
+    const current_wait_for_change_key = current_step?.waitForChange
+        ? `${tour_state.current_chapter_id}:${tour_state.step_index}:${current_step.waitForChange.selector}:${current_step.waitForChange.attribute ?? "text"}`
+        : null;
+    const current_wait_for_change_is_already_satisfied =
+        current_wait_for_change_key != null &&
+        already_satisfied_wait_key === current_wait_for_change_key;
+    const joyride_steps = useMemo(() => {
+        if (!current_wait_for_change_is_already_satisfied) return steps;
+
+        return steps.map((step, index) => {
+            if (
+                index !== tour_state.step_index ||
+                !step.buttons ||
+                step.buttons.includes("primary")
+            ) {
+                return step;
+            }
+
+            return { ...step, buttons: [...step.buttons, "primary"] };
+        });
+    }, [current_wait_for_change_is_already_satisfied, steps, tour_state.step_index]);
 
     const find_available_step_index = useCallback(
         (step_list, start_index, direction) => {
@@ -285,11 +307,13 @@ function WebsiteTour() {
     useEffect(() => {
         if (!tour_state.is_running) {
             wait_for_change_ref.current = { key: null, value: null };
+            set_already_satisfied_wait_key(current => (current == null ? current : null));
             return;
         }
 
         if (!current_step?.waitForChange) {
             wait_for_change_ref.current = { key: null, value: null };
+            set_already_satisfied_wait_key(current => (current == null ? current : null));
         }
 
         if (!current_step?.waitFor && !current_step?.waitForGone && !current_step?.waitForChange) {
@@ -297,16 +321,37 @@ function WebsiteTour() {
         }
 
         let has_advanced = false;
-        const wait_for_change_key = current_step.waitForChange
-            ? `${tour_state.current_chapter_id}:${tour_state.step_index}:${current_step.waitForChange.selector}:${current_step.waitForChange.attribute ?? "text"}`
-            : null;
+        const wait_for_change_key = current_wait_for_change_key;
+        const has_satisfied_value = current_step.waitForChange
+            ? Object.prototype.hasOwnProperty.call(current_step.waitForChange, "satisfiedValue")
+            : false;
+        const satisfied_value = current_step.waitForChange?.satisfiedValue;
+
+        set_already_satisfied_wait_key(current =>
+            current === wait_for_change_key ? current : null,
+        );
 
         if (current_step.waitForChange && wait_for_change_ref.current.key !== wait_for_change_key) {
+            const current_change_value = get_wait_for_change_value(current_step.waitForChange);
             wait_for_change_ref.current = {
                 key: wait_for_change_key,
-                value: get_wait_for_change_value(current_step.waitForChange),
+                value: current_change_value,
             };
+
+            if (has_satisfied_value && current_change_value === satisfied_value) {
+                set_already_satisfied_wait_key(wait_for_change_key);
+            }
         }
+
+        const set_current_step_already_satisfied = is_satisfied => {
+            set_already_satisfied_wait_key(current => {
+                if (is_satisfied) {
+                    return current === wait_for_change_key ? current : wait_for_change_key;
+                }
+
+                return current === wait_for_change_key ? null : current;
+            });
+        };
 
         const try_advance = () => {
             if (has_advanced) return;
@@ -320,8 +365,22 @@ function WebsiteTour() {
                         key: wait_for_change_key,
                         value: current_change_value,
                     };
+                    set_current_step_already_satisfied(
+                        has_satisfied_value && current_change_value === satisfied_value,
+                    );
                     return;
                 }
+
+                if (
+                    has_satisfied_value &&
+                    wait_for_change_ref.current.value === satisfied_value &&
+                    current_change_value === satisfied_value
+                ) {
+                    set_current_step_already_satisfied(true);
+                    return;
+                }
+
+                set_current_step_already_satisfied(false);
 
                 if (current_change_value === wait_for_change_ref.current.value) return;
             } else if (!step_wait_is_satisfied(current_step)) {
@@ -358,6 +417,7 @@ function WebsiteTour() {
     }, [
         advance_tour,
         current_step,
+        current_wait_for_change_key,
         tour_state.current_chapter_id,
         tour_state.is_running,
         tour_state.step_index,
@@ -423,7 +483,7 @@ function WebsiteTour() {
                 run={tour_state.is_running}
                 scrollToFirstStep={true}
                 stepIndex={tour_state.step_index}
-                steps={steps}
+                steps={joyride_steps}
                 styles={{
                     tooltip: {
                         border: "1px solid #334155",
