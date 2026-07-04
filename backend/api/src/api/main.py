@@ -16,7 +16,6 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
-from pydantic import BaseModel
 from shared.cty import ensure_cty_available
 from shared.db import GeoCache, HolySpot, PropagationMeasurement, SpotsWithIssues
 from shared.geo import GeoException, get_geo_details
@@ -214,7 +213,6 @@ async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False
 app = fastapi.FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-MAX_HUNTER_RESOLVE_CALLSIGNS = 100
 HUNTER_RESOLVE_RESULT_BATCH_SIZE = 50
 HUNTER_RESOLVE_WORKER_COUNT = 4
 HUNTER_CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/]{0,31}$")
@@ -359,10 +357,6 @@ async def get_propagation_history_data(start_time, end_time):
         previous_samples = (await session.execute(previous_query)).scalars().all()
 
     return build_propagation_history_response(start_time, end_time, range_samples, previous_samples)
-
-
-class HunterResolveRequest(BaseModel):
-    callsigns: list[str]
 
 
 @dataclass
@@ -595,32 +589,6 @@ async def get_locator(callsign: str):
         }
     else:
         return {"callsign": callsign, "error": "not found"}
-
-
-@app.post("/hunter/resolve")
-async def hunter_resolve(request: HunterResolveRequest):
-    if len(request.callsigns) > MAX_HUNTER_RESOLVE_CALLSIGNS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"maximum {MAX_HUNTER_RESOLVE_CALLSIGNS} callsigns per request",
-        )
-
-    normalized_callsigns, errors = normalize_hunter_callsigns(request.callsigns)
-    qrz_session_key = await get_hunter_qrz_session_key()
-
-    results = {}
-    for callsign in normalized_callsigns:
-        try:
-            results[callsign] = await resolve_hunter_callsign(callsign, qrz_session_key)
-        except GeoException as e:
-            errors[callsign] = f"{e.data_type} not found"
-            continue
-        except Exception:
-            logger.exception(f"Failed to resolve hunter callsign: {callsign}")
-            errors[callsign] = "not found"
-            continue
-
-    return {"results": results, "errors": errors}
 
 
 @app.get("/geocache/all")
