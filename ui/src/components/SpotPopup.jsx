@@ -52,7 +52,7 @@ function SpotPopup({
                 <p>Spotter: {spot_data.spotter_callsign}</p>
                 <p>
                     Distance: {settings.is_miles ? km_to_miles(distance) : distance}{" "}
-                    {settings.is_miles ? "Miles" : "KM"}
+                    {settings.is_miles ? "Miles" : "km"}
                 </p>
                 <p>Azimuth: {Math.round(azimuth)}°</p>
                 {spot_data.hunterNeeded?.is_needed && (
