@@ -768,7 +768,9 @@ async def send_ws_hunter(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, 
     action = message.get("action")
     job_id = message.get("job_id")
     if not job_id:
-        await send_ws_json(websocket, send_lock, build_ws_error(WsErrorType.MISSING_FIELD, "Missing job_id", field="job_id"))
+        await send_ws_json(
+            websocket, send_lock, build_ws_error(WsErrorType.MISSING_FIELD, "Missing job_id", field="job_id")
+        )
         return
 
     if action == WsHunterAction.START.value:
@@ -828,7 +830,9 @@ async def send_ws_hunter(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, 
     await send_ws_json(
         websocket,
         send_lock,
-        build_ws_error(WsErrorType.UNSUPPORTED_ACTION, "Unsupported hunter action", received_action=action, job_id=job_id),
+        build_ws_error(
+            WsErrorType.UNSUPPORTED_ACTION, "Unsupported hunter action", received_action=action, job_id=job_id
+        ),
     )
 
 
@@ -898,12 +902,16 @@ async def run_hunter_resolve_job(websocket: fastapi.WebSocket, send_lock: asynci
                 batch_errors[callsign] = error
 
             if len(batch_results) + len(batch_errors) >= HUNTER_RESOLVE_RESULT_BATCH_SIZE:
-                await send_hunter_result_batch(websocket, send_lock, job.job_id, completed, total, batch_results, batch_errors)
+                await send_hunter_result_batch(
+                    websocket, send_lock, job.job_id, completed, total, batch_results, batch_errors
+                )
                 batch_results = {}
                 batch_errors = {}
 
         if batch_results or batch_errors:
-            await send_hunter_result_batch(websocket, send_lock, job.job_id, completed, total, batch_results, batch_errors)
+            await send_hunter_result_batch(
+                websocket, send_lock, job.job_id, completed, total, batch_results, batch_errors
+            )
 
         await asyncio.gather(*workers)
         await send_ws_json(
