@@ -603,7 +603,7 @@ export const TOUR_CHAPTERS = {
     side_panel: {
         id: "side_panel",
         title: "Side Panel",
-        description: "Tour the non-dev side panel tools and tabs.",
+        description: "Tour the side panel tools and tabs.",
         steps: [
             {
                 target: "[data-tour='top-bar-right-menu']",

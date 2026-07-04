@@ -180,6 +180,12 @@ function TestHarness() {
     );
 }
 
+async function start_tour(user, chapter_title) {
+    await user.click(screen.getByRole("button", { name: "Show tour launcher" }));
+    await user.click(screen.getByRole("button", { name: `Select ${chapter_title} tour` }));
+    await user.click(screen.getByRole("button", { name: "Start tour" }));
+}
+
 describe("WebsiteTour", () => {
     let get_client_rects;
 
@@ -202,8 +208,7 @@ describe("WebsiteTour", () => {
         const user = userEvent.setup();
         render(<TestHarness />);
 
-        await user.selectOptions(screen.getByLabelText("Tour chapter"), "spots_table");
-        await user.click(screen.getByRole("button", { name: "Tour" }));
+        await start_tour(user, "Spots Table");
 
         if (screen.queryByRole("heading", { name: "Spots Table" })) {
             await user.click(screen.getByRole("button", { name: "Joyride next" }));
@@ -222,8 +227,7 @@ describe("WebsiteTour", () => {
         const user = userEvent.setup();
         const { unmount } = render(<TestHarness />);
 
-        await user.selectOptions(screen.getByLabelText("Tour chapter"), "spots_table");
-        await user.click(screen.getByRole("button", { name: "Tour" }));
+        await start_tour(user, "Spots Table");
 
         await waitFor(() => {
             expect(test_state.set_spot_buffering).toHaveBeenCalledWith(true);
@@ -238,8 +242,7 @@ describe("WebsiteTour", () => {
         const user = userEvent.setup();
         render(<TestHarness />);
 
-        await user.selectOptions(screen.getByLabelText("Tour chapter"), "side_panel");
-        await user.click(screen.getByRole("button", { name: "Tour" }));
+        await start_tour(user, "Side Panel");
 
         await user.click(screen.getByRole("button", { name: "Joyride next" }));
         await user.click(screen.getByRole("button", { name: "Joyride next" }));
@@ -264,8 +267,7 @@ describe("WebsiteTour", () => {
         const user = userEvent.setup();
         render(<TestHarness />);
 
-        await user.selectOptions(screen.getByLabelText("Tour chapter"), "settings");
-        await user.click(screen.getByRole("button", { name: "Tour" }));
+        await start_tour(user, "Settings");
 
         await user.click(screen.getByRole("button", { name: "Open settings" }));
 

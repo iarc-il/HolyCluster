@@ -182,7 +182,7 @@ function use_scroll_sync(scroll_ref, overlay_el) {
     }, [scroll_ref, overlay_el]);
 }
 
-function LeftColumn({ toggled_ui }) {
+function LeftColumn({ toggled_ui, children }) {
     const { spots_per_band_count, spots_per_mode_count } = useSpotData();
     const { set_hovered_band } = useSpotInteraction();
     const { filters, setFilters, setRadioModeFilter } = useFilters();
@@ -224,7 +224,10 @@ function LeftColumn({ toggled_ui }) {
                 borderColor: colors.theme.borders,
             }}
         >
-            <div ref={scroll_ref} className="flex flex-col h-full items-center overflow-y-auto">
+            <div
+                ref={scroll_ref}
+                className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto"
+            >
                 <div
                     className={`${filter_group_classes}pb-4 border-b-2 border-slate-300`}
                     data-tour="band-filter-group"
@@ -347,6 +350,14 @@ function LeftColumn({ toggled_ui }) {
                     })}
                 </div>
             </div>
+            {children && (
+                <div
+                    className="relative z-[60] flex shrink-0 justify-center border-t p-2"
+                    style={{ borderColor: colors.theme.borders }}
+                >
+                    {children}
+                </div>
+            )}
             <div
                 className="absolute inset-0 pointer-events-none z-50"
                 style={{ overflowY: "clip", overflowX: "visible" }}
