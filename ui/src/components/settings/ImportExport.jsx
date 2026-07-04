@@ -50,7 +50,7 @@ function filename_safe(value) {
 }
 
 function ImportExport({ set_temp_settings }) {
-    const { colors, dev_mode } = useColors();
+    const { colors } = useColors();
     const { is_shared_filter_state, save_shared_filters, get_filter_share_url } = useFilters();
     const { profiles, active_profile, create_profile } = useProfiles();
 
@@ -182,40 +182,38 @@ function ImportExport({ set_temp_settings }) {
                 </Button>
             </div>
             {file_status ? <p className="mt-3 text-sm opacity-75">{file_status}</p> : null}
-            {dev_mode ? (
-                <div
-                    className="mt-4 pt-4 border-t space-y-3"
-                    data-tour="settings-filter-url-sharing"
-                    style={{ borderColor: colors.theme.borders }}
-                >
-                    <div>
-                        <span className="font-medium">URL Sharing</span>
-                        <p className="text-sm opacity-75">
-                            Copy a link with the current filter state. Shared links use temporary
-                            filters until the URL parameter is removed.
-                        </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2 justify-between">
-                        <Button
-                            color="blue"
-                            on_click={handle_copy_filter_url}
-                            data-tour="settings-copy-filter-link"
-                        >
-                            Copy Filter Link
-                        </Button>
-                        {is_shared_filter_state ? (
-                            <Button
-                                color="green"
-                                on_click={handle_save_shared_filters}
-                                data-tour="settings-save-shared-filters"
-                            >
-                                Save Shared Filters
-                            </Button>
-                        ) : null}
-                    </div>
-                    {share_status ? <p className="text-sm opacity-75">{share_status}</p> : null}
+            <div
+                className="mt-4 pt-4 border-t space-y-3"
+                data-tour="settings-filter-url-sharing"
+                style={{ borderColor: colors.theme.borders }}
+            >
+                <div>
+                    <span className="font-medium">URL Sharing</span>
+                    <p className="text-sm opacity-75">
+                        Copy a link with the current filter state. Shared links use temporary
+                        filters until the URL parameter is removed.
+                    </p>
                 </div>
-            ) : null}
+                <div className="flex flex-wrap gap-2 justify-between">
+                    <Button
+                        color="blue"
+                        on_click={handle_copy_filter_url}
+                        data-tour="settings-copy-filter-link"
+                    >
+                        Copy Filter Link
+                    </Button>
+                    {is_shared_filter_state ? (
+                        <Button
+                            color="green"
+                            on_click={handle_save_shared_filters}
+                            data-tour="settings-save-shared-filters"
+                        >
+                            Save Shared Filters
+                        </Button>
+                    ) : null}
+                </div>
+                {share_status ? <p className="text-sm opacity-75">{share_status}</p> : null}
+            </div>
         </div>
     );
 }
