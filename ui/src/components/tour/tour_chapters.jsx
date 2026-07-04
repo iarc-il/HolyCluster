@@ -91,7 +91,7 @@ export const TOUR_CHAPTERS = {
                 target: "[data-tour='side-panel-tabs']",
                 title: "Feature Panels",
                 content:
-                    "These tabs switch between advanced filters, band activity, heatmap, DXpeditions, and missing-worked tools.",
+                    "These tabs switch between advanced filters, band activity, heatmap, DXpeditions, and ADIF tools.",
                 optional: true,
                 placement: "left",
             },
@@ -551,7 +551,7 @@ export const TOUR_CHAPTERS = {
                 target: "[data-tour='filter-modal-type-prefix']",
                 title: "Filter Type",
                 content:
-                    "The type decides what the filter matches. You can match callsigns, entities, zones, comments, missing-worked status, self spots, or DXpeditions.",
+                    "The type decides what the filter matches. You can match callsigns, entities, zones, comments, ADIF status, self spots, or DXpeditions.",
                 placement: "left",
             },
             {
@@ -750,7 +750,7 @@ export const TOUR_CHAPTERS = {
             {
                 target: "[data-tour='side-panel-tab-missing']",
                 title: "Missing View",
-                content: "Click the Missing tab to show worked/missing tracking.",
+                content: "Click the ADIF tab to show ADIF worked tracking.",
                 buttons: action_buttons,
                 placement: "left",
                 waitForChange: {
@@ -770,7 +770,7 @@ export const TOUR_CHAPTERS = {
                 target: "[data-tour='hunter-adif-import']",
                 title: "ADIF Import",
                 content:
-                    "Import ADIF logs here so the missing-worked tools can track your progress.",
+                    "Import ADIF logs here so the ADIF panel can track your progress.",
                 placement: "left",
             },
         ],
