@@ -176,12 +176,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
         {
             label: "Import/Export",
             data_tour: "settings-tab-import-export",
-            content: (
-                <ImportExport
-                    set_temp_settings={set_temp_settings}
-                    apply_settings={apply_settings}
-                />
-            ),
+            content: <ImportExport set_temp_settings={set_temp_settings} />,
         },
     ];
 
