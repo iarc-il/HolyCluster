@@ -65,7 +65,7 @@ const empty_temp_settings = {
 
 function Settings({ set_map_controls, set_radius_in_km }) {
     const [temp_settings, set_temp_settings] = useState(empty_temp_settings);
-    const { colors, setTheme, dev_mode } = useColors();
+    const { colors, setTheme } = useColors();
     const { settings, set_settings } = useSettings();
     const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
     const { is_radio_available } = use_radio();
@@ -142,7 +142,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
-        ...(dev_mode && !is_mobile_settings
+        ...(!is_mobile_settings
             ? [
                   {
                       label: "Layout",
