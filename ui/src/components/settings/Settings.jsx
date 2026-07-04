@@ -168,15 +168,11 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
-        ...(dev_mode
-            ? [
-                  {
-                      label: "Profiles",
-                      data_tour: "settings-tab-profiles",
-                      content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
-                  },
-              ]
-            : []),
+        {
+            label: "Profiles",
+            data_tour: "settings-tab-profiles",
+            content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
+        },
         {
             label: "Import/Export",
             data_tour: "settings-tab-import-export",
