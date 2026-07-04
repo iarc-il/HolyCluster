@@ -9,8 +9,7 @@ import { create_default_hunter, sanitize_hunter } from "@/utils/profile_data.js"
 import { find_zone_number, is_valid_zone_number, normalize_zone_value } from "@/utils/zones.js";
 import { AdifParser } from "adif-parser-ts";
 
-export const HUNTER_ADIF_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
-export const HUNTER_ADIF_MAX_QSO_RECORDS = 50_000;
+export const HUNTER_ADIF_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 const HUNTER_RESOLVE_WS_CHUNK_SIZE = 500;
 const HUNTER_RESOLVE_MAX_ATTEMPTS = 3;
 const WS_PROTOCOL_VERSION = 1;
@@ -245,12 +244,9 @@ function validate_adif_text(adif_text) {
     }
 }
 
-function validate_import_limits({ file_size, record_count }) {
+function validate_import_limits({ file_size }) {
     if (file_size != null && file_size > HUNTER_ADIF_MAX_FILE_SIZE_BYTES) {
-        throw new HunterAdifImportError("ADIF file is too large. Maximum size is 20 MB.");
-    }
-    if (record_count > HUNTER_ADIF_MAX_QSO_RECORDS) {
-        throw new HunterAdifImportError("ADIF file has too many QSO records. Maximum is 50,000.");
+        throw new HunterAdifImportError("ADIF file is too large. Maximum size is 50 MB.");
     }
 }
 
@@ -422,13 +418,12 @@ export async function import_hunter_adif({
     resolve_callsigns = resolve_hunter_callsigns,
     on_progress = null,
 } = {}) {
-    validate_import_limits({ file_size, record_count: 0 });
+    validate_import_limits({ file_size });
 
     report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.PARSING });
     const source_adif_text = adif_text ?? "";
     validate_adif_text(source_adif_text);
     const records = parse_hunter_adif_records(source_adif_text);
-    validate_import_limits({ file_size, record_count: records.length });
     validate_adif_records(records);
 
     report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.PROCESSING });

@@ -20,7 +20,6 @@ vi.mock("virtual:cty-dxcc-entities", () => ({
 
 import {
     HUNTER_ADIF_MAX_FILE_SIZE_BYTES,
-    HUNTER_ADIF_MAX_QSO_RECORDS,
     HunterAdifImportError,
     import_hunter_adif,
     resolve_hunter_callsigns,
@@ -454,22 +453,11 @@ describe("hunter_adif", () => {
         ).rejects.not.toThrow("BAD>");
     });
 
-    it("respects file and record limits", async () => {
+    it("respects the file size limit", async () => {
         await expect(
             import_hunter_adif({
                 adif_text: "",
                 file_size: HUNTER_ADIF_MAX_FILE_SIZE_BYTES + 1,
-            }),
-        ).rejects.toThrow(HunterAdifImportError);
-
-        const too_many_records = Array.from({ length: HUNTER_ADIF_MAX_QSO_RECORDS + 1 }, () =>
-            adif_record({ CALL: "K" }),
-        ).join("");
-
-        await expect(
-            import_hunter_adif({
-                adif_text: too_many_records,
-                resolve_callsigns: failing_resolver,
             }),
         ).rejects.toThrow(HunterAdifImportError);
     });

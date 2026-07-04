@@ -611,7 +611,7 @@ export default function HunterPanel() {
         if (!file) return;
 
         if (file.size > HUNTER_ADIF_MAX_FILE_SIZE_BYTES) {
-            set_import_error("ADIF file is too large. Maximum size is 10 MB.");
+            set_import_error("ADIF file is too large. Maximum size is 50 MB.");
             set_import_progress(null);
             return;
         }
