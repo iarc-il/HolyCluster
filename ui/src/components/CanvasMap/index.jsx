@@ -101,7 +101,6 @@ function CanvasMap({
                 ? map_controls
                 : {
                       ...map_controls,
-                      show_maidenhead_grid: false,
                       voacap_enabled: false,
                   },
         [dev_mode, map_controls],
