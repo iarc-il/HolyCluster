@@ -769,8 +769,7 @@ export const TOUR_CHAPTERS = {
             {
                 target: "[data-tour='hunter-adif-import']",
                 title: "ADIF Import",
-                content:
-                    "Import ADIF logs here so the ADIF panel can track your progress.",
+                content: "Import ADIF logs here so the ADIF panel can track your progress.",
                 placement: "left",
             },
         ],
