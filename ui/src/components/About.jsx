@@ -256,6 +256,11 @@ function About() {
 
     useEffect(() => {
         const current_release = RELEASES[0][0];
+        if (last_release === "") {
+            set_last_release(current_release);
+            return;
+        }
+
         if (last_release !== current_release) {
             set_should_display_release_notes(true);
             set_last_release(current_release);

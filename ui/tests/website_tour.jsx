@@ -7,6 +7,7 @@ import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 
 const test_state = vi.hoisted(() => ({
     filters_context: null,
+    local_storage: new Map(),
     set_spot_buffering: vi.fn(),
 }));
 
@@ -14,7 +15,25 @@ vi.mock("@uidotdev/usehooks", async () => {
     const React = await vi.importActual("react");
 
     return {
-        useLocalStorage: (_key, initial_value) => React.useState(initial_value),
+        useLocalStorage: (key, initial_value) => {
+            const [value, set_value] = React.useState(() =>
+                test_state.local_storage.has(key)
+                    ? test_state.local_storage.get(key)
+                    : initial_value,
+            );
+            const set_stored_value = value_or_setter => {
+                set_value(current_value => {
+                    const next_value =
+                        typeof value_or_setter === "function"
+                            ? value_or_setter(current_value)
+                            : value_or_setter;
+                    test_state.local_storage.set(key, next_value);
+                    return next_value;
+                });
+            };
+
+            return [value, set_stored_value];
+        },
         useMediaQuery: () => false,
     };
 });
@@ -190,6 +209,7 @@ describe("WebsiteTour", () => {
     let get_client_rects;
 
     beforeEach(() => {
+        test_state.local_storage.set("first_launch", false);
         get_client_rects = HTMLElement.prototype.getClientRects;
         HTMLElement.prototype.getClientRects = () => [
             { bottom: 1, height: 1, left: 0, right: 1, top: 0, width: 1 },
@@ -199,9 +219,20 @@ describe("WebsiteTour", () => {
     afterEach(() => {
         HTMLElement.prototype.getClientRects = get_client_rects;
         test_state.filters_context = null;
+        test_state.local_storage.clear();
         test_state.set_spot_buffering.mockClear();
         cleanup();
         vi.restoreAllMocks();
+    });
+
+    it("starts the quick tour on first launch", async () => {
+        test_state.local_storage.set("first_launch", true);
+        render(<TestHarness />);
+
+        await waitFor(() => {
+            expect(screen.getByText("Welcome")).not.toBeNull();
+        });
+        expect(test_state.local_storage.get("first_launch")).toBe(false);
     });
 
     it("advances waitForChange steps after the action re-renders the tour", async () => {

@@ -101,6 +101,7 @@ function WebsiteTour() {
         TOUR_COMPLETED_CHAPTERS_KEY,
         {},
     );
+    const [first_launch, set_first_launch] = useLocalStorage("first_launch", true);
     const [tour_state, set_tour_state] = useState({
         current_chapter_id: null,
         is_running: false,
@@ -273,6 +274,13 @@ function WebsiteTour() {
         },
         [get_available_steps, mark_chapter_done, stop_tour],
     );
+
+    useEffect(() => {
+        if (first_launch !== true || tour_state.is_running) return;
+
+        set_first_launch(false);
+        start_tour(DEFAULT_TOUR_CHAPTER_ID);
+    }, [first_launch, set_first_launch, start_tour, tour_state.is_running]);
 
     useEffect(() => {
         if (!tour_state.is_running) return;

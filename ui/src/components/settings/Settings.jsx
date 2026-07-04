@@ -1,5 +1,5 @@
 import Maidenhead from "maidenhead";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import Modal from "@/components/ui/Modal.jsx";
 import Tabs from "@/components/ui/Tabs";
@@ -8,7 +8,7 @@ import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
-import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
+import { useMediaQuery } from "@uidotdev/usehooks";
 import Bands from "./Bands";
 import CatControl from "./CatControl";
 import General from "./General";
@@ -71,9 +71,6 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const { is_radio_available } = use_radio();
     const is_mobile_settings = useMediaQuery("only screen and (max-width : 768px)");
 
-    const [first_launch, set_first_launch] = useLocalStorage("first_launch", true);
-    const [should_open_settings, set_should_open_settings] = useState(false);
-
     function disable_settings_filters(current_filters, new_settings) {
         const updated_bands = { ...current_filters.bands };
         const updated_modes = { ...current_filters.modes };
@@ -117,14 +114,6 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             setProfileFilters(update_disabled_filters);
         }
     }
-
-    useEffect(() => {
-        set_first_launch(false);
-
-        if (first_launch === true && (settings.locator === "" || settings.locator === "JJ00AA")) {
-            set_should_open_settings(true);
-        }
-    }, [first_launch]);
 
     function reset_temp_settings() {
         set_temp_settings(empty_temp_settings);
@@ -215,7 +204,6 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             on_open={() => {
                 set_temp_settings(settings);
             }}
-            external_open={should_open_settings}
             on_apply={() => {
                 if (is_settings_valid) {
                     apply_settings(temp_settings);

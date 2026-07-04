@@ -136,10 +136,10 @@ describe("settings modal", () => {
         });
     });
 
-    it("keeps the first-launch settings modal open", async () => {
+    it("does not open the settings modal on first launch", () => {
         render_settings_modal();
 
-        expect(await screen.findByText("Apply")).not.toBeNull();
+        expect(screen.queryByText("Apply")).toBeNull();
     });
 
     it("sets the mobile locator input from GPS", async () => {
@@ -149,8 +149,9 @@ describe("settings modal", () => {
         });
         mock_match_media(true);
         set_geolocation(getCurrentPosition);
-        render_settings_modal();
+        const { container } = render_settings_modal();
 
+        await user.click(container.querySelector(".cursor-pointer"));
         await screen.findByText("Apply");
         await user.click(
             screen.getByRole("button", { name: "Set locator from current GPS location" }),
