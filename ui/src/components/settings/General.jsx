@@ -5,7 +5,7 @@ import Input from "@/components/ui/Input.jsx";
 import Popup from "@/components/ui/Popup.jsx";
 import Select from "@/components/ui/Select.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
-import { themes_names, useColors } from "@/hooks/useColors";
+import { map_theme_names, themes_names, useColors } from "@/hooks/useColors";
 import { play_alert_sound } from "@/utils.js";
 import { useMediaQuery } from "@uidotdev/usehooks";
 import Maidenhead from "maidenhead";
@@ -157,6 +157,28 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                 }}
                             >
                                 {themes_names.map(name => {
+                                    return (
+                                        <option key={name} value={name}>
+                                            {name}
+                                        </option>
+                                    );
+                                })}
+                            </Select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Map theme:</td>
+                        <td>
+                            <Select
+                                value={temp_settings.map_theme}
+                                onChange={event => {
+                                    set_temp_settings(state => ({
+                                        ...state,
+                                        map_theme: event.target.value,
+                                    }));
+                                }}
+                            >
+                                {map_theme_names.map(name => {
                                     return (
                                         <option key={name} value={name}>
                                             {name}
