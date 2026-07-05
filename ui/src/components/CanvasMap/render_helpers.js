@@ -146,6 +146,7 @@ export function do_redraw(
                     overlay_highlights,
                     colors.map,
                     colors.map_countries,
+                    colors.country_color_indices,
                     fast,
                     night_time,
                 );

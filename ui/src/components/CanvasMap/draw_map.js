@@ -5,7 +5,6 @@ import {
     normalize_dxcc_entity_code,
 } from "@/data/dxcc_entities.js";
 import { normalize_dxcc_label } from "@/data/dxcc_labels.js";
-import { country_color_indices } from "@/data/map_colors.js";
 import dxcc_map from "@/maps/dxcc_map.json";
 import lakes from "@/maps/lakes.json";
 import {
@@ -21,11 +20,14 @@ import { profile_map } from "./map_profile.js";
 
 export { dxcc_map };
 
-const color_groups = new Map();
-country_color_indices.forEach((ci, fi) => {
-    if (!color_groups.has(ci)) color_groups.set(ci, []);
-    color_groups.get(ci).push(fi);
-});
+function build_color_groups(country_color_indices) {
+    const groups = new Map();
+    country_color_indices.forEach((ci, fi) => {
+        if (!groups.has(ci)) groups.set(ci, []);
+        groups.get(ci).push(fi);
+    });
+    return groups;
+}
 
 const FILTER_ACTIONS = ["hide", "show_only", "alert"];
 const FILTER_ACTION_COLOR_KEYS = {
@@ -1315,9 +1317,11 @@ export function draw_map(
     overlay_highlights,
     map_colors,
     map_country_colors,
+    country_color_indices,
     fast = false,
     night_time = null,
 ) {
+    const color_groups = build_color_groups(country_color_indices);
     const filter_action_styles = get_filter_action_styles(map_colors);
     const saved_precision = projection.precision();
     if (fast) projection.precision(3);
