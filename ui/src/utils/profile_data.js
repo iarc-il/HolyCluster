@@ -159,6 +159,10 @@ function sanitize_theme(value, fallback) {
     return to_limited_text(value, fallback, 40);
 }
 
+function sanitize_map_theme(value, fallback) {
+    return to_limited_text(value, fallback, 20);
+}
+
 function sanitize_callsign(value, fallback) {
     return to_limited_text(value, fallback, 32).toUpperCase();
 }
@@ -337,6 +341,7 @@ export function create_default_settings() {
         locator: "",
         default_radius: 20000,
         theme: "Dark",
+        map_theme: "colorful",
         callsign: "",
         is_miles: false,
         propagation_displayed: true,
@@ -451,6 +456,7 @@ export function sanitize_settings(value, defaults = create_default_settings()) {
         locator: sanitize_locator(source.locator, defaults.locator),
         default_radius: sanitize_default_radius(source.default_radius, defaults.default_radius),
         theme: sanitize_theme(source.theme, defaults.theme),
+        map_theme: sanitize_map_theme(source.map_theme, defaults.map_theme),
         callsign: sanitize_callsign(source.callsign, defaults.callsign),
         is_miles: to_boolean(source.is_miles, defaults.is_miles),
         propagation_displayed: to_boolean(
