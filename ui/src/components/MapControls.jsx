@@ -269,10 +269,11 @@ function MapControls({
         },
         {
             id: "maidenhead",
-            label: "MH",
+            label: "Grid",
             map_control_key: "show_maidenhead_grid",
             active: maidenhead_grid_on,
             title: "Maidenhead grid",
+            width_class: "w-12",
         },
     ];
 
