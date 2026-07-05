@@ -99,7 +99,7 @@ describe("settings modal", () => {
         await user.type(locator_input, "FN20");
         await user.clear(radius_input);
         await user.type(radius_input, "12000");
-        await user.selectOptions(document.body.querySelectorAll("select")[1], "true");
+        await user.selectOptions(document.body.querySelectorAll("select")[2], "true");
         await user.click(screen.getByText("Apply"));
 
         await waitFor(() => {
