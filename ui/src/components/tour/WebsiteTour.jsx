@@ -284,7 +284,8 @@ function WebsiteTour() {
 
     useEffect(() => {
         if (!tour_state.is_running) return;
-        if (current_step && !should_skip_step(current_step)) return;
+        if (!current_step) return;
+        if (!should_skip_step(current_step)) return;
 
         const next_step_index = find_available_step_index(steps, tour_state.step_index + 1, 1);
         if (next_step_index == null) {
