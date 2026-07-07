@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HolyCluster — Architecture Guide</title>
+<style>
+    :root {
+        --bg: #ffffff; --fg: #1f2430; --muted: #5b6472; --accent: #1a6feb;
+        --card: #f6f8fa; --border: #d9dee5; --warn-bg: #fff7e0; --warn-border: #e0b100;
+        --code-bg: #eef1f5;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #14171d; --fg: #e6e9ef; --muted: #9aa4b2; --accent: #6aa5ff;
+            --card: #1c2129; --border: #313847; --warn-bg: #33290e; --warn-border: #b89311;
+            --code-bg: #232936;
+        }
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; background: var(--bg); color: var(--fg);
+        font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .layout { display: flex; max-width: 1400px; margin: 0 auto; }
+    nav {
+        width: 270px; flex: none; position: sticky; top: 0; align-self: flex-start;
+        max-height: 100vh; overflow-y: auto; padding: 24px 16px; border-right: 1px solid var(--border);
+        font-size: 13.5px;
+    }
+    nav a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; }
+    nav a:hover { color: var(--accent); background: var(--card); }
+    nav .l2 { padding-left: 22px; }
+    nav b { display: block; margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg); }
+    main { flex: 1; min-width: 0; padding: 32px 48px 96px; }
+    h1 { font-size: 2.1em; margin: 0 0 4px; }
+    h2 { font-size: 1.5em; margin-top: 2.2em; padding-bottom: 6px; border-bottom: 2px solid var(--border); }
+    h3 { font-size: 1.15em; margin-top: 1.8em; }
+    .subtitle { color: var(--muted); font-size: 1.05em; margin-bottom: 24px; }
+    a { color: var(--accent); }
+    code { background: var(--code-bg); padding: 1px 6px; border-radius: 5px; font-size: .875em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    pre.plain { background: var(--code-bg); padding: 14px 18px; border-radius: 10px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+    pre.plain code { background: none; padding: 0; }
+    table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; display: block; overflow-x: auto; }
+    th, td { border: 1px solid var(--border); padding: 7px 12px; text-align: left; vertical-align: top; }
+    th { background: var(--card); }
+    .diagram {
+        background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+        padding: 18px; margin: 20px 0; overflow-x: auto;
+    }
+    .diagram .caption { font-size: 12.5px; color: var(--muted); margin-top: 8px; text-align: center; }
+    pre.mermaid { margin: 0; display: flex; justify-content: center; }
+    .warn {
+        background: var(--warn-bg); border-left: 4px solid var(--warn-border);
+        padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 14px 0;
+    }
+    .pill { display: inline-block; background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 1px 10px; font-size: 12px; color: var(--muted); margin-right: 6px; }
+    @media (max-width: 900px) { nav { display: none; } main { padding: 24px 20px 80px; } }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+    <b>HolyCluster Architecture</b>
+    <a href="#what">1 · What HolyCluster Is</a>
+    <a href="#context">2 · System Context</a>
+    <a href="#layout">3 · Repository Layout</a>
+    <a href="#backend">4 · Backend</a>
+    <a class="l2" href="#pipeline">Collection pipeline</a>
+    <a class="l2" href="#enrichment">Enrichment</a>
+    <a class="l2" href="#db">Database schema</a>
+    <a class="l2" href="#api">API service</a>
+    <a class="l2" href="#wsproto">WebSocket protocol</a>
+    <a class="l2" href="#jobs">Background jobs</a>
+    <a href="#frontend">5 · Frontend</a>
+    <a class="l2" href="#providers">Provider tree</a>
+    <a class="l2" href="#dataflow">Data flow</a>
+    <a class="l2" href="#canvasmap">Canvas map engine</a>
+    <a class="l2" href="#persistence">Persistence</a>
+    <a href="#catserver">6 · CAT Server</a>
+    <a class="l2" href="#proxytrick">Reverse-proxy trick</a>
+    <a class="l2" href="#radioflow">Radio message flow</a>
+    <a class="l2" href="#packaging">Packaging</a>
+    <a href="#infra">7 · Infrastructure</a>
+    <a class="l2" href="#compose">Compose stack</a>
+    <a class="l2" href="#nginxtls">Nginx &amp; TLS</a>
+    <a class="l2" href="#cicd">CI/CD</a>
+    <a class="l2" href="#topology">Production topology</a>
+    <a href="#devflow">8 · Development Workflow</a>
+    <a href="#gotchas">9 · Maintainer Gotchas</a>
+    <b>Related</b>
+    <a href="improvements.html">Improvement Backlog →</a>
+</nav>
+<main>
+
+<h1>HolyCluster — Architecture Guide</h1>
+<p class="subtitle">A maintainer-oriented explanation of how HolyCluster works, end to end.
+Markdown source: <code>docs/ARCHITECTURE.md</code> · Improvements: <a href="improvements.html">improvements.html</a></p>
+
+<h2 id="what">1 · What HolyCluster Is</h2>
+<p>HolyCluster (<a href="https://holycluster.iarc.org">holycluster.iarc.org</a>) is a <strong>real-time visualization of the amateur-radio DX cluster network</strong>. Ham operators worldwide report stations they hear ("spots": <em>who</em> heard <em>whom</em>, on <em>what frequency</em>, in <em>what mode</em>, <em>when</em>). HolyCluster aggregates spots from many sources, enriches them with geographic data, and draws them live on an interactive world map — and with the optional desktop <strong>CAT server</strong>, clicking a spot tunes the operator's physical radio.</p>
+<table>
+<tr><th>Deliverable</th><th>Source</th><th>What it is</th></tr>
+<tr><td><strong>Web application</strong></td><td><code>ui/</code> + <code>backend/</code></td><td>React SPA served by FastAPI; live spots over WebSocket</td></tr>
+<tr><td><strong>Data platform</strong></td><td><code>backend/</code></td><td>Collectors ingesting telnet DX clusters + POTA/SOTA/WWFF into PostgreSQL/Valkey</td></tr>
+<tr><td><strong>Holy Cluster desktop app</strong></td><td><code>catserver/</code></td><td>Rust Windows app (MSI) bridging the web UI to the radio via OmniRig</td></tr>
+</table>
+
+<h2 id="context">2 · System Context — the 10,000 ft View</h2>
+<div class="diagram"><pre class="mermaid">
+flowchart TB
+    subgraph EXT["External data sources"]
+        TELNET["Telnet DX clusters&lt;br/&gt;DXUSA, VE7CC, K7AR, AI9T, NC7J, WA9PIE-2"]
+        POTA["POTA API"]
+        SOTA["SOTA API"]
+        WWFF["WWFF spots"]
+        QRZ["QRZ.com XML API&lt;br/&gt;callsign → locator"]
+        CTY["CTY files&lt;br/&gt;prefix → DXCC"]
+        NOAA["NOAA SWPC&lt;br/&gt;solar indices"]
+        NG3K["NG3K ADXO&lt;br/&gt;DXpeditions"]
+    end
+    subgraph SERVER["Server (docker compose, backend/)"]
+        COLLECTOR["collector&lt;br/&gt;(Python, asyncio)"]
+        VALKEY[("Valkey&lt;br/&gt;cache + streams")]
+        PG[("PostgreSQL 16&lt;br/&gt;holy_spots2")]
+        API["api&lt;br/&gt;(FastAPI + uvicorn)"]
+        NGINX["nginx&lt;br/&gt;TLS termination"]
+        MONITOR["monitor&lt;br/&gt;Telegram alerts"]
+    end
+    subgraph CLIENT["Operator's computer"]
+        BROWSER["Browser (React SPA)"]
+        CATSRV["Holy Cluster desktop app&lt;br/&gt;(catserver, Rust, :3000)"]
+        RADIO["Transceiver&lt;br/&gt;OmniRig / rigctld"]
+        LOGGER["Logging software&lt;br/&gt;WSJT-X UDP"]
+    end
+    TELNET --> COLLECTOR
+    POTA --> COLLECTOR
+    SOTA --> COLLECTOR
+    WWFF --> COLLECTOR
+    QRZ --> COLLECTOR
+    CTY --> COLLECTOR
+    NG3K --> COLLECTOR
+    NOAA --> API
+    COLLECTOR --> VALKEY
+    COLLECTOR --> PG
+    VALKEY --> API
+    PG --> API
+    API --> NGINX
+    MONITOR -.watches.-> API
+    NGINX <-->|"HTTPS + WSS"| BROWSER
+    NGINX <-->|"HTTPS + WSS"| CATSRV
+    CATSRV <-->|"localhost :3000&lt;br/&gt;proxied UI + /ws"| BROWSER
+    CATSRV <-->|"COM / TCP"| RADIO
+    CATSRV -->|"UDP status packet"| LOGGER
+</pre><div class="caption">Everything in one picture: sources → collector → storage → API → clients, with the desktop app bridging browser and radio.</div></div>
+<p>Two usage modes:</p>
+<ol>
+<li><strong>Plain web usage</strong> — browser talks to <code>https://holycluster.iarc.org</code> directly; radio control is unavailable.</li>
+<li><strong>With the desktop app</strong> — catserver serves the site at <code>http://127.0.0.1:3000</code>, reverse-proxying everything but intercepting radio messages locally (<a href="#proxytrick">§6.1</a>).</li>
+</ol>
+
+<h2 id="layout">3 · Repository Layout</h2>
+<pre class="plain"><code>HolyCluster/
+├── backend/            # Python uv workspace + docker compose stack (the server)
+│   ├── api/            #   FastAPI web/WebSocket server
+│   ├── collectors/     #   Spot ingestion pipeline
+│   ├── monitor/        #   Health checks + Telegram alerts
+│   ├── shared/         #   DB models, geo/QRZ/CTY, settings (Python package)
+│   ├── migrations/     #   Alembic migrations
+│   ├── docker/         #   Dockerfiles (api/collector/monitor/migrate)
+│   ├── infra/          #   nginx, postgres, valkey, certbot configs (AUTHORITATIVE)
+│   ├── docker-compose.yml · deploy.sh · setup.sh
+├── ui/                 # React 18 + Vite SPA (components/CanvasMap = map engine)
+├── catserver/          # Rust desktop CAT-control app (Windows MSI)
+├── shared/             # band_plans.json — single source of band data (backend AND ui)
+├── docs/               # User manual, runbooks, this document
+├── .github/workflows/  # backend.yml, ui.yml, catserver.yml
+├── nginx/ certbot/ postgres/ nginx-ui/   # ⚠ UNTRACKED local scratch (see gotchas)
+└── README.md           # ⚠ Partially stale (references removed ClientSideServer.py)</code></pre>
+<div class="warn"><strong><code>shared/band_plans.json</code></strong> is the cross-stack source of truth for band edges/modes. The backend collector gets it via a docker build context; the UI imports it at build time with a relative path. Moving it breaks both consumers.</div>
+
+<h2 id="backend">4 · The Backend (<code>backend/</code>)</h2>
+<h3>4.1 Workspace packages</h3>
+<p>A <strong>uv workspace</strong> (Python ≥ 3.13) with four members. Everything runs from <code>docker compose up</code>. Lint is Ruff; tests exist but are <strong>not run in CI</strong>.</p>
+<table>
+<tr><th>Package</th><th>Entry point</th><th>Role</th></tr>
+<tr><td><code>api</code></td><td><code>uvicorn api.main:app</code> (:8000)</td><td>HTTP + WebSocket server; also serves the SPA and the MSI</td></tr>
+<tr><td><code>collectors</code></td><td><code>collector</code></td><td>Ingest, enrich, dedupe, persist spots</td></tr>
+<tr><td><code>monitor</code></td><td><code>monitor</code></td><td>Synthetic checks + Telegram alerts</td></tr>
+<tr><td><code>shared</code></td><td><code>ensure_db</code></td><td>SQLModel models, geo/QRZ/CTY logic, pydantic settings</td></tr>
+</table>
+
+<h3 id="pipeline">4.2 The spot collection pipeline</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+    subgraph SOURCES["Source tasks (asyncio)"]
+        T1["Telnet clients&lt;br/&gt;one per cluster server"]
+        P1["POTA poller · 60s"]
+        S1["SOTA poller · 60s"]
+        W1["WWFF poller · 30s"]
+    end
+    Q{{"asyncio.Queue&lt;br/&gt;maxsize 1000"}}
+    subgraph CONSUMER["process_spots (single consumer)"]
+        DEDUP["Dedup: Valkey SET NX&lt;br/&gt;key = time:dx:freq:spotter · TTL 60s"]
+        ENRICH["enrich_spot&lt;br/&gt;band/mode + geo + dxpedition"]
+        VALIDATE["validate&lt;br/&gt;callsign, band, locator"]
+    end
+    PG[("PostgreSQL&lt;br/&gt;holy_spots2")]
+    STREAM[("Valkey stream-api&lt;br/&gt;maxlen 10000")]
+    T1 --> Q
+    P1 --> Q
+    S1 --> Q
+    W1 --> Q
+    Q --> DEDUP --> ENRICH --> VALIDATE
+    VALIDATE -->|"always"| PG
+    VALIDATE -->|"if locator+band+mode present"| STREAM
+    STREAM -->|"consumer group api-group"| APIB["api: spots_broadcast_task"]
+    APIB -->|"WebSocket broadcast"| CLIENTS["All connected browsers"]
+</pre><div class="caption">All sources feed one queue; one consumer enriches and persists. Sources also record arrivals to the <code>stream-arrivals</code> analytics stream.</div></div>
+<ul>
+<li><strong>Telnet clusters</strong> (<code>collectors/telnet/</code>): server list in <code>telnet_servers.csv</code>; one task per server, exponential reconnect backoff (60&nbsp;s → 24&nbsp;h), regex parsing, keepalive ping on 60&nbsp;s silence. Spotters <code>W3LPL</code> and <code>J9AQ</code> are hardcoded-banned.</li>
+<li><strong>POTA/SOTA/WWFF</strong>: JSON pollers sharing <code>run_json_spot_collector</code> (dedup, arrival recording, error backoff ≤ 300&nbsp;s).</li>
+<li>There is <strong>no RBN or DXHeat collector</strong> — telnet clusters are the live feed.</li>
+</ul>
+
+<h3 id="enrichment">4.3 Spot enrichment</h3>
+<div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    participant C as process_spots
+    participant BP as band_plans.json
+    participant V as Valkey (geo cache)
+    participant Q as QRZ.com XML API
+    participant CTY as CTY file (in-process)
+    participant PG as PostgreSQL
+    C->>BP: band + mode from frequency (mode also from comment keywords)
+    Note over C: missing band → spot dropped
+    C->>V: GET geo:{callsign}
+    alt cache hit
+        V-->>C: locator, lat/lon, dxcc, zones
+    else cache miss
+        C->>Q: XML lookup (session key)
+        Q-->>C: grid locator, state, zones
+        C->>CTY: prefix → DXCC, continent (always — coords fallback if QRZ has no grid)
+        C->>V: SET geo:{callsign} · TTL 3600s
+    end
+    C->>C: is_active_dxpedition? (NG3K daily cache, prefix match)
+    C->>PG: INSERT INTO holy_spots2
+</pre><div class="caption">Both spotter and DX callsigns are geolocated — the map needs both arc endpoints.</div></div>
+<div class="warn">The hardcoded override table for ~25 special callsigns lives in <code>backend/shared/src/shared/geo.py:33-60</code> — this is where you add fixes per the <code>fix_missing_spot.md</code> runbook. The QRZ session key is refreshed hourly by the <em>collector</em>; the API's <code>/locator</code> returns 503 without it.</div>
+
+<h3 id="db">4.4 Database schema</h3>
+<p>PostgreSQL 16 via <strong>SQLModel</strong> + asyncpg; async Alembic migrations run by the one-shot <code>migrate</code> compose service. Table names carry a historical <code>2</code> suffix.</p>
+<div class="diagram"><pre class="mermaid">
+erDiagram
+    HOLY_SPOTS2 {
+        int id PK
+        string time "UK(time,spotter,dx)"
+        int timestamp "epoch, indexed"
+        string spotter_callsign
+        string spotter_locator
+        float spotter_lat_lon
+        int spotter_dxcc_code
+        string spotter_continent
+        int spotter_cq_itu_zones
+        string dx_callsign
+        string dx_locator
+        float dx_lat_lon
+        int dx_dxcc_code
+        string dx_continent
+        int dx_cq_itu_zones
+        float frequency
+        string band
+        string mode
+        string comment
+        bool is_dxpedition
+        string pota_reference
+        int sota_points
+    }
+    GEO_CACHE {
+        string callsign PK
+        string locator
+        float lat_lon
+        int dxcc_code
+        string continent
+        datetime date_time
+    }
+    PROPAGATION_MEASUREMENTS {
+        int id PK
+        string metric "UK(metric,timestamp)"
+        int timestamp "indexed"
+        float value
+        datetime collected_at
+    }
+    SPOTS_WITH_ISSUES2 {
+        int id PK
+        string issues "write-dead: nothing inserts"
+    }
+</pre><div class="caption">Four tables. Lat/lon and zone pairs are shown collapsed here for readability — see <code>backend/shared/src/shared/db.py</code> for exact columns.</div></div>
+<div class="warn"><strong>Two known data-lifecycle defects</strong> (Improvement #1): the retention job filters <code>HolySpot.date_time</code>, a column that doesn't exist (cleanup of <code>holy_spots2</code> is broken), and nothing writes to <code>spots_with_issues2</code> although the runbook and an endpoint assume it's populated.</div>
+
+<h3 id="api">4.5 The API service</h3>
+<p>FastAPI app (<code>api/src/api/main.py</code>, ~1100 lines), GZip, docs disabled. It <strong>also serves the React SPA</strong> (static <code>/assets</code> + <code>index.html</code> catch-all) and the catserver MSI — nginx in front is a pure TLS proxy.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
+<tr><td>GET</td><td><code>/locator/{callsign}</code></td><td>Callsign → locator/lat/lon (503 without QRZ session)</td></tr>
+<tr><td>GET</td><td><code>/geocache/all</code>, <code>/geocache/{callsign}</code></td><td>Geo cache dump / single record (⚠ <code>/all</code> unbounded)</td></tr>
+<tr><td>GET</td><td><code>/spots_with_issues</code></td><td>Dump of <code>spots_with_issues2</code> (currently always empty)</td></tr>
+<tr><td>GET</td><td><code>/propagation</code> · <code>/propagation/history</code></td><td>Latest solar indices / time-series (max 24 h window)</td></tr>
+<tr><td>GET</td><td><code>/voacap?...</code></td><td>VOACAP HF propagation grid (CPU-heavy, threaded)</td></tr>
+<tr><td>GET</td><td><code>/dxpeditions</code></td><td>Active DXpeditions (from Valkey)</td></tr>
+<tr><td>GET</td><td><code>/history?start_time&amp;end_time</code></td><td>Historical spots (max 24 h window)</td></tr>
+<tr><td>GET</td><td><code>/cluster_stats?hours</code></td><td>Source-overlap analytics from <code>stream-arrivals</code></td></tr>
+<tr><td>GET</td><td><code>/catserver/latest</code> · <code>/catserver/download</code></td><td>Desktop app version + MSI download</td></tr>
+<tr><td>GET</td><td><code>/health</code> · <code>/</code> · <code>/{path}</code></td><td>Liveness · SPA catch-all</td></tr>
+<tr><td>WS</td><td><code>/ws</code></td><td><strong>Primary versioned protocol</strong> (below)</td></tr>
+<tr><td>WS</td><td><code>/spots_ws</code>, <code>/submit_spot</code>, <code>/radio</code></td><td>⚠ Legacy endpoints, still live</td></tr>
+</table>
+
+<h3 id="wsproto">4.6 WebSocket protocol</h3>
+<p>One multiplexed socket, protocol version 1: every message is JSON with <code>{"version": 1, "type": ...}</code>.</p>
+<div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    participant B as Browser (useWs.jsx)
+    participant A as api /ws
+    participant S as Valkey stream-api
+    B->>A: {version:1, type:"spots", action:"initial"}
+    A-->>B: {type:"spots", spots:[...up to 500...]}
+    loop live broadcast
+        S->>A: XREADGROUP api-group
+        A-->>B: {type:"spots", event:"update", spots:[...]}
+    end
+    Note over B,A: on reconnect → {action:"catch_up", last_time}
+    B->>A: {version:1, type:"submit", spotter, dx, freq, comment}
+    A-->>B: {type:"submit", status:"success"|"failure"}
+    B->>A: {version:1, type:"hunter", action:"start/add/finish", callsigns}
+    A-->>B: batch callsign resolutions (4 workers × 50)
+    B->>A: {version:1, type:"radio", ...}
+    A-->>B: {type:"radio", status:"unavailable"}
+    Note over B,A: radio messages only work when the socket passes through catserver
+</pre><div class="caption">The <code>radio</code> type is a deliberate no-op on the backend — the catserver intercepts it locally when installed.</div></div>
+
+<h3 id="jobs">4.7 Background jobs</h3>
+<table>
+<tr><th>Where</th><th>Job</th><th>Interval</th></tr>
+<tr><td>collector</td><td>QRZ session key refresh</td><td>1 h</td></tr>
+<tr><td>collector</td><td>NG3K DXpedition refresh</td><td>24 h (retry 10 min)</td></tr>
+<tr><td>collector</td><td><code>trim_arrivals_stream</code> (7-day retention)</td><td>1 h</td></tr>
+<tr><td>collector</td><td>POTA / SOTA / WWFF pollers</td><td>60 / 60 / 30 s</td></tr>
+<tr><td>api</td><td>NOAA propagation fetch + persist</td><td>1 h (retry 10 s)</td></tr>
+<tr><td>api</td><td><code>spots_broadcast_task</code> (stream consumer)</td><td>continuous</td></tr>
+<tr><td>monitor</td><td>metric / heartbeat / WS / container checks</td><td>60 s</td></tr>
+<tr><td>external</td><td><code>cleanup_postgres</code> retention job</td><td>⚠ external cron, currently buggy</td></tr>
+</table>
+<p><span class="pill">config</span> Settings are pydantic-settings classes reading <code>backend/.env</code>; a <code>/.dockerenv</code> check auto-selects docker vs localhost hosts. Key vars: <code>POSTGRES_*</code>, <code>VALKEY_*</code>, <code>QRZ_*</code>, <code>USERNAME_FOR_TELNET_CLUSTERS</code>, <code>UI_DIST_PATH</code>, <code>CATSERVER_MSI_DIR</code>, <code>DOMAIN</code>, <code>TELEGRAM_*</code>.</p>
+
+<h2 id="frontend">5 · The Frontend (<code>ui/</code>)</h2>
+<p>React 18 (JSX, no TypeScript) + Vite 6 + Tailwind. Formatter/linter: <strong>Biome</strong>. Tests: <strong>Vitest</strong>. The map is <strong>HTML5 Canvas + d3-geo</strong> (not Leaflet). In dev, Vite proxies all API/WS routes to <code>holycluster-dev.iarc.org</code> — <code>npm run dev</code> needs no local backend.</p>
+
+<h3 id="providers">5.1 State management — the provider tree</h3>
+<p>All global state is React Context. <strong><code>ProfilesProvider</code> is the backbone</strong>: nearly every persistent setting is a section of the "active profile" in localStorage.</p>
+<div class="diagram"><pre class="mermaid">
+flowchart TB
+    BR["BrowserRouter (main.jsx)"] --> WS["WsProvider&lt;br/&gt;single /ws socket · pub/sub by message type"]
+    WS --> PROF["ProfilesProvider&lt;br/&gt;localStorage 'profiles' — multi-profile store"]
+    PROF --> COL["ColorsProvider&lt;br/&gt;themes + map themes"]
+    COL --> FIL["FiltersProvider&lt;br/&gt;band/mode/continent + callsign rules + shared-URL override"]
+    FIL --> SET["SettingsProvider&lt;br/&gt;= active profile's settings section"]
+    SET --> RAD["RadioProvider&lt;br/&gt;CAT status/freq/mode"]
+    RAD --> SPI["SpotInteractionProvider&lt;br/&gt;hovered/pinned spot, search"]
+    SPI --> MC["MainContainer"]
+    MC --> REST["RestDataProvider&lt;br/&gt;propagation + dxpeditions polls"]
+    REST --> SPOT["SpotDataProvider&lt;br/&gt;live WS | history → filtering"]
+    SPOT --> UI2["TopBar / LeftColumn / CanvasMap / SpotsTable / SidePanel / HistoryBar"]
+</pre><div class="caption">⚠ Ordering is load-bearing: Settings/Filters/Colors all read from ProfilesProvider and throw outside it.</div></div>
+<p>Profile sections (<code>utils/profile_data.js</code>): <code>settings</code>, <code>filters</code>, <code>callsign_filters</code>, <code>hunter</code>, <code>map_controls</code>, <code>map_view</code>, <code>table_sort</code>, <code>history</code>, <code>panels</code>, <code>radio</code>.</p>
+
+<h3 id="dataflow">5.2 Data flow into the UI</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+    subgraph TRANSPORT["Transport"]
+        WSOCK["WebSocket /ws"]
+        REST["REST fetch"]
+    end
+    subgraph DATA["Data hooks"]
+        SWS["useSpotWebSocket&lt;br/&gt;normalize · 1h trim · catch_up"]
+        HIST["useHistorySpots&lt;br/&gt;IndexedDB gap-fill cache"]
+        FILT["useSpotFiltering&lt;br/&gt;all filters → slice(0,100)"]
+        RESTD["useRestData&lt;br/&gt;hourly polls"]
+        VOA["useVoacap&lt;br/&gt;debounce + LRU"]
+        RADH["useRadio"]
+    end
+    subgraph VIEW["Views"]
+        MAP["CanvasMap"]
+        TABLE["SpotsTable"]
+        BARS["Propagation / Frequency bars"]
+        HP["HunterPanel / DXpeditions"]
+    end
+    WSOCK -->|"type: spots"| SWS
+    WSOCK -->|"type: radio"| RADH
+    REST -->|"/history"| HIST
+    REST -->|"/propagation /dxpeditions"| RESTD
+    REST -->|"/voacap"| VOA
+    SWS --> FILT
+    HIST --> FILT
+    FILT --> MAP
+    FILT --> TABLE
+    RESTD --> BARS
+    RESTD --> HP
+    VOA --> MAP
+    RADH --> BARS
+</pre><div class="caption">Silent limits: live spots trimmed to the last hour; filtered list capped at 100; alerted spots bypass most filters; WS sends dropped when the socket isn't open.</div></div>
+
+<h3 id="canvasmap">5.3 The canvas map engine</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart TB
+    subgraph CANVASES["Stacked canvas layers (CanvasMap/index.jsx)"]
+        L1["1 · map_canvas — countries, borders, graticule, zones,&lt;br/&gt;Maidenhead grid, day/night terminator&lt;br/&gt;(draw_map.js — 1546 lines)"]
+        L2["2 · voacap_canvas — propagation heat overlay"]
+        L3["3 · spots_canvas — great-circle arcs, mode-shaped markers,&lt;br/&gt;azimuth line — redrawn per animation frame"]
+        L4["4 · shadow_canvas (offscreen) — pixel hit-testing"]
+    end
+    PROJ["useMapProjection&lt;br/&gt;d3.geoAzimuthalEquidistant | geoOrthographic (globe)"]
+    GEST["useMapGestures (602 lines)&lt;br/&gt;pan/zoom/tap/context-menu"]
+    REDRAW["useMapRedraw&lt;br/&gt;3 effects + rAF loop + minute tick (terminator)"]
+    RSR["render_state_ref (mutable ref)&lt;br/&gt;latest props for the rAF loop"]
+    PROJ --> L1
+    PROJ --> L3
+    GEST --> PROJ
+    REDRAW --> CANVASES
+    RSR --> REDRAW
+</pre><div class="caption">The terminator draws a 90°-radius geoCircle at the solar antipode (solar-calculator). The mutable <code>render_state_ref</code> deliberately bypasses React — stale-closure territory when editing <code>useMapRedraw.js</code>.</div></div>
+
+<h3 id="persistence">5.4 Persistence</h3>
+<ul>
+<li><strong><code>"profiles"</code></strong> (localStorage) — the entire multi-profile store; every write re-serializes and sanitizes it; legacy keys migrated on first load.</li>
+<li><strong>IndexedDB</strong> — history-spot interval cache with gap-fill and idle-time eviction every 3 h.</li>
+<li><strong>URL param</strong> — shareable filter links temporarily override profile filters.</li>
+<li>No server-side accounts or sync — profiles export/import as JSON files in Settings.</li>
+</ul>
+<table>
+<tr><th>Feature</th><th>Key files</th><th>Notes</th></tr>
+<tr><td>Spots table</td><td><code>SpotsTable.jsx</code> (908 ln)</td><td>Row click tunes radio; context menu adds filters</td></tr>
+<tr><td>Filters</td><td><code>useFilters.jsx</code>, <code>FilterModal.jsx</code></td><td>Shareable URLs; 3-state zone cycle</td></tr>
+<tr><td>Hunter panel</td><td><code>HunterPanel.jsx</code> (729 ln)</td><td>ADIF import in a Web Worker (50 MB limit)</td></tr>
+<tr><td>VOACAP overlay · History playback</td><td><code>useVoacap.jsx</code> · <code>history/</code></td><td>⚠ both dev-mode gated</td></tr>
+<tr><td>Guided tour</td><td><code>tour/</code> (react-joyride)</td><td>Targets <code>data-tour</code> attributes</td></tr>
+<tr><td>Radio CAT</td><td><code>useRadio.jsx</code></td><td>Features gated by parsed catserver version</td></tr>
+</table>
+
+<h2 id="catserver">6 · The CAT Server (<code>catserver/</code>)</h2>
+<p>A Rust desktop app (product name <strong>"Holy Cluster"</strong>, <code>HolyCluster.exe</code>) bridging the <em>remote</em> web UI to the <em>local</em> radio.</p>
+
+<h3 id="proxytrick">6.1 The reverse-proxy trick</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+    subgraph LOCAL["Operator's PC"]
+        B["Browser at&lt;br/&gt;http://127.0.0.1:3000"]
+        CS["catserver&lt;br/&gt;(axum server :3000)"]
+        R["Radio&lt;br/&gt;OmniRig (COM) or rigctld :4532"]
+        LOG["Logger (WSJT-X UDP)"]
+    end
+    REMOTE["holycluster.iarc.org&lt;br/&gt;(--dev-server → dev site)"]
+    B -->|"all HTTP requests"| CS
+    CS -->|"reverse-proxies pages, assets, API"| REMOTE
+    B <-->|"/ws (one socket)"| CS
+    CS <-->|"non-radio messages forwarded"| REMOTE
+    CS <-->|"type: radio handled locally"| R
+    CS -->|"HighlightSpot → UDP packet"| LOG
+</pre><div class="caption">The same web UI gains radio control with no special "local mode": messages with <code>version==1 &amp;&amp; type=="radio"</code> are handled locally; everything else is forwarded upstream.</div></div>
+<p>A single-instance guard makes a second launch POST <code>/open</code> to the running instance. <code>--local-ui</code> serves a local <code>ui/dist</code> instead of proxying; <code>--dummy</code> uses a fake radio.</p>
+
+<h3 id="modules">6.2 Modules and rig backends</h3>
+<table>
+<tr><th>Module</th><th>Role</th></tr>
+<tr><td><code>main.rs</code></td><td>Args, single-instance guard, backend selection, tray icon</td></tr>
+<tr><td><code>server.rs</code></td><td>axum HTTP/WS server on <code>0.0.0.0:3000</code>, proxy, radio loop</td></tr>
+<tr><td><code>rig.rs</code></td><td><code>Radio</code> trait + thread-safe <code>AnyRadio</code> (lock-poison recovery)</td></tr>
+<tr><td><code>omnirig.rs</code></td><td><strong>Windows</strong>: OmniRig via COM/IDispatch (winsafe)</td></tr>
+<tr><td><code>rigctld.rs</code></td><td><strong>non-Windows</strong>: TCP to hamlib <code>rigctld</code> :4532</td></tr>
+<tr><td><code>dummy.rs</code> · <code>freq.rs</code> · <code>tray_icon.rs</code></td><td>Fake radio · Freq newtype (Hz as u32) · system tray</td></tr>
+<tr><td><code>reporting.rs</code></td><td>WSJT-X-compatible UDP status packet for logger integration</td></tr>
+</table>
+<p>Backend selection is compile-time by OS; both real backends auto-reinit after 5 consecutive failures. Missing OmniRig → opens the site's <code>/omnirig-error</code> page and exits.</p>
+
+<h3 id="radioflow">6.3 Radio control message flow</h3>
+<div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    participant UI as Web UI (useRadio.jsx)
+    participant CS as catserver /ws
+    participant RIG as OmniRig / rigctld
+    participant LOG as Logger (UDP)
+    Note over UI,CS: user clicks a spot row
+    UI->>CS: {type:"radio", action:"SetModeAndFreq", mode:"CW", freq:14025.0}
+    CS->>CS: derive USB/LSB from band
+    CS->>RIG: set frequency + mode (Slot A)
+    UI->>CS: {action:"SetRig", rig:2}
+    CS->>RIG: switch to Rig 2
+    UI->>CS: {action:"HighlightSpot", dx_callsign, freq, mode, udp_port}
+    CS->>LOG: WSJT-X status UDP → 127.0.0.1:udp_port
+    loop every 500ms (only on change)
+        CS->>RIG: poll status/freq/mode
+        CS-->>UI: {type:"radio", event:"status", freq, mode, current_rig, catserver_version}
+    end
+</pre><div class="caption">The <code>catserver_version</code> field powers the UI's "new version available" nudge (compared against <code>/catserver/latest</code>).</div></div>
+
+<h3 id="packaging">6.4 Packaging and distribution</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+    DEV["push to dev /&lt;br/&gt;tag catserver-v*"] --> GH["GitHub Actions&lt;br/&gt;ghcr.io/iarc-il/catserver-ci&lt;br/&gt;(Rust + mingw + Wine + WiX 5)"]
+    GH --> FMT["cargo fmt + clippy -D warnings"]
+    FMT --> BUILD["cargo build --release&lt;br/&gt;x86_64-pc-windows-gnu"]
+    BUILD --> MSI["build_msi.sh → WiX → .msi"]
+    MSI --> PUB["publish.sh: scp → /opt/msi&lt;br/&gt;+ update 'latest' file"]
+    PUB --> SERVE["api serves /catserver/download&lt;br/&gt;UI links to it"]
+</pre><div class="caption">The Windows MSI is cross-built on Linux. <code>build.rs</code> panics without a reachable <code>catserver-v*</code> tag — shallow clones fail to build. Dev builds bake in <code>--dev-server</code>.</div></div>
+
+<h2 id="infra">7 · Infrastructure &amp; Deployment</h2>
+<h3 id="compose">7.1 Docker Compose stack</h3>
+<p>Single compose file: <code>backend/docker-compose.yml</code>; default bridge network; env from <code>backend/.env</code>.</p>
+<div class="diagram"><pre class="mermaid">
+flowchart TB
+    subgraph EDGE["Edge"]
+        NG["nginx :80 :443 :9999&lt;br/&gt;TLS termination · envsubst template"]
+        CB["certbot&lt;br/&gt;renew loop every 6h"]
+    end
+    subgraph APP["Application"]
+        API["api :8000&lt;br/&gt;FastAPI — serves SPA + API + MSI"]
+        COLL["collector"]
+        MON["monitor&lt;br/&gt;docker.sock + Telegram"]
+    end
+    subgraph DATA["Data"]
+        PGS[("postgres 16.9&lt;br/&gt;127.0.0.1:15432&lt;br/&gt;bind mount infra/postgres/data")]
+        VK[("valkey 8.1.4&lt;br/&gt;127.0.0.1:6379&lt;br/&gt;⚠ NO persistence volume")]
+    end
+    MIG["migrate (one-shot)&lt;br/&gt;ensure_db + alembic upgrade head"]
+    NUI["nginx_ui :8080/:8443&lt;br/&gt;(dev profile only)"]
+    NG -->|"proxy / → api:8000"| API
+    CB <-->|"shared certbot volumes"| NG
+    MIG --> PGS
+    API --> VK
+    API --> PGS
+    COLL --> VK
+    COLL --> PGS
+    MON -.->|"docker ps via socket"| APP
+    NUI -.->|"manages nginx config"| NG
+</pre><div class="caption">Mounted into <code>api</code> from the host: the UI dist (rsynced by CI), the MSI dir (scp'd by CI), and logs. <code>monitor</code>/<code>nginx_ui</code> mount the docker socket.</div></div>
+
+<h3 id="nginxtls">7.2 Nginx routing and TLS</h3>
+<p>The <strong>authoritative config is <code>backend/infra/nginx/nginx.conf.template</code></strong>, rendered at container start with <code>envsubst '${DOMAIN}'</code>. The committed <code>nginx.conf</code> next to it is a stale render — editing it does nothing. Blocks: <code>:80</code> ACME + redirect · <code>:443</code> proxy to <code>api:8000</code> with WS upgrade · <code>:9999</code> nginx-ui admin · <code>:3000</code> passthrough to host Grafana.</p>
+<div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    participant CB as certbot container
+    participant FS as shared volume infra/certbot/conf
+    participant NG as nginx container
+    loop every 6h
+        CB->>FS: certbot renew (webroot via :80)
+    end
+    loop every 6h (separate loop in nginx compose command)
+        NG->>FS: stat fullchain.pem mtime
+        alt mtime changed
+            NG->>NG: nginx -s reload
+        end
+    end
+    Note over NG: mtime-polling avoids reload churn that would kill&lt;br/&gt;long-lived WebSockets. ⚠ Reverting the compose command&lt;br/&gt;to the Dockerfile CMD silently breaks cert pickup.
+</pre><div class="caption">First-time issuance is manual via <code>backend/setup.sh</code> (self-signed bootstrap → real certbot → reload).</div></div>
+
+<h3 id="cicd">7.3 CI/CD pipelines</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart TB
+    TRIG["push dev → dev server&lt;br/&gt;tag backend-v* / v* / catserver-v* → prod"]
+    subgraph BE["backend.yml — paths: backend/**"]
+        B1["ruff check + format&lt;br/&gt;⚠ NO tests"] --> B2["SSH: bash deploy.sh ref"]
+        B2 --> B3["deploy.sh: git reset --hard,&lt;br/&gt;diff-map files → services,&lt;br/&gt;rebuild only affected, migrate if needed"]
+    end
+    subgraph FE["ui.yml — paths: ui/**"]
+        U1["npm ci → biome → vite build&lt;br/&gt;⚠ vitest NOT run"] --> U2["rsync ui/dist → DEPLOY_PATH&lt;br/&gt;(bind-mounted into api)"]
+    end
+    subgraph CS["catserver.yml — paths: catserver/**"]
+        C1["fmt + clippy + release build + MSI"] --> C2["scp MSI → /opt/msi + latest"]
+    end
+    TRIG --> BE
+    TRIG --> FE
+    TRIG --> CS
+</pre><div class="caption"><code>deploy.sh</code> maps changed paths to compose services and restarts only what changed (nginx last, monitor stopped first). It hard-resets the server working tree — never hand-edit on the server.</div></div>
+
+<h3 id="topology">7.4 Production topology</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart TB
+    subgraph PROD["Prod server — holycluster.iarc.org"]
+        REPO1["repo checkout at REPO_ROOT_PROD&lt;br/&gt;backend/ compose stack"]
+        HOSTP["host: /opt/msi · UI dist dir · Grafana :3000"]
+    end
+    subgraph DEVS["Dev server — holycluster-dev.iarc.org"]
+        REPO2["repo checkout at REPO_ROOT_DEV&lt;br/&gt;same stack, dev branch"]
+    end
+    GH2["GitHub Actions"] -->|"branch dev"| DEVS
+    GH2 -->|"tags"| PROD
+    USERS["Operators"] --> PROD
+    TESTERS["Team · catserver dev builds · UI dev proxy"] --> DEVS
+</pre><div class="caption">The UI dev proxy and catserver <code>--dev-server</code> both target the dev domain, so development runs against live dev data.</div></div>
+
+<h2 id="devflow">8 · Development Workflow</h2>
+<pre class="plain"><code># Frontend (no local backend needed — proxies to the dev server)
+cd ui &amp;&amp; npm install
+npm run dev        # Vite dev server
+npm run check      # biome + vitest
+
+# Backend (full stack)
+cd backend
+cp .env.example .env    # fill in QRZ creds, telnet username, paths
+docker compose up       # postgres, valkey, migrate, collector, api, monitor, nginx
+uv run pytest           # package tests (pytest not in deps — uvx pytest works too)
+
+# Catserver (any OS, fake radio)
+cd catserver
+cargo run -- --dummy              # local server :3000
+cargo run -- --dummy --local-ui   # serve local ui/dist instead of proxying
+# NOTE: needs a reachable catserver-v* git tag or build.rs panics</code></pre>
+<p><strong>Releases:</strong> merge to <code>dev</code> → auto-deploy to the dev server. Tag <code>backend-vX</code> / <code>vX</code> (UI) / <code>catserver-vX</code> → deploy to prod.</p>
+
+<h2 id="gotchas">9 · Maintainer Gotchas</h2>
+<ol>
+<li><strong>Retention cleanup is broken</strong> — <code>cleanup_postgres_tables.py</code> references nonexistent <code>HolySpot.date_time</code>; <code>holy_spots2</code> grows unbounded.</li>
+<li><strong><code>fix_missing_spot.md</code> is partly obsolete</strong> — nothing writes to <code>spots_with_issues2</code> anymore.</li>
+<li><strong>CI runs zero tests</strong> — backend pytest and UI vitest suites exist but only linters gate deploys.</li>
+<li><strong>Valkey has no persistence</strong> — restart loses geo cache, dedup keys, streams, and the QRZ session key (<code>/locator</code> 503s until refresh).</li>
+<li><strong>Edit <code>nginx.conf.template</code>, not <code>nginx.conf</code></strong> — only the template is rendered at runtime.</li>
+<li><strong>Legacy protocol duplication</strong> — legacy WS endpoints and dual message enums still live alongside the v1 <code>/ws</code> protocol.</li>
+<li><strong>catserver binds <code>0.0.0.0:3000</code></strong> — the radio bridge is reachable from the LAN.</li>
+<li><strong>QRZ password goes into a URL query string</strong> (<code>shared/qrz.py</code>).</li>
+<li><strong>Untracked shadow trees</strong> at repo root (<code>nginx/</code>, <code>certbot/</code>, <code>postgres/</code>, <code>nginx-ui/</code>) — the authoritative infra is <code>backend/infra/</code>; live PGDATA sits inside the repo tree.</li>
+<li><strong>Stale README</strong> — <code>ClientSideServer.py</code> and the pip flow no longer exist.</li>
+<li><strong>Timezone mix</strong> — <code>HolySpot.time</code> is local time (<code>TZ=Asia/Jerusalem</code>) while <code>timestamp</code> is epoch.</li>
+<li><strong>Frontend hot spots</strong> — <code>draw_map.js</code> (1546 ln), <code>SpotsTable.jsx</code> (908), <code>MapControls.jsx</code> (774), <code>useMapGestures.js</code> (602); the rAF loop reads a mutable ref outside React.</li>
+<li><strong>Silent UI limits</strong> — 1-hour trim, 100-spot cap, dropped sends on closed socket, dev-mode-gated features.</li>
+<li><strong>Version-gated radio features</strong> — spot highlight only fires when catserver &gt; 1.1.0.0; version parsing is regex on git-describe.</li>
+</ol>
+
+<p style="margin-top:48px;color:var(--muted);font-size:13px;">Generated from a full-repo architecture review · July 2026 · Diagrams require internet access (Mermaid via CDN); the same diagrams are in <code>docs/ARCHITECTURE.md</code>.</p>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+    mermaid.initialize({
+        startOnLoad: true,
+        securityLevel: "loose",
+        theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default",
+    });
+</script>
+</body>
+</html>
