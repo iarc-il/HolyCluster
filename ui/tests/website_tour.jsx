@@ -1,9 +1,10 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
+import { TOUR_CLOSE_MAP_CONTROLS_EVENT } from "@/components/tour/tour_events.js";
 
 const test_state = vi.hoisted(() => ({
     filters_context: null,
@@ -48,12 +49,27 @@ vi.mock("react-joyride", async () => {
         if (!run) return null;
 
         const step = steps[stepIndex];
-        const buttons = step?.buttons ?? ["primary"];
+        const buttons = step?.buttons ?? ["back", "close", "primary"];
         return (
             <div data-testid="joyride-step">
                 <h2>{step?.title}</h2>
                 <p>{step?.content}</p>
                 <div data-testid="joyride-buttons">{buttons.join(",")}</div>
+                {buttons.includes("back") ? (
+                    <button
+                        type="button"
+                        onClick={() =>
+                            onEvent({
+                                action: ACTIONS.PREV,
+                                index: stepIndex,
+                                status: "running",
+                                type: EVENTS.STEP_AFTER,
+                            })
+                        }
+                    >
+                        Joyride back
+                    </button>
+                ) : null}
                 {buttons.includes("primary") ? (
                     <button
                         type="button"
@@ -116,6 +132,7 @@ function TestHarness() {
         show_only_latest_spot: false,
     });
     const [show_settings, set_show_settings] = useState(false);
+    const [show_map_controls_panel, set_show_map_controls_panel] = useState(false);
     const setFilters = value_or_setter => {
         set_filters(current_filters =>
             typeof value_or_setter === "function"
@@ -125,9 +142,58 @@ function TestHarness() {
     };
     test_state.filters_context = { filters, setFilters };
 
+    useEffect(() => {
+        function close_map_controls_panel() {
+            set_show_map_controls_panel(false);
+        }
+
+        document.addEventListener(TOUR_CLOSE_MAP_CONTROLS_EVENT, close_map_controls_panel);
+        return () => {
+            document.removeEventListener(TOUR_CLOSE_MAP_CONTROLS_EVENT, close_map_controls_panel);
+        };
+    }, []);
+
     return (
         <>
             <WebsiteTour />
+            <div data-tour="map-panel">Map</div>
+            <div data-tour="map-controls">Map controls</div>
+            <button type="button" data-tour="map-reset">
+                Reset map
+            </button>
+            <button type="button" data-tour="map-fullscreen">
+                Fullscreen map
+            </button>
+            <button
+                type="button"
+                data-tour="map-controls-toggle"
+                onClick={() => set_show_map_controls_panel(true)}
+            >
+                Show map controls
+            </button>
+            {show_map_controls_panel ? (
+                <div data-tour="map-controls-panel">
+                    <button type="button" data-tour="map-projection-toggle" data-tour-state="globe">
+                        Projection
+                    </button>
+                    <button type="button" data-tour="map-night-toggle" data-tour-state="off">
+                        Night
+                    </button>
+                    <button type="button" data-tour="map-equator-toggle" data-tour-state="off">
+                        Equator
+                    </button>
+                    <button type="button" data-tour="map-overlay-dxcc" data-tour-state="off">
+                        DXCC
+                    </button>
+                    <button
+                        type="button"
+                        data-tour="map-region-overlay-us_state"
+                        data-tour-state="off"
+                    >
+                        US state
+                    </button>
+                </div>
+            ) : null}
             <button
                 type="button"
                 data-tour="top-bar-settings"
@@ -203,6 +269,19 @@ async function start_tour(user, chapter_title) {
     await user.click(screen.getByRole("button", { name: "Show tour launcher" }));
     await user.click(screen.getByRole("button", { name: `Select ${chapter_title} tour` }));
     await user.click(screen.getByRole("button", { name: "Start tour" }));
+}
+
+async function open_map_tour_display_panel(user) {
+    await start_tour(user, "Map");
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+    await user.click(screen.getByRole("button", { name: "Show map controls" }));
+
+    await waitFor(() => {
+        expect(screen.getByText("Display Panel")).not.toBeNull();
+    });
 }
 
 describe("WebsiteTour", () => {
@@ -308,5 +387,40 @@ describe("WebsiteTour", () => {
 
         await user.click(screen.getByRole("button", { name: "Joyride next" }));
         expect(screen.getByText("General Settings")).not.toBeNull();
+    });
+
+    it("closes map controls when backing from the display panel", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await open_map_tour_display_panel(user);
+
+        expect(screen.queryByText("Projection")).not.toBeNull();
+
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.queryByText("Projection")).toBeNull();
+        });
+        expect(screen.getByText("Open Map Controls")).not.toBeNull();
+    });
+
+    it("keeps map controls open when backing from projection", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await open_map_tour_display_panel(user);
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+        await waitFor(() => {
+            expect(screen.getByText("Try Projection")).not.toBeNull();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByText("Display Panel")).not.toBeNull();
+        });
+        expect(screen.queryByText("Projection")).not.toBeNull();
     });
 });

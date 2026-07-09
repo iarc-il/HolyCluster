@@ -236,6 +236,17 @@ function WebsiteTour() {
                 return;
             }
 
+            const current_step = steps[from_index];
+            const next_step = steps[next_step_index];
+            if (
+                direction < 0 &&
+                tour_state.current_chapter_id === "map" &&
+                current_step?.target === "[data-tour='map-controls-panel']" &&
+                as_array(next_step?.waitFor).includes("[data-tour='map-controls-panel']")
+            ) {
+                document.dispatchEvent(new Event(TOUR_CLOSE_MAP_CONTROLS_EVENT));
+            }
+
             set_tour_state(state => {
                 if (!state.is_running) return state;
 
@@ -245,7 +256,7 @@ function WebsiteTour() {
                 };
             });
         },
-        [find_available_step_index, finish_tour, steps],
+        [find_available_step_index, finish_tour, steps, tour_state.current_chapter_id],
     );
 
     const start_tour = useCallback(
