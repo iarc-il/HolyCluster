@@ -15,10 +15,17 @@ import {
     TOUR_CLOSE_MAP_CONTROLS_EVENT,
     TOUR_CLOSE_MODAL_EVENT,
     TOUR_FILTER_OPTIONS_EVENT,
+    TOUR_TABLE_CONTEXT_MENU_EVENT,
+    TOUR_TABLE_SPOT_ROW_EVENT,
 } from "./tour_events.js";
 
 const completed_statuses = new Set([STATUS.FINISHED, STATUS.SKIPPED]);
 const wait_poll_interval_ms = 150;
+const map_controls_panel_selector = "[data-tour='map-controls-panel']";
+const spot_row_selector = "[data-tour='spot-row']";
+const spot_row_dx_callsign_selector = "[data-tour='spot-row-dx-callsign']";
+const table_context_menu_selector = "[data-tour='table-context-menu']";
+const table_context_menu_state_pattern = /\[data-tour-state=['"]([^'"]+)['"]\]/;
 
 function as_array(value) {
     if (value == null) return [];
@@ -89,6 +96,81 @@ function cleanup_chapter(chapter_id) {
     if (["filters", "settings"].includes(chapter_id)) {
         document.dispatchEvent(new Event(TOUR_CLOSE_MODAL_EVENT));
     }
+}
+
+function is_table_context_menu_selector(selector) {
+    return typeof selector === "string" && selector.startsWith(table_context_menu_selector);
+}
+
+function step_waits_for_table_context_menu(step) {
+    return as_array(step?.waitFor).some(is_table_context_menu_selector);
+}
+
+function step_waits_for_table_context_menu_gone(step) {
+    return as_array(step?.waitForGone).includes(table_context_menu_selector);
+}
+
+function get_table_context_menu_type(step) {
+    const selector = as_array(step?.waitFor).find(is_table_context_menu_selector);
+    return selector?.match(table_context_menu_state_pattern)?.[1] ?? null;
+}
+
+function dispatch_table_context_menu_tour_event(detail) {
+    document.dispatchEvent(new CustomEvent(TOUR_TABLE_CONTEXT_MENU_EVENT, { detail }));
+}
+
+function handle_backward_step_side_effects(chapter_id, steps, from_index, next_step_index) {
+    if (typeof document === "undefined") return;
+
+    const current_step = steps[from_index];
+    const next_step = steps[next_step_index];
+
+    if (
+        chapter_id === "map" &&
+        current_step?.target === map_controls_panel_selector &&
+        as_array(next_step?.waitFor).includes(map_controls_panel_selector)
+    ) {
+        document.dispatchEvent(new Event(TOUR_CLOSE_MAP_CONTROLS_EVENT));
+        return;
+    }
+
+    if (chapter_id !== "spots_table") return;
+
+    if (
+        current_step?.target === spot_row_dx_callsign_selector &&
+        next_step?.waitForChange?.selector === spot_row_selector
+    ) {
+        document.dispatchEvent(
+            new CustomEvent(TOUR_TABLE_SPOT_ROW_EVENT, { detail: { pinned: false } }),
+        );
+        return;
+    }
+
+    if (
+        current_step?.target === table_context_menu_selector &&
+        step_waits_for_table_context_menu_gone(current_step) &&
+        step_waits_for_table_context_menu(next_step)
+    ) {
+        dispatch_table_context_menu_tour_event({ open: false });
+        return;
+    }
+
+    if (
+        next_step?.target !== table_context_menu_selector ||
+        !step_waits_for_table_context_menu_gone(next_step)
+    ) {
+        return;
+    }
+
+    const trigger_step = steps[next_step_index - 1];
+    const menu_type = get_table_context_menu_type(trigger_step);
+    if (!trigger_step?.target || !menu_type) return;
+
+    dispatch_table_context_menu_tour_event({
+        open: true,
+        target: trigger_step.target,
+        menu_type,
+    });
 }
 
 function WebsiteTour() {
@@ -236,15 +318,13 @@ function WebsiteTour() {
                 return;
             }
 
-            const current_step = steps[from_index];
-            const next_step = steps[next_step_index];
-            if (
-                direction < 0 &&
-                tour_state.current_chapter_id === "map" &&
-                current_step?.target === "[data-tour='map-controls-panel']" &&
-                as_array(next_step?.waitFor).includes("[data-tour='map-controls-panel']")
-            ) {
-                document.dispatchEvent(new Event(TOUR_CLOSE_MAP_CONTROLS_EVENT));
+            if (direction < 0) {
+                handle_backward_step_side_effects(
+                    tour_state.current_chapter_id,
+                    steps,
+                    from_index,
+                    next_step_index,
+                );
             }
 
             set_tour_state(state => {

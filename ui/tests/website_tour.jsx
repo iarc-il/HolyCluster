@@ -1,10 +1,14 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
-import { TOUR_CLOSE_MAP_CONTROLS_EVENT } from "@/components/tour/tour_events.js";
+import {
+    TOUR_CLOSE_MAP_CONTROLS_EVENT,
+    TOUR_TABLE_CONTEXT_MENU_EVENT,
+    TOUR_TABLE_SPOT_ROW_EVENT,
+} from "@/components/tour/tour_events.js";
 
 const test_state = vi.hoisted(() => ({
     filters_context: null,
@@ -133,6 +137,12 @@ function TestHarness() {
     });
     const [show_settings, set_show_settings] = useState(false);
     const [show_map_controls_panel, set_show_map_controls_panel] = useState(false);
+    const [table_sort_state, set_table_sort_state] = useState("inactive");
+    const [spot_row_state, set_spot_row_state] = useState("unpinned");
+    const [table_context_menu, set_table_context_menu] = useState({
+        visible: false,
+        menu_type: null,
+    });
     const setFilters = value_or_setter => {
         set_filters(current_filters =>
             typeof value_or_setter === "function"
@@ -152,6 +162,44 @@ function TestHarness() {
             document.removeEventListener(TOUR_CLOSE_MAP_CONTROLS_EVENT, close_map_controls_panel);
         };
     }, []);
+
+    useEffect(() => {
+        function handle_table_context_menu(event) {
+            const detail = event.detail ?? {};
+            if (detail.open === false) {
+                set_table_context_menu({ visible: false, menu_type: null });
+                return;
+            }
+
+            if (detail.open === true) {
+                set_table_context_menu({ visible: true, menu_type: detail.menu_type });
+            }
+        }
+
+        document.addEventListener(TOUR_TABLE_CONTEXT_MENU_EVENT, handle_table_context_menu);
+        return () => {
+            document.removeEventListener(TOUR_TABLE_CONTEXT_MENU_EVENT, handle_table_context_menu);
+        };
+    }, []);
+
+    useEffect(() => {
+        function handle_table_spot_row(event) {
+            const detail = event.detail ?? {};
+            if (detail.pinned === false) {
+                set_spot_row_state("unpinned");
+            }
+        }
+
+        document.addEventListener(TOUR_TABLE_SPOT_ROW_EVENT, handle_table_spot_row);
+        return () => {
+            document.removeEventListener(TOUR_TABLE_SPOT_ROW_EVENT, handle_table_spot_row);
+        };
+    }, []);
+
+    function open_table_context_menu(event, menu_type) {
+        event.preventDefault();
+        set_table_context_menu({ visible: true, menu_type });
+    }
 
     return (
         <>
@@ -246,9 +294,46 @@ function TestHarness() {
             >
                 Single spot per station
             </button>
-            <button type="button" data-tour="table-header-dx_callsign" data-tour-state="inactive">
+            <button
+                type="button"
+                data-tour="table-header-dx_callsign"
+                data-tour-state={table_sort_state}
+                onClick={() => set_table_sort_state("active")}
+            >
                 DX
             </button>
+            <div
+                data-tour="spot-row"
+                data-tour-state={spot_row_state}
+                onClick={() => set_spot_row_state("pinned")}
+            >
+                <span>Spot row</span>
+                <button
+                    type="button"
+                    data-tour="spot-row-dx-callsign"
+                    onContextMenu={event => open_table_context_menu(event, "callsign")}
+                >
+                    DX callsign
+                </button>
+                <button
+                    type="button"
+                    data-tour="spot-row-flag"
+                    onContextMenu={event => open_table_context_menu(event, "flag")}
+                >
+                    Flag
+                </button>
+                <button type="button" data-tour="spot-row-frequency">
+                    Frequency cell
+                </button>
+            </div>
+            {table_context_menu.visible ? (
+                <div
+                    data-tour="table-context-menu"
+                    data-tour-state={table_context_menu.menu_type}
+                >
+                    Table {table_context_menu.menu_type} menu
+                </div>
+            ) : null}
             <div data-tour="side-panel">
                 <div data-tour="side-panel-tabs">
                     <button
@@ -281,6 +366,62 @@ async function open_map_tour_display_panel(user) {
 
     await waitFor(() => {
         expect(screen.getByText("Display Panel")).not.toBeNull();
+    });
+}
+
+function close_table_context_menu() {
+    document.dispatchEvent(
+        new CustomEvent(TOUR_TABLE_CONTEXT_MENU_EVENT, { detail: { open: false } }),
+    );
+}
+
+async function open_table_tour_callsign_prompt(user) {
+    await start_tour(user, "Spots Table");
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Single Spot Mode" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Single spot per station" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Columns And Sorting" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "DX" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Spot Row" })).not.toBeNull();
+    });
+    await user.click(screen.getByText("Spot row"));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Right-Click A Callsign" })).not.toBeNull();
+    });
+}
+
+async function open_table_tour_callsign_actions(user) {
+    await open_table_tour_callsign_prompt(user);
+    fireEvent.contextMenu(screen.getByRole("button", { name: "DX callsign" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Callsign Actions" })).not.toBeNull();
+    });
+}
+
+async function open_table_tour_flag_prompt(user) {
+    await open_table_tour_callsign_actions(user);
+    close_table_context_menu();
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Right-Click A Flag" })).not.toBeNull();
+    });
+}
+
+async function open_table_tour_entity_actions(user) {
+    await open_table_tour_flag_prompt(user);
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Flag" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Entity Actions" })).not.toBeNull();
     });
 }
 
@@ -422,5 +563,101 @@ describe("WebsiteTour", () => {
             expect(screen.getByText("Display Panel")).not.toBeNull();
         });
         expect(screen.queryByText("Projection")).not.toBeNull();
+    });
+
+    it("unpins the spot row when backing from the callsign prompt", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await open_table_tour_callsign_prompt(user);
+
+        expect(
+            screen.getByText("Spot row").closest("[data-tour='spot-row']")?.getAttribute(
+                "data-tour-state",
+            ),
+        ).toBe("pinned");
+
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Spot Row" })).not.toBeNull();
+        });
+        expect(
+            screen.getByText("Spot row").closest("[data-tour='spot-row']")?.getAttribute(
+                "data-tour-state",
+            ),
+        ).toBe("unpinned");
+
+        await user.click(screen.getByText("Spot row"));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Right-Click A Callsign" })).not.toBeNull();
+        });
+    });
+
+    it("handles callsign context menu back transitions", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await open_table_tour_callsign_actions(user);
+        expect(screen.queryByText("Table callsign menu")).not.toBeNull();
+
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.queryByText("Table callsign menu")).toBeNull();
+        });
+        expect(screen.getByRole("heading", { name: "Right-Click A Callsign" })).not.toBeNull();
+
+        fireEvent.contextMenu(screen.getByRole("button", { name: "DX callsign" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Callsign Actions" })).not.toBeNull();
+        });
+        close_table_context_menu();
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Right-Click A Flag" })).not.toBeNull();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Callsign Actions" })).not.toBeNull();
+        });
+        expect(screen.queryByText("Table callsign menu")).not.toBeNull();
+    });
+
+    it("handles flag context menu back transitions", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await open_table_tour_entity_actions(user);
+        expect(screen.queryByText("Table flag menu")).not.toBeNull();
+
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.queryByText("Table flag menu")).toBeNull();
+        });
+        expect(screen.getByRole("heading", { name: "Right-Click A Flag" })).not.toBeNull();
+
+        fireEvent.contextMenu(screen.getByRole("button", { name: "Flag" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Entity Actions" })).not.toBeNull();
+        });
+        close_table_context_menu();
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Frequency" })).not.toBeNull();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Entity Actions" })).not.toBeNull();
+        });
+        expect(screen.queryByText("Table flag menu")).not.toBeNull();
     });
 });

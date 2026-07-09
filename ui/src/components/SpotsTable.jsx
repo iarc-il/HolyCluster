@@ -16,6 +16,10 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import {
+    TOUR_TABLE_CONTEXT_MENU_EVENT,
+    TOUR_TABLE_SPOT_ROW_EVENT,
+} from "@/components/tour/tour_events.js";
 import { get_hunter_alert_flash_phase } from "@/utils.js";
 
 const cell_classes = {
@@ -814,6 +818,60 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
             menu_type,
         });
     };
+
+    useEffect(() => {
+        function handle_tour_table_context_menu(event) {
+            const detail = event.detail ?? {};
+            if (detail.open === false) {
+                set_context_menu(current => ({ ...current, visible: false }));
+                return;
+            }
+
+            const spot = spots[selected_tour_row_index];
+            if (!spot || !detail.target || !detail.menu_type) return;
+
+            const target = document.querySelector(detail.target);
+            if (!target) return;
+
+            const rect = target.getBoundingClientRect();
+            set_context_menu({
+                visible: true,
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2,
+                spot,
+                is_spotter: detail.is_spotter === true,
+                menu_type: detail.menu_type,
+            });
+        }
+
+        document.addEventListener(TOUR_TABLE_CONTEXT_MENU_EVENT, handle_tour_table_context_menu);
+        return () => {
+            document.removeEventListener(
+                TOUR_TABLE_CONTEXT_MENU_EVENT,
+                handle_tour_table_context_menu,
+            );
+        };
+    }, [selected_tour_row_index, spots]);
+
+    useEffect(() => {
+        function handle_tour_table_spot_row(event) {
+            const detail = event.detail ?? {};
+            if (detail.pinned === false) {
+                set_pinned_spot(null);
+                return;
+            }
+
+            const spot = spots[selected_tour_row_index];
+            if (detail.pinned === true && spot) {
+                set_pinned_spot(spot.id);
+            }
+        }
+
+        document.addEventListener(TOUR_TABLE_SPOT_ROW_EVENT, handle_tour_table_spot_row);
+        return () => {
+            document.removeEventListener(TOUR_TABLE_SPOT_ROW_EVENT, handle_tour_table_spot_row);
+        };
+    }, [selected_tour_row_index, set_pinned_spot, spots]);
 
     useEffect(() => {
         const hovered_ref = row_refs.current[hovered_spot.id];
