@@ -327,7 +327,10 @@ async fn handle_ws_socket(
 
     let rotator_status = rotator.write().get_status();
     client_sender
-        .send(ws_rotator_message(WS_ROTATOR_EVENT_STATUS, &rotator_status)?)
+        .send(ws_rotator_message(
+            WS_ROTATOR_EVENT_STATUS,
+            &rotator_status,
+        )?)
         .await?;
 
     let mut radio_interval = tokio::time::interval(Duration::from_millis(500));

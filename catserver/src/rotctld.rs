@@ -135,11 +135,11 @@ impl Rotator for RotctldRotator {
             name: self.name.clone(),
         };
 
-        if let Some((azimuth, _)) = self.send_command_two_lines("p") {
-            if let Ok(az) = azimuth.parse::<f64>() {
-                status.azimuth = az;
-                status.status = "connected".into();
-            }
+        if let Some((azimuth, _)) = self.send_command_two_lines("p")
+            && let Ok(az) = azimuth.parse::<f64>()
+        {
+            status.azimuth = az;
+            status.status = "connected".into();
         }
 
         status

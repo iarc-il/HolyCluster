@@ -19,9 +19,9 @@ mod omnirig;
 mod pstrotator;
 mod reporting;
 mod rig;
-mod rotator;
 #[cfg(not(windows))]
 mod rigctld;
+mod rotator;
 #[cfg(not(windows))]
 mod rotctld;
 mod server;
@@ -33,9 +33,9 @@ use dummy_rotator::DummyRotator;
 #[cfg(windows)]
 use omnirig::OmnirigRadio;
 use rig::AnyRadio;
-use rotator::AnyRotator;
 #[cfg(not(windows))]
 use rigctld::RigctldRadio;
+use rotator::AnyRotator;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer, Registry, layer::SubscriberExt};
 use tray_icon::UserEvent;
@@ -107,7 +107,10 @@ fn get_rotator(use_dummy: bool) -> AnyRotator {
         }
         #[cfg(not(windows))]
         {
-            AnyRotator::new(crate::rotctld::RotctldRotator::new("localhost".into(), 4533))
+            AnyRotator::new(crate::rotctld::RotctldRotator::new(
+                "localhost".into(),
+                4533,
+            ))
         }
     }
 }
@@ -218,9 +221,13 @@ fn main() -> Result<()> {
         let thread = std::thread::Builder::new()
             .name("singleton".into())
             .spawn(move || {
-                if let Err(error) =
-                    run_singleton_instance(event_sender, radio, rotator, server_config, use_local_ui)
-                {
+                if let Err(error) = run_singleton_instance(
+                    event_sender,
+                    radio,
+                    rotator,
+                    server_config,
+                    use_local_ui,
+                ) {
                     tracing::error!(?error, "Singleton instance failed");
                 }
             })?;
