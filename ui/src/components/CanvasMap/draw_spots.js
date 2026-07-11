@@ -206,6 +206,21 @@ function draw_rotator_azimuth(context, dims, azimuth, color, line_width) {
     context.restore();
 }
 
+function draw_home_bearing_line(context, path_generator, colors, home_location, dx_location) {
+    if (!home_location || !dx_location) return;
+
+    context.save();
+    context.beginPath();
+    path_generator({
+        type: "LineString",
+        coordinates: [home_location, dx_location],
+    });
+    context.strokeStyle = with_alpha(colors.map.home_marker || "#2563eb", 0.9);
+    context.lineWidth = 2.5;
+    context.stroke();
+    context.restore();
+}
+
 export function draw_spots(
     context,
     spots,
@@ -289,6 +304,8 @@ export function draw_spots(
         context.setLineDash([5, 5]);
         context.stroke();
         context.setLineDash([]);
+
+        draw_home_bearing_line(context, path_generator, colors, home_location, azimuth_spot.dx_loc);
     }
 
     // Bold spot drawn last (on top)
