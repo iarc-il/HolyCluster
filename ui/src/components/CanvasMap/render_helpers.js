@@ -192,6 +192,7 @@ export function do_redraw(
                         projection,
                         map_controls.is_globe,
                         render_state_ref.current.home_location,
+                        render_state_ref.current.rotator_azimuth,
                         canvas_refs.hunter_flash_phase_ref.current,
                     );
                 });

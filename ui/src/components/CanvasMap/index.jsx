@@ -11,6 +11,7 @@ import { get_dxcc_label, is_filterable_dxcc_entity } from "@/data/dxcc_entities.
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
+import useRotator from "@/hooks/useRotator";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
@@ -52,6 +53,7 @@ function CanvasMap({
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
+    const { rotator_azimuth } = useRotator();
     const { colors, dev_mode } = useColors();
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
     const [hovered_dxcc, set_hovered_dxcc] = useState(null);
@@ -161,6 +163,7 @@ function CanvasMap({
         hovered_zone,
         hovered_dxcc,
         home_location,
+        rotator_azimuth,
         night_time,
         voacap: voacap_render_state,
     };
@@ -209,6 +212,7 @@ function CanvasMap({
         hovered_zone,
         hovered_dxcc,
         home_location,
+        rotator_azimuth,
         voacap_state,
         animation_id_ref,
     });
