@@ -5,7 +5,6 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct RotatorStatus {
     pub azimuth: f64,
-    pub elevation: f64,
     pub status: String,
     pub name: String,
 }
@@ -14,7 +13,6 @@ pub trait Rotator: Send + Sync {
     fn init(&mut self);
     fn get_name(&self) -> &str;
     fn set_azimuth(&mut self, azimuth: f64);
-    fn set_elevation(&mut self, elevation: f64);
     fn get_status(&mut self) -> RotatorStatus;
     fn is_available(&self) -> bool;
 }

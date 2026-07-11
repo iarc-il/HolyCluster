@@ -31,7 +31,9 @@ impl PstRotator {
         let socket = self.socket.as_ref()?;
         self.send("STATUS");
         let mut buf = [0u8; 1024];
-        socket.set_read_timeout(Some(Duration::from_millis(500))).ok()?;
+        socket
+            .set_read_timeout(Some(Duration::from_millis(500)))
+            .ok()?;
         match socket.recv_from(&mut buf) {
             Ok((len, _)) => {
                 let response = String::from_utf8_lossy(&buf[..len]).trim().to_string();
@@ -74,14 +76,9 @@ impl Rotator for PstRotator {
         self.send(&format!("AZ={azimuth}"));
     }
 
-    fn set_elevation(&mut self, elevation: f64) {
-        self.send(&format!("EL={elevation}"));
-    }
-
     fn get_status(&mut self) -> RotatorStatus {
         let mut status = RotatorStatus {
             azimuth: self.azimuth,
-            elevation: 0.0,
             status: "disconnected".into(),
             name: self.get_name().into(),
         };
@@ -95,10 +92,6 @@ impl Rotator for PstRotator {
                         if let Ok(v) = az.parse::<f64>() {
                             status.azimuth = v;
                             self.azimuth = v;
-                        }
-                    } else if let Some(el) = part.strip_prefix("EL=") {
-                        if let Ok(v) = el.parse::<f64>() {
-                            status.elevation = v;
                         }
                     }
                 }

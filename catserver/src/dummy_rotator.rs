@@ -3,15 +3,11 @@ use crate::rotator::{Rotator, RotatorStatus};
 #[derive(Clone)]
 pub struct DummyRotator {
     azimuth: f64,
-    elevation: f64,
 }
 
 impl DummyRotator {
     pub fn new() -> Self {
-        Self {
-            azimuth: 0.0,
-            elevation: 0.0,
-        }
+        Self { azimuth: 0.0 }
     }
 }
 
@@ -26,14 +22,9 @@ impl Rotator for DummyRotator {
         self.azimuth = azimuth;
     }
 
-    fn set_elevation(&mut self, elevation: f64) {
-        self.elevation = elevation;
-    }
-
     fn get_status(&mut self) -> RotatorStatus {
         RotatorStatus {
             azimuth: self.azimuth,
-            elevation: self.elevation,
             status: "connected".into(),
             name: self.get_name().into(),
         }

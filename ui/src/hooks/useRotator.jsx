@@ -10,7 +10,6 @@ function normalize_azimuth(azimuth) {
 export function RotatorProvider({ children }) {
     const [rotator_status, set_rotator_status] = useState("unavailable");
     const [rotator_azimuth, set_rotator_azimuth] = useState(null);
-    const [rotator_elevation, set_rotator_elevation] = useState(null);
     const [rotator_name, set_rotator_name] = useState("");
     const [rotator_ready, set_rotator_ready] = useState(false);
     const { send } = useWs();
@@ -22,7 +21,6 @@ export function RotatorProvider({ children }) {
 
         set_rotator_status(data.status || "unavailable");
         set_rotator_azimuth(data.azimuth ?? null);
-        set_rotator_elevation(data.elevation ?? null);
         set_rotator_name(data.name || "");
         set_rotator_ready(true);
     });
@@ -50,7 +48,6 @@ export function RotatorProvider({ children }) {
                 is_rotator_available,
                 rotator_status,
                 rotator_azimuth,
-                rotator_elevation,
                 rotator_name,
             }}
         >

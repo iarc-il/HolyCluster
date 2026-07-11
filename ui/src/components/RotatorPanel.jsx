@@ -104,14 +104,8 @@ function RotatorCompass({ azimuth, colors }) {
 
 export default function RotatorPanel() {
     const { colors } = useColors();
-    const {
-        set_azimuth,
-        is_rotator_available,
-        rotator_status,
-        rotator_azimuth,
-        rotator_elevation,
-        rotator_name,
-    } = useRotator();
+    const { set_azimuth, is_rotator_available, rotator_status, rotator_azimuth, rotator_name } =
+        useRotator();
     const [azimuth_input, set_azimuth_input] = useState("");
 
     useEffect(() => {
@@ -145,7 +139,7 @@ export default function RotatorPanel() {
 
             <RotatorCompass azimuth={rotator_azimuth} colors={colors} />
 
-            <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="grid grid-cols-1 gap-2 text-sm">
                 <div
                     className="rounded-lg p-3"
                     style={{ backgroundColor: `${colors.theme.text}12` }}
@@ -153,15 +147,6 @@ export default function RotatorPanel() {
                     <div className="text-xs opacity-65">Azimuth</div>
                     <div className="text-2xl font-bold tabular-nums">
                         {format_degrees(rotator_azimuth)}
-                    </div>
-                </div>
-                <div
-                    className="rounded-lg p-3"
-                    style={{ backgroundColor: `${colors.theme.text}12` }}
-                >
-                    <div className="text-xs opacity-65">Elevation</div>
-                    <div className="text-2xl font-bold tabular-nums">
-                        {format_degrees(rotator_elevation)}
                     </div>
                 </div>
             </div>

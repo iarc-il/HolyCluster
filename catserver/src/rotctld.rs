@@ -128,28 +128,17 @@ impl Rotator for RotctldRotator {
         }
     }
 
-    fn set_elevation(&mut self, elevation: f64) {
-        let cmd = format!("P 0.0 {elevation}");
-        if self.send_command(&cmd).is_none() {
-            tracing::error!("Failed to set elevation");
-        }
-    }
-
     fn get_status(&mut self) -> RotatorStatus {
         let mut status = RotatorStatus {
             azimuth: 0.0,
-            elevation: 0.0,
             status: "disconnected".into(),
             name: self.name.clone(),
         };
 
-        if let Some((azimuth, elevation)) = self.send_command_two_lines("p") {
+        if let Some((azimuth, _)) = self.send_command_two_lines("p") {
             if let Ok(az) = azimuth.parse::<f64>() {
                 status.azimuth = az;
                 status.status = "connected".into();
-            }
-            if let Ok(el) = elevation.parse::<f64>() {
-                status.elevation = el;
             }
         }
 
