@@ -141,18 +141,6 @@ export default function RotatorPanel() {
 
             <RotatorCompass azimuth={rotator_azimuth} colors={colors} />
 
-            <div className="grid grid-cols-1 gap-2 text-sm">
-                <div
-                    className="rounded-lg p-3"
-                    style={{ backgroundColor: `${colors.theme.text}12` }}
-                >
-                    <div className="text-xs opacity-65">Azimuth</div>
-                    <div className="text-2xl font-bold tabular-nums">
-                        {format_degrees(rotator_azimuth)}
-                    </div>
-                </div>
-            </div>
-
             <form onSubmit={submit_azimuth} className="flex gap-2">
                 <input
                     type="number"
