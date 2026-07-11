@@ -4,6 +4,7 @@ import { bands, modes } from "@/data/filters_data.js";
 import { get_mode_shape } from "@/data/mode_shapes.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import { useProfiles } from "@/hooks/useProfiles.jsx";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
@@ -188,6 +189,7 @@ function LeftColumn({ toggled_ui, children }) {
     const { filters, setFilters, setRadioModeFilter } = useFilters();
     const { radio_band, radio_status } = use_radio();
     const { settings } = useSettings();
+    const { update_active_profile_section } = useProfiles();
 
     const scroll_ref = useRef(null);
     const [overlay_el, setOverlayEl] = useState(null);
@@ -200,6 +202,13 @@ function LeftColumn({ toggled_ui, children }) {
         : "hidden ";
 
     const { colors } = useColors();
+
+    function set_frequency_bar_band(band) {
+        update_active_profile_section("panels", panels => ({
+            ...panels,
+            frequency_bar_band: band,
+        }));
+    }
 
     const visible_bands = bands.filter(band => {
         if (settings.show_disabled_bands) {
@@ -242,6 +251,7 @@ function LeftColumn({ toggled_ui, children }) {
                                 filter_value={band}
                                 orientation="right"
                                 disabled={filters.radio_band}
+                                on_only_click={set_frequency_bar_band}
                             >
                                 {!filters.radio_band && (
                                     <SpotCount
@@ -295,7 +305,13 @@ function LeftColumn({ toggled_ui, children }) {
                                 color={colors.bands[radio_band] ?? "black"}
                                 text_color={colors.text[radio_band] ?? "white"}
                                 data_tour="radio-band-filter-button"
-                                on_click={_ => setRadioModeFilter(!filters.radio_band)}
+                                on_click={_ => {
+                                    const next_radio_band = !filters.radio_band;
+                                    setRadioModeFilter(next_radio_band);
+                                    if (next_radio_band && radio_status === "connected") {
+                                        set_frequency_bar_band(-1);
+                                    }
+                                }}
                                 hover_brightness="125"
                             />
                         </div>

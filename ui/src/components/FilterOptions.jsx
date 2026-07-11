@@ -7,7 +7,14 @@ import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";
 
-function FilterOptions({ filter_key, filter_value, orientation, disabled, children }) {
+function FilterOptions({
+    filter_key,
+    filter_value,
+    orientation,
+    disabled,
+    on_only_click,
+    children,
+}) {
     const { setFilterKeys, setOnlyFilterKeys } = useFilters();
     const { colors } = useColors();
     const { settings } = useSettings();
@@ -101,6 +108,7 @@ function FilterOptions({ filter_key, filter_value, orientation, disabled, childr
                                 data-tour="filter-options-only"
                                 on_click={() => {
                                     setOnlyFilterKeys(filter_key, filter_value);
+                                    on_only_click?.(filter_value);
                                     close_popup();
                                 }}
                             >

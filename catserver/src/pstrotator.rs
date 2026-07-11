@@ -28,8 +28,8 @@ impl PstRotator {
     }
 
     fn query_status(&mut self) -> Option<String> {
-        let socket = self.socket.as_ref()?;
         self.send("STATUS");
+        let socket = self.socket.as_ref()?;
         let mut buf = [0u8; 1024];
         socket
             .set_read_timeout(Some(Duration::from_millis(500)))
@@ -88,11 +88,11 @@ impl Rotator for PstRotator {
             if let Some(response) = self.query_status() {
                 for part in response.split(',') {
                     let part = part.trim();
-                    if let Some(az) = part.strip_prefix("AZ=") {
-                        if let Ok(v) = az.parse::<f64>() {
-                            status.azimuth = v;
-                            self.azimuth = v;
-                        }
+                    if let Some(az) = part.strip_prefix("AZ=")
+                        && let Ok(v) = az.parse::<f64>()
+                    {
+                        status.azimuth = v;
+                        self.azimuth = v;
                     }
                 }
             }
