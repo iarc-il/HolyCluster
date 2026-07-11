@@ -5,6 +5,7 @@ import Filters from "@/components/Filters.jsx";
 import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Heatmap from "@/components/Heatmap.jsx";
 import HunterPanel from "@/components/HunterPanel.jsx";
+import RotatorPanel from "@/components/RotatorPanel.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
 import { continents } from "@/data/filters_data.js";
 import { useColors } from "@/hooks/useColors";
@@ -173,6 +174,14 @@ const view_options = [
         size: 32,
         is_disabled: false,
     },
+    {
+        label: "Rotator",
+        bg: "#38bdf8",
+        icon: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m4.24 5.76-2.12 6.36a1 1 0 0 1-.63.63l-6.36 2.12 2.12-6.36a1 1 0 0 1 .63-.63z",
+        viewbox: "0 0 24 24",
+        size: 36,
+        is_disabled: false,
+    },
 ];
 
 function ViewSelectorTabs({ active_view, set_active_view, colors }) {
@@ -253,6 +262,7 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
         </div>,
         <DXpeditions key="dxpeditions" />,
         <HunterPanel key="hunter" />,
+        <RotatorPanel key="rotator" />,
     ];
     const active_view_label = view_options[active_view]?.label.toLowerCase().replaceAll(" ", "-");
 
