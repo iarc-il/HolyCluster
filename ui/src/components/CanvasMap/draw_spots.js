@@ -160,16 +160,17 @@ function draw_spot(
     }
 }
 
-function draw_rotator_azimuth(context, colors, dims, azimuth) {
+function draw_rotator_azimuth(context, dims, azimuth, color, line_width) {
+    if (azimuth == null) return;
+
     const heading = Number(azimuth);
     if (!Number.isFinite(heading)) return;
 
-    const color = colors.map.home_marker || colors.map.azimuth_line;
     const angle = (90 - heading) * (Math.PI / 180);
     const direction_x = Math.cos(angle);
     const direction_y = -Math.sin(angle);
-    const radius = dims.radius * 0.9;
-    const start_radius = 10 * dims.scale;
+    const radius = dims.radius;
+    const start_radius = 0;
     const end_x = dims.center_x + radius * direction_x;
     const end_y = dims.center_y + radius * direction_y;
     const start_x = dims.center_x + start_radius * direction_x;
@@ -178,13 +179,15 @@ function draw_rotator_azimuth(context, colors, dims, azimuth) {
     const head_angle = Math.PI / 7;
     const left_angle = angle + Math.PI - head_angle;
     const right_angle = angle + Math.PI + head_angle;
+    const shaft_end_x = end_x - head_size * Math.cos(head_angle) * direction_x;
+    const shaft_end_y = end_y - head_size * Math.cos(head_angle) * direction_y;
 
     context.save();
     context.beginPath();
     context.moveTo(start_x, start_y);
-    context.lineTo(end_x, end_y);
+    context.lineTo(shaft_end_x, shaft_end_y);
     context.strokeStyle = with_alpha(color, 0.95);
-    context.lineWidth = 3;
+    context.lineWidth = line_width;
     context.stroke();
 
     context.beginPath();
@@ -200,17 +203,6 @@ function draw_rotator_azimuth(context, colors, dims, azimuth) {
     context.closePath();
     context.fillStyle = with_alpha(color, 0.95);
     context.fill();
-
-    context.font = `${Math.round(12 * dims.scale)}px sans-serif`;
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.lineWidth = 3;
-    context.strokeStyle = with_alpha(colors.map.home_marker_border || "#ffffff", 0.9);
-    context.fillStyle = with_alpha(color, 1);
-    const label_x = dims.center_x + dims.radius * 0.72 * direction_x;
-    const label_y = dims.center_y + dims.radius * 0.72 * direction_y;
-    context.strokeText("ROT", label_x, label_y);
-    context.fillText("ROT", label_x, label_y);
     context.restore();
 }
 
@@ -228,6 +220,7 @@ export function draw_spots(
     is_globe,
     home_location,
     rotator_azimuth,
+    rotator_target_azimuth,
     hunter_flash_phase = 0,
 ) {
     const path_generator = d3.geoPath().projection(projection).context(context);
@@ -298,10 +291,6 @@ export function draw_spots(
         context.setLineDash([]);
     }
 
-    if (!is_globe) {
-        draw_rotator_azimuth(context, colors, dims, rotator_azimuth);
-    }
-
     // Bold spot drawn last (on top)
     for (const spot of bold_spots) {
         draw_spot(context, spot, colors, dash_offset, hunter_flash_phase, {
@@ -310,6 +299,11 @@ export function draw_spots(
             projection,
             is_visible,
         });
+    }
+
+    if (!is_globe) {
+        draw_rotator_azimuth(context, dims, rotator_target_azimuth, "#facc15", 3);
+        draw_rotator_azimuth(context, dims, rotator_azimuth, "#ef4444", 4);
     }
 
     if (home_location && is_visible(home_location)) {

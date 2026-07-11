@@ -53,7 +53,7 @@ function CanvasMap({
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
-    const { rotator_azimuth } = useRotator();
+    const { rotator_azimuth, rotator_target_azimuth } = useRotator();
     const { colors, dev_mode } = useColors();
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
     const [hovered_dxcc, set_hovered_dxcc] = useState(null);
@@ -164,6 +164,7 @@ function CanvasMap({
         hovered_dxcc,
         home_location,
         rotator_azimuth,
+        rotator_target_azimuth,
         night_time,
         voacap: voacap_render_state,
     };
@@ -213,6 +214,7 @@ function CanvasMap({
         hovered_dxcc,
         home_location,
         rotator_azimuth,
+        rotator_target_azimuth,
         voacap_state,
         animation_id_ref,
     });
