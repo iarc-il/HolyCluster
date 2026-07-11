@@ -124,12 +124,19 @@ function MainContent({
     const { set_azimuth, is_rotator_available } = useRotator();
 
     function get_rotator_azimuth(spot) {
-        if (!settings.locator || !spot?.dx_loc) {
+        if (!spot?.dx_loc) {
             return null;
         }
 
         try {
-            const [home_lat, home_lon] = Maidenhead.toLatLon(settings.locator);
+            const locator = (settings.locator || "").trim().toUpperCase();
+            let home_lat;
+            let home_lon;
+            if (Maidenhead.valid(locator)) {
+                [home_lat, home_lon] = Maidenhead.toLatLon(locator);
+            } else {
+                [home_lon, home_lat] = map_controls.location.location;
+            }
             const [dx_lon, dx_lat] = spot.dx_loc;
             return calculate_geographic_azimuth(home_lat, home_lon, dx_lat, dx_lon);
         } catch {
