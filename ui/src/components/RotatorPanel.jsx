@@ -12,20 +12,22 @@ function format_degrees(value) {
 }
 
 function bearing_point(center_x, center_y, radius, bearing) {
-    const radians = (Number(bearing) * Math.PI) / 180;
-    return [center_x + Math.sin(radians) * radius, center_y - Math.cos(radians) * radius];
+    const angle = (90 - Number(bearing)) * (Math.PI / 180);
+    return [center_x + Math.cos(angle) * radius, center_y - Math.sin(angle) * radius];
 }
 
 function RotatorCompass({ azimuth, colors }) {
     const heading = Number.isFinite(Number(azimuth)) ? Number(azimuth) : 0;
-    const heading_radians = (heading * Math.PI) / 180;
-    const forward_x = Math.sin(heading_radians);
-    const forward_y = -Math.cos(heading_radians);
-    const right_x = Math.cos(heading_radians);
-    const right_y = Math.sin(heading_radians);
-    const nose = [80 + forward_x * 56, 80 + forward_y * 56];
-    const base = [80 - forward_x * 6, 80 - forward_y * 6];
-    const tail = [80 - forward_x * 56, 80 - forward_y * 56];
+    const pointer_color =
+        colors.map.home_marker || colors.map.azimuth_line || colors.buttons.utility;
+    const angle = (90 - heading) * (Math.PI / 180);
+    const direction_x = Math.cos(angle);
+    const direction_y = -Math.sin(angle);
+    const right_x = -direction_y;
+    const right_y = direction_x;
+    const nose = [80 + direction_x * 56, 80 + direction_y * 56];
+    const base = [80 - direction_x * 6, 80 - direction_y * 6];
+    const tail = [80 - direction_x * 56, 80 - direction_y * 56];
     const left = [base[0] - right_x * 8, base[1] - right_y * 8];
     const right = [base[0] + right_x * 8, base[1] + right_y * 8];
     const tail_left = [80 - right_x * 6, 80 - right_y * 6];
@@ -81,14 +83,14 @@ function RotatorCompass({ azimuth, colors }) {
                 ))}
                 <path
                     d={`M${nose[0]} ${nose[1]} L${right[0]} ${right[1]} L${base[0]} ${base[1]} L${left[0]} ${left[1]} Z`}
-                    fill={colors.buttons.active}
+                    fill={pointer_color}
                 />
                 <path
                     d={`M${tail[0]} ${tail[1]} L${tail_left[0]} ${tail_left[1]} L${base[0]} ${base[1]} L${tail_right[0]} ${tail_right[1]} Z`}
                     fill={`${colors.theme.text}55`}
                 />
                 <circle cx="80" cy="80" r="7" fill={colors.theme.background} />
-                <circle cx="80" cy="80" r="4" fill={colors.buttons.active} />
+                <circle cx="80" cy="80" r="4" fill={pointer_color} />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div
