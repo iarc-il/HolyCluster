@@ -206,18 +206,59 @@ function draw_rotator_azimuth(context, dims, azimuth, color, line_width) {
     context.restore();
 }
 
-function draw_home_bearing_line(context, path_generator, colors, home_location, dx_location) {
+function draw_home_bearing_line(context, projection, dims, colors, home_location, dx_location) {
     if (!home_location || !dx_location) return;
+
+    const home_pos = projection(home_location);
+    const dx_pos = projection(dx_location);
+    if (!home_pos || !dx_pos) return;
+
+    const azimuth = calculate_geographic_azimuth(
+        home_location[1],
+        home_location[0],
+        dx_location[1],
+        dx_location[0],
+    );
+    const angle = (90 - azimuth) * (Math.PI / 180);
+    const direction_x = Math.cos(angle);
+    const direction_y = -Math.sin(angle);
+    const color = colors.map.home_marker || "#2563eb";
+    const head_size = 12 * dims.scale;
+    const head_angle = Math.PI / 7;
+    const tip_x = dims.center_x + dims.radius * direction_x;
+    const tip_y = dims.center_y + dims.radius * direction_y;
+    const shaft_end_x = tip_x - head_size * Math.cos(head_angle) * direction_x;
+    const shaft_end_y = tip_y - head_size * Math.cos(head_angle) * direction_y;
+    const tangent_length = Math.min(dims.radius * 0.35, Math.max(30 * dims.scale, 90 * dims.scale));
+    const control2_x = shaft_end_x - direction_x * tangent_length;
+    const control2_y = shaft_end_y - direction_y * tangent_length;
+    const control1_x = (8 * dx_pos[0] - home_pos[0] - 3 * control2_x - shaft_end_x) / 3;
+    const control1_y = (8 * dx_pos[1] - home_pos[1] - 3 * control2_y - shaft_end_y) / 3;
+    const left_angle = angle + Math.PI - head_angle;
+    const right_angle = angle + Math.PI + head_angle;
 
     context.save();
     context.beginPath();
-    path_generator({
-        type: "LineString",
-        coordinates: [home_location, dx_location],
-    });
-    context.strokeStyle = with_alpha(colors.map.home_marker || "#2563eb", 0.9);
+    context.moveTo(home_pos[0], home_pos[1]);
+    context.bezierCurveTo(control1_x, control1_y, control2_x, control2_y, shaft_end_x, shaft_end_y);
+    context.strokeStyle = with_alpha(color, 0.9);
     context.lineWidth = 2.5;
+    context.lineCap = "round";
     context.stroke();
+
+    context.beginPath();
+    context.moveTo(tip_x, tip_y);
+    context.lineTo(
+        tip_x + head_size * Math.cos(left_angle),
+        tip_y - head_size * Math.sin(left_angle),
+    );
+    context.lineTo(
+        tip_x + head_size * Math.cos(right_angle),
+        tip_y - head_size * Math.sin(right_angle),
+    );
+    context.closePath();
+    context.fillStyle = with_alpha(color, 0.9);
+    context.fill();
     context.restore();
 }
 
@@ -305,7 +346,14 @@ export function draw_spots(
         context.stroke();
         context.setLineDash([]);
 
-        draw_home_bearing_line(context, path_generator, colors, home_location, azimuth_spot.dx_loc);
+        draw_home_bearing_line(
+            context,
+            projection,
+            dims,
+            colors,
+            home_location,
+            azimuth_spot.dx_loc,
+        );
     }
 
     // Bold spot drawn last (on top)
