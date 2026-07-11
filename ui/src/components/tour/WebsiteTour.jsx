@@ -20,6 +20,7 @@ import {
 } from "./tour_events.js";
 
 const completed_statuses = new Set([STATUS.FINISHED, STATUS.SKIPPED]);
+const default_tour_buttons = ["skip", "back", "close", "primary"];
 const wait_poll_interval_ms = 150;
 const map_controls_panel_selector = "[data-tour='map-controls-panel']";
 const spot_row_selector = "[data-tour='spot-row']";
@@ -286,6 +287,13 @@ function WebsiteTour() {
         () => get_available_steps(chapter_steps),
         [chapter_steps, get_available_steps],
     );
+    const first_available_step_index = useMemo(() => {
+        for (let index = 0; index < steps.length; index += 1) {
+            if (!should_skip_step(steps[index])) return index;
+        }
+
+        return null;
+    }, [should_skip_step, steps]);
     const current_step = steps[tour_state.step_index];
     const current_wait_for_change_key = current_step?.waitForChange
         ? `${tour_state.current_chapter_id}:${tour_state.step_index}:${current_step.waitForChange.selector}:${current_step.waitForChange.attribute ?? "text"}`
@@ -294,20 +302,30 @@ function WebsiteTour() {
         current_wait_for_change_key != null &&
         already_satisfied_wait_key === current_wait_for_change_key;
     const joyride_steps = useMemo(() => {
-        if (!current_wait_for_change_is_already_satisfied) return steps;
-
         return steps.map((step, index) => {
-            if (
-                index !== tour_state.step_index ||
-                !step.buttons ||
-                step.buttons.includes("primary")
-            ) {
-                return step;
+            let buttons = step.buttons;
+
+            if (index === first_available_step_index) {
+                buttons = (buttons ?? default_tour_buttons).filter(button => button !== "back");
             }
 
-            return { ...step, buttons: [...step.buttons, "primary"] };
+            if (
+                current_wait_for_change_is_already_satisfied &&
+                index === tour_state.step_index &&
+                buttons &&
+                !buttons.includes("primary")
+            ) {
+                buttons = [...buttons, "primary"];
+            }
+
+            return buttons === step.buttons ? step : { ...step, buttons };
         });
-    }, [current_wait_for_change_is_already_satisfied, steps, tour_state.step_index]);
+    }, [
+        current_wait_for_change_is_already_satisfied,
+        first_available_step_index,
+        steps,
+        tour_state.step_index,
+    ]);
 
     const find_available_step_index = useCallback(
         (step_list, start_index, direction) => {
@@ -335,6 +353,8 @@ function WebsiteTour() {
             if (next_step_index == null) {
                 if (direction > 0) {
                     finish_tour(STATUS.FINISHED);
+                } else {
+                    set_tour_state(state => (state.is_running ? { ...state } : state));
                 }
                 return;
             }
@@ -680,7 +700,7 @@ function WebsiteTour() {
                     primaryColor: "#3b82f6",
                     backgroundColor: "#182229",
                     blockTargetInteraction: false,
-                    buttons: ["skip", "back", "close", "primary"],
+                    buttons: default_tour_buttons,
                     textColor: "#f4f0f0",
                     arrowColor: "#182229",
                     overlayColor: "rgba(0, 0, 0, 0.65)",

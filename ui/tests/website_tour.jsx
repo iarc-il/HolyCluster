@@ -527,6 +527,19 @@ describe("WebsiteTour", () => {
         expect(screen.getByText("General Settings")).not.toBeNull();
     });
 
+    it("does not show back on the first filters step", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Filters");
+
+        await waitFor(() => {
+            expect(screen.getByText("Quick Filters")).not.toBeNull();
+        });
+        expect(screen.getByTestId("joyride-buttons").textContent).not.toContain("back");
+        expect(screen.queryByRole("button", { name: "Joyride back" })).toBeNull();
+    });
+
     it("closes map controls when backing from the display panel", async () => {
         const user = userEvent.setup();
         render(<TestHarness />);
