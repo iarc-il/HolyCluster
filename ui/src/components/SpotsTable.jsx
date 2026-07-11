@@ -5,6 +5,10 @@ import SpotContextMenu from "./SpotContextMenu";
 import Popup from "./ui/Popup";
 
 import {
+    TOUR_TABLE_CONTEXT_MENU_EVENT,
+    TOUR_TABLE_SPOT_ROW_EVENT,
+} from "@/components/tour/tour_events.js";
+import {
     get_dxcc_label,
     is_canada_dxcc_code,
     is_us_state_dxcc_code,
@@ -16,10 +20,6 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import {
-    TOUR_TABLE_CONTEXT_MENU_EVENT,
-    TOUR_TABLE_SPOT_ROW_EVENT,
-} from "@/components/tour/tour_events.js";
 import { get_hunter_alert_flash_phase } from "@/utils.js";
 
 const cell_classes = {

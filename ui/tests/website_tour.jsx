@@ -327,10 +327,7 @@ function TestHarness() {
                 </button>
             </div>
             {table_context_menu.visible ? (
-                <div
-                    data-tour="table-context-menu"
-                    data-tour-state={table_context_menu.menu_type}
-                >
+                <div data-tour="table-context-menu" data-tour-state={table_context_menu.menu_type}>
                     Table {table_context_menu.menu_type} menu
                 </div>
             ) : null}
@@ -572,9 +569,10 @@ describe("WebsiteTour", () => {
         await open_table_tour_callsign_prompt(user);
 
         expect(
-            screen.getByText("Spot row").closest("[data-tour='spot-row']")?.getAttribute(
-                "data-tour-state",
-            ),
+            screen
+                .getByText("Spot row")
+                .closest("[data-tour='spot-row']")
+                ?.getAttribute("data-tour-state"),
         ).toBe("pinned");
 
         await user.click(screen.getByRole("button", { name: "Joyride back" }));
@@ -583,9 +581,10 @@ describe("WebsiteTour", () => {
             expect(screen.getByRole("heading", { name: "Spot Row" })).not.toBeNull();
         });
         expect(
-            screen.getByText("Spot row").closest("[data-tour='spot-row']")?.getAttribute(
-                "data-tour-state",
-            ),
+            screen
+                .getByText("Spot row")
+                .closest("[data-tour='spot-row']")
+                ?.getAttribute("data-tour-state"),
         ).toBe("unpinned");
 
         await user.click(screen.getByText("Spot row"));

@@ -2,6 +2,8 @@ import { useColors } from "@/hooks/useColors";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+const JOYRIDE_PORTAL_SELECTOR = "#react-joyride-portal";
+
 export default function SpotContextMenu({
     x,
     y,
@@ -25,6 +27,10 @@ export default function SpotContextMenu({
 
     useEffect(() => {
         function handle_click_outside(event) {
+            if (event.target instanceof Element && event.target.closest(JOYRIDE_PORTAL_SELECTOR)) {
+                return;
+            }
+
             if (menu_ref.current && !menu_ref.current.contains(event.target)) {
                 on_close();
             }

@@ -86,6 +86,17 @@ function get_wait_for_change_value(wait_for_change) {
     return target.textContent;
 }
 
+function get_step_wait_key(chapter_id, step_index, step) {
+    if (!step?.waitFor && !step?.waitForGone && !step?.waitForChange) return null;
+
+    const wait_for = as_array(step.waitFor).join("|");
+    const wait_for_gone = as_array(step.waitForGone).join("|");
+    const wait_for_change = step.waitForChange
+        ? `${step.waitForChange.selector}:${step.waitForChange.attribute ?? "text"}`
+        : "";
+    return `${chapter_id}:${step_index}:${wait_for}:${wait_for_gone}:${wait_for_change}`;
+}
+
 function cleanup_chapter(chapter_id) {
     if (typeof document === "undefined") return;
 
@@ -115,13 +126,13 @@ function get_table_context_menu_type(step) {
     return selector?.match(table_context_menu_state_pattern)?.[1] ?? null;
 }
 
-function dispatch_table_context_menu_tour_event(detail) {
-    document.dispatchEvent(new CustomEvent(TOUR_TABLE_CONTEXT_MENU_EVENT, { detail }));
+function dispatch_tour_side_effect(side_effect) {
+    if (typeof document === "undefined" || !side_effect) return;
+
+    document.dispatchEvent(new CustomEvent(side_effect.event, { detail: side_effect.detail }));
 }
 
-function handle_backward_step_side_effects(chapter_id, steps, from_index, next_step_index) {
-    if (typeof document === "undefined") return;
-
+function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_index) {
     const current_step = steps[from_index];
     const next_step = steps[next_step_index];
 
@@ -130,20 +141,21 @@ function handle_backward_step_side_effects(chapter_id, steps, from_index, next_s
         current_step?.target === map_controls_panel_selector &&
         as_array(next_step?.waitFor).includes(map_controls_panel_selector)
     ) {
-        document.dispatchEvent(new Event(TOUR_CLOSE_MAP_CONTROLS_EVENT));
-        return;
+        return { event: TOUR_CLOSE_MAP_CONTROLS_EVENT, wait_needs_reset: true };
     }
 
-    if (chapter_id !== "spots_table") return;
+    if (chapter_id !== "spots_table") return null;
 
     if (
         current_step?.target === spot_row_dx_callsign_selector &&
         next_step?.waitForChange?.selector === spot_row_selector
     ) {
-        document.dispatchEvent(
-            new CustomEvent(TOUR_TABLE_SPOT_ROW_EVENT, { detail: { pinned: false } }),
-        );
-        return;
+        return {
+            detail: { pinned: false },
+            event: TOUR_TABLE_SPOT_ROW_EVENT,
+            wait_for_change_reset_value: "unpinned",
+            wait_needs_reset: true,
+        };
     }
 
     if (
@@ -151,26 +163,33 @@ function handle_backward_step_side_effects(chapter_id, steps, from_index, next_s
         step_waits_for_table_context_menu_gone(current_step) &&
         step_waits_for_table_context_menu(next_step)
     ) {
-        dispatch_table_context_menu_tour_event({ open: false });
-        return;
+        return {
+            detail: { open: false },
+            event: TOUR_TABLE_CONTEXT_MENU_EVENT,
+            wait_needs_reset: true,
+        };
     }
 
     if (
         next_step?.target !== table_context_menu_selector ||
         !step_waits_for_table_context_menu_gone(next_step)
     ) {
-        return;
+        return null;
     }
 
     const trigger_step = steps[next_step_index - 1];
     const menu_type = get_table_context_menu_type(trigger_step);
-    if (!trigger_step?.target || !menu_type) return;
+    if (!trigger_step?.target || !menu_type) return null;
 
-    dispatch_table_context_menu_tour_event({
-        open: true,
-        target: trigger_step.target,
-        menu_type,
-    });
+    return {
+        detail: {
+            open: true,
+            target: trigger_step.target,
+            menu_type,
+        },
+        event: TOUR_TABLE_CONTEXT_MENU_EVENT,
+        wait_needs_reset: true,
+    };
 }
 
 function WebsiteTour() {
@@ -191,6 +210,8 @@ function WebsiteTour() {
     });
     const [already_satisfied_wait_key, set_already_satisfied_wait_key] = useState(null);
     const wait_for_change_ref = useRef({ key: null, value: null });
+    const backward_wait_ref = useRef({ key: null, reset_value: null, saw_unsatisfied: false });
+    const pending_backward_side_effect_ref = useRef(null);
 
     const current_chapter = get_tour_chapter(tour_state.current_chapter_id);
     const chapter_steps = useMemo(() => current_chapter?.steps ?? [], [current_chapter]);
@@ -319,12 +340,31 @@ function WebsiteTour() {
             }
 
             if (direction < 0) {
-                handle_backward_step_side_effects(
+                const side_effect = get_backward_step_side_effect(
                     tour_state.current_chapter_id,
                     steps,
                     from_index,
                     next_step_index,
                 );
+                pending_backward_side_effect_ref.current = side_effect;
+                backward_wait_ref.current = {
+                    key: side_effect?.wait_needs_reset
+                        ? get_step_wait_key(
+                              tour_state.current_chapter_id,
+                              next_step_index,
+                              steps[next_step_index],
+                          )
+                        : null,
+                    reset_value: side_effect?.wait_for_change_reset_value ?? null,
+                    saw_unsatisfied: false,
+                };
+            } else {
+                backward_wait_ref.current = {
+                    key: null,
+                    reset_value: null,
+                    saw_unsatisfied: false,
+                };
+                pending_backward_side_effect_ref.current = null;
             }
 
             set_tour_state(state => {
@@ -415,6 +455,21 @@ function WebsiteTour() {
 
     useEffect(() => {
         if (!tour_state.is_running) {
+            pending_backward_side_effect_ref.current = null;
+            return;
+        }
+
+        const side_effect = pending_backward_side_effect_ref.current;
+        if (!side_effect) return;
+
+        pending_backward_side_effect_ref.current = null;
+        dispatch_tour_side_effect(side_effect);
+    }, [tour_state.current_chapter_id, tour_state.is_running, tour_state.step_index]);
+
+    useEffect(() => {
+        if (!tour_state.is_running) {
+            backward_wait_ref.current = { key: null, reset_value: null, saw_unsatisfied: false };
+            pending_backward_side_effect_ref.current = null;
             wait_for_change_ref.current = { key: null, value: null };
             set_already_satisfied_wait_key(current => (current == null ? current : null));
             return;
@@ -431,6 +486,11 @@ function WebsiteTour() {
 
         let has_advanced = false;
         const wait_for_change_key = current_wait_for_change_key;
+        const wait_key = get_step_wait_key(
+            tour_state.current_chapter_id,
+            tour_state.step_index,
+            current_step,
+        );
         const has_satisfied_value = current_step.waitForChange
             ? Object.prototype.hasOwnProperty.call(current_step.waitForChange, "satisfiedValue")
             : false;
@@ -480,6 +540,31 @@ function WebsiteTour() {
                     return;
                 }
 
+                if (backward_wait_ref.current.key === wait_key) {
+                    const reset_value = backward_wait_ref.current.reset_value;
+                    if (reset_value != null && current_change_value !== reset_value) return;
+                    if (
+                        reset_value == null &&
+                        current_change_value === wait_for_change_ref.current.value
+                    ) {
+                        return;
+                    }
+
+                    wait_for_change_ref.current = {
+                        key: wait_for_change_key,
+                        value: current_change_value,
+                    };
+                    set_current_step_already_satisfied(
+                        has_satisfied_value && current_change_value === satisfied_value,
+                    );
+                    backward_wait_ref.current = {
+                        key: null,
+                        reset_value: null,
+                        saw_unsatisfied: false,
+                    };
+                    return;
+                }
+
                 if (
                     has_satisfied_value &&
                     wait_for_change_ref.current.value === satisfied_value &&
@@ -492,8 +577,24 @@ function WebsiteTour() {
                 set_current_step_already_satisfied(false);
 
                 if (current_change_value === wait_for_change_ref.current.value) return;
-            } else if (!step_wait_is_satisfied(current_step)) {
-                return;
+            } else {
+                const is_satisfied = step_wait_is_satisfied(current_step);
+                if (backward_wait_ref.current.key === wait_key) {
+                    if (!is_satisfied) {
+                        backward_wait_ref.current.saw_unsatisfied = true;
+                        return;
+                    }
+
+                    if (!backward_wait_ref.current.saw_unsatisfied) return;
+
+                    backward_wait_ref.current = {
+                        key: null,
+                        reset_value: null,
+                        saw_unsatisfied: false,
+                    };
+                } else if (!is_satisfied) {
+                    return;
+                }
             }
 
             has_advanced = true;
