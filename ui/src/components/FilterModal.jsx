@@ -290,6 +290,7 @@ function FilterModal({
                         return {
                             ...temp_data,
                             [field]: value,
+                            value: "",
                         };
                     }}
                 />
