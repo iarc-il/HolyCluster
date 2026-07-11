@@ -11,8 +11,25 @@ function format_degrees(value) {
     return `${Math.round(Number(value))}°`;
 }
 
+function bearing_point(center_x, center_y, radius, bearing) {
+    const radians = (Number(bearing) * Math.PI) / 180;
+    return [center_x + Math.sin(radians) * radius, center_y - Math.cos(radians) * radius];
+}
+
 function RotatorCompass({ azimuth, colors }) {
     const heading = Number.isFinite(Number(azimuth)) ? Number(azimuth) : 0;
+    const heading_radians = (heading * Math.PI) / 180;
+    const forward_x = Math.sin(heading_radians);
+    const forward_y = -Math.cos(heading_radians);
+    const right_x = Math.cos(heading_radians);
+    const right_y = Math.sin(heading_radians);
+    const nose = [80 + forward_x * 56, 80 + forward_y * 56];
+    const base = [80 - forward_x * 6, 80 - forward_y * 6];
+    const tail = [80 - forward_x * 56, 80 - forward_y * 56];
+    const left = [base[0] - right_x * 8, base[1] - right_y * 8];
+    const right = [base[0] + right_x * 8, base[1] + right_y * 8];
+    const tail_left = [80 - right_x * 6, 80 - right_y * 6];
+    const tail_right = [80 + right_x * 6, 80 + right_y * 6];
 
     return (
         <div className="relative mx-auto h-44 w-44">
@@ -26,16 +43,17 @@ function RotatorCompass({ azimuth, colors }) {
                     strokeWidth="2"
                 />
                 {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map(deg => {
-                    const rad = ((deg - 90) * Math.PI) / 180;
                     const inner = deg % 90 === 0 ? 58 : 64;
                     const outer = 72;
+                    const [inner_x, inner_y] = bearing_point(80, 80, inner, deg);
+                    const [outer_x, outer_y] = bearing_point(80, 80, outer, deg);
                     return (
                         <line
                             key={deg}
-                            x1={80 + Math.cos(rad) * inner}
-                            y1={80 + Math.sin(rad) * inner}
-                            x2={80 + Math.cos(rad) * outer}
-                            y2={80 + Math.sin(rad) * outer}
+                            x1={inner_x}
+                            y1={inner_y}
+                            x2={outer_x}
+                            y2={outer_y}
                             stroke={colors.theme.text}
                             strokeWidth={deg % 90 === 0 ? 2.5 : 1.5}
                             opacity={deg % 90 === 0 ? 0.8 : 0.35}
@@ -43,10 +61,10 @@ function RotatorCompass({ azimuth, colors }) {
                     );
                 })}
                 {[
-                    ["N", 80, 22],
-                    ["E", 138, 85],
-                    ["S", 80, 145],
-                    ["W", 22, 85],
+                    ["0", 80, 22],
+                    ["90", 138, 85],
+                    ["180", 80, 145],
+                    ["270", 22, 85],
                 ].map(([label, x, y]) => (
                     <text
                         key={label}
@@ -61,10 +79,14 @@ function RotatorCompass({ azimuth, colors }) {
                         {label}
                     </text>
                 ))}
-                <g transform={`rotate(${heading} 80 80)`}>
-                    <path d="M80 25 L88 82 L80 76 L72 82 Z" fill={colors.buttons.active} />
-                    <path d="M80 135 L72 82 L80 88 L88 82 Z" fill={`${colors.theme.text}55`} />
-                </g>
+                <path
+                    d={`M${nose[0]} ${nose[1]} L${right[0]} ${right[1]} L${base[0]} ${base[1]} L${left[0]} ${left[1]} Z`}
+                    fill={colors.buttons.active}
+                />
+                <path
+                    d={`M${tail[0]} ${tail[1]} L${tail_left[0]} ${tail_left[1]} L${base[0]} ${base[1]} L${tail_right[0]} ${tail_right[1]} Z`}
+                    fill={`${colors.theme.text}55`}
+                />
                 <circle cx="80" cy="80" r="7" fill={colors.theme.background} />
                 <circle cx="80" cy="80" r="4" fill={colors.buttons.active} />
             </svg>
