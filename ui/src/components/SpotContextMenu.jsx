@@ -2,7 +2,7 @@ import { useColors } from "@/hooks/useColors";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-const JOYRIDE_PORTAL_SELECTOR = "#react-joyride-portal";
+const JOYRIDE_TOOLTIP_SELECTOR = ".react-joyride__floater, .react-joyride__tooltip";
 
 export default function SpotContextMenu({
     x,
@@ -27,7 +27,7 @@ export default function SpotContextMenu({
 
     useEffect(() => {
         function handle_click_outside(event) {
-            if (event.target instanceof Element && event.target.closest(JOYRIDE_PORTAL_SELECTOR)) {
+            if (event.target instanceof Element && event.target.closest(JOYRIDE_TOOLTIP_SELECTOR)) {
                 return;
             }
 
@@ -38,16 +38,18 @@ export default function SpotContextMenu({
 
         function handle_escape_key(event) {
             if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopImmediatePropagation();
                 on_close();
             }
         }
 
         document.body.addEventListener("mousedown", handle_click_outside);
-        document.body.addEventListener("keydown", handle_escape_key);
+        document.body.addEventListener("keydown", handle_escape_key, true);
 
         return () => {
             document.body.removeEventListener("mousedown", handle_click_outside);
-            document.body.removeEventListener("keydown", handle_escape_key);
+            document.body.removeEventListener("keydown", handle_escape_key, true);
         };
     }, [on_close]);
 

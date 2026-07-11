@@ -24,13 +24,18 @@ describe("SpotContextMenu tour integration", () => {
         vi.restoreAllMocks();
     });
 
-    it("does not close when the tour controls are clicked", () => {
+    it("ignores tooltip clicks but closes on overlay clicks", () => {
         const on_close = vi.fn();
 
         render(
             <>
                 <div id="react-joyride-portal">
-                    <button type="button">Joyride back</button>
+                    <div className="react-joyride__floater">
+                        <button type="button">Joyride back</button>
+                    </div>
+                    <button type="button" className="react-joyride__overlay">
+                        Tour overlay
+                    </button>
                 </div>
                 <SpotContextMenu
                     x={10}
@@ -48,8 +53,30 @@ describe("SpotContextMenu tour integration", () => {
 
         expect(on_close).not.toHaveBeenCalled();
 
-        fireEvent.mouseDown(document.body);
+        fireEvent.mouseDown(screen.getByRole("button", { name: "Tour overlay" }));
 
         expect(on_close).toHaveBeenCalledTimes(1);
+    });
+
+    it("handles Escape before the tour does", () => {
+        const on_close = vi.fn();
+        const on_tour_escape = vi.fn();
+        document.body.addEventListener("keydown", on_tour_escape);
+
+        render(
+            <SpotContextMenu
+                x={10}
+                y={10}
+                on_close={on_close}
+                spot={{ id: 1 }}
+                actions={[{ label: "Pin Spot", onClick: vi.fn() }]}
+            />,
+        );
+
+        fireEvent.keyDown(document.body, { key: "Escape" });
+        document.body.removeEventListener("keydown", on_tour_escape);
+
+        expect(on_close).toHaveBeenCalledTimes(1);
+        expect(on_tour_escape).not.toHaveBeenCalled();
     });
 });
