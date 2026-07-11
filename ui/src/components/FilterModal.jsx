@@ -439,6 +439,11 @@ function FilterModal({
                                     <div data-tour="filter-modal-entity-value">
                                         <SearchSelect
                                             className="h-10 w-20"
+                                            filterOption={(option, text) =>
+                                                option.label
+                                                    .toLowerCase()
+                                                    .startsWith(text.toLowerCase())
+                                            }
                                             value={{
                                                 value: temp_data.value,
                                                 label: get_dxcc_label(temp_data.value),
