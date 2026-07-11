@@ -28,6 +28,7 @@ use tower_http::services::ServeDir;
 use crate::{
     freq::Freq,
     rig::{AnyRadio, Mode, Slot},
+    rotator::AnyRotator,
     tray_icon::UserEvent,
     utils,
 };
@@ -55,6 +56,7 @@ impl ServerConfig {
 struct AppState {
     server_config: ServerConfig,
     radio: AnyRadio,
+    rotator: AnyRotator,
     http_client: Client,
     sender: Sender<UserEvent>,
 }
@@ -69,6 +71,7 @@ impl Server {
     pub async fn build_server(
         sender: Sender<UserEvent>,
         radio: AnyRadio,
+        rotator: AnyRotator,
         server_config: ServerConfig,
         use_local_ui: bool,
     ) -> Result<Self> {
@@ -91,6 +94,7 @@ impl Server {
         let app_state = AppState {
             server_config,
             radio,
+            rotator,
             http_client,
             sender: sender.clone(),
         };
@@ -265,6 +269,8 @@ async fn cat_control_handler(
     websocket: WebSocketUpgrade,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
+    let radio = state.radio;
+    let rotator = state.rotator;
     let receiver = state.sender.subscribe();
 
     websocket
@@ -272,7 +278,7 @@ async fn cat_control_handler(
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
         .on_upgrade(async move |websocket: WebSocket| {
-            let result = handle_cat_control_socket(websocket, state.radio, receiver).await;
+            let result = handle_cat_control_socket(websocket, radio, rotator, receiver).await;
             if let Err(error) = result {
                 tracing::error!(?error, "CAT control WebSocket handler failed");
             }
@@ -285,6 +291,7 @@ async fn ws_handler(
 ) -> impl IntoResponse {
     let receiver = state.sender.subscribe();
     let radio = state.radio;
+    let rotator = state.rotator;
     let server_config = state.server_config;
 
     websocket
@@ -292,7 +299,7 @@ async fn ws_handler(
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
         .on_upgrade(async move |websocket: WebSocket| {
-            let result = handle_ws_socket(websocket, server_config, radio, receiver).await;
+            let result = handle_ws_socket(websocket, server_config, radio, rotator, receiver).await;
             if let Err(error) = result {
                 tracing::error!(?error, "Unified WebSocket handler failed");
             }
@@ -303,6 +310,7 @@ async fn handle_ws_socket(
     socket: WebSocket,
     server_config: ServerConfig,
     radio: AnyRadio,
+    rotator: AnyRotator,
     mut receiver: Receiver<UserEvent>,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = socket.split();
@@ -317,8 +325,15 @@ async fn handle_ws_socket(
         .send(ws_radio_message(WS_RADIO_EVENT_STATUS, &message)?)
         .await?;
 
-    let mut interval = tokio::time::interval(Duration::from_millis(500));
-    let mut previous_data = None;
+    let rotator_status = rotator.write().get_status();
+    client_sender
+        .send(ws_rotator_message(WS_ROTATOR_EVENT_STATUS, &rotator_status)?)
+        .await?;
+
+    let mut radio_interval = tokio::time::interval(Duration::from_millis(500));
+    let mut rotator_interval = tokio::time::interval(Duration::from_millis(1000));
+    let mut previous_radio_data = None;
+    let mut previous_rotator_data = None;
 
     use tokio_tungstenite::tungstenite;
 
@@ -333,6 +348,8 @@ async fn handle_ws_socket(
                             client_sender
                                 .send(ws_radio_message(WS_RADIO_EVENT_STATUS, &status)?)
                                 .await?;
+                        } else if is_ws_rotator_message(text.as_ref()) {
+                            process_ws_rotator_message(text.to_string(), &rotator).await?;
                         } else {
                             let result = server_sender
                                 .send(utils::axum_to_tungstenite_message(Message::Text(text)))
@@ -397,12 +414,20 @@ async fn handle_ws_socket(
                     },
                 }
             },
-            _ = interval.tick() => {
+            _ = radio_interval.tick() => {
                 let data = radio.write().get_status();
-                if previous_data.as_ref() != Some(&data) {
+                if previous_radio_data.as_ref() != Some(&data) {
                     let message = ws_radio_message(WS_RADIO_EVENT_STATUS, &data)?;
                     client_sender.send(message).await?;
-                    previous_data = Some(data);
+                    previous_radio_data = Some(data);
+                }
+            },
+            _ = rotator_interval.tick() => {
+                let data = rotator.write().get_status();
+                if previous_rotator_data.as_ref() != Some(&data) {
+                    let message = ws_rotator_message(WS_ROTATOR_EVENT_STATUS, &data)?;
+                    client_sender.send(message).await?;
+                    previous_rotator_data = Some(data);
                 }
             }
         }
@@ -429,6 +454,7 @@ async fn handle_ws_socket(
 async fn handle_cat_control_socket(
     socket: WebSocket,
     radio: AnyRadio,
+    _rotator: AnyRotator,
     mut receiver: Receiver<UserEvent>,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = socket.split();
@@ -510,12 +536,14 @@ struct InitMessage {
 
 const WS_PROTOCOL_VERSION: u8 = 1;
 const WS_MESSAGE_TYPE_RADIO: &str = "radio";
+const WS_MESSAGE_TYPE_ROTATOR: &str = "rotator";
 const WS_RADIO_EVENT_STATUS: &str = "status";
 const WS_RADIO_EVENT_FOCUS: &str = "focus";
 const WS_RADIO_EVENT_CLOSE: &str = "close";
+const WS_ROTATOR_EVENT_STATUS: &str = "status";
 
 #[derive(Serialize)]
-struct WsRadioServerMessage<'a, T: Serialize> {
+struct WsServerMessage<'a, T: Serialize> {
     version: u8,
     #[serde(rename = "type")]
     message_type: &'static str,
@@ -548,9 +576,19 @@ struct WsEnvelope {
 }
 
 fn ws_radio_message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
-    let message = WsRadioServerMessage {
+    let message = WsServerMessage {
         version: WS_PROTOCOL_VERSION,
         message_type: WS_MESSAGE_TYPE_RADIO,
+        event,
+        data,
+    };
+    Ok(Message::Text(serde_json::to_string(&message)?.into()))
+}
+
+fn ws_rotator_message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
+    let message = WsServerMessage {
+        version: WS_PROTOCOL_VERSION,
+        message_type: WS_MESSAGE_TYPE_ROTATOR,
         event,
         data,
     };
@@ -563,6 +601,14 @@ fn is_ws_radio_message(message: &str) -> bool {
     };
 
     message.version == WS_PROTOCOL_VERSION && message.message_type == WS_MESSAGE_TYPE_RADIO
+}
+
+fn is_ws_rotator_message(message: &str) -> bool {
+    let Ok(message) = serde_json::from_str::<WsEnvelope>(message) else {
+        return false;
+    };
+
+    message.version == WS_PROTOCOL_VERSION && message.message_type == WS_MESSAGE_TYPE_ROTATOR
 }
 
 #[derive(Deserialize)]
@@ -586,6 +632,11 @@ struct HighlightSpot {
 }
 
 #[derive(Deserialize)]
+struct SetAzimuth {
+    azimuth: f64,
+}
+
+#[derive(Deserialize)]
 #[serde(tag = "type")]
 enum ClientMessage {
     SetRig(SetRig),
@@ -599,6 +650,12 @@ enum WsRadioClientMessage {
     SetRig(SetRig),
     SetModeAndFreq(SetModeAndFreq),
     HighlightSpot(HighlightSpot),
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "action")]
+enum WsRotatorClientMessage {
+    SetAzimuth(SetAzimuth),
 }
 
 fn is_upper_sideband(freq: f32) -> bool {
@@ -626,6 +683,20 @@ async fn process_ws_radio_message(message: String, radio: &AnyRadio) -> Result<(
         WsRadioClientMessage::HighlightSpot(message) => ClientMessage::HighlightSpot(message),
     };
     process_client_message(message, radio).await
+}
+
+async fn process_ws_rotator_message(message: String, rotator: &AnyRotator) -> Result<()> {
+    let Ok(message) = serde_json::from_str::<WsRotatorClientMessage>(&message) else {
+        tracing::error!("Failed to parse rotator message: {message}");
+        return Ok(());
+    };
+    match message {
+        WsRotatorClientMessage::SetAzimuth(set_azimuth) => {
+            tracing::debug!("Setting azimuth to {}", set_azimuth.azimuth);
+            rotator.write().set_azimuth(set_azimuth.azimuth);
+        }
+    }
+    Ok(())
 }
 
 async fn process_client_message(message: ClientMessage, radio: &AnyRadio) -> Result<()> {
