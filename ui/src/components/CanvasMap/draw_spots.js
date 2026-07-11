@@ -229,18 +229,15 @@ function draw_home_bearing_line(context, projection, dims, colors, home_location
     const tip_y = dims.center_y + dims.radius * direction_y;
     const shaft_end_x = tip_x - head_size * Math.cos(head_angle) * direction_x;
     const shaft_end_y = tip_y - head_size * Math.cos(head_angle) * direction_y;
-    const tangent_length = Math.min(dims.radius * 0.35, Math.max(30 * dims.scale, 90 * dims.scale));
-    const control2_x = shaft_end_x - direction_x * tangent_length;
-    const control2_y = shaft_end_y - direction_y * tangent_length;
-    const control1_x = (8 * dx_pos[0] - home_pos[0] - 3 * control2_x - shaft_end_x) / 3;
-    const control1_y = (8 * dx_pos[1] - home_pos[1] - 3 * control2_y - shaft_end_y) / 3;
+    const control_x = 2 * dx_pos[0] - (home_pos[0] + shaft_end_x) / 2;
+    const control_y = 2 * dx_pos[1] - (home_pos[1] + shaft_end_y) / 2;
     const left_angle = angle + Math.PI - head_angle;
     const right_angle = angle + Math.PI + head_angle;
 
     context.save();
     context.beginPath();
     context.moveTo(home_pos[0], home_pos[1]);
-    context.bezierCurveTo(control1_x, control1_y, control2_x, control2_y, shaft_end_x, shaft_end_y);
+    context.quadraticCurveTo(control_x, control_y, shaft_end_x, shaft_end_y);
     context.strokeStyle = with_alpha(color, 0.9);
     context.lineWidth = 2.5;
     context.lineCap = "round";
