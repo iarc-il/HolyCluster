@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from "react";
 
 import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
 import haversine from "haversine-distance";
-import Maidenhead from "maidenhead";
 
 import SpotContextMenu from "@/components/SpotContextMenu.jsx";
 import SpotPopup from "@/components/SpotPopup.jsx";
@@ -16,7 +15,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useVoacap } from "@/hooks/useVoacap.jsx";
-import { calculate_geographic_azimuth } from "@/utils.js";
+import { calculate_geographic_azimuth, get_station_location } from "@/utils.js";
 import MapOverlay from "./MapOverlay.jsx";
 import { Dimensions } from "./dimensions.js";
 import {
@@ -126,12 +125,7 @@ function CanvasMap({
         effective_map_controls.voacap_enabled && !voacap_state.loading && !voacap_state.stale
             ? voacap_state
             : null;
-    const home_location = useMemo(() => {
-        const locator = (settings.locator || "").trim().toUpperCase();
-        if (!locator || !Maidenhead.valid(locator)) return null;
-        const [lat, lon] = Maidenhead.toLatLon(locator);
-        return [lon, lat];
-    }, [settings.locator]);
+    const home_location = useMemo(() => get_station_location(settings), [settings.locator]);
     const night_time_ms = night_time?.getTime() ?? null;
     const hunter_overlay_actions = useMemo(
         () => get_active_hunter_filter_actions(callsign_filters),

@@ -16,8 +16,9 @@ import useRotator from "@/hooks/useRotator";
 import { SpotDataProvider, useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import {
-    calculate_geographic_azimuth,
+    calculate_bearing_between_locations,
     compare_version,
+    get_bearing_origin,
     get_max_radius,
     get_spots_center,
 } from "@/utils.js";
@@ -129,16 +130,8 @@ function MainContent({
         }
 
         try {
-            const locator = (settings.locator || "").trim().toUpperCase();
-            let home_lat;
-            let home_lon;
-            if (Maidenhead.valid(locator)) {
-                [home_lat, home_lon] = Maidenhead.toLatLon(locator);
-            } else {
-                [home_lon, home_lat] = map_controls.location.location;
-            }
-            const [dx_lon, dx_lat] = spot.dx_loc;
-            return calculate_geographic_azimuth(home_lat, home_lon, dx_lat, dx_lon);
+            const origin = get_bearing_origin(settings, map_controls.location.location);
+            return calculate_bearing_between_locations(origin.location, spot.dx_loc);
         } catch {
             return null;
         }
