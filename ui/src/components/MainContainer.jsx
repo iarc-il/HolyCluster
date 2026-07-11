@@ -12,9 +12,15 @@ import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import use_radio from "@/hooks/useRadio";
 import { RestDataProvider } from "@/hooks/useRestData";
+import useRotator from "@/hooks/useRotator";
 import { SpotDataProvider, useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { compare_version, get_max_radius, get_spots_center } from "@/utils.js";
+import {
+    calculate_geographic_azimuth,
+    compare_version,
+    get_max_radius,
+    get_spots_center,
+} from "@/utils.js";
 import { open_db_and_evict } from "@/utils/spot_cache_db.js";
 import Maidenhead from "maidenhead";
 
@@ -115,6 +121,21 @@ function MainContent({
     }, [max_radius, auto_radius]);
 
     const { set_mode_and_freq, radio_freq, rig, radio_mode } = use_radio();
+    const { set_azimuth, is_rotator_available } = useRotator();
+
+    function get_rotator_azimuth(spot) {
+        if (!settings.locator || !spot?.dx_loc) {
+            return null;
+        }
+
+        try {
+            const [home_lat, home_lon] = Maidenhead.toLatLon(settings.locator);
+            const [dx_lon, dx_lat] = spot.dx_loc;
+            return calculate_geographic_azimuth(home_lat, home_lon, dx_lat, dx_lon);
+        } catch {
+            return null;
+        }
+    }
 
     function set_cat_to_spot(spot) {
         set_prev_freqs(
@@ -129,6 +150,11 @@ function MainContent({
         );
 
         set_mode_and_freq(spot.mode, spot.freq);
+
+        const azimuth = get_rotator_azimuth(spot);
+        if (azimuth != null && is_rotator_available()) {
+            set_azimuth(azimuth);
+        }
     }
 
     function undo_freq_change() {
