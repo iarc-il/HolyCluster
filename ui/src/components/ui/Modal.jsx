@@ -97,9 +97,11 @@ function Modal({
         if (!modal) return;
 
         const focusable = modal.querySelectorAll(FOCUSABLE);
+        const auto = modal.querySelector("[data-autofocus]");
+        const target = auto ?? focusable[0];
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
-        first?.focus();
+        target?.focus();
 
         function trap(event) {
             if (event.key !== "Tab") return;

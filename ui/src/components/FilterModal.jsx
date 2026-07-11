@@ -489,8 +489,10 @@ function FilterModal({
                                     </div>
                                 ) : (
                                     <CallsignInput
+                                        key={temp_data.type}
                                         value={temp_data.value}
                                         autoFocus={true}
+                                        data-autofocus="true"
                                         className="h-10"
                                         data-tour="filter-modal-text-value"
                                         onChange={event => {
@@ -513,6 +515,7 @@ function FilterModal({
                                 <Input
                                     value={temp_data.value}
                                     autoFocus={true}
+                                    data-autofocus="true"
                                     className="h-10 w-40"
                                     data-tour="filter-modal-comment-value"
                                     onChange={event => {
