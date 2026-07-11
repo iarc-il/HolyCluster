@@ -15,7 +15,11 @@ import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useVoacap } from "@/hooks/useVoacap.jsx";
-import { calculate_geographic_azimuth, get_station_location } from "@/utils.js";
+import {
+    calculate_bearing_between_locations,
+    get_bearing_origin,
+    get_station_location,
+} from "@/utils.js";
 import MapOverlay from "./MapOverlay.jsx";
 import { Dimensions } from "./dimensions.js";
 import {
@@ -272,15 +276,24 @@ function CanvasMap({
             ? (haversine(pinned_spot_data.dx_loc, pinned_spot_data.spotter_loc) / 1000).toFixed()
             : null;
 
-    let azimuth = null;
+    let map_azimuth = null;
+    let antenna_azimuth = null;
+    let antenna_azimuth_source = "none";
     if (hovered_spot_data || pinned_spot_data) {
         const spot_data = hovered_spot_data || pinned_spot_data;
-        azimuth = calculate_geographic_azimuth(
-            center_lat,
-            center_lon,
-            spot_data.dx_loc[1],
-            spot_data.dx_loc[0],
+        const bearing_origin = get_bearing_origin(
+            settings,
+            effective_map_controls.location.location,
         );
+        map_azimuth = calculate_bearing_between_locations(
+            [center_lon, center_lat],
+            spot_data.dx_loc,
+        );
+        antenna_azimuth = calculate_bearing_between_locations(
+            bearing_origin.location,
+            spot_data.dx_loc,
+        );
+        antenna_azimuth_source = bearing_origin.source;
     }
 
     const canvas_width = width ? width * DPR : 0;
@@ -335,7 +348,7 @@ function CanvasMap({
                 radius_in_km={radius_in_km}
                 auto_radius={auto_radius}
                 set_auto_radius={set_auto_radius}
-                azimuth={azimuth}
+                azimuth={map_azimuth}
                 spots={spots}
                 is_max_xs_device={is_max_xs_device}
                 voacap_state={voacap_state}
@@ -348,7 +361,9 @@ function CanvasMap({
                     hovered_spot_data={hovered_spot_data}
                     pinned_spot_data={pinned_spot_data}
                     distance={hovered_spot_distance ?? pinned_spot_distance}
-                    azimuth={azimuth}
+                    antenna_azimuth={antenna_azimuth}
+                    antenna_azimuth_source={antenna_azimuth_source}
+                    map_azimuth={map_azimuth}
                 />
             )}
             {hovered_dxcc?.entity && (
