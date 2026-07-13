@@ -23,6 +23,7 @@ const completed_statuses = new Set([STATUS.FINISHED, STATUS.SKIPPED]);
 const default_tour_buttons = ["skip", "back", "close", "primary"];
 const wait_poll_interval_ms = 150;
 const map_controls_panel_selector = "[data-tour='map-controls-panel']";
+const filter_options_popup_selector = "[data-tour='filter-options-popup']";
 const spot_row_selector = "[data-tour='spot-row']";
 const spot_row_dx_callsign_selector = "[data-tour='spot-row-dx-callsign']";
 const table_context_menu_selector = "[data-tour='table-context-menu']";
@@ -145,6 +146,20 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
         return { event: TOUR_CLOSE_MAP_CONTROLS_EVENT, wait_needs_reset: true };
     }
 
+    if (
+        chapter_id === "filters" &&
+        current_step?.forceFilterOptions &&
+        as_array(next_step?.waitFor).some(selector =>
+            selector.startsWith(filter_options_popup_selector),
+        )
+    ) {
+        return {
+            detail: { ...current_step.forceFilterOptions, open: false },
+            event: TOUR_FILTER_OPTIONS_EVENT,
+            wait_needs_reset: false,
+        };
+    }
+
     if (chapter_id !== "spots_table") return null;
 
     if (
@@ -191,6 +206,25 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
         event: TOUR_TABLE_CONTEXT_MENU_EVENT,
         wait_needs_reset: true,
     };
+}
+
+function get_backward_step_index(chapter_id, steps, from_index, next_step_index) {
+    const current_step = steps[from_index];
+    const next_step = steps[next_step_index];
+    const previous_step = steps[next_step_index - 1];
+
+    if (
+        chapter_id === "filters" &&
+        current_step?.forceFilterOptions &&
+        as_array(next_step?.waitFor).some(selector =>
+            selector.startsWith(filter_options_popup_selector),
+        ) &&
+        previous_step?.waitForChange
+    ) {
+        return next_step_index - 1;
+    }
+
+    return next_step_index;
 }
 
 function WebsiteTour() {
@@ -344,7 +378,7 @@ function WebsiteTour() {
 
     const advance_tour = useCallback(
         (from_index, direction = 1) => {
-            const next_step_index = find_available_step_index(
+            let next_step_index = find_available_step_index(
                 steps,
                 from_index + direction,
                 direction,
@@ -361,6 +395,12 @@ function WebsiteTour() {
 
             if (direction < 0) {
                 const side_effect = get_backward_step_side_effect(
+                    tour_state.current_chapter_id,
+                    steps,
+                    from_index,
+                    next_step_index,
+                );
+                next_step_index = get_backward_step_index(
                     tour_state.current_chapter_id,
                     steps,
                     from_index,

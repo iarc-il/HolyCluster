@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
     TOUR_CLOSE_MAP_CONTROLS_EVENT,
+    TOUR_FILTER_OPTIONS_EVENT,
     TOUR_TABLE_CONTEXT_MENU_EVENT,
     TOUR_TABLE_SPOT_ROW_EVENT,
 } from "@/components/tour/tour_events.js";
@@ -137,6 +138,8 @@ function TestHarness() {
     });
     const [show_settings, set_show_settings] = useState(false);
     const [show_map_controls_panel, set_show_map_controls_panel] = useState(false);
+    const [band_filter_state, set_band_filter_state] = useState("off");
+    const [show_band_options, set_show_band_options] = useState(false);
     const [table_sort_state, set_table_sort_state] = useState("inactive");
     const [spot_row_state, set_spot_row_state] = useState("unpinned");
     const [table_context_menu, set_table_context_menu] = useState({
@@ -160,6 +163,23 @@ function TestHarness() {
         document.addEventListener(TOUR_CLOSE_MAP_CONTROLS_EVENT, close_map_controls_panel);
         return () => {
             document.removeEventListener(TOUR_CLOSE_MAP_CONTROLS_EVENT, close_map_controls_panel);
+        };
+    }, []);
+
+    useEffect(() => {
+        function handle_filter_options(event) {
+            const detail = event.detail ?? {};
+            const is_band_20 = detail.filter_key === "bands" && detail.filter_value === 20;
+            if (detail.open && is_band_20) {
+                set_show_band_options(true);
+            } else if (!detail.open) {
+                set_show_band_options(false);
+            }
+        }
+
+        document.addEventListener(TOUR_FILTER_OPTIONS_EVENT, handle_filter_options);
+        return () => {
+            document.removeEventListener(TOUR_FILTER_OPTIONS_EVENT, handle_filter_options);
         };
     }, []);
 
@@ -278,6 +298,29 @@ function TestHarness() {
                             Cancel
                         </button>
                     </div>
+                </div>
+            ) : null}
+            <div data-tour="left-column">Left filters</div>
+            <button
+                type="button"
+                data-tour="band-filter-20"
+                data-tour-state={band_filter_state}
+                onClick={() =>
+                    set_band_filter_state(current => (current === "on" ? "off" : "on"))
+                }
+            >
+                20m
+            </button>
+            <div
+                data-tour="filter-options-trigger-bands-20"
+                onMouseEnter={() => set_show_band_options(true)}
+                onMouseLeave={() => set_show_band_options(false)}
+            >
+                Band options trigger
+            </div>
+            {show_band_options ? (
+                <div data-tour="filter-options-popup" data-tour-state="bands-20">
+                    ONLY and ALL popup
                 </div>
             ) : null}
             <div data-tour="spots-table">Spots table</div>
@@ -538,6 +581,56 @@ describe("WebsiteTour", () => {
         });
         expect(screen.getByTestId("joyride-buttons").textContent).not.toContain("back");
         expect(screen.queryByRole("button", { name: "Joyride back" })).toBeNull();
+    });
+
+    it("returns to the band filter when backing from ONLY and ALL", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Filters");
+
+        await waitFor(() => {
+            expect(screen.getByText("Quick Filters")).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+        await waitFor(() => {
+            expect(screen.getByText("Band Filters")).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "20m" }));
+
+        await waitFor(() => {
+            expect(screen.getByText("Open Band Options")).not.toBeNull();
+        });
+        fireEvent.mouseEnter(screen.getByText("Band options trigger"));
+
+        await waitFor(() => {
+            expect(screen.getByText("ONLY And ALL")).not.toBeNull();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByText("Band Filters")).not.toBeNull();
+        });
+        await waitFor(() => {
+            expect(screen.queryByText("ONLY and ALL popup")).toBeNull();
+        });
+
+        fireEvent.mouseEnter(screen.getByText("Band options trigger"));
+        expect(screen.getByText("Band Filters")).not.toBeNull();
+        fireEvent.mouseLeave(screen.getByText("Band options trigger"));
+
+        await user.click(screen.getByRole("button", { name: "20m" }));
+
+        await waitFor(() => {
+            expect(screen.getByText("Open Band Options")).not.toBeNull();
+        });
+        fireEvent.mouseEnter(screen.getByText("Band options trigger"));
+
+        await waitFor(() => {
+            expect(screen.getByText("ONLY And ALL")).not.toBeNull();
+        });
     });
 
     it("closes map controls when backing from the display panel", async () => {
