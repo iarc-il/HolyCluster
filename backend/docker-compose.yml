@@ -140,14 +140,16 @@ services:
       - -c
       - |
         (
-          last=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem 2>/dev/null)
+          last=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem /etc/letsencrypt/live/$${DOMAIN_ALT}/fullchain.pem 2>/dev/null)
           while :; do
             sleep 6h & wait $${!}
-            cur=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem 2>/dev/null)
+            cur=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem /etc/letsencrypt/live/$${DOMAIN_ALT}/fullchain.pem 2>/dev/null)
             [ "$$cur" != "$$last" ] && { nginx -s reload; last=$$cur; }
           done
         ) &
-        envsubst '$${DOMAIN}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+        envsubst '$${DOMAIN} $${DOMAIN_ALT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+        [ -n "$${DOMAIN_ALT}" ] && envsubst '$${DOMAIN_ALT}' < /etc/nginx/nginx-alt.conf.template > /etc/nginx/conf.d/alt.conf
+        nginx -g 'daemon off;'
     restart: unless-stopped
     ulimits:
       nofile:
@@ -178,13 +180,23 @@ services:
   certbot:
     container_name: certbot
     restart: unless-stopped
-    image: certbot/certbot:latest
+    # dns-cloudflare image = certbot core + the Cloudflare DNS-01 plugin. Still runs
+    # `certbot renew` for the webroot DOMAIN cert; adds DNS-01 renewal for DOMAIN_ALT.
+    image: certbot/dns-cloudflare:latest
+    env_file:
+      - .env
     volumes:
       - ./infra/certbot/conf:/etc/letsencrypt
       - ./infra/certbot/www:/var/www/certbot
       - ./infra/certbot/log:/var/log
+    # Write the Cloudflare creds file from the injected token at startup (never baked
+    # into the image, never logged), then the 6h renew loop. Renewal of the DNS-01
+    # cert reads the authenticator + this creds path from its renewal conf.
     entrypoint: >
-      /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
+      /bin/sh -c 'mkdir -p /root/.secrets;
+      printf "dns_cloudflare_api_token = %s\n" "$${CLOUDFLARE_API_TOKEN}" > /root/.secrets/cloudflare.ini;
+      chmod 600 /root/.secrets/cloudflare.ini;
+      trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
 
   nginx_ui:
       container_name: nginx_ui

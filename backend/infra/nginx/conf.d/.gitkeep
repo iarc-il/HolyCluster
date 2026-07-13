@@ -1,0 +1,2 @@
+# Keep this dir in git so the ./infra/nginx:/etc/nginx mount provides
+# /etc/nginx/conf.d, where the nginx container renders alt.conf when DOMAIN_ALT is set.

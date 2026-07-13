@@ -15,7 +15,7 @@ http {
     # ===============================
     server {
         listen 80;
-        server_name ${DOMAIN};
+        server_name ${DOMAIN} ${DOMAIN_ALT};
 
         # ACME challenge location for Certbot
         location /.well-known/acme-challenge/ {
@@ -115,5 +115,9 @@ http {
             proxy_set_header X-Forwarded-Proto $scheme;
         }
     }
+
+    # Alternate-domain server block(s), rendered per-env only when DOMAIN_ALT is set
+    # (see Dockerfile.nginx CMD / docker-compose nginx command). Empty glob = no-op.
+    include /etc/nginx/conf.d/*.conf;
   }
 
