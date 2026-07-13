@@ -13,6 +13,10 @@ COPY nginx.conf.template .
 # Expose HTTP and HTTPS ports
 EXPOSE 80 443 9999
 
-# Use envsubst to replace environment variables at container start
-CMD envsubst '${DOMAIN}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+# Use envsubst to replace environment variables at container start.
+# When DOMAIN_ALT is set, also render the alternate-domain server block into conf.d.
+# Keep this in sync with the nginx service command in docker-compose.yml.
+CMD envsubst '${DOMAIN} ${DOMAIN_ALT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && \
+    { [ -n "$DOMAIN_ALT" ] && envsubst '${DOMAIN_ALT}' < /etc/nginx/nginx-alt.conf.template > /etc/nginx/conf.d/alt.conf || true; } && \
+    nginx -g 'daemon off;'
 

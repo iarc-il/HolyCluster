@@ -9,6 +9,10 @@ nginx/nginx.conf*
 nginx-ui/app.ini
 nginx-ui/database.db
 
+# Runtime-rendered nginx configs (envsubst output); keep the conf.d dir + templates
+backend/infra/nginx/nginx.conf
+backend/infra/nginx/conf.d/alt.conf
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

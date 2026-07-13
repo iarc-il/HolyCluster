@@ -140,14 +140,16 @@ services:
       - -c
       - |
         (
-          last=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem 2>/dev/null)
+          last=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem /etc/letsencrypt/live/$${DOMAIN_ALT}/fullchain.pem 2>/dev/null)
           while :; do
             sleep 6h & wait $${!}
-            cur=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem 2>/dev/null)
+            cur=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem /etc/letsencrypt/live/$${DOMAIN_ALT}/fullchain.pem 2>/dev/null)
             [ "$$cur" != "$$last" ] && { nginx -s reload; last=$$cur; }
           done
         ) &
-        envsubst '$${DOMAIN}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+        envsubst '$${DOMAIN} $${DOMAIN_ALT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+        [ -n "$${DOMAIN_ALT}" ] && envsubst '$${DOMAIN_ALT}' < /etc/nginx/nginx-alt.conf.template > /etc/nginx/conf.d/alt.conf
+        nginx -g 'daemon off;'
     restart: unless-stopped
     ulimits:
       nofile:
@@ -178,6 +180,11 @@ services:
   certbot:
     container_name: certbot
     restart: unless-stopped
+    # Renews BOTH the DOMAIN and DOMAIN_ALT certs via webroot http-01 (each cert's
+    # renewal.conf records authenticator=webroot). The DOMAIN_ALT challenge reaches
+    # the box through the Cloudflare proxy (zone has Always-Use-HTTPS off), so no
+    # Cloudflare credential is needed on this server. The nginx reload-watch loop
+    # picks up renewed certs.
     image: certbot/certbot:latest
     volumes:
       - ./infra/certbot/conf:/etc/letsencrypt
