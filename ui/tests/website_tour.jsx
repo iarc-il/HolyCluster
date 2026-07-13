@@ -143,7 +143,12 @@ function TestHarness() {
     const [show_band_options, set_show_band_options] = useState(false);
     const [mode_filter_state, set_mode_filter_state] = useState("on");
     const [show_filter_modal, set_show_filter_modal] = useState(false);
-    const [alert_filter_count, set_alert_filter_count] = useState(0);
+    const [callsign_filters, set_callsign_filters] = useState({
+        filters: [],
+        is_alert_filters_active: true,
+        is_hide_filters_active: true,
+        is_show_only_filters_active: true,
+    });
     const [table_sort_state, set_table_sort_state] = useState("inactive");
     const [spot_row_state, set_spot_row_state] = useState("unpinned");
     const [table_context_menu, set_table_context_menu] = useState({
@@ -157,7 +162,20 @@ function TestHarness() {
                 : value_or_setter,
         );
     };
-    test_state.filters_context = { filters, setFilters };
+    const setCallsignFilters = value_or_setter => {
+        set_callsign_filters(current_filters =>
+            typeof value_or_setter === "function"
+                ? value_or_setter(current_filters)
+                : value_or_setter,
+        );
+    };
+    const alert_filter_count = callsign_filters.filters.filter(
+        filter => filter.action === "alert",
+    ).length;
+    const show_only_filter_count = callsign_filters.filters.filter(
+        filter => filter.action === "show_only",
+    ).length;
+    test_state.filters_context = { filters, setFilters, callsign_filters, setCallsignFilters };
 
     useEffect(() => {
         function close_map_controls_panel() {
@@ -232,6 +250,23 @@ function TestHarness() {
     function open_table_context_menu(event, menu_type) {
         event.preventDefault();
         set_table_context_menu({ visible: true, menu_type });
+    }
+
+    function move_last_filter(from_action, to_action) {
+        setCallsignFilters(current_filters => {
+            const filter_index = (() => {
+                for (let index = current_filters.filters.length - 1; index >= 0; index -= 1) {
+                    if (current_filters.filters[index]?.action === from_action) return index;
+                }
+
+                return -1;
+            })();
+            if (filter_index < 0) return current_filters;
+
+            const next_filters = [...current_filters.filters];
+            next_filters[filter_index] = { ...next_filters[filter_index], action: to_action };
+            return { ...current_filters, filters: next_filters };
+        });
     }
 
     return (
@@ -414,11 +449,22 @@ function TestHarness() {
                                 Add
                             </button>
                             {alert_filter_count > 0 ? (
-                                <div data-tour="filter-line-alert">Alert filter</div>
+                                <div
+                                    data-tour="filter-line-alert"
+                                    onClick={() => move_last_filter("alert", "show_only")}
+                                >
+                                    Alert filter
+                                </div>
                             ) : null}
                         </div>
-                        <div data-tour="filter-section-show_only" data-tour-state="0">
+                        <div
+                            data-tour="filter-section-show_only"
+                            data-tour-state={show_only_filter_count}
+                        >
                             <button type="button">Add</button>
+                            {show_only_filter_count > 0 ? (
+                                <div data-tour="filter-line-show_only">Show-only filter</div>
+                            ) : null}
                         </div>
                         <div data-tour="filter-section-hide" data-tour-state="0">
                             <button type="button">Add</button>
@@ -447,7 +493,18 @@ function TestHarness() {
                             type="button"
                             data-tour="modal-apply-button"
                             onClick={() => {
-                                set_alert_filter_count(current => current + 1);
+                                setCallsignFilters(current_filters => ({
+                                    ...current_filters,
+                                    filters: [
+                                        ...current_filters.filters,
+                                        {
+                                            action: "alert",
+                                            type: "prefix",
+                                            value: "K",
+                                            spotter_or_dx: "dx",
+                                        },
+                                    ],
+                                }));
                                 set_show_filter_modal(false);
                             }}
                         >
@@ -595,6 +652,37 @@ async function open_filter_tour_filter_editor(user) {
 
     await waitFor(() => {
         expect(screen.getByRole("heading", { name: "Filter Editor" })).not.toBeNull();
+    });
+}
+
+async function open_filter_tour_drag_prompt(user) {
+    await open_filter_tour_filter_editor(user);
+
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Filter Action" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Filter Type" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "DX Or Spotter" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Type A Value" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Add A Filter" })).not.toBeNull();
+    });
+    fireEvent.change(screen.getByLabelText("Filter value"), { target: { value: "K" } });
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Drag The New Filter" })).not.toBeNull();
     });
 }
 
@@ -786,6 +874,48 @@ describe("WebsiteTour", () => {
 
         await waitFor(() => {
             expect(screen.getByRole("heading", { name: "Filter Editor" })).not.toBeNull();
+        });
+    });
+
+    it("returns to create filter when backing from the drag prompt", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await open_filter_tour_drag_prompt(user);
+        expect(screen.queryByText("Alert filter")).not.toBeNull();
+
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Create A Filter" })).not.toBeNull();
+        });
+        expect(screen.queryByText("Alert filter")).toBeNull();
+    });
+
+    it("restores the alert filter when backing from filter moved", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await open_filter_tour_drag_prompt(user);
+        await user.click(screen.getByText("Alert filter"));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Filter Moved" })).not.toBeNull();
+        });
+        expect(screen.queryByText("Show-only filter")).not.toBeNull();
+
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Drag The New Filter" })).not.toBeNull();
+        });
+        expect(screen.queryByText("Alert filter")).not.toBeNull();
+        expect(screen.queryByText("Show-only filter")).toBeNull();
+
+        await user.click(screen.getByText("Alert filter"));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Filter Moved" })).not.toBeNull();
         });
     });
 
