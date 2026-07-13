@@ -180,10 +180,11 @@ services:
   certbot:
     container_name: certbot
     restart: unless-stopped
-    # Renews the webroot DOMAIN cert only. DOMAIN_ALT's cert is issued and renewed
-    # OFF-BOX via DNS-01 (the Cloudflare token never lives on this server) and its
-    # fullchain/privkey are pushed into ./infra/certbot/conf/live/$DOMAIN_ALT/; the
-    # nginx cert-reload watch loop picks up the new files.
+    # Renews BOTH the DOMAIN and DOMAIN_ALT certs via webroot http-01 (each cert's
+    # renewal.conf records authenticator=webroot). The DOMAIN_ALT challenge reaches
+    # the box through the Cloudflare proxy (zone has Always-Use-HTTPS off), so no
+    # Cloudflare credential is needed on this server. The nginx reload-watch loop
+    # picks up renewed certs.
     image: certbot/certbot:latest
     volumes:
       - ./infra/certbot/conf:/etc/letsencrypt

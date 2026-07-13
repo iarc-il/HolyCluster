@@ -7,8 +7,9 @@
 #
 # It serves the alternate domain with its OWN certificate (not DOMAIN's), so it
 # keeps working when the Cloudflare proxy is turned off and after DOMAIN is retired.
-# Issue that cert via DNS-01 (see CLOUDFLARE_API_TOKEN); http-01 is unreliable
-# behind the Cloudflare proxy.
+# The cert is issued and renewed on the box by certbot via webroot http-01 (same as
+# DOMAIN); the ACME challenge reaches the box through the Cloudflare proxy because the
+# zone has Always-Use-HTTPS off. No Cloudflare credential lives on the server.
 server {
     listen 443 ssl;
     http2 on;
