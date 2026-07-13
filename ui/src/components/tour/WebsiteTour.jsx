@@ -23,8 +23,12 @@ const completed_statuses = new Set([STATUS.FINISHED, STATUS.SKIPPED]);
 const default_tour_buttons = ["skip", "back", "close", "primary"];
 const wait_poll_interval_ms = 150;
 const map_controls_panel_selector = "[data-tour='map-controls-panel']";
+const add_filter_button_alert_selector = "[data-tour='add-filter-button-alert']";
 const filter_options_popup_selector = "[data-tour='filter-options-popup']";
 const filter_modal_content_selector = "[data-tour='filter-modal-content']";
+const filter_line_alert_selector = "[data-tour='filter-line-alert']";
+const filter_section_show_only_selector = "[data-tour='filter-section-show_only']";
+const modal_apply_button_selector = "[data-tour='modal-apply-button']";
 const spot_row_selector = "[data-tour='spot-row']";
 const spot_row_dx_callsign_selector = "[data-tour='spot-row-dx-callsign']";
 const table_context_menu_selector = "[data-tour='table-context-menu']";
@@ -135,6 +139,42 @@ function dispatch_tour_side_effect(side_effect) {
     document.dispatchEvent(new CustomEvent(side_effect.event, { detail: side_effect.detail }));
 }
 
+function find_previous_step_index_by_target(steps, from_index, target) {
+    for (let index = from_index; index >= 0; index -= 1) {
+        if (steps[index]?.target === target) return index;
+    }
+
+    return null;
+}
+
+function find_last_filter_index_by_action(callsign_filters, action) {
+    const filters = callsign_filters?.filters ?? [];
+    for (let index = filters.length - 1; index >= 0; index -= 1) {
+        if (filters[index]?.action === action) return index;
+    }
+
+    return -1;
+}
+
+function remove_last_filter_by_action(callsign_filters, action) {
+    const filter_index = find_last_filter_index_by_action(callsign_filters, action);
+    if (filter_index < 0) return callsign_filters;
+
+    return {
+        ...callsign_filters,
+        filters: callsign_filters.filters.filter((_, index) => index !== filter_index),
+    };
+}
+
+function move_last_filter_action(callsign_filters, from_action, to_action) {
+    const filter_index = find_last_filter_index_by_action(callsign_filters, from_action);
+    if (filter_index < 0) return callsign_filters;
+
+    const filters = [...callsign_filters.filters];
+    filters[filter_index] = { ...filters[filter_index], action: to_action };
+    return { ...callsign_filters, filters };
+}
+
 function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_index) {
     const current_step = steps[from_index];
     const next_step = steps[next_step_index];
@@ -233,12 +273,49 @@ function get_backward_step_index(chapter_id, steps, from_index, next_step_index)
         return next_step_index - 1;
     }
 
+    if (
+        chapter_id === "filters" &&
+        current_step?.target === filter_line_alert_selector &&
+        next_step?.target === modal_apply_button_selector
+    ) {
+        return (
+            find_previous_step_index_by_target(
+                steps,
+                next_step_index - 1,
+                add_filter_button_alert_selector,
+            ) ?? next_step_index
+        );
+    }
+
     return next_step_index;
+}
+
+function get_backward_filter_state_update(chapter_id, steps, from_index, next_step_index) {
+    if (chapter_id !== "filters") return null;
+
+    const current_step = steps[from_index];
+    const next_step = steps[next_step_index];
+
+    if (
+        current_step?.target === filter_line_alert_selector &&
+        next_step?.target === modal_apply_button_selector
+    ) {
+        return callsign_filters => remove_last_filter_by_action(callsign_filters, "alert");
+    }
+
+    if (
+        current_step?.target === filter_section_show_only_selector &&
+        next_step?.target === filter_line_alert_selector
+    ) {
+        return callsign_filters => move_last_filter_action(callsign_filters, "show_only", "alert");
+    }
+
+    return null;
 }
 
 function WebsiteTour() {
     const { propagation } = useRestData();
-    const { filters } = useFilters();
+    const { filters, setCallsignFilters } = useFilters();
     const { radio_status } = use_radio();
     const { spots, set_spot_buffering } = useSpotData();
     const is_mobile = useMediaQuery("only screen and (max-width : 768px)");
@@ -409,6 +486,12 @@ function WebsiteTour() {
                     from_index,
                     next_step_index,
                 );
+                const filter_state_update = get_backward_filter_state_update(
+                    tour_state.current_chapter_id,
+                    steps,
+                    from_index,
+                    next_step_index,
+                );
                 next_step_index = get_backward_step_index(
                     tour_state.current_chapter_id,
                     steps,
@@ -417,6 +500,9 @@ function WebsiteTour() {
                 );
                 if (steps[next_step_index]?.waitForChange) {
                     wait_for_change_ref.current = { key: null, value: null };
+                }
+                if (filter_state_update) {
+                    setCallsignFilters(filter_state_update);
                 }
                 pending_backward_side_effect_ref.current = side_effect;
                 backward_wait_ref.current = {
@@ -448,7 +534,13 @@ function WebsiteTour() {
                 };
             });
         },
-        [find_available_step_index, finish_tour, steps, tour_state.current_chapter_id],
+        [
+            find_available_step_index,
+            finish_tour,
+            setCallsignFilters,
+            steps,
+            tour_state.current_chapter_id,
+        ],
     );
 
     const start_tour = useCallback(
