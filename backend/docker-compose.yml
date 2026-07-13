@@ -180,23 +180,17 @@ services:
   certbot:
     container_name: certbot
     restart: unless-stopped
-    # dns-cloudflare image = certbot core + the Cloudflare DNS-01 plugin. Still runs
-    # `certbot renew` for the webroot DOMAIN cert; adds DNS-01 renewal for DOMAIN_ALT.
-    image: certbot/dns-cloudflare:latest
-    env_file:
-      - .env
+    # Renews the webroot DOMAIN cert only. DOMAIN_ALT's cert is issued and renewed
+    # OFF-BOX via DNS-01 (the Cloudflare token never lives on this server) and its
+    # fullchain/privkey are pushed into ./infra/certbot/conf/live/$DOMAIN_ALT/; the
+    # nginx cert-reload watch loop picks up the new files.
+    image: certbot/certbot:latest
     volumes:
       - ./infra/certbot/conf:/etc/letsencrypt
       - ./infra/certbot/www:/var/www/certbot
       - ./infra/certbot/log:/var/log
-    # Write the Cloudflare creds file from the injected token at startup (never baked
-    # into the image, never logged), then the 6h renew loop. Renewal of the DNS-01
-    # cert reads the authenticator + this creds path from its renewal conf.
     entrypoint: >
-      /bin/sh -c 'mkdir -p /root/.secrets;
-      printf "dns_cloudflare_api_token = %s\n" "$${CLOUDFLARE_API_TOKEN}" > /root/.secrets/cloudflare.ini;
-      chmod 600 /root/.secrets/cloudflare.ini;
-      trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
+      /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
 
   nginx_ui:
       container_name: nginx_ui
