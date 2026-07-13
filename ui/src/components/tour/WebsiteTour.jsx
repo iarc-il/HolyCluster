@@ -24,6 +24,7 @@ const default_tour_buttons = ["skip", "back", "close", "primary"];
 const wait_poll_interval_ms = 150;
 const map_controls_panel_selector = "[data-tour='map-controls-panel']";
 const filter_options_popup_selector = "[data-tour='filter-options-popup']";
+const filter_modal_content_selector = "[data-tour='filter-modal-content']";
 const spot_row_selector = "[data-tour='spot-row']";
 const spot_row_dx_callsign_selector = "[data-tour='spot-row-dx-callsign']";
 const table_context_menu_selector = "[data-tour='table-context-menu']";
@@ -158,6 +159,14 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
             event: TOUR_FILTER_OPTIONS_EVENT,
             wait_needs_reset: false,
         };
+    }
+
+    if (
+        chapter_id === "filters" &&
+        current_step?.target === filter_modal_content_selector &&
+        as_array(next_step?.waitFor).includes(filter_modal_content_selector)
+    ) {
+        return { event: TOUR_CLOSE_MODAL_EVENT, wait_needs_reset: true };
     }
 
     if (chapter_id !== "spots_table") return null;
@@ -406,6 +415,9 @@ function WebsiteTour() {
                     from_index,
                     next_step_index,
                 );
+                if (steps[next_step_index]?.waitForChange) {
+                    wait_for_change_ref.current = { key: null, value: null };
+                }
                 pending_backward_side_effect_ref.current = side_effect;
                 backward_wait_ref.current = {
                     key: side_effect?.wait_needs_reset

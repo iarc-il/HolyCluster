@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
     TOUR_CLOSE_MAP_CONTROLS_EVENT,
+    TOUR_CLOSE_MODAL_EVENT,
     TOUR_FILTER_OPTIONS_EVENT,
     TOUR_TABLE_CONTEXT_MENU_EVENT,
     TOUR_TABLE_SPOT_ROW_EVENT,
@@ -140,6 +141,9 @@ function TestHarness() {
     const [show_map_controls_panel, set_show_map_controls_panel] = useState(false);
     const [band_filter_state, set_band_filter_state] = useState("off");
     const [show_band_options, set_show_band_options] = useState(false);
+    const [mode_filter_state, set_mode_filter_state] = useState("on");
+    const [show_filter_modal, set_show_filter_modal] = useState(false);
+    const [alert_filter_count, set_alert_filter_count] = useState(0);
     const [table_sort_state, set_table_sort_state] = useState("inactive");
     const [spot_row_state, set_spot_row_state] = useState("unpinned");
     const [table_context_menu, set_table_context_menu] = useState({
@@ -181,6 +185,15 @@ function TestHarness() {
         return () => {
             document.removeEventListener(TOUR_FILTER_OPTIONS_EVENT, handle_filter_options);
         };
+    }, []);
+
+    useEffect(() => {
+        function close_filter_modal() {
+            set_show_filter_modal(false);
+        }
+
+        document.addEventListener(TOUR_CLOSE_MODAL_EVENT, close_filter_modal);
+        return () => document.removeEventListener(TOUR_CLOSE_MODAL_EVENT, close_filter_modal);
     }, []);
 
     useEffect(() => {
@@ -305,9 +318,7 @@ function TestHarness() {
                 type="button"
                 data-tour="band-filter-20"
                 data-tour-state={band_filter_state}
-                onClick={() =>
-                    set_band_filter_state(current => (current === "on" ? "off" : "on"))
-                }
+                onClick={() => set_band_filter_state(current => (current === "on" ? "off" : "on"))}
             >
                 20m
             </button>
@@ -323,6 +334,14 @@ function TestHarness() {
                     ONLY and ALL popup
                 </div>
             ) : null}
+            <button
+                type="button"
+                data-tour="mode-filter-SSB"
+                data-tour-state={mode_filter_state}
+                onClick={() => set_mode_filter_state(current => (current === "on" ? "off" : "on"))}
+            >
+                SSB
+            </button>
             <div data-tour="spots-table">Spots table</div>
             <button
                 type="button"
@@ -384,8 +403,59 @@ function TestHarness() {
                         Filters
                     </button>
                 </div>
-                <div data-tour="side-panel-view-filters">Advanced filters</div>
+                <div data-tour="side-panel-view-filters">
+                    <div data-tour="filters-panel">
+                        <div data-tour="filter-section-alert" data-tour-state={alert_filter_count}>
+                            <button
+                                type="button"
+                                data-tour="add-filter-button-alert"
+                                onClick={() => set_show_filter_modal(true)}
+                            >
+                                Add
+                            </button>
+                            {alert_filter_count > 0 ? (
+                                <div data-tour="filter-line-alert">Alert filter</div>
+                            ) : null}
+                        </div>
+                        <div data-tour="filter-section-show_only" data-tour-state="0">
+                            <button type="button">Add</button>
+                        </div>
+                        <div data-tour="filter-section-hide" data-tour-state="0">
+                            <button type="button">Add</button>
+                        </div>
+                    </div>
+                </div>
             </div>
+            {show_filter_modal ? (
+                <div data-tour="filter-modal">
+                    <div data-tour="filter-modal-content">
+                        <button type="button" data-tour="filter-modal-action-alert">
+                            Alert
+                        </button>
+                        <button type="button" data-tour="filter-modal-type-prefix">
+                            Prefix
+                        </button>
+                        <button type="button" data-tour="filter-modal-spot-role-dx">
+                            DX
+                        </button>
+                        <label>
+                            Filter value
+                            <input data-tour="filter-modal-text-value" />
+                        </label>
+                        <span>Filter modal content</span>
+                        <button
+                            type="button"
+                            data-tour="modal-apply-button"
+                            onClick={() => {
+                                set_alert_filter_count(current => current + 1);
+                                set_show_filter_modal(false);
+                            }}
+                        >
+                            Apply
+                        </button>
+                    </div>
+                </div>
+            ) : null}
         </>
     );
 }
@@ -462,6 +532,69 @@ async function open_table_tour_entity_actions(user) {
 
     await waitFor(() => {
         expect(screen.getByRole("heading", { name: "Entity Actions" })).not.toBeNull();
+    });
+}
+
+async function open_filter_tour_filter_editor(user) {
+    await start_tour(user, "Filters");
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Quick Filters" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Band Filters" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "20m" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Open Band Options" })).not.toBeNull();
+    });
+    fireEvent.mouseEnter(screen.getByText("Band options trigger"));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "ONLY And ALL" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Mode Filters" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "SSB" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Filters Tab" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Advanced Filters" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Alert Filters" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Show-Only Filters" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Hide Filters" })).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Create A Filter" })).not.toBeNull();
+    });
+    await user.click(screen.getAllByRole("button", { name: "Add" })[0]);
+
+    await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Filter Editor" })).not.toBeNull();
     });
 }
 
@@ -630,6 +763,29 @@ describe("WebsiteTour", () => {
 
         await waitFor(() => {
             expect(screen.getByText("ONLY And ALL")).not.toBeNull();
+        });
+    });
+
+    it("closes the filter modal when backing from the filter editor", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await open_filter_tour_filter_editor(user);
+        expect(screen.queryByText("Filter modal content")).not.toBeNull();
+
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Create A Filter" })).not.toBeNull();
+        });
+        await waitFor(() => {
+            expect(screen.queryByText("Filter modal content")).toBeNull();
+        });
+
+        await user.click(screen.getAllByRole("button", { name: "Add" })[0]);
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Filter Editor" })).not.toBeNull();
         });
     });
 
