@@ -794,6 +794,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "Settings control your station details, map defaults, display, and imports.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='settings-general']",
@@ -860,6 +861,7 @@ export const TOUR_CHAPTERS = {
                 optional: true,
                 requires: "radio_available",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='settings-tab-bands-modes']",
@@ -879,6 +881,7 @@ export const TOUR_CHAPTERS = {
                 content: "Disable bands or modes you do not want shown in the main interface.",
                 optional: true,
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='settings-tab-import-export']",
@@ -897,7 +900,8 @@ export const TOUR_CHAPTERS = {
                 title: "Import And Export",
                 content: "Use this section to back up or restore settings and profile data.",
                 optional: true,
-                placement: "left",
+                placement: "center",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='modal-cancel-button']",

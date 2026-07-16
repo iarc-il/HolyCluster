@@ -144,6 +144,23 @@ describe("tour chapters", () => {
         }
     });
 
+    it("uses mobile-safe placement for tall settings content steps", () => {
+        const tall_content_targets = [
+            "[data-tour='settings-modal-content']",
+            "[data-tour='settings-cat-control']",
+            "[data-tour='settings-bands-modes']",
+            "[data-tour='settings-import-export']",
+        ];
+
+        for (const target of tall_content_targets) {
+            const step = TOUR_CHAPTERS.settings.steps.find(
+                candidate => candidate.target === target,
+            );
+            expect(step, target).toBeDefined();
+            expect(step?.mobilePlacement, target).toBe("center");
+        }
+    });
+
     it("targets visible settings modal content for dialog overview steps", () => {
         const settings_open_step = TOUR_CHAPTERS.settings.steps.find(
             step => step.target === "[data-tour='top-bar-settings']",

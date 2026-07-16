@@ -431,6 +431,8 @@ function WebsiteTour() {
     const joyride_steps = useMemo(() => {
         return steps.map((step, index) => {
             let buttons = step.buttons;
+            const placement =
+                is_mobile && step.mobilePlacement ? step.mobilePlacement : step.placement;
 
             if (index === first_available_step_index) {
                 buttons = (buttons ?? default_tour_buttons).filter(button => button !== "back");
@@ -445,11 +447,18 @@ function WebsiteTour() {
                 buttons = [...buttons, "primary"];
             }
 
-            return buttons === step.buttons ? step : { ...step, buttons };
+            if (buttons === step.buttons && placement === step.placement) return step;
+
+            const next_step = { ...step, placement };
+            if (buttons !== step.buttons) {
+                next_step.buttons = buttons;
+            }
+            return next_step;
         });
     }, [
         current_wait_for_change_is_already_satisfied,
         first_available_step_index,
+        is_mobile,
         steps,
         tour_state.step_index,
     ]);
