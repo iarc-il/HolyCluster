@@ -7,6 +7,7 @@ import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
     TOUR_CLOSE_MAP_CONTROLS_EVENT,
     TOUR_CLOSE_MODAL_EVENT,
+    TOUR_CLOSE_SIDE_PANEL_EVENT,
     TOUR_FILTER_OPTIONS_EVENT,
     TOUR_TABLE_CONTEXT_MENU_EVENT,
     TOUR_TABLE_SPOT_ROW_EVENT,
@@ -139,6 +140,7 @@ function TestHarness() {
     });
     const [show_settings, set_show_settings] = useState(false);
     const [show_map_controls_panel, set_show_map_controls_panel] = useState(false);
+    const [show_side_panel, set_show_side_panel] = useState(true);
     const [band_filter_state, set_band_filter_state] = useState("off");
     const [show_band_options, set_show_band_options] = useState(false);
     const [mode_filter_state, set_mode_filter_state] = useState("on");
@@ -212,6 +214,15 @@ function TestHarness() {
 
         document.addEventListener(TOUR_CLOSE_MODAL_EVENT, close_filter_modal);
         return () => document.removeEventListener(TOUR_CLOSE_MODAL_EVENT, close_filter_modal);
+    }, []);
+
+    useEffect(() => {
+        function close_side_panel() {
+            set_show_side_panel(false);
+        }
+
+        document.addEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel);
+        return () => document.removeEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel);
     }, []);
 
     useEffect(() => {
@@ -428,50 +439,62 @@ function TestHarness() {
                     Table {table_context_menu.menu_type} menu
                 </div>
             ) : null}
-            <div data-tour="side-panel">
-                <div data-tour="side-panel-tabs">
-                    <button
-                        type="button"
-                        data-tour="side-panel-tab-filters"
-                        data-tour-state="active"
-                    >
-                        Filters
-                    </button>
-                </div>
-                <div data-tour="side-panel-view-filters">
-                    <div data-tour="filters-panel">
-                        <div data-tour="filter-section-alert" data-tour-state={alert_filter_count}>
-                            <button
-                                type="button"
-                                data-tour="add-filter-button-alert"
-                                onClick={() => set_show_filter_modal(true)}
-                            >
-                                Add
-                            </button>
-                            {alert_filter_count > 0 ? (
-                                <div
-                                    data-tour="filter-line-alert"
-                                    onClick={() => move_last_filter("alert", "show_only")}
-                                >
-                                    Alert filter
-                                </div>
-                            ) : null}
-                        </div>
-                        <div
-                            data-tour="filter-section-show_only"
-                            data-tour-state={show_only_filter_count}
+            <button
+                type="button"
+                data-tour="top-bar-right-menu"
+                onClick={() => set_show_side_panel(current => !current)}
+            >
+                Toggle side panel
+            </button>
+            {show_side_panel ? (
+                <div data-tour="side-panel">
+                    <div data-tour="side-panel-tabs">
+                        <button
+                            type="button"
+                            data-tour="side-panel-tab-filters"
+                            data-tour-state="active"
                         >
-                            <button type="button">Add</button>
-                            {show_only_filter_count > 0 ? (
-                                <div data-tour="filter-line-show_only">Show-only filter</div>
-                            ) : null}
-                        </div>
-                        <div data-tour="filter-section-hide" data-tour-state="0">
-                            <button type="button">Add</button>
+                            Filters
+                        </button>
+                    </div>
+                    <div data-tour="side-panel-view-filters">
+                        <div data-tour="filters-panel">
+                            <div
+                                data-tour="filter-section-alert"
+                                data-tour-state={alert_filter_count}
+                            >
+                                <button
+                                    type="button"
+                                    data-tour="add-filter-button-alert"
+                                    onClick={() => set_show_filter_modal(true)}
+                                >
+                                    Add
+                                </button>
+                                {alert_filter_count > 0 ? (
+                                    <div
+                                        data-tour="filter-line-alert"
+                                        onClick={() => move_last_filter("alert", "show_only")}
+                                    >
+                                        Alert filter
+                                    </div>
+                                ) : null}
+                            </div>
+                            <div
+                                data-tour="filter-section-show_only"
+                                data-tour-state={show_only_filter_count}
+                            >
+                                <button type="button">Add</button>
+                                {show_only_filter_count > 0 ? (
+                                    <div data-tour="filter-line-show_only">Show-only filter</div>
+                                ) : null}
+                            </div>
+                            <div data-tour="filter-section-hide" data-tour-state="0">
+                                <button type="button">Add</button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            ) : null}
             {show_filter_modal ? (
                 <div data-tour="filter-modal">
                     <div data-tour="filter-modal-content">
@@ -773,6 +796,36 @@ describe("WebsiteTour", () => {
                 "This view contains advanced alert, show-only, and hide filter sections.",
             ),
         ).not.toBeNull();
+    });
+
+    it("returns to the side panel open prompt when backing from the overview", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await user.click(screen.getByRole("button", { name: "Toggle side panel" }));
+        expect(document.querySelector("[data-tour='side-panel']")).toBeNull();
+
+        await start_tour(user, "Side Panel");
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Open The Side Panel" })).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Toggle side panel" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Side Panel" })).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Open The Side Panel" })).not.toBeNull();
+        });
+        expect(document.querySelector("[data-tour='side-panel']")).toBeNull();
+
+        await user.click(screen.getByRole("button", { name: "Toggle side panel" }));
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Side Panel" })).not.toBeNull();
+        });
     });
 
     it("keeps settings modal steps after opening the dialog", async () => {

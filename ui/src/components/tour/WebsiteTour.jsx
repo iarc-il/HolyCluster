@@ -14,6 +14,7 @@ import {
 import {
     TOUR_CLOSE_MAP_CONTROLS_EVENT,
     TOUR_CLOSE_MODAL_EVENT,
+    TOUR_CLOSE_SIDE_PANEL_EVENT,
     TOUR_FILTER_OPTIONS_EVENT,
     TOUR_TABLE_CONTEXT_MENU_EVENT,
     TOUR_TABLE_SPOT_ROW_EVENT,
@@ -22,6 +23,7 @@ import {
 const completed_statuses = new Set([STATUS.FINISHED, STATUS.SKIPPED]);
 const default_tour_buttons = ["skip", "back", "close", "primary"];
 const wait_poll_interval_ms = 150;
+const side_panel_selector = "[data-tour='side-panel']";
 const map_controls_panel_selector = "[data-tour='map-controls-panel']";
 const add_filter_button_alert_selector = "[data-tour='add-filter-button-alert']";
 const filter_options_popup_selector = "[data-tour='filter-options-popup']";
@@ -185,6 +187,10 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
         as_array(next_step?.waitFor).includes(map_controls_panel_selector)
     ) {
         return { event: TOUR_CLOSE_MAP_CONTROLS_EVENT, wait_needs_reset: true };
+    }
+
+    if (as_array(next_step?.waitFor).includes(side_panel_selector)) {
+        return { event: TOUR_CLOSE_SIDE_PANEL_EVENT, wait_needs_reset: true };
     }
 
     if (
