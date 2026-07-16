@@ -28,6 +28,7 @@ const map_controls_panel_selector = "[data-tour='map-controls-panel']";
 const add_filter_button_alert_selector = "[data-tour='add-filter-button-alert']";
 const filter_options_popup_selector = "[data-tour='filter-options-popup']";
 const filter_modal_content_selector = "[data-tour='filter-modal-content']";
+const settings_modal_content_selector = "[data-tour='settings-modal-content']";
 const filter_line_alert_selector = "[data-tour='filter-line-alert']";
 const filter_section_show_only_selector = "[data-tour='filter-section-show_only']";
 const modal_apply_button_selector = "[data-tour='modal-apply-button']";
@@ -180,6 +181,10 @@ function move_last_filter_action(callsign_filters, from_action, to_action) {
 function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_index) {
     const current_step = steps[from_index];
     const next_step = steps[next_step_index];
+    const backs_to_modal_open_step =
+        [filter_modal_content_selector, settings_modal_content_selector].includes(
+            current_step?.target,
+        ) && as_array(next_step?.waitFor).includes(current_step.target);
 
     if (
         chapter_id === "map" &&
@@ -207,11 +212,7 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
         };
     }
 
-    if (
-        chapter_id === "filters" &&
-        current_step?.target === filter_modal_content_selector &&
-        as_array(next_step?.waitFor).includes(filter_modal_content_selector)
-    ) {
+    if (["filters", "settings"].includes(chapter_id) && backs_to_modal_open_step) {
         return { event: TOUR_CLOSE_MODAL_EVENT, wait_needs_reset: true };
     }
 

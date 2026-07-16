@@ -208,12 +208,13 @@ function TestHarness() {
     }, []);
 
     useEffect(() => {
-        function close_filter_modal() {
+        function close_modal() {
             set_show_filter_modal(false);
+            set_show_settings(false);
         }
 
-        document.addEventListener(TOUR_CLOSE_MODAL_EVENT, close_filter_modal);
-        return () => document.removeEventListener(TOUR_CLOSE_MODAL_EVENT, close_filter_modal);
+        document.addEventListener(TOUR_CLOSE_MODAL_EVENT, close_modal);
+        return () => document.removeEventListener(TOUR_CLOSE_MODAL_EVENT, close_modal);
     }, []);
 
     useEffect(() => {
@@ -842,6 +843,31 @@ describe("WebsiteTour", () => {
 
         await user.click(screen.getByRole("button", { name: "Joyride next" }));
         expect(screen.getByText("General Settings")).not.toBeNull();
+    });
+
+    it("returns to the settings open prompt when backing from the dialog", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Settings");
+        await user.click(screen.getByRole("button", { name: "Open settings" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Settings Dialog" })).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Open Settings" })).not.toBeNull();
+        });
+        await waitFor(() => {
+            expect(document.querySelector("[data-tour='settings-modal']")).toBeNull();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Open settings" }));
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Settings Dialog" })).not.toBeNull();
+        });
     });
 
     it("does not show back on the first filters step", async () => {
