@@ -14,7 +14,7 @@ function SpotPopup({
     antenna_azimuth_source,
     map_azimuth,
 }) {
-    const { colors } = useColors();
+    const { colors, dev_mode } = useColors();
     const { settings } = useSettings();
 
     const spot_data = hovered_spot_data ?? pinned_spot_data;
@@ -65,11 +65,17 @@ function SpotPopup({
                     Distance: {settings.is_miles ? km_to_miles(distance) : distance}{" "}
                     {settings.is_miles ? "Miles" : "km"}
                 </p>
-                <p>
-                    Antenna: {antenna_azimuth_label}
-                    {antenna_azimuth_source === "map" ? " (map center)" : ""}
-                </p>
-                {show_map_azimuth && <p>Map: {map_azimuth_label}</p>}
+                {dev_mode ? (
+                    <>
+                        <p>
+                            Antenna: {antenna_azimuth_label}
+                            {antenna_azimuth_source === "map" ? " (map center)" : ""}
+                        </p>
+                        {show_map_azimuth && <p>Map: {map_azimuth_label}</p>}
+                    </>
+                ) : (
+                    <p>Azimuth: {map_azimuth_label}</p>
+                )}
                 {spot_data.hunterNeeded?.is_needed && (
                     <p className="mt-1">
                         {spot_data.hunterNeeded.reasons

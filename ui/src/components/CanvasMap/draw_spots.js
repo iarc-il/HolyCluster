@@ -272,6 +272,7 @@ export function draw_spots(
     projection,
     is_globe,
     home_location,
+    show_dev_bearings,
     rotator_azimuth,
     rotator_target_azimuth,
     hunter_flash_phase = 0,
@@ -321,7 +322,7 @@ export function draw_spots(
         azimuth_spot = bold_spots[bold_spots.length - 1];
     }
 
-    if (azimuth_spot && !is_globe && hovered_spot.source !== "table") {
+    if (show_dev_bearings && azimuth_spot && !is_globe && hovered_spot.source !== "table") {
         const [center_lon, center_lat] = projection.rotate().map(x => -x);
         const azimuth = calculate_geographic_azimuth(
             center_lat,

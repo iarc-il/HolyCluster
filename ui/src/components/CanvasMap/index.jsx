@@ -158,6 +158,7 @@ function CanvasMap({
         map_controls: effective_map_controls,
         settings,
         radius_in_km,
+        show_dev_bearings: dev_mode,
         callsign_filters,
         overlay_highlights,
         hovered_zone,
@@ -213,6 +214,7 @@ function CanvasMap({
         hovered_zone,
         hovered_dxcc,
         home_location,
+        show_dev_bearings: dev_mode,
         rotator_azimuth: effective_rotator_azimuth,
         rotator_target_azimuth: effective_rotator_target_azimuth,
         voacap_state,
@@ -283,19 +285,21 @@ function CanvasMap({
     let antenna_azimuth_source = "none";
     if (hovered_spot_data || pinned_spot_data) {
         const spot_data = hovered_spot_data || pinned_spot_data;
-        const bearing_origin = get_bearing_origin(
-            settings,
-            effective_map_controls.location.location,
-        );
         map_azimuth = calculate_bearing_between_locations(
             [center_lon, center_lat],
             spot_data.dx_loc,
         );
-        antenna_azimuth = calculate_bearing_between_locations(
-            bearing_origin.location,
-            spot_data.dx_loc,
-        );
-        antenna_azimuth_source = bearing_origin.source;
+        if (dev_mode) {
+            const bearing_origin = get_bearing_origin(
+                settings,
+                effective_map_controls.location.location,
+            );
+            antenna_azimuth = calculate_bearing_between_locations(
+                bearing_origin.location,
+                spot_data.dx_loc,
+            );
+            antenna_azimuth_source = bearing_origin.source;
+        }
     }
 
     const canvas_width = width ? width * DPR : 0;
