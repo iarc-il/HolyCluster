@@ -70,13 +70,12 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
-                target: "[data-tour='mobile-main-tabs']",
+                target: "[data-tour='mobile-main-tabs-tabs']",
                 title: "Map And Table Tabs",
                 content: "On narrow screens, use these tabs to switch between the map and table.",
                 mobileOnly: true,
                 optional: true,
-                placement: "center",
-                mobileHideOverlay: true,
+                placement: "bottom",
             },
             {
                 target: "[data-tour='map-panel']",
