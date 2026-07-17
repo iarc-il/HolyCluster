@@ -7,7 +7,7 @@ description: Use when testing, debugging, or fixing React Joyride app tours with
 
 Token rule: collect DOM state first. Use screenshots only for visual overlap, clipping, offscreen buttons, or layout failures.
 
-Core rule: do not infer tour behavior from code alone. Reproduce the chapter in Playwright, observe the tooltip and underlying UI state, then fix only confirmed failures.
+Core rule: derive the expected step sequence from the chapter definition, then reproduce the chapter in Playwright and compare the complete observed sequence against it. Do not treat the steps that happened to appear as the expected sequence.
 
 Use for chapters in `ui/src/components/tour/tour_chapters.jsx`.
 
@@ -30,13 +30,16 @@ Responsive layout expectations:
 ## Workflow
 
 1. Inspect the chapter steps and central tour state machine.
-2. Record each step's `title`, `target`, `placement`, `mobilePlacement`, `optional`, `requires`, `waitFor`, `waitForGone`, `waitForChange`, `buttons`, `mobileOnly`, and `desktopOnly`.
+2. Record each step's `title`, `target`, `placement`, `mobilePlacement`, `optional`, `requires`, `waitFor`, `waitForGone`, `waitForChange`, `showWhenAlreadySatisfied`, `buttons`, `mobileOnly`, and `desktopOnly`.
 3. Identify interactive steps: `waitFor`, `waitForGone`, `waitForChange`, modal, context menu, hover popup, drag/drop, create/apply, and open/close steps.
-4. Drive the tour in Playwright from a clean page state for each required viewport.
-5. Assert every visible step's title, relevant content, target visibility, tooltip/button bounds, console errors, and required UI state.
-6. For every visible Back button, click Back, verify previous title/target/UI state, then complete forward again.
-7. Add or update focused regression coverage only after confirming a failure.
-8. Retake the relevant Playwright path and run focused Biome/Vitest checks.
+4. Before launch, build the expected ordered step list for the viewport and runtime conditions. Exclude only responsive steps and steps with unmet `requires`; do not remove a step merely because its wait condition is already satisfied.
+5. Drive the tour in Playwright from a clean page state for each required viewport while recording every observed step index and title.
+6. Assert the first applicable step appears after launch and remains until user action unless the definition explicitly permits automatic advancement.
+7. Assert every observed step's title, relevant content, target visibility, tooltip/button bounds, console errors, and required UI state.
+8. At completion, reconcile the observed sequence with the expected sequence. Every missing step needs a confirmed valid skip reason.
+9. For every visible Back button, click Back, verify previous title/target/UI state, then complete forward again.
+10. Add or update focused regression coverage only after confirming a failure.
+11. Retake the relevant Playwright path and run focused Biome/Vitest checks.
 
 ## Clean State
 
@@ -45,6 +48,18 @@ Responsive layout expectations:
 - Set `first_launch` to `false` so Quick Start does not auto-start.
 - Reset `active_view`, `mobile_tab`, and `tour_completed_chapters` when relevant.
 - Avoid carrying Settings tab, active side-panel tab, hover state, modal state, context menu state, or created filter state between runs.
+- Run the application's natural default state before forcing a convenient state that may hide responsive or persisted-state failures.
+- For mobile map/table chapters, run with each main tab active.
+
+## Sequence Invariant
+
+- The observed first step must equal the first applicable configured step.
+- Record the full forward sequence as `(index, title)` pairs rather than validating only the currently visible tooltip.
+- A configured step may be absent only when it is responsively excluded, has unmet `requires`, or is `optional` and its target is confirmed absent.
+- An already-satisfied `waitFor`, `waitForGone`, or `waitForChange` is not by itself a valid reason for an instructional step to disappear.
+- For a realistic wait condition that can be satisfied on chapter entry, run both satisfied and unsatisfied initial states. At minimum, do this for the first applicable step and responsive or persisted UI state.
+- If `showWhenAlreadySatisfied` is set, verify the step remains visible and offers a way to continue without repeating the completed action.
+- Report missing, duplicated, reordered, or unexpectedly auto-advanced steps as failures even when all later steps work.
 
 ## Required Checks
 
@@ -80,6 +95,7 @@ Use real clicks first. If Playwright reports a Joyride button outside the viewpo
 ## Known Fragile Cases
 
 - Previous `waitFor` is already satisfied after Back and auto-advances.
+- First or forward `waitFor` is already satisfied and the instructional step never appears.
 - Previous target disappeared and Joyride closes or skips.
 - Back from modal/open/create/apply/drag leaves UI in a state the previous step cannot use.
 - Hover state stays active because the mouse remains over the trigger.
@@ -101,6 +117,8 @@ Use real clicks first. If Playwright reports a Joyride button outside the viewpo
 
 - Add or update focused regression tests only after confirming the failure in Playwright.
 - Model the smallest realistic state in the test harness.
+- Assert the expected first title and full applicable forward sequence for chapter-entry or skipped-step bugs.
+- Cover both satisfied and unsatisfied initial wait state when the bug depends on existing UI state.
 - Assert previous tooltip title and required app state after Back.
 - Complete forward again after Back to prove the tour is not stuck.
 - Prefer a few end-to-end-ish tour tests over isolated unit tests.
@@ -109,6 +127,6 @@ Use real clicks first. If Playwright reports a Joyride button outside the viewpo
 
 Report failures with viewport, step index/title, expected state, actual state, and screenshot path only when useful.
 
-Completion requires all relevant viewport paths, Back checks, UI-state checks, unclipped tooltip/buttons, no console errors, focused regression coverage when a bug is fixed, and Biome/Vitest passing for touched files.
+Completion requires the expected and observed step sequences to match or every omission to have a confirmed valid skip reason, plus all relevant viewport paths, entry-state variants, Back checks, UI-state checks, unclipped tooltip/buttons, no console errors, focused regression coverage when a bug is fixed, and Biome/Vitest passing for touched files.
 
 Reference: load `reference.md` only when exact Playwright snippets, selectors, or command examples are needed.
