@@ -402,6 +402,7 @@ function TestHarness() {
                 SSB
             </button>
             <div data-tour="spots-table">Spots table</div>
+            <input aria-label="Mobile callsign search" data-tour="table-search-mobile" />
             <button
                 type="button"
                 data-tour="table-search-single-spot-toggle"
@@ -1044,6 +1045,35 @@ describe("WebsiteTour", () => {
 
         await waitFor(() => {
             expect(screen.getByRole("heading", { name: "Map Controls" })).not.toBeNull();
+        });
+    });
+
+    it("keeps the show table step visible when backing from mobile callsign search", async () => {
+        test_state.is_mobile = true;
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Spots Table");
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Show The Table" })).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Callsign Search" })).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Show The Table" })).not.toBeNull();
+        });
+        expect(screen.getByTestId("joyride-buttons").textContent).toContain("primary");
+
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Callsign Search" })).not.toBeNull();
         });
     });
 
