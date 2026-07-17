@@ -1047,7 +1047,7 @@ describe("WebsiteTour", () => {
         });
     });
 
-    it("keeps map controls open when backing from projection", async () => {
+    it("keeps map controls open when backing from night overlay", async () => {
         const user = userEvent.setup();
         render(<TestHarness />);
 
@@ -1055,7 +1055,7 @@ describe("WebsiteTour", () => {
         await user.click(screen.getByRole("button", { name: "Joyride next" }));
 
         await waitFor(() => {
-            expect(screen.getByText("Try Projection")).not.toBeNull();
+            expect(screen.getByText("Try Night Overlay")).not.toBeNull();
         });
 
         await user.click(screen.getByRole("button", { name: "Joyride back" }));

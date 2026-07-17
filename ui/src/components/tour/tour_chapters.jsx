@@ -194,17 +194,6 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
             },
             {
-                target: "[data-tour='map-projection-toggle']",
-                title: "Try Projection",
-                content: "Click this button to switch between globe and azimuthal projections.",
-                buttons: action_buttons,
-                placement: "left",
-                waitForChange: {
-                    selector: "[data-tour='map-projection-toggle']",
-                    attribute: "data-tour-state",
-                },
-            },
-            {
                 target: "[data-tour='map-night-toggle']",
                 title: "Try Night Overlay",
                 content: "Click this button to toggle the day/night terminator overlay.",
@@ -212,6 +201,17 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
                 waitForChange: {
                     selector: "[data-tour='map-night-toggle']",
+                    attribute: "data-tour-state",
+                },
+            },
+            {
+                target: "[data-tour='map-projection-toggle']",
+                title: "Try Projection",
+                content: "Click this button to switch between globe and azimuthal projections.",
+                buttons: action_buttons,
+                placement: "left",
+                waitForChange: {
+                    selector: "[data-tour='map-projection-toggle']",
                     attribute: "data-tour-state",
                 },
             },

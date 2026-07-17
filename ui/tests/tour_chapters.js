@@ -73,6 +73,18 @@ describe("tour chapters", () => {
         expect(map_steps[gps_index]?.mobileOnly).toBe(true);
     });
 
+    it("orders the map display controls", () => {
+        const map_titles = TOUR_CHAPTERS.map.steps.map(step => step.title);
+        const display_panel_index = map_titles.indexOf("Display Panel");
+
+        expect(map_titles.slice(display_panel_index, display_panel_index + 4)).toEqual([
+            "Display Panel",
+            "Try Night Overlay",
+            "Try Projection",
+            "Try Equator",
+        ]);
+    });
+
     it("asks users to try safe table controls", () => {
         const interactive_targets = TOUR_CHAPTERS.spots_table.steps
             .filter(step => step.waitForChange)
