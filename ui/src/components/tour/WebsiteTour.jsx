@@ -422,12 +422,14 @@ function WebsiteTour() {
         return null;
     }, [should_skip_step, steps]);
     const current_step = steps[tour_state.step_index];
+    const current_wait_key = current_step
+        ? get_step_wait_key(tour_state.current_chapter_id, tour_state.step_index, current_step)
+        : null;
     const current_wait_for_change_key = current_step?.waitForChange
         ? `${tour_state.current_chapter_id}:${tour_state.step_index}:${current_step.waitForChange.selector}:${current_step.waitForChange.attribute ?? "text"}`
         : null;
-    const current_wait_for_change_is_already_satisfied =
-        current_wait_for_change_key != null &&
-        already_satisfied_wait_key === current_wait_for_change_key;
+    const current_wait_is_already_satisfied =
+        current_wait_key != null && already_satisfied_wait_key === current_wait_key;
     const joyride_steps = useMemo(() => {
         return steps.map((step, index) => {
             let buttons = step.buttons;
@@ -444,7 +446,7 @@ function WebsiteTour() {
             }
 
             if (
-                current_wait_for_change_is_already_satisfied &&
+                current_wait_is_already_satisfied &&
                 index === tour_state.step_index &&
                 buttons &&
                 !buttons.includes("primary")
@@ -468,7 +470,7 @@ function WebsiteTour() {
             return next_step;
         });
     }, [
-        current_wait_for_change_is_already_satisfied,
+        current_wait_is_already_satisfied,
         first_available_step_index,
         is_mobile,
         steps,
@@ -669,10 +671,10 @@ function WebsiteTour() {
 
         if (!current_step?.waitForChange) {
             wait_for_change_ref.current = { key: null, value: null };
-            set_already_satisfied_wait_key(current => (current == null ? current : null));
         }
 
         if (!current_step?.waitFor && !current_step?.waitForGone && !current_step?.waitForChange) {
+            set_already_satisfied_wait_key(current => (current == null ? current : null));
             return;
         }
 
@@ -688,9 +690,7 @@ function WebsiteTour() {
             : false;
         const satisfied_value = current_step.waitForChange?.satisfiedValue;
 
-        set_already_satisfied_wait_key(current =>
-            current === wait_for_change_key ? current : null,
-        );
+        set_already_satisfied_wait_key(current => (current === wait_key ? current : null));
 
         if (current_step.waitForChange && wait_for_change_ref.current.key !== wait_for_change_key) {
             const current_change_value = get_wait_for_change_value(current_step.waitForChange);
@@ -700,17 +700,28 @@ function WebsiteTour() {
             };
 
             if (has_satisfied_value && current_change_value === satisfied_value) {
-                set_already_satisfied_wait_key(wait_for_change_key);
+                set_already_satisfied_wait_key(wait_key);
+            }
+        }
+
+        if (
+            !current_step.waitForChange &&
+            current_step.showWhenAlreadySatisfied &&
+            step_wait_is_satisfied(current_step)
+        ) {
+            if (backward_wait_ref.current.key !== wait_key) {
+                set_already_satisfied_wait_key(wait_key);
+                return;
             }
         }
 
         const set_current_step_already_satisfied = is_satisfied => {
             set_already_satisfied_wait_key(current => {
                 if (is_satisfied) {
-                    return current === wait_for_change_key ? current : wait_for_change_key;
+                    return current === wait_key ? current : wait_key;
                 }
 
-                return current === wait_for_change_key ? null : current;
+                return current === wait_key ? null : current;
             });
         };
 

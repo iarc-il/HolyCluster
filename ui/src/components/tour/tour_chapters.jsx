@@ -136,6 +136,7 @@ export const TOUR_CHAPTERS = {
                 buttons: action_buttons,
                 placement: "center",
                 mobileHideOverlay: true,
+                showWhenAlreadySatisfied: true,
                 skipBeacon: true,
             },
             {

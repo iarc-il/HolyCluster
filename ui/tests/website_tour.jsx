@@ -15,6 +15,7 @@ import {
 
 const test_state = vi.hoisted(() => ({
     filters_context: null,
+    is_mobile: false,
     local_storage: new Map(),
     set_spot_buffering: vi.fn(),
 }));
@@ -42,7 +43,7 @@ vi.mock("@uidotdev/usehooks", async () => {
 
             return [value, set_stored_value];
         },
-        useMediaQuery: () => false,
+        useMediaQuery: () => test_state.is_mobile,
     };
 });
 
@@ -284,6 +285,10 @@ function TestHarness() {
     return (
         <>
             <WebsiteTour />
+            <div data-tour="mobile-main-tabs">
+                <button type="button">Map</button>
+                <button type="button">Table</button>
+            </div>
             <div data-tour="map-panel">Map</div>
             <div data-tour="map-controls">Map controls</div>
             <button type="button" data-tour="map-reset">
@@ -731,6 +736,7 @@ describe("WebsiteTour", () => {
     afterEach(() => {
         HTMLElement.prototype.getClientRects = get_client_rects;
         test_state.filters_context = null;
+        test_state.is_mobile = false;
         test_state.local_storage.clear();
         test_state.set_spot_buffering.mockClear();
         cleanup();
@@ -1019,6 +1025,26 @@ describe("WebsiteTour", () => {
             expect(screen.queryByText("Projection")).toBeNull();
         });
         expect(screen.getByText("Open Map Controls")).not.toBeNull();
+    });
+
+    it("starts the mobile map tour on the show map step when the map is already visible", async () => {
+        test_state.is_mobile = true;
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Map");
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Show The Map" })).not.toBeNull();
+        });
+        expect(screen.getByTestId("joyride-buttons").textContent).toContain("primary");
+        expect(screen.getByTestId("joyride-buttons").textContent).not.toContain("back");
+
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Map Controls" })).not.toBeNull();
+        });
     });
 
     it("keeps map controls open when backing from projection", async () => {
