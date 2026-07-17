@@ -353,7 +353,6 @@ export const TOUR_CHAPTERS = {
                 before: scroll_target_to_center("[data-tour='spot-row']"),
                 placement: "top",
                 mobilePlacement: "auto",
-                mobileHideOverlay: true,
                 mobileScrollOffset: 96,
                 skipScroll: true,
                 waitForChange: {
@@ -372,7 +371,6 @@ export const TOUR_CHAPTERS = {
                 before: scroll_target_to_center("[data-tour='spot-row-dx-callsign']"),
                 placement: "top",
                 mobilePlacement: "auto",
-                mobileHideOverlay: true,
                 mobileScrollOffset: 96,
                 skipScroll: true,
                 waitFor: "[data-tour='table-context-menu'][data-tour-state='callsign']",
@@ -398,7 +396,6 @@ export const TOUR_CHAPTERS = {
                 before: scroll_target_to_center("[data-tour='spot-row-flag']"),
                 placement: "top",
                 mobilePlacement: "auto",
-                mobileHideOverlay: true,
                 mobileScrollOffset: 96,
                 skipScroll: true,
                 waitFor: "[data-tour='table-context-menu'][data-tour-state='flag']",

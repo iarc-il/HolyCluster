@@ -278,9 +278,6 @@ describe("tour chapters", () => {
             ["quick_start", "[data-tour='mobile-main-tabs']"],
             ["map", "[data-tour='mobile-main-tabs']"],
             ["spots_table", "[data-tour='mobile-main-tabs']"],
-            ["spots_table", "[data-tour='spot-row']"],
-            ["spots_table", "[data-tour='spot-row-dx-callsign']"],
-            ["spots_table", "[data-tour='spot-row-flag']"],
             ["filters", "[data-tour='filter-options-trigger-bands-20']"],
             ["filters", "[data-tour='filter-modal-text-value']"],
             ["filters", "[data-tour='modal-apply-button']"],
@@ -294,6 +291,21 @@ describe("tour chapters", () => {
             );
             expect(step, `${chapter_id}: ${target}`).toBeDefined();
             expect(step?.mobileHideOverlay, `${chapter_id}: ${target}`).toBe(true);
+        }
+    });
+
+    it("highlights interactive spot row targets on mobile", () => {
+        const highlighted_targets = [
+            "[data-tour='spot-row']",
+            "[data-tour='spot-row-dx-callsign']",
+            "[data-tour='spot-row-flag']",
+        ];
+
+        for (const target of highlighted_targets) {
+            const step = TOUR_CHAPTERS.spots_table.steps.find(
+                candidate => candidate.target === target,
+            );
+            expect(step?.mobileHideOverlay, target).not.toBe(true);
         }
     });
 
