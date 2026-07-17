@@ -433,6 +433,11 @@ function WebsiteTour() {
             let buttons = step.buttons;
             const placement =
                 is_mobile && step.mobilePlacement ? step.mobilePlacement : step.placement;
+            const hideOverlay = is_mobile && step.mobileHideOverlay ? true : step.hideOverlay;
+            const scrollOffset =
+                is_mobile && step.mobileScrollOffset != null
+                    ? step.mobileScrollOffset
+                    : step.scrollOffset;
 
             if (index === first_available_step_index) {
                 buttons = (buttons ?? default_tour_buttons).filter(button => button !== "back");
@@ -447,9 +452,16 @@ function WebsiteTour() {
                 buttons = [...buttons, "primary"];
             }
 
-            if (buttons === step.buttons && placement === step.placement) return step;
+            if (
+                buttons === step.buttons &&
+                placement === step.placement &&
+                hideOverlay === step.hideOverlay &&
+                scrollOffset === step.scrollOffset
+            ) {
+                return step;
+            }
 
-            const next_step = { ...step, placement };
+            const next_step = { ...step, hideOverlay, placement, scrollOffset };
             if (buttons !== step.buttons) {
                 next_step.buttons = buttons;
             }
@@ -867,6 +879,7 @@ function WebsiteTour() {
                     overlayClickAction: null,
                     showProgress: true,
                     spotlightRadius: 8,
+                    width: "min(360px, calc(100vw - 32px))",
                     zIndex: 10000,
                 }}
                 locale={{ last: "Done" }}

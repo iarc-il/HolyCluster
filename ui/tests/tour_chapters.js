@@ -161,6 +161,121 @@ describe("tour chapters", () => {
         }
     });
 
+    it("uses mobile-safe placement for large overview panels", () => {
+        const large_panel_targets = [
+            ["quick_start", "[data-tour='left-column']"],
+            ["filters", "[data-tour='left-column']"],
+            ["filters", "[data-tour='filters-panel']"],
+            ["side_panel", "[data-tour='side-panel']"],
+            ["side_panel", "[data-tour='side-panel-view-filters']"],
+            ["side_panel", "[data-tour='band-bar-panel']"],
+            ["side_panel", "[data-tour='band-bar-chart']"],
+            ["side_panel", "[data-tour='heatmap-panel']"],
+            ["side_panel", "[data-tour='dxpeditions-panel']"],
+            ["side_panel", "[data-tour='dxpeditions-summary']"],
+            ["side_panel", "[data-tour='dxpeditions-filter']"],
+            ["side_panel", "[data-tour='dxpeditions-sort']"],
+            ["side_panel", "[data-tour='hunter-panel']"],
+            ["side_panel", "[data-tour='hunter-adif-import']"],
+        ];
+
+        for (const [chapter_id, target] of large_panel_targets) {
+            const step = TOUR_CHAPTERS[chapter_id].steps.find(
+                candidate => candidate.target === target,
+            );
+            expect(step, `${chapter_id}: ${target}`).toBeDefined();
+            expect(step?.mobilePlacement, `${chapter_id}: ${target}`).toBe("center");
+        }
+    });
+
+    it("keeps interactive mobile placements target-clickable", () => {
+        const interactive_mobile_targets = [
+            ["quick_start", "[data-tour='mobile-main-tabs']", "center"],
+            ["map", "[data-tour='mobile-main-tabs']", "center"],
+            ["spots_table", "[data-tour='mobile-main-tabs']", "center"],
+            ["spots_table", "[data-tour='table-header-dx_callsign']", "auto"],
+            ["spots_table", "[data-tour='spot-row']", "auto"],
+            ["spots_table", "[data-tour='spot-row-dx-callsign']", "auto"],
+            ["spots_table", "[data-tour='spot-row-flag']", "auto"],
+            ["spots_table", "[data-tour='spot-row-frequency']", "auto"],
+            ["spots_table", "[data-tour='spot-row-mode']", "auto"],
+            ["filters", "[data-tour='band-filter-20']", "auto"],
+            ["filters", "[data-tour='filter-options-trigger-bands-20']", "auto"],
+            ["filters", "[data-tour='mode-filter-SSB']", "auto"],
+            ["side_panel", "[data-tour='side-panel-tab-filters']", "auto"],
+            ["side_panel", "[data-tour='side-panel-tab-band-bar']", "auto"],
+            ["side_panel", "[data-tour='side-panel-tab-heatmap']", "auto"],
+            ["side_panel", "[data-tour='side-panel-tab-dxpeditions']", "auto"],
+            ["side_panel", "[data-tour='side-panel-tab-missing']", "auto"],
+        ];
+
+        for (const [chapter_id, target, placement] of interactive_mobile_targets) {
+            const step = TOUR_CHAPTERS[chapter_id].steps.find(
+                candidate => candidate.target === target,
+            );
+            const effective_mobile_placement = step?.mobilePlacement ?? step?.placement;
+            expect(step, `${chapter_id}: ${target}`).toBeDefined();
+            expect(effective_mobile_placement, `${chapter_id}: ${target}`).toBe(placement);
+            if (effective_mobile_placement === "center") {
+                expect(step?.mobileHideOverlay, `${chapter_id}: ${target}`).toBe(true);
+            }
+        }
+    });
+
+    it("scrolls mobile table row targets below the fixed top bar", () => {
+        const row_targets = [
+            "[data-tour='spot-row']",
+            "[data-tour='spot-row-dx-callsign']",
+            "[data-tour='spot-row-flag']",
+            "[data-tour='spot-row-frequency']",
+            "[data-tour='spot-row-band']",
+            "[data-tour='spot-row-mode']",
+        ];
+
+        for (const target of row_targets) {
+            const step = TOUR_CHAPTERS.spots_table.steps.find(
+                candidate => candidate.target === target,
+            );
+            expect(step, target).toBeDefined();
+            expect(step?.mobileScrollOffset, target).toBeGreaterThanOrEqual(80);
+            expect(step?.skipScroll, target).toBe(true);
+            expect(step?.before, target).toBeTypeOf("function");
+        }
+    });
+
+    it("lets the settings close step choose an in-viewport side", () => {
+        const close_step = TOUR_CHAPTERS.settings.steps.find(
+            step => step.target === "[data-tour='modal-close-button']",
+        );
+
+        expect(close_step).toBeDefined();
+        expect(close_step?.placement).toBe("auto");
+    });
+
+    it("disables the mobile overlay for touch-sensitive tour steps", () => {
+        const touch_sensitive_targets = [
+            ["quick_start", "[data-tour='mobile-main-tabs']"],
+            ["map", "[data-tour='mobile-main-tabs']"],
+            ["spots_table", "[data-tour='mobile-main-tabs']"],
+            ["spots_table", "[data-tour='spot-row']"],
+            ["spots_table", "[data-tour='spot-row-dx-callsign']"],
+            ["spots_table", "[data-tour='spot-row-flag']"],
+            ["filters", "[data-tour='filter-options-trigger-bands-20']"],
+            ["filters", "[data-tour='filter-modal-text-value']"],
+            ["filters", "[data-tour='modal-apply-button']"],
+            ["filters", "[data-tour='filter-line-alert']"],
+            ["settings", "[data-tour='modal-close-button']"],
+        ];
+
+        for (const [chapter_id, target] of touch_sensitive_targets) {
+            const step = TOUR_CHAPTERS[chapter_id].steps.find(
+                candidate => candidate.target === target,
+            );
+            expect(step, `${chapter_id}: ${target}`).toBeDefined();
+            expect(step?.mobileHideOverlay, `${chapter_id}: ${target}`).toBe(true);
+        }
+    });
+
     it("targets visible settings modal content for dialog overview steps", () => {
         const settings_open_step = TOUR_CHAPTERS.settings.steps.find(
             step => step.target === "[data-tour='top-bar-settings']",

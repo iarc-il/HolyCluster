@@ -332,6 +332,13 @@ function TestHarness() {
             {show_settings ? (
                 <div data-tour="settings-modal">
                     <div data-tour="settings-modal-content">
+                        <button
+                            type="button"
+                            data-tour="modal-close-button"
+                            onClick={() => set_show_settings(false)}
+                        >
+                            Close settings
+                        </button>
                         <div data-tour="settings-tabs">
                             <button
                                 type="button"

@@ -7,7 +7,10 @@ import TopBar from "@/components/TopBar.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import HistoryBar from "@/components/history/HistoryBar.jsx";
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
-import { TOUR_CLOSE_SIDE_PANEL_EVENT } from "@/components/tour/tour_events.js";
+import {
+    TOUR_CLOSE_LEFT_PANEL_EVENT,
+    TOUR_CLOSE_SIDE_PANEL_EVENT,
+} from "@/components/tour/tour_events.js";
 import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
@@ -194,12 +197,18 @@ function MainContent({
     });
 
     useEffect(() => {
+        function close_left_panel_for_tour() {
+            set_toggled_ui(state => ({ ...state, left_visible: false }));
+        }
+
         function close_side_panel_for_tour() {
             set_toggled_ui(state => ({ ...state, right_visible: false }));
         }
 
+        document.addEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
         document.addEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
         return () => {
+            document.removeEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
             document.removeEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
         };
     }, []);
