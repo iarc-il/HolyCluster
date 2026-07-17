@@ -60,6 +60,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='left-column']",
                 buttons: action_buttons,
                 placement: "bottom",
+                showWhenAlreadySatisfied: true,
             },
             {
                 target: "[data-tour='left-column']",
@@ -576,22 +577,19 @@ export const TOUR_CHAPTERS = {
                 target: "[data-tour='filter-section-alert']",
                 title: "Alert Filters",
                 content: "Alert filters keep matching spots visible and visually highlighted.",
-                placement: "left",
-                mobilePlacement: "center",
+                placement: "bottom",
             },
             {
                 target: "[data-tour='filter-section-show_only']",
                 title: "Show-Only Filters",
                 content: "Show-only filters limit the interface to matching spots.",
-                placement: "left",
-                mobilePlacement: "center",
+                placement: "bottom",
             },
             {
                 target: "[data-tour='filter-section-hide']",
                 title: "Hide Filters",
                 content: "Hide filters remove matching spots from the table and map.",
-                placement: "left",
-                mobilePlacement: "center",
+                placement: "bottom",
             },
             {
                 target: "[data-tour='add-filter-button-alert']",

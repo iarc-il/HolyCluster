@@ -209,6 +209,20 @@ describe("tour chapters", () => {
         }
     });
 
+    it("places advanced filter section steps below their targets", () => {
+        const section_targets = [
+            "[data-tour='filter-section-alert']",
+            "[data-tour='filter-section-show_only']",
+            "[data-tour='filter-section-hide']",
+        ];
+
+        for (const target of section_targets) {
+            const step = TOUR_CHAPTERS.filters.steps.find(candidate => candidate.target === target);
+            expect(step?.placement, target).toBe("bottom");
+            expect(step?.mobilePlacement, target).toBeUndefined();
+        }
+    });
+
     it("keeps interactive mobile placements target-clickable", () => {
         const interactive_mobile_targets = [
             ["map", "[data-tour='mobile-main-tabs']", "center"],

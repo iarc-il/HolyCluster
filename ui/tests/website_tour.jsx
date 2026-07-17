@@ -18,6 +18,7 @@ const test_state = vi.hoisted(() => ({
     is_mobile: false,
     local_storage: new Map(),
     set_spot_buffering: vi.fn(),
+    show_left_menu: false,
 }));
 
 vi.mock("@uidotdev/usehooks", async () => {
@@ -334,6 +335,11 @@ function TestHarness() {
             >
                 Open settings
             </button>
+            {test_state.show_left_menu ? (
+                <button type="button" data-tour="top-bar-left-menu">
+                    Open filter rail
+                </button>
+            ) : null}
             {show_settings ? (
                 <div data-tour="settings-modal">
                     <div data-tour="settings-modal-content">
@@ -740,6 +746,7 @@ describe("WebsiteTour", () => {
         test_state.is_mobile = false;
         test_state.local_storage.clear();
         test_state.set_spot_buffering.mockClear();
+        test_state.show_left_menu = false;
         cleanup();
         vi.restoreAllMocks();
     });
@@ -1074,6 +1081,39 @@ describe("WebsiteTour", () => {
 
         await waitFor(() => {
             expect(screen.getByRole("heading", { name: "Callsign Search" })).not.toBeNull();
+        });
+    });
+
+    it("keeps the open filter rail step visible when backing on mobile", async () => {
+        test_state.is_mobile = true;
+        test_state.show_left_menu = true;
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Quick Start");
+        for (let index = 0; index < 4; index += 1) {
+            await user.click(screen.getByRole("button", { name: "Joyride next" }));
+        }
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Open The Filter Rail" })).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Band And Mode Filters" })).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Open The Filter Rail" })).not.toBeNull();
+        });
+        expect(screen.getByTestId("joyride-buttons").textContent).toContain("primary");
+
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Band And Mode Filters" })).not.toBeNull();
         });
     });
 
