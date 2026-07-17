@@ -64,6 +64,15 @@ describe("tour chapters", () => {
         expect(interactive_targets).toContain("[data-tour='map-region-overlay-us_state']");
     });
 
+    it("introduces the mobile GPS control before reset", () => {
+        const map_steps = TOUR_CHAPTERS.map.steps;
+        const gps_index = map_steps.findIndex(step => step.target === "[data-tour='map-gps']");
+        const reset_index = map_steps.findIndex(step => step.target === "[data-tour='map-reset']");
+
+        expect(gps_index).toBe(reset_index - 1);
+        expect(map_steps[gps_index]?.mobileOnly).toBe(true);
+    });
+
     it("asks users to try safe table controls", () => {
         const interactive_targets = TOUR_CHAPTERS.spots_table.steps
             .filter(step => step.waitForChange)

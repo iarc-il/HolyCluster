@@ -158,6 +158,13 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
             },
             {
+                target: "[data-tour='map-gps']",
+                title: "GPS Location",
+                content: "Use this button to center the map on your current GPS location.",
+                mobileOnly: true,
+                placement: "left",
+            },
+            {
                 target: "[data-tour='map-reset']",
                 title: "Reset Map",
                 content: "Use this to return the map to your configured home view.",
