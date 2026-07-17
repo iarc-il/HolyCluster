@@ -904,6 +904,36 @@ describe("WebsiteTour", () => {
         expect(screen.queryByRole("button", { name: "Joyride back" })).toBeNull();
     });
 
+    it("keeps the filter rail step visible when backing from quick filters on mobile", async () => {
+        test_state.is_mobile = true;
+        test_state.show_left_menu = true;
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Filters");
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Open The Filter Rail" })).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Quick Filters" })).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Open The Filter Rail" })).not.toBeNull();
+        });
+        expect(screen.getByTestId("joyride-buttons").textContent).toContain("primary");
+
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Quick Filters" })).not.toBeNull();
+        });
+    });
+
     it("returns to the band filter when backing from ONLY and ALL", async () => {
         const user = userEvent.setup();
         render(<TestHarness />);

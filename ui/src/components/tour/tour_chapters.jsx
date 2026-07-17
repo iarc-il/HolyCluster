@@ -474,6 +474,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='left-column']",
                 buttons: action_buttons,
                 placement: "bottom",
+                showWhenAlreadySatisfied: true,
                 skipBeacon: true,
             },
             {
