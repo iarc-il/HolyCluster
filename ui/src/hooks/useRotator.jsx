@@ -1,4 +1,5 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+import { useColors } from "./useColors";
 import { useWs, useWsMessage } from "./useWs";
 
 const RotatorContext = createContext(null);
@@ -13,6 +14,7 @@ function angular_distance(a, b) {
 }
 
 export function RotatorProvider({ children }) {
+    const { dev_mode } = useColors();
     const [rotator_status, set_rotator_status] = useState("unavailable");
     const [rotator_azimuth, set_rotator_azimuth] = useState(null);
     const [rotator_target_azimuth, set_rotator_target_azimuth] = useState(null);
@@ -21,7 +23,7 @@ export function RotatorProvider({ children }) {
     const { send } = useWs();
 
     useWsMessage("rotator", data => {
-        if (data.event !== "status") {
+        if (!dev_mode || data.event !== "status") {
             return;
         }
 
@@ -38,7 +40,21 @@ export function RotatorProvider({ children }) {
         set_rotator_ready(true);
     });
 
+    useEffect(() => {
+        if (dev_mode) return;
+
+        set_rotator_status("unavailable");
+        set_rotator_azimuth(null);
+        set_rotator_target_azimuth(null);
+        set_rotator_name("");
+        set_rotator_ready(false);
+    }, [dev_mode]);
+
     function set_azimuth(azimuth) {
+        if (!dev_mode) {
+            return;
+        }
+
         const next_azimuth = Number(azimuth);
         if (!Number.isFinite(next_azimuth)) {
             return;
@@ -53,7 +69,9 @@ export function RotatorProvider({ children }) {
     }
 
     function is_rotator_available() {
-        return rotator_ready && !["unavailable", "disconnected"].includes(rotator_status);
+        return (
+            dev_mode && rotator_ready && !["unavailable", "disconnected"].includes(rotator_status)
+        );
     }
 
     return (

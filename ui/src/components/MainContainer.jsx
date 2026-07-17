@@ -152,9 +152,11 @@ function MainContent({
 
         set_mode_and_freq(spot.mode, spot.freq);
 
-        const azimuth = get_rotator_azimuth(spot);
-        if (azimuth != null && is_rotator_available()) {
-            set_azimuth(azimuth);
+        if (dev_mode) {
+            const azimuth = get_rotator_azimuth(spot);
+            if (azimuth != null && is_rotator_available()) {
+                set_azimuth(azimuth);
+            }
         }
     }
 

@@ -56,8 +56,10 @@ function CanvasMap({
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
-    const { rotator_azimuth, rotator_target_azimuth } = useRotator();
     const { colors, dev_mode } = useColors();
+    const { rotator_azimuth, rotator_target_azimuth } = useRotator();
+    const effective_rotator_azimuth = dev_mode ? rotator_azimuth : null;
+    const effective_rotator_target_azimuth = dev_mode ? rotator_target_azimuth : null;
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
     const [hovered_dxcc, set_hovered_dxcc] = useState(null);
     const [map_context_menu, set_map_context_menu] = useState({
@@ -161,8 +163,8 @@ function CanvasMap({
         hovered_zone,
         hovered_dxcc,
         home_location,
-        rotator_azimuth,
-        rotator_target_azimuth,
+        rotator_azimuth: effective_rotator_azimuth,
+        rotator_target_azimuth: effective_rotator_target_azimuth,
         night_time,
         voacap: voacap_render_state,
     };
@@ -211,8 +213,8 @@ function CanvasMap({
         hovered_zone,
         hovered_dxcc,
         home_location,
-        rotator_azimuth,
-        rotator_target_azimuth,
+        rotator_azimuth: effective_rotator_azimuth,
+        rotator_target_azimuth: effective_rotator_target_azimuth,
         voacap_state,
         animation_id_ref,
     });
