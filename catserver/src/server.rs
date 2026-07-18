@@ -11,11 +11,16 @@ use axum::{
         Request, State, WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
+    http::{HeaderMap, HeaderName, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{any, post},
 };
 use futures_util::{SinkExt, StreamExt};
-use reqwest::{Client, StatusCode};
+use hyper_tls::HttpsConnector;
+use hyper_util::{
+    client::legacy::{Client, connect::HttpConnector},
+    rt::TokioExecutor,
+};
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 use tokio::{
@@ -60,7 +65,7 @@ struct AppState {
     server_config: ServerConfig,
     radio: AnyRadio,
     rotator: AnyRotator,
-    http_client: Client,
+    http_client: Client<HttpsConnector<HttpConnector>, Body>,
     sender: Sender<UserEvent>,
 }
 
@@ -78,7 +83,7 @@ impl Server {
         server_config: ServerConfig,
         use_local_ui: bool,
     ) -> Result<Self> {
-        let http_client = Client::new();
+        let http_client = Client::builder(TokioExecutor::new()).build(HttpsConnector::new());
 
         let app = Router::new()
             .route("/ws", any(ws_handler))
@@ -158,24 +163,53 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
             .unwrap_or(""),
     );
 
-    let reqwest_response = match state.http_client.get(uri).send().await {
-        Ok(result) => result,
+    let mut request = request;
+    let uri = match uri.parse() {
+        Ok(uri) => uri,
         Err(error) => {
-            tracing::error!("Error: {error:?}");
+            tracing::error!(?error, "Failed to build upstream URI");
             return (StatusCode::BAD_REQUEST, Body::empty()).into_response();
         }
     };
+    *request.uri_mut() = uri;
+    remove_hop_by_hop_headers(request.headers_mut());
+    request.headers_mut().remove(header::HOST);
 
-    let mut response_builder = Response::builder().status(reqwest_response.status());
-    if let Some(headers) = response_builder.headers_mut() {
-        *headers = reqwest_response.headers().clone();
-    }
-    match response_builder.body(Body::from_stream(reqwest_response.bytes_stream())) {
-        Ok(response) => response,
-        Err(error) => {
-            tracing::error!(?error, "Failed to build proxy response");
-            (StatusCode::INTERNAL_SERVER_ERROR, Body::empty()).into_response()
+    match state.http_client.request(request).await {
+        Ok(mut response) => {
+            remove_hop_by_hop_headers(response.headers_mut());
+            response.map(Body::new)
         }
+        Err(error) => {
+            tracing::error!(?error, "Upstream request failed");
+            (StatusCode::BAD_GATEWAY, Body::empty()).into_response()
+        }
+    }
+}
+
+fn remove_hop_by_hop_headers(headers: &mut HeaderMap) {
+    let connection_headers = headers
+        .get_all(header::CONNECTION)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .filter_map(|name| HeaderName::from_bytes(name.trim().as_bytes()).ok())
+        .collect::<Vec<_>>();
+
+    for name in connection_headers {
+        headers.remove(name);
+    }
+    for name in [
+        header::CONNECTION,
+        HeaderName::from_static("keep-alive"),
+        header::PROXY_AUTHENTICATE,
+        header::PROXY_AUTHORIZATION,
+        header::TE,
+        header::TRAILER,
+        header::TRANSFER_ENCODING,
+        header::UPGRADE,
+    ] {
+        headers.remove(name);
     }
 }
 
