@@ -33,6 +33,9 @@ use crate::{
     utils,
 };
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone)]
 pub struct ServerConfig {
     pub dns: String,
