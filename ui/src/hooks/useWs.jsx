@@ -4,6 +4,7 @@ import useWebSocket, { ReadyState } from "react-use-websocket";
 export { ReadyState };
 
 const WS_BASE_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
+const WS_PROBE_TIMEOUT_MS = 1500;
 const WsContext = createContext(null);
 
 function normalize_legacy_radio_message(message) {
@@ -86,6 +87,15 @@ export function WsProvider({ children }) {
     } = useWebSocket(`${WS_BASE_URL}/radio`, legacy_options, transport === "legacy");
 
     const readyState = transport === "legacy" ? legacy_spots_ready_state : unified_ready_state;
+
+    useEffect(() => {
+        if (transport !== "probing") {
+            return;
+        }
+
+        const timeout = setTimeout(() => set_transport("legacy"), WS_PROBE_TIMEOUT_MS);
+        return () => clearTimeout(timeout);
+    }, [transport]);
 
     useEffect(() => {
         switch (readyState) {

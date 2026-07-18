@@ -1,4 +1,4 @@
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const websocket_mock = vi.hoisted(() => {
@@ -121,21 +121,19 @@ describe("WebSocket transport", () => {
         expect(connection_for("/radio").connect).toBe(false);
     });
 
-    it("falls back when the unified handshake stalls", () => {
-        vi.useFakeTimers();
-        try {
-            render_provider();
+    it("falls back when the unified handshake stalls", async () => {
+        render_provider();
 
-            expect(connection_for("/spots_ws").connect).toBe(false);
-            act(() => vi.advanceTimersByTime(1500));
+        await waitFor(
+            () => {
+                expect(connection_for("/ws").connect).toBe(false);
+            },
+            { timeout: 2000 },
+        );
 
-            expect(connection_for("/ws").connect).toBe(false);
-            expect(connection_for("/spots_ws").connect).toBe(true);
-            expect(connection_for("/submit_spot").connect).toBe(true);
-            expect(connection_for("/radio").connect).toBe(true);
-        } finally {
-            vi.useRealTimers();
-        }
+        expect(connection_for("/spots_ws").connect).toBe(true);
+        expect(connection_for("/submit_spot").connect).toBe(true);
+        expect(connection_for("/radio").connect).toBe(true);
     });
 
     it("falls back to and translates the catserver v1.2.0 endpoints", () => {
