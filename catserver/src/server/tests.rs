@@ -195,35 +195,42 @@ async fn tunnels_arbitrary_websocket_upgrades() {
     )))
     .await;
     let catserver = spawn_catserver(upstream.address).await;
-    let mut request = format!("ws://{}/future_socket?token=abc", catserver.address)
-        .into_client_request()
-        .unwrap();
-    request
-        .headers_mut()
-        .insert("x-test-request", HeaderValue::from_static("preserved"));
-    request.headers_mut().insert(
-        header::SEC_WEBSOCKET_PROTOCOL,
-        HeaderValue::from_static("test-protocol"),
-    );
+    for path in [
+        "/future_socket?token=abc",
+        "/submit_spot?token=abc",
+        "/spots_ws?token=abc",
+    ] {
+        let mut request = format!("ws://{}{path}", catserver.address)
+            .into_client_request()
+            .unwrap();
+        request
+            .headers_mut()
+            .insert("x-test-request", HeaderValue::from_static("preserved"));
+        request.headers_mut().insert(
+            header::SEC_WEBSOCKET_PROTOCOL,
+            HeaderValue::from_static("test-protocol"),
+        );
 
-    let (mut socket, response) = connect_async(request).await.unwrap();
+        let (mut socket, response) = connect_async(request).await.unwrap();
 
-    assert_eq!(
-        response.headers()[header::SEC_WEBSOCKET_PROTOCOL],
-        "test-protocol"
-    );
-    assert_eq!(
-        socket.next().await.unwrap().unwrap().into_text().unwrap(),
-        "/future_socket?token=abc preserved"
-    );
-    socket
-        .send(tokio_tungstenite::tungstenite::Message::Binary(
-            vec![1, 2, 3].into(),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(
-        socket.next().await.unwrap().unwrap().into_data(),
-        vec![1, 2, 3]
-    );
+        assert_eq!(
+            response.headers()[header::SEC_WEBSOCKET_PROTOCOL],
+            "test-protocol"
+        );
+        assert_eq!(
+            socket.next().await.unwrap().unwrap().into_text().unwrap(),
+            format!("{path} preserved")
+        );
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Binary(
+                vec![1, 2, 3].into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(
+            socket.next().await.unwrap().unwrap().into_data(),
+            vec![1, 2, 3]
+        );
+        socket.close(None).await.unwrap();
+    }
 }

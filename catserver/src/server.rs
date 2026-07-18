@@ -89,14 +89,6 @@ impl Server {
         let app = Router::new()
             .route("/ws", any(ws_handler))
             .route("/radio", any(cat_control_handler))
-            .route(
-                "/submit_spot",
-                any(|state, websocket| websocket_handler(state, websocket, "/submit_spot")),
-            )
-            .route(
-                "/spots_ws",
-                any(|state, websocket| websocket_handler(state, websocket, "/spots_ws")),
-            )
             .route("/exit", post(exit_server_handler))
             .route("/open", post(open_tab_handler));
 
@@ -258,85 +250,6 @@ async fn exit_server_handler(State(state): State<AppState>) -> impl IntoResponse
 async fn open_tab_handler(State(state): State<AppState>) -> impl IntoResponse {
     let _ = state.sender.send(UserEvent::OpenBrowser);
     StatusCode::OK
-}
-
-async fn websocket_handler(
-    State(state): State<AppState>,
-    websocket: WebSocketUpgrade,
-    path: &'static str,
-) -> impl IntoResponse {
-    let server_config = state.server_config;
-    websocket
-        .write_buffer_size(0)
-        .read_buffer_size(0)
-        .accept_unmasked_frames(true)
-        .on_upgrade(move |websocket: WebSocket| async move {
-            if let Err(error) = handle_websocket(server_config, websocket, path).await {
-                tracing::error!(path, ?error, "WebSocket proxy handler failed");
-            }
-        })
-}
-
-async fn handle_websocket(
-    server_config: ServerConfig,
-    client_socket: WebSocket,
-    path: &str,
-) -> Result<()> {
-    let (mut client_sender, mut client_receiver) = client_socket.split();
-    let (stream, _response) = connect_async(server_config.build_uri("ws", path)).await?;
-    let (mut server_sender, mut server_receiver) = stream.split();
-
-    use tokio_tungstenite::tungstenite;
-
-    loop {
-        tokio::select! {
-            Some(Ok(message)) = client_receiver.next() => {
-                let result = server_sender
-                    .send(utils::axum_to_tungstenite_message(message))
-                    .await;
-                if let Err(error) = &result {
-                    use tungstenite::Error;
-                    match error {
-                        Error::ConnectionClosed => {
-                            break;
-                        }
-                        _ => {
-                            result?;
-                        }
-                    }
-                }
-            }
-            Some(Ok(message)) = server_receiver.next() => {
-                let Some(message) = utils::tungstenite_to_axum_message(message) else {
-                    continue;
-                };
-                let result = client_sender
-                    .send(message)
-                    .await;
-                if result.is_err() {
-                    break;
-                }
-            }
-        }
-    }
-
-    // This is best effort, so we ignore errors
-    let _ = server_sender
-        .send(tungstenite::Message::Close(Some(
-            tungstenite::protocol::CloseFrame {
-                code: tungstenite::protocol::frame::coding::CloseCode::Normal,
-                reason: tungstenite::Utf8Bytes::from_static("Goodbye"),
-            },
-        )))
-        .await;
-    let _ = client_sender
-        .send(Message::Close(Some(axum::extract::ws::CloseFrame {
-            code: axum::extract::ws::close_code::NORMAL,
-            reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
-        })))
-        .await;
-
-    Ok(())
 }
 
 async fn cat_control_handler(
