@@ -49,26 +49,38 @@ function render_settings_modal({ dev_mode = false } = {}) {
     return { ...result, map_controls, set_radius_in_km };
 }
 
+function mock_match_media(matches) {
+    Object.defineProperty(window, "matchMedia", {
+        writable: true,
+        value: vi.fn().mockImplementation(query => ({
+            matches,
+            media: query,
+            onchange: null,
+            addListener: vi.fn(),
+            removeListener: vi.fn(),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            dispatchEvent: vi.fn(),
+        })),
+    });
+}
+
+function set_geolocation(getCurrentPosition) {
+    Object.defineProperty(window.navigator, "geolocation", {
+        configurable: true,
+        value: getCurrentPosition == null ? undefined : { getCurrentPosition },
+    });
+}
+
 describe("settings modal", () => {
     beforeEach(() => {
-        Object.defineProperty(window, "matchMedia", {
-            writable: true,
-            value: vi.fn().mockImplementation(query => ({
-                matches: false,
-                media: query,
-                onchange: null,
-                addListener: vi.fn(),
-                removeListener: vi.fn(),
-                addEventListener: vi.fn(),
-                removeEventListener: vi.fn(),
-                dispatchEvent: vi.fn(),
-            })),
-        });
+        mock_match_media(false);
         window.localStorage.clear();
     });
 
     afterEach(() => {
         cleanup();
+        set_geolocation(null);
         window.localStorage.clear();
     });
 
@@ -87,7 +99,7 @@ describe("settings modal", () => {
         await user.type(locator_input, "FN20");
         await user.clear(radius_input);
         await user.type(radius_input, "12000");
-        await user.selectOptions(document.body.querySelectorAll("select")[1], "true");
+        await user.selectOptions(document.body.querySelectorAll("select")[2], "true");
         await user.click(screen.getByText("Apply"));
 
         await waitFor(() => {
@@ -124,9 +136,29 @@ describe("settings modal", () => {
         });
     });
 
-    it("keeps the first-launch settings modal open", async () => {
+    it("does not open the settings modal on first launch", () => {
         render_settings_modal();
 
-        expect(await screen.findByText("Apply")).not.toBeNull();
+        expect(screen.queryByText("Apply")).toBeNull();
+    });
+
+    it("sets the mobile locator input from GPS", async () => {
+        const user = userEvent.setup();
+        const getCurrentPosition = vi.fn(success => {
+            success({ coords: { latitude: 40, longitude: -75 } });
+        });
+        mock_match_media(true);
+        set_geolocation(getCurrentPosition);
+        const { container } = render_settings_modal();
+
+        await user.click(container.querySelector(".cursor-pointer"));
+        await screen.findByText("Apply");
+        await user.click(
+            screen.getByRole("button", { name: "Set locator from current GPS location" }),
+        );
+
+        await waitFor(() => {
+            expect(document.body.querySelectorAll("input")[1].value).toBe("FN20MA");
+        });
     });
 });

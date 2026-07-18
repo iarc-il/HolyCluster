@@ -5,6 +5,10 @@ import SpotContextMenu from "./SpotContextMenu";
 import Popup from "./ui/Popup";
 
 import {
+    TOUR_TABLE_CONTEXT_MENU_EVENT,
+    TOUR_TABLE_SPOT_ROW_EVENT,
+} from "@/components/tour/tour_events.js";
+import {
     get_dxcc_label,
     is_canada_dxcc_code,
     is_us_state_dxcc_code,
@@ -43,6 +47,16 @@ const HUNTER_ALERT_FLASH_CSS_VAR_NAMES = [
     HUNTER_ALERT_FLASH_GLOW_ALPHA_VAR,
     HUNTER_ALERT_FLASH_GLOW_RADIUS_VAR,
 ];
+const tour_table_header_height = 32;
+const tour_table_row_height = 28;
+
+export function get_tour_row_index(spots_count, table_height) {
+    if (spots_count <= 0) return -1;
+
+    const usable_height = Math.max(0, table_height - tour_table_header_height);
+    const visible_rows = Math.max(1, Math.floor(usable_height / tour_table_row_height));
+    return Math.min(spots_count - 1, Math.floor((visible_rows - 1) / 2));
+}
 
 const hunter_alert_callsign_style = {
     backgroundColor: `rgb(var(${HUNTER_ALERT_FLASH_COLOR_VAR}, 239 68 68) / var(${HUNTER_ALERT_FLASH_BG_ALPHA_VAR}, 0))`,
@@ -164,6 +178,7 @@ const Spot = forwardRef(function Spot(
         cell_classes,
         is_pota_mode,
         show_sota_points,
+        is_tour_row,
     },
     ref,
 ) {
@@ -281,6 +296,8 @@ const Spot = forwardRef(function Spot(
     return (
         <tr
             ref={ref}
+            data-tour={is_tour_row ? "spot-row" : undefined}
+            data-tour-state={is_tour_row ? (is_pinned ? "pinned" : "unpinned") : undefined}
             style={{
                 backgroundColor: background_color,
                 outlineColor: is_regular_alerted ? colors.light_bands[spot.band] : "",
@@ -316,6 +333,7 @@ const Spot = forwardRef(function Spot(
                     on_context_menu(event, spot, "flag");
                 }}
                 className={cell_classes.flag}
+                data-tour={is_tour_row ? "spot-row-flag" : undefined}
             >
                 <div
                     className="relative cursor-pointer"
@@ -346,6 +364,7 @@ const Spot = forwardRef(function Spot(
             </td>
             <td
                 className={`${cell_classes.dx_callsign} font-semibold`}
+                data-tour={is_tour_row ? "spot-row-dx-callsign" : undefined}
                 style={{
                     outline: is_dxpedition_alerted
                         ? `2px solid ${colors.spots.dxpedition_alert}`
@@ -401,7 +420,11 @@ const Spot = forwardRef(function Spot(
                     </Popup>
                 )}
             </td>
-            <td className={cell_classes.freq} onClick={() => set_cat_to_spot(spot)}>
+            <td
+                className={cell_classes.freq}
+                data-tour={is_tour_row ? "spot-row-frequency" : undefined}
+                onClick={() => set_cat_to_spot(spot)}
+            >
                 <div
                     className="inline-block min-w-[3.25rem] px-1 rounded-full cursor-pointer md:hidden"
                     style={{ backgroundColor: color, color: colors.text[spot.band] }}
@@ -412,7 +435,7 @@ const Spot = forwardRef(function Spot(
                     {spot.freq}
                 </div>
             </td>
-            <td className={cell_classes.band}>
+            <td className={cell_classes.band} data-tour={is_tour_row ? "spot-row-band" : undefined}>
                 <p
                     className="inline-block min-w-[2.75rem] px-1 rounded-full font-medium whitespace-nowrap"
                     style={{
@@ -425,6 +448,7 @@ const Spot = forwardRef(function Spot(
             </td>
             <td
                 className={cell_classes.spotter_callsign}
+                data-tour="spot-row-spotter"
                 onContextMenu={event => {
                     event.preventDefault();
                     on_context_menu(event, spot, "callsign", true);
@@ -432,7 +456,9 @@ const Spot = forwardRef(function Spot(
             >
                 <Callsign callsign={spot.spotter_callsign} />
             </td>
-            <td className={cell_classes.mode}>{spot.mode}</td>
+            <td className={cell_classes.mode} data-tour={is_tour_row ? "spot-row-mode" : undefined}>
+                {spot.mode}
+            </td>
             {is_pota_mode ? (
                 <>
                     <td className={cell_classes.pota_reference}>
@@ -478,7 +504,11 @@ const Spot = forwardRef(function Spot(
                     )}
                 </>
             ) : (
-                <td className={cell_classes.comment} title={comment}>
+                <td
+                    className={cell_classes.comment}
+                    title={comment}
+                    data-tour={is_tour_row ? "spot-row-comment" : undefined}
+                >
                     {comment}
                 </td>
             )}
@@ -550,6 +580,14 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
     return (
         <td
             className={`sticky top-0 z-40 h-8 ${sorting ? "cursor-pointer " : ""}${cell_classes[field]}`}
+            data-tour={`table-header-${field}`}
+            data-tour-state={
+                sorting && table_sort.column === field
+                    ? table_sort.ascending
+                        ? "ascending"
+                        : "descending"
+                    : "inactive"
+            }
             style={{
                 backgroundColor: colors.table.header,
                 color: colors.table.header_text,
@@ -579,6 +617,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const { get_filter_add_status, add_filter_if_allowed } = useFilters();
     const row_refs = useRef({});
     const table_flash_ref = useRef(null);
+    const [tour_row_index, set_tour_row_index] = useState(4);
     const has_hunter_alerted_spots = spots.some(spot => spot.hunterNeeded?.is_needed);
 
     useEffect(() => {
@@ -614,6 +653,26 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         };
     }, [has_hunter_alerted_spots, colors.spots]);
 
+    useEffect(() => {
+        const element = table_flash_ref.current;
+        if (!element) return;
+
+        function update_tour_row_index() {
+            set_tour_row_index(get_tour_row_index(spots.length, element.clientHeight));
+        }
+
+        update_tour_row_index();
+
+        if (typeof ResizeObserver === "undefined") {
+            window.addEventListener("resize", update_tour_row_index);
+            return () => window.removeEventListener("resize", update_tour_row_index);
+        }
+
+        const resize_observer = new ResizeObserver(update_tour_row_index);
+        resize_observer.observe(element);
+        return () => resize_observer.disconnect();
+    }, [spots.length]);
+
     const parity_map = useRef(new Map());
     const prev_sort = useRef(table_sort);
     update_parity_map(parity_map.current, prev_sort, table_sort, spots);
@@ -624,6 +683,8 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
           ? pota_cell_classes
           : cell_classes;
     const table_columns = show_sota_points ? sota_columns : is_pota_mode ? pota_columns : columns;
+    const selected_tour_row_index =
+        spots.length > 0 ? Math.min(tour_row_index, spots.length - 1) : -1;
 
     const [context_menu, set_context_menu] = useState({
         visible: false,
@@ -759,6 +820,60 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     };
 
     useEffect(() => {
+        function handle_tour_table_context_menu(event) {
+            const detail = event.detail ?? {};
+            if (detail.open === false) {
+                set_context_menu(current => ({ ...current, visible: false }));
+                return;
+            }
+
+            const spot = spots[selected_tour_row_index];
+            if (!spot || !detail.target || !detail.menu_type) return;
+
+            const target = document.querySelector(detail.target);
+            if (!target) return;
+
+            const rect = target.getBoundingClientRect();
+            set_context_menu({
+                visible: true,
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2,
+                spot,
+                is_spotter: detail.is_spotter === true,
+                menu_type: detail.menu_type,
+            });
+        }
+
+        document.addEventListener(TOUR_TABLE_CONTEXT_MENU_EVENT, handle_tour_table_context_menu);
+        return () => {
+            document.removeEventListener(
+                TOUR_TABLE_CONTEXT_MENU_EVENT,
+                handle_tour_table_context_menu,
+            );
+        };
+    }, [selected_tour_row_index, spots]);
+
+    useEffect(() => {
+        function handle_tour_table_spot_row(event) {
+            const detail = event.detail ?? {};
+            if (detail.pinned === false) {
+                set_pinned_spot(null);
+                return;
+            }
+
+            const spot = spots[selected_tour_row_index];
+            if (detail.pinned === true && spot) {
+                set_pinned_spot(spot.id);
+            }
+        }
+
+        document.addEventListener(TOUR_TABLE_SPOT_ROW_EVENT, handle_tour_table_spot_row);
+        return () => {
+            document.removeEventListener(TOUR_TABLE_SPOT_ROW_EVENT, handle_tour_table_spot_row);
+        };
+    }, [selected_tour_row_index, set_pinned_spot, spots]);
+
+    useEffect(() => {
         const hovered_ref = row_refs.current[hovered_spot.id];
 
         if (
@@ -774,12 +889,13 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         <>
             <div
                 className="relative text-sm h-full w-full border-x-4 flex flex-col min-h-0"
+                data-tour="spots-table"
                 style={{
                     borderColor: colors.theme.borders,
                     backgroundColor: colors.theme.background,
                 }}
             >
-                <CallsignSearch />
+                <CallsignSearch data_tour="table-search" />
                 <div
                     ref={table_flash_ref}
                     className="flex-1 min-h-0 overflow-y-scroll overflow-x-hidden"
@@ -789,7 +905,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                         onMouseLeave={_ => set_hovered_spot({ source: null, id: null })}
                     >
                         <tbody className="divide-y">
-                            <tr>
+                            <tr data-tour="table-header-row">
                                 {table_columns.map(col => (
                                     <HeaderCell
                                         key={col.field}
@@ -802,7 +918,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     />
                                 ))}
                             </tr>
-                            {spots.map(spot => (
+                            {spots.map((spot, index) => (
                                 <Spot
                                     ref={element => (row_refs.current[spot.id] = element)}
                                     key={spot.id}
@@ -818,12 +934,18 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     cell_classes={table_cell_classes}
                                     is_pota_mode={is_pota_mode}
                                     show_sota_points={show_sota_points}
+                                    is_tour_row={index === selected_tour_row_index}
                                 />
                             ))}
                         </tbody>
                     </table>
                 </div>
-                <CallsignSearch className="flex md:hidden" compact={true} border_position="top" />
+                <CallsignSearch
+                    className="flex md:hidden"
+                    compact={true}
+                    border_position="top"
+                    data_tour="table-search-mobile"
+                />
             </div>
             {context_menu.visible && (
                 <SpotContextMenu
@@ -833,6 +955,8 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     is_spotter={context_menu.is_spotter}
                     on_close={() => set_context_menu({ ...context_menu, visible: false })}
                     actions={get_context_menu_actions(context_menu.menu_type)}
+                    data_tour="table-context-menu"
+                    data_tour_state={context_menu.menu_type}
                 />
             )}
         </>

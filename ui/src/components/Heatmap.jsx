@@ -164,12 +164,13 @@ function Heatmap() {
     }, [heatmap_data, colors.theme.text, settings]);
 
     return (
-        <div className="pt-2">
-            <div className="flex justify-between items-center pb-3">
+        <div className="pt-2" data-tour="heatmap-panel">
+            <div className="flex justify-between items-center pb-3" data-tour="heatmap-controls">
                 <div style={{ color: colors.theme.text }}>
                     <span className="text-sm">Continent:</span>
                     <select
                         value={selected_continent}
+                        data-tour="heatmap-continent-selector"
                         onChange={event =>
                             update_active_profile_section("panels", panels => ({
                                 ...panels,
@@ -193,7 +194,7 @@ function Heatmap() {
                 </div>
             </div>
 
-            <div>
+            <div data-tour="heatmap-chart">
                 <canvas
                     ref={canvas_ref}
                     style={{
@@ -204,7 +205,7 @@ function Heatmap() {
                 />
             </div>
 
-            <div className="mt-4" style={{ color: colors.theme.text }}>
+            <div className="mt-4" data-tour="heatmap-legend" style={{ color: colors.theme.text }}>
                 <div className="flex items-center justify-between text-xs mb-1">
                     <span>0</span>
                     <span>9</span>

@@ -9,9 +9,10 @@ import { create_default_hunter, sanitize_hunter } from "@/utils/profile_data.js"
 import { find_zone_number, is_valid_zone_number, normalize_zone_value } from "@/utils/zones.js";
 import { AdifParser } from "adif-parser-ts";
 
-export const HUNTER_ADIF_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
-export const HUNTER_ADIF_MAX_QSO_RECORDS = 50_000;
-export const HUNTER_RESOLVE_BATCH_SIZE = 100;
+export const HUNTER_ADIF_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+const HUNTER_RESOLVE_WS_CHUNK_SIZE = 500;
+const HUNTER_RESOLVE_MAX_ATTEMPTS = 3;
+const WS_PROTOCOL_VERSION = 1;
 export const HUNTER_IMPORT_PHASES = Object.freeze({
     PARSING: "parsing",
     PROCESSING: "processing",
@@ -243,12 +244,9 @@ function validate_adif_text(adif_text) {
     }
 }
 
-function validate_import_limits({ file_size, record_count }) {
+function validate_import_limits({ file_size }) {
     if (file_size != null && file_size > HUNTER_ADIF_MAX_FILE_SIZE_BYTES) {
-        throw new HunterAdifImportError("ADIF file is too large. Maximum size is 20 MB.");
-    }
-    if (record_count > HUNTER_ADIF_MAX_QSO_RECORDS) {
-        throw new HunterAdifImportError("ADIF file has too many QSO records. Maximum is 50,000.");
+        throw new HunterAdifImportError("ADIF file is too large. Maximum size is 50 MB.");
     }
 }
 
@@ -258,18 +256,117 @@ function validate_adif_records(records) {
     }
 }
 
-export async function resolve_hunter_callsigns(callsigns) {
-    const response = await fetch("/hunter/resolve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ callsigns }),
-    });
+function resolve_hunter_callsigns_once(callsigns, pending, results, errors, on_progress) {
+    return new Promise((resolve, reject) => {
+        const job_id =
+            typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+                ? crypto.randomUUID()
+                : `${Date.now()}:${Math.random()}`;
+        const location = globalThis.location;
+        if (!location?.host) throw new Error("Missing resolver websocket host");
 
-    if (!response.ok) {
-        throw new Error(`Missing resolver failed with HTTP ${response.status}`);
+        const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+        const socket = new WebSocket(`${protocol}//${location.host}/ws`);
+        let completed = false;
+
+        function send(data) {
+            socket.send(JSON.stringify({ version: WS_PROTOCOL_VERSION, type: "hunter", ...data }));
+        }
+
+        function fail(error) {
+            if (completed) return;
+            completed = true;
+            socket.close();
+            reject(error);
+        }
+
+        socket.onopen = () => {
+            send({ action: "start", job_id });
+            for (let index = 0; index < callsigns.length; index += HUNTER_RESOLVE_WS_CHUNK_SIZE) {
+                send({
+                    action: "add",
+                    job_id,
+                    callsigns: callsigns.slice(index, index + HUNTER_RESOLVE_WS_CHUNK_SIZE),
+                });
+            }
+            send({ action: "finish", job_id });
+        };
+
+        socket.onmessage = event => {
+            let message;
+            try {
+                message = JSON.parse(event.data);
+            } catch (error) {
+                fail(error);
+                return;
+            }
+
+            if (message.type === "error") {
+                fail(new Error(message.message || "Missing resolver failed."));
+                return;
+            }
+            if (message.type !== "hunter" || message.job_id !== job_id) return;
+
+            if (message.event === "results") {
+                for (const [callsign, result] of Object.entries(message.results ?? {})) {
+                    results[callsign] = result;
+                    pending.delete(callsign);
+                }
+                for (const [callsign, error] of Object.entries(message.errors ?? {})) {
+                    errors[callsign] = error;
+                    pending.delete(callsign);
+                }
+                on_progress?.();
+                return;
+            }
+            if (message.event === "complete") {
+                completed = true;
+                socket.close();
+                resolve();
+            }
+        };
+
+        socket.onerror = () => fail(new Error("Missing resolver websocket failed."));
+        socket.onclose = () => {
+            if (!completed) {
+                reject(new Error("Missing resolver websocket disconnected."));
+            }
+        };
+    });
+}
+
+export async function resolve_hunter_callsigns(callsigns, on_progress) {
+    const results = {};
+    const errors = {};
+    const pending = new Set(callsigns);
+    const total = callsigns.length;
+    let attempts = 0;
+    let last_completed = -1;
+
+    function report_completed(completed) {
+        if (completed === last_completed) return;
+        last_completed = completed;
+        on_progress?.(completed);
     }
 
-    return response.json();
+    while (pending.size > 0 && attempts < HUNTER_RESOLVE_MAX_ATTEMPTS) {
+        attempts += 1;
+        try {
+            await resolve_hunter_callsigns_once([...pending], pending, results, errors, () => {
+                report_completed(total - pending.size);
+            });
+        } catch (_error) {
+            if (pending.size === 0) break;
+        }
+    }
+
+    for (const callsign of pending) {
+        errors[callsign] = "resolver disconnected";
+    }
+    pending.clear();
+    report_completed(total);
+
+    return { results, errors };
 }
 
 function report_import_progress(on_progress, progress) {
@@ -288,30 +385,28 @@ function report_resolve_progress(on_progress, completed, total) {
     });
 }
 
-async function resolve_callsign_batches(callsigns, resolve_batch, on_progress) {
-    const results = {};
-    const errors = {};
-    report_resolve_progress(on_progress, 0, callsigns.length);
+async function resolve_callsigns_for_import(callsigns, resolve_callsigns, on_progress) {
+    const total = callsigns.length;
+    let last_completed = -1;
 
-    for (let index = 0; index < callsigns.length; index += HUNTER_RESOLVE_BATCH_SIZE) {
-        const batch = callsigns.slice(index, index + HUNTER_RESOLVE_BATCH_SIZE);
-        try {
-            const resolved = await resolve_batch(batch);
-            Object.assign(results, resolved?.results ?? {});
-            Object.assign(errors, resolved?.errors ?? {});
-        } catch (error) {
-            for (const callsign of batch) {
-                errors[callsign] = error.message;
-            }
-        }
-        report_resolve_progress(
-            on_progress,
-            Math.min(index + HUNTER_RESOLVE_BATCH_SIZE, callsigns.length),
-            callsigns.length,
-        );
+    function report_completed(completed) {
+        if (completed === last_completed) return;
+        last_completed = completed;
+        report_resolve_progress(on_progress, completed, total);
     }
 
-    return { results, errors };
+    report_completed(0);
+    try {
+        const resolved = await resolve_callsigns(callsigns, report_completed);
+        report_completed(total);
+        return { results: resolved?.results ?? {}, errors: resolved?.errors ?? {} };
+    } catch (error) {
+        report_completed(total);
+        return {
+            results: {},
+            errors: Object.fromEntries(callsigns.map(callsign => [callsign, error.message])),
+        };
+    }
 }
 
 export async function import_hunter_adif({
@@ -323,13 +418,12 @@ export async function import_hunter_adif({
     resolve_callsigns = resolve_hunter_callsigns,
     on_progress = null,
 } = {}) {
-    validate_import_limits({ file_size, record_count: 0 });
+    validate_import_limits({ file_size });
 
     report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.PARSING });
     const source_adif_text = adif_text ?? "";
     validate_adif_text(source_adif_text);
     const records = parse_hunter_adif_records(source_adif_text);
-    validate_import_limits({ file_size, record_count: records.length });
     validate_adif_records(records);
 
     report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.PROCESSING });
@@ -338,7 +432,7 @@ export async function import_hunter_adif({
     const callsigns_to_resolve = Array.from(
         new Set(direct_records.filter(record_needs_resolution).map(record => record.call)),
     );
-    const resolved = await resolve_callsign_batches(
+    const resolved = await resolve_callsigns_for_import(
         callsigns_to_resolve,
         resolve_callsigns,
         on_progress,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { TOUR_CLOSE_MODAL_EVENT } from "@/components/tour/tour_events.js";
 import Button from "@/components/ui/Button.jsx";
 import { useColors } from "@/hooks/useColors";
 
@@ -18,6 +19,8 @@ function Modal({
     external_close = null,
     apply_disabled = false,
     modal_style = null,
+    data_tour = null,
+    dialog_data_tour = null,
     children,
 }) {
     const [show_modal, set_show_modal] = useState(false);
@@ -75,13 +78,30 @@ function Modal({
 
     useEffect(() => {
         if (!show_modal) return;
+
+        function close_for_tour() {
+            if (on_cancel != null) {
+                on_cancel();
+            }
+
+            close();
+        }
+
+        document.addEventListener(TOUR_CLOSE_MODAL_EVENT, close_for_tour);
+        return () => document.removeEventListener(TOUR_CLOSE_MODAL_EVENT, close_for_tour);
+    }, [show_modal, on_cancel]);
+
+    useEffect(() => {
+        if (!show_modal) return;
         const modal = modal_ref.current;
         if (!modal) return;
 
         const focusable = modal.querySelectorAll(FOCUSABLE);
+        const auto = modal.querySelector("[data-autofocus]");
+        const target = auto ?? focusable[0];
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
-        first?.focus();
+        target?.focus();
 
         function trap(event) {
             if (event.key !== "Tab") return;
@@ -102,6 +122,7 @@ function Modal({
             <div
                 ref={trigger_ref}
                 className="cursor-pointer"
+                data-tour={data_tour}
                 onClick={() => {
                     if (on_open != null) {
                         on_open();
@@ -117,6 +138,7 @@ function Modal({
                         ref={modal_ref}
                         role="dialog"
                         aria-modal={true}
+                        data-tour={dialog_data_tour}
                         className="flex pt-24 fixed inset-0 z-[60] outline-none focus:outline-none overflow-y-auto"
                         style={{ color: colors.theme.text }}
                     >
@@ -126,6 +148,7 @@ function Modal({
                                     width="24"
                                     height="24"
                                     viewBox="0 0 1024 1024"
+                                    data-tour="modal-close-button"
                                     onClick={() => {
                                         if (on_cancel != null) {
                                             on_cancel();
@@ -140,6 +163,7 @@ function Modal({
                                 </svg>
                             </div>
                             <div
+                                data-tour={dialog_data_tour ? `${dialog_data_tour}-content` : null}
                                 className="rounded-lg shadow-xl relative flex flex-col w-full outline-none focus:outline-none border"
                                 style={{
                                     backgroundColor: colors.theme.modals,
@@ -158,6 +182,7 @@ function Modal({
                                         {on_cancel != null ? (
                                             <Button
                                                 color="red"
+                                                data-tour="modal-cancel-button"
                                                 on_click={() => {
                                                     on_cancel();
                                                     close();
@@ -169,6 +194,7 @@ function Modal({
                                         {on_apply != null ? (
                                             <Button
                                                 color="blue"
+                                                data-tour="modal-apply-button"
                                                 disabled={apply_disabled}
                                                 on_click={() => set_show_modal(!on_apply())}
                                             >

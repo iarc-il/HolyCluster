@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     enrich_spot_zones_if_missing,
+    flatten_buffered_spot_batches,
     has_valid_enriched_value,
     normalize_band,
     trim_spots_to_last_hour,
@@ -117,6 +118,18 @@ describe("trim_spots_to_last_hour", () => {
         const spots = [{ time: now - 7200 }];
         const result = trim_spots_to_last_hour(spots);
         expect(result).toHaveLength(0);
+    });
+});
+
+describe("flatten_buffered_spot_batches", () => {
+    it("releases the newest buffered websocket batch first", () => {
+        const result = flatten_buffered_spot_batches([
+            [{ id: "oldest" }],
+            [{ id: "middle" }],
+            [{ id: "newest" }],
+        ]);
+
+        expect(result.map(spot => spot.id)).toEqual(["newest", "middle", "oldest"]);
     });
 });
 

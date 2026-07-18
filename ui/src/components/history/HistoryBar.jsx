@@ -294,6 +294,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
     return (
         <div
             className="flex flex-row px-3 py-1 gap-1 select-none"
+            data-tour="history-bar"
             style={{
                 background: colors.theme.modals,
                 borderTop: `1px solid ${colors.theme.borders}`,
@@ -301,7 +302,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             }}
         >
             {/* Controls row */}
-            <div className="flex flex-row items-center gap-2 text-xs">
+            <div className="flex flex-row items-center gap-2 text-xs" data-tour="history-controls">
                 <div
                     className="w-px self-stretch mx-1"
                     style={{ background: `${colors.theme.text}30` }}
@@ -312,6 +313,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
                     className="h-full aspect-square rounded"
                     style={btn_style}
                     title="Step back one window"
+                    data-tour="history-step-back"
                 >
                     <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M.5 3.5A.5.5 0 0 1 1 4v3.248l6.267-3.636c.52-.302 1.233.043 1.233.696v2.94l6.267-3.636c.52-.302 1.233.043 1.233.696v7.384c0 .653-.713.998-1.233.696L8.5 8.752v2.94c0 .653-.713.998-1.233.696L1 8.752V12a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5" />
@@ -322,6 +324,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
                     className="h-full aspect-square rounded flex justify-center items-center"
                     style={btn_style}
                     title={is_playing ? "Pause" : "Play forward"}
+                    data-tour="history-play-pause"
                 >
                     {is_playing ? (
                         <svg width="18" height="18" viewBox="0 0 10 10" fill="currentColor">
@@ -339,6 +342,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
                     className="h-full aspect-square rounded"
                     style={btn_style}
                     title="Step forward one window"
+                    data-tour="history-step-forward"
                 >
                     <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M15.5 3.5a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V8.752l-6.267 3.636c-.52.302-1.233-.043-1.233-.696v-2.94l-6.267 3.636C.713 12.69 0 12.345 0 11.692V4.308c0-.653.713-.998 1.233-.696L7.5 7.248v-2.94c0-.653.713-.998 1.233-.696L15 7.248V4a.5.5 0 0 1 .5-.5" />
@@ -350,6 +354,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             <div
                 className="flex flex-col w-full"
                 style={{ gap: "3px" }}
+                data-tour="history-timeline"
                 onMouseEnter={on_timeline_enter}
                 onMouseLeave={on_timeline_leave}
             >
@@ -359,6 +364,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
                     <div
                         ref={bar_ref}
                         className="absolute inset-0 rounded cursor-crosshair"
+                        data-tour="history-track"
                         style={{ background: colors.theme.columns }}
                         onMouseDown={on_bar_mouse_down}
                     />
@@ -366,6 +372,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
                     {/* Selected window */}
                     <div
                         className="absolute top-0 bottom-0 rounded cursor-grab active:cursor-grabbing"
+                        data-tour="history-window"
                         style={{
                             left: `${win_left * 100}%`,
                             width: `${win_width * 100}%`,
@@ -377,6 +384,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
                     >
                         <div
                             className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center"
+                            data-tour="history-window-resize"
                             onMouseDown={on_resize_mouse_down}
                             title="Drag to resize window"
                         >
@@ -470,6 +478,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             <Select
                 className="w-min"
                 value={display_hours}
+                data-tour="history-display-range"
                 onChange={e => apply_preset(Number(e.target.value))}
             >
                 {PRESETS.map(p => (

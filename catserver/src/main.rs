@@ -11,23 +11,31 @@ use single_instance::SingleInstance;
 use tokio::sync::broadcast::{self, Sender};
 
 mod dummy;
+mod dummy_rotator;
 mod freq;
 #[cfg(windows)]
 mod omnirig;
+#[cfg(windows)]
+mod pstrotator;
 mod reporting;
 mod rig;
 #[cfg(not(windows))]
 mod rigctld;
+mod rotator;
+#[cfg(not(windows))]
+mod rotctld;
 mod server;
 mod tray_icon;
 mod utils;
 
 use dummy::DummyRadio;
+use dummy_rotator::DummyRotator;
 #[cfg(windows)]
 use omnirig::OmnirigRadio;
 use rig::AnyRadio;
 #[cfg(not(windows))]
 use rigctld::RigctldRadio;
+use rotator::AnyRotator;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer, Registry, layer::SubscriberExt};
 use tray_icon::UserEvent;
@@ -53,6 +61,10 @@ struct Args {
     /// run with dummy radio instead of real radio
     #[argh(switch)]
     dummy: bool,
+
+    /// run with dummy rotator instead of real rotator
+    #[argh(switch)]
+    dummy_rotator: bool,
 
     /// search for local ui dist dir instead of using remote server
     #[argh(switch)]
@@ -82,6 +94,24 @@ fn get_radio(use_dummy: bool) -> AnyRadio {
         AnyRadio::new(DummyRadio::new())
     } else {
         AnyRadio::new(RigctldRadio::new("localhost".into(), 4532))
+    }
+}
+
+fn get_rotator(use_dummy: bool) -> AnyRotator {
+    if use_dummy {
+        AnyRotator::new(DummyRotator::new())
+    } else {
+        #[cfg(windows)]
+        {
+            AnyRotator::new(crate::pstrotator::PstRotator::new())
+        }
+        #[cfg(not(windows))]
+        {
+            AnyRotator::new(crate::rotctld::RotctldRotator::new(
+                "localhost".into(),
+                4533,
+            ))
+        }
     }
 }
 
@@ -177,6 +207,7 @@ fn main() -> Result<()> {
     };
 
     let radio = get_radio(args.dummy);
+    let rotator = get_rotator(args.dummy_rotator);
 
     if instance.is_single() {
         if args.close {
@@ -190,9 +221,13 @@ fn main() -> Result<()> {
         let thread = std::thread::Builder::new()
             .name("singleton".into())
             .spawn(move || {
-                if let Err(error) =
-                    run_singleton_instance(event_sender, radio, server_config, use_local_ui)
-                {
+                if let Err(error) = run_singleton_instance(
+                    event_sender,
+                    radio,
+                    rotator,
+                    server_config,
+                    use_local_ui,
+                ) {
                     tracing::error!(?error, "Singleton instance failed");
                 }
             })?;
@@ -231,6 +266,7 @@ fn main() -> Result<()> {
 async fn run_singleton_instance(
     sender: Sender<UserEvent>,
     radio: AnyRadio,
+    rotator: AnyRotator,
     server_config: ServerConfig,
     use_local_ui: bool,
 ) -> Result<()> {
@@ -246,11 +282,20 @@ async fn run_singleton_instance(
         return Ok(());
     }
 
+    tracing::info!("Initializing {} rotator", rotator.read().get_name());
+    rotator.write().init();
+
+    if rotator.is_available() {
+        tracing::info!("Rotator initialized successfully");
+    } else {
+        tracing::warn!("Rotator initialization failed, continuing without rotator support");
+    }
+
     let local_port = server_config.local_port;
 
     let mut receiver = sender.subscribe();
 
-    let server = Server::build_server(sender, radio, server_config, use_local_ui).await?;
+    let server = Server::build_server(sender, radio, rotator, server_config, use_local_ui).await?;
     open_at_browser(local_port)?;
 
     tokio::spawn(async move {

@@ -1,0 +1,36 @@
+# Alternate-domain HTTPS server block.
+#
+# Rendered into /etc/nginx/conf.d/alt.conf at container start ONLY when DOMAIN_ALT
+# is set (see Dockerfile.nginx CMD and the nginx service command in docker-compose).
+# Only ${DOMAIN_ALT} is substituted; nginx runtime vars ($host, $http_upgrade, ...)
+# are left intact by the scoped envsubst allowlist.
+#
+# It serves the alternate domain with its OWN certificate (not DOMAIN's), so it
+# keeps working when the Cloudflare proxy is turned off and after DOMAIN is retired.
+# The cert is issued and renewed on the box by certbot via webroot http-01 (same as
+# DOMAIN); the ACME challenge reaches the box through the Cloudflare proxy because the
+# zone has Always-Use-HTTPS off. No Cloudflare credential lives on the server.
+server {
+    listen 443 ssl;
+    http2 on;
+
+    server_name ${DOMAIN_ALT};
+
+    # Include Certbot recommended SSL options
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN_ALT}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_ALT}/privkey.pem;
+
+    # Proxy requests to FastAPI app
+    location / {
+        proxy_set_header    Host                $host;
+        proxy_set_header    X-Real-IP           $remote_addr;
+        proxy_set_header    X-Forwarded-For     $proxy_add_x_forwarded_for;
+        proxy_set_header    X-Forwarded-Proto   $scheme;
+        proxy_set_header    Upgrade             $http_upgrade;
+        proxy_set_header    Connection          $connection_upgrade;
+        proxy_http_version  1.1;
+        proxy_pass          http://api:8000;
+    }
+}

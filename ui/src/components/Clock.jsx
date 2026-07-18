@@ -18,6 +18,7 @@ function clock() {
     return (
         <div
             className="hidden 2xs:flex items-center text-center font-bold text-xl min-w-18"
+            data-tour="top-bar-clock"
             style={{ color: colors.theme.text }}
         >
             {`${pad(time.getUTCHours())}:${pad(time.getUTCMinutes())} UTC`}

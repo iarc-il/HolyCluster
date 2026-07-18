@@ -73,7 +73,11 @@ function Profiles({ colors, set_temp_settings }) {
     }
 
     return (
-        <div className="p-4 space-y-6" style={{ color: colors.theme.text }}>
+        <div
+            className="p-4 space-y-6"
+            data-tour="settings-profiles"
+            style={{ color: colors.theme.text }}
+        >
             <div className="space-y-2">
                 <label className="block font-medium" htmlFor="active-profile">
                     Active profile
@@ -82,6 +86,7 @@ function Profiles({ colors, set_temp_settings }) {
                     id="active-profile"
                     value={active_profile_name}
                     className="w-full"
+                    data-tour="settings-active-profile"
                     onChange={event => switch_profile(event.target.value)}
                 >
                     {profiles.map(profile => (
@@ -101,6 +106,7 @@ function Profiles({ colors, set_temp_settings }) {
                         id="new-profile-name"
                         className="w-full"
                         value={new_profile_name}
+                        data-tour="settings-new-profile-name"
                         onChange={event => set_new_profile_name(event.target.value)}
                         onKeyDown={event => {
                             if (event.key === "Enter") {
@@ -110,7 +116,11 @@ function Profiles({ colors, set_temp_settings }) {
                             }
                         }}
                     />
-                    <Button on_click={handle_create_profile} className="whitespace-nowrap">
+                    <Button
+                        on_click={handle_create_profile}
+                        className="whitespace-nowrap"
+                        data-tour="settings-create-profile"
+                    >
                         Create
                     </Button>
                 </div>
@@ -125,6 +135,7 @@ function Profiles({ colors, set_temp_settings }) {
                         id="rename-profile-name"
                         className="w-full"
                         value={rename_value}
+                        data-tour="settings-rename-profile-name"
                         onChange={event => set_rename_value(event.target.value)}
                         onKeyDown={event => {
                             if (event.key === "Enter") {
@@ -134,7 +145,11 @@ function Profiles({ colors, set_temp_settings }) {
                             }
                         }}
                     />
-                    <Button on_click={handle_rename_profile} className="whitespace-nowrap">
+                    <Button
+                        on_click={handle_rename_profile}
+                        className="whitespace-nowrap"
+                        data-tour="settings-rename-profile"
+                    >
                         Rename
                     </Button>
                 </div>
@@ -149,6 +164,7 @@ function Profiles({ colors, set_temp_settings }) {
                     on_click={handle_delete_profile}
                     disabled={profiles.length <= 1}
                     className="whitespace-nowrap"
+                    data-tour="settings-delete-profile"
                 >
                     Delete Active
                 </Button>

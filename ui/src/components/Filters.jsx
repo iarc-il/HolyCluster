@@ -49,13 +49,14 @@ function Indicator({ text }) {
     );
 }
 
-function FilterBadge({ children, className = "", title, listeners, attributes }) {
+function FilterBadge({ children, className = "", title, listeners, attributes, data_tour = null }) {
     return (
         <div
             {...listeners}
             {...attributes}
             className={`flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white ${className}`}
             title={title}
+            data-tour={data_tour ?? "filter-badge"}
         >
             {children}
         </div>
@@ -86,20 +87,21 @@ function EditSymbol({ size }) {
     );
 }
 
-function SpecialFilterBadge({ type, listeners, attributes }) {
+function SpecialFilterBadge({ type, listeners, attributes, data_tour = null }) {
     const label = SPECIAL_FILTER_LABELS[type];
     return (
         <FilterBadge
             listeners={listeners}
             attributes={attributes}
             className="cursor-grab active:cursor-grabbing w-24"
+            data_tour={data_tour}
         >
             {label}
         </FilterBadge>
     );
 }
 
-function ZoneFilterBadge({ filter, listeners, attributes }) {
+function ZoneFilterBadge({ filter, listeners, attributes, data_tour = null }) {
     const system_label =
         {
             cq: "CQ",
@@ -127,6 +129,7 @@ function ZoneFilterBadge({ filter, listeners, attributes }) {
                     attributes={attributes}
                     className="cursor-grab active:cursor-grabbing w-10"
                     title={system_label}
+                    data_tour={data_tour}
                 >
                     {system_label}
                 </FilterBadge>
@@ -146,13 +149,14 @@ function ZoneFilterBadge({ filter, listeners, attributes }) {
             attributes={attributes}
             className="cursor-grab active:cursor-grabbing w-24"
             title={`Zone ${system_label} ${filter.value}`}
+            data_tour={data_tour}
         >
             {system_label} {filter.value}
         </FilterBadge>
     );
 }
 
-function HunterFilterBadge({ filter, listeners, attributes }) {
+function HunterFilterBadge({ filter, listeners, attributes, data_tour = null }) {
     const {
         active_profile_data: { hunter },
     } = useProfiles();
@@ -168,6 +172,7 @@ function HunterFilterBadge({ filter, listeners, attributes }) {
                 attributes={attributes}
                 className="cursor-grab active:cursor-grabbing w-22"
                 title={`Missing ${section_label}`}
+                data_tour={data_tour}
             >
                 Missing
             </FilterBadge>
@@ -181,28 +186,47 @@ function HunterFilterBadge({ filter, listeners, attributes }) {
     );
 }
 
-function FilterContent({ filter, listeners, attributes, colors }) {
+function FilterContent({ filter, listeners, attributes, colors, data_tour = null }) {
     const is_special_filter = filter.type === "self_spotters" || filter.type === "dxpeditions";
     const filter_value = filter.type === "entity" ? get_dxcc_label(filter.value) : filter.value;
 
     if (is_special_filter) {
         return (
-            <SpecialFilterBadge type={filter.type} listeners={listeners} attributes={attributes} />
+            <SpecialFilterBadge
+                type={filter.type}
+                listeners={listeners}
+                attributes={attributes}
+                data_tour={data_tour}
+            />
         );
     }
 
     if (filter.type === "zone") {
-        return <ZoneFilterBadge filter={filter} listeners={listeners} attributes={attributes} />;
+        return (
+            <ZoneFilterBadge
+                filter={filter}
+                listeners={listeners}
+                attributes={attributes}
+                data_tour={data_tour}
+            />
+        );
     }
 
     if (filter.type === "hunter") {
-        return <HunterFilterBadge filter={filter} listeners={listeners} attributes={attributes} />;
+        return (
+            <HunterFilterBadge
+                filter={filter}
+                listeners={listeners}
+                attributes={attributes}
+                data_tour={data_tour}
+            />
+        );
     }
 
     if (filter.type === "comment") {
         return (
             <div className="flex items-center gap-1">
-                <div {...listeners} {...attributes}>
+                <div {...listeners} {...attributes} data-tour={data_tour}>
                     <Input
                         className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
                         disabled
@@ -218,7 +242,7 @@ function FilterContent({ filter, listeners, attributes, colors }) {
 
     return (
         <div className="flex items-center gap-1">
-            <div {...listeners} {...attributes}>
+            <div {...listeners} {...attributes} data-tour={data_tour}>
                 <Input
                     className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
                     disabled
@@ -233,7 +257,7 @@ function FilterContent({ filter, listeners, attributes, colors }) {
     );
 }
 
-function FilterLine({ filter, id, is_dragging }) {
+function FilterLine({ filter, id, is_dragging, data_tour = null }) {
     const { colors } = useColors();
     const { callsign_filters, setCallsignFilters } = useFilters();
 
@@ -268,16 +292,21 @@ function FilterLine({ filter, id, is_dragging }) {
                     listeners={listeners}
                     attributes={attributes}
                     colors={colors}
+                    data_tour={data_tour}
                 />
             </div>
             <div className="flex items-center gap-1 ml-2">
                 <FilterModal
                     initial_data={filter}
                     button={<EditSymbol size="24" />}
+                    data_tour="edit-filter-button"
+                    dialog_data_tour="filter-modal"
                     exclude_filter_index={id}
                     on_apply={update_filter}
                 />
-                <X className="cursor-pointer min-w-[24px]" size="24" on_click={delete_filter} />
+                <span data-tour="delete-filter-button">
+                    <X className="cursor-pointer min-w-[24px]" size="24" on_click={delete_filter} />
+                </span>
             </div>
         </div>
     );
@@ -312,25 +341,36 @@ function FilterSection({ title, filters, action, toggle_field, active_filter_id 
     };
 
     return (
-        <div className="pt-2">
+        <div
+            className="pt-2"
+            data-tour={`filter-section-${action}`}
+            data-tour-state={filters.length}
+        >
             <div ref={setNodeRef} style={drop_zone_inner_style}>
                 <div className="flex justify-between pb-3">
                     <h3 className="text-lg w-fit inline">{title}</h3>
                     <div className="flex justify-end space-x-3">
-                        <Toggle value={callsign_filters[toggle_field]} on_click={toggle_active} />
+                        <Toggle
+                            value={callsign_filters[toggle_field]}
+                            data_tour={`filter-section-toggle-${action}`}
+                            on_click={toggle_active}
+                        />
                         <FilterModal
                             initial_data={{ ...empty_filter_data, action }}
                             button={<Button className="h-7 flex items-center">Add</Button>}
+                            data_tour={`add-filter-button-${action}`}
+                            dialog_data_tour="filter-modal"
                             on_apply={add_filter}
                         />
                     </div>
                 </div>
-                {filters.map(([id, filter]) => (
+                {filters.map(([id, filter], index) => (
                     <FilterLine
                         key={id}
                         id={id}
                         filter={filter}
                         is_dragging={active_filter_id === `filter-${id}`}
+                        data_tour={index === filters.length - 1 ? `filter-line-${action}` : null}
                     />
                 ))}
             </div>
@@ -385,7 +425,11 @@ function Filters() {
             onDragEnd={handle_drag_end}
             onDragCancel={handleDragCancel}
         >
-            <div className="p-2 flex flex-col h-full" style={{ color: colors.theme.text }}>
+            <div
+                className="p-2 flex flex-col h-full"
+                data-tour="filters-panel"
+                style={{ color: colors.theme.text }}
+            >
                 <div className="divide-y divide-slate-300 space-y-6">
                     <FilterSection
                         title="Alert"

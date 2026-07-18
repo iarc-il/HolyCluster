@@ -1,7 +1,6 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect, useState } from "react";
 import { ToastContainer, toast } from "react-toastify";
-import useWebSocket, { ReadyState } from "react-use-websocket";
 
 import CallsignInput from "@/components/CallsignInput.jsx";
 import Button from "@/components/ui/Button.jsx";
@@ -12,6 +11,7 @@ import { band_plans } from "@/data/band_plans.js";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
+import { ReadyState, useWs, useWsMessage } from "@/hooks/useWs";
 
 function SubmitIcon({ size }) {
     const { colors } = useColors();
@@ -59,6 +59,7 @@ function connect_to_submit_spot_endpoint(on_response) {
 
 function SubmitSpot({ dev_mode }) {
     const [temp_data, set_temp_data] = useState(empty_temp_data);
+    const { send, network_state } = useWs();
     const [submit_status, set_submit_status] = useState({
         status: "pending",
         reason: "",
@@ -83,7 +84,7 @@ function SubmitSpot({ dev_mode }) {
         }));
     }, [radio_freq, is_open]);
 
-    function on_response(response) {
+    useWsMessage("submit", response => {
         if (response.status === "success") {
             set_submit_status({ status: "success", reason: "" });
             set_is_open(false);
@@ -96,19 +97,11 @@ function SubmitSpot({ dev_mode }) {
             }
             toast.success("Spot submitted successfully!", { theme });
         } else if (response.status === "failure") {
-            set_submit_status({ status: "failure", reason: response.type });
+            set_submit_status({ status: "failure", reason: response.error_type });
         }
-    }
-    const { sendJsonMessage, readyState } = connect_to_submit_spot_endpoint(on_response);
+    });
 
-    useEffect(() => {
-        if (readyState === ReadyState.OPEN) {
-            set_submit_status({
-                status: "pending",
-                reason: "",
-            });
-        }
-    }, [readyState]);
+    const readyState = network_state === "connected" ? ReadyState.OPEN : ReadyState.CLOSED;
 
     function reset_temp_data() {
         set_temp_data(empty_temp_data);
@@ -136,7 +129,7 @@ function SubmitSpot({ dev_mode }) {
             if (is_testing) {
                 message.testing = true;
             }
-            sendJsonMessage(message);
+            send("submit", message);
         }
     }
 
@@ -213,6 +206,8 @@ function SubmitSpot({ dev_mode }) {
                     )
                 }
                 button={<SubmitIcon size="32" />}
+                data_tour="top-bar-submit-spot"
+                dialog_data_tour="submit-spot-modal"
                 on_open={() => {
                     set_is_open(true);
                     set_external_close(true);
@@ -246,13 +241,17 @@ function SubmitSpot({ dev_mode }) {
             >
                 <table
                     className="mt-3 mx-2 w-full border-separate border-spacing-y-2"
+                    data-tour="submit-spot-form"
                     style={{ color: colors.theme.text }}
                 >
                     <tbody>
                         <tr>
                             <td>Spotter callsign:</td>
                             <td>
-                                <span className="inline-block w-32 uppercase font-bold text-lg text-center">
+                                <span
+                                    className="inline-block w-32 uppercase font-bold text-lg text-center"
+                                    data-tour="submit-spot-spotter-callsign"
+                                >
                                     {settings.callsign}
                                 </span>
                             </td>
@@ -265,6 +264,7 @@ function SubmitSpot({ dev_mode }) {
                                     className="w-32"
                                     maxLength={11}
                                     autoFocus={true}
+                                    data-tour="submit-spot-dx-callsign"
                                     onChange={event => {
                                         set_temp_data({
                                             ...temp_data,
@@ -280,6 +280,7 @@ function SubmitSpot({ dev_mode }) {
                                 <Input
                                     value={temp_data.freq}
                                     className="w-32"
+                                    data-tour="submit-spot-frequency"
                                     onChange={event => {
                                         const value = event.target.value;
                                         if (/^\d*\.?\d{0,1}$/.test(value)) {
@@ -306,6 +307,7 @@ function SubmitSpot({ dev_mode }) {
                                 <Input
                                     value={temp_data.comment}
                                     className="w-18"
+                                    data-tour="submit-spot-comment"
                                     onChange={event => {
                                         set_temp_data({
                                             ...temp_data,
@@ -322,6 +324,7 @@ function SubmitSpot({ dev_mode }) {
                                     <input
                                         type="checkbox"
                                         checked={is_testing}
+                                        data-tour="submit-spot-testing-only"
                                         onChange={_ => set_is_testing(!is_testing)}
                                     />
                                 </td>

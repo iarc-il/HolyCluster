@@ -27,7 +27,7 @@ class PropagationMeasurement(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     metric: str
-    timestamp: int
+    timestamp: int = Field(index=True)
     value: float
     collected_at: datetime
 
@@ -39,7 +39,7 @@ class HolySpot(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     cluster: str
     time: time
-    timestamp: int
+    timestamp: int = Field(index=True)
     frequency: str
     band: str
     mode: str

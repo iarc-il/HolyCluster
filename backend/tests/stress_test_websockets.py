@@ -114,7 +114,7 @@ class StressTest:
                 connected = True
                 self.logger.debug(f"Client {client_id} connected")
 
-                await websocket.send(json.dumps({"initial": True}))
+                await websocket.send(json.dumps({"version": 1, "type": "spots", "action": "initial"}))
 
                 while self.running:
                     try:
@@ -248,8 +248,8 @@ def main():
     parser = argparse.ArgumentParser(description="WebSocket stress test for HolyCluster API")
     parser.add_argument(
         "--url",
-        default="ws://localhost:8000/spots_ws",
-        help="WebSocket URL (default: ws://localhost:8000/spots_ws)",
+        default="ws://localhost:8000/ws",
+        help="WebSocket URL (default: ws://localhost:8000/ws)",
     )
     parser.add_argument(
         "--connections",

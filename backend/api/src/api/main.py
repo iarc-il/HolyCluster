@@ -4,16 +4,18 @@ import re
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from enum import StrEnum
 
 import fastapi
 import httpx
 import redis.asyncio
 from fastapi import HTTPException, Query, websockets
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
-from pydantic import BaseModel
 from shared.cty import ensure_cty_available
 from shared.db import GeoCache, HolySpot, PropagationMeasurement, SpotsWithIssues
 from shared.geo import GeoException, get_geo_details
@@ -92,6 +94,27 @@ async def propagation_data_collector(app):
         await asyncio.sleep(sleep)
 
 
+async def send_json_to_websockets(websockets, message):
+    disconnected = set()
+    for websocket in websockets.copy():
+        try:
+            await websocket.send_json(message)
+        except Exception as e:
+            logger.warning(f"Failed to send to websocket: {e}")
+            disconnected.add(websocket)
+
+    for websocket in disconnected:
+        websockets.discard(websocket)
+
+
+async def broadcast_spots(app, spots):
+    await send_json_to_websockets(app.state.active_connections, {"type": "update", "spots": spots})
+    await send_json_to_websockets(
+        app.state.active_ws_spot_connections,
+        build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots),
+    )
+
+
 async def spots_broadcast_task(app):
     STREAM_NAME = "stream-api"
     CONSUMER_GROUP = "api-group"
@@ -129,21 +152,14 @@ async def spots_broadcast_task(app):
                     if spot is not None:
                         spots.append(spot)
 
-                message = {"type": "update", "spots": spots}
-
-                disconnected = set()
-                for websocket in app.state.active_connections.copy():
-                    try:
-                        await websocket.send_json(message)
-                    except Exception as e:
-                        logger.warning(f"Failed to send to websocket: {e}")
-                        disconnected.add(websocket)
-
-                for websocket in disconnected:
-                    app.state.active_connections.discard(websocket)
+                await broadcast_spots(app, spots)
 
                 await set_timestamp(valkey_client, "api:last_broadcast_time")
-                await set_value(valkey_client, "api:ws_clients", len(app.state.active_connections))
+                await set_value(
+                    valkey_client,
+                    "api:ws_clients",
+                    len(app.state.active_connections) + len(app.state.active_ws_spot_connections),
+                )
 
         except Exception as e:
             logger.exception(f"Error in spots broadcast task: {e}")
@@ -156,6 +172,7 @@ async def lifespan(app: fastapi.FastAPI):
         raise RuntimeError(f"UI directory does not exist: {settings.ui_dist_path}")
 
     app.state.active_connections = set()
+    app.state.active_ws_spot_connections = set()
     app.state.propagation = None
 
     app.state.valkey_client = redis.asyncio.Redis(
@@ -194,11 +211,94 @@ engine = create_async_engine(
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 app = fastapi.FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-MAX_HUNTER_RESOLVE_CALLSIGNS = 100
+HUNTER_RESOLVE_RESULT_BATCH_SIZE = 50
+HUNTER_RESOLVE_WORKER_COUNT = 4
 HUNTER_CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/]{0,31}$")
 PROPAGATION_METRICS = ("a_index", "k_index", "sfi")
 MAX_PROPAGATION_HISTORY_RANGE_SECONDS = 86400
+WS_PROTOCOL_VERSION = 1
+
+
+class WsErrorType(StrEnum):
+    MALFORMED_MESSAGE = "MalformedMessage"
+    MISSING_VERSION = "MissingVersion"
+    MISSING_FIELD = "MissingField"
+    UNSUPPORTED_ACTION = "UnsupportedAction"
+    UNSUPPORTED_VERSION = "UnsupportedVersion"
+    NOT_IMPLEMENTED = "NotImplemented"
+    UNKNOWN_JOB = "UnknownJob"
+
+
+class WsMessageType(StrEnum):
+    SPOTS = "spots"
+    SUBMIT = "submit"
+    RADIO = "radio"
+    HUNTER = "hunter"
+
+
+class WsSpotAction(StrEnum):
+    INITIAL = "initial"
+    CATCH_UP = "catch_up"
+
+
+class WsSpotEvent(StrEnum):
+    INITIAL = "initial"
+    UPDATE = "update"
+
+
+class WsRadioEvent(StrEnum):
+    STATUS = "status"
+
+
+class WsHunterAction(StrEnum):
+    START = "start"
+    ADD = "add"
+    FINISH = "finish"
+
+
+class WsHunterEvent(StrEnum):
+    ACCEPTED = "accepted"
+    RESULTS = "results"
+    COMPLETE = "complete"
+
+
+def build_ws_error(error_type: WsErrorType, message: str, **data):
+    response = {
+        "version": WS_PROTOCOL_VERSION,
+        "type": "error",
+        "error_type": error_type.value,
+        "message": message,
+    }
+    response.update(data)
+    return response
+
+
+def build_ws_message(message_type: WsMessageType, **data):
+    response = {
+        "version": WS_PROTOCOL_VERSION,
+        "type": message_type.value,
+    }
+    response.update(data)
+    return response
+
+
+def validate_ws_protocol_message(message):
+    if not isinstance(message, dict):
+        return build_ws_error(WsErrorType.MALFORMED_MESSAGE, "WebSocket message must be a JSON object")
+
+    if "version" not in message:
+        return build_ws_error(WsErrorType.MISSING_VERSION, "Missing websocket protocol version")
+
+    if message["version"] != WS_PROTOCOL_VERSION:
+        return build_ws_error(
+            WsErrorType.UNSUPPORTED_VERSION,
+            "Unsupported websocket protocol version",
+            received_version=message["version"],
+        )
+
+    return None
 
 
 def build_propagation_history_response(start_time, end_time, range_samples, previous_samples):
@@ -259,8 +359,13 @@ async def get_propagation_history_data(start_time, end_time):
     return build_propagation_history_response(start_time, end_time, range_samples, previous_samples)
 
 
-class HunterResolveRequest(BaseModel):
-    callsigns: list[str]
+@dataclass
+class HunterWsJob:
+    job_id: str
+    callsigns: list[str] = field(default_factory=list)
+    seen_callsigns: set[str] = field(default_factory=set)
+    errors: dict[str, str] = field(default_factory=dict)
+    task: asyncio.Task | None = None
 
 
 def cleanup_spot(spot):
@@ -330,6 +435,62 @@ async def get_qrz_session_key_from_redis() -> str:
     if not qrz_key:
         raise HTTPException(status_code=503, detail="QRZ session key not available")
     return qrz_key
+
+
+def normalize_hunter_callsigns(callsigns):
+    normalized_callsigns = []
+    errors = {}
+    seen_callsigns = set()
+
+    for callsign in callsigns:
+        if not isinstance(callsign, str):
+            errors[str(callsign)] = "invalid callsign"
+            continue
+        normalized = callsign.strip().upper()
+        if not HUNTER_CALLSIGN_PATTERN.fullmatch(normalized):
+            errors[normalized] = "invalid callsign"
+            continue
+        if normalized in seen_callsigns:
+            continue
+        seen_callsigns.add(normalized)
+        normalized_callsigns.append(normalized)
+
+    return normalized_callsigns, errors
+
+
+async def get_hunter_qrz_session_key():
+    try:
+        return await get_qrz_session_key_from_redis()
+    except Exception as e:
+        logger.warning(f"QRZ session key unavailable for hunter resolve; continuing with CTY fallback: {e}")
+        return ""
+
+
+def build_hunter_geo_result(callsign, geo_data):
+    return {
+        "callsign": callsign,
+        "dxcc_code": geo_data.dxcc_code,
+        "continent": geo_data.continent,
+        "state": geo_data.state,
+        "cq_zone": geo_data.cq_zone,
+        "itu_zone": geo_data.itu_zone,
+        "locator": geo_data.locator,
+        "lat": geo_data.lat,
+        "lon": geo_data.lon,
+        "source": "cache" if geo_data.cached else geo_data.locator_source,
+    }
+
+
+async def resolve_hunter_callsign(callsign, qrz_session_key):
+    geo_data = await get_geo_details(
+        app.state.valkey_client,
+        qrz_session_key,
+        callsign,
+        settings.valkey_geo_expiration,
+        app.state.http_client,
+        "hunter_import",
+    )
+    return build_hunter_geo_result(callsign, geo_data)
 
 
 async def compute_cluster_stats(valkey_client, hours: int | None = None):
@@ -430,69 +591,6 @@ async def get_locator(callsign: str):
         return {"callsign": callsign, "error": "not found"}
 
 
-@app.post("/hunter/resolve")
-async def hunter_resolve(request: HunterResolveRequest):
-    if len(request.callsigns) > MAX_HUNTER_RESOLVE_CALLSIGNS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"maximum {MAX_HUNTER_RESOLVE_CALLSIGNS} callsigns per request",
-        )
-
-    normalized_callsigns = []
-    errors = {}
-    seen_callsigns = set()
-
-    for callsign in request.callsigns:
-        normalized = callsign.strip().upper()
-        if not HUNTER_CALLSIGN_PATTERN.fullmatch(normalized):
-            errors[normalized] = "invalid callsign"
-            continue
-        if normalized in seen_callsigns:
-            continue
-        seen_callsigns.add(normalized)
-        normalized_callsigns.append(normalized)
-
-    try:
-        qrz_session_key = await get_qrz_session_key_from_redis()
-    except Exception as e:
-        logger.warning(f"QRZ session key unavailable for hunter resolve; continuing with CTY fallback: {e}")
-        qrz_session_key = ""
-
-    results = {}
-    for callsign in normalized_callsigns:
-        try:
-            geo_data = await get_geo_details(
-                app.state.valkey_client,
-                qrz_session_key,
-                callsign,
-                settings.valkey_geo_expiration,
-                app.state.http_client,
-                "hunter_import",
-            )
-        except GeoException as e:
-            errors[callsign] = f"{e.data_type} not found"
-            continue
-        except Exception:
-            logger.exception(f"Failed to resolve hunter callsign: {callsign}")
-            errors[callsign] = "not found"
-            continue
-
-        results[callsign] = {
-            "callsign": callsign,
-            "dxcc_code": geo_data.dxcc_code,
-            "continent": geo_data.continent,
-            "state": geo_data.state,
-            "cq_zone": geo_data.cq_zone,
-            "itu_zone": geo_data.itu_zone,
-            "locator": geo_data.locator,
-            "lat": geo_data.lat,
-            "lon": geo_data.lon,
-            "source": "cache" if geo_data.cached else geo_data.locator_source,
-        }
-
-    return {"results": results, "errors": errors}
-
-
 @app.get("/geocache/all")
 async def geocache_all():
     async with async_session() as session:
@@ -526,7 +624,7 @@ def propagation_data():
 
 @app.get("/propagation/history")
 async def propagation_history(start_time: int, end_time: int):
-    if end_time <= start_time:
+    if end_time < start_time:
         raise HTTPException(status_code=400, detail="end_time must be greater than start_time")
     if end_time - start_time > MAX_PROPAGATION_HISTORY_RANGE_SECONDS:
         raise HTTPException(status_code=400, detail="time range cannot exceed 24 hours")
@@ -588,26 +686,334 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
             break
 
 
-async def send_spots(websocket: fastapi.WebSocket, message: dict):
+@app.websocket("/ws")
+async def ws(websocket: fastapi.WebSocket):
+    await websocket.accept()
+    hunter_jobs = {}
+    send_lock = asyncio.Lock()
+
+    try:
+        while True:
+            try:
+                raw_message = await websocket.receive_text()
+            except websockets.WebSocketDisconnect:
+                break
+
+            try:
+                message = json.loads(raw_message)
+            except json.JSONDecodeError:
+                await websocket.send_json(
+                    build_ws_error(WsErrorType.MALFORMED_MESSAGE, "WebSocket message must be valid JSON")
+                )
+                continue
+
+            error = validate_ws_protocol_message(message)
+            if error is not None:
+                await websocket.send_json(error)
+                continue
+
+            if message.get("type") == WsMessageType.SPOTS.value:
+                await send_ws_spots(websocket, message)
+                continue
+
+            if message.get("type") == WsMessageType.SUBMIT.value:
+                await send_ws_submit(websocket, message)
+                continue
+
+            if message.get("type") == WsMessageType.RADIO.value:
+                await websocket.send_json(
+                    build_ws_message(WsMessageType.RADIO, event=WsRadioEvent.STATUS.value, status="unavailable")
+                )
+                continue
+
+            if message.get("type") == WsMessageType.HUNTER.value:
+                await send_ws_hunter(websocket, send_lock, hunter_jobs, message)
+                continue
+
+            await websocket.send_json(
+                build_ws_error(
+                    WsErrorType.NOT_IMPLEMENTED,
+                    "WebSocket protocol v1 routing is not implemented yet",
+                    received_type=message.get("type"),
+                )
+            )
+    finally:
+        await cancel_hunter_jobs(hunter_jobs)
+        app.state.active_ws_spot_connections.discard(websocket)
+
+
+async def send_ws_submit(websocket: fastapi.WebSocket, message: dict):
+    response = await submit_spot.handle_spot(message, app.state.valkey_client)
+    if "type" in response:
+        response = {**response, "error_type": response["type"]}
+        del response["type"]
+    await websocket.send_json(build_ws_message(WsMessageType.SUBMIT, **response))
+
+
+async def send_ws_json(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
+    async with send_lock:
+        await websocket.send_json(message)
+
+
+async def cancel_hunter_jobs(hunter_jobs):
+    tasks = [job.task for job in hunter_jobs.values() if job.task is not None]
+    for task in tasks:
+        if not task.done():
+            task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def send_ws_hunter(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, hunter_jobs, message: dict):
+    action = message.get("action")
+    job_id = message.get("job_id")
+    if not job_id:
+        await send_ws_json(
+            websocket, send_lock, build_ws_error(WsErrorType.MISSING_FIELD, "Missing job_id", field="job_id")
+        )
+        return
+
+    if action == WsHunterAction.START.value:
+        old_job = hunter_jobs.get(job_id)
+        if old_job is not None and old_job.task is not None and not old_job.task.done():
+            old_job.task.cancel()
+        hunter_jobs[job_id] = HunterWsJob(job_id=job_id)
+        return
+
+    job = hunter_jobs.get(job_id)
+    if job is None:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(WsErrorType.UNKNOWN_JOB, "Unknown hunter job", job_id=job_id),
+        )
+        return
+
+    if action == WsHunterAction.ADD.value:
+        if job.task is not None:
+            await send_ws_json(
+                websocket,
+                send_lock,
+                build_ws_error(WsErrorType.UNSUPPORTED_ACTION, "Hunter job is already running", job_id=job_id),
+            )
+            return
+
+        callsigns = message.get("callsigns")
+        if not isinstance(callsigns, list):
+            await send_ws_json(
+                websocket,
+                send_lock,
+                build_ws_error(WsErrorType.MISSING_FIELD, "Missing callsigns", field="callsigns", job_id=job_id),
+            )
+            return
+
+        normalized_callsigns, errors = normalize_hunter_callsigns(callsigns)
+        job.errors.update(errors)
+        for callsign in normalized_callsigns:
+            if callsign in job.seen_callsigns:
+                continue
+            job.seen_callsigns.add(callsign)
+            job.callsigns.append(callsign)
+        return
+
+    if action == WsHunterAction.FINISH.value:
+        if job.task is not None and not job.task.done():
+            await send_ws_json(
+                websocket,
+                send_lock,
+                build_ws_error(WsErrorType.UNSUPPORTED_ACTION, "Hunter job is already running", job_id=job_id),
+            )
+            return
+        job.task = asyncio.create_task(run_hunter_resolve_job(websocket, send_lock, job))
+        return
+
+    await send_ws_json(
+        websocket,
+        send_lock,
+        build_ws_error(
+            WsErrorType.UNSUPPORTED_ACTION, "Unsupported hunter action", received_action=action, job_id=job_id
+        ),
+    )
+
+
+async def run_hunter_resolve_job(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, job: HunterWsJob):
+    total = len(job.callsigns) + len(job.errors)
+    completed = 0
+    await send_ws_json(
+        websocket,
+        send_lock,
+        build_ws_message(WsMessageType.HUNTER, event=WsHunterEvent.ACCEPTED.value, job_id=job.job_id, total=total),
+    )
+
+    if job.errors:
+        completed = len(job.errors)
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(
+                WsMessageType.HUNTER,
+                event=WsHunterEvent.RESULTS.value,
+                job_id=job.job_id,
+                completed=completed,
+                total=total,
+                results={},
+                errors=dict(job.errors),
+            ),
+        )
+
+    if not job.callsigns:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(
+                WsMessageType.HUNTER,
+                event=WsHunterEvent.COMPLETE.value,
+                job_id=job.job_id,
+                completed=completed,
+                total=total,
+            ),
+        )
+        return
+
+    qrz_session_key = await get_hunter_qrz_session_key()
+    queue = asyncio.Queue()
+    result_queue = asyncio.Queue()
+
+    for callsign in job.callsigns:
+        queue.put_nowait(callsign)
+
+    worker_count = min(HUNTER_RESOLVE_WORKER_COUNT, len(job.callsigns))
+    workers = [
+        asyncio.create_task(resolve_hunter_queue_worker(queue, result_queue, qrz_session_key))
+        for _ in range(worker_count)
+    ]
+    for _ in workers:
+        queue.put_nowait(None)
+
+    batch_results = {}
+    batch_errors = {}
+    try:
+        while completed < total:
+            callsign, result, error = await result_queue.get()
+            completed += 1
+            if error is None:
+                batch_results[callsign] = result
+            else:
+                batch_errors[callsign] = error
+
+            if len(batch_results) + len(batch_errors) >= HUNTER_RESOLVE_RESULT_BATCH_SIZE:
+                await send_hunter_result_batch(
+                    websocket, send_lock, job.job_id, completed, total, batch_results, batch_errors
+                )
+                batch_results = {}
+                batch_errors = {}
+
+        if batch_results or batch_errors:
+            await send_hunter_result_batch(
+                websocket, send_lock, job.job_id, completed, total, batch_results, batch_errors
+            )
+
+        await asyncio.gather(*workers)
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(
+                WsMessageType.HUNTER,
+                event=WsHunterEvent.COMPLETE.value,
+                job_id=job.job_id,
+                completed=completed,
+                total=total,
+            ),
+        )
+    finally:
+        for worker in workers:
+            if not worker.done():
+                worker.cancel()
+        await asyncio.gather(*workers, return_exceptions=True)
+
+
+async def send_hunter_result_batch(websocket, send_lock, job_id, completed, total, results, errors):
+    await send_ws_json(
+        websocket,
+        send_lock,
+        build_ws_message(
+            WsMessageType.HUNTER,
+            event=WsHunterEvent.RESULTS.value,
+            job_id=job_id,
+            completed=completed,
+            total=total,
+            results=results,
+            errors=errors,
+        ),
+    )
+
+
+async def resolve_hunter_queue_worker(queue, result_queue, qrz_session_key):
+    while True:
+        callsign = await queue.get()
+        try:
+            if callsign is None:
+                return
+            try:
+                result = await resolve_hunter_callsign(callsign, qrz_session_key)
+                await result_queue.put((callsign, result, None))
+            except GeoException as e:
+                await result_queue.put((callsign, None, f"{e.data_type} not found"))
+            except Exception:
+                logger.exception(f"Failed to resolve hunter callsign: {callsign}")
+                await result_queue.put((callsign, None, "not found"))
+        finally:
+            queue.task_done()
+
+
+async def get_initial_spots():
     async with async_session() as session:
-        if "initial" in message:
-            query = (
-                select(HolySpot)
-                .where(HolySpot.timestamp > (time.time() - 3600))
-                .order_by(desc(HolySpot.timestamp))
-                .limit(500)
+        query = (
+            select(HolySpot)
+            .where(HolySpot.timestamp > (time.time() - 3600))
+            .order_by(desc(HolySpot.timestamp))
+            .limit(500)
+        )
+        return cleanup_spots((await session.execute(query)).scalars())
+
+
+async def get_spots_after(last_time):
+    async with async_session() as session:
+        query = select(HolySpot).where(HolySpot.timestamp > last_time).order_by(desc(HolySpot.timestamp)).limit(500)
+        return cleanup_spots((await session.execute(query)).scalars())
+
+
+async def send_ws_spots(websocket: fastapi.WebSocket, message: dict):
+    action = message.get("action")
+    if action == WsSpotAction.INITIAL.value:
+        app.state.active_ws_spot_connections.add(websocket)
+        spots = await get_initial_spots()
+        await websocket.send_json(build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.INITIAL.value, spots=spots))
+    elif action == WsSpotAction.CATCH_UP.value:
+        if "last_time" not in message:
+            await websocket.send_json(build_ws_error(WsErrorType.MISSING_FIELD, "Missing last_time", field="last_time"))
+            return
+
+        app.state.active_ws_spot_connections.add(websocket)
+        spots = await get_spots_after(message["last_time"])
+        await websocket.send_json(build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots))
+    else:
+        await websocket.send_json(
+            build_ws_error(
+                WsErrorType.UNSUPPORTED_ACTION,
+                "Unsupported spots action",
+                received_action=action,
             )
-            spots = cleanup_spots((await session.execute(query)).scalars())
-            await websocket.send_json({"type": "initial", "spots": spots})
-        elif "last_time" in message:
-            query = (
-                select(HolySpot)
-                .where(HolySpot.timestamp > message["last_time"])
-                .order_by(desc(HolySpot.timestamp))
-                .limit(500)
-            )
-            spots = cleanup_spots((await session.execute(query)).scalars())
-            await websocket.send_json({"type": "update", "spots": spots})
+        )
+
+
+async def send_spots(websocket: fastapi.WebSocket, message: dict):
+    if "initial" in message:
+        spots = await get_initial_spots()
+        await websocket.send_json({"type": "initial", "spots": spots})
+    elif "last_time" in message:
+        spots = await get_spots_after(message["last_time"])
+        await websocket.send_json({"type": "update", "spots": spots})
 
 
 @app.websocket("/spots_ws")
@@ -658,10 +1064,14 @@ def download_catserver():
 
 @app.get("/history")
 async def spot_history(start_time: int, end_time: int):
-    if end_time <= start_time:
+    if end_time < start_time:
+        logger.info("test 1s")
         raise HTTPException(status_code=400, detail="end_time must be greater than start_time")
     if end_time - start_time > 86400:
+        logger.info("test")
         raise HTTPException(status_code=400, detail="time range cannot exceed 24 hours")
+
+    perf = {}
 
     async with async_session() as session:
         query = (
@@ -670,8 +1080,24 @@ async def spot_history(start_time: int, end_time: int):
             .where(HolySpot.timestamp <= end_time)
             .order_by(HolySpot.timestamp)
         )
-        spots = cleanup_spots((await session.execute(query)).scalars())
-        return {"spots": spots}
+
+        t0 = time.perf_counter()
+        result = (await session.execute(query)).scalars().all()
+        perf["db_query_ms"] = round((time.perf_counter() - t0) * 1000, 2)
+        perf["row_count"] = len(result)
+
+        t1 = time.perf_counter()
+        spots = cleanup_spots(result)
+        perf["cleanup_ms"] = round((time.perf_counter() - t1) * 1000, 2)
+
+        t2 = time.perf_counter()
+        payload = json.dumps({"spots": spots, "perf": perf})
+        perf["serialize_ms"] = round((time.perf_counter() - t2) * 1000, 2)
+        perf["payload_bytes"] = len(payload)
+
+        logger.info(f"history perf: {perf}")
+
+    return fastapi.Response(content=payload, media_type="application/json")
 
 
 @app.get("/health")

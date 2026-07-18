@@ -30,6 +30,29 @@ export function calculate_geographic_azimuth(from_lat, from_lon, to_lat, to_lon)
     return mod(to_degrees(azimuth), 360);
 }
 
+export function calculate_bearing_between_locations(from_location, to_location) {
+    if (!from_location || !to_location) return null;
+
+    const [from_lon, from_lat] = from_location;
+    const [to_lon, to_lat] = to_location;
+    return calculate_geographic_azimuth(from_lat, from_lon, to_lat, to_lon);
+}
+
+export function get_station_location(settings) {
+    const locator = (settings.locator || "").trim().toUpperCase();
+    if (!locator || !Maidenhead.valid(locator)) return null;
+
+    const [lat, lon] = Maidenhead.toLatLon(locator);
+    return [lon, lat];
+}
+
+export function get_bearing_origin(settings, fallback_location) {
+    const station_location = get_station_location(settings);
+    if (station_location) return { location: station_location, source: "station" };
+    if (fallback_location) return { location: fallback_location, source: "map" };
+    return { location: null, source: "none" };
+}
+
 export const mod = (n, m) => ((n % m) + m) % m;
 
 const HUNTER_ALERT_FLASH_PERIOD_MS = 800;

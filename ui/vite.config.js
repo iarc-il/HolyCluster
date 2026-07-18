@@ -25,7 +25,6 @@ export default defineConfig({
             "/dxpeditions": "https://holycluster-dev.iarc.org",
             "/cluster_stats": "https://holycluster-dev.iarc.org",
             "/history": "https://holycluster-dev.iarc.org",
-            "/hunter/resolve": "https://holycluster-dev.iarc.org",
             "/spots_ws": {
                 target: "wss://holycluster-dev.iarc.org",
                 ws: true,
@@ -35,6 +34,10 @@ export default defineConfig({
                 ws: true,
             },
             "/submit_spot": {
+                target: "wss://holycluster-dev.iarc.org",
+                ws: true,
+            },
+            "/ws": {
                 target: "wss://holycluster-dev.iarc.org",
                 ws: true,
             },

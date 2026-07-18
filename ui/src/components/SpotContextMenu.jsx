@@ -2,7 +2,17 @@ import { useColors } from "@/hooks/useColors";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
+const JOYRIDE_TOOLTIP_SELECTOR = ".react-joyride__floater, .react-joyride__tooltip";
+
+export default function SpotContextMenu({
+    x,
+    y,
+    on_close,
+    spot,
+    actions,
+    data_tour = null,
+    data_tour_state = null,
+}) {
     const menu_ref = useRef(null);
     const { colors } = useColors();
     const [position, set_position] = useState({ x, y });
@@ -17,6 +27,10 @@ export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
 
     useEffect(() => {
         function handle_click_outside(event) {
+            if (event.target instanceof Element && event.target.closest(JOYRIDE_TOOLTIP_SELECTOR)) {
+                return;
+            }
+
             if (menu_ref.current && !menu_ref.current.contains(event.target)) {
                 on_close();
             }
@@ -24,16 +38,18 @@ export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
 
         function handle_escape_key(event) {
             if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopImmediatePropagation();
                 on_close();
             }
         }
 
         document.body.addEventListener("mousedown", handle_click_outside);
-        document.body.addEventListener("keydown", handle_escape_key);
+        document.body.addEventListener("keydown", handle_escape_key, true);
 
         return () => {
             document.body.removeEventListener("mousedown", handle_click_outside);
-            document.body.removeEventListener("keydown", handle_escape_key);
+            document.body.removeEventListener("keydown", handle_escape_key, true);
         };
     }, [on_close]);
 
@@ -61,6 +77,8 @@ export default function SpotContextMenu({ x, y, on_close, spot, actions }) {
         <div
             ref={menu_ref}
             className="fixed z-50 min-w-[200px] py-2 rounded-lg shadow-lg"
+            data-tour={data_tour}
+            data-tour-state={data_tour_state}
             style={{
                 top: `${position.y}px`,
                 left: `${position.x}px`,

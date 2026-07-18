@@ -7,7 +7,7 @@ function FeedbackButton({ size }) {
     const { colors } = useColors();
 
     return (
-        <div>
+        <div data-tour="feedback-link">
             <a href="https://forms.gle/jak7KnvwCnBRN6QU7" target="_blank" rel="noreferrer">
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
                     <title>Feedback form</title>
@@ -28,7 +28,7 @@ function CatserverDownload({ size, new_version_available }) {
     const { colors } = useColors();
 
     return (
-        <div>
+        <div data-tour="cat-download-link">
             <a href="/addons" target="_blank" rel="noreferrer">
                 {new_version_available ? (
                     <span className="absolute right-16 flex w-5 -translate-y-1 translate-x-1 z-10">
@@ -51,7 +51,7 @@ function UtilityButtons() {
     const { local_version, new_version_available } = use_radio();
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-3" data-tour="utility-buttons">
             <CatserverDownload size="36" new_version_available={new_version_available} />
             <FeedbackButton size="36" />
             <About />

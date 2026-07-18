@@ -10,9 +10,11 @@ function SpotPopup({
     pinned_spot_data,
     hovered_spot_data,
     distance,
-    azimuth,
+    antenna_azimuth,
+    antenna_azimuth_source,
+    map_azimuth,
 }) {
-    const { colors } = useColors();
+    const { colors, dev_mode } = useColors();
     const { settings } = useSettings();
 
     const spot_data = hovered_spot_data ?? pinned_spot_data;
@@ -21,9 +23,19 @@ function SpotPopup({
         return <></>;
     }
 
+    const antenna_azimuth_label = Number.isFinite(antenna_azimuth)
+        ? `${Math.round(antenna_azimuth)}°`
+        : "--";
+    const map_azimuth_label = Number.isFinite(map_azimuth) ? `${Math.round(map_azimuth)}°` : "--";
+    const show_map_azimuth =
+        Number.isFinite(antenna_azimuth) &&
+        Number.isFinite(map_azimuth) &&
+        Math.round(antenna_azimuth) !== Math.round(map_azimuth);
+
     return (
         <div
             className="absolute w-fit z-40 bottom-2 left-2 border-l-4 pl-2"
+            data-tour="spot-popup"
             onMouseOver={() => set_hovered_spot(hovered_spot)}
             onMouseLeave={() => set_hovered_spot({ source: null, id: null })}
             onFocus={() => set_hovered_spot(hovered_spot)}
@@ -51,9 +63,19 @@ function SpotPopup({
                 <p>Spotter: {spot_data.spotter_callsign}</p>
                 <p>
                     Distance: {settings.is_miles ? km_to_miles(distance) : distance}{" "}
-                    {settings.is_miles ? "Miles" : "KM"}
+                    {settings.is_miles ? "Miles" : "km"}
                 </p>
-                <p>Azimuth: {Math.round(azimuth)}°</p>
+                {dev_mode ? (
+                    <>
+                        <p>
+                            Antenna: {antenna_azimuth_label}
+                            {antenna_azimuth_source === "map" ? " (map center)" : ""}
+                        </p>
+                        {show_map_azimuth && <p>Map: {map_azimuth_label}</p>}
+                    </>
+                ) : (
+                    <p>Azimuth: {map_azimuth_label}</p>
+                )}
                 {spot_data.hunterNeeded?.is_needed && (
                     <p className="mt-1">
                         {spot_data.hunterNeeded.reasons

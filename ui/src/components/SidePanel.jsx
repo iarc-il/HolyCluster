@@ -5,6 +5,7 @@ import Filters from "@/components/Filters.jsx";
 import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Heatmap from "@/components/Heatmap.jsx";
 import HunterPanel from "@/components/HunterPanel.jsx";
+import RotatorPanel from "@/components/RotatorPanel.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
 import { continents } from "@/data/filters_data.js";
 import { useColors } from "@/hooks/useColors";
@@ -18,7 +19,10 @@ function ContinentColumn({ spot_type, colors }) {
     const color = colors.buttons[`${spot_type}_continents`];
 
     return (
-        <div className="flex flex-col gap-3 items-center p-1">
+        <div
+            className="flex flex-col gap-3 items-center p-1"
+            data-tour={`${spot_type}-continent-filters`}
+        >
             <strong style={{ color: colors.theme.text }}>{continent_title[spot_type]}</strong>
             {continents.map(continent => (
                 <FilterOptions
@@ -32,6 +36,7 @@ function ContinentColumn({ spot_type, colors }) {
                         text={continent}
                         text_color={colors.theme.text}
                         is_active={filters[filter_key][continent]}
+                        data_tour={`${spot_type}-continent-filter-${continent}`}
                         on_click={_ => {
                             setFilters(state => ({
                                 ...state,
@@ -76,6 +81,7 @@ function SwapButton({ colors }) {
             style={{ backgroundColor: colors.buttons.disabled_background }}
             title="Swap DX and DE continent filters"
             disabled={areFiltersEqual}
+            data-tour="swap-continent-filters"
         >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <title>Swap continents</title>
@@ -106,6 +112,7 @@ function RightColumnContent({ colors }) {
     return (
         <div
             className="flex flex-col gap-2 w-16 h-full overflow-y-auto shrink-0"
+            data-tour="continent-filter-column"
             style={{
                 backgroundColor: colors.theme.columns,
                 borderLeft: `1px solid ${colors.theme.borders}`,
@@ -167,17 +174,31 @@ const view_options = [
         size: 32,
         is_disabled: false,
     },
+    {
+        label: "Rotator",
+        bg: "#38bdf8",
+        icon: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m4.24 5.76-2.12 6.36a1 1 0 0 1-.63.63l-6.36 2.12 2.12-6.36a1 1 0 0 1 .63-.63z",
+        viewbox: "0 0 24 24",
+        size: 36,
+        is_disabled: false,
+        dev_only: true,
+    },
 ];
 
-function ViewSelectorTabs({ active_view, set_active_view, colors }) {
+function ViewSelectorTabs({ active_view, set_active_view, colors, dev_mode }) {
     return (
         <div
             className="flex shrink-0 border-b-2"
+            data-tour="side-panel-tabs"
             style={{
                 borderColor: colors.table.header_arrow,
             }}
         >
             {view_options.map((option, index) => {
+                if (option.dev_only && !dev_mode) {
+                    return null;
+                }
+
                 const is_active = active_view === index;
                 return (
                     <div
@@ -208,6 +229,9 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                         title={option.label}
                         role="button"
                         tabIndex={0}
+                        data-tour={`side-panel-tab-${option.label.toLowerCase().replaceAll(" ", "-")}`}
+                        data-tour-state={is_active ? "active" : "inactive"}
+                        aria-pressed={is_active}
                     >
                         <svg
                             width={option.size}
@@ -227,9 +251,12 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
 }
 
 function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }) {
-    const { colors } = useColors();
+    const { colors, dev_mode } = useColors();
 
     if (active_view === null) return null;
+
+    const effective_active_view =
+        !dev_mode && view_options[active_view]?.dev_only ? 0 : active_view;
 
     const content = [
         <Filters key="filters" toggled_ui={toggled_ui} />,
@@ -243,7 +270,11 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
         </div>,
         <DXpeditions key="dxpeditions" />,
         <HunterPanel key="hunter" />,
+        <RotatorPanel key="rotator" />,
     ];
+    const active_view_label = view_options[effective_active_view]?.label
+        .toLowerCase()
+        .replaceAll(" ", "-");
 
     const toggled_classes = toggled_ui.right_visible
         ? "max-2xl:absolute max-2xl:flex right-0 top-0"
@@ -251,16 +282,21 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
     return (
         <div
             className={`${toggled_classes} 2xl:flex flex-col h-full z-50 max-2xl:max-h-full max-2xl:overflow-auto`}
+            data-tour="side-panel"
             style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}
         >
             <ViewSelectorTabs
-                active_view={active_view}
+                active_view={effective_active_view}
                 set_active_view={set_active_view}
                 colors={colors}
+                dev_mode={dev_mode}
             />
-            <div className="flex flex-1 overflow-hidden">
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64 min-w-0">
-                    {content[active_view]}
+            <div className="flex flex-1 overflow-hidden" data-tour="side-panel-body">
+                <div
+                    className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64 min-w-0"
+                    data-tour={active_view_label ? `side-panel-view-${active_view_label}` : null}
+                >
+                    {content[effective_active_view]}
                 </div>
                 <RightColumnContent colors={colors} />
             </div>

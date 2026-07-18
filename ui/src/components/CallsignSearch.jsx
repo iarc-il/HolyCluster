@@ -1,5 +1,6 @@
 import Input from "@/components/ui/Input.jsx";
 import Popup from "@/components/ui/Popup.jsx";
+import SearchIcon from "@/components/ui/SearchIcon.jsx";
 import Select from "@/components/ui/Select.jsx";
 import X from "@/components/ui/X.jsx";
 import { useColors } from "@/hooks/useColors";
@@ -11,8 +12,9 @@ export default function CallsignSearch({
     className = "hidden md:flex",
     compact = false,
     border_position = "bottom",
+    data_tour = "callsign-search",
 }) {
-    const { colors, dev_mode } = useColors();
+    const { colors } = useColors();
     const {
         search_query,
         set_search_query,
@@ -68,22 +70,10 @@ export default function CallsignSearch({
     return (
         <div
             className={`${className} items-center gap-1.5 px-2 py-1 shrink-0`}
+            data-tour={data_tour}
             style={border_style}
         >
-            {!compact && (
-                <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke={colors.theme.text}
-                    strokeWidth="2"
-                >
-                    <title>Search</title>
-                    <circle cx="6" cy="6" r="5" />
-                    <path d="M15 15L10 10" strokeLinecap="round" />
-                </svg>
-            )}
+            {!compact && <SearchIcon color={colors.theme.text} />}
             <Input
                 className={`${compact ? "min-w-0 flex-1 h-9 text-base" : "w-48 h-10 text-lg"} border-2`}
                 border_color={colors.table.header_arrow}
@@ -97,18 +87,17 @@ export default function CallsignSearch({
                 }}
             />
             {search_query && <X size="24" on_click={() => set_search_query("")} />}
-            {dev_mode && (
-                <Select
-                    className={`${compact ? "h-9 !w-24 !px-2 !py-1 text-xs" : "ml-auto h-9 w-28 text-sm"} font-semibold`}
-                    value={selected_reference_type ?? "cluster"}
-                    onChange={e => select_reference_type(e.target.value)}
-                >
-                    <option value="cluster">Cluster</option>
-                    <option value="pota">POTA</option>
-                    <option value="wwff">WWFF</option>
-                    <option value="sota">SOTA</option>
-                </Select>
-            )}
+            <Select
+                className={`${compact ? "h-9 !w-24 !px-2 !py-1 text-xs" : "ml-auto h-9 w-28 text-sm"} font-semibold`}
+                data-tour={`${data_tour}-reference-selector`}
+                value={selected_reference_type ?? "cluster"}
+                onChange={e => select_reference_type(e.target.value)}
+            >
+                <option value="cluster">Cluster</option>
+                <option value="pota">POTA</option>
+                <option value="wwff">WWFF</option>
+                <option value="sota">SOTA</option>
+            </Select>
             <button
                 type="button"
                 ref={single_spot_ref}
@@ -126,7 +115,10 @@ export default function CallsignSearch({
                     set_show_single_popup(false);
                     set_single_spot_hover(false);
                 }}
-                className={`flex items-center gap-1 cursor-pointer rounded-md ${!dev_mode && !compact ? "ml-auto " : ""}${compact ? "px-1 py-1" : "px-2 py-1"}`}
+                className={`flex items-center gap-1 cursor-pointer rounded-md ${compact ? "px-1 py-1" : "px-2 py-1"}`}
+                data-tour={`${data_tour}-single-spot-toggle`}
+                data-tour-state={single_spot ? "on" : "off"}
+                aria-pressed={single_spot}
                 style={{
                     ...toggle_button_base,
                     ...(single_spot ? toggle_button_active : {}),

@@ -9,6 +9,20 @@ import use_radio from "@/hooks/useRadio.jsx";
 
 const RELEASES = [
     [
+        "18/07/2026",
+        [
+            // "New guided website tour with quick start, map, table, filters, side panel, and settings chapters",
+            "New spot sources for POTA, SOTA and WWFF",
+            "Mobile GPS support for centering the map and filling your locator in settings",
+            "Layout settings now allowing configuration of the view: map only, table only and view order",
+            "Added profiles to quickly switch between setttings and filters",
+            "Added sharing filter state using a URL",
+            "ADIF panel now support larger 50 MB files",
+            "Added map maidenhead locator grid overlay",
+            "Added 3 map color themes in settings",
+        ],
+    ],
+    [
         "28/06/2026",
         [
             "We had a vote in Friedrichshafen on the next feature to release!",
@@ -256,6 +270,11 @@ function About() {
 
     useEffect(() => {
         const current_release = RELEASES[0][0];
+        if (last_release === "") {
+            set_last_release(current_release);
+            return;
+        }
+
         if (last_release !== current_release) {
             set_should_display_release_notes(true);
             set_last_release(current_release);
@@ -303,6 +322,8 @@ function About() {
     return (
         <Modal
             button={<Info size="36" />}
+            data_tour="about-trigger"
+            dialog_data_tour="about-modal"
             on_cancel={() => true}
             cancel_text="close"
             external_open={should_display_release_notes}
@@ -312,6 +333,7 @@ function About() {
                     tabs={[
                         {
                             label: <h1 className="text-xl">About</h1>,
+                            data_tour: "about-tab-about",
                             text_color: colors.theme.text,
                             content: (
                                 <div className="max-h-[60vh] overflow-y-auto w-[38rem]">
@@ -321,6 +343,7 @@ function About() {
                         },
                         {
                             label: <h1 className="text-xl">Release Notes</h1>,
+                            data_tour: "about-tab-release-notes",
                             text_color: colors.theme.text,
                             content: (
                                 <div className="max-h-[60vh] overflow-y-auto w-[38rem]">
@@ -329,6 +352,7 @@ function About() {
                             ),
                         },
                     ]}
+                    data_tour="about-tabs"
                     external_tab={should_display_release_notes ? 1 : null}
                 />
             </div>

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("virtual:cty-dxcc-entities", () => ({
     default: ["United States", "Fed. Rep. of Germany", "Canada", "Alaska", "Hawaii"],
@@ -20,9 +20,9 @@ vi.mock("virtual:cty-dxcc-entities", () => ({
 
 import {
     HUNTER_ADIF_MAX_FILE_SIZE_BYTES,
-    HUNTER_ADIF_MAX_QSO_RECORDS,
     HunterAdifImportError,
     import_hunter_adif,
+    resolve_hunter_callsigns,
 } from "@/utils/hunter_adif.js";
 import { import_hunter_adif_in_worker } from "@/utils/hunter_adif_worker_client.js";
 import { create_default_hunter } from "@/utils/profile_data.js";
@@ -36,6 +36,42 @@ function adif_record(fields) {
 function failing_resolver() {
     throw new Error("resolver should not be called");
 }
+
+class FakeWebSocket {
+    static instances = [];
+
+    constructor(url) {
+        this.url = url;
+        this.sent = [];
+        FakeWebSocket.instances.push(this);
+        setTimeout(() => this.onopen?.(), 0);
+    }
+
+    send(message) {
+        this.sent.push(JSON.parse(message));
+    }
+
+    close() {
+        this.closed = true;
+    }
+
+    receive(message) {
+        this.onmessage?.({ data: JSON.stringify(message) });
+    }
+
+    disconnect() {
+        this.onclose?.();
+    }
+}
+
+function wait_for_socket_open() {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+    FakeWebSocket.instances = [];
+});
 
 describe("hunter_adif", () => {
     it("parses direct ADIF records and records import metadata", async () => {
@@ -143,7 +179,7 @@ describe("hunter_adif", () => {
         expect(result.hunter.imports).toHaveLength(2);
     });
 
-    it("reports resolver progress by 100-callsign batches", async () => {
+    it("reports resolver progress for one logical resolver job", async () => {
         const resolved_batches = [];
         const progress = [];
         const adif_text = Array.from({ length: 250 }, (_, index) =>
@@ -172,12 +208,10 @@ describe("hunter_adif", () => {
             on_progress: update => progress.push(update),
         });
 
-        expect(resolved_batches.map(batch => batch.length)).toEqual([100, 100, 50]);
+        expect(resolved_batches.map(batch => batch.length)).toEqual([250]);
         expect(progress.map(update => update.phase)).toEqual([
             "parsing",
             "processing",
-            "resolving",
-            "resolving",
             "resolving",
             "resolving",
             "merging",
@@ -185,11 +219,79 @@ describe("hunter_adif", () => {
         ]);
         expect(progress.filter(update => update.phase === "resolving")).toEqual([
             { phase: "resolving", completed: 0, total: 250, percentage: 0 },
-            { phase: "resolving", completed: 100, total: 250, percentage: 40 },
-            { phase: "resolving", completed: 200, total: 250, percentage: 80 },
             { phase: "resolving", completed: 250, total: 250, percentage: 100 },
         ]);
         expect(result.metadata.resolved_count).toBe(250);
+    });
+
+    it("resolves callsigns over websocket and retries unresolved callsigns after disconnect", async () => {
+        vi.stubGlobal("WebSocket", FakeWebSocket);
+        const progress = [];
+        const resolve_promise = resolve_hunter_callsigns(["K1ABC", "VE3XYZ"], completed => {
+            progress.push(completed);
+        });
+
+        await wait_for_socket_open();
+        const first_socket = FakeWebSocket.instances[0];
+        const first_job_id = first_socket.sent[0].job_id;
+        expect(first_socket.url).toBe("ws://localhost:3000/ws");
+        expect(first_socket.sent).toEqual([
+            { version: 1, type: "hunter", action: "start", job_id: first_job_id },
+            {
+                version: 1,
+                type: "hunter",
+                action: "add",
+                job_id: first_job_id,
+                callsigns: ["K1ABC", "VE3XYZ"],
+            },
+            { version: 1, type: "hunter", action: "finish", job_id: first_job_id },
+        ]);
+
+        first_socket.receive({
+            version: 1,
+            type: "hunter",
+            event: "results",
+            job_id: first_job_id,
+            results: { K1ABC: { country: "USA" } },
+            errors: {},
+        });
+        first_socket.disconnect();
+
+        await wait_for_socket_open();
+        await wait_for_socket_open();
+        const second_socket = FakeWebSocket.instances[1];
+        const second_job_id = second_socket.sent[0].job_id;
+        expect(second_socket.sent[1]).toEqual({
+            version: 1,
+            type: "hunter",
+            action: "add",
+            job_id: second_job_id,
+            callsigns: ["VE3XYZ"],
+        });
+
+        second_socket.receive({
+            version: 1,
+            type: "hunter",
+            event: "results",
+            job_id: second_job_id,
+            results: { VE3XYZ: { country: "Canada" } },
+            errors: {},
+        });
+        second_socket.receive({
+            version: 1,
+            type: "hunter",
+            event: "complete",
+            job_id: second_job_id,
+        });
+
+        await expect(resolve_promise).resolves.toEqual({
+            results: {
+                K1ABC: { country: "USA" },
+                VE3XYZ: { country: "Canada" },
+            },
+            errors: {},
+        });
+        expect(progress).toEqual([1, 2]);
     });
 
     it("worker client falls back when a custom resolver is supplied", async () => {
@@ -351,22 +453,11 @@ describe("hunter_adif", () => {
         ).rejects.not.toThrow("BAD>");
     });
 
-    it("respects file and record limits", async () => {
+    it("respects the file size limit", async () => {
         await expect(
             import_hunter_adif({
                 adif_text: "",
                 file_size: HUNTER_ADIF_MAX_FILE_SIZE_BYTES + 1,
-            }),
-        ).rejects.toThrow(HunterAdifImportError);
-
-        const too_many_records = Array.from({ length: HUNTER_ADIF_MAX_QSO_RECORDS + 1 }, () =>
-            adif_record({ CALL: "K" }),
-        ).join("");
-
-        await expect(
-            import_hunter_adif({
-                adif_text: too_many_records,
-                resolve_callsigns: failing_resolver,
             }),
         ).rejects.toThrow(HunterAdifImportError);
     });

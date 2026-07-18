@@ -28,6 +28,9 @@ export function useMapRedraw({
     hovered_zone,
     hovered_dxcc,
     home_location,
+    show_dev_bearings,
+    rotator_azimuth,
+    rotator_target_azimuth,
     voacap_state,
     animation_id_ref,
 }) {
@@ -101,6 +104,9 @@ export function useMapRedraw({
         hovered_dxcc?.label,
         hovered_dxcc?.entity,
         home_location,
+        show_dev_bearings,
+        rotator_azimuth,
+        rotator_target_azimuth,
         map_controls.voacap_enabled,
         voacap_state.data,
         voacap_state.loading,
@@ -146,6 +152,9 @@ export function useMapRedraw({
                         projection,
                         rs.map_controls.is_globe,
                         rs.home_location,
+                        rs.show_dev_bearings,
+                        rs.rotator_azimuth,
+                        rs.rotator_target_azimuth,
                         hunter_flash_phase_ref.current,
                     );
                 });

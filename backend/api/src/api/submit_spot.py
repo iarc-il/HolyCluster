@@ -255,13 +255,12 @@ async def submit_spot_with_retries(data):
     raise ClusterConnectionFailed()
 
 
-async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
-    data = await websocket.receive_json()
-
+async def handle_spot(data, valkey: redis.asyncio.Redis):
     try:
         attempts = await submit_spot_with_retries(data)
-        await websocket.send_json({"status": "success", "attempts": attempts})
+        response = {"status": "success", "attempts": attempts}
         logger.info(f"Spot submitted successfully after {attempts} attempt(s): {data}")
+        return response
     except UserInputError as e:
         response = {
             "status": "failure",
@@ -269,7 +268,7 @@ async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
             "error_data": str(e),
         }
         logger.info(f"Invalid user input for spot: {data}, Response: {response}")
-        await websocket.send_json(response)
+        return response
     except Exception as e:
         response = {
             "status": "failure",
@@ -283,4 +282,9 @@ async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
             await push_exception_event(valkey, "submit_spot", f"{e.__class__.__name__}: {e}, Spot: {data}")
         else:
             logger.warning(f"Spot submit failure not alerting monitor: {data}, Response: {response}")
-        await websocket.send_json(response)
+        return response
+
+
+async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
+    data = await websocket.receive_json()
+    await websocket.send_json(await handle_spot(data, valkey))

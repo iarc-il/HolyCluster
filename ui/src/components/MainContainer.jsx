@@ -6,14 +6,26 @@ import SpotsTable from "@/components/SpotsTable.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import HistoryBar from "@/components/history/HistoryBar.jsx";
+import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
+import {
+    TOUR_CLOSE_LEFT_PANEL_EVENT,
+    TOUR_CLOSE_SIDE_PANEL_EVENT,
+} from "@/components/tour/tour_events.js";
 import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import use_radio from "@/hooks/useRadio";
 import { RestDataProvider } from "@/hooks/useRestData";
+import useRotator from "@/hooks/useRotator";
 import { SpotDataProvider, useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { compare_version, get_max_radius, get_spots_center } from "@/utils.js";
+import {
+    calculate_bearing_between_locations,
+    compare_version,
+    get_bearing_origin,
+    get_max_radius,
+    get_spots_center,
+} from "@/utils.js";
 import { open_db_and_evict } from "@/utils/spot_cache_db.js";
 import Maidenhead from "maidenhead";
 
@@ -114,6 +126,20 @@ function MainContent({
     }, [max_radius, auto_radius]);
 
     const { set_mode_and_freq, radio_freq, rig, radio_mode } = use_radio();
+    const { set_azimuth, is_rotator_available } = useRotator();
+
+    function get_rotator_azimuth(spot) {
+        if (!spot?.dx_loc) {
+            return null;
+        }
+
+        try {
+            const origin = get_bearing_origin(settings, map_controls.location.location);
+            return calculate_bearing_between_locations(origin.location, spot.dx_loc);
+        } catch {
+            return null;
+        }
+    }
 
     function set_cat_to_spot(spot) {
         set_prev_freqs(
@@ -128,6 +154,13 @@ function MainContent({
         );
 
         set_mode_and_freq(spot.mode, spot.freq);
+
+        if (dev_mode) {
+            const azimuth = get_rotator_azimuth(spot);
+            if (azimuth != null && is_rotator_available()) {
+                set_azimuth(azimuth);
+            }
+        }
     }
 
     function undo_freq_change() {
@@ -162,6 +195,23 @@ function MainContent({
             document.body.removeEventListener("keydown", on_key_down);
         };
     });
+
+    useEffect(() => {
+        function close_left_panel_for_tour() {
+            set_toggled_ui(state => ({ ...state, left_visible: false }));
+        }
+
+        function close_side_panel_for_tour() {
+            set_toggled_ui(state => ({ ...state, right_visible: false }));
+        }
+
+        document.addEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
+        document.addEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
+        return () => {
+            document.removeEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
+            document.removeEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
+        };
+    }, []);
 
     useEffect(() => {
         function handle_fullscreen_change() {
@@ -246,8 +296,8 @@ function MainContent({
             <UnsupportedVersion />
         );
 
-    const main_view_mode = dev_mode ? (settings.main_view_mode ?? "both") : "both";
-    const main_view_order = dev_mode ? (settings.main_view_order ?? "map_table") : "map_table";
+    const main_view_mode = settings.main_view_mode ?? "both";
+    const main_view_order = settings.main_view_order ?? "map_table";
     const ordered_panel_keys =
         main_view_order === "table_map" ? ["table", "map"] : ["map", "table"];
     const active_panel_keys =
@@ -290,7 +340,7 @@ function MainContent({
     const mobile_tabs_key = `${main_view_mode}-${main_view_order}`;
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full" data-tour="app-shell">
             <TopBar
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
@@ -298,14 +348,15 @@ function MainContent({
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
             />
-            <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex relative flex-1 min-h-0">
-                    <LeftColumn toggled_ui={toggled_ui} />
+            <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
+                <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
+                    <LeftColumn toggled_ui={toggled_ui}>{dev_mode && <WebsiteTour />}</LeftColumn>
                     {is_md_device ? (
                         <Tabs
                             key={mobile_tabs_key}
                             local_storage_name={mobile_tabs.length > 1 ? "mobile_tab" : null}
                             tabs={mobile_tabs}
+                            data_tour="mobile-main-tabs"
                         />
                     ) : (
                         <div className="flex flex-1 min-w-0 h-full">
@@ -313,6 +364,7 @@ function MainContent({
                                 <div
                                     key={panel_key}
                                     className={`${desktop_panel_widths[panel_key]} min-w-0 h-full`}
+                                    data-tour={`${panel_key}-panel`}
                                 >
                                     {main_panel_content[panel_key]}
                                 </div>

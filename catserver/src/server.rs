@@ -28,6 +28,7 @@ use tower_http::services::ServeDir;
 use crate::{
     freq::Freq,
     rig::{AnyRadio, Mode, Slot},
+    rotator::AnyRotator,
     tray_icon::UserEvent,
     utils,
 };
@@ -55,6 +56,7 @@ impl ServerConfig {
 struct AppState {
     server_config: ServerConfig,
     radio: AnyRadio,
+    rotator: AnyRotator,
     http_client: Client,
     sender: Sender<UserEvent>,
 }
@@ -69,12 +71,14 @@ impl Server {
     pub async fn build_server(
         sender: Sender<UserEvent>,
         radio: AnyRadio,
+        rotator: AnyRotator,
         server_config: ServerConfig,
         use_local_ui: bool,
     ) -> Result<Self> {
         let http_client = Client::new();
 
         let app = Router::new()
+            .route("/ws", any(ws_handler))
             .route("/radio", any(cat_control_handler))
             .route(
                 "/submit_spot",
@@ -90,6 +94,7 @@ impl Server {
         let app_state = AppState {
             server_config,
             radio,
+            rotator,
             http_client,
             sender: sender.clone(),
         };
@@ -264,6 +269,8 @@ async fn cat_control_handler(
     websocket: WebSocketUpgrade,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
+    let radio = state.radio;
+    let rotator = state.rotator;
     let receiver = state.sender.subscribe();
 
     websocket
@@ -271,16 +278,186 @@ async fn cat_control_handler(
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
         .on_upgrade(async move |websocket: WebSocket| {
-            let result = handle_cat_control_socket(websocket, state.radio, receiver).await;
+            let result = handle_cat_control_socket(websocket, radio, rotator, receiver).await;
             if let Err(error) = result {
                 tracing::error!(?error, "CAT control WebSocket handler failed");
             }
         })
 }
 
+async fn ws_handler(
+    websocket: WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let receiver = state.sender.subscribe();
+    let radio = state.radio;
+    let rotator = state.rotator;
+    let server_config = state.server_config;
+
+    websocket
+        .write_buffer_size(0)
+        .read_buffer_size(0)
+        .accept_unmasked_frames(true)
+        .on_upgrade(async move |websocket: WebSocket| {
+            let result = handle_ws_socket(websocket, server_config, radio, rotator, receiver).await;
+            if let Err(error) = result {
+                tracing::error!(?error, "Unified WebSocket handler failed");
+            }
+        })
+}
+
+async fn handle_ws_socket(
+    socket: WebSocket,
+    server_config: ServerConfig,
+    radio: AnyRadio,
+    rotator: AnyRotator,
+    mut receiver: Receiver<UserEvent>,
+) -> Result<()> {
+    let (mut client_sender, mut client_receiver) = socket.split();
+    let (stream, _response) = connect_async(server_config.build_uri("ws", "/ws")).await?;
+    let (mut server_sender, mut server_receiver) = stream.split();
+
+    let message = RadioInitMessage {
+        status: "connected".into(),
+        catserver_version: env!("VERSION").into(),
+    };
+    client_sender
+        .send(ws_radio_message(WS_RADIO_EVENT_STATUS, &message)?)
+        .await?;
+
+    let rotator_status = rotator.write().get_status();
+    client_sender
+        .send(ws_rotator_message(
+            WS_ROTATOR_EVENT_STATUS,
+            &rotator_status,
+        )?)
+        .await?;
+
+    let mut radio_interval = tokio::time::interval(Duration::from_millis(500));
+    let mut rotator_interval = tokio::time::interval(Duration::from_millis(1000));
+    let mut previous_radio_data = None;
+    let mut previous_rotator_data = None;
+
+    use tokio_tungstenite::tungstenite;
+
+    loop {
+        tokio::select! {
+            Some(message) = client_receiver.next() => {
+                match message? {
+                    Message::Text(text) => {
+                        if is_ws_radio_message(text.as_ref()) {
+                            process_ws_radio_message(text.to_string(), &radio).await?;
+                            let status = radio.write().get_status();
+                            client_sender
+                                .send(ws_radio_message(WS_RADIO_EVENT_STATUS, &status)?)
+                                .await?;
+                        } else if is_ws_rotator_message(text.as_ref()) {
+                            process_ws_rotator_message(text.to_string(), &rotator).await?;
+                        } else {
+                            let result = server_sender
+                                .send(utils::axum_to_tungstenite_message(Message::Text(text)))
+                                .await;
+                            if let Err(error) = &result {
+                                use tungstenite::Error;
+                                match error {
+                                    Error::ConnectionClosed => {
+                                        break;
+                                    }
+                                    _ => {
+                                        result?;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Message::Close(_) => {
+                        break;
+                    }
+                    message => {
+                        let result = server_sender
+                            .send(utils::axum_to_tungstenite_message(message))
+                            .await;
+                        if let Err(error) = &result {
+                            use tungstenite::Error;
+                            match error {
+                                Error::ConnectionClosed => {
+                                    break;
+                                }
+                                _ => {
+                                    result?;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Some(Ok(message)) = server_receiver.next() => {
+                let Some(message) = utils::tungstenite_to_axum_message(message) else {
+                    continue;
+                };
+                let result = client_sender
+                    .send(message)
+                    .await;
+                if result.is_err() {
+                    break;
+                }
+            }
+            event = receiver.recv() => {
+                match event? {
+                    UserEvent::Quit => {
+                        let message = CloseMessage { close: true };
+                        let message = ws_radio_message(WS_RADIO_EVENT_CLOSE, &message)?;
+                        let _ = client_sender.send(message).await;
+                        break;
+                    },
+                    UserEvent::OpenBrowser => {
+                        let message = FocusMessage { focus: true };
+                        let message = ws_radio_message(WS_RADIO_EVENT_FOCUS, &message)?;
+                        client_sender.send(message).await?;
+                    },
+                }
+            },
+            _ = radio_interval.tick() => {
+                let data = radio.write().get_status();
+                if previous_radio_data.as_ref() != Some(&data) {
+                    let message = ws_radio_message(WS_RADIO_EVENT_STATUS, &data)?;
+                    client_sender.send(message).await?;
+                    previous_radio_data = Some(data);
+                }
+            },
+            _ = rotator_interval.tick() => {
+                let data = rotator.write().get_status();
+                if previous_rotator_data.as_ref() != Some(&data) {
+                    let message = ws_rotator_message(WS_ROTATOR_EVENT_STATUS, &data)?;
+                    client_sender.send(message).await?;
+                    previous_rotator_data = Some(data);
+                }
+            }
+        }
+    }
+
+    let _ = server_sender
+        .send(tungstenite::Message::Close(Some(
+            tungstenite::protocol::CloseFrame {
+                code: tungstenite::protocol::frame::coding::CloseCode::Normal,
+                reason: tungstenite::Utf8Bytes::from_static("Goodbye"),
+            },
+        )))
+        .await;
+    let _ = client_sender
+        .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+            code: axum::extract::ws::close_code::NORMAL,
+            reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
+        })))
+        .await;
+
+    Ok(())
+}
+
 async fn handle_cat_control_socket(
     socket: WebSocket,
     radio: AnyRadio,
+    _rotator: AnyRotator,
     mut receiver: Receiver<UserEvent>,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = socket.split();
@@ -360,6 +537,83 @@ struct InitMessage {
     version: String,
 }
 
+const WS_PROTOCOL_VERSION: u8 = 1;
+const WS_MESSAGE_TYPE_RADIO: &str = "radio";
+const WS_MESSAGE_TYPE_ROTATOR: &str = "rotator";
+const WS_RADIO_EVENT_STATUS: &str = "status";
+const WS_RADIO_EVENT_FOCUS: &str = "focus";
+const WS_RADIO_EVENT_CLOSE: &str = "close";
+const WS_ROTATOR_EVENT_STATUS: &str = "status";
+
+#[derive(Serialize)]
+struct WsServerMessage<'a, T: Serialize> {
+    version: u8,
+    #[serde(rename = "type")]
+    message_type: &'static str,
+    event: &'static str,
+    #[serde(flatten)]
+    data: &'a T,
+}
+
+#[derive(Serialize)]
+struct RadioInitMessage {
+    status: String,
+    catserver_version: String,
+}
+
+#[derive(Serialize)]
+struct CloseMessage {
+    close: bool,
+}
+
+#[derive(Serialize)]
+struct FocusMessage {
+    focus: bool,
+}
+
+#[derive(Deserialize)]
+struct WsEnvelope {
+    version: u8,
+    #[serde(rename = "type")]
+    message_type: String,
+}
+
+fn ws_radio_message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
+    let message = WsServerMessage {
+        version: WS_PROTOCOL_VERSION,
+        message_type: WS_MESSAGE_TYPE_RADIO,
+        event,
+        data,
+    };
+    Ok(Message::Text(serde_json::to_string(&message)?.into()))
+}
+
+fn ws_rotator_message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
+    let message = WsServerMessage {
+        version: WS_PROTOCOL_VERSION,
+        message_type: WS_MESSAGE_TYPE_ROTATOR,
+        event,
+        data,
+    };
+    Ok(Message::Text(serde_json::to_string(&message)?.into()))
+}
+
+fn is_ws_radio_message(message: &str) -> bool {
+    let Ok(message) = serde_json::from_str::<WsEnvelope>(message) else {
+        return false;
+    };
+
+    message.version == WS_PROTOCOL_VERSION && message.message_type == WS_MESSAGE_TYPE_RADIO
+}
+
+fn is_ws_rotator_message(message: &str) -> bool {
+    let Ok(message) = serde_json::from_str::<WsEnvelope>(message) else {
+        return false;
+    };
+
+    message.version == WS_PROTOCOL_VERSION && message.message_type == WS_MESSAGE_TYPE_ROTATOR
+}
+
 #[derive(Deserialize)]
 struct SetModeAndFreq {
     mode: String,
@@ -381,11 +635,30 @@ struct HighlightSpot {
 }
 
 #[derive(Deserialize)]
+struct SetAzimuth {
+    azimuth: f64,
+}
+
+#[derive(Deserialize)]
 #[serde(tag = "type")]
 enum ClientMessage {
     SetRig(SetRig),
     SetModeAndFreq(SetModeAndFreq),
     HighlightSpot(HighlightSpot),
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "action")]
+enum WsRadioClientMessage {
+    SetRig(SetRig),
+    SetModeAndFreq(SetModeAndFreq),
+    HighlightSpot(HighlightSpot),
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "action")]
+enum WsRotatorClientMessage {
+    SetAzimuth(SetAzimuth),
 }
 
 fn is_upper_sideband(freq: f32) -> bool {
@@ -399,6 +672,37 @@ async fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
         tracing::error!("Failed to parse message: {message}");
         return Ok(());
     };
+    process_client_message(message, radio).await
+}
+
+async fn process_ws_radio_message(message: String, radio: &AnyRadio) -> Result<()> {
+    let Ok(message) = serde_json::from_str::<WsRadioClientMessage>(&message) else {
+        tracing::error!("Failed to parse radio message: {message}");
+        return Ok(());
+    };
+    let message = match message {
+        WsRadioClientMessage::SetRig(message) => ClientMessage::SetRig(message),
+        WsRadioClientMessage::SetModeAndFreq(message) => ClientMessage::SetModeAndFreq(message),
+        WsRadioClientMessage::HighlightSpot(message) => ClientMessage::HighlightSpot(message),
+    };
+    process_client_message(message, radio).await
+}
+
+async fn process_ws_rotator_message(message: String, rotator: &AnyRotator) -> Result<()> {
+    let Ok(message) = serde_json::from_str::<WsRotatorClientMessage>(&message) else {
+        tracing::error!("Failed to parse rotator message: {message}");
+        return Ok(());
+    };
+    match message {
+        WsRotatorClientMessage::SetAzimuth(set_azimuth) => {
+            tracing::debug!("Setting azimuth to {}", set_azimuth.azimuth);
+            rotator.write().set_azimuth(set_azimuth.azimuth);
+        }
+    }
+    Ok(())
+}
+
+async fn process_client_message(message: ClientMessage, radio: &AnyRadio) -> Result<()> {
     match message {
         ClientMessage::SetRig(set_rig) => {
             tracing::debug!("Setting rig to {}", set_rig.rig);

@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from "react";
 
 import { useMeasure, useMediaQuery } from "@uidotdev/usehooks";
 import haversine from "haversine-distance";
-import Maidenhead from "maidenhead";
 
 import SpotContextMenu from "@/components/SpotContextMenu.jsx";
 import SpotPopup from "@/components/SpotPopup.jsx";
@@ -11,11 +10,16 @@ import { get_dxcc_label, is_filterable_dxcc_entity } from "@/data/dxcc_entities.
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
+import useRotator from "@/hooks/useRotator";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useVoacap } from "@/hooks/useVoacap.jsx";
-import { calculate_geographic_azimuth } from "@/utils.js";
+import {
+    calculate_bearing_between_locations,
+    get_bearing_origin,
+    get_station_location,
+} from "@/utils.js";
 import MapOverlay from "./MapOverlay.jsx";
 import { Dimensions } from "./dimensions.js";
 import {
@@ -53,6 +57,9 @@ function CanvasMap({
         useSpotInteraction();
     const { settings } = useSettings();
     const { colors, dev_mode } = useColors();
+    const { rotator_azimuth, rotator_target_azimuth } = useRotator();
+    const effective_rotator_azimuth = dev_mode ? rotator_azimuth : null;
+    const effective_rotator_target_azimuth = dev_mode ? rotator_target_azimuth : null;
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
     const [hovered_dxcc, set_hovered_dxcc] = useState(null);
     const [map_context_menu, set_map_context_menu] = useState({
@@ -101,7 +108,6 @@ function CanvasMap({
                 ? map_controls
                 : {
                       ...map_controls,
-                      show_maidenhead_grid: false,
                       voacap_enabled: false,
                   },
         [dev_mode, map_controls],
@@ -125,12 +131,7 @@ function CanvasMap({
         effective_map_controls.voacap_enabled && !voacap_state.loading && !voacap_state.stale
             ? voacap_state
             : null;
-    const home_location = useMemo(() => {
-        const locator = (settings.locator || "").trim().toUpperCase();
-        if (!locator || !Maidenhead.valid(locator)) return null;
-        const [lat, lon] = Maidenhead.toLatLon(locator);
-        return [lon, lat];
-    }, [settings.locator]);
+    const home_location = useMemo(() => get_station_location(settings), [settings.locator]);
     const night_time_ms = night_time?.getTime() ?? null;
     const hunter_overlay_actions = useMemo(
         () => get_active_hunter_filter_actions(callsign_filters),
@@ -157,11 +158,14 @@ function CanvasMap({
         map_controls: effective_map_controls,
         settings,
         radius_in_km,
+        show_dev_bearings: dev_mode,
         callsign_filters,
         overlay_highlights,
         hovered_zone,
         hovered_dxcc,
         home_location,
+        rotator_azimuth: effective_rotator_azimuth,
+        rotator_target_azimuth: effective_rotator_target_azimuth,
         night_time,
         voacap: voacap_render_state,
     };
@@ -210,6 +214,9 @@ function CanvasMap({
         hovered_zone,
         hovered_dxcc,
         home_location,
+        show_dev_bearings: dev_mode,
+        rotator_azimuth: effective_rotator_azimuth,
+        rotator_target_azimuth: effective_rotator_target_azimuth,
         voacap_state,
         animation_id_ref,
     });
@@ -273,15 +280,26 @@ function CanvasMap({
             ? (haversine(pinned_spot_data.dx_loc, pinned_spot_data.spotter_loc) / 1000).toFixed()
             : null;
 
-    let azimuth = null;
+    let map_azimuth = null;
+    let antenna_azimuth = null;
+    let antenna_azimuth_source = "none";
     if (hovered_spot_data || pinned_spot_data) {
         const spot_data = hovered_spot_data || pinned_spot_data;
-        azimuth = calculate_geographic_azimuth(
-            center_lat,
-            center_lon,
-            spot_data.dx_loc[1],
-            spot_data.dx_loc[0],
+        map_azimuth = calculate_bearing_between_locations(
+            [center_lon, center_lat],
+            spot_data.dx_loc,
         );
+        if (dev_mode) {
+            const bearing_origin = get_bearing_origin(
+                settings,
+                effective_map_controls.location.location,
+            );
+            antenna_azimuth = calculate_bearing_between_locations(
+                bearing_origin.location,
+                spot_data.dx_loc,
+            );
+            antenna_azimuth_source = bearing_origin.source;
+        }
     }
 
     const canvas_width = width ? width * DPR : 0;
@@ -295,6 +313,7 @@ function CanvasMap({
                 div_ref(node);
             }}
             className="relative h-full w-full"
+            data-tour="map-canvas"
             style={{
                 backgroundColor: colors.theme.background,
                 touchAction: "none",
@@ -335,7 +354,7 @@ function CanvasMap({
                 radius_in_km={radius_in_km}
                 auto_radius={auto_radius}
                 set_auto_radius={set_auto_radius}
-                azimuth={azimuth}
+                azimuth={map_azimuth}
                 spots={spots}
                 is_max_xs_device={is_max_xs_device}
                 voacap_state={voacap_state}
@@ -348,7 +367,9 @@ function CanvasMap({
                     hovered_spot_data={hovered_spot_data}
                     pinned_spot_data={pinned_spot_data}
                     distance={hovered_spot_distance ?? pinned_spot_distance}
-                    azimuth={azimuth}
+                    antenna_azimuth={antenna_azimuth}
+                    antenna_azimuth_source={antenna_azimuth_source}
+                    map_azimuth={map_azimuth}
                 />
             )}
             {hovered_dxcc?.entity && (
@@ -381,6 +402,7 @@ function CanvasMap({
                     spot={null}
                     on_close={() => set_map_context_menu(state => ({ ...state, visible: false }))}
                     actions={map_menu_actions}
+                    data_tour="map-context-menu"
                 />
             )}
         </div>

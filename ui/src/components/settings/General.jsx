@@ -1,11 +1,13 @@
 import CallsignInput from "@/components/CallsignInput.jsx";
+import GPSButton from "@/components/GPSButton.jsx";
 import HelpIcon from "@/components/ui/HelpIcon.jsx";
 import Input from "@/components/ui/Input.jsx";
 import Popup from "@/components/ui/Popup.jsx";
 import Select from "@/components/ui/Select.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
-import { themes_names, useColors } from "@/hooks/useColors";
+import { map_theme_names, themes_names, useColors } from "@/hooks/useColors";
 import { play_alert_sound } from "@/utils.js";
+import { useMediaQuery } from "@uidotdev/usehooks";
 import Maidenhead from "maidenhead";
 import { useRef, useState } from "react";
 
@@ -39,6 +41,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
     const help_button_ref = useRef(null);
     const [show_help_popup, set_show_help_popup] = useState(false);
     const [is_locator_queried, set_is_locator_queried] = useState(false);
+    const is_mobile_settings = useMediaQuery("only screen and (max-width : 768px)");
     const is_locator_valid = Maidenhead.valid(temp_settings.locator);
     const is_default_radius_valid =
         temp_settings.default_radius >= 1000 &&
@@ -48,6 +51,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
     return (
         <div
             className="p-4 flex flex-col md:flex-row md:gap-8"
+            data-tour="settings-general"
             style={{ color: colors.theme.text }}
         >
             <table className="table-fixed border-separate border-spacing-y-2">
@@ -59,6 +63,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                 value={temp_settings.callsign}
                                 maxLength={11}
                                 autoFocus={true}
+                                data-tour="settings-callsign"
                                 onChange={async event => {
                                     const new_callsign = event.target.value;
                                     set_temp_settings({
@@ -83,17 +88,39 @@ function General({ temp_settings, set_temp_settings, colors }) {
                     <tr>
                         <td>My locator:</td>
                         <td>
-                            <Input
-                                value={temp_settings.locator}
-                                className={is_locator_valid ? "" : "bg-red-200"}
-                                onChange={event => {
-                                    set_is_locator_queried(false);
-                                    set_temp_settings({
-                                        ...temp_settings,
-                                        locator: event.target.value,
-                                    });
-                                }}
-                            />
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    value={temp_settings.locator}
+                                    className={is_locator_valid ? "" : "bg-red-200"}
+                                    data-tour="settings-locator"
+                                    onChange={event => {
+                                        set_is_locator_queried(false);
+                                        set_temp_settings({
+                                            ...temp_settings,
+                                            locator: event.target.value,
+                                        });
+                                    }}
+                                />
+                                {is_mobile_settings && (
+                                    <GPSButton
+                                        on_location={({ locator }) => {
+                                            set_is_locator_queried(false);
+                                            set_temp_settings(state => ({
+                                                ...state,
+                                                locator,
+                                            }));
+                                        }}
+                                        className="flex h-10 w-10 items-center justify-center rounded-lg disabled:opacity-60"
+                                        style={{
+                                            backgroundColor: colors.theme.input_background,
+                                            border: `1px solid ${colors.theme.borders}`,
+                                            color: colors.buttons.utility,
+                                        }}
+                                        aria_label="Set locator from current GPS location"
+                                        data_tour="settings-locator-gps"
+                                    />
+                                )}
+                            </div>
                         </td>
                     </tr>
                     <tr>
@@ -102,6 +129,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                             <Input
                                 value={temp_settings.default_radius}
                                 className={is_default_radius_valid ? "" : "bg-red-200"}
+                                data-tour="settings-default-radius"
                                 type="number"
                                 step="1000"
                                 min="1000"
@@ -120,6 +148,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         <td>
                             <Select
                                 value={temp_settings.theme}
+                                data-tour="settings-theme"
                                 onChange={event => {
                                     set_temp_settings(state => ({
                                         ...state,
@@ -138,10 +167,33 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         </td>
                     </tr>
                     <tr>
+                        <td>Map theme:</td>
+                        <td>
+                            <Select
+                                value={temp_settings.map_theme}
+                                onChange={event => {
+                                    set_temp_settings(state => ({
+                                        ...state,
+                                        map_theme: event.target.value,
+                                    }));
+                                }}
+                            >
+                                {map_theme_names.map(name => {
+                                    return (
+                                        <option key={name} value={name}>
+                                            {name}
+                                        </option>
+                                    );
+                                })}
+                            </Select>
+                        </td>
+                    </tr>
+                    <tr>
                         <td>Distance Units:</td>
                         <td>
                             <Select
                                 value={temp_settings.is_miles}
+                                data-tour="settings-distance-units"
                                 onChange={event => {
                                     set_temp_settings({
                                         ...temp_settings,
@@ -171,6 +223,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         <td>
                             <Toggle
                                 value={temp_settings.propagation_displayed}
+                                data_tour="settings-propagation-toggle"
                                 on_click={() => {
                                     set_temp_settings({
                                         ...temp_settings,
@@ -185,6 +238,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         <td>
                             <Toggle
                                 value={temp_settings.show_flags}
+                                data_tour="settings-flags-toggle"
                                 on_click={() => {
                                     set_temp_settings({
                                         ...temp_settings,
@@ -199,6 +253,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         <td>
                             <Toggle
                                 value={temp_settings.show_state_abbreviations}
+                                data_tour="settings-state-abbreviations-toggle"
                                 on_click={() => {
                                     set_temp_settings({
                                         ...temp_settings,
@@ -214,6 +269,7 @@ function General({ temp_settings, set_temp_settings, colors }) {
                         <td className="flex gap-2">
                             <Toggle
                                 value={temp_settings.alert_sound_enabled}
+                                data_tour="settings-alert-sound-toggle"
                                 on_click={() => {
                                     set_temp_settings({
                                         ...temp_settings,
@@ -221,7 +277,11 @@ function General({ temp_settings, set_temp_settings, colors }) {
                                     });
                                 }}
                             />
-                            <button onClick={play_alert_sound} className="h-full">
+                            <button
+                                onClick={play_alert_sound}
+                                className="h-full"
+                                data-tour="settings-alert-sound-test"
+                            >
                                 <PlayIcon size="24" />
                             </button>
                             <button

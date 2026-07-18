@@ -116,6 +116,7 @@ function DXpeditionCard({
     return (
         <div
             ref={card_ref}
+            data-tour="dxpedition-card"
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
             className="rounded-lg p-3 flex flex-col gap-1.5 border-2 transition-all duration-200"
@@ -274,24 +275,22 @@ function DXpeditions() {
     const active_count = useMemo(() => dxpeditions.filter(is_active).length, [dxpeditions]);
     const upcoming_count = dxpeditions.length - active_count;
 
-    if (sorted_dxpeditions.length === 0) {
-        return (
-            <div className="p-4 text-center text-sm" style={{ color: colors.theme.text }}>
-                No active DXpeditions
-            </div>
-        );
-    }
-
     return (
-        <div className="p-2 text-sm flex flex-col gap-2 overflow-y-auto h-full">
+        <div
+            className="p-2 text-sm flex flex-col gap-2 overflow-y-auto h-full"
+            data-tour="dxpeditions-panel"
+        >
             <div className="flex flex-col gap-1 px-1">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between" data-tour="dxpeditions-summary">
                     <span style={{ color: colors.theme.text }}>
                         {active_count} active, {upcoming_count} upcoming
                     </span>
                 </div>
                 <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
+                    <div
+                        className="flex items-center justify-between"
+                        data-tour="dxpeditions-filter"
+                    >
                         <span style={{ color: colors.theme.text, opacity: 0.6 }}>Filter:</span>
                         <div className="flex gap-2">
                             {filter_options.map(option => (
@@ -315,13 +314,14 @@ function DXpeditions() {
                                             set_sort_key("start");
                                         }
                                     }}
+                                    data-tour={`dxpeditions-filter-${option.key}`}
                                 >
                                     {option.label}
                                 </button>
                             ))}
                         </div>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between" data-tour="dxpeditions-sort">
                         <span style={{ color: colors.theme.text, opacity: 0.6 }}>Sort:</span>
                         <div className="flex gap-2">
                             {sort_options.map(option => (
@@ -345,6 +345,7 @@ function DXpeditions() {
                                             set_filter_key("all");
                                         }
                                     }}
+                                    data-tour={`dxpeditions-sort-${option.key}`}
                                 >
                                     {option.label}
                                 </button>
@@ -353,34 +354,40 @@ function DXpeditions() {
                     </div>
                 </div>
             </div>
-            {sorted_dxpeditions.map(dxpedition => (
-                <DXpeditionCard
-                    key={dxpedition.id}
-                    dxpedition={dxpedition}
-                    colors={colors}
-                    is_spotted={spotted_dxpedition_spots.has(dxpedition.id)}
-                    is_highlighted={hovered_dxpedition_id === dxpedition.id}
-                    onMouseEnter={() => {
-                        const entry = spotted_dxpedition_spots.get(dxpedition.id);
-                        if (entry != null) {
-                            set_hovered_spot({
-                                source: "dxpedition",
-                                id: entry.id,
-                                dxpedition_id: dxpedition.id,
-                            });
-                        }
-                    }}
-                    onMouseLeave={() => {
-                        if (spotted_dxpedition_spots.has(dxpedition.id)) {
-                            set_hovered_spot({ source: null, id: null });
-                        }
-                    }}
-                    card_ref={element => {
-                        if (element) card_refs.current[dxpedition.id] = element;
-                        else delete card_refs.current[dxpedition.id];
-                    }}
-                />
-            ))}
+            {sorted_dxpeditions.length === 0 ? (
+                <div className="p-4 text-center text-sm" style={{ color: colors.theme.text }}>
+                    <span data-tour="dxpeditions-empty">No active DXpeditions</span>
+                </div>
+            ) : (
+                sorted_dxpeditions.map(dxpedition => (
+                    <DXpeditionCard
+                        key={dxpedition.id}
+                        dxpedition={dxpedition}
+                        colors={colors}
+                        is_spotted={spotted_dxpedition_spots.has(dxpedition.id)}
+                        is_highlighted={hovered_dxpedition_id === dxpedition.id}
+                        onMouseEnter={() => {
+                            const entry = spotted_dxpedition_spots.get(dxpedition.id);
+                            if (entry != null) {
+                                set_hovered_spot({
+                                    source: "dxpedition",
+                                    id: entry.id,
+                                    dxpedition_id: dxpedition.id,
+                                });
+                            }
+                        }}
+                        onMouseLeave={() => {
+                            if (spotted_dxpedition_spots.has(dxpedition.id)) {
+                                set_hovered_spot({ source: null, id: null });
+                            }
+                        }}
+                        card_ref={element => {
+                            if (element) card_refs.current[dxpedition.id] = element;
+                            else delete card_refs.current[dxpedition.id];
+                        }}
+                    />
+                ))
+            )}
         </div>
     );
 }

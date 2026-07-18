@@ -1,5 +1,5 @@
 import Maidenhead from "maidenhead";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import Modal from "@/components/ui/Modal.jsx";
 import Tabs from "@/components/ui/Tabs";
@@ -8,7 +8,7 @@ import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
-import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
+import { useMediaQuery } from "@uidotdev/usehooks";
 import Bands from "./Bands";
 import CatControl from "./CatControl";
 import General from "./General";
@@ -49,6 +49,7 @@ const empty_temp_settings = {
     locator: "",
     default_radius: 0,
     theme: "",
+    map_theme: "",
     callsign: "",
     is_miles: false,
     propagation_displayed: true,
@@ -65,14 +66,11 @@ const empty_temp_settings = {
 
 function Settings({ set_map_controls, set_radius_in_km }) {
     const [temp_settings, set_temp_settings] = useState(empty_temp_settings);
-    const { colors, setTheme, dev_mode } = useColors();
+    const { colors, setTheme } = useColors();
     const { settings, set_settings } = useSettings();
     const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
     const { is_radio_available } = use_radio();
     const is_mobile_settings = useMediaQuery("only screen and (max-width : 768px)");
-
-    const [first_launch, set_first_launch] = useLocalStorage("first_launch", true);
-    const [should_open_settings, set_should_open_settings] = useState(false);
 
     function disable_settings_filters(current_filters, new_settings) {
         const updated_bands = { ...current_filters.bands };
@@ -118,14 +116,6 @@ function Settings({ set_map_controls, set_radius_in_km }) {
         }
     }
 
-    useEffect(() => {
-        set_first_launch(false);
-
-        if (first_launch === true && (settings.locator === "" || settings.locator === "JJ00AA")) {
-            set_should_open_settings(true);
-        }
-    }, [first_launch]);
-
     function reset_temp_settings() {
         set_temp_settings(empty_temp_settings);
     }
@@ -133,6 +123,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const tabs = [
         {
             label: "General",
+            data_tour: "settings-tab-general",
             content: (
                 <General
                     temp_settings={temp_settings}
@@ -141,10 +132,11 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
-        ...(dev_mode && !is_mobile_settings
+        ...(!is_mobile_settings
             ? [
                   {
                       label: "Layout",
+                      data_tour: "settings-tab-layout",
                       content: (
                           <Layout
                               temp_settings={temp_settings}
@@ -157,6 +149,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             : []),
         {
             label: "Bands & Modes",
+            data_tour: "settings-tab-bands-modes",
             content: (
                 <Bands
                     temp_settings={temp_settings}
@@ -165,28 +158,22 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
-        ...(dev_mode
-            ? [
-                  {
-                      label: "Profiles",
-                      content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
-                  },
-              ]
-            : []),
+        {
+            label: "Profiles",
+            data_tour: "settings-tab-profiles",
+            content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
+        },
         {
             label: "Import/Export",
-            content: (
-                <ImportExport
-                    set_temp_settings={set_temp_settings}
-                    apply_settings={apply_settings}
-                />
-            ),
+            data_tour: "settings-tab-import-export",
+            content: <ImportExport set_temp_settings={set_temp_settings} />,
         },
     ];
 
     if (is_radio_available()) {
         tabs.splice(1, 0, {
             label: "CAT Control",
+            data_tour: "settings-tab-cat-control",
             content: (
                 <CatControl
                     temp_settings={temp_settings}
@@ -213,10 +200,11 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 </h3>
             }
             button={<SettingsIcon size="40" />}
+            data_tour="top-bar-settings"
+            dialog_data_tour="settings-modal"
             on_open={() => {
                 set_temp_settings(settings);
             }}
-            external_open={should_open_settings}
             on_apply={() => {
                 if (is_settings_valid) {
                     apply_settings(temp_settings);
@@ -228,7 +216,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             on_cancel={() => reset_temp_settings()}
         >
             <div className="h-full w-[21rem] md:w-[42rem]">
-                <Tabs tabs={tabs} />
+                <Tabs tabs={tabs} data_tour="settings-tabs" />
             </div>
         </Modal>
     );

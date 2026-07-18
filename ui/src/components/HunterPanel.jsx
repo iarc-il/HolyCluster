@@ -1,5 +1,6 @@
 import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
+import SearchIcon from "@/components/ui/SearchIcon.jsx";
 import X from "@/components/ui/X.jsx";
 import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
 import {
@@ -30,6 +31,18 @@ const IMPORT_PHASE_LABELS = {
     [HUNTER_IMPORT_PHASES.COMPLETE]: "Import complete",
 };
 
+const SECTION_ITEM_SORT_OPTIONS = { numeric: true, sensitivity: "base" };
+
+function sort_section_items(items) {
+    return [...items].sort((first, second) =>
+        String(first.sort_label ?? first.label).localeCompare(
+            String(second.sort_label ?? second.label),
+            undefined,
+            SECTION_ITEM_SORT_OPTIONS,
+        ),
+    );
+}
+
 function range(start, end) {
     const values = [];
     for (let value = start; value <= end; value += 1) {
@@ -40,30 +53,44 @@ function range(start, end) {
 
 function create_section_items() {
     return {
-        dxcc: dxcc_codes.map(value => {
-            const label = get_dxcc_label(value);
-            return { value, label, search: label.toLowerCase() };
-        }),
-        cq_zone: range(1, 40).map(value => ({
-            value,
-            label: `CQ Zone ${value}`,
-            search: `cq zone ${value} ${value}`,
-        })),
-        itu_zone: range(1, 90).map(value => ({
-            value,
-            label: `ITU Zone ${value}`,
-            search: `itu zone ${value} ${value}`,
-        })),
-        us_state: Object.entries(STATES.USA).map(([value, name]) => ({
-            value,
-            label: `${value} - ${name}`,
-            search: `${value} ${name}`.toLowerCase(),
-        })),
-        ca_province: Object.entries(STATES.Canada).map(([value, name]) => ({
-            value,
-            label: `${value} - ${name}`,
-            search: `${value} ${name}`.toLowerCase(),
-        })),
+        dxcc: sort_section_items(
+            dxcc_codes.map(value => {
+                const label = get_dxcc_label(value);
+                return { value, label, search: label.toLowerCase() };
+            }),
+        ),
+        cq_zone: sort_section_items(
+            range(1, 40).map(value => ({
+                value,
+                label: `CQ Zone ${value}`,
+                search: `cq zone ${value} ${value}`,
+                sort_label: value,
+            })),
+        ),
+        itu_zone: sort_section_items(
+            range(1, 90).map(value => ({
+                value,
+                label: `ITU Zone ${value}`,
+                search: `itu zone ${value} ${value}`,
+                sort_label: value,
+            })),
+        ),
+        us_state: sort_section_items(
+            Object.entries(STATES.USA).map(([value, name]) => ({
+                value,
+                label: `${value} - ${name}`,
+                search: `${value} ${name}`.toLowerCase(),
+                sort_label: name,
+            })),
+        ),
+        ca_province: sort_section_items(
+            Object.entries(STATES.Canada).map(([value, name]) => ({
+                value,
+                label: `${value} - ${name}`,
+                search: `${value} ${name}`.toLowerCase(),
+                sort_label: name,
+            })),
+        ),
     };
 }
 
@@ -206,6 +233,7 @@ function HunterSectionCard({ section, items, hunter, colors, on_apply_section })
     return (
         <section
             className="rounded-lg border p-3 space-y-3"
+            data-tour={`hunter-section-${section}`}
             style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
         >
             <div className="flex items-start justify-between gap-3">
@@ -277,6 +305,8 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
     return (
         <Modal
             title={<h2 className="font-bold">{SECTION_LABELS[section]}</h2>}
+            data_tour={`hunter-section-edit-${section}`}
+            dialog_data_tour="hunter-section-modal"
             button={
                 <Button type="button" color="blue" className="px-3 py-1">
                     Edit
@@ -327,6 +357,7 @@ function HunterSection({
     return (
         <section
             className="rounded-lg border p-3 space-y-3"
+            data-tour="hunter-section-editor"
             style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
         >
             <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
@@ -366,18 +397,29 @@ function HunterSection({
             </div>
 
             <div className="flex gap-2">
-                <input
-                    type="search"
-                    value={search}
-                    onChange={event => on_set_search(section, event.target.value)}
-                    placeholder={`Search ${SECTION_LABELS[section]}`}
-                    className="min-w-0 flex-1 rounded px-2 py-1 text-sm"
+                <div
+                    className="min-w-0 flex-1 rounded px-2 py-1 text-sm flex items-center gap-2"
                     style={{
                         backgroundColor: colors.theme.input_background,
                         color: colors.theme.text,
                         border: `1px solid ${colors.theme.borders}`,
                     }}
-                />
+                >
+                    <SearchIcon
+                        color={colors.theme.text}
+                        className="shrink-0"
+                        width="18"
+                        height="18"
+                    />
+                    <input
+                        type="search"
+                        value={search}
+                        onChange={event => on_set_search(section, event.target.value)}
+                        placeholder={`Search ${SECTION_LABELS[section]}`}
+                        className="min-w-0 flex-1 bg-transparent outline-none"
+                        style={{ color: colors.theme.text }}
+                    />
+                </div>
                 {list_mode === "done" && (
                     <ClearDoneButton
                         section={section}
@@ -509,6 +551,7 @@ function RecentImports({ imports, colors }) {
     return (
         <section
             className="rounded-lg border p-3 space-y-2"
+            data-tour="hunter-recent-imports"
             style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
         >
             <h3 className="font-bold">Recent Imports</h3>
@@ -568,7 +611,7 @@ export default function HunterPanel() {
         if (!file) return;
 
         if (file.size > HUNTER_ADIF_MAX_FILE_SIZE_BYTES) {
-            set_import_error("ADIF file is too large. Maximum size is 10 MB.");
+            set_import_error("ADIF file is too large. Maximum size is 50 MB.");
             set_import_progress(null);
             return;
         }
@@ -599,9 +642,14 @@ export default function HunterPanel() {
     }
 
     return (
-        <div className="p-3 space-y-3" style={{ color: colors.theme.text }}>
+        <div
+            className="p-3 space-y-3"
+            data-tour="hunter-panel"
+            style={{ color: colors.theme.text }}
+        >
             <section
                 className="rounded-lg border p-3 space-y-2"
+                data-tour="hunter-adif-import"
                 style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
             >
                 <h2 className="text-lg font-bold">Missing</h2>
@@ -614,12 +662,14 @@ export default function HunterPanel() {
                             className="hidden"
                             disabled={is_importing}
                             data-testid="hunter-adif-input"
+                            data-tour="hunter-adif-input"
                         />
                         <span>
                             <Button
                                 type="button"
                                 color="blue"
                                 disabled={is_importing}
+                                data-tour="hunter-adif-import-button"
                                 on_click={event => {
                                     event.currentTarget
                                         .closest("label")

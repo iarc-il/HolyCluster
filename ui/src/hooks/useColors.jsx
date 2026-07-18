@@ -3,6 +3,10 @@ import { createContext, useContext, useMemo } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
 
 import { bands, continents, modes } from "@/data/filters_data.js";
+import {
+    country_color_indices as colorful_country_color_indices,
+    country_color_indices_earth,
+} from "@/data/map_colors.js";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { use_object_local_storage } from "@/utils.js";
 
@@ -107,8 +111,8 @@ const base_theme = {
         hunter_alert_flash_border: "#ffffff",
     },
     map: {
-        background: "#e3f3f0",
-        graticule: "#c4c4c4",
+        background: "#b8e8ee",
+        graticule: "#6bb7c4",
         land_borders: "#777777",
         borders: "#000000",
         night_overlay: "#0000aa",
@@ -128,14 +132,15 @@ const base_theme = {
         home_marker_center: "#ffffff",
     },
     map_countries: {
-        country_0: "#fedbb5",
-        country_1: "#d5b98a",
-        country_2: "#fab493",
-        country_3: "#df8073",
-        country_4: "#bcb759",
+        country_0: "#f6e36d",
+        country_1: "#8fca6b",
+        country_2: "#f3a15f",
+        country_3: "#e97972",
+        country_4: "#a884cc",
         country_5: "#98d4c1",
-        country_6: "#b99881",
-        country_7: "#89c765",
+        country_6: "#e7c276",
+        country_7: "#ee9bbb",
+        country_8: "#f6faf9",
     },
     map_controls: {
         zone_label_active: "#FFFFFF",
@@ -157,6 +162,52 @@ function merge_theme(overrides) {
     }
     return merged;
 }
+
+const MAP_THEME_CONFIGS = {
+    colorful: {
+        palette: {
+            country_0: "#f6e36d",
+            country_1: "#8fca6b",
+            country_2: "#f3a15f",
+            country_3: "#e97972",
+            country_4: "#a884cc",
+            country_5: "#98d4c1",
+            country_6: "#e7c276",
+            country_7: "#ee9bbb",
+            country_8: "#f6faf9",
+        },
+        indices: colorful_country_color_indices,
+    },
+    earth: {
+        palette: {
+            country_0: "#fedbb5",
+            country_1: "#d5b98a",
+            country_2: "#fab493",
+            country_3: "#df8073",
+            country_4: "#bcb759",
+            country_5: "#98d4c1",
+            country_6: "#b99881",
+            country_7: "#89c765",
+        },
+        indices: country_color_indices_earth,
+    },
+    white: {
+        palette: {
+            country_0: "#ffffff",
+            country_1: "#ffffff",
+            country_2: "#ffffff",
+            country_3: "#ffffff",
+            country_4: "#ffffff",
+            country_5: "#ffffff",
+            country_6: "#ffffff",
+            country_7: "#ffffff",
+            country_8: "#ffffff",
+        },
+        indices: colorful_country_color_indices,
+    },
+};
+
+export const map_theme_names = Object.keys(MAP_THEME_CONFIGS);
 
 const themes = {
     Light: merge_theme({
@@ -333,7 +384,7 @@ export const themes_names = Object.entries(themes).map(([name, theme]) => name);
 export const ColorsProvider = ({ children }) => {
     const {
         active_profile_data: {
-            settings: { theme: profile_theme },
+            settings: { theme: profile_theme, map_theme: profile_map_theme },
         },
     } = useProfiles();
     const [dev_mode, set_dev_mode] = useLocalStorage("dev_mode", false);
@@ -341,6 +392,8 @@ export const ColorsProvider = ({ children }) => {
     const profile_theme_name = themes[profile_theme] ? profile_theme : "Dark";
 
     const raw_colors = dev_mode ? colors_inner : themes[profile_theme_name];
+
+    const map_theme_config = MAP_THEME_CONFIGS[profile_map_theme] ?? MAP_THEME_CONFIGS.colorful;
 
     const colors = useMemo(() => {
         const light_bands = Object.fromEntries(
@@ -361,8 +414,14 @@ export const ColorsProvider = ({ children }) => {
             text[band] = resolved;
         }
 
-        return { ...raw_colors, light_bands, text };
-    }, [raw_colors]);
+        return {
+            ...raw_colors,
+            light_bands,
+            text,
+            map_countries: map_theme_config.palette,
+            country_color_indices: map_theme_config.indices,
+        };
+    }, [raw_colors, map_theme_config]);
 
     function setSectionColor(section, name, color) {
         set_colors_inner(state => ({
