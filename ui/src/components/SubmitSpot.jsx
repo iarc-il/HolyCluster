@@ -35,28 +35,6 @@ const empty_temp_data = {
     comment: "",
 };
 
-function connect_to_submit_spot_endpoint(on_response) {
-    const host = window.location.host;
-    const protocol = window.location.protocol;
-    const websocket_url = `${protocol === "https:" ? "wss:" : "ws:"}//${host}/submit_spot`;
-
-    const { sendJsonMessage, readyState, lastJsonMessage } = useWebSocket(websocket_url, {
-        shouldReconnect: () => true,
-        reconnectAttempts: 1000,
-        reconnectInterval: 3000,
-    });
-
-    useEffect(() => {
-        if (lastJsonMessage != null) {
-            if ("status" in lastJsonMessage) {
-                on_response(lastJsonMessage);
-            }
-        }
-    }, [lastJsonMessage]);
-
-    return { sendJsonMessage, readyState };
-}
-
 function SubmitSpot({ dev_mode }) {
     const [temp_data, set_temp_data] = useState(empty_temp_data);
     const { send, network_state } = useWs();
