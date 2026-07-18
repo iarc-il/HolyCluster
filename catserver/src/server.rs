@@ -1,5 +1,7 @@
 use std::{
+    convert::Infallible,
     net::{Ipv4Addr, SocketAddrV4},
+    path::PathBuf,
     time::Duration,
 };
 
@@ -11,7 +13,7 @@ use axum::{
         Request, State, WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
-    http::{HeaderMap, HeaderName, StatusCode, header},
+    http::{HeaderMap, HeaderName, Method, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{any, post},
 };
@@ -29,6 +31,7 @@ use tokio::{
     sync::broadcast::{Receiver, Sender},
 };
 use tokio_tungstenite::connect_async;
+use tower::{ServiceExt, service_fn};
 use tower_http::services::ServeDir;
 
 use crate::{
@@ -68,6 +71,7 @@ struct AppState {
     rotator: AnyRotator,
     http_client: Client<HttpsConnector<HttpConnector>, Body>,
     sender: Sender<UserEvent>,
+    ui_dir: Option<PathBuf>,
 }
 
 pub struct Server {
@@ -92,29 +96,21 @@ impl Server {
             .route("/exit", post(exit_server_handler))
             .route("/open", post(open_tab_handler));
 
+        let ui_dir = if use_local_ui {
+            Some(find_ui_dir()?)
+        } else {
+            None
+        };
         let app_state = AppState {
             server_config,
             radio,
             rotator,
             http_client,
             sender: sender.clone(),
+            ui_dir,
         };
         let app = if use_local_ui {
-            let mut ui_dir = std::env::current_exe()?;
-            let ui_dir = loop {
-                let result = ui_dir.join("ui/dist");
-                if result.exists() {
-                    break result;
-                } else {
-                    ui_dir = ui_dir
-                        .parent()
-                        .with_context(|| format!("Cannot get parent of {}", ui_dir.display()))?
-                        .into();
-                }
-            };
-            app.route("/spots", any(proxy)).fallback_service(
-                ServeDir::new(ui_dir).fallback(any(proxy).with_state(app_state.clone())),
-            )
+            app.fallback(any(local_ui))
         } else {
             app.fallback(any(proxy))
         };
@@ -135,6 +131,20 @@ impl Server {
             .with_graceful_shutdown(shutdown(self.sender.subscribe()))
             .await?;
         Ok(())
+    }
+}
+
+fn find_ui_dir() -> Result<PathBuf> {
+    let mut path = std::env::current_exe()?;
+    loop {
+        let ui_dir = path.join("ui/dist");
+        if ui_dir.exists() {
+            return Ok(ui_dir);
+        }
+        path = path
+            .parent()
+            .with_context(|| format!("Cannot get parent of {}", path.display()))?
+            .into();
     }
 }
 
@@ -188,6 +198,23 @@ async fn proxy(State(state): State<AppState>, mut request: Request<Body>) -> Res
             (StatusCode::BAD_GATEWAY, Body::empty()).into_response()
         }
     }
+}
+
+async fn local_ui(State(state): State<AppState>, request: Request<Body>) -> Response<Body> {
+    if matches!(*request.method(), Method::GET | Method::HEAD) && !is_upgrade_request(&request) {
+        let ui_dir = state.ui_dir.clone().expect("local UI directory is missing");
+        let fallback_state = state.clone();
+        let service = ServeDir::new(ui_dir).fallback(service_fn(move |request| {
+            let state = fallback_state.clone();
+            async move { Ok::<_, Infallible>(proxy(State(state), request).await) }
+        }));
+        return match service.oneshot(request).await {
+            Ok(response) => response.map(Body::new),
+            Err(error) => match error {},
+        };
+    }
+
+    proxy(State(state), request).await
 }
 
 fn is_upgrade_request(request: &Request<Body>) -> bool {

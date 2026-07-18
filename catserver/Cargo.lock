@@ -381,6 +381,7 @@ dependencies = [
  "single-instance",
  "tokio",
  "tokio-tungstenite",
+ "tower",
  "tower-http",
  "tracing",
  "tracing-panic",

@@ -1,4 +1,9 @@
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::{
+    fs,
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use axum::{
     Router,
@@ -6,13 +11,15 @@ use axum::{
     extract::{Request, WebSocketUpgrade, ws::Message},
     http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, header},
     response::Response,
-    routing::any,
+    routing::{any, get},
 };
 use futures_util::{SinkExt, StreamExt};
+use hyper_tls::HttpsConnector;
+use hyper_util::{client::legacy::Client, rt::TokioExecutor};
 use tokio::{net::TcpListener, sync::broadcast, task::JoinHandle};
 use tokio_tungstenite::{connect_async, tungstenite::client::IntoClientRequest};
 
-use super::{Server, ServerConfig};
+use super::{AppState, Server, ServerConfig, local_ui};
 use crate::{
     dummy::DummyRadio, dummy_rotator::DummyRotator, rig::AnyRadio, rotator::AnyRotator,
     tray_icon::UserEvent,
@@ -21,6 +28,30 @@ use crate::{
 struct TestServer {
     address: SocketAddr,
     task: JoinHandle<()>,
+}
+
+struct TestDir(PathBuf);
+
+impl TestDir {
+    fn new() -> Self {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("catserver-{unique}"));
+        fs::create_dir(&path).unwrap();
+        Self(path)
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TestDir {
+    fn drop(&mut self) {
+        fs::remove_dir_all(&self.0).unwrap();
+    }
 }
 
 impl Drop for TestServer {
@@ -233,4 +264,74 @@ async fn tunnels_arbitrary_websocket_upgrades() {
         );
         socket.close(None).await.unwrap();
     }
+}
+
+#[tokio::test]
+async fn local_ui_only_serves_get_and_head_requests() {
+    let upstream = spawn_app(
+        Router::new().route(
+            "/asset.txt",
+            get(|websocket: WebSocketUpgrade| async move {
+                websocket.on_upgrade(|mut socket| async move {
+                    if let Some(Ok(message)) = socket.recv().await {
+                        socket.send(message).await.unwrap();
+                    }
+                })
+            })
+            .patch(|request: Request| async move {
+                let method = request.method().clone();
+                let body = to_bytes(request.into_body(), usize::MAX).await.unwrap();
+                let mut response = Response::new(Body::from(body));
+                response
+                    .headers_mut()
+                    .insert("x-received-method", method.as_str().parse().unwrap());
+                response
+            }),
+        ),
+    )
+    .await;
+    let ui_dir = TestDir::new();
+    fs::write(ui_dir.path().join("asset.txt"), "local asset").unwrap();
+    let (sender, _) = broadcast::channel::<UserEvent>(10);
+    let state = AppState {
+        server_config: ServerConfig {
+            dns: upstream.address.to_string(),
+            is_using_ssl: false,
+            local_port: 0,
+        },
+        radio: AnyRadio::new(DummyRadio::new()),
+        rotator: AnyRotator::new(DummyRotator::new()),
+        http_client: Client::builder(TokioExecutor::new()).build(HttpsConnector::new()),
+        sender,
+        ui_dir: Some(ui_dir.path().to_owned()),
+    };
+    let catserver = spawn_app(Router::new().fallback(any(local_ui)).with_state(state)).await;
+
+    let local_response = reqwest::get(format!("http://{}/asset.txt", catserver.address))
+        .await
+        .unwrap();
+    assert_eq!(local_response.text().await.unwrap(), "local asset");
+
+    let proxy_response = reqwest::Client::new()
+        .patch(format!("http://{}/asset.txt", catserver.address))
+        .body("request body")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(proxy_response.headers()["x-received-method"], "PATCH");
+    assert_eq!(proxy_response.text().await.unwrap(), "request body");
+
+    let (mut socket, _) = connect_async(format!("ws://{}/asset.txt", catserver.address))
+        .await
+        .unwrap();
+    socket
+        .send(tokio_tungstenite::tungstenite::Message::Binary(
+            vec![4, 5, 6].into(),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        socket.next().await.unwrap().unwrap().into_data(),
+        vec![4, 5, 6]
+    );
 }
