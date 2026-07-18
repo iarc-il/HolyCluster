@@ -16,10 +16,11 @@ use axum::{
     routing::{any, post},
 };
 use futures_util::{SinkExt, StreamExt};
+use hyper::upgrade::OnUpgrade;
 use hyper_tls::HttpsConnector;
 use hyper_util::{
     client::legacy::{Client, connect::HttpConnector},
-    rt::TokioExecutor,
+    rt::{TokioExecutor, TokioIo},
 };
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
@@ -153,7 +154,7 @@ async fn shutdown(mut receiver: Receiver<UserEvent>) {
     }
 }
 
-async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Response<Body> {
+async fn proxy(State(state): State<AppState>, mut request: Request<Body>) -> Response<Body> {
     let uri = state.server_config.build_uri(
         "http",
         request
@@ -163,7 +164,6 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
             .unwrap_or(""),
     );
 
-    let mut request = request;
     let uri = match uri.parse() {
         Ok(uri) => uri,
         Err(error) => {
@@ -171,12 +171,23 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
             return (StatusCode::BAD_REQUEST, Body::empty()).into_response();
         }
     };
+    let is_upgrade = is_upgrade_request(&request);
+    let downstream_upgrade = is_upgrade.then(|| hyper::upgrade::on(&mut request));
     *request.uri_mut() = uri;
-    remove_hop_by_hop_headers(request.headers_mut());
+    if !is_upgrade {
+        remove_hop_by_hop_headers(request.headers_mut());
+    }
     request.headers_mut().remove(header::HOST);
 
     match state.http_client.request(request).await {
         Ok(mut response) => {
+            if response.status() == StatusCode::SWITCHING_PROTOCOLS
+                && let Some(downstream_upgrade) = downstream_upgrade
+            {
+                let upstream_upgrade = hyper::upgrade::on(&mut response);
+                tokio::spawn(tunnel_upgrades(downstream_upgrade, upstream_upgrade));
+                return response.map(Body::new);
+            }
             remove_hop_by_hop_headers(response.headers_mut());
             response.map(Body::new)
         }
@@ -184,6 +195,32 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
             tracing::error!(?error, "Upstream request failed");
             (StatusCode::BAD_GATEWAY, Body::empty()).into_response()
         }
+    }
+}
+
+fn is_upgrade_request(request: &Request<Body>) -> bool {
+    request.headers().contains_key(header::UPGRADE)
+        && request
+            .headers()
+            .get_all(header::CONNECTION)
+            .iter()
+            .filter_map(|value| value.to_str().ok())
+            .flat_map(|value| value.split(','))
+            .any(|value| value.trim().eq_ignore_ascii_case("upgrade"))
+}
+
+async fn tunnel_upgrades(downstream: OnUpgrade, upstream: OnUpgrade) {
+    let (downstream, upstream) = match tokio::try_join!(downstream, upstream) {
+        Ok(upgrades) => upgrades,
+        Err(error) => {
+            tracing::error!(?error, "Failed to establish proxy upgrade");
+            return;
+        }
+    };
+    let mut downstream = TokioIo::new(downstream);
+    let mut upstream = TokioIo::new(upstream);
+    if let Err(error) = tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await {
+        tracing::error!(?error, "Upgraded proxy connection failed");
     }
 }
 
