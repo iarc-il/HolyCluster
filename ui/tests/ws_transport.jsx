@@ -90,9 +90,35 @@ describe("WebSocket transport", () => {
             type: "spots",
             action: "initial",
         });
-        expect(connection_for("/spots_ws")).toBeUndefined();
-        expect(connection_for("/submit_spot")).toBeUndefined();
-        expect(connection_for("/radio")).toBeUndefined();
+        expect(connection_for("/spots_ws").connect).toBe(false);
+        expect(connection_for("/submit_spot").connect).toBe(false);
+        expect(connection_for("/radio").connect).toBe(false);
+    });
+
+    it("does not downgrade an established unified connection", () => {
+        const { messages, rerender } = render_provider();
+        const unified = connection_for("/ws");
+
+        unified.readyState = websocket_mock.ReadyState.OPEN;
+        act(() => unified.options.onOpen());
+        rerender(
+            <WsProvider>
+                <TestConsumer messages={messages} />
+            </WsProvider>,
+        );
+
+        unified.readyState = websocket_mock.ReadyState.CLOSED;
+        act(() => unified.options.onClose());
+        rerender(
+            <WsProvider>
+                <TestConsumer messages={messages} />
+            </WsProvider>,
+        );
+
+        expect(unified.connect).toBe(true);
+        expect(connection_for("/spots_ws").connect).toBe(false);
+        expect(connection_for("/submit_spot").connect).toBe(false);
+        expect(connection_for("/radio").connect).toBe(false);
     });
 
     it("falls back to and translates the catserver v1.2.0 endpoints", () => {
