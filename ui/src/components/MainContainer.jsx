@@ -350,9 +350,7 @@ function MainContent({
             />
             <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
                 <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
-                    <LeftColumn toggled_ui={toggled_ui}>
-                        <WebsiteTour />
-                    </LeftColumn>
+                    <LeftColumn toggled_ui={toggled_ui}>{dev_mode && <WebsiteTour />}</LeftColumn>
                     {is_md_device ? (
                         <Tabs
                             key={mobile_tabs_key}
