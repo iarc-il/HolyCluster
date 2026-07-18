@@ -11,7 +11,7 @@ const RELEASES = [
     [
         "17/07/2026",
         [
-            "New guided website tour with quick start, map, table, filters, side panel, and settings chapters",
+            // "New guided website tour with quick start, map, table, filters, side panel, and settings chapters",
             "New spot sources for POTA, SOTA and WWFF",
             "Mobile GPS support for centering the map and filling your locator in settings",
             "Layout settings now allowing configuration of the view: map only, table only and view order",
