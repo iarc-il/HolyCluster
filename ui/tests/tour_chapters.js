@@ -291,7 +291,6 @@ describe("tour chapters", () => {
             ["map", "[data-tour='mobile-main-tabs']"],
             ["spots_table", "[data-tour='mobile-main-tabs']"],
             ["filters", "[data-tour='filter-options-trigger-bands-20']"],
-            ["filters", "[data-tour='filter-modal-text-value']"],
             ["filters", "[data-tour='modal-apply-button']"],
             ["filters", "[data-tour='filter-line-alert']"],
             ["settings", "[data-tour='modal-close-button']"],
@@ -304,6 +303,16 @@ describe("tour chapters", () => {
             expect(step, `${chapter_id}: ${target}`).toBeDefined();
             expect(step?.mobileHideOverlay, `${chapter_id}: ${target}`).toBe(true);
         }
+    });
+
+    it("highlights the filter value input below its target", () => {
+        const value_step = TOUR_CHAPTERS.filters.steps.find(
+            step => step.target === "[data-tour='filter-modal-text-value']",
+        );
+
+        expect(value_step?.placement).toBe("bottom");
+        expect(value_step?.mobilePlacement).toBeUndefined();
+        expect(value_step?.mobileHideOverlay).not.toBe(true);
     });
 
     it("highlights the mobile map and table tabs in quick start", () => {

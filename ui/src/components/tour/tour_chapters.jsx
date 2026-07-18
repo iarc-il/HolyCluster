@@ -637,9 +637,7 @@ export const TOUR_CHAPTERS = {
                 target: "[data-tour='filter-modal-text-value']",
                 title: "Type A Value",
                 content: "Focus this input and type a callsign prefix or any valid filter value.",
-                placement: "left",
-                mobilePlacement: "auto",
-                mobileHideOverlay: true,
+                placement: "bottom",
             },
             {
                 target: "[data-tour='modal-apply-button']",
