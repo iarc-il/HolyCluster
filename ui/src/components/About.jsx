@@ -9,7 +9,7 @@ import use_radio from "@/hooks/useRadio.jsx";
 
 const RELEASES = [
     [
-        "17/07/2026",
+        "18/07/2026",
         [
             // "New guided website tour with quick start, map, table, filters, side panel, and settings chapters",
             "New spot sources for POTA, SOTA and WWFF",
