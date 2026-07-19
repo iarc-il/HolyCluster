@@ -31,6 +31,7 @@ const MAP_THEME_QUADRANTS = [
     "M16 16v16A16 16 0 0 1 0 16h16Z",
     "M16 16H0A16 16 0 0 1 16 0v16Z",
 ];
+const COLORFUL_THEME_PREVIEW_INDICES = [0, 3, 4, 5];
 const VOACAP_BANDS = ["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"];
 
 function clear_exclusive_overlays(state) {
@@ -604,9 +605,15 @@ function MapControls({
                         </div>
                         <div className="flex w-full items-center justify-end gap-3">
                             {map_theme_names.map(map_theme => {
-                                const preview_colors = Object.values(
+                                const palette_colors = Object.values(
                                     MAP_THEME_CONFIGS[map_theme].palette,
-                                ).slice(0, 4);
+                                );
+                                const preview_colors =
+                                    map_theme === "colorful"
+                                        ? COLORFUL_THEME_PREVIEW_INDICES.map(
+                                              index => palette_colors[index],
+                                          )
+                                        : palette_colors.slice(0, 4);
                                 const is_active = map_controls.map_theme === map_theme;
                                 const label = MAP_THEME_LABELS[map_theme];
 
@@ -619,7 +626,7 @@ function MapControls({
                                                 state.map_theme = map_theme;
                                             })
                                         }
-                                        className="h-8 w-8 overflow-hidden rounded-full focus-visible:outline-none"
+                                        className="h-10 w-10 overflow-hidden rounded-full focus-visible:outline-none"
                                         style={{
                                             border: `2px solid ${colors.theme.text}66`,
                                             boxShadow: is_active
