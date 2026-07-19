@@ -25,6 +25,12 @@ const MAP_THEME_LABELS = {
     earth: "Earth",
     white: "White",
 };
+const MAP_THEME_QUADRANTS = [
+    "M16 16V0a16 16 0 0 1 16 16H16Z",
+    "M16 16h16a16 16 0 0 1-16 16V16Z",
+    "M16 16v16A16 16 0 0 1 0 16h16Z",
+    "M16 16H0A16 16 0 0 1 16 0v16Z",
+];
 const VOACAP_BANDS = ["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"];
 
 function clear_exclusive_overlays(state) {
@@ -603,12 +609,6 @@ function MapControls({
                                 ).slice(0, 4);
                                 const is_active = map_controls.map_theme === map_theme;
                                 const label = MAP_THEME_LABELS[map_theme];
-                                const background = `conic-gradient(${preview_colors
-                                    .map(
-                                        (color, index) =>
-                                            `${color} ${index * 25}% ${(index + 1) * 25}%`,
-                                    )
-                                    .join(", ")})`;
 
                                 return (
                                     <button
@@ -619,9 +619,8 @@ function MapControls({
                                                 state.map_theme = map_theme;
                                             })
                                         }
-                                        className="h-8 w-8 rounded-full transition-transform hover:scale-110 focus-visible:outline-none"
+                                        className="h-8 w-8 overflow-hidden rounded-full focus-visible:outline-none"
                                         style={{
-                                            background,
                                             border: `2px solid ${colors.theme.text}66`,
                                             boxShadow: is_active
                                                 ? `0 0 0 2px ${colors.theme.background}, 0 0 0 4px ${colors.buttons.utility}`
@@ -630,7 +629,21 @@ function MapControls({
                                         aria-label={`Use ${label.toLowerCase()} map theme`}
                                         aria-pressed={is_active}
                                         title={`${label} map theme`}
-                                    />
+                                    >
+                                        <svg
+                                            className="block h-full w-full"
+                                            viewBox="0 0 32 32"
+                                            aria-hidden="true"
+                                        >
+                                            {preview_colors.map((color, index) => (
+                                                <path
+                                                    key={MAP_THEME_QUADRANTS[index]}
+                                                    d={MAP_THEME_QUADRANTS[index]}
+                                                    fill={color}
+                                                />
+                                            ))}
+                                        </svg>
+                                    </button>
                                 );
                             })}
                         </div>
