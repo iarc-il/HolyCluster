@@ -322,7 +322,7 @@ export function draw_spots(
         azimuth_spot = bold_spots[bold_spots.length - 1];
     }
 
-    if (show_dev_bearings && azimuth_spot && !is_globe && hovered_spot.source !== "table") {
+    if (azimuth_spot && !is_globe && hovered_spot.source !== "table") {
         const [center_lon, center_lat] = projection.rotate().map(x => -x);
         const azimuth = calculate_geographic_azimuth(
             center_lat,
@@ -344,14 +344,16 @@ export function draw_spots(
         context.stroke();
         context.setLineDash([]);
 
-        draw_home_bearing_line(
-            context,
-            projection,
-            dims,
-            colors,
-            home_location,
-            azimuth_spot.dx_loc,
-        );
+        if (show_dev_bearings) {
+            draw_home_bearing_line(
+                context,
+                projection,
+                dims,
+                colors,
+                home_location,
+                azimuth_spot.dx_loc,
+            );
+        }
     }
 
     // Bold spot drawn last (on top)
