@@ -1,8 +1,9 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ToastContainer, toast } from "react-toastify";
 
 import CallsignInput from "@/components/CallsignInput.jsx";
+import { QUICK_SPOT_EVENT } from "@/components/submit_spot_events.js";
 import Button from "@/components/ui/Button.jsx";
 import Input from "@/components/ui/Input.jsx";
 import Modal from "@/components/ui/Modal.jsx";
@@ -46,6 +47,8 @@ function SubmitSpot({ dev_mode }) {
     const { settings } = useSettings();
 
     const [external_close, set_external_close] = useState(true);
+    const [external_open, set_external_open] = useState(0);
+    const quick_spot_ref = useRef(null);
     const [is_open, set_is_open] = useState(false);
     const [is_testing, set_is_testing] = useState(false);
     let { radio_freq } = use_radio();
@@ -61,6 +64,17 @@ function SubmitSpot({ dev_mode }) {
             freq: Math.round((radio_freq / 1000 || 0) * 10) / 10,
         }));
     }, [radio_freq, is_open]);
+
+    useEffect(() => {
+        function open_quick_spot(event) {
+            quick_spot_ref.current = event.detail;
+            set_external_close(true);
+            set_external_open(value => value + 1);
+        }
+
+        document.addEventListener(QUICK_SPOT_EVENT, open_quick_spot);
+        return () => document.removeEventListener(QUICK_SPOT_EVENT, open_quick_spot);
+    }, []);
 
     useWsMessage("submit", response => {
         if (response.status === "success") {
@@ -80,10 +94,6 @@ function SubmitSpot({ dev_mode }) {
     });
 
     const readyState = network_state === "connected" ? ReadyState.OPEN : ReadyState.CLOSED;
-
-    function reset_temp_data() {
-        set_temp_data(empty_temp_data);
-    }
 
     function is_freq_in_band_plan(freq) {
         const freq_khz = Number.parseFloat(freq);
@@ -186,10 +196,12 @@ function SubmitSpot({ dev_mode }) {
                 button={<SubmitIcon size="32" />}
                 data_tour="top-bar-submit-spot"
                 dialog_data_tour="submit-spot-modal"
+                external_open={external_open}
                 on_open={() => {
                     set_is_open(true);
                     set_external_close(true);
-                    reset_temp_data();
+                    set_temp_data(quick_spot_ref.current ?? empty_temp_data);
+                    quick_spot_ref.current = null;
                 }}
                 on_apply={() => {
                     try_to_submit_spot();

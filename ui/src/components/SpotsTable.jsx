@@ -1,4 +1,5 @@
 import CallsignSearch from "@/components/CallsignSearch.jsx";
+import { QUICK_SPOT_EVENT } from "@/components/submit_spot_events.js";
 import X from "@/components/ui/X.jsx";
 import { forwardRef, useEffect, useRef, useState } from "react";
 import SpotContextMenu from "./SpotContextMenu";
@@ -754,6 +755,20 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                         ? spot.spotter_callsign
                         : spot.dx_callsign;
                     window.open(`https://www.qrz.com/db/${callsign}`, "_blank");
+                },
+            },
+            {
+                label: spot => "Quick Spot",
+                onClick: spot => {
+                    document.dispatchEvent(
+                        new CustomEvent(QUICK_SPOT_EVENT, {
+                            detail: {
+                                callsign: spot.dx_callsign,
+                                freq: spot.freq,
+                                comment: "",
+                            },
+                        }),
+                    );
                 },
             },
             {
