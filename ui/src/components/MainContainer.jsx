@@ -48,6 +48,7 @@ function MainContent({
     set_history_end,
     window_size_ms,
     set_window_size_ms,
+    display_hours,
 }) {
     const { dev_mode, set_dev_mode, colors } = useColors();
 
@@ -249,10 +250,9 @@ function MainContent({
             set_history_start(null);
             set_history_end(null);
         } else {
-            const end = new Date();
-            const start = new Date(end.getTime() - window_size_ms);
-            set_history_start(start);
-            set_history_end(end);
+            const bar_start_ms = Date.now() - display_hours * 3_600_000;
+            set_history_start(new Date(bar_start_ms));
+            set_history_end(new Date(bar_start_ms + window_size_ms));
         }
     }
 
@@ -399,7 +399,7 @@ function MainContainer() {
     const { dev_mode } = useColors();
     const {
         active_profile_data: {
-            history: { window_size_ms, step_size_ms },
+            history: { window_size_ms, step_size_ms, display_hours },
         },
         update_active_profile_section,
     } = useProfiles();
@@ -467,6 +467,7 @@ function MainContainer() {
                     set_history_end={set_history_end}
                     window_size_ms={window_size_ms}
                     set_window_size_ms={set_window_size_ms}
+                    display_hours={display_hours}
                 />
             </SpotDataProvider>
         </RestDataProvider>
