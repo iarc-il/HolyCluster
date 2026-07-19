@@ -577,7 +577,7 @@ function RecentImports({ imports, colors }) {
     );
 }
 
-export default function HunterPanel() {
+export default function HunterPanel({ on_import_complete = null }) {
     const { colors } = useColors();
     const {
         active_profile_data: { hunter },
@@ -607,7 +607,7 @@ export default function HunterPanel() {
 
     async function handle_import_file(event) {
         const file = event.target.files[0];
-        event.target.value = null;
+        event.target.value = "";
         if (!file) return;
 
         if (file.size > HUNTER_ADIF_MAX_FILE_SIZE_BYTES) {
@@ -633,6 +633,7 @@ export default function HunterPanel() {
                 },
             });
             update_active_profile_section("hunter", result.hunter);
+            on_import_complete?.();
         } catch (error) {
             set_import_error(error.message || "Could not import the selected ADIF file.");
         } finally {
