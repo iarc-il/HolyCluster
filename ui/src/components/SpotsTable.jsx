@@ -757,20 +757,24 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     window.open(`https://www.qrz.com/db/${callsign}`, "_blank");
                 },
             },
-            {
-                label: spot => "Quick Spot",
-                onClick: spot => {
-                    document.dispatchEvent(
-                        new CustomEvent(QUICK_SPOT_EVENT, {
-                            detail: {
-                                callsign: spot.dx_callsign,
-                                freq: spot.freq,
-                                comment: "",
-                            },
-                        }),
-                    );
-                },
-            },
+            ...(context_menu.is_spotter
+                ? []
+                : [
+                      {
+                          label: spot => "Quick Spot",
+                          onClick: spot => {
+                              document.dispatchEvent(
+                                  new CustomEvent(QUICK_SPOT_EVENT, {
+                                      detail: {
+                                          callsign: spot.dx_callsign,
+                                          freq: spot.freq,
+                                          comment: "",
+                                      },
+                                  }),
+                              );
+                          },
+                      },
+                  ]),
             {
                 label: spot => (spot.id === pinned_spot ? "Unpin Spot" : "Pin Spot"),
                 onClick: spot => {
