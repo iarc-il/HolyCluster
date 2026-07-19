@@ -721,11 +721,28 @@ async def radio(websocket: fastapi.WebSocket):
 @app.websocket("/submit_spot")
 async def submit_spot_one_spot(websocket: fastapi.WebSocket):
     await websocket.accept()
-    while True:
-        try:
-            await submit_spot.handle_one_spot(websocket, app.state.valkey_client)
-        except websockets.WebSocketDisconnect:
-            break
+    hunter_jobs = {}
+    send_lock = asyncio.Lock()
+
+    try:
+        while True:
+            try:
+                message = await websocket.receive_json()
+            except websockets.WebSocketDisconnect:
+                break
+
+            if message.get("version") == WS_PROTOCOL_VERSION and message.get("type") == WsMessageType.HUNTER.value:
+                error = validate_ws_protocol_message(message)
+                if error is not None:
+                    await send_ws_json(websocket, send_lock, error)
+                    continue
+                await send_ws_hunter(websocket, send_lock, hunter_jobs, message)
+                continue
+
+            response = await submit_spot.handle_spot(message, app.state.valkey_client)
+            await send_ws_json(websocket, send_lock, response)
+    finally:
+        await cancel_hunter_jobs(hunter_jobs)
 
 
 @app.websocket("/ws")
