@@ -1,5 +1,7 @@
 use std::{
+    convert::Infallible,
     net::{Ipv4Addr, SocketAddrV4},
+    path::PathBuf,
     time::Duration,
 };
 
@@ -11,11 +13,17 @@ use axum::{
         Request, State, WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
+    http::{HeaderMap, HeaderName, Method, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{any, post},
 };
 use futures_util::{SinkExt, StreamExt};
-use reqwest::{Client, StatusCode};
+use hyper::upgrade::OnUpgrade;
+use hyper_tls::HttpsConnector;
+use hyper_util::{
+    client::legacy::{Client, connect::HttpConnector},
+    rt::{TokioExecutor, TokioIo},
+};
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 use tokio::{
@@ -23,6 +31,7 @@ use tokio::{
     sync::broadcast::{Receiver, Sender},
 };
 use tokio_tungstenite::connect_async;
+use tower::{ServiceExt, service_fn};
 use tower_http::services::ServeDir;
 
 use crate::{
@@ -32,6 +41,9 @@ use crate::{
     tray_icon::UserEvent,
     utils,
 };
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone)]
 pub struct ServerConfig {
@@ -57,8 +69,9 @@ struct AppState {
     server_config: ServerConfig,
     radio: AnyRadio,
     rotator: AnyRotator,
-    http_client: Client,
+    http_client: Client<HttpsConnector<HttpConnector>, Body>,
     sender: Sender<UserEvent>,
+    ui_dir: Option<PathBuf>,
 }
 
 pub struct Server {
@@ -75,45 +88,29 @@ impl Server {
         server_config: ServerConfig,
         use_local_ui: bool,
     ) -> Result<Self> {
-        let http_client = Client::new();
+        let http_client = Client::builder(TokioExecutor::new()).build(HttpsConnector::new());
 
         let app = Router::new()
             .route("/ws", any(ws_handler))
             .route("/radio", any(cat_control_handler))
-            .route(
-                "/submit_spot",
-                any(|state, websocket| websocket_handler(state, websocket, "/submit_spot")),
-            )
-            .route(
-                "/spots_ws",
-                any(|state, websocket| websocket_handler(state, websocket, "/spots_ws")),
-            )
             .route("/exit", post(exit_server_handler))
             .route("/open", post(open_tab_handler));
 
+        let ui_dir = if use_local_ui {
+            Some(find_ui_dir()?)
+        } else {
+            None
+        };
         let app_state = AppState {
             server_config,
             radio,
             rotator,
             http_client,
             sender: sender.clone(),
+            ui_dir,
         };
         let app = if use_local_ui {
-            let mut ui_dir = std::env::current_exe()?;
-            let ui_dir = loop {
-                let result = ui_dir.join("ui/dist");
-                if result.exists() {
-                    break result;
-                } else {
-                    ui_dir = ui_dir
-                        .parent()
-                        .with_context(|| format!("Cannot get parent of {}", ui_dir.display()))?
-                        .into();
-                }
-            };
-            app.route("/spots", any(proxy)).fallback_service(
-                ServeDir::new(ui_dir).fallback(any(proxy).with_state(app_state.clone())),
-            )
+            app.fallback(any(local_ui))
         } else {
             app.fallback(any(proxy))
         };
@@ -137,6 +134,20 @@ impl Server {
     }
 }
 
+fn find_ui_dir() -> Result<PathBuf> {
+    let mut path = std::env::current_exe()?;
+    loop {
+        let ui_dir = path.join("ui/dist");
+        if ui_dir.exists() {
+            return Ok(ui_dir);
+        }
+        path = path
+            .parent()
+            .with_context(|| format!("Cannot get parent of {}", path.display()))?
+            .into();
+    }
+}
+
 async fn shutdown(mut receiver: Receiver<UserEvent>) {
     while let Ok(message) = receiver.recv().await
         && message != UserEvent::Quit
@@ -145,7 +156,7 @@ async fn shutdown(mut receiver: Receiver<UserEvent>) {
     }
 }
 
-async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Response<Body> {
+async fn proxy(State(state): State<AppState>, mut request: Request<Body>) -> Response<Body> {
     let uri = state.server_config.build_uri(
         "http",
         request
@@ -155,24 +166,106 @@ async fn proxy(State(state): State<AppState>, request: Request<Body>) -> Respons
             .unwrap_or(""),
     );
 
-    let reqwest_response = match state.http_client.get(uri).send().await {
-        Ok(result) => result,
+    let uri = match uri.parse() {
+        Ok(uri) => uri,
         Err(error) => {
-            tracing::error!("Error: {error:?}");
+            tracing::error!(?error, "Failed to build upstream URI");
             return (StatusCode::BAD_REQUEST, Body::empty()).into_response();
         }
     };
-
-    let mut response_builder = Response::builder().status(reqwest_response.status());
-    if let Some(headers) = response_builder.headers_mut() {
-        *headers = reqwest_response.headers().clone();
+    let is_upgrade = is_upgrade_request(&request);
+    let downstream_upgrade = is_upgrade.then(|| hyper::upgrade::on(&mut request));
+    *request.uri_mut() = uri;
+    if !is_upgrade {
+        remove_hop_by_hop_headers(request.headers_mut());
     }
-    match response_builder.body(Body::from_stream(reqwest_response.bytes_stream())) {
-        Ok(response) => response,
-        Err(error) => {
-            tracing::error!(?error, "Failed to build proxy response");
-            (StatusCode::INTERNAL_SERVER_ERROR, Body::empty()).into_response()
+    request.headers_mut().remove(header::HOST);
+
+    match state.http_client.request(request).await {
+        Ok(mut response) => {
+            if response.status() == StatusCode::SWITCHING_PROTOCOLS
+                && let Some(downstream_upgrade) = downstream_upgrade
+            {
+                let upstream_upgrade = hyper::upgrade::on(&mut response);
+                tokio::spawn(tunnel_upgrades(downstream_upgrade, upstream_upgrade));
+                return response.map(Body::new);
+            }
+            remove_hop_by_hop_headers(response.headers_mut());
+            response.map(Body::new)
         }
+        Err(error) => {
+            tracing::error!(?error, "Upstream request failed");
+            (StatusCode::BAD_GATEWAY, Body::empty()).into_response()
+        }
+    }
+}
+
+async fn local_ui(State(state): State<AppState>, request: Request<Body>) -> Response<Body> {
+    if matches!(*request.method(), Method::GET | Method::HEAD) && !is_upgrade_request(&request) {
+        let ui_dir = state.ui_dir.clone().expect("local UI directory is missing");
+        let fallback_state = state.clone();
+        let service = ServeDir::new(ui_dir).fallback(service_fn(move |request| {
+            let state = fallback_state.clone();
+            async move { Ok::<_, Infallible>(proxy(State(state), request).await) }
+        }));
+        return match service.oneshot(request).await {
+            Ok(response) => response.map(Body::new),
+            Err(error) => match error {},
+        };
+    }
+
+    proxy(State(state), request).await
+}
+
+fn is_upgrade_request(request: &Request<Body>) -> bool {
+    request.headers().contains_key(header::UPGRADE)
+        && request
+            .headers()
+            .get_all(header::CONNECTION)
+            .iter()
+            .filter_map(|value| value.to_str().ok())
+            .flat_map(|value| value.split(','))
+            .any(|value| value.trim().eq_ignore_ascii_case("upgrade"))
+}
+
+async fn tunnel_upgrades(downstream: OnUpgrade, upstream: OnUpgrade) {
+    let (downstream, upstream) = match tokio::try_join!(downstream, upstream) {
+        Ok(upgrades) => upgrades,
+        Err(error) => {
+            tracing::error!(?error, "Failed to establish proxy upgrade");
+            return;
+        }
+    };
+    let mut downstream = TokioIo::new(downstream);
+    let mut upstream = TokioIo::new(upstream);
+    if let Err(error) = tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await {
+        tracing::error!(?error, "Upgraded proxy connection failed");
+    }
+}
+
+fn remove_hop_by_hop_headers(headers: &mut HeaderMap) {
+    let connection_headers = headers
+        .get_all(header::CONNECTION)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .filter_map(|name| HeaderName::from_bytes(name.trim().as_bytes()).ok())
+        .collect::<Vec<_>>();
+
+    for name in connection_headers {
+        headers.remove(name);
+    }
+    for name in [
+        header::CONNECTION,
+        HeaderName::from_static("keep-alive"),
+        header::PROXY_AUTHENTICATE,
+        header::PROXY_AUTHORIZATION,
+        header::TE,
+        header::TRAILER,
+        header::TRANSFER_ENCODING,
+        header::UPGRADE,
+    ] {
+        headers.remove(name);
     }
 }
 
@@ -184,85 +277,6 @@ async fn exit_server_handler(State(state): State<AppState>) -> impl IntoResponse
 async fn open_tab_handler(State(state): State<AppState>) -> impl IntoResponse {
     let _ = state.sender.send(UserEvent::OpenBrowser);
     StatusCode::OK
-}
-
-async fn websocket_handler(
-    State(state): State<AppState>,
-    websocket: WebSocketUpgrade,
-    path: &'static str,
-) -> impl IntoResponse {
-    let server_config = state.server_config;
-    websocket
-        .write_buffer_size(0)
-        .read_buffer_size(0)
-        .accept_unmasked_frames(true)
-        .on_upgrade(move |websocket: WebSocket| async move {
-            if let Err(error) = handle_websocket(server_config, websocket, path).await {
-                tracing::error!(path, ?error, "WebSocket proxy handler failed");
-            }
-        })
-}
-
-async fn handle_websocket(
-    server_config: ServerConfig,
-    client_socket: WebSocket,
-    path: &str,
-) -> Result<()> {
-    let (mut client_sender, mut client_receiver) = client_socket.split();
-    let (stream, _response) = connect_async(server_config.build_uri("ws", path)).await?;
-    let (mut server_sender, mut server_receiver) = stream.split();
-
-    use tokio_tungstenite::tungstenite;
-
-    loop {
-        tokio::select! {
-            Some(Ok(message)) = client_receiver.next() => {
-                let result = server_sender
-                    .send(utils::axum_to_tungstenite_message(message))
-                    .await;
-                if let Err(error) = &result {
-                    use tungstenite::Error;
-                    match error {
-                        Error::ConnectionClosed => {
-                            break;
-                        }
-                        _ => {
-                            result?;
-                        }
-                    }
-                }
-            }
-            Some(Ok(message)) = server_receiver.next() => {
-                let Some(message) = utils::tungstenite_to_axum_message(message) else {
-                    continue;
-                };
-                let result = client_sender
-                    .send(message)
-                    .await;
-                if result.is_err() {
-                    break;
-                }
-            }
-        }
-    }
-
-    // This is best effort, so we ignore errors
-    let _ = server_sender
-        .send(tungstenite::Message::Close(Some(
-            tungstenite::protocol::CloseFrame {
-                code: tungstenite::protocol::frame::coding::CloseCode::Normal,
-                reason: tungstenite::Utf8Bytes::from_static("Goodbye"),
-            },
-        )))
-        .await;
-    let _ = client_sender
-        .send(Message::Close(Some(axum::extract::ws::CloseFrame {
-            code: axum::extract::ws::close_code::NORMAL,
-            reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
-        })))
-        .await;
-
-    Ok(())
 }
 
 async fn cat_control_handler(

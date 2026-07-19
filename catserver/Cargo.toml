@@ -15,13 +15,17 @@ argh = "0.1.13"
 axum = { version = "0.8.3", features = ["ws"] }
 directories = "6.0.0"
 futures-util = "0.3.31"
+hyper = { version = "1.6.0", features = ["client", "http1"] }
+hyper-tls = "0.6.0"
+hyper-util = { version = "0.1.11", features = ["client", "client-legacy", "http1", "tokio"] }
 open = "5.3.2"
-reqwest = { version = "0.12.15", features = ["blocking", "stream"] }
+reqwest = { version = "0.12.15", features = ["blocking"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 single-instance = "0.3.3"
-tokio = { version = "1.44.2", features = ["rt", "rt-multi-thread"] }
+tokio = { version = "1.44.2", features = ["io-util", "rt", "rt-multi-thread"] }
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
+tower = { version = "0.5.2", features = ["util"] }
 tower-http = { version = "0.6.2", features = ["fs"] }
 tracing = "0.1.41"
 tracing-panic = "0.1.2"
@@ -32,3 +36,6 @@ winsafe = { version = "0.0.25", features = ["kernel", "ole", "oleaut"] }
 
 [build-dependencies]
 winresource = "0.1.20"
+
+[dev-dependencies]
+tokio = { version = "1.44.2", features = ["macros"] }
