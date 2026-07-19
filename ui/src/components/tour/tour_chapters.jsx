@@ -1,7 +1,23 @@
+import { TOUR_CLOSE_LEFT_PANEL_EVENT } from "./tour_events.js";
+
 export const TOUR_COMPLETED_CHAPTERS_KEY = "tour_completed_chapters";
 export const DEFAULT_TOUR_CHAPTER_ID = "quick_start";
 
 const action_buttons = ["back", "close"];
+const scroll_target_to_center = selector => () => {
+    if (window.innerWidth <= 768) {
+        document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
+    }
+
+    return new Promise(resolve => {
+        requestAnimationFrame(() => {
+            document
+                .querySelector(selector)
+                ?.scrollIntoView({ block: "center", inline: "nearest" });
+            resolve();
+        });
+    });
+};
 
 export const TOUR_CHAPTERS = {
     quick_start: {
@@ -44,6 +60,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='left-column']",
                 buttons: action_buttons,
                 placement: "bottom",
+                showWhenAlreadySatisfied: true,
             },
             {
                 target: "[data-tour='left-column']",
@@ -51,9 +68,10 @@ export const TOUR_CHAPTERS = {
                 content: "The left rail filters spots by band and mode with one-click toggles.",
                 optional: true,
                 placement: "right",
+                mobilePlacement: "center",
             },
             {
-                target: "[data-tour='mobile-main-tabs']",
+                target: "[data-tour='mobile-main-tabs-tabs']",
                 title: "Map And Table Tabs",
                 content: "On narrow screens, use these tabs to switch between the map and table.",
                 mobileOnly: true,
@@ -116,7 +134,9 @@ export const TOUR_CHAPTERS = {
                 optional: true,
                 waitFor: "[data-tour='map-controls']",
                 buttons: action_buttons,
-                placement: "bottom",
+                placement: "center",
+                mobileHideOverlay: true,
+                showWhenAlreadySatisfied: true,
                 skipBeacon: true,
             },
             {
@@ -135,6 +155,13 @@ export const TOUR_CHAPTERS = {
                 title: "Map Controls",
                 content:
                     "These buttons reset the map, open display controls, and switch map features.",
+                placement: "left",
+            },
+            {
+                target: "[data-tour='map-gps']",
+                title: "GPS Location",
+                content: "Use this button to center the map on your current GPS location.",
+                mobileOnly: true,
                 placement: "left",
             },
             {
@@ -167,17 +194,6 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
             },
             {
-                target: "[data-tour='map-projection-toggle']",
-                title: "Try Projection",
-                content: "Click this button to switch between globe and azimuthal projections.",
-                buttons: action_buttons,
-                placement: "left",
-                waitForChange: {
-                    selector: "[data-tour='map-projection-toggle']",
-                    attribute: "data-tour-state",
-                },
-            },
-            {
                 target: "[data-tour='map-night-toggle']",
                 title: "Try Night Overlay",
                 content: "Click this button to toggle the day/night terminator overlay.",
@@ -185,6 +201,17 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
                 waitForChange: {
                     selector: "[data-tour='map-night-toggle']",
+                    attribute: "data-tour-state",
+                },
+            },
+            {
+                target: "[data-tour='map-projection-toggle']",
+                title: "Try Projection",
+                content: "Click this button to switch between globe and azimuthal projections.",
+                buttons: action_buttons,
+                placement: "left",
+                waitForChange: {
+                    selector: "[data-tour='map-projection-toggle']",
                     attribute: "data-tour-state",
                 },
             },
@@ -245,7 +272,9 @@ export const TOUR_CHAPTERS = {
                 optional: true,
                 waitFor: "[data-tour='spots-table']",
                 buttons: action_buttons,
-                placement: "bottom",
+                placement: "center",
+                mobileHideOverlay: true,
+                showWhenAlreadySatisfied: true,
                 skipBeacon: true,
             },
             {
@@ -309,6 +338,7 @@ export const TOUR_CHAPTERS = {
                 content: "Click the DX column header to change the table order.",
                 buttons: action_buttons,
                 placement: "bottom",
+                mobilePlacement: "auto",
                 waitForChange: {
                     selector: "[data-tour='table-header-dx_callsign']",
                     attribute: "data-tour-state",
@@ -321,7 +351,11 @@ export const TOUR_CHAPTERS = {
                 optional: true,
                 requires: "has_spots",
                 buttons: action_buttons,
+                before: scroll_target_to_center("[data-tour='spot-row']"),
                 placement: "top",
+                mobilePlacement: "auto",
+                mobileScrollOffset: 96,
+                skipScroll: true,
                 waitForChange: {
                     selector: "[data-tour='spot-row']",
                     attribute: "data-tour-state",
@@ -335,7 +369,11 @@ export const TOUR_CHAPTERS = {
                 optional: true,
                 requires: "has_spots",
                 buttons: action_buttons,
+                before: scroll_target_to_center("[data-tour='spot-row-dx-callsign']"),
                 placement: "top",
+                mobilePlacement: "auto",
+                mobileScrollOffset: 96,
+                skipScroll: true,
                 waitFor: "[data-tour='table-context-menu'][data-tour-state='callsign']",
             },
             {
@@ -346,6 +384,7 @@ export const TOUR_CHAPTERS = {
                 requires: "has_spots",
                 buttons: action_buttons,
                 placement: "top",
+                mobilePlacement: "auto",
                 waitForGone: "[data-tour='table-context-menu']",
             },
             {
@@ -355,7 +394,11 @@ export const TOUR_CHAPTERS = {
                 optional: true,
                 requires: "has_spots",
                 buttons: action_buttons,
+                before: scroll_target_to_center("[data-tour='spot-row-flag']"),
                 placement: "top",
+                mobilePlacement: "auto",
+                mobileScrollOffset: 96,
+                skipScroll: true,
                 waitFor: "[data-tour='table-context-menu'][data-tour-state='flag']",
             },
             {
@@ -366,6 +409,7 @@ export const TOUR_CHAPTERS = {
                 requires: "has_spots",
                 buttons: action_buttons,
                 placement: "top",
+                mobilePlacement: "auto",
                 waitForGone: "[data-tour='table-context-menu']",
             },
             {
@@ -374,7 +418,11 @@ export const TOUR_CHAPTERS = {
                 content: "Click the frequency to send mode and frequency to the connected radio.",
                 optional: true,
                 requires: "has_spots",
+                before: scroll_target_to_center("[data-tour='spot-row-frequency']"),
                 placement: "top",
+                mobilePlacement: "auto",
+                mobileScrollOffset: 96,
+                skipScroll: true,
             },
             {
                 target: "[data-tour='spot-row-band']",
@@ -382,7 +430,11 @@ export const TOUR_CHAPTERS = {
                 content: "The band column helps you scan activity by band at a glance.",
                 optional: true,
                 requires: "has_spots",
+                before: scroll_target_to_center("[data-tour='spot-row-band']"),
                 placement: "top",
+                mobilePlacement: "auto",
+                mobileScrollOffset: 96,
+                skipScroll: true,
             },
             {
                 target: "[data-tour='spot-row-mode']",
@@ -390,7 +442,11 @@ export const TOUR_CHAPTERS = {
                 content: "The mode column shows how the spot was classified.",
                 optional: true,
                 requires: "has_spots",
+                before: scroll_target_to_center("[data-tour='spot-row-mode']"),
                 placement: "top",
+                mobilePlacement: "auto",
+                mobileScrollOffset: 96,
+                skipScroll: true,
             },
             {
                 target: "[data-tour='spot-row-comment']",
@@ -399,7 +455,9 @@ export const TOUR_CHAPTERS = {
                 desktopOnly: true,
                 optional: true,
                 requires: "has_spots",
+                before: scroll_target_to_center("[data-tour='spot-row-comment']"),
                 placement: "top",
+                skipScroll: true,
             },
         ],
     },
@@ -416,6 +474,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='left-column']",
                 buttons: action_buttons,
                 placement: "bottom",
+                showWhenAlreadySatisfied: true,
                 skipBeacon: true,
             },
             {
@@ -424,6 +483,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "The left rail contains fast band and mode filters for the live spot stream.",
                 placement: "right",
+                mobilePlacement: "center",
                 skipBeacon: true,
             },
             {
@@ -433,6 +493,7 @@ export const TOUR_CHAPTERS = {
                 requires: "manual_band_filter_available",
                 buttons: action_buttons,
                 placement: "right",
+                mobilePlacement: "auto",
                 waitForChange: {
                     selector: "[data-tour='band-filter-20']",
                     attribute: "data-tour-state",
@@ -445,6 +506,8 @@ export const TOUR_CHAPTERS = {
                 requires: "manual_band_filter_available",
                 buttons: action_buttons,
                 placement: "right",
+                mobilePlacement: "auto",
+                mobileHideOverlay: true,
                 waitFor: "[data-tour='filter-options-popup'][data-tour-state='bands-20']",
             },
             {
@@ -458,6 +521,7 @@ export const TOUR_CHAPTERS = {
                     filter_value: 20,
                 },
                 placement: "right",
+                mobilePlacement: "auto",
             },
             {
                 target: "[data-tour='mode-filter-SSB']",
@@ -465,6 +529,7 @@ export const TOUR_CHAPTERS = {
                 content: "Click SSB to toggle that mode in the table and map.",
                 buttons: action_buttons,
                 placement: "right",
+                mobilePlacement: "auto",
                 waitForChange: {
                     selector: "[data-tour='mode-filter-SSB']",
                     attribute: "data-tour-state",
@@ -494,6 +559,7 @@ export const TOUR_CHAPTERS = {
                     "Click the Filters tab to show advanced alert, show-only, and hide filters.",
                 buttons: action_buttons,
                 placement: "left",
+                mobilePlacement: "auto",
                 waitForChange: {
                     selector: "[data-tour='side-panel-tab-filters']",
                     attribute: "data-tour-state",
@@ -506,24 +572,25 @@ export const TOUR_CHAPTERS = {
                 content:
                     "Advanced filters can alert, show only matching spots, or hide matching spots.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='filter-section-alert']",
                 title: "Alert Filters",
                 content: "Alert filters keep matching spots visible and visually highlighted.",
-                placement: "left",
+                placement: "bottom",
             },
             {
                 target: "[data-tour='filter-section-show_only']",
                 title: "Show-Only Filters",
                 content: "Show-only filters limit the interface to matching spots.",
-                placement: "left",
+                placement: "bottom",
             },
             {
                 target: "[data-tour='filter-section-hide']",
                 title: "Hide Filters",
                 content: "Hide filters remove matching spots from the table and map.",
-                placement: "left",
+                placement: "bottom",
             },
             {
                 target: "[data-tour='add-filter-button-alert']",
@@ -532,6 +599,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='filter-modal-content']",
                 buttons: action_buttons,
                 placement: "left",
+                mobilePlacement: "auto",
             },
             {
                 target: "[data-tour='filter-modal-content']",
@@ -539,6 +607,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "The editor combines an action, a match type, and the required values for that type.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='filter-modal-action-alert']",
@@ -546,6 +615,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "The action decides what happens when a spot matches: highlight it, show only matching spots, or hide matching spots. Keep Alert selected for this exercise.",
                 placement: "left",
+                mobilePlacement: "auto",
             },
             {
                 target: "[data-tour='filter-modal-type-prefix']",
@@ -553,6 +623,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "The type decides what the filter matches. You can match callsigns, entities, zones, comments, ADIF status, self spots, or DXpeditions.",
                 placement: "left",
+                mobilePlacement: "auto",
             },
             {
                 target: "[data-tour='filter-modal-spot-role-dx']",
@@ -560,12 +631,13 @@ export const TOUR_CHAPTERS = {
                 content:
                     "Use this to decide whether the callsign-style filter applies to the spotted DX station or the reporting spotter.",
                 placement: "left",
+                mobilePlacement: "auto",
             },
             {
                 target: "[data-tour='filter-modal-text-value']",
                 title: "Type A Value",
                 content: "Focus this input and type a callsign prefix or any valid filter value.",
-                placement: "left",
+                placement: "bottom",
             },
             {
                 target: "[data-tour='modal-apply-button']",
@@ -574,6 +646,8 @@ export const TOUR_CHAPTERS = {
                     "Enter any valid value, leave the action as Alert, then click Apply to create the filter.",
                 buttons: action_buttons,
                 placement: "top",
+                mobilePlacement: "auto",
+                mobileHideOverlay: true,
                 waitForChange: {
                     selector: "[data-tour='filter-section-alert']",
                     attribute: "data-tour-state",
@@ -586,6 +660,8 @@ export const TOUR_CHAPTERS = {
                     "Drag the new alert filter into the Show-Only section to change what it does.",
                 buttons: action_buttons,
                 placement: "left",
+                mobilePlacement: "auto",
+                mobileHideOverlay: true,
                 waitForChange: {
                     selector: "[data-tour='filter-section-show_only']",
                     attribute: "data-tour-state",
@@ -597,6 +673,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "The same filter now lives in Show-Only. Dragging between sections changes the filter action without rebuilding it.",
                 placement: "left",
+                mobilePlacement: "center",
             },
         ],
     },
@@ -621,6 +698,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "The side panel groups deeper tools that do not fit in the main map/table view.",
                 placement: "left",
+                mobilePlacement: "center",
                 skipBeacon: true,
             },
             {
@@ -628,6 +706,7 @@ export const TOUR_CHAPTERS = {
                 title: "Panel Tabs",
                 content: "Use these tabs to switch between the side panel tools.",
                 placement: "left",
+                mobilePlacement: "auto",
             },
             {
                 target: "[data-tour='side-panel-tab-filters']",
@@ -635,6 +714,7 @@ export const TOUR_CHAPTERS = {
                 content: "Click the Filters tab to show the advanced filter builder.",
                 buttons: action_buttons,
                 placement: "left",
+                mobilePlacement: "auto",
                 waitForChange: {
                     selector: "[data-tour='side-panel-tab-filters']",
                     attribute: "data-tour-state",
@@ -646,6 +726,7 @@ export const TOUR_CHAPTERS = {
                 title: "Filters View",
                 content: "This view contains advanced alert, show-only, and hide filter sections.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='side-panel-tab-band-bar']",
@@ -653,6 +734,7 @@ export const TOUR_CHAPTERS = {
                 content: "Click the Band Bar tab to inspect activity by band.",
                 buttons: action_buttons,
                 placement: "left",
+                mobilePlacement: "auto",
                 waitForChange: {
                     selector: "[data-tour='side-panel-tab-band-bar']",
                     attribute: "data-tour-state",
@@ -665,6 +747,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "The band bar summarizes activity and spot distribution for a selected band.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='band-bar-selector']",
@@ -672,6 +755,7 @@ export const TOUR_CHAPTERS = {
                 content: "Choose which band the activity chart should show.",
                 optional: true,
                 placement: "left",
+                mobilePlacement: "auto",
             },
             {
                 target: "[data-tour='band-bar-chart']",
@@ -679,6 +763,7 @@ export const TOUR_CHAPTERS = {
                 content: "The chart helps you quickly compare activity within the selected band.",
                 optional: true,
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='band-bar-legend']",
@@ -686,6 +771,7 @@ export const TOUR_CHAPTERS = {
                 content: "The legend explains the chart colors and categories.",
                 optional: true,
                 placement: "left",
+                mobilePlacement: "auto",
             },
             {
                 target: "[data-tour='side-panel-tab-heatmap']",
@@ -693,6 +779,7 @@ export const TOUR_CHAPTERS = {
                 content: "Click the Heatmap tab to inspect activity density by region.",
                 buttons: action_buttons,
                 placement: "left",
+                mobilePlacement: "auto",
                 waitForChange: {
                     selector: "[data-tour='side-panel-tab-heatmap']",
                     attribute: "data-tour-state",
@@ -704,12 +791,14 @@ export const TOUR_CHAPTERS = {
                 title: "Heatmap",
                 content: "The heatmap highlights where current activity is concentrated.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='heatmap-continent-selector']",
                 title: "Heatmap Region",
                 content: "Change the selected continent to focus the heatmap.",
                 placement: "left",
+                mobilePlacement: "auto",
             },
             {
                 target: "[data-tour='side-panel-tab-dxpeditions']",
@@ -717,6 +806,7 @@ export const TOUR_CHAPTERS = {
                 content: "Click the DXpeditions tab to show tracked expedition activity.",
                 buttons: action_buttons,
                 placement: "left",
+                mobilePlacement: "auto",
                 waitForChange: {
                     selector: "[data-tour='side-panel-tab-dxpeditions']",
                     attribute: "data-tour-state",
@@ -728,24 +818,28 @@ export const TOUR_CHAPTERS = {
                 title: "DXpeditions",
                 content: "This panel tracks active DXpeditions and their related spots.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='dxpeditions-summary']",
                 title: "DXpedition Summary",
                 content: "The summary shows the current expedition activity at a glance.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='dxpeditions-filter']",
                 title: "DXpedition Filters",
                 content: "Use these controls to narrow which DXpeditions are shown.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='dxpeditions-sort']",
                 title: "DXpedition Sorting",
                 content: "Sort DXpeditions by the view that is most useful while operating.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='side-panel-tab-missing']",
@@ -753,6 +847,7 @@ export const TOUR_CHAPTERS = {
                 content: "Click the ADIF tab to show ADIF worked tracking.",
                 buttons: action_buttons,
                 placement: "left",
+                mobilePlacement: "auto",
                 waitForChange: {
                     selector: "[data-tour='side-panel-tab-missing']",
                     attribute: "data-tour-state",
@@ -765,12 +860,14 @@ export const TOUR_CHAPTERS = {
                 content:
                     "This panel uses your ADIF data to track what you have worked and still need.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='hunter-adif-import']",
                 title: "ADIF Import",
                 content: "Import ADIF logs here so the ADIF panel can track your progress.",
                 placement: "left",
+                mobilePlacement: "center",
             },
         ],
     },
@@ -794,6 +891,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "Settings control your station details, map defaults, display, and imports.",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='settings-general']",
@@ -860,6 +958,7 @@ export const TOUR_CHAPTERS = {
                 optional: true,
                 requires: "radio_available",
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='settings-tab-bands-modes']",
@@ -879,6 +978,7 @@ export const TOUR_CHAPTERS = {
                 content: "Disable bands or modes you do not want shown in the main interface.",
                 optional: true,
                 placement: "left",
+                mobilePlacement: "center",
             },
             {
                 target: "[data-tour='settings-tab-import-export']",
@@ -897,16 +997,18 @@ export const TOUR_CHAPTERS = {
                 title: "Import And Export",
                 content: "Use this section to back up or restore settings and profile data.",
                 optional: true,
-                placement: "left",
+                placement: "center",
+                mobilePlacement: "center",
             },
             {
-                target: "[data-tour='modal-cancel-button']",
+                target: "[data-tour='modal-close-button']",
                 title: "Close Settings",
                 content: "Click Cancel or close the dialog to return to the main interface.",
                 optional: true,
                 waitForGone: "[data-tour='settings-modal']",
                 buttons: action_buttons,
-                placement: "top",
+                placement: "auto",
+                mobileHideOverlay: true,
             },
         ],
     },

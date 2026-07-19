@@ -111,6 +111,7 @@ export function do_redraw(
             hovered_band,
             current_freq_spots,
             overlay_highlights,
+            show_dev_bearings,
             night_time,
             voacap,
         } = render_state_ref.current;
@@ -192,6 +193,7 @@ export function do_redraw(
                         projection,
                         map_controls.is_globe,
                         render_state_ref.current.home_location,
+                        show_dev_bearings,
                         render_state_ref.current.rotator_azimuth,
                         render_state_ref.current.rotator_target_azimuth,
                         canvas_refs.hunter_flash_phase_ref.current,

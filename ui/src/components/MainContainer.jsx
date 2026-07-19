@@ -7,6 +7,10 @@ import TopBar from "@/components/TopBar.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import HistoryBar from "@/components/history/HistoryBar.jsx";
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
+import {
+    TOUR_CLOSE_LEFT_PANEL_EVENT,
+    TOUR_CLOSE_SIDE_PANEL_EVENT,
+} from "@/components/tour/tour_events.js";
 import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
@@ -153,9 +157,11 @@ function MainContent({
 
         set_mode_and_freq(spot.mode, spot.freq);
 
-        const azimuth = get_rotator_azimuth(spot);
-        if (azimuth != null && is_rotator_available()) {
-            set_azimuth(azimuth);
+        if (dev_mode) {
+            const azimuth = get_rotator_azimuth(spot);
+            if (azimuth != null && is_rotator_available()) {
+                set_azimuth(azimuth);
+            }
         }
     }
 
@@ -191,6 +197,23 @@ function MainContent({
             document.body.removeEventListener("keydown", on_key_down);
         };
     });
+
+    useEffect(() => {
+        function close_left_panel_for_tour() {
+            set_toggled_ui(state => ({ ...state, left_visible: false }));
+        }
+
+        function close_side_panel_for_tour() {
+            set_toggled_ui(state => ({ ...state, right_visible: false }));
+        }
+
+        document.addEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
+        document.addEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
+        return () => {
+            document.removeEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
+            document.removeEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
+        };
+    }, []);
 
     useEffect(() => {
         function handle_fullscreen_change() {
@@ -329,9 +352,7 @@ function MainContent({
             />
             <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
                 <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
-                    <LeftColumn toggled_ui={toggled_ui}>
-                        <WebsiteTour />
-                    </LeftColumn>
+                    <LeftColumn toggled_ui={toggled_ui}>{dev_mode && <WebsiteTour />}</LeftColumn>
                     {is_md_device ? (
                         <Tabs
                             key={mobile_tabs_key}

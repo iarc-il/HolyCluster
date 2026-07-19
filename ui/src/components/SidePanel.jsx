@@ -181,10 +181,11 @@ const view_options = [
         viewbox: "0 0 24 24",
         size: 36,
         is_disabled: false,
+        dev_only: true,
     },
 ];
 
-function ViewSelectorTabs({ active_view, set_active_view, colors }) {
+function ViewSelectorTabs({ active_view, set_active_view, colors, dev_mode }) {
     return (
         <div
             className="flex shrink-0 border-b-2"
@@ -194,6 +195,10 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
             }}
         >
             {view_options.map((option, index) => {
+                if (option.dev_only && !dev_mode) {
+                    return null;
+                }
+
                 const is_active = active_view === index;
                 return (
                     <div
@@ -246,9 +251,12 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
 }
 
 function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }) {
-    const { colors } = useColors();
+    const { colors, dev_mode } = useColors();
 
     if (active_view === null) return null;
+
+    const effective_active_view =
+        !dev_mode && view_options[active_view]?.dev_only ? 0 : active_view;
 
     const content = [
         <Filters key="filters" toggled_ui={toggled_ui} />,
@@ -264,7 +272,9 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
         <HunterPanel key="hunter" />,
         <RotatorPanel key="rotator" />,
     ];
-    const active_view_label = view_options[active_view]?.label.toLowerCase().replaceAll(" ", "-");
+    const active_view_label = view_options[effective_active_view]?.label
+        .toLowerCase()
+        .replaceAll(" ", "-");
 
     const toggled_classes = toggled_ui.right_visible
         ? "max-2xl:absolute max-2xl:flex right-0 top-0"
@@ -276,16 +286,17 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
             style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}
         >
             <ViewSelectorTabs
-                active_view={active_view}
+                active_view={effective_active_view}
                 set_active_view={set_active_view}
                 colors={colors}
+                dev_mode={dev_mode}
             />
             <div className="flex flex-1 overflow-hidden" data-tour="side-panel-body">
                 <div
                     className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64 min-w-0"
                     data-tour={active_view_label ? `side-panel-view-${active_view_label}` : null}
                 >
-                    {content[active_view]}
+                    {content[effective_active_view]}
                 </div>
                 <RightColumnContent colors={colors} />
             </div>

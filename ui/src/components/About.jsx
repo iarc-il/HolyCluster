@@ -9,9 +9,9 @@ import use_radio from "@/hooks/useRadio.jsx";
 
 const RELEASES = [
     [
-        "04/07/2026",
+        "18/07/2026",
         [
-            "New guided website tour with quick start, map, table, filters, side panel, and settings chapters",
+            // "New guided website tour with quick start, map, table, filters, side panel, and settings chapters",
             "New spot sources for POTA, SOTA and WWFF",
             "Mobile GPS support for centering the map and filling your locator in settings",
             "Layout settings now allowing configuration of the view: map only, table only and view order",
@@ -19,7 +19,7 @@ const RELEASES = [
             "Added sharing filter state using a URL",
             "ADIF panel now support larger 50 MB files",
             "Added map maidenhead locator grid overlay",
-            "Updated map country colors",
+            "Added 3 map color themes in settings",
         ],
     ],
     [

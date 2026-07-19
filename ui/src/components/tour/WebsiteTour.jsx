@@ -14,14 +14,24 @@ import {
 import {
     TOUR_CLOSE_MAP_CONTROLS_EVENT,
     TOUR_CLOSE_MODAL_EVENT,
+    TOUR_CLOSE_SIDE_PANEL_EVENT,
     TOUR_FILTER_OPTIONS_EVENT,
     TOUR_TABLE_CONTEXT_MENU_EVENT,
     TOUR_TABLE_SPOT_ROW_EVENT,
 } from "./tour_events.js";
 
 const completed_statuses = new Set([STATUS.FINISHED, STATUS.SKIPPED]);
+const default_tour_buttons = ["skip", "back", "close", "primary"];
 const wait_poll_interval_ms = 150;
+const side_panel_selector = "[data-tour='side-panel']";
 const map_controls_panel_selector = "[data-tour='map-controls-panel']";
+const add_filter_button_alert_selector = "[data-tour='add-filter-button-alert']";
+const filter_options_popup_selector = "[data-tour='filter-options-popup']";
+const filter_modal_content_selector = "[data-tour='filter-modal-content']";
+const settings_modal_content_selector = "[data-tour='settings-modal-content']";
+const filter_line_alert_selector = "[data-tour='filter-line-alert']";
+const filter_section_show_only_selector = "[data-tour='filter-section-show_only']";
+const modal_apply_button_selector = "[data-tour='modal-apply-button']";
 const spot_row_selector = "[data-tour='spot-row']";
 const spot_row_dx_callsign_selector = "[data-tour='spot-row-dx-callsign']";
 const table_context_menu_selector = "[data-tour='table-context-menu']";
@@ -132,9 +142,49 @@ function dispatch_tour_side_effect(side_effect) {
     document.dispatchEvent(new CustomEvent(side_effect.event, { detail: side_effect.detail }));
 }
 
+function find_previous_step_index_by_target(steps, from_index, target) {
+    for (let index = from_index; index >= 0; index -= 1) {
+        if (steps[index]?.target === target) return index;
+    }
+
+    return null;
+}
+
+function find_last_filter_index_by_action(callsign_filters, action) {
+    const filters = callsign_filters?.filters ?? [];
+    for (let index = filters.length - 1; index >= 0; index -= 1) {
+        if (filters[index]?.action === action) return index;
+    }
+
+    return -1;
+}
+
+function remove_last_filter_by_action(callsign_filters, action) {
+    const filter_index = find_last_filter_index_by_action(callsign_filters, action);
+    if (filter_index < 0) return callsign_filters;
+
+    return {
+        ...callsign_filters,
+        filters: callsign_filters.filters.filter((_, index) => index !== filter_index),
+    };
+}
+
+function move_last_filter_action(callsign_filters, from_action, to_action) {
+    const filter_index = find_last_filter_index_by_action(callsign_filters, from_action);
+    if (filter_index < 0) return callsign_filters;
+
+    const filters = [...callsign_filters.filters];
+    filters[filter_index] = { ...filters[filter_index], action: to_action };
+    return { ...callsign_filters, filters };
+}
+
 function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_index) {
     const current_step = steps[from_index];
     const next_step = steps[next_step_index];
+    const backs_to_modal_open_step =
+        [filter_modal_content_selector, settings_modal_content_selector].includes(
+            current_step?.target,
+        ) && as_array(next_step?.waitFor).includes(current_step.target);
 
     if (
         chapter_id === "map" &&
@@ -142,6 +192,28 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
         as_array(next_step?.waitFor).includes(map_controls_panel_selector)
     ) {
         return { event: TOUR_CLOSE_MAP_CONTROLS_EVENT, wait_needs_reset: true };
+    }
+
+    if (as_array(next_step?.waitFor).includes(side_panel_selector)) {
+        return { event: TOUR_CLOSE_SIDE_PANEL_EVENT, wait_needs_reset: true };
+    }
+
+    if (
+        chapter_id === "filters" &&
+        current_step?.forceFilterOptions &&
+        as_array(next_step?.waitFor).some(selector =>
+            selector.startsWith(filter_options_popup_selector),
+        )
+    ) {
+        return {
+            detail: { ...current_step.forceFilterOptions, open: false },
+            event: TOUR_FILTER_OPTIONS_EVENT,
+            wait_needs_reset: false,
+        };
+    }
+
+    if (["filters", "settings"].includes(chapter_id) && backs_to_modal_open_step) {
+        return { event: TOUR_CLOSE_MODAL_EVENT, wait_needs_reset: true };
     }
 
     if (chapter_id !== "spots_table") return null;
@@ -192,9 +264,65 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
     };
 }
 
+function get_backward_step_index(chapter_id, steps, from_index, next_step_index) {
+    const current_step = steps[from_index];
+    const next_step = steps[next_step_index];
+    const previous_step = steps[next_step_index - 1];
+
+    if (
+        chapter_id === "filters" &&
+        current_step?.forceFilterOptions &&
+        as_array(next_step?.waitFor).some(selector =>
+            selector.startsWith(filter_options_popup_selector),
+        ) &&
+        previous_step?.waitForChange
+    ) {
+        return next_step_index - 1;
+    }
+
+    if (
+        chapter_id === "filters" &&
+        current_step?.target === filter_line_alert_selector &&
+        next_step?.target === modal_apply_button_selector
+    ) {
+        return (
+            find_previous_step_index_by_target(
+                steps,
+                next_step_index - 1,
+                add_filter_button_alert_selector,
+            ) ?? next_step_index
+        );
+    }
+
+    return next_step_index;
+}
+
+function get_backward_filter_state_update(chapter_id, steps, from_index, next_step_index) {
+    if (chapter_id !== "filters") return null;
+
+    const current_step = steps[from_index];
+    const next_step = steps[next_step_index];
+
+    if (
+        current_step?.target === filter_line_alert_selector &&
+        next_step?.target === modal_apply_button_selector
+    ) {
+        return callsign_filters => remove_last_filter_by_action(callsign_filters, "alert");
+    }
+
+    if (
+        current_step?.target === filter_section_show_only_selector &&
+        next_step?.target === filter_line_alert_selector
+    ) {
+        return callsign_filters => move_last_filter_action(callsign_filters, "show_only", "alert");
+    }
+
+    return null;
+}
+
 function WebsiteTour() {
     const { propagation } = useRestData();
-    const { filters } = useFilters();
+    const { filters, setCallsignFilters } = useFilters();
     const { radio_status } = use_radio();
     const { spots, set_spot_buffering } = useSpotData();
     const is_mobile = useMediaQuery("only screen and (max-width : 768px)");
@@ -286,28 +414,68 @@ function WebsiteTour() {
         () => get_available_steps(chapter_steps),
         [chapter_steps, get_available_steps],
     );
+    const first_available_step_index = useMemo(() => {
+        for (let index = 0; index < steps.length; index += 1) {
+            if (!should_skip_step(steps[index])) return index;
+        }
+
+        return null;
+    }, [should_skip_step, steps]);
     const current_step = steps[tour_state.step_index];
+    const current_wait_key = current_step
+        ? get_step_wait_key(tour_state.current_chapter_id, tour_state.step_index, current_step)
+        : null;
     const current_wait_for_change_key = current_step?.waitForChange
         ? `${tour_state.current_chapter_id}:${tour_state.step_index}:${current_step.waitForChange.selector}:${current_step.waitForChange.attribute ?? "text"}`
         : null;
-    const current_wait_for_change_is_already_satisfied =
-        current_wait_for_change_key != null &&
-        already_satisfied_wait_key === current_wait_for_change_key;
+    const current_wait_is_already_satisfied =
+        current_wait_key != null && already_satisfied_wait_key === current_wait_key;
     const joyride_steps = useMemo(() => {
-        if (!current_wait_for_change_is_already_satisfied) return steps;
-
         return steps.map((step, index) => {
+            let buttons = step.buttons;
+            const placement =
+                is_mobile && step.mobilePlacement ? step.mobilePlacement : step.placement;
+            const hideOverlay = is_mobile && step.mobileHideOverlay ? true : step.hideOverlay;
+            const scrollOffset =
+                is_mobile && step.mobileScrollOffset != null
+                    ? step.mobileScrollOffset
+                    : step.scrollOffset;
+
+            if (index === first_available_step_index) {
+                buttons = (buttons ?? default_tour_buttons).filter(button => button !== "back");
+            }
+
             if (
-                index !== tour_state.step_index ||
-                !step.buttons ||
-                step.buttons.includes("primary")
+                current_wait_is_already_satisfied &&
+                index === tour_state.step_index &&
+                buttons &&
+                !buttons.includes("primary")
+            ) {
+                buttons = [...buttons, "primary"];
+            }
+
+            if (
+                buttons === step.buttons &&
+                placement === step.placement &&
+                hideOverlay === step.hideOverlay &&
+                scrollOffset === step.scrollOffset
             ) {
                 return step;
             }
 
-            return { ...step, buttons: [...step.buttons, "primary"] };
+            const next_step = { ...step, hideOverlay, placement, scrollOffset };
+            if (buttons !== step.buttons) {
+                next_step.buttons = buttons;
+            }
+            return next_step;
         });
-    }, [current_wait_for_change_is_already_satisfied, steps, tour_state.step_index]);
+    }, [
+        current_wait_is_already_satisfied,
+        first_available_step_index,
+        is_mobile,
+        steps,
+        tour_state.step_index,
+    ]);
 
     const find_available_step_index = useCallback(
         (step_list, start_index, direction) => {
@@ -326,7 +494,7 @@ function WebsiteTour() {
 
     const advance_tour = useCallback(
         (from_index, direction = 1) => {
-            const next_step_index = find_available_step_index(
+            let next_step_index = find_available_step_index(
                 steps,
                 from_index + direction,
                 direction,
@@ -335,6 +503,8 @@ function WebsiteTour() {
             if (next_step_index == null) {
                 if (direction > 0) {
                     finish_tour(STATUS.FINISHED);
+                } else {
+                    set_tour_state(state => (state.is_running ? { ...state } : state));
                 }
                 return;
             }
@@ -346,6 +516,24 @@ function WebsiteTour() {
                     from_index,
                     next_step_index,
                 );
+                const filter_state_update = get_backward_filter_state_update(
+                    tour_state.current_chapter_id,
+                    steps,
+                    from_index,
+                    next_step_index,
+                );
+                next_step_index = get_backward_step_index(
+                    tour_state.current_chapter_id,
+                    steps,
+                    from_index,
+                    next_step_index,
+                );
+                if (steps[next_step_index]?.waitForChange) {
+                    wait_for_change_ref.current = { key: null, value: null };
+                }
+                if (filter_state_update) {
+                    setCallsignFilters(filter_state_update);
+                }
                 pending_backward_side_effect_ref.current = side_effect;
                 backward_wait_ref.current = {
                     key: side_effect?.wait_needs_reset
@@ -376,7 +564,13 @@ function WebsiteTour() {
                 };
             });
         },
-        [find_available_step_index, finish_tour, steps, tour_state.current_chapter_id],
+        [
+            find_available_step_index,
+            finish_tour,
+            setCallsignFilters,
+            steps,
+            tour_state.current_chapter_id,
+        ],
     );
 
     const start_tour = useCallback(
@@ -477,10 +671,10 @@ function WebsiteTour() {
 
         if (!current_step?.waitForChange) {
             wait_for_change_ref.current = { key: null, value: null };
-            set_already_satisfied_wait_key(current => (current == null ? current : null));
         }
 
         if (!current_step?.waitFor && !current_step?.waitForGone && !current_step?.waitForChange) {
+            set_already_satisfied_wait_key(current => (current == null ? current : null));
             return;
         }
 
@@ -496,9 +690,7 @@ function WebsiteTour() {
             : false;
         const satisfied_value = current_step.waitForChange?.satisfiedValue;
 
-        set_already_satisfied_wait_key(current =>
-            current === wait_for_change_key ? current : null,
-        );
+        set_already_satisfied_wait_key(current => (current === wait_key ? current : null));
 
         if (current_step.waitForChange && wait_for_change_ref.current.key !== wait_for_change_key) {
             const current_change_value = get_wait_for_change_value(current_step.waitForChange);
@@ -508,17 +700,28 @@ function WebsiteTour() {
             };
 
             if (has_satisfied_value && current_change_value === satisfied_value) {
-                set_already_satisfied_wait_key(wait_for_change_key);
+                set_already_satisfied_wait_key(wait_key);
+            }
+        }
+
+        if (
+            !current_step.waitForChange &&
+            current_step.showWhenAlreadySatisfied &&
+            step_wait_is_satisfied(current_step)
+        ) {
+            if (backward_wait_ref.current.key !== wait_key) {
+                set_already_satisfied_wait_key(wait_key);
+                return;
             }
         }
 
         const set_current_step_already_satisfied = is_satisfied => {
             set_already_satisfied_wait_key(current => {
                 if (is_satisfied) {
-                    return current === wait_for_change_key ? current : wait_for_change_key;
+                    return current === wait_key ? current : wait_key;
                 }
 
-                return current === wait_for_change_key ? null : current;
+                return current === wait_key ? null : current;
             });
         };
 
@@ -680,13 +883,14 @@ function WebsiteTour() {
                     primaryColor: "#3b82f6",
                     backgroundColor: "#182229",
                     blockTargetInteraction: false,
-                    buttons: ["skip", "back", "close", "primary"],
+                    buttons: default_tour_buttons,
                     textColor: "#f4f0f0",
                     arrowColor: "#182229",
                     overlayColor: "rgba(0, 0, 0, 0.65)",
                     overlayClickAction: null,
                     showProgress: true,
                     spotlightRadius: 8,
+                    width: "min(360px, calc(100vw - 32px))",
                     zIndex: 10000,
                 }}
                 locale={{ last: "Done" }}
