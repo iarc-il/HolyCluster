@@ -5,6 +5,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import MapControls from "@/components/MapControls.jsx";
 
 vi.mock("@/hooks/useColors", () => ({
+    MAP_THEME_CONFIGS: {
+        colorful: { palette: { a: "#ff0000", b: "#00ff00", c: "#0000ff", d: "#ffff00" } },
+        earth: { palette: { a: "#aa8866", b: "#886644", c: "#668844", d: "#446633" } },
+        white: { palette: { a: "#ffffff", b: "#ffffff", c: "#ffffff", d: "#ffffff" } },
+    },
+    map_theme_names: ["colorful", "earth", "white"],
     useColors: () => ({
         dev_mode: false,
         colors: {
@@ -65,6 +71,7 @@ function set_geolocation(getCurrentPosition) {
 
 function render_map_controls({ is_mobile }) {
     const map_controls = {
+        map_theme: "colorful",
         location: {
             displayed_locator: "JJ00AA",
             location: [0, 0],

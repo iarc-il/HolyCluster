@@ -5,7 +5,7 @@ import { TOUR_CLOSE_MAP_CONTROLS_EVENT } from "@/components/tour/tour_events.js"
 import Button from "@/components/ui/Button.jsx";
 import Popup from "@/components/ui/Popup.jsx";
 import Radio from "@/components/ui/Radio.jsx";
-import { useColors } from "@/hooks/useColors";
+import { MAP_THEME_CONFIGS, map_theme_names, useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import use_radio from "@/hooks/useRadio";
 import { useRestData } from "@/hooks/useRestData";
@@ -20,6 +20,11 @@ const EXCLUSIVE_OVERLAY_CONTROL_KEYS = [
     "show_maidenhead_grid",
 ];
 const JOYRIDE_PORTAL_SELECTOR = "#react-joyride-portal";
+const MAP_THEME_LABELS = {
+    colorful: "Colorful",
+    earth: "Earth",
+    white: "White",
+};
 const VOACAP_BANDS = ["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"];
 
 function clear_exclusive_overlays(state) {
@@ -590,6 +595,44 @@ function MapControls({
                                     set_map_controls(state => (state.night = !state.night))
                                 }
                             />
+                        </div>
+                        <div className="flex w-full items-center justify-end gap-3">
+                            {map_theme_names.map(map_theme => {
+                                const preview_colors = Object.values(
+                                    MAP_THEME_CONFIGS[map_theme].palette,
+                                ).slice(0, 4);
+                                const is_active = map_controls.map_theme === map_theme;
+                                const label = MAP_THEME_LABELS[map_theme];
+                                const background = `conic-gradient(${preview_colors
+                                    .map(
+                                        (color, index) =>
+                                            `${color} ${index * 25}% ${(index + 1) * 25}%`,
+                                    )
+                                    .join(", ")})`;
+
+                                return (
+                                    <button
+                                        type="button"
+                                        key={map_theme}
+                                        onClick={() =>
+                                            set_map_controls(state => {
+                                                state.map_theme = map_theme;
+                                            })
+                                        }
+                                        className="h-8 w-8 rounded-full transition-transform hover:scale-110 focus-visible:outline-none"
+                                        style={{
+                                            background,
+                                            border: `2px solid ${colors.theme.text}66`,
+                                            boxShadow: is_active
+                                                ? `0 0 0 2px ${colors.theme.background}, 0 0 0 4px ${colors.buttons.utility}`
+                                                : "none",
+                                        }}
+                                        aria-label={`Use ${label.toLowerCase()} map theme`}
+                                        aria-pressed={is_active}
+                                        title={`${label} map theme`}
+                                    />
+                                );
+                            })}
                         </div>
                         <div className="flex items-center gap-3" data-tour="map-overlays">
                             {overlay_buttons.map(render_overlay_button)}
