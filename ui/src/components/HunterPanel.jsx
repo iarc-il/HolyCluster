@@ -683,17 +683,27 @@ export default function HunterPanel({ on_import_complete = null }) {
                             </Button>
                         </span>
                     </label>
-                    <Button
-                        type="button"
-                        color="red"
-                        disabled={is_importing}
-                        on_click={() => {
+                    <Modal
+                        title={<h2 className="font-bold">Are you sure?</h2>}
+                        button={
+                            <Button type="button" color="red" disabled={is_importing}>
+                                Delete All
+                            </Button>
+                        }
+                        on_cancel={() => {}}
+                        on_apply={() => {
                             update_active_profile_section("hunter", create_default_hunter());
                             set_import_error("");
+                            return true;
                         }}
+                        apply_text="Delete All"
+                        cancel_text="Keep Data"
                     >
-                        Delete All
-                    </Button>
+                        <p className="max-w-md p-4">
+                            This deletes all worked progress and ADIF import history from the active
+                            profile.
+                        </p>
+                    </Modal>
                 </div>
                 {is_importing && import_progress != null ? (
                     <div

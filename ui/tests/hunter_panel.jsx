@@ -277,7 +277,7 @@ describe("HunterPanel", () => {
         expect(screen.getByText("12 QSOs, 3 added, 1 unresolved")).toBeTruthy();
     });
 
-    it("deletes all hunter data", async () => {
+    it("deletes all hunter data after confirmation", async () => {
         const user = userEvent.setup();
         const profile_data = create_default_profile_data();
         profile_data.hunter.worked.dxcc.global = [230];
@@ -297,8 +297,12 @@ describe("HunterPanel", () => {
         expect_before(import_button, delete_button);
 
         await user.click(delete_button);
+        const dialog = await screen.findByRole("dialog");
+        expect(within(dialog).getByRole("heading", { name: "Are you sure?" })).toBeTruthy();
+        await user.click(within(dialog).getByRole("button", { name: "Delete All" }));
 
         await waitFor(() => {
+            expect(screen.queryByRole("dialog")).toBeNull();
             expect_section_stats(section_by_heading("DXCC"), { done: 0, needed: 4, total: 4 });
             expect(screen.queryByText("old.adi")).toBeNull();
         });
