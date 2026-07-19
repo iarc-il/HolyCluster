@@ -312,6 +312,7 @@ describe("hunter_adif", () => {
             "ws://localhost:3000/submit_spot",
         ]);
         const fallback_socket = FakeWebSocket.instances[1];
+        fallback_socket.onopen();
         const job_id = fallback_socket.sent[0].job_id;
         expect(fallback_socket.sent).toEqual([
             { version: 1, type: "hunter", action: "start", job_id },
