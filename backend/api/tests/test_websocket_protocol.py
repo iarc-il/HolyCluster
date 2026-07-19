@@ -315,6 +315,43 @@ class WebSocketProtocolTest(unittest.TestCase):
             },
         )
 
+    def test_legacy_submit_socket_routes_hunter_jobs(self):
+        app.state.valkey_client = AsyncMock()
+        with self.client.websocket_connect("/submit_spot") as websocket:
+            websocket.send_json({"version": 1, "type": "hunter", "action": "start", "job_id": "job-1"})
+            websocket.send_json(
+                {
+                    "version": 1,
+                    "type": "hunter",
+                    "action": "add",
+                    "job_id": "job-1",
+                    "callsigns": [],
+                }
+            )
+            websocket.send_json({"version": 1, "type": "hunter", "action": "finish", "job_id": "job-1"})
+
+            self.assertEqual(
+                websocket.receive_json(),
+                {
+                    "version": 1,
+                    "type": "hunter",
+                    "event": "accepted",
+                    "job_id": "job-1",
+                    "total": 0,
+                },
+            )
+            self.assertEqual(
+                websocket.receive_json(),
+                {
+                    "version": 1,
+                    "type": "hunter",
+                    "event": "complete",
+                    "job_id": "job-1",
+                    "completed": 0,
+                    "total": 0,
+                },
+            )
+
     def test_ws_hunter_requires_job_id(self):
         with self.client.websocket_connect("/ws") as websocket:
             websocket.send_json({"version": 1, "type": "hunter", "action": "start"})

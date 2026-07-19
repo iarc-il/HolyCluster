@@ -12,6 +12,7 @@ import { AdifParser } from "adif-parser-ts";
 export const HUNTER_ADIF_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 const HUNTER_RESOLVE_WS_CHUNK_SIZE = 500;
 const HUNTER_RESOLVE_MAX_ATTEMPTS = 3;
+const HUNTER_RESOLVE_WS_PROBE_TIMEOUT_MS = 1500;
 const WS_PROTOCOL_VERSION = 1;
 export const HUNTER_IMPORT_PHASES = Object.freeze({
     PARSING: "parsing",
@@ -266,72 +267,124 @@ function resolve_hunter_callsigns_once(callsigns, pending, results, errors, on_p
         if (!location?.host) throw new Error("Missing resolver websocket host");
 
         const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-        const socket = new WebSocket(`${protocol}//${location.host}/ws`);
+        const base_url = `${protocol}//${location.host}`;
+        let socket;
+        let probe_timeout;
+        let fallback_started = false;
         let completed = false;
 
-        function send(data) {
-            socket.send(JSON.stringify({ version: WS_PROTOCOL_VERSION, type: "hunter", ...data }));
+        function clear_probe_timeout() {
+            clearTimeout(probe_timeout);
+            probe_timeout = undefined;
         }
 
         function fail(error) {
             if (completed) return;
             completed = true;
+            clear_probe_timeout();
             socket.close();
             reject(error);
         }
 
-        socket.onopen = () => {
-            send({ action: "start", job_id });
-            for (let index = 0; index < callsigns.length; index += HUNTER_RESOLVE_WS_CHUNK_SIZE) {
-                send({
-                    action: "add",
-                    job_id,
-                    callsigns: callsigns.slice(index, index + HUNTER_RESOLVE_WS_CHUNK_SIZE),
-                });
-            }
-            send({ action: "finish", job_id });
-        };
+        function connect(path, allow_fallback) {
+            const candidate = new WebSocket(`${base_url}${path}`);
+            let opened = false;
+            socket = candidate;
 
-        socket.onmessage = event => {
-            let message;
-            try {
-                message = JSON.parse(event.data);
-            } catch (error) {
-                fail(error);
-                return;
+            function send(data) {
+                candidate.send(
+                    JSON.stringify({ version: WS_PROTOCOL_VERSION, type: "hunter", ...data }),
+                );
             }
 
-            if (message.type === "error") {
-                fail(new Error(message.message || "Missing resolver failed."));
-                return;
+            function start_fallback() {
+                if (!allow_fallback || fallback_started || completed || socket !== candidate)
+                    return;
+                fallback_started = true;
+                clear_probe_timeout();
+                candidate.onclose = null;
+                candidate.onerror = null;
+                candidate.close();
+                connect("/submit_spot", false);
             }
-            if (message.type !== "hunter" || message.job_id !== job_id) return;
 
-            if (message.event === "results") {
-                for (const [callsign, result] of Object.entries(message.results ?? {})) {
-                    results[callsign] = result;
-                    pending.delete(callsign);
+            candidate.onopen = () => {
+                if (socket !== candidate) return;
+                opened = true;
+                clear_probe_timeout();
+                send({ action: "start", job_id });
+                for (
+                    let index = 0;
+                    index < callsigns.length;
+                    index += HUNTER_RESOLVE_WS_CHUNK_SIZE
+                ) {
+                    send({
+                        action: "add",
+                        job_id,
+                        callsigns: callsigns.slice(index, index + HUNTER_RESOLVE_WS_CHUNK_SIZE),
+                    });
                 }
-                for (const [callsign, error] of Object.entries(message.errors ?? {})) {
-                    errors[callsign] = error;
-                    pending.delete(callsign);
-                }
-                on_progress?.();
-                return;
-            }
-            if (message.event === "complete") {
-                completed = true;
-                socket.close();
-                resolve();
-            }
-        };
+                send({ action: "finish", job_id });
+            };
 
-        socket.onerror = () => fail(new Error("Missing resolver websocket failed."));
-        socket.onclose = () => {
-            if (!completed) {
-                reject(new Error("Missing resolver websocket disconnected."));
+            candidate.onmessage = event => {
+                if (socket !== candidate) return;
+                let message;
+                try {
+                    message = JSON.parse(event.data);
+                } catch (error) {
+                    fail(error);
+                    return;
+                }
+
+                if (message.type === "error") {
+                    fail(new Error(message.message || "Missing resolver failed."));
+                    return;
+                }
+                if (message.type !== "hunter" || message.job_id !== job_id) return;
+
+                if (message.event === "results") {
+                    for (const [callsign, result] of Object.entries(message.results ?? {})) {
+                        results[callsign] = result;
+                        pending.delete(callsign);
+                    }
+                    for (const [callsign, error] of Object.entries(message.errors ?? {})) {
+                        errors[callsign] = error;
+                        pending.delete(callsign);
+                    }
+                    on_progress?.();
+                    return;
+                }
+                if (message.event === "complete") {
+                    completed = true;
+                    clear_probe_timeout();
+                    candidate.close();
+                    resolve();
+                }
+            };
+
+            candidate.onerror = () => {
+                if (allow_fallback && !opened) {
+                    start_fallback();
+                } else {
+                    fail(new Error("Missing resolver websocket failed."));
+                }
+            };
+            candidate.onclose = () => {
+                if (socket !== candidate || completed) return;
+                if (allow_fallback && !opened) {
+                    start_fallback();
+                } else {
+                    fail(new Error("Missing resolver websocket disconnected."));
+                }
+            };
+
+            if (allow_fallback) {
+                probe_timeout = setTimeout(start_fallback, HUNTER_RESOLVE_WS_PROBE_TIMEOUT_MS);
             }
-        };
+        }
+
+        connect("/ws", true);
     });
 }
 
