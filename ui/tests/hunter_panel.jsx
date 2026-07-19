@@ -277,6 +277,37 @@ describe("HunterPanel", () => {
         expect(screen.getByText("12 QSOs, 3 added, 1 unresolved")).toBeTruthy();
     });
 
+    it("deletes all hunter data", async () => {
+        const user = userEvent.setup();
+        const profile_data = create_default_profile_data();
+        profile_data.hunter.worked.dxcc.global = [230];
+        profile_data.hunter.imports = [
+            {
+                file_name: "old.adi",
+                imported_at: 123,
+                qso_count: 1,
+                added_counts: {},
+                unresolved_count: 0,
+            },
+        ];
+        render_hunter_panel(profile_data);
+
+        const delete_button = screen.getByRole("button", { name: "Delete All" });
+        const import_button = screen.getByRole("button", { name: "Import ADIF" });
+        expect_before(import_button, delete_button);
+
+        await user.click(delete_button);
+
+        await waitFor(() => {
+            expect_section_stats(section_by_heading("DXCC"), { done: 0, needed: 4, total: 4 });
+            expect(screen.queryByText("old.adi")).toBeNull();
+        });
+        const stored_profiles = JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY));
+        expect(stored_profiles.profiles[0].data.hunter).toEqual(
+            create_default_profile_data().hunter,
+        );
+    });
+
     it("reports a completed ADIF import after saving it", async () => {
         const user = userEvent.setup();
         const profile_data = create_default_profile_data();

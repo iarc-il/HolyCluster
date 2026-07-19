@@ -12,6 +12,7 @@ import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { HUNTER_ADIF_MAX_FILE_SIZE_BYTES, HUNTER_IMPORT_PHASES } from "@/utils/hunter_adif.js";
 import { import_hunter_adif_in_worker } from "@/utils/hunter_adif_worker_client.js";
+import { create_default_hunter } from "@/utils/profile_data.js";
 import { useMemo, useState } from "react";
 
 const SECTION_DONE_MESSAGES = {
@@ -654,7 +655,7 @@ export default function HunterPanel({ on_import_complete = null }) {
                 style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
             >
                 <h2 className="text-lg font-bold">Missing</h2>
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
                     <label>
                         <input
                             type="file"
@@ -682,6 +683,17 @@ export default function HunterPanel({ on_import_complete = null }) {
                             </Button>
                         </span>
                     </label>
+                    <Button
+                        type="button"
+                        color="red"
+                        disabled={is_importing}
+                        on_click={() => {
+                            update_active_profile_section("hunter", create_default_hunter());
+                            set_import_error("");
+                        }}
+                    >
+                        Delete All
+                    </Button>
                 </div>
                 {is_importing && import_progress != null ? (
                     <div
