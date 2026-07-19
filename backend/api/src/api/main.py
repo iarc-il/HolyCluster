@@ -806,10 +806,10 @@ async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
     start_time = message["start_time"]
     event = message.get("event", WsHistoryEvent.SPOTS.value)
 
-    if start_time == None:
+    if start_time is None:
         await websocket.send_json(build_ws_error(WsErrorType.MISSING_FIELD, "Missing start_time", field="start_time"))
         return
-    if end_time == None:
+    if end_time is None:
         await websocket.send_json(build_ws_error(WsErrorType.MISSING_FIELD, "Missing end_time", field="end_time"))
         return
 
