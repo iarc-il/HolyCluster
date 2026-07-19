@@ -102,6 +102,8 @@ function FilterModal({
     exclude_filter_index = null,
     data_tour = null,
     dialog_data_tour = "filter-modal",
+    external_open = false,
+    on_open = null,
 }) {
     const [temp_data, set_temp_data] = useState(empty_filter_data);
     const [error_message, set_error_message] = useState("");
@@ -166,11 +168,13 @@ function FilterModal({
                 (initial_data?.action ? `filter-modal-trigger-${initial_data.action}` : null)
             }
             dialog_data_tour={dialog_data_tour}
+            external_open={external_open}
             on_open={() => {
                 set_error_message("");
                 if (initial_data != null) {
                     set_temp_data(to_modal_filter_data(initial_data));
                 }
+                on_open?.();
             }}
             on_apply={() => {
                 const draft_filter = (() => {
