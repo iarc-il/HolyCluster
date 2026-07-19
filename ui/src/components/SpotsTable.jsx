@@ -1,5 +1,5 @@
 import CallsignSearch from "@/components/CallsignSearch.jsx";
-import { QUICK_SPOT_EVENT } from "@/components/submit_spot_events.js";
+import { QUICK_SPOT_EVENT } from "@/components/SubmitSpot.jsx";
 import X from "@/components/ui/X.jsx";
 import { forwardRef, useEffect, useRef, useState } from "react";
 import SpotContextMenu from "./SpotContextMenu";

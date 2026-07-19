@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { ToastContainer, toast } from "react-toastify";
 
 import CallsignInput from "@/components/CallsignInput.jsx";
-import { QUICK_SPOT_EVENT } from "@/components/submit_spot_events.js";
 import Button from "@/components/ui/Button.jsx";
 import Input from "@/components/ui/Input.jsx";
 import Modal from "@/components/ui/Modal.jsx";
@@ -13,6 +12,8 @@ import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { ReadyState, useWs, useWsMessage } from "@/hooks/useWs";
+
+export const QUICK_SPOT_EVENT = "quick-spot";
 
 function SubmitIcon({ size }) {
     const { colors } = useColors();
