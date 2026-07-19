@@ -29,6 +29,9 @@ Todo list before starting:
 - Today uses the telnet protocol
 
 ::: notes
+Ask "who here doesn't know what a cluster is?".
+If no one raises their hand, skip this slide.
+
 - Network of interconnected nodes over the internet using the **telnet protocol**.
 - Shares data about DX stations ("spots"), propagation, weather and more.
 - Used to be a local network over **2M packet radio**.
@@ -52,6 +55,18 @@ and we can have nicer things.
 
 ---
 
+## What is the Holy Cluster?
+
+- A **web frontend** to the telnet cluster network
+- Shows published spots in a modern UI
+- Similar to: DXheat, DXSummit, DXWatch, etc.
+
+::: notes
+It's not actually a **cluster**, It's just a nice UI, but we call it a cluster.
+:::
+
+---
+
 ## A bit of history
 
 - **Dani 4Z5SL** used HA8TKS's cluster
@@ -69,24 +84,21 @@ and we can have nicer things.
 
 ![](imgs/early_cluster1.jpeg){.r-stretch}
 
+::: notes
+This was the first version which was a desktop app written in python.
+:::
+
 ---
 
 ![](imgs/early_cluster2.png)
 
+::: notes
+The early days of the website, which was pretty horrible.
+:::
+
 ---
 
 ![](imgs/early_cluster3.png)
-
----
-
-## What is the Holy Cluster?
-
-- A **web frontend** to the telnet cluster network
-- Shows published spots in a modern UI
-- Similar to: DXheat, DXSummit, DXWatch, etc.
-
-::: notes
-:::
 
 ---
 
@@ -100,23 +112,27 @@ and we can have nicer things.
 - CAT Control
 
 ::: notes
-Fully synchronized UI mean:
-- Different spots displays - map, table, band bar
-- Color coded system for band - Same in left column, table, spots map
-- Filters are synced across map overlays and filters panels
+As a design principle, all filters are visible at the same time.
 
+Fully synchronized UI means:
+
+- Different spots displays: map, table, band bar
+- Color coded system for band: Same in left column, table, spots map
+- Filters are synced across map overlays and filters panels
 - All filters are displayed at once, no exceptions
 
 But that's all features, What really sets us apart is:
+
 - Breaking the conventional DX sites structure
 - Built by hams for hams with rapid improvements cycle
-- 
 :::
 
 ## Walkthrough
 
 ::: notes
-Non CAT - Open production: https://holycluster.iarc.org/
+
+Non CAT - Open production
+
 - Show map - Azimuthal, globe, night, equator, overlays
   - Emphesize synchronization with the table
 - Show spot submission, time limit, settings
@@ -127,6 +143,8 @@ Non CAT - Open production: https://holycluster.iarc.org/
 - Show band bar (More relevant with CAT)
 - Show heatmap
 - Show DXpeditions list
+:::
+
 ---
 
 ## CAT Control
@@ -142,10 +160,6 @@ Open CAT server
 :::
 
 ---
-
-## CAT Control 
-- Demostration with CAT
-:::
 
 ## Future plans
 
@@ -170,12 +184,12 @@ Also, this software is open source, you can contribute.
 ## Vote
 #### Which feature should we release RIGHT NOW?
 
-- History playback
 - POTA / SOTA / WWFF Spots
 - Hunter View (Missing DXCC / CQ / ITU / States / Provinces tracker)
 - Profiles / Layout settings / Maidenhead grid overlay
 
 ::: notes
+- History playback
 :::
 
 # Thank you for listening!
