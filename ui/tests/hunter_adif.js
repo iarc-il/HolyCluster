@@ -39,12 +39,15 @@ function failing_resolver() {
 
 class FakeWebSocket {
     static instances = [];
+    static should_open = () => true;
 
     constructor(url) {
         this.url = url;
         this.sent = [];
         FakeWebSocket.instances.push(this);
-        setTimeout(() => this.onopen?.(), 0);
+        if (FakeWebSocket.should_open(url)) {
+            setTimeout(() => this.onopen?.(), 0);
+        }
     }
 
     send(message) {
@@ -71,6 +74,8 @@ function wait_for_socket_open() {
 afterEach(() => {
     vi.unstubAllGlobals();
     FakeWebSocket.instances = [];
+    FakeWebSocket.should_open = () => true;
+    vi.useRealTimers();
 });
 
 describe("hunter_adif", () => {
@@ -292,6 +297,53 @@ describe("hunter_adif", () => {
             errors: {},
         });
         expect(progress).toEqual([1, 2]);
+    });
+
+    it("falls back to the catserver submit endpoint when /ws stalls", async () => {
+        vi.useFakeTimers();
+        FakeWebSocket.should_open = url => url.endsWith("/submit_spot");
+        vi.stubGlobal("WebSocket", FakeWebSocket);
+
+        const resolve_promise = resolve_hunter_callsigns(["K1ABC"]);
+        await vi.advanceTimersByTimeAsync(1500);
+
+        expect(FakeWebSocket.instances.map(socket => socket.url)).toEqual([
+            "ws://localhost:3000/ws",
+            "ws://localhost:3000/submit_spot",
+        ]);
+        const fallback_socket = FakeWebSocket.instances[1];
+        const job_id = fallback_socket.sent[0].job_id;
+        expect(fallback_socket.sent).toEqual([
+            { version: 1, type: "hunter", action: "start", job_id },
+            {
+                version: 1,
+                type: "hunter",
+                action: "add",
+                job_id,
+                callsigns: ["K1ABC"],
+            },
+            { version: 1, type: "hunter", action: "finish", job_id },
+        ]);
+
+        fallback_socket.receive({
+            version: 1,
+            type: "hunter",
+            event: "results",
+            job_id,
+            results: { K1ABC: { country: "USA" } },
+            errors: {},
+        });
+        fallback_socket.receive({
+            version: 1,
+            type: "hunter",
+            event: "complete",
+            job_id,
+        });
+
+        await expect(resolve_promise).resolves.toEqual({
+            results: { K1ABC: { country: "USA" } },
+            errors: {},
+        });
     });
 
     it("worker client falls back when a custom resolver is supplied", async () => {
