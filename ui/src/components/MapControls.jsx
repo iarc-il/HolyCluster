@@ -603,7 +603,7 @@ function MapControls({
                                 }
                             />
                         </div>
-                        <div className="flex w-full items-center justify-end gap-3">
+                        <div className="flex w-full items-center justify-end gap-2">
                             {map_theme_names.map(map_theme => {
                                 const palette_colors = Object.values(
                                     MAP_THEME_CONFIGS[map_theme].palette,
@@ -626,30 +626,34 @@ function MapControls({
                                                 state.map_theme = map_theme;
                                             })
                                         }
-                                        className="h-10 w-10 overflow-hidden rounded-full focus-visible:outline-none"
-                                        style={{
-                                            border: `2px solid ${colors.theme.text}66`,
-                                            boxShadow: is_active
-                                                ? `0 0 0 2px ${colors.theme.background}, 0 0 0 4px ${colors.buttons.utility}`
-                                                : "none",
-                                        }}
+                                        className="flex h-10 w-10 items-center justify-center rounded-full focus-visible:outline-none"
                                         aria-label={`Use ${label.toLowerCase()} map theme`}
                                         aria-pressed={is_active}
                                         title={`${label} map theme`}
                                     >
-                                        <svg
-                                            className="block h-full w-full"
-                                            viewBox="0 0 32 32"
-                                            aria-hidden="true"
+                                        <span
+                                            className="block h-8 w-8 overflow-hidden rounded-full"
+                                            style={{
+                                                border: `2px solid ${colors.theme.text}66`,
+                                                boxShadow: is_active
+                                                    ? `0 0 0 2px ${colors.theme.background}, 0 0 0 4px ${colors.buttons.utility}`
+                                                    : "none",
+                                            }}
                                         >
-                                            {preview_colors.map((color, index) => (
-                                                <path
-                                                    key={MAP_THEME_QUADRANTS[index]}
-                                                    d={MAP_THEME_QUADRANTS[index]}
-                                                    fill={color}
-                                                />
-                                            ))}
-                                        </svg>
+                                            <svg
+                                                className="block h-full w-full"
+                                                viewBox="0 0 32 32"
+                                                aria-hidden="true"
+                                            >
+                                                {preview_colors.map((color, index) => (
+                                                    <path
+                                                        key={MAP_THEME_QUADRANTS[index]}
+                                                        d={MAP_THEME_QUADRANTS[index]}
+                                                        fill={color}
+                                                    />
+                                                ))}
+                                            </svg>
+                                        </span>
                                     </button>
                                 );
                             })}
