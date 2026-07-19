@@ -41,6 +41,7 @@ describe("profile_data", () => {
         expect(store.profiles[0].data.settings.theme).toBe("Dark");
         expect(store.profiles[0].data.settings.main_view_mode).toBe("both");
         expect(store.profiles[0].data.settings.main_view_order).toBe("map_table");
+        expect(store.profiles[0].data.settings).not.toHaveProperty("map_theme");
         expect(store.profiles[0].data.settings).not.toHaveProperty("show_equator");
         expect(store.profiles[0].data.hunter).toEqual({
             worked: create_default_hunter_worked(),
@@ -48,6 +49,7 @@ describe("profile_data", () => {
         });
         expect(store.profiles[0].data.map_controls.show_maidenhead_grid).toBe(false);
         expect(store.profiles[0].data.map_controls.show_equator).toBe(false);
+        expect(store.profiles[0].data.map_controls.map_theme).toBe("colorful");
         expect(store.profiles[0].data.map_view.radius_in_km).toBe(20000);
     });
 
@@ -76,6 +78,7 @@ describe("profile_data", () => {
                 locator: "???",
                 default_radius: 1234,
                 theme: "  Solar  ",
+                map_theme: "white",
                 callsign: " n0call ",
                 main_view_mode: "unknown",
                 main_view_order: "unknown",
@@ -84,6 +87,7 @@ describe("profile_data", () => {
                 disabled_modes: { FT8: true },
             },
             map_controls: {
+                map_theme: " earth ",
                 night: "yes",
                 show_maidenhead_grid: "yes",
                 show_equator: "yes",
@@ -154,6 +158,7 @@ describe("profile_data", () => {
         expect(data.settings.locator).toBe(defaults.settings.locator);
         expect(data.settings.default_radius).toBe(defaults.settings.default_radius);
         expect(data.settings.theme).toBe("Solar");
+        expect(data.settings).not.toHaveProperty("map_theme");
         expect(data.settings.callsign).toBe("N0CALL");
         expect(data.settings.main_view_mode).toBe(defaults.settings.main_view_mode);
         expect(data.settings.main_view_order).toBe(defaults.settings.main_view_order);
@@ -162,6 +167,7 @@ describe("profile_data", () => {
         expect(data.settings.disabled_bands[40]).toBe(true);
         expect(data.settings.disabled_modes.FT8).toBe(true);
         expect(data.map_controls.night).toBe(defaults.map_controls.night);
+        expect(data.map_controls.map_theme).toBe("earth");
         expect(data.map_controls.show_maidenhead_grid).toBe(
             defaults.map_controls.show_maidenhead_grid,
         );
@@ -199,6 +205,15 @@ describe("profile_data", () => {
                 },
             ],
         });
+    });
+
+    it("does not migrate the old settings map theme", () => {
+        const data = sanitize_profile_data({
+            settings: { map_theme: "white" },
+        });
+
+        expect(data.settings).not.toHaveProperty("map_theme");
+        expect(data.map_controls.map_theme).toBe("colorful");
     });
 
     it("migrates legacy local-storage values into profile data", () => {
