@@ -210,19 +210,8 @@ function LeftColumn({ toggled_ui, children }) {
         }));
     }
 
-    const visible_bands = bands.filter(band => {
-        if (settings.show_disabled_bands) {
-            return true;
-        }
-        return !settings.disabled_bands[band];
-    });
-
-    const visible_modes = modes.filter(mode => {
-        if (settings.show_disabled_modes) {
-            return true;
-        }
-        return !settings.disabled_modes[mode];
-    });
+    const visible_bands = bands.filter(band => !settings.disabled_bands[band]);
+    const visible_modes = modes.filter(mode => !settings.disabled_modes[mode]);
 
     return (
         <div
