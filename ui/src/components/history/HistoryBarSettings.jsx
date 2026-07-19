@@ -2,10 +2,12 @@ import { SettingsIcon } from "@/components/settings/Settings";
 import Button from "@/components/ui/Button.jsx";
 import Input from "@/components/ui/Input";
 import Popup from "@/components/ui/Popup.jsx";
+import Select from "@/components/ui/Select.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useEffect, useRef, useState } from "react";
 
-const MAX_WINDOW_MS = 8 * 60 * 60_000;
+const WINDOW_SIZE_OPTIONS_MIN = [5, 10, 15, 30];
+const MAX_STEP_MS = 30 * 60_000;
 
 function HistoryBarSettings({
     window_ms,
@@ -19,7 +21,6 @@ function HistoryBarSettings({
 }) {
     const { colors } = useColors();
     const [show_settings, set_show_settings] = useState(false);
-    const [window_input, set_window_input] = useState("");
     const [step_input, set_step_input] = useState("");
     const [speed_input, set_speed_input] = useState("");
 
@@ -31,14 +32,12 @@ function HistoryBarSettings({
 
     useEffect(() => {
         if (show_settings) {
-            set_window_input(String(window_min));
             set_step_input(String(step_min));
         }
-    }, [window_ms, step_size_ms]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [step_size_ms]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (!show_settings) return;
-        set_window_input(String(window_min));
         set_step_input(String(step_min));
         set_speed_input(String(time_between_shifts));
         function handle_click(e) {
@@ -53,22 +52,16 @@ function HistoryBarSettings({
         return () => document.removeEventListener("mousedown", handle_click);
     }, [show_settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    function apply_window_input() {
-        const v = Number.parseInt(window_input);
-        if (!Number.isNaN(v) && v >= 1) {
-            const new_ms = Math.min(v * 60_000, MAX_WINDOW_MS);
-            set_window_size_ms(new_ms);
-            set_end(new Date(start.getTime() + new_ms));
-            set_window_input(String(Math.round(new_ms / 60_000)));
-        } else {
-            set_window_input(String(window_min));
-        }
+    function apply_window_size(minutes) {
+        const new_ms = minutes * 60_000;
+        set_window_size_ms(new_ms);
+        set_end(new Date(start.getTime() + new_ms));
     }
 
     function apply_step_input() {
         const v = Number.parseInt(step_input);
         if (!Number.isNaN(v) && v >= 1) {
-            const new_ms = Math.min(v * 60_000, MAX_WINDOW_MS);
+            const new_ms = Math.min(v * 60_000, MAX_STEP_MS);
             set_step_size_ms(new_ms);
             set_step_input(String(Math.round(new_ms / 60_000)));
         } else {
@@ -127,24 +120,18 @@ function HistoryBarSettings({
                     >
                         <label className="flex items-center justify-between gap-3">
                             <span>Window size (min)</span>
-                            <Input
-                                type="text"
-                                value={window_input}
-                                onChange={e => set_window_input(e.target.value)}
-                                onBlur={apply_window_input}
-                                onKeyDown={e => {
-                                    if (e.key === "Enter") {
-                                        apply_window_input();
-                                        e.target.blur();
-                                    }
-                                    if (e.key === "Escape") {
-                                        set_window_input(String(window_min));
-                                        e.target.blur();
-                                    }
-                                }}
-                                className="w-16 text-right"
+                            <Select
+                                value={window_min}
+                                onChange={e => apply_window_size(Number(e.target.value))}
+                                className="w-20"
                                 data-tour="history-window-size"
-                            />
+                            >
+                                {WINDOW_SIZE_OPTIONS_MIN.map(minutes => (
+                                    <option key={minutes} value={minutes}>
+                                        {minutes}
+                                    </option>
+                                ))}
+                            </Select>
                         </label>
                         <label className="flex items-center justify-between gap-3">
                             <span>Step size (min)</span>

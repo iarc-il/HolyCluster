@@ -1,76 +1,30 @@
 import { continents, modes } from "@/data/filters_data.js";
+import {
+    compute_gaps,
+    create_interval_db,
+    fetch_gaps as fetch_gaps_generic,
+} from "@/utils/interval_cache.js";
 import { normalize_spot_dxcc_fields } from "@/utils/spot_dxcc.js";
-import { openDB } from "idb";
 
 const DB_NAME = "holycluster_spot_cache";
 const DB_VERSION = 1;
 const STORE_NAME = "intervals";
 
-let db_promise = null;
+const { open_db, find_overlapping_intervals } = create_interval_db(DB_NAME, DB_VERSION, STORE_NAME);
 
-export function open_db() {
-    if (!db_promise) {
-        db_promise = openDB(DB_NAME, DB_VERSION, {
-            upgrade(db) {
-                const store = db.createObjectStore(STORE_NAME, {
-                    keyPath: "id",
-                    autoIncrement: true,
-                });
-                store.createIndex("idx_start", "start");
-                store.createIndex("idx_end", "end");
-            },
-            blocked() {
-                db_promise = null;
-            },
-        });
-    }
-    return db_promise;
-}
+export { compute_gaps, find_overlapping_intervals, open_db };
 
-export async function find_overlapping_intervals(db, start_ms, end_ms) {
-    const candidates = await db.getAllFromIndex(
-        STORE_NAME,
-        "idx_start",
-        IDBKeyRange.upperBound(end_ms),
+export async function fetch_gaps(send, subscribe, wait_for_open, gaps, signal) {
+    const results = await fetch_gaps_generic(
+        send,
+        subscribe,
+        wait_for_open,
+        "spots",
+        gaps,
+        signal,
+        data => data.spots.spots,
     );
-    return candidates.filter(r => r.end >= start_ms).sort((a, b) => a.start - b.start);
-}
-
-export function compute_gaps(start_ms, end_ms, covered_intervals) {
-    const gaps = [];
-    let cursor = start_ms;
-    for (const interval of covered_intervals) {
-        if (interval.start > cursor) {
-            gaps.push({ start: cursor, end: interval.start });
-        }
-        cursor = Math.max(cursor, interval.end);
-        if (cursor >= end_ms) break;
-    }
-    if (cursor < end_ms) {
-        gaps.push({ start: cursor, end: end_ms });
-    }
-    return gaps;
-}
-
-export async function fetch_window(start_unix, end_unix, signal) {
-    const res = await fetch(`/history?start_time=${start_unix}&end_time=${end_unix}`, { signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    return data.spots;
-}
-
-export async function fetch_gaps(gaps, signal) {
-    return Promise.all(
-        gaps.map(async gap => ({
-            start: gap.start,
-            end: gap.end,
-            raw_spots: await fetch_window(
-                Math.floor(gap.start / 1000),
-                Math.floor(gap.end / 1000),
-                signal,
-            ),
-        })),
-    );
+    return results.map(r => ({ start: r.start, end: r.end, raw_spots: r.payload }));
 }
 
 function normalize_band(band) {

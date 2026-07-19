@@ -218,6 +218,7 @@ HUNTER_RESOLVE_WORKER_COUNT = 4
 HUNTER_CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/]{0,31}$")
 PROPAGATION_METRICS = ("a_index", "k_index", "sfi")
 MAX_PROPAGATION_HISTORY_RANGE_SECONDS = 86400
+PROPAGATION_BUCKET_SECONDS = 1800
 WS_PROTOCOL_VERSION = 1
 
 
@@ -236,6 +237,7 @@ class WsMessageType(StrEnum):
     SUBMIT = "submit"
     RADIO = "radio"
     HUNTER = "hunter"
+    HISTORY = "history"
 
 
 class WsSpotAction(StrEnum):
@@ -250,6 +252,11 @@ class WsSpotEvent(StrEnum):
 
 class WsRadioEvent(StrEnum):
     STATUS = "status"
+
+
+class WsHistoryEvent(StrEnum):
+    SPOTS = "spots"
+    PROPAGATION = "propagation"
 
 
 class WsHunterAction(StrEnum):
@@ -357,6 +364,41 @@ async def get_propagation_history_data(start_time, end_time):
         previous_samples = (await session.execute(previous_query)).scalars().all()
 
     return build_propagation_history_response(start_time, end_time, range_samples, previous_samples)
+
+
+def propagation_bucket_start(timestamp):
+    return (timestamp // PROPAGATION_BUCKET_SECONDS) * PROPAGATION_BUCKET_SECONDS
+
+
+def bucket_propagation_history(history):
+    start_time = history["start_time"]
+    end_time = history["end_time"]
+    first_bucket_start = propagation_bucket_start(start_time)
+    last_bucket_start = propagation_bucket_start(max(end_time - 1, start_time))
+    bucket_centers = [
+        b + PROPAGATION_BUCKET_SECONDS // 2
+        for b in range(first_bucket_start, last_bucket_start + PROPAGATION_BUCKET_SECONDS, PROPAGATION_BUCKET_SECONDS)
+    ]
+
+    bucketed_metrics = {}
+    for metric in PROPAGATION_METRICS:
+        samples = history["metrics"].get(metric, [])
+        idx = 0
+        latest_value = None
+        bucket_values = []
+        for center in bucket_centers:
+            while idx < len(samples) and samples[idx]["timestamp"] <= center:
+                latest_value = samples[idx]["value"]
+                idx += 1
+            if latest_value is not None:
+                bucket_values.append({"timestamp": center, "value": latest_value})
+        bucketed_metrics[metric] = bucket_values
+
+    return {
+        "start_time": first_bucket_start,
+        "end_time": last_bucket_start + PROPAGATION_BUCKET_SECONDS,
+        "metrics": bucketed_metrics,
+    }
 
 
 @dataclass
@@ -730,6 +772,10 @@ async def ws(websocket: fastapi.WebSocket):
                 await send_ws_hunter(websocket, send_lock, hunter_jobs, message)
                 continue
 
+            if message.get("type") == WsMessageType.HISTORY.value:
+                await send_ws_history(websocket, send_lock, message)
+                continue
+
             await websocket.send_json(
                 build_ws_error(
                     WsErrorType.NOT_IMPLEMENTED,
@@ -753,6 +799,84 @@ async def send_ws_submit(websocket: fastapi.WebSocket, message: dict):
 async def send_ws_json(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
     async with send_lock:
         await websocket.send_json(message)
+
+
+async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
+    end_time = message["end_time"]
+    start_time = message["start_time"]
+    event = message.get("event", WsHistoryEvent.SPOTS.value)
+
+    if start_time == None:
+        await websocket.send_json(build_ws_error(WsErrorType.MISSING_FIELD, "Missing start_time", field="start_time"))
+        return
+    if end_time == None:
+        await websocket.send_json(build_ws_error(WsErrorType.MISSING_FIELD, "Missing end_time", field="end_time"))
+        return
+
+    if end_time < start_time:
+        await websocket.send_json(
+            build_ws_error(
+                WsErrorType.MALFORMED_MESSAGE, "end_time must be greater than start_time", field="start_time"
+            )
+        )
+        return
+    if end_time - start_time > MAX_PROPAGATION_HISTORY_RANGE_SECONDS:
+        await websocket.send_json(
+            build_ws_error(WsErrorType.MALFORMED_MESSAGE, "time range cannot exceed 24 hours", field="end_time")
+        )
+        return
+
+    if event == WsHistoryEvent.PROPAGATION.value:
+        snapped_start = propagation_bucket_start(start_time)
+        snapped_end = propagation_bucket_start(max(end_time - 1, start_time)) + PROPAGATION_BUCKET_SECONDS
+        raw_history = await get_propagation_history_data(snapped_start, snapped_end)
+        result = bucket_propagation_history(raw_history)
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(WsMessageType.HISTORY, event=WsHistoryEvent.PROPAGATION.value, **result),
+        )
+        return
+
+    perf = {}
+
+    async with async_session() as session:
+        query = (
+            select(HolySpot)
+            .where(HolySpot.timestamp >= start_time)
+            .where(HolySpot.timestamp <= end_time)
+            .order_by(HolySpot.timestamp)
+        )
+
+        t0 = time.perf_counter()
+        result = (await session.execute(query)).scalars().all()
+        perf["db_query_ms"] = round((time.perf_counter() - t0) * 1000, 2)
+        perf["row_count"] = len(result)
+
+        t1 = time.perf_counter()
+        spots = cleanup_spots(result)
+        perf["cleanup_ms"] = round((time.perf_counter() - t1) * 1000, 2)
+
+        t2 = time.perf_counter()
+        payload = {"spots": spots, "perf": perf}
+        perf["serialize_ms"] = round((time.perf_counter() - t2) * 1000, 2)
+        perf["payload_bytes"] = len(payload)
+
+        logger.info(f"history perf: {perf}")
+
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(
+                WsMessageType.HISTORY,
+                event=WsHistoryEvent.SPOTS.value,
+                start_time=start_time,
+                end_time=end_time,
+                spots=payload,
+            ),
+        )
+
+    # return fastapi.Response(content=payload, media_type="application/json")
 
 
 async def cancel_hunter_jobs(hunter_jobs):

@@ -6,15 +6,16 @@ import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const PRESETS = [
+    { label: "1h", hours: 1 },
+    { label: "4h", hours: 4 },
     { label: "8h", hours: 8 },
     { label: "12h", hours: 12 },
     { label: "24h", hours: 24 },
     { label: "48h", hours: 48 },
-    { label: "72h", hours: 72 },
 ];
 
-const MIN_WINDOW_MS = 15 * 60_000;
-const MAX_WINDOW_MS = 8 * 60 * 60_000;
+const MIN_WINDOW_MS = 5 * 60_000;
+const MAX_WINDOW_MS = 30 * 60_000;
 
 function fmt_utc_hhmm(date) {
     const h = String(date.getUTCHours()).padStart(2, "0");
@@ -44,6 +45,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
     } = useProfiles();
 
     const [is_playing, set_is_playing] = useState(false);
+    const [is_dragging, set_is_dragging] = useState(false);
 
     function set_display_hours(value) {
         update_active_profile_section("history", history => ({
@@ -200,6 +202,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             set_end(new Date(new_end));
             hover_paused_ref.current = false;
             set_is_playing(false);
+            set_is_dragging(true);
             drag_ref.current = {
                 type: "move",
                 start_x: e.clientX,
@@ -216,6 +219,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             e.preventDefault();
             hover_paused_ref.current = false;
             set_is_playing(false);
+            set_is_dragging(true);
             drag_ref.current = {
                 type: "move",
                 start_x: e.clientX,
@@ -232,6 +236,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             e.preventDefault();
             hover_paused_ref.current = false;
             set_is_playing(false);
+            set_is_dragging(true);
             drag_ref.current = {
                 type: "resize",
                 start_x: e.clientX,
@@ -275,6 +280,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
 
         function on_mouse_up() {
             drag_ref.current = null;
+            set_is_dragging(false);
         }
 
         window.addEventListener("mousemove", on_mouse_move);
@@ -371,7 +377,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
 
                     {/* Selected window */}
                     <div
-                        className="absolute top-0 bottom-0 rounded cursor-grab active:cursor-grabbing"
+                        className={`absolute top-0 bottom-0 rounded cursor-grab active:cursor-grabbing${is_dragging ? "" : " transition-[left] duration-500"}`}
                         data-tour="history-window"
                         style={{
                             left: `${win_left * 100}%`,

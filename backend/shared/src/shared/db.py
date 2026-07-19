@@ -27,7 +27,7 @@ class PropagationMeasurement(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     metric: str
-    timestamp: int = Field(index=True)
+    timestamp: int
     value: float
     collected_at: datetime
 

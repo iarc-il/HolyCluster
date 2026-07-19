@@ -16,8 +16,9 @@ const MIN_DEFAULT_RADIUS_KM = 1000;
 const MAX_RADIUS_KM = 20000;
 const MIN_MAP_RADIUS_KM = 100;
 const DEFAULT_HISTORY_WINDOW_MS = 15 * 60_000;
-const MAX_HISTORY_WINDOW_MS = 8 * 60 * 60_000;
-const HISTORY_DISPLAY_HOURS = new Set([8, 12, 24, 48, 72]);
+const MAX_HISTORY_STEP_MS = 30 * 60_000;
+const HISTORY_DISPLAY_HOURS = new Set([1, 4, 8, 12, 24]);
+const HISTORY_WINDOW_SIZES_MS = new Set([5, 10, 15, 30].map(minutes => minutes * 60_000));
 const MAIN_VIEW_MODES = new Set(["both", "map", "table"]);
 const MAIN_VIEW_ORDERS = new Set(["map_table", "table_map"]);
 const VOACAP_BANDS = new Set(["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"]);
@@ -196,6 +197,11 @@ function sanitize_lon_lat(value, fallback) {
 function sanitize_history_display_hours(value, fallback) {
     const parsed = to_number(value, fallback, { min: 1, integer: true });
     return HISTORY_DISPLAY_HOURS.has(parsed) ? parsed : fallback;
+}
+
+function sanitize_history_window_size_ms(value, fallback) {
+    const parsed = to_number(value, fallback, { min: 60_000, integer: true });
+    return HISTORY_WINDOW_SIZES_MS.has(parsed) ? parsed : fallback;
 }
 
 function sanitize_frequency_bar_band(value, fallback) {
@@ -553,14 +559,13 @@ export function sanitize_history(value, defaults = create_default_history()) {
     const source = is_plain_object(value) ? value : {};
 
     return {
-        window_size_ms: to_number(source.window_size_ms, defaults.window_size_ms, {
-            min: 60_000,
-            max: MAX_HISTORY_WINDOW_MS,
-            integer: true,
-        }),
+        window_size_ms: sanitize_history_window_size_ms(
+            source.window_size_ms,
+            defaults.window_size_ms,
+        ),
         step_size_ms: to_number(source.step_size_ms, defaults.step_size_ms, {
             min: 60_000,
-            max: MAX_HISTORY_WINDOW_MS,
+            max: MAX_HISTORY_STEP_MS,
             integer: true,
         }),
         display_hours: sanitize_history_display_hours(source.display_hours, defaults.display_hours),

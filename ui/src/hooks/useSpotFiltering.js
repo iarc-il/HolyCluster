@@ -151,78 +151,79 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
             .filter(filter => filter.type === "hunter")
             .map(filter => filter.hunter_section);
 
-        let filtered = spots_with_alerts
-            .filter(spot => {
-                if (filter_missing_flags) {
-                    if (
-                        spot.dx_dxcc_code !== "" &&
-                        spot.dx_dxcc_code != null &&
-                        get_dxcc_flag(spot.dx_dxcc_code) == null
-                    ) {
-                        return true;
-                    }
-                    return false;
-                }
-
-                const is_in_time_limit =
-                    is_history_mode || current_time - spot.time < filters.time_limit;
-
-                const normalized_search = search_query.toLowerCase();
-                const is_matching_search = [
-                    spot.dx_callsign,
-                    spot.spotter_callsign,
-                    spot.pota_reference,
-                ].some(value => (value ?? "").toLowerCase().startsWith(normalized_search));
-                const is_matching_pota_text = [spot.pota_name, spot.pota_description].some(value =>
-                    (value ?? "").toLowerCase().includes(normalized_search),
-                );
-
-                // If the search is not empty, it override everything else
-                if (search_query.length > 0) {
-                    return (is_matching_search || is_matching_pota_text) && is_in_time_limit;
-                }
-
-                // Alerted spots are always displayed
-                if (spot.is_alerted && is_in_time_limit) {
+        let filtered = spots_with_alerts.filter(spot => {
+            if (filter_missing_flags) {
+                if (
+                    spot.dx_dxcc_code !== "" &&
+                    spot.dx_dxcc_code != null &&
+                    get_dxcc_flag(spot.dx_dxcc_code) == null
+                ) {
                     return true;
                 }
+                return false;
+            }
 
-                const is_band_and_mode_active =
-                    ((filters.radio_band && radio_band === spot.band) ||
-                        (!filters.radio_band && filters.bands[spot.band])) &&
-                    filters.modes[spot.mode];
+            const is_in_time_limit =
+                is_history_mode || current_time - spot.time < filters.time_limit;
 
-                const are_include_filters_empty = show_only_filters.length === 0;
-                const are_exclude_filters_empty = hide_filters.length === 0;
-                const is_matching_show_only_filters =
-                    is_matching_list(regular_show_only_filters, spot) ||
-                    Boolean(check_hunter_needed(spot, hunter, show_only_hunter_sections));
-                const is_matching_hide_filters =
-                    is_matching_list(regular_hide_filters, spot) ||
-                    Boolean(check_hunter_needed(spot, hunter, hide_hunter_sections));
-                const are_filters_including =
-                    is_matching_show_only_filters ||
-                    are_include_filters_empty ||
-                    !callsign_filters.is_show_only_filters_active;
-                const are_filters_not_excluding =
-                    !is_matching_hide_filters ||
-                    are_exclude_filters_empty ||
-                    !callsign_filters.is_hide_filters_active;
+            const normalized_search = search_query.toLowerCase();
+            const is_matching_search = [
+                spot.dx_callsign,
+                spot.spotter_callsign,
+                spot.pota_reference,
+            ].some(value => (value ?? "").toLowerCase().startsWith(normalized_search));
+            const is_matching_pota_text = [spot.pota_name, spot.pota_description].some(value =>
+                (value ?? "").toLowerCase().includes(normalized_search),
+            );
 
-                const is_dx_continent_active = filters.dx_continents[spot.dx_continent];
-                const is_spotter_continent_active =
-                    filters.spotter_continents[spot.spotter_continent];
+            // If the search is not empty, it override everything else
+            if (search_query.length > 0) {
+                return (is_matching_search || is_matching_pota_text) && is_in_time_limit;
+            }
 
-                const result =
-                    is_in_time_limit &&
-                    is_dx_continent_active &&
-                    is_spotter_continent_active &&
-                    is_band_and_mode_active &&
-                    are_filters_including &&
-                    are_filters_not_excluding;
-                return result;
-            })
-            .slice(0, 100);
+            // Alerted spots are always displayed
+            if (spot.is_alerted && is_in_time_limit) {
+                return true;
+            }
+
+            const is_band_and_mode_active =
+                ((filters.radio_band && radio_band === spot.band) ||
+                    (!filters.radio_band && filters.bands[spot.band])) &&
+                filters.modes[spot.mode];
+
+            const are_include_filters_empty = show_only_filters.length === 0;
+            const are_exclude_filters_empty = hide_filters.length === 0;
+            const is_matching_show_only_filters =
+                is_matching_list(regular_show_only_filters, spot) ||
+                Boolean(check_hunter_needed(spot, hunter, show_only_hunter_sections));
+            const is_matching_hide_filters =
+                is_matching_list(regular_hide_filters, spot) ||
+                Boolean(check_hunter_needed(spot, hunter, hide_hunter_sections));
+            const are_filters_including =
+                is_matching_show_only_filters ||
+                are_include_filters_empty ||
+                !callsign_filters.is_show_only_filters_active;
+            const are_filters_not_excluding =
+                !is_matching_hide_filters ||
+                are_exclude_filters_empty ||
+                !callsign_filters.is_hide_filters_active;
+
+            const is_dx_continent_active = filters.dx_continents[spot.dx_continent];
+            const is_spotter_continent_active = filters.spotter_continents[spot.spotter_continent];
+
+            const result =
+                is_in_time_limit &&
+                is_dx_continent_active &&
+                is_spotter_continent_active &&
+                is_band_and_mode_active &&
+                are_filters_including &&
+                are_filters_not_excluding;
+            return result;
+        });
+
+        if (!is_history_mode) {
+            filtered = filtered.slice(0, 100);
+        }
 
         if (filters.show_only_latest_spot) {
             const latest_spots = new Map();

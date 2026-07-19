@@ -1,21 +1,15 @@
+import useHistoryPropagation from "@/hooks/useHistoryPropagation";
 import {
     PROPAGATION_METRICS,
-    normalize_propagation_history,
     select_propagation_for_time,
     to_unix_seconds,
 } from "@/utils/propagation_history.js";
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 const RestDataContext = createContext(undefined);
 
 export function useRestData() {
     return useContext(RestDataContext);
-}
-
-function find_cached_propagation_history(cache, start_time, end_time) {
-    return (
-        cache.find(entry => entry.start_time <= start_time && entry.end_time >= end_time) ?? null
-    );
 }
 
 function propagation_history_covers_range(history, start_time, end_time) {
@@ -49,10 +43,8 @@ export const RestDataProvider = ({
     propagation_time = null,
 }) => {
     const [live_propagation, set_live_propagation] = useState();
-    const [propagation_history, set_propagation_history] = useState(null);
     const [displayed_history_propagation, set_displayed_history_propagation] = useState(null);
     const [dxpeditions, set_dxpeditions] = useState([]);
-    const propagation_history_cache_ref = useRef([]);
 
     const propagation_start_time = to_unix_seconds(propagation_range_start);
     const propagation_end_time = to_unix_seconds(propagation_range_end);
@@ -79,49 +71,10 @@ export const RestDataProvider = ({
         return () => clearInterval(interval_id);
     }, [is_history_propagation_mode]);
 
-    useEffect(() => {
-        if (!is_history_propagation_mode) {
-            set_propagation_history(null);
-            return;
-        }
-
-        const cached_history = find_cached_propagation_history(
-            propagation_history_cache_ref.current,
-            propagation_start_time,
-            propagation_end_time,
-        );
-        if (cached_history) {
-            set_propagation_history(cached_history);
-            return;
-        }
-
-        set_propagation_history(null);
-        if (!navigator.onLine) return;
-
-        const controller = new AbortController();
-        const params = new URLSearchParams({
-            start_time: String(propagation_start_time),
-            end_time: String(propagation_end_time),
-        });
-
-        fetch(`/propagation/history?${params}`, { signal: controller.signal })
-            .then(response => (response.ok ? response.json() : Promise.reject(response)))
-            .then(data => {
-                const history = normalize_propagation_history(data);
-                if (history.start_time === null || history.end_time === null) return;
-
-                propagation_history_cache_ref.current = [
-                    ...propagation_history_cache_ref.current,
-                    history,
-                ];
-                set_propagation_history(history);
-            })
-            .catch(error => {
-                if (error.name === "AbortError") return;
-            });
-
-        return () => controller.abort();
-    }, [is_history_propagation_mode, propagation_start_time, propagation_end_time]);
+    const { propagation_history } = useHistoryPropagation(
+        is_history_propagation_mode ? propagation_range_start : null,
+        is_history_propagation_mode ? propagation_range_end : null,
+    );
 
     useEffect(() => {
         const fetch_dxpeditions = () => {
