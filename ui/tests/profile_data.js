@@ -334,6 +334,10 @@ describe("profile_data", () => {
                     ...defaults.settings,
                     callsign: "N0CALL",
                 },
+                map_controls: {
+                    ...defaults.map_controls,
+                    map_theme: "earth",
+                },
                 filters: {
                     ...defaults.filters,
                     time_limit: 900,
@@ -353,6 +357,7 @@ describe("profile_data", () => {
         };
 
         const exported = create_profile_export(profile, ["settings", "filters", "hunter"]);
+        const map_controls_export = create_profile_export(profile, ["map_controls"]);
         const imported = sanitize_imported_profile(exported);
 
         expect(PROFILE_SECTION_KEYS).toContain("hunter");
@@ -370,6 +375,8 @@ describe("profile_data", () => {
         expect(imported.data.filters.time_limit).toBe(900);
         expect(imported.data.hunter.worked.dxcc.global).toEqual([291]);
         expect(imported.data.panels.frequency_bar_band).toBe(defaults.panels.frequency_bar_band);
+        expect(exported.data.settings).not.toHaveProperty("map_theme");
+        expect(map_controls_export.data.map_controls.map_theme).toBe("earth");
     });
 
     it("adds default hunter data to old profiles without hunter", () => {

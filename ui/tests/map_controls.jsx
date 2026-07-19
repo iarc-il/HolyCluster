@@ -134,6 +134,24 @@ describe("MapControls GPS", () => {
         ).toBeNull();
     });
 
+    it("changes the map theme from the controls panel", async () => {
+        const user = userEvent.setup();
+        const { map_controls } = render_map_controls({ is_mobile: false });
+
+        await user.click(screen.getByRole("button", { name: "Show map controls" }));
+        expect(
+            screen
+                .getByRole("button", { name: "Use colorful map theme" })
+                .getAttribute("aria-pressed"),
+        ).toBe("true");
+
+        await user.click(screen.getByRole("button", { name: "Use earth map theme" }));
+        expect(map_controls.map_theme).toBe("earth");
+
+        await user.click(screen.getByRole("button", { name: "Use white map theme" }));
+        expect(map_controls.map_theme).toBe("white");
+    });
+
     it("keeps the controls panel open when clicking the tour tooltip", async () => {
         const user = userEvent.setup();
         const { container } = render_map_controls({ is_mobile: false });

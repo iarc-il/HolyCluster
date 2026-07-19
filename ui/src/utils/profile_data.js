@@ -61,7 +61,7 @@ export const PROFILE_SECTION_DEFINITIONS = {
     },
     map_controls: {
         label: "Map Controls",
-        description: "Map center, projection, night mode, and overlays",
+        description: "Map theme, center, projection, night mode, and overlays",
     },
     map_view: {
         label: "Map View",
