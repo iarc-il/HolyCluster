@@ -5,6 +5,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import MapControls from "@/components/MapControls.jsx";
 
 vi.mock("@/hooks/useColors", () => ({
+    MAP_THEME_CONFIGS: {
+        colorful: { palette: { a: "#ff0000", b: "#00ff00", c: "#0000ff", d: "#ffff00" } },
+        earth: { palette: { a: "#aa8866", b: "#886644", c: "#668844", d: "#446633" } },
+        white: { palette: { a: "#ffffff", b: "#ffffff", c: "#ffffff", d: "#ffffff" } },
+    },
+    map_theme_names: ["colorful", "earth", "white"],
     useColors: () => ({
         dev_mode: false,
         colors: {
@@ -65,6 +71,7 @@ function set_geolocation(getCurrentPosition) {
 
 function render_map_controls({ is_mobile }) {
     const map_controls = {
+        map_theme: "colorful",
         location: {
             displayed_locator: "JJ00AA",
             location: [0, 0],
@@ -125,6 +132,24 @@ describe("MapControls GPS", () => {
         expect(
             screen.queryByRole("button", { name: "Center map on current GPS location" }),
         ).toBeNull();
+    });
+
+    it("changes the map theme from the controls panel", async () => {
+        const user = userEvent.setup();
+        const { map_controls } = render_map_controls({ is_mobile: false });
+
+        await user.click(screen.getByRole("button", { name: "Show map controls" }));
+        expect(
+            screen
+                .getByRole("button", { name: "Use colorful map theme" })
+                .getAttribute("aria-pressed"),
+        ).toBe("true");
+
+        await user.click(screen.getByRole("button", { name: "Use earth map theme" }));
+        expect(map_controls.map_theme).toBe("earth");
+
+        await user.click(screen.getByRole("button", { name: "Use white map theme" }));
+        expect(map_controls.map_theme).toBe("white");
     });
 
     it("keeps the controls panel open when clicking the tour tooltip", async () => {

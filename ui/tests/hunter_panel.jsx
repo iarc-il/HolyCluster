@@ -3,6 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const import_hunter_adif_in_worker = vi.hoisted(() => vi.fn());
+
+vi.mock("@/utils/hunter_adif_worker_client.js", () => ({
+    import_hunter_adif_in_worker,
+}));
+
 vi.mock("virtual:cty-dxcc-entities", () => ({
     default: ["United States", "Fed. Rep. of Germany", "Canada"],
     dxcc_entities_by_code: {
@@ -28,7 +34,7 @@ import {
     create_default_profile_data,
 } from "@/utils/profile_data.js";
 
-function render_hunter_panel(profile_data = create_default_profile_data()) {
+function render_hunter_panel(profile_data = create_default_profile_data(), props = {}) {
     window.localStorage.setItem(
         PROFILE_STORE_KEY,
         JSON.stringify({
@@ -42,7 +48,7 @@ function render_hunter_panel(profile_data = create_default_profile_data()) {
         <MemoryRouter>
             <ProfilesProvider>
                 <ColorsProvider>
-                    <HunterPanel />
+                    <HunterPanel {...props} />
                 </ColorsProvider>
             </ProfilesProvider>
         </MemoryRouter>,
@@ -67,6 +73,7 @@ function expect_before(first, second) {
 describe("HunterPanel", () => {
     beforeEach(() => {
         window.localStorage.clear();
+        import_hunter_adif_in_worker.mockReset();
     });
 
     afterEach(() => {
@@ -268,5 +275,85 @@ describe("HunterPanel", () => {
 
         expect(screen.getByText("old.adi")).toBeTruthy();
         expect(screen.getByText("12 QSOs, 3 added, 1 unresolved")).toBeTruthy();
+    });
+
+    it("deletes all hunter data after confirmation", async () => {
+        const user = userEvent.setup();
+        const profile_data = create_default_profile_data();
+        profile_data.hunter.worked.dxcc.global = [230];
+        profile_data.hunter.imports = [
+            {
+                file_name: "old.adi",
+                imported_at: 123,
+                qso_count: 1,
+                added_counts: {},
+                unresolved_count: 0,
+            },
+        ];
+        render_hunter_panel(profile_data);
+
+        const delete_button = screen.getByRole("button", { name: "Delete All" });
+        const import_button = screen.getByRole("button", { name: "Import ADIF" });
+        expect_before(import_button, delete_button);
+
+        await user.click(delete_button);
+        const dialog = await screen.findByRole("dialog");
+        expect(within(dialog).getByRole("heading", { name: "Are you sure?" })).toBeTruthy();
+        await user.click(within(dialog).getByRole("button", { name: "Delete All" }));
+
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).toBeNull();
+            expect_section_stats(section_by_heading("DXCC"), { done: 0, needed: 4, total: 4 });
+            expect(screen.queryByText("old.adi")).toBeNull();
+        });
+        const stored_profiles = JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY));
+        expect(stored_profiles.profiles[0].data.hunter).toEqual(
+            create_default_profile_data().hunter,
+        );
+    });
+
+    it("reports a completed ADIF import after saving it", async () => {
+        const user = userEvent.setup();
+        const profile_data = create_default_profile_data();
+        const imported_hunter = {
+            ...profile_data.hunter,
+            imports: [{ file_name: "upload.adi", imported_at: 123 }],
+        };
+        const on_import_complete = vi.fn();
+        import_hunter_adif_in_worker.mockResolvedValue({ hunter: imported_hunter });
+        render_hunter_panel(profile_data, { on_import_complete });
+
+        await user.upload(
+            screen.getByTestId("hunter-adif-input"),
+            new File(["<CALL:5>K1ABC<EOR>"], "upload.adi", { type: "text/plain" }),
+        );
+
+        await waitFor(() => expect(on_import_complete).toHaveBeenCalledOnce());
+        expect(import_hunter_adif_in_worker).toHaveBeenCalledWith(
+            expect.objectContaining({
+                hunter: profile_data.hunter,
+                adif_text: "<CALL:5>K1ABC<EOR>",
+                file_name: "upload.adi",
+            }),
+        );
+        const stored_profiles = JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY));
+        expect(stored_profiles.profiles[0].data.hunter.imports[0]).toEqual(
+            expect.objectContaining({ file_name: "upload.adi", imported_at: 123 }),
+        );
+    });
+
+    it("does not report a failed ADIF import as complete", async () => {
+        const user = userEvent.setup();
+        const on_import_complete = vi.fn();
+        import_hunter_adif_in_worker.mockRejectedValue(new Error("Import failed"));
+        render_hunter_panel(create_default_profile_data(), { on_import_complete });
+
+        await user.upload(
+            screen.getByTestId("hunter-adif-input"),
+            new File(["invalid"], "upload.adi", { type: "text/plain" }),
+        );
+
+        expect(await screen.findByText("Import failed")).toBeTruthy();
+        expect(on_import_complete).not.toHaveBeenCalled();
     });
 });

@@ -5,7 +5,7 @@ import { TOUR_CLOSE_MAP_CONTROLS_EVENT } from "@/components/tour/tour_events.js"
 import Button from "@/components/ui/Button.jsx";
 import Popup from "@/components/ui/Popup.jsx";
 import Radio from "@/components/ui/Radio.jsx";
-import { useColors } from "@/hooks/useColors";
+import { MAP_THEME_CONFIGS, map_theme_names, useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import use_radio from "@/hooks/useRadio";
 import { useRestData } from "@/hooks/useRestData";
@@ -20,6 +20,18 @@ const EXCLUSIVE_OVERLAY_CONTROL_KEYS = [
     "show_maidenhead_grid",
 ];
 const JOYRIDE_PORTAL_SELECTOR = "#react-joyride-portal";
+const MAP_THEME_LABELS = {
+    colorful: "Colorful",
+    earth: "Earth",
+    white: "White",
+};
+const MAP_THEME_QUADRANTS = [
+    "M16 16V0a16 16 0 0 1 16 16H16Z",
+    "M16 16h16a16 16 0 0 1-16 16V16Z",
+    "M16 16v16A16 16 0 0 1 0 16h16Z",
+    "M16 16H0A16 16 0 0 1 16 0v16Z",
+];
+const COLORFUL_THEME_PREVIEW_INDICES = [0, 3, 4, 5];
 const VOACAP_BANDS = ["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"];
 
 function clear_exclusive_overlays(state) {
@@ -590,6 +602,61 @@ function MapControls({
                                     set_map_controls(state => (state.night = !state.night))
                                 }
                             />
+                        </div>
+                        <div className="flex w-full items-center justify-end gap-2">
+                            {map_theme_names.map(map_theme => {
+                                const palette_colors = Object.values(
+                                    MAP_THEME_CONFIGS[map_theme].palette,
+                                );
+                                const preview_colors =
+                                    map_theme === "colorful"
+                                        ? COLORFUL_THEME_PREVIEW_INDICES.map(
+                                              index => palette_colors[index],
+                                          )
+                                        : palette_colors.slice(0, 4);
+                                const is_active = map_controls.map_theme === map_theme;
+                                const label = MAP_THEME_LABELS[map_theme];
+
+                                return (
+                                    <button
+                                        type="button"
+                                        key={map_theme}
+                                        onClick={() =>
+                                            set_map_controls(state => {
+                                                state.map_theme = map_theme;
+                                            })
+                                        }
+                                        className="flex h-10 w-10 items-center justify-center rounded-full focus-visible:outline-none"
+                                        aria-label={`Use ${label.toLowerCase()} map theme`}
+                                        aria-pressed={is_active}
+                                        title={`${label} map theme`}
+                                    >
+                                        <span
+                                            className="block h-8 w-8 overflow-hidden rounded-full"
+                                            style={{
+                                                border: `2px solid ${colors.theme.text}66`,
+                                                boxShadow: is_active
+                                                    ? `0 0 0 2px ${colors.theme.background}, 0 0 0 4px ${colors.buttons.utility}`
+                                                    : "none",
+                                            }}
+                                        >
+                                            <svg
+                                                className="block h-full w-full"
+                                                viewBox="0 0 32 32"
+                                                aria-hidden="true"
+                                            >
+                                                {preview_colors.map((color, index) => (
+                                                    <path
+                                                        key={MAP_THEME_QUADRANTS[index]}
+                                                        d={MAP_THEME_QUADRANTS[index]}
+                                                        fill={color}
+                                                    />
+                                                ))}
+                                            </svg>
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
                         <div className="flex items-center gap-3" data-tour="map-overlays">
                             {overlay_buttons.map(render_overlay_button)}

@@ -11,6 +11,8 @@ import { continents } from "@/data/filters_data.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 
+import { useState } from "react";
+
 const continent_title = { dx: "DX", spotter: "DE" };
 
 function ContinentColumn({ spot_type, colors }) {
@@ -250,16 +252,27 @@ function ViewSelectorTabs({ active_view, set_active_view, colors, dev_mode }) {
     );
 }
 
-function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }) {
+function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, set_active_view }) {
     const { colors, dev_mode } = useColors();
+    const [open_import_filter, set_open_import_filter] = useState(false);
 
     if (active_view === null) return null;
 
     const effective_active_view =
         !dev_mode && view_options[active_view]?.dev_only ? 0 : active_view;
 
+    function handle_import_complete() {
+        set_toggled_ui(state => ({ ...state, right_visible: true }));
+        set_active_view(0);
+        set_open_import_filter(true);
+    }
+
     const content = [
-        <Filters key="filters" toggled_ui={toggled_ui} />,
+        <Filters
+            key="filters"
+            open_import_filter={open_import_filter}
+            on_import_filter_open={() => set_open_import_filter(false)}
+        />,
         <FrequencyBar
             key="frequency-bar"
             set_cat_to_spot={set_cat_to_spot}
@@ -269,7 +282,7 @@ function SidePanel({ toggled_ui, set_cat_to_spot, active_view, set_active_view }
             <Heatmap />
         </div>,
         <DXpeditions key="dxpeditions" />,
-        <HunterPanel key="hunter" />,
+        <HunterPanel key="hunter" on_import_complete={handle_import_complete} />,
         <RotatorPanel key="rotator" />,
     ];
     const active_view_label = view_options[effective_active_view]?.label

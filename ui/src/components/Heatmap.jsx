@@ -19,12 +19,7 @@ function Heatmap() {
     const canvas_ref = useRef(null);
     const heatmap_instance_ref = useRef(null);
 
-    const visible_bands = bands.filter(band => {
-        if (settings.show_disabled_bands) {
-            return true;
-        }
-        return !settings.disabled_bands[band];
-    });
+    const visible_bands = bands.filter(band => !settings.disabled_bands[band]);
 
     const heatmap_data = useMemo(() => {
         const counts = {};

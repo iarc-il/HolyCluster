@@ -163,7 +163,7 @@ function merge_theme(overrides) {
     return merged;
 }
 
-const MAP_THEME_CONFIGS = {
+export const MAP_THEME_CONFIGS = {
     colorful: {
         palette: {
             country_0: "#f6e36d",
@@ -384,7 +384,8 @@ export const themes_names = Object.entries(themes).map(([name, theme]) => name);
 export const ColorsProvider = ({ children }) => {
     const {
         active_profile_data: {
-            settings: { theme: profile_theme, map_theme: profile_map_theme },
+            settings: { theme: profile_theme },
+            map_controls: { map_theme: profile_map_theme },
         },
     } = useProfiles();
     const [dev_mode, set_dev_mode] = useLocalStorage("dev_mode", false);

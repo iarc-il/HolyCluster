@@ -61,7 +61,7 @@ export const PROFILE_SECTION_DEFINITIONS = {
     },
     map_controls: {
         label: "Map Controls",
-        description: "Map center, projection, night mode, and overlays",
+        description: "Map theme, center, projection, night mode, and overlays",
     },
     map_view: {
         label: "Map View",
@@ -347,7 +347,6 @@ export function create_default_settings() {
         locator: "",
         default_radius: 20000,
         theme: "Dark",
-        map_theme: "colorful",
         callsign: "",
         is_miles: false,
         propagation_displayed: true,
@@ -367,6 +366,7 @@ export function create_default_settings() {
 
 export function create_default_map_controls() {
     return {
+        map_theme: "colorful",
         night: false,
         is_globe: false,
         show_cq_zones: false,
@@ -462,7 +462,6 @@ export function sanitize_settings(value, defaults = create_default_settings()) {
         locator: sanitize_locator(source.locator, defaults.locator),
         default_radius: sanitize_default_radius(source.default_radius, defaults.default_radius),
         theme: sanitize_theme(source.theme, defaults.theme),
-        map_theme: sanitize_map_theme(source.map_theme, defaults.map_theme),
         callsign: sanitize_callsign(source.callsign, defaults.callsign),
         is_miles: to_boolean(source.is_miles, defaults.is_miles),
         propagation_displayed: to_boolean(
@@ -503,6 +502,7 @@ export function sanitize_map_controls(value, defaults = create_default_map_contr
     const source_location = is_plain_object(source.location) ? source.location : {};
 
     return {
+        map_theme: sanitize_map_theme(source.map_theme, defaults.map_theme),
         night: to_boolean(source.night, defaults.night),
         is_globe: to_boolean(source.is_globe, defaults.is_globe),
         show_cq_zones: to_boolean(source.show_cq_zones, defaults.show_cq_zones),

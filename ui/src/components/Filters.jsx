@@ -312,7 +312,15 @@ function FilterLine({ filter, id, is_dragging, data_tour = null }) {
     );
 }
 
-function FilterSection({ title, filters, action, toggle_field, active_filter_id }) {
+function FilterSection({
+    title,
+    filters,
+    action,
+    toggle_field,
+    active_filter_id,
+    external_initial_data = null,
+    on_external_open = null,
+}) {
     const { colors } = useColors();
     const { callsign_filters, setCallsignFilters } = useFilters();
     const { setNodeRef, isOver } = useDroppable({ id: action });
@@ -356,11 +364,13 @@ function FilterSection({ title, filters, action, toggle_field, active_filter_id 
                             on_click={toggle_active}
                         />
                         <FilterModal
-                            initial_data={{ ...empty_filter_data, action }}
+                            initial_data={external_initial_data ?? { ...empty_filter_data, action }}
                             button={<Button className="h-7 flex items-center">Add</Button>}
                             data_tour={`add-filter-button-${action}`}
                             dialog_data_tour="filter-modal"
                             on_apply={add_filter}
+                            external_open={external_initial_data != null}
+                            on_open={on_external_open}
                         />
                     </div>
                 </div>
@@ -378,7 +388,7 @@ function FilterSection({ title, filters, action, toggle_field, active_filter_id 
     );
 }
 
-function Filters() {
+function Filters({ open_import_filter = false, on_import_filter_open = null }) {
     const { colors } = useColors();
     const { callsign_filters, setCallsignFilters } = useFilters();
     const [active_id, set_active_id] = useState(null);
@@ -437,6 +447,12 @@ function Filters() {
                         filters={filters_by_action.alert}
                         toggle_field="is_alert_filters_active"
                         active_filter_id={active_id}
+                        external_initial_data={
+                            open_import_filter
+                                ? { action: "alert", type: "hunter", hunter_section: "dxcc" }
+                                : null
+                        }
+                        on_external_open={on_import_filter_open}
                     />
                     <FilterSection
                         title="Show Only"

@@ -215,9 +215,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
     radio_freq = radio_freq && radio_freq >= 0 ? Math.round((radio_freq / 1000) * 10) / 10 : 0;
 
     const band = selected_band === -1 ? radio_band : selected_band;
-    const visible_bands = Object.keys(band_plans).filter(
-        band => settings.show_disabled_bands || !settings.disabled_bands[band],
-    );
+    const visible_bands = Object.keys(band_plans).filter(band => !settings.disabled_bands[band]);
 
     const sorted_spots = useBandSpots(spots, band);
     const callsign_refs = useRef([]);

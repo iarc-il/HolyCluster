@@ -8,6 +8,7 @@ import { bands, modes } from "@/data/filters_data.js";
 import { get_dxcc_flag } from "@/data/flags.js";
 import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { useSettings } from "@/hooks/useSettings";
 import { is_matching_list, sort_spots } from "@/utils.js";
 import { normalize_zone_value } from "@/utils/zones.js";
 import { useMemo, useState } from "react";
@@ -96,6 +97,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         active_profile_data: { table_sort, hunter },
     } = useProfiles();
     const { radio_band, radio_freq, radio_status } = use_radio();
+    const { settings } = useSettings();
     const { search_query, selected_reference_type } = useSpotInteraction();
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
@@ -152,6 +154,10 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
             .map(filter => filter.hunter_section);
 
         let filtered = spots_with_alerts.filter(spot => {
+            if (settings.disabled_bands[spot.band] || settings.disabled_modes[spot.mode]) {
+                return false;
+            }
+
             if (filter_missing_flags) {
                 if (
                     spot.dx_dxcc_code !== "" &&
@@ -250,6 +256,8 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         radio_band,
         radio_status,
         table_sort,
+        settings.disabled_bands,
+        settings.disabled_modes,
         filters.show_only_latest_spot,
         search_query,
         is_history_mode,

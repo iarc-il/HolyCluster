@@ -429,6 +429,7 @@ function MainContent({
                     )}
                     <SidePanel
                         toggled_ui={toggled_ui}
+                        set_toggled_ui={set_toggled_ui}
                         set_cat_to_spot={set_cat_to_spot}
                         active_view={active_view}
                         set_active_view={set_active_view}

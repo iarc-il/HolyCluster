@@ -49,7 +49,6 @@ const empty_temp_settings = {
     locator: "",
     default_radius: 0,
     theme: "",
-    map_theme: "",
     callsign: "",
     is_miles: false,
     propagation_displayed: true,

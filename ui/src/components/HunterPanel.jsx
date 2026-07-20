@@ -12,6 +12,7 @@ import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { HUNTER_ADIF_MAX_FILE_SIZE_BYTES, HUNTER_IMPORT_PHASES } from "@/utils/hunter_adif.js";
 import { import_hunter_adif_in_worker } from "@/utils/hunter_adif_worker_client.js";
+import { create_default_hunter } from "@/utils/profile_data.js";
 import { useMemo, useState } from "react";
 
 const SECTION_DONE_MESSAGES = {
@@ -577,7 +578,7 @@ function RecentImports({ imports, colors }) {
     );
 }
 
-export default function HunterPanel() {
+export default function HunterPanel({ on_import_complete = null }) {
     const { colors } = useColors();
     const {
         active_profile_data: { hunter },
@@ -607,7 +608,7 @@ export default function HunterPanel() {
 
     async function handle_import_file(event) {
         const file = event.target.files[0];
-        event.target.value = null;
+        event.target.value = "";
         if (!file) return;
 
         if (file.size > HUNTER_ADIF_MAX_FILE_SIZE_BYTES) {
@@ -633,6 +634,7 @@ export default function HunterPanel() {
                 },
             });
             update_active_profile_section("hunter", result.hunter);
+            on_import_complete?.();
         } catch (error) {
             set_import_error(error.message || "Could not import the selected ADIF file.");
         } finally {
@@ -653,7 +655,7 @@ export default function HunterPanel() {
                 style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
             >
                 <h2 className="text-lg font-bold">Missing</h2>
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
                     <label>
                         <input
                             type="file"
@@ -681,6 +683,27 @@ export default function HunterPanel() {
                             </Button>
                         </span>
                     </label>
+                    <Modal
+                        title={<h2 className="font-bold">Are you sure?</h2>}
+                        button={
+                            <Button type="button" color="red" disabled={is_importing}>
+                                Delete All
+                            </Button>
+                        }
+                        on_cancel={() => {}}
+                        on_apply={() => {
+                            update_active_profile_section("hunter", create_default_hunter());
+                            set_import_error("");
+                            return true;
+                        }}
+                        apply_text="Delete All"
+                        cancel_text="Keep Data"
+                    >
+                        <p className="max-w-md p-4">
+                            This deletes all worked progress and ADIF import history from the active
+                            profile.
+                        </p>
+                    </Modal>
                 </div>
                 {is_importing && import_progress != null ? (
                     <div
