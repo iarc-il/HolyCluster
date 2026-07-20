@@ -1,82 +1,57 @@
 import { useWs } from "@/hooks/useWs";
-import {
-    compute_gaps,
-    fetch_gaps,
-    find_overlapping_intervals,
-    merge_and_store,
-    open_db,
-} from "@/utils/spot_cache_db.jsx";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ensure_spots_loaded, get_spots, get_version, subscribe } from "@/utils/spot_cache_db.jsx";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 
 const PREFETCH_WINDOWS = 3;
+const EMPTY_SNAPSHOT = { spots: [], is_complete: false };
 
 export default function useHistorySpots(startTime, endTime, window_size_ms, step_size_ms) {
-    const [raw_spots, set_raw_spots] = useState([]);
-    const [fetch_state, set_fetch_state] = useState("idle");
+    const { send, subscribe: subscribe_ws, wait_for_open } = useWs();
     const prefetch_controllers = useRef(new Map());
-    const { send, subscribe, wait_for_open } = useWs();
 
-    const fetch_window_with_cache = useCallback(
-        async (start_ms, end_ms, signal) => {
-            const db = await open_db();
-            const covered = await find_overlapping_intervals(db, start_ms, end_ms);
-            const gaps = compute_gaps(start_ms, end_ms, covered);
+    const start_ms = startTime ? startTime.getTime() : null;
+    const end_ms = endTime ? endTime.getTime() : null;
 
-            let all_spots;
-            if (gaps.length === 0) {
-                all_spots = covered.flatMap(r => r.spots);
-            } else {
-                const gap_results = await fetch_gaps(send, subscribe, wait_for_open, gaps, signal);
-                all_spots = await merge_and_store(db, covered, gap_results);
-            }
+    // Reactive sync read: version is a cheap primitive from the store, so
+    // useSyncExternalStore is happy; the actual (non-trivial) snapshot
+    // computation is memoized off it instead of recomputed every render.
+    const version = useSyncExternalStore(subscribe, get_version);
+    const snapshot = useMemo(() => {
+        if (start_ms === null || end_ms === null) return EMPTY_SNAPSHOT;
+        return get_spots(start_ms, end_ms);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [version, start_ms, end_ms]);
 
-            return all_spots.filter(s => s.time * 1000 >= start_ms && s.time * 1000 <= end_ms);
-        },
-        [send, subscribe, wait_for_open],
+    const ensure_loaded = useCallback(
+        (s, e, signal) => ensure_spots_loaded(send, subscribe_ws, wait_for_open, s, e, signal),
+        [send, subscribe_ws, wait_for_open],
     );
 
     const prefetch = useCallback(
-        (start_ms, end_ms) => {
-            const key = `${start_ms}:${end_ms}`;
+        (s, e) => {
+            const key = `${s}:${e}`;
             if (prefetch_controllers.current.has(key)) return;
 
             const controller = new AbortController();
             prefetch_controllers.current.set(key, controller);
 
-            open_db()
-                .then(db => find_overlapping_intervals(db, start_ms, end_ms))
-                .then(covered => {
-                    const gaps = compute_gaps(start_ms, end_ms, covered);
-                    if (gaps.length === 0) return;
-                    return fetch_window_with_cache(start_ms, end_ms, controller.signal);
-                })
+            ensure_loaded(s, e, controller.signal)
                 .catch(() => {})
                 .finally(() => {
                     prefetch_controllers.current.delete(key);
                 });
         },
-        [fetch_window_with_cache],
+        [ensure_loaded],
     );
 
     useEffect(() => {
-        if (!startTime || !endTime) {
-            set_raw_spots([]);
-            set_fetch_state("idle");
-            return;
-        }
+        if (start_ms === null || end_ms === null) return;
 
-        const start_ms = startTime.getTime();
-        const end_ms = endTime.getTime();
         const step_ms = step_size_ms || window_size_ms || end_ms - start_ms;
-
         const controller = new AbortController();
-        set_fetch_state("loading");
 
-        fetch_window_with_cache(start_ms, end_ms, controller.signal)
-            .then(spots => {
-                set_raw_spots(spots);
-                set_fetch_state("done");
-
+        ensure_loaded(start_ms, end_ms, controller.signal)
+            .then(() => {
                 const now_ms = Date.now();
                 for (let i = 1; i <= PREFETCH_WINDOWS; i++) {
                     const next_start = start_ms + step_ms * i;
@@ -95,11 +70,16 @@ export default function useHistorySpots(startTime, endTime, window_size_ms, step
             .catch(err => {
                 if (err.name === "AbortError") return;
                 console.error("Failed to fetch history spots:", err);
-                set_fetch_state("error");
             });
 
         return () => controller.abort();
-    }, [startTime, endTime]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [start_ms, end_ms]);
 
-    return { raw_spots, fetch_state };
+    return {
+        raw_spots: snapshot.spots,
+        fetch_state: start_ms === null ? "idle" : snapshot.is_complete ? "done" : "loading",
+        committed_start: snapshot.is_complete ? startTime : null,
+        committed_end: snapshot.is_complete ? endTime : null,
+    };
 }

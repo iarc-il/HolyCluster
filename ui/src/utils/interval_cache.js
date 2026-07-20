@@ -1,7 +1,32 @@
 import { openDB } from "idb";
 
+// A store backing one IndexedDB object store of merged time-interval records
+// (spots or propagation). Reads (get_overlapping_intervals) are pure and
+// synchronous, safe to call during render because they run entirely
+// against an in-memory mirror that's hydrated once, in the background,
+// starting the moment this module loads. Writes (commit, evict) are the only
+// things that touch IndexedDB, are always async, and notify subscribers
+// (via useSyncExternalStore in the hooks) when they change the mirror.
 export function create_interval_db(db_name, db_version, store_name) {
     let db_promise = null;
+    let records_map = new Map();
+    let hydrate_promise = null;
+    let version = 0;
+    const listeners = new Set();
+
+    function notify() {
+        version += 1;
+        for (const listener of listeners) listener();
+    }
+
+    function subscribe(listener) {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+    }
+
+    function get_version() {
+        return version;
+    }
 
     function open_db() {
         if (!db_promise) {
@@ -22,16 +47,84 @@ export function create_interval_db(db_name, db_version, store_name) {
         return db_promise;
     }
 
-    async function find_overlapping_intervals(db, start_ms, end_ms) {
-        const candidates = await db.getAllFromIndex(
-            store_name,
-            "idx_start",
-            IDBKeyRange.upperBound(end_ms),
-        );
-        return candidates.filter(r => r.end >= start_ms).sort((a, b) => a.start - b.start);
+    function hydrate() {
+        hydrate_promise = (async () => {
+            const db = await open_db();
+            const all = await db.getAll(store_name);
+            records_map = new Map(all.map(r => [r.id, r]));
+            notify();
+        })();
+        return hydrate_promise;
     }
 
-    return { store_name, open_db, find_overlapping_intervals };
+    // Background writers must await this before computing gaps, so they never
+    // mistake "not yet mirrored into memory" for "not cached" and re-fetch
+    // from the network something that's already sitting in IndexedDB.
+    function ready() {
+        return hydrate_promise;
+    }
+
+    hydrate();
+
+    // Pure sync read: no I/O, no promises. Safe to call during render.
+    function get_overlapping_intervals(start_ms, end_ms) {
+        return [...records_map.values()]
+            .filter(r => r.start <= end_ms && r.end >= start_ms)
+            .sort((a, b) => a.start - b.start);
+    }
+
+    // Background-only write: replaces covered_intervals with one merged
+    // record, in IndexedDB and in the mirror, then notifies subscribers.
+    async function commit(covered_intervals, new_record) {
+        const db = await open_db();
+        const tx = db.transaction(store_name, "readwrite");
+        const add_promise = tx.store.add(new_record);
+        await Promise.all([
+            ...covered_intervals.map(r => tx.store.delete(r.id)),
+            add_promise,
+            tx.done,
+        ]);
+        const id = await add_promise;
+
+        for (const r of covered_intervals) records_map.delete(r.id);
+        records_map.set(id, { ...new_record, id });
+        notify();
+    }
+
+    // Background-only write: trim_record(record, cutoff_ms) returns the
+    // trimmed record, the same record reference if unchanged, or null to
+    // delete it entirely.
+    async function evict(cutoff_ms, trim_record) {
+        const db = await open_db();
+        const tx = db.transaction(store_name, "readwrite");
+        let changed = false;
+
+        for (const record of records_map.values()) {
+            const trimmed = trim_record(record, cutoff_ms);
+            if (trimmed === null) {
+                tx.store.delete(record.id);
+                records_map.delete(record.id);
+                changed = true;
+            } else if (trimmed !== record) {
+                tx.store.put(trimmed);
+                records_map.set(record.id, trimmed);
+                changed = true;
+            }
+        }
+
+        await tx.done;
+        if (changed) notify();
+    }
+
+    return {
+        store_name,
+        subscribe,
+        get_version,
+        ready,
+        get_overlapping_intervals,
+        commit,
+        evict,
+    };
 }
 
 export function compute_gaps(start_ms, end_ms, covered_intervals) {

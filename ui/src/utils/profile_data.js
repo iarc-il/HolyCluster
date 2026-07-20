@@ -17,7 +17,7 @@ const MAX_RADIUS_KM = 20000;
 const MIN_MAP_RADIUS_KM = 100;
 const DEFAULT_HISTORY_WINDOW_MS = 15 * 60_000;
 const MAX_HISTORY_STEP_MS = 30 * 60_000;
-const HISTORY_DISPLAY_HOURS = new Set([1, 4, 8, 12, 24]);
+const HISTORY_DISPLAY_HOURS = new Set([1, 4, 8, 12, 24, 48]);
 const HISTORY_WINDOW_SIZES_MS = new Set([5, 10, 15, 30].map(minutes => minutes * 60_000));
 const MAIN_VIEW_MODES = new Set(["both", "map", "table"]);
 const MAIN_VIEW_ORDERS = new Set(["map_table", "table_map"]);

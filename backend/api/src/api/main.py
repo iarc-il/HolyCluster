@@ -838,8 +838,6 @@ async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
         )
         return
 
-    perf = {}
-
     async with async_session() as session:
         query = (
             select(HolySpot)
@@ -848,21 +846,9 @@ async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
             .order_by(HolySpot.timestamp)
         )
 
-        t0 = time.perf_counter()
         result = (await session.execute(query)).scalars().all()
-        perf["db_query_ms"] = round((time.perf_counter() - t0) * 1000, 2)
-        perf["row_count"] = len(result)
-
-        t1 = time.perf_counter()
         spots = cleanup_spots(result)
-        perf["cleanup_ms"] = round((time.perf_counter() - t1) * 1000, 2)
-
-        t2 = time.perf_counter()
-        payload = {"spots": spots, "perf": perf}
-        perf["serialize_ms"] = round((time.perf_counter() - t2) * 1000, 2)
-        perf["payload_bytes"] = len(payload)
-
-        logger.info(f"history perf: {perf}")
+        payload = {"spots": spots}
 
         await send_ws_json(
             websocket,
@@ -875,8 +861,6 @@ async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
                 spots=payload,
             ),
         )
-
-    # return fastapi.Response(content=payload, media_type="application/json")
 
 
 async def cancel_hunter_jobs(hunter_jobs):

@@ -31,7 +31,7 @@ import { open_db_and_evict as open_db_and_evict_spots } from "@/utils/spot_cache
 import Maidenhead from "maidenhead";
 
 import { useDebounce, useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const AUTO_RADIUS_PADDING_KM = 1000;
 const AUTO_RADIUS_RECENTER_ENABLED = false;
@@ -49,6 +49,8 @@ function MainContent({
     window_size_ms,
     set_window_size_ms,
     display_hours,
+    is_dragging,
+    set_is_dragging,
 }) {
     const { dev_mode, set_dev_mode, colors } = useColors();
 
@@ -66,8 +68,61 @@ function MainContent({
         },
         update_active_profile_section,
     } = useProfiles();
-    const { spots, filter_missing_flags, set_filter_missing_flags } = useSpotData();
+    const {
+        spots,
+        filter_missing_flags,
+        set_filter_missing_flags,
+        committed_start: spots_committed_start,
+        committed_end: spots_committed_end,
+    } = useSpotData();
     const { set_pinned_spot } = useSpotInteraction();
+    const is_history_mode = dev_mode && !!(history_start && history_end);
+
+    // Bar position and the map's night overlay should never visibly move ahead
+    // of the spots actually drawn on the map. While dragging, track the raw
+    // target instantly (no data needed for that). Otherwise only adopt a new
+    // position once useHistorySpots has committed data for that *exact* range
+    // — comparing against a generic "fetch_state === done" would be unreliable
+    // here (that flag can still read "done" from the previous range for a
+    // moment after a new one is requested), so committed_start/end (only ever
+    // set at the instant their own matching fetch resolves) is what we key off
+    // instead. Never regress to a stale committed value either: keep showing
+    // whatever was last displayed until the new commit lands.
+    const [displayed_window, set_displayed_window] = useState({ start: null, end: null });
+    useLayoutEffect(() => {
+        set_displayed_window(current => {
+            if (!is_history_mode) return { start: null, end: null };
+            if (is_dragging) {
+                return { start: history_start, end: history_end };
+            }
+            const committed_matches_target =
+                spots_committed_start &&
+                spots_committed_end &&
+                history_start &&
+                history_end &&
+                spots_committed_start.getTime() === history_start.getTime() &&
+                spots_committed_end.getTime() === history_end.getTime();
+            if (committed_matches_target) {
+                return { start: spots_committed_start, end: spots_committed_end };
+            }
+            if (!current.end) {
+                return { start: history_start, end: history_end };
+            }
+            return current;
+        });
+    }, [
+        is_history_mode,
+        is_dragging,
+        spots_committed_start,
+        spots_committed_end,
+        history_start,
+        history_end,
+    ]);
+    // Fall back to the raw target on the very first render after toggling
+    // history on, before this component's own layout effect has had a chance
+    // to run once — otherwise HistoryBar briefly receives null.
+    const display_start = displayed_window.start ?? history_start;
+    const display_end = displayed_window.end ?? history_end;
 
     const [prev_freqs, set_prev_freqs] = useState([]);
     const prev_freq_limit = 1; // Set the max number of undos a user can do
@@ -241,7 +296,6 @@ function MainContent({
     }
 
     const is_md_device = useMediaQuery("only screen and (max-width : 768px)");
-    const is_history_mode = dev_mode && !!(history_start && history_end);
 
     function toggle_history() {
         if (!dev_mode) return;
@@ -282,7 +336,7 @@ function MainContent({
                 set_radius_in_km={set_radius_in_km}
                 auto_radius={auto_radius}
                 set_auto_radius={set_auto_radius}
-                night_time={is_history_mode ? history_end : null}
+                night_time={is_history_mode ? display_end : null}
             />
         </div>
     );
@@ -384,10 +438,13 @@ function MainContent({
                     <HistoryBar
                         start={history_start}
                         end={history_end}
+                        display_start={display_start}
+                        display_end={display_end}
                         set_start={set_history_start}
                         set_end={set_history_end}
                         window_size_ms={window_size_ms}
                         set_window_size_ms={set_window_size_ms}
+                        set_is_dragging={set_is_dragging}
                     />
                 )}
             </div>
@@ -405,10 +462,15 @@ function MainContainer() {
     } = useProfiles();
     const [history_start, set_history_start] = useState(null);
     const [history_end, set_history_end] = useState(null);
+    const [is_dragging, set_is_dragging] = useState(false);
     const effective_history_start = dev_mode ? history_start : null;
     const effective_history_end = dev_mode ? history_end : null;
     const debounced_history_start = useDebounce(effective_history_start, HISTORY_FETCH_DEBOUNCE_MS);
     const debounced_history_end = useDebounce(effective_history_end, HISTORY_FETCH_DEBOUNCE_MS);
+    // Debounce only smooths out drag-induced fetch spam; any other change
+    // (step/play/preset) should hit the fetch hooks immediately.
+    const fetch_history_start = is_dragging ? debounced_history_start : effective_history_start;
+    const fetch_history_end = is_dragging ? debounced_history_end : effective_history_end;
 
     function set_window_size_ms(value_or_setter) {
         update_active_profile_section("history", history => ({
@@ -450,13 +512,13 @@ function MainContainer() {
 
     return (
         <RestDataProvider
-            propagation_range_start={debounced_history_start}
-            propagation_range_end={debounced_history_end}
-            propagation_time={debounced_history_end}
+            propagation_range_start={fetch_history_start}
+            propagation_range_end={fetch_history_end}
+            propagation_time={fetch_history_end}
         >
             <SpotDataProvider
-                startTime={debounced_history_start}
-                endTime={debounced_history_end}
+                startTime={fetch_history_start}
+                endTime={fetch_history_end}
                 window_size_ms={window_size_ms}
                 step_size_ms={step_size_ms}
             >
@@ -468,6 +530,8 @@ function MainContainer() {
                     window_size_ms={window_size_ms}
                     set_window_size_ms={set_window_size_ms}
                     display_hours={display_hours}
+                    is_dragging={is_dragging}
+                    set_is_dragging={set_is_dragging}
                 />
             </SpotDataProvider>
         </RestDataProvider>

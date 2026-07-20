@@ -28,14 +28,24 @@ function fmt_utc_date(date) {
 }
 
 function tick_interval_hours(range_hours) {
-    if (range_hours <= 8) return 1;
-    if (range_hours <= 12) return 2;
-    if (range_hours <= 24) return 4;
-    if (range_hours <= 48) return 8;
-    return 12;
+    if (range_hours <= 4) return 0.25;
+    if (range_hours <= 8) return 0.5;
+    if (range_hours <= 24) return 1;
+    if (range_hours <= 48) return 2;
+    return 4;
 }
 
-function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window_size_ms }) {
+function HistoryBar({
+    start,
+    end,
+    display_start,
+    display_end,
+    set_start,
+    set_end,
+    window_size_ms,
+    set_window_size_ms,
+    set_is_dragging,
+}) {
     const { colors } = useColors();
     const {
         active_profile_data: {
@@ -45,7 +55,6 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
     } = useProfiles();
 
     const [is_playing, set_is_playing] = useState(false);
-    const [is_dragging, set_is_dragging] = useState(false);
 
     function set_display_hours(value) {
         update_active_profile_section("history", history => ({
@@ -81,9 +90,19 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
 
     const window_ms = window_size_ms || end.getTime() - start.getTime();
 
-    // Position of the window within the bar (0–1)
-    const win_left = Math.max(0, Math.min(1, (start.getTime() - bar_start_ms) / display_ms));
-    const win_width = Math.max(0, Math.min(1 - win_left, window_ms / display_ms));
+    // Position of the window within the bar (0–1). Driven by display_start/end
+    // (only updates once data has actually landed for that range) rather than
+    // start/end (the raw drag/step target), so the indicator can't visibly
+    // move ahead of the spots drawn on the map. Falls back to start/end
+    // (nullish, not just undefined
+    const effective_display_start = display_start ?? start;
+    const effective_display_end = display_end ?? end;
+    const win_left = Math.max(
+        0,
+        Math.min(1, (effective_display_start.getTime() - bar_start_ms) / display_ms),
+    );
+    const display_window_ms = effective_display_end.getTime() - effective_display_start.getTime();
+    const win_width = Math.max(0, Math.min(1 - win_left, display_window_ms / display_ms));
 
     // Major tick marks
     const interval_ms = tick_interval_hours(display_hours) * 3_600_000;
@@ -377,7 +396,9 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
 
                     {/* Selected window */}
                     <div
-                        className={`absolute top-0 bottom-0 rounded cursor-grab active:cursor-grabbing${is_dragging ? "" : " transition-[left] duration-500"}`}
+                        className={
+                            "absolute top-0 bottom-0 rounded cursor-grab active:cursor-grabbing"
+                        }
                         data-tour="history-window"
                         style={{
                             left: `${win_left * 100}%`,

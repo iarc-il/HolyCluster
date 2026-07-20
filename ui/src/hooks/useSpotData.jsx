@@ -27,12 +27,12 @@ export const SpotDataProvider = ({
         network_state,
         set_spot_buffering,
     } = useSpotWebSocket();
-    const { raw_spots: history_raw_spots, fetch_state } = useHistorySpots(
-        startTime,
-        endTime,
-        window_size_ms,
-        step_size_ms,
-    );
+    const {
+        raw_spots: history_raw_spots,
+        fetch_state,
+        committed_start,
+        committed_end,
+    } = useHistorySpots(startTime, endTime, window_size_ms, step_size_ms);
 
     const is_history_mode = !!(startTime && endTime);
     const raw_spots = is_history_mode ? history_raw_spots : ws_raw_spots;
@@ -100,6 +100,8 @@ export const SpotDataProvider = ({
                 current_freq_spots,
                 is_history_mode,
                 fetch_state,
+                committed_start,
+                committed_end,
             }}
         >
             {children}
