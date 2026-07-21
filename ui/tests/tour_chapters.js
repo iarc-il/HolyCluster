@@ -209,6 +209,50 @@ describe("tour chapters", () => {
         }
     });
 
+    it("uses shared auto placement for responsive compact targets", () => {
+        const shared_auto_steps = [
+            ["spots_table", "Columns And Sorting", "[data-tour='table-header-dx_callsign']"],
+            ["spots_table", "Spot Row", "[data-tour='spot-row']"],
+            ["spots_table", "Right-Click A Callsign", "[data-tour='spot-row-dx-callsign']"],
+            ["spots_table", "Callsign Actions", "[data-tour='table-context-menu']"],
+            ["spots_table", "Right-Click A Flag", "[data-tour='spot-row-flag']"],
+            ["spots_table", "Entity Actions", "[data-tour='table-context-menu']"],
+            ["spots_table", "Frequency", "[data-tour='spot-row-frequency']"],
+            ["spots_table", "Band", "[data-tour='spot-row-band']"],
+            ["spots_table", "Mode", "[data-tour='spot-row-mode']"],
+            ["filters", "Band Filters", "[data-tour='band-filter-20']"],
+            ["filters", "Open Band Options", "[data-tour='filter-options-trigger-bands-20']"],
+            ["filters", "ONLY And ALL", "[data-tour='filter-options-popup']"],
+            ["filters", "Mode Filters", "[data-tour='mode-filter-SSB']"],
+            ["filters", "Filters Tab", "[data-tour='side-panel-tab-filters']"],
+            ["filters", "Create A Filter", "[data-tour='add-filter-button-alert']"],
+            ["filters", "Filter Action", "[data-tour='filter-modal-action-alert']"],
+            ["filters", "Filter Type", "[data-tour='filter-modal-type-prefix']"],
+            ["filters", "DX Or Spotter", "[data-tour='filter-modal-spot-role-dx']"],
+            ["filters", "Add A Filter", "[data-tour='modal-apply-button']"],
+            ["filters", "Drag The New Filter", "[data-tour='filter-line-alert']"],
+            ["side_panel", "Panel Tabs", "[data-tour='side-panel-tabs']"],
+            ["side_panel", "Filters View", "[data-tour='side-panel-tab-filters']"],
+            ["side_panel", "Band Bar View", "[data-tour='side-panel-tab-band-bar']"],
+            ["side_panel", "Band Selector", "[data-tour='band-bar-selector']"],
+            ["side_panel", "Legend", "[data-tour='band-bar-legend']"],
+            ["side_panel", "Heatmap View", "[data-tour='side-panel-tab-heatmap']"],
+            ["side_panel", "Heatmap Region", "[data-tour='heatmap-continent-selector']"],
+            ["side_panel", "DXpeditions View", "[data-tour='side-panel-tab-dxpeditions']"],
+            ["side_panel", "Missing View", "[data-tour='side-panel-tab-missing']"],
+        ];
+
+        for (const [chapter_id, title, target] of shared_auto_steps) {
+            const label = `${chapter_id}: ${title}`;
+            const step = TOUR_CHAPTERS[chapter_id].steps.find(
+                candidate => candidate.title === title && candidate.target === target,
+            );
+            expect.soft(step, label).toBeDefined();
+            expect.soft(step?.placement, label).toBe("auto");
+            expect.soft(step?.mobilePlacement, label).toBeUndefined();
+        }
+    });
+
     it("places advanced filter section steps below their targets", () => {
         const section_targets = [
             "[data-tour='filter-section-alert']",
