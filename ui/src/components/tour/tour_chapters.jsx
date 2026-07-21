@@ -495,8 +495,7 @@ export const TOUR_CHAPTERS = {
                 content: "Hover over the 20m band button to open its ONLY and ALL shortcuts.",
                 requires: "manual_band_filter_available",
                 buttons: action_buttons,
-                placement: "right",
-                mobilePlacement: "auto",
+                placement: "auto",
                 mobileHideOverlay: true,
                 waitFor: "[data-tour='filter-options-popup'][data-tour-state='bands-20']",
             },
@@ -641,8 +640,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "Drag the new alert filter into the Show-Only section to change what it does.",
                 buttons: action_buttons,
-                placement: "left",
-                mobilePlacement: "auto",
+                placement: "auto",
                 mobileHideOverlay: true,
                 waitForChange: {
                     selector: "[data-tour='filter-section-show_only']",
