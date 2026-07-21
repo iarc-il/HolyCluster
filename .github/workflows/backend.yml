@@ -39,7 +39,13 @@ jobs:
 
       - name: Run tests
         working-directory: backend
-        run: uv run pytest
+        env:
+          LOG_DIR: ${{ runner.temp }}/holy
+          UI_DIST_PATH: ${{ runner.temp }}/ui
+        run: |
+          cp .env.example .env
+          mkdir -p "$UI_DIST_PATH/assets"
+          uv run pytest
 
       - name: Setup SSH
         run: |
