@@ -11,6 +11,7 @@ export default defineConfig({
     test: {
         environment: "jsdom",
         include: ["tests/**/*.{js,jsx}"],
+        setupFiles: ["fake-indexeddb/auto"],
     },
     resolve: {
         alias: {

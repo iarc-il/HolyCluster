@@ -310,7 +310,7 @@ describe("profile_data", () => {
         expect(data.map_view).toEqual({ auto_radius: false, radius_in_km: 12000 });
         expect(data.table_sort).toEqual({ column: "freq", ascending: true });
         expect(data.history).toEqual({
-            window_size_ms: 3600000,
+            window_size_ms: 900000,
             step_size_ms: 900000,
             display_hours: 48,
             time_between_shifts: 10,
