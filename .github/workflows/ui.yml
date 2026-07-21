@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "ui/**"
+      - ".github/workflows/ui.yml"
     branches:
       - "dev"
     tags:
@@ -34,6 +35,11 @@ jobs:
         run: |
           cd ui
           npx biome check .
+
+      - name: Run tests
+        run: |
+          cd ui
+          npm test
 
       - name: Build React App
         run: |
