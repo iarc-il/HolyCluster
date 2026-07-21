@@ -37,6 +37,10 @@ jobs:
         working-directory: backend
         run: uv run ruff format --check .
 
+      - name: Run tests
+        working-directory: backend
+        run: uv run pytest
+
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
