@@ -483,8 +483,7 @@ export const TOUR_CHAPTERS = {
                 content: "Click the 20m band button to toggle that band in the live spot stream.",
                 requires: "manual_band_filter_available",
                 buttons: action_buttons,
-                placement: "right",
-                mobilePlacement: "auto",
+                placement: "auto",
                 waitForChange: {
                     selector: "[data-tour='band-filter-20']",
                     attribute: "data-tour-state",
@@ -511,16 +510,14 @@ export const TOUR_CHAPTERS = {
                     filter_key: "bands",
                     filter_value: 20,
                 },
-                placement: "right",
-                mobilePlacement: "auto",
+                placement: "auto",
             },
             {
                 target: "[data-tour='mode-filter-SSB']",
                 title: "Mode Filters",
                 content: "Click SSB to toggle that mode in the table and map.",
                 buttons: action_buttons,
-                placement: "right",
-                mobilePlacement: "auto",
+                placement: "auto",
                 waitForChange: {
                     selector: "[data-tour='mode-filter-SSB']",
                     attribute: "data-tour-state",
@@ -549,8 +546,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "Click the Filters tab to show advanced alert, show-only, and hide filters.",
                 buttons: action_buttons,
-                placement: "left",
-                mobilePlacement: "auto",
+                placement: "auto",
                 waitForChange: {
                     selector: "[data-tour='side-panel-tab-filters']",
                     attribute: "data-tour-state",
@@ -589,8 +585,7 @@ export const TOUR_CHAPTERS = {
                 content: "Click Add to open the filter editor for a new alert filter.",
                 waitFor: "[data-tour='filter-modal-content']",
                 buttons: action_buttons,
-                placement: "left",
-                mobilePlacement: "auto",
+                placement: "auto",
             },
             {
                 target: "[data-tour='filter-modal-content']",
@@ -605,24 +600,21 @@ export const TOUR_CHAPTERS = {
                 title: "Filter Action",
                 content:
                     "The action decides what happens when a spot matches: highlight it, show only matching spots, or hide matching spots. Keep Alert selected for this exercise.",
-                placement: "left",
-                mobilePlacement: "auto",
+                placement: "auto",
             },
             {
                 target: "[data-tour='filter-modal-type-prefix']",
                 title: "Filter Type",
                 content:
                     "The type decides what the filter matches. You can match callsigns, entities, zones, comments, ADIF status, self spots, or DXpeditions.",
-                placement: "left",
-                mobilePlacement: "auto",
+                placement: "auto",
             },
             {
                 target: "[data-tour='filter-modal-spot-role-dx']",
                 title: "DX Or Spotter",
                 content:
                     "Use this to decide whether the callsign-style filter applies to the spotted DX station or the reporting spotter.",
-                placement: "left",
-                mobilePlacement: "auto",
+                placement: "auto",
             },
             {
                 target: "[data-tour='filter-modal-text-value']",
@@ -636,8 +628,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "Enter any valid value, leave the action as Alert, then click Apply to create the filter.",
                 buttons: action_buttons,
-                placement: "top",
-                mobilePlacement: "auto",
+                placement: "auto",
                 mobileHideOverlay: true,
                 waitForChange: {
                     selector: "[data-tour='filter-section-alert']",
