@@ -79,10 +79,10 @@ describe("tour chapters", () => {
 
         expect(map_titles.slice(display_panel_index, display_panel_index + 5)).toEqual([
             "Display Panel",
-            "Map Themes",
             "Try Night Overlay",
             "Try Projection",
             "Try Equator",
+            "Map Themes",
         ]);
     });
 
@@ -378,14 +378,19 @@ describe("tour chapters", () => {
         expect(tabs_step?.mobileHideOverlay).not.toBe(true);
     });
 
-    it("introduces map themes after the display panel", () => {
-        const display_index = TOUR_CHAPTERS.map.steps.findIndex(
-            step => step.title === "Display Panel",
+    it("introduces map themes after the first display controls", () => {
+        const equator_index = TOUR_CHAPTERS.map.steps.findIndex(
+            step => step.title === "Try Equator",
         );
-        const theme_step = TOUR_CHAPTERS.map.steps[display_index + 1];
+        const theme_step = TOUR_CHAPTERS.map.steps[equator_index + 1];
 
         expect(theme_step?.title).toBe("Map Themes");
         expect(theme_step?.target).toBe("[data-tour='map-theme-buttons']");
+        expect(theme_step?.buttons).not.toContain("primary");
+        expect(theme_step?.waitForChange).toEqual({
+            selector: "[data-tour='map-theme-buttons']",
+            attribute: "data-tour-state",
+        });
     });
 
     it("highlights interactive spot row targets on mobile", () => {

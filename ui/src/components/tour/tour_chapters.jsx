@@ -195,12 +195,6 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
             },
             {
-                target: "[data-tour='map-theme-buttons']",
-                title: "Map Themes",
-                content: "Choose a Colorful, Earth, or White palette for the map.",
-                placement: "left",
-            },
-            {
                 target: "[data-tour='map-night-toggle']",
                 title: "Try Night Overlay",
                 content: "Click this button to toggle the day/night terminator overlay.",
@@ -230,6 +224,17 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
                 waitForChange: {
                     selector: "[data-tour='map-equator-toggle']",
+                    attribute: "data-tour-state",
+                },
+            },
+            {
+                target: "[data-tour='map-theme-buttons']",
+                title: "Map Themes",
+                content: "Choose a different Colorful, Earth, or White palette for the map.",
+                buttons: action_buttons,
+                placement: "left",
+                waitForChange: {
+                    selector: "[data-tour='map-theme-buttons']",
                     attribute: "data-tour-state",
                 },
             },

@@ -606,6 +606,7 @@ function MapControls({
                         <div
                             className="flex w-full items-center justify-end gap-2"
                             data-tour="map-theme-buttons"
+                            data-tour-state={map_controls.map_theme}
                         >
                             {map_theme_names.map(map_theme => {
                                 const palette_colors = Object.values(

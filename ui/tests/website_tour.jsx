@@ -147,6 +147,10 @@ function TestHarness() {
     });
     const [show_settings, set_show_settings] = useState(false);
     const [show_map_controls_panel, set_show_map_controls_panel] = useState(false);
+    const [map_theme, set_map_theme] = useState("colorful");
+    const [map_projection, set_map_projection] = useState("globe");
+    const [map_night, set_map_night] = useState("off");
+    const [map_equator, set_map_equator] = useState("off");
     const [show_side_panel, set_show_side_panel] = useState(true);
     const [band_filter_state, set_band_filter_state] = useState("off");
     const [show_band_options, set_show_band_options] = useState(false);
@@ -312,14 +316,42 @@ function TestHarness() {
             </button>
             {show_map_controls_panel ? (
                 <div data-tour="map-controls-panel">
-                    <div data-tour="map-theme-buttons">Map themes</div>
-                    <button type="button" data-tour="map-projection-toggle" data-tour-state="globe">
+                    <div data-tour="map-theme-buttons" data-tour-state={map_theme}>
+                        <button type="button" onClick={() => set_map_theme("colorful")}>
+                            Use colorful map theme
+                        </button>
+                        <button type="button" onClick={() => set_map_theme("earth")}>
+                            Use earth map theme
+                        </button>
+                    </div>
+                    <button
+                        type="button"
+                        data-tour="map-projection-toggle"
+                        data-tour-state={map_projection}
+                        onClick={() =>
+                            set_map_projection(current =>
+                                current === "globe" ? "azimuthal" : "globe",
+                            )
+                        }
+                    >
                         Projection
                     </button>
-                    <button type="button" data-tour="map-night-toggle" data-tour-state="off">
+                    <button
+                        type="button"
+                        data-tour="map-night-toggle"
+                        data-tour-state={map_night}
+                        onClick={() => set_map_night(current => (current === "off" ? "on" : "off"))}
+                    >
                         Night
                     </button>
-                    <button type="button" data-tour="map-equator-toggle" data-tour-state="off">
+                    <button
+                        type="button"
+                        data-tour="map-equator-toggle"
+                        data-tour-state={map_equator}
+                        onClick={() =>
+                            set_map_equator(current => (current === "off" ? "on" : "off"))
+                        }
+                    >
                         Equator
                     </button>
                     <button type="button" data-tour="map-overlay-dxcc" data-tour-state="off">
@@ -1183,18 +1215,30 @@ describe("WebsiteTour", () => {
         });
     });
 
-    it("introduces map themes after the display panel", async () => {
+    it("requires a theme change after the first display controls", async () => {
         const user = userEvent.setup();
         render(<TestHarness />);
 
         await open_map_tour_display_panel(user);
         await user.click(screen.getByRole("button", { name: "Joyride next" }));
+        await user.click(screen.getByRole("button", { name: "Night" }));
+        await user.click(screen.getByRole("button", { name: "Projection" }));
+        await user.click(screen.getByRole("button", { name: "Equator" }));
 
         expect(screen.getByRole("heading", { name: "Map Themes" })).not.toBeNull();
+        expect(screen.queryByRole("button", { name: "Joyride next" })).toBeNull();
+        await user.click(screen.getByRole("button", { name: "Use earth map theme" }));
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Try A Zone Overlay" })).not.toBeNull();
+        });
         await user.click(screen.getByRole("button", { name: "Joyride back" }));
-        expect(screen.getByRole("heading", { name: "Display Panel" })).not.toBeNull();
-        await user.click(screen.getByRole("button", { name: "Joyride next" }));
-        expect(screen.getByRole("heading", { name: "Map Themes" })).not.toBeNull();
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Map Themes" })).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Use colorful map theme" }));
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Try A Zone Overlay" })).not.toBeNull();
+        });
     });
 
     it("keeps map controls open when backing from night overlay", async () => {
@@ -1202,7 +1246,6 @@ describe("WebsiteTour", () => {
         render(<TestHarness />);
 
         await open_map_tour_display_panel(user);
-        await user.click(screen.getByRole("button", { name: "Joyride next" }));
         await user.click(screen.getByRole("button", { name: "Joyride next" }));
 
         await waitFor(() => {
@@ -1212,7 +1255,7 @@ describe("WebsiteTour", () => {
         await user.click(screen.getByRole("button", { name: "Joyride back" }));
 
         await waitFor(() => {
-            expect(screen.getByText("Map Themes")).not.toBeNull();
+            expect(screen.getByText("Display Panel")).not.toBeNull();
         });
         expect(screen.queryByText("Projection")).not.toBeNull();
     });
