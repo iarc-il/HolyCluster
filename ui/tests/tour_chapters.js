@@ -244,7 +244,6 @@ describe("tour chapters", () => {
             ["side_panel", "Filters View", "[data-tour='side-panel-tab-filters']"],
             ["side_panel", "Band Bar View", "[data-tour='side-panel-tab-band-bar']"],
             ["side_panel", "Band Selector", "[data-tour='band-bar-selector']"],
-            ["side_panel", "Legend", "[data-tour='band-bar-legend']"],
             ["side_panel", "Heatmap View", "[data-tour='side-panel-tab-heatmap']"],
             ["side_panel", "Heatmap Region", "[data-tour='heatmap-continent-selector']"],
             ["side_panel", "DXpeditions View", "[data-tour='side-panel-tab-dxpeditions']"],

@@ -752,13 +752,6 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
-                target: "[data-tour='band-bar-legend']",
-                title: "Legend",
-                content: "The legend explains the chart colors and categories.",
-                optional: true,
-                placement: "auto",
-            },
-            {
                 target: "[data-tour='side-panel-tab-heatmap']",
                 title: "Heatmap View",
                 content: "Click the Heatmap tab to inspect activity density by region.",
