@@ -7,11 +7,12 @@ import Heatmap from "@/components/Heatmap.jsx";
 import HunterPanel from "@/components/HunterPanel.jsx";
 import RotatorPanel from "@/components/RotatorPanel.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
+import { TOUR_SELECT_SIDE_PANEL_TAB_EVENT } from "@/components/tour/tour_events.js";
 import { continents } from "@/data/filters_data.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const continent_title = { dx: "DX", spotter: "DE" };
 
@@ -255,6 +256,16 @@ function ViewSelectorTabs({ active_view, set_active_view, colors, dev_mode }) {
 function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, set_active_view }) {
     const { colors, dev_mode } = useColors();
     const [open_import_filter, set_open_import_filter] = useState(false);
+
+    useEffect(() => {
+        function select_tab(event) {
+            const index = view_options.findIndex(option => option.label === event.detail?.label);
+            if (index >= 0) set_active_view(index);
+        }
+
+        document.addEventListener(TOUR_SELECT_SIDE_PANEL_TAB_EVENT, select_tab);
+        return () => document.removeEventListener(TOUR_SELECT_SIDE_PANEL_TAB_EVENT, select_tab);
+    }, [set_active_view]);
 
     if (active_view === null) return null;
 

@@ -17,6 +17,7 @@ import {
     TOUR_CLOSE_MODAL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
     TOUR_FILTER_OPTIONS_EVENT,
+    TOUR_SELECT_SIDE_PANEL_TAB_EVENT,
     TOUR_TABLE_CONTEXT_MENU_EVENT,
     TOUR_TABLE_SPOT_ROW_EVENT,
 } from "./tour_events.js";
@@ -197,6 +198,18 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
 
     if (as_array(next_step?.waitFor).includes(side_panel_selector)) {
         return { event: TOUR_CLOSE_SIDE_PANEL_EVENT, wait_needs_reset: true };
+    }
+
+    if (
+        chapter_id === "side_panel" &&
+        current_step?.target === "[data-tour='side-panel-tab-missing']" &&
+        next_step?.target === "[data-tour='dxpeditions-sort']"
+    ) {
+        return {
+            detail: { label: "DXpeditions" },
+            event: TOUR_SELECT_SIDE_PANEL_TAB_EVENT,
+            wait_needs_reset: true,
+        };
     }
 
     if (
@@ -442,6 +455,10 @@ function WebsiteTour() {
                     ? step.mobileScrollOffset
                     : step.scrollOffset;
             const width = is_mobile && step.mobileWidth != null ? step.mobileWidth : step.width;
+            const floating_options =
+                is_mobile && step.mobileFloatingOptions != null
+                    ? step.mobileFloatingOptions
+                    : step.floatingOptions;
 
             if (index === first_available_step_index) {
                 buttons = (buttons ?? default_tour_buttons).filter(button => button !== "back");
@@ -461,7 +478,8 @@ function WebsiteTour() {
                 placement === step.placement &&
                 hideOverlay === step.hideOverlay &&
                 scrollOffset === step.scrollOffset &&
-                width === step.width
+                width === step.width &&
+                floating_options === step.floatingOptions
             ) {
                 return step;
             }
@@ -472,6 +490,9 @@ function WebsiteTour() {
             }
             if (width !== step.width) {
                 next_step.width = width;
+            }
+            if (floating_options !== step.floatingOptions) {
+                next_step.floatingOptions = floating_options;
             }
             return next_step;
         });

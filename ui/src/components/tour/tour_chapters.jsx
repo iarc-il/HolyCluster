@@ -4,6 +4,13 @@ export const TOUR_COMPLETED_CHAPTERS_KEY = "tour_completed_chapters";
 export const DEFAULT_TOUR_CHAPTER_ID = "quick_start";
 
 const action_buttons = ["back", "close"];
+const keep_tooltip_in_viewport = {
+    name: "keep_tooltip_in_viewport",
+    fn: ({ x, y, rects }) => ({
+        x: Math.max(10, Math.min(x, window.innerWidth - rects.floating.width - 10)),
+        y,
+    }),
+};
 const scroll_target_to_center = selector => () => {
     if (window.innerWidth <= 768) {
         document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
@@ -800,21 +807,30 @@ export const TOUR_CHAPTERS = {
                 title: "DXpedition Summary",
                 content: "The summary shows the current expedition activity at a glance.",
                 placement: "left",
-                mobilePlacement: "bottom",
+                mobilePlacement: "bottom-end",
+                mobileFloatingOptions: {
+                    middleware: [keep_tooltip_in_viewport],
+                },
             },
             {
                 target: "[data-tour='dxpeditions-filter']",
                 title: "DXpedition Filters",
                 content: "Use these controls to narrow which DXpeditions are shown.",
                 placement: "left",
-                mobilePlacement: "center",
+                mobilePlacement: "bottom-end",
+                mobileFloatingOptions: {
+                    middleware: [keep_tooltip_in_viewport],
+                },
             },
             {
                 target: "[data-tour='dxpeditions-sort']",
                 title: "DXpedition Sorting",
                 content: "Sort DXpeditions by the view that is most useful while operating.",
                 placement: "left",
-                mobilePlacement: "center",
+                mobilePlacement: "bottom-end",
+                mobileFloatingOptions: {
+                    middleware: [keep_tooltip_in_viewport],
+                },
             },
             {
                 target: "[data-tour='side-panel-tab-missing']",
@@ -841,7 +857,10 @@ export const TOUR_CHAPTERS = {
                 title: "ADIF Import",
                 content: "Import ADIF logs here so the ADIF panel can track your progress.",
                 placement: "left",
-                mobilePlacement: "center",
+                mobilePlacement: "bottom-end",
+                mobileFloatingOptions: {
+                    middleware: [keep_tooltip_in_viewport],
+                },
             },
         ],
     },

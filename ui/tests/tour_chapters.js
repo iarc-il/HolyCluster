@@ -193,10 +193,7 @@ describe("tour chapters", () => {
             ["side_panel", "[data-tour='band-bar-chart']"],
             ["side_panel", "[data-tour='heatmap-panel']"],
             ["side_panel", "[data-tour='dxpeditions-panel']"],
-            ["side_panel", "[data-tour='dxpeditions-filter']"],
-            ["side_panel", "[data-tour='dxpeditions-sort']"],
             ["side_panel", "[data-tour='hunter-panel']"],
-            ["side_panel", "[data-tour='hunter-adif-import']"],
         ];
 
         for (const [chapter_id, target] of large_panel_targets) {
@@ -468,7 +465,35 @@ describe("tour chapters", () => {
             candidate => candidate.title === "DXpedition Summary",
         );
 
-        expect(step?.mobilePlacement).toBe("bottom");
+        expect(step?.mobilePlacement).toBe("bottom-end");
+        expect(step?.mobileFloatingOptions?.middleware).toHaveLength(1);
+    });
+
+    it("highlights the DXpedition filters on mobile", () => {
+        const step = TOUR_CHAPTERS.side_panel.steps.find(
+            candidate => candidate.title === "DXpedition Filters",
+        );
+
+        expect(step?.mobilePlacement).toBe("bottom-end");
+        expect(step?.mobileFloatingOptions?.middleware).toHaveLength(1);
+    });
+
+    it("highlights the DXpedition sorting controls on mobile", () => {
+        const step = TOUR_CHAPTERS.side_panel.steps.find(
+            candidate => candidate.title === "DXpedition Sorting",
+        );
+
+        expect(step?.mobilePlacement).toBe("bottom-end");
+        expect(step?.mobileFloatingOptions?.middleware).toHaveLength(1);
+    });
+
+    it("highlights ADIF import on mobile", () => {
+        const step = TOUR_CHAPTERS.side_panel.steps.find(
+            candidate => candidate.title === "ADIF Import",
+        );
+
+        expect(step?.mobilePlacement).toBe("bottom-end");
+        expect(step?.mobileFloatingOptions?.middleware).toHaveLength(1);
     });
 
     it("asks users to open the band ONLY/ALL popup", () => {
