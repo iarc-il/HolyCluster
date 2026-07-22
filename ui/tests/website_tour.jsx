@@ -151,6 +151,8 @@ function TestHarness() {
     const [map_projection, set_map_projection] = useState("globe");
     const [map_night, set_map_night] = useState("off");
     const [map_equator, set_map_equator] = useState("off");
+    const [zone_overlay, set_zone_overlay] = useState("none");
+    const [regional_overlay, set_regional_overlay] = useState("none");
     const [show_side_panel, set_show_side_panel] = useState(true);
     const [band_filter_state, set_band_filter_state] = useState("off");
     const [show_band_options, set_show_band_options] = useState(false);
@@ -354,16 +356,50 @@ function TestHarness() {
                     >
                         Equator
                     </button>
-                    <button type="button" data-tour="map-overlay-dxcc" data-tour-state="off">
-                        DXCC
-                    </button>
-                    <button
-                        type="button"
-                        data-tour="map-region-overlay-us_state"
-                        data-tour-state="off"
-                    >
-                        US state
-                    </button>
+                    <div data-tour="map-overlays" data-tour-state={zone_overlay}>
+                        <button
+                            type="button"
+                            data-tour="map-overlay-dxcc"
+                            data-tour-state={zone_overlay === "dxcc" ? "on" : "off"}
+                            onClick={() =>
+                                set_zone_overlay(current => (current === "dxcc" ? "none" : "dxcc"))
+                            }
+                        >
+                            DXCC
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                set_zone_overlay(current => (current === "cq" ? "none" : "cq"))
+                            }
+                        >
+                            CQ
+                        </button>
+                    </div>
+                    <div data-tour="map-region-overlays" data-tour-state={regional_overlay}>
+                        <button
+                            type="button"
+                            data-tour="map-region-overlay-us_state"
+                            data-tour-state={regional_overlay === "us_state" ? "on" : "off"}
+                            onClick={() =>
+                                set_regional_overlay(current =>
+                                    current === "us_state" ? "none" : "us_state",
+                                )
+                            }
+                        >
+                            US state
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                set_regional_overlay(current =>
+                                    current === "canadian_province" ? "none" : "canadian_province",
+                                )
+                            }
+                        >
+                            Canadian province
+                        </button>
+                    </div>
                 </div>
             ) : null}
             <button
@@ -1229,15 +1265,25 @@ describe("WebsiteTour", () => {
         expect(screen.queryByRole("button", { name: "Joyride next" })).toBeNull();
         await user.click(screen.getByRole("button", { name: "Use earth map theme" }));
         await waitFor(() => {
-            expect(screen.getByRole("heading", { name: "Try A Zone Overlay" })).not.toBeNull();
+            expect(screen.getByRole("heading", { name: "Zone overlay" })).not.toBeNull();
         });
+        expect(screen.queryByRole("button", { name: "Joyride next" })).toBeNull();
+        await user.click(screen.getByRole("button", { name: "CQ" }));
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "Regional Overlay" })).not.toBeNull();
+        });
+        expect(screen.queryByRole("button", { name: "Joyride next" })).toBeNull();
         await user.click(screen.getByRole("button", { name: "Joyride back" }));
         await waitFor(() => {
-            expect(screen.getByRole("heading", { name: "Map Themes" })).not.toBeNull();
+            expect(screen.getByRole("heading", { name: "Zone overlay" })).not.toBeNull();
         });
-        await user.click(screen.getByRole("button", { name: "Use colorful map theme" }));
+        await user.click(screen.getByRole("button", { name: "DXCC" }));
         await waitFor(() => {
-            expect(screen.getByRole("heading", { name: "Try A Zone Overlay" })).not.toBeNull();
+            expect(screen.getByRole("heading", { name: "Regional Overlay" })).not.toBeNull();
+        });
+        await user.click(screen.getByRole("button", { name: "Canadian province" }));
+        await waitFor(() => {
+            expect(screen.queryByTestId("joyride-step")).toBeNull();
         });
     });
 

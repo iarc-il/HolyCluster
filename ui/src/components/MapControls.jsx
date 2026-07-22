@@ -662,7 +662,13 @@ function MapControls({
                                 );
                             })}
                         </div>
-                        <div className="flex items-center gap-3" data-tour="map-overlays">
+                        <div
+                            className="flex items-center gap-3"
+                            data-tour="map-overlays"
+                            data-tour-state={overlay_buttons
+                                .map(overlay => (overlay.active ? "1" : "0"))
+                                .join("")}
+                        >
                             {overlay_buttons.map(render_overlay_button)}
                         </div>
                         {dev_mode ? (
@@ -725,6 +731,9 @@ function MapControls({
                         <div
                             className="flex w-full flex-wrap justify-end gap-2"
                             data-tour="map-region-overlays"
+                            data-tour-state={country_zone_overlays
+                                .map(overlay => (map_controls[overlay.map_control_key] ? "1" : "0"))
+                                .join("")}
                         >
                             {country_zone_overlays.map(overlay => {
                                 const active = map_controls[overlay.map_control_key] ?? false;

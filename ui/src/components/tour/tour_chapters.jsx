@@ -239,25 +239,25 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
-                target: "[data-tour='map-overlay-dxcc']",
-                title: "Try A Zone Overlay",
+                target: "[data-tour='map-overlays']",
+                title: "Zone overlay",
                 content:
-                    "Click DXCC to toggle entity labels. These overlay buttons are exclusive, so enabling one disables the others.",
+                    "Press any button to select or clear a zone overlay. These options are exclusive.",
                 buttons: action_buttons,
                 placement: "left",
                 waitForChange: {
-                    selector: "[data-tour='map-overlay-dxcc']",
+                    selector: "[data-tour='map-overlays']",
                     attribute: "data-tour-state",
                 },
             },
             {
-                target: "[data-tour='map-region-overlay-us_state']",
-                title: "Try A Regional Overlay",
-                content: "Click US state to toggle the state overlay.",
+                target: "[data-tour='map-region-overlays']",
+                title: "Regional Overlay",
+                content: "Press any button to select or clear a regional overlay.",
                 buttons: action_buttons,
                 placement: "left",
                 waitForChange: {
-                    selector: "[data-tour='map-region-overlay-us_state']",
+                    selector: "[data-tour='map-region-overlays']",
                     attribute: "data-tour-state",
                 },
             },

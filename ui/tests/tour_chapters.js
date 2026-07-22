@@ -60,8 +60,8 @@ describe("tour chapters", () => {
         expect(interactive_targets).toContain("[data-tour='map-projection-toggle']");
         expect(interactive_targets).toContain("[data-tour='map-night-toggle']");
         expect(interactive_targets).toContain("[data-tour='map-equator-toggle']");
-        expect(interactive_targets).toContain("[data-tour='map-overlay-dxcc']");
-        expect(interactive_targets).toContain("[data-tour='map-region-overlay-us_state']");
+        expect(interactive_targets).toContain("[data-tour='map-overlays']");
+        expect(interactive_targets).toContain("[data-tour='map-region-overlays']");
     });
 
     it("introduces the mobile GPS control before reset", () => {
@@ -391,6 +391,18 @@ describe("tour chapters", () => {
             selector: "[data-tour='map-theme-buttons']",
             attribute: "data-tour-state",
         });
+    });
+
+    it("uses complete overlay rows as interactive targets", () => {
+        const zone_step = TOUR_CHAPTERS.map.steps.find(step => step.title === "Zone overlay");
+        const regional_step = TOUR_CHAPTERS.map.steps.find(
+            step => step.title === "Regional Overlay",
+        );
+
+        expect(zone_step?.target).toBe("[data-tour='map-overlays']");
+        expect(zone_step?.waitForChange?.selector).toBe("[data-tour='map-overlays']");
+        expect(regional_step?.target).toBe("[data-tour='map-region-overlays']");
+        expect(regional_step?.waitForChange?.selector).toBe("[data-tour='map-region-overlays']");
     });
 
     it("highlights interactive spot row targets on mobile", () => {
