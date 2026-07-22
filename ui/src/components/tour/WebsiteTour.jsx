@@ -200,13 +200,29 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
         return { event: TOUR_CLOSE_SIDE_PANEL_EVENT, wait_needs_reset: true };
     }
 
-    if (
-        chapter_id === "side_panel" &&
-        current_step?.target === "[data-tour='side-panel-tab-missing']" &&
-        next_step?.target === "[data-tour='dxpeditions-sort']"
-    ) {
+    const side_panel_back_tabs = {
+        "[data-tour='side-panel-tab-band-bar']": {
+            next_target: "[data-tour='side-panel-view-filters']",
+            label: "Filters",
+        },
+        "[data-tour='side-panel-tab-heatmap']": {
+            next_target: "[data-tour='band-bar-chart']",
+            label: "Band Bar",
+        },
+        "[data-tour='side-panel-tab-dxpeditions']": {
+            next_target: "[data-tour='heatmap-continent-selector']",
+            label: "Heatmap",
+        },
+        "[data-tour='side-panel-tab-missing']": {
+            next_target: "[data-tour='dxpeditions-sort']",
+            label: "DXpeditions",
+        },
+    };
+    const tab_restore = side_panel_back_tabs[current_step?.target];
+
+    if (chapter_id === "side_panel" && tab_restore?.next_target === next_step?.target) {
         return {
-            detail: { label: "DXpeditions" },
+            detail: { label: tab_restore.label },
             event: TOUR_SELECT_SIDE_PANEL_TAB_EVENT,
             wait_needs_reset: true,
         };
