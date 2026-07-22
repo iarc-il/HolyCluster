@@ -202,25 +202,32 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
 
     const side_panel_back_tabs = {
         "[data-tour='side-panel-tab-band-bar']": {
-            next_target: "[data-tour='side-panel-view-filters']",
+            next_targets: ["[data-tour='side-panel-view-filters']"],
             label: "Filters",
         },
         "[data-tour='side-panel-tab-heatmap']": {
-            next_target: "[data-tour='band-bar-chart']",
+            next_targets: [
+                "[data-tour='band-bar-panel']",
+                "[data-tour='band-bar-selector']",
+                "[data-tour='band-bar-chart']",
+            ],
             label: "Band Bar",
         },
         "[data-tour='side-panel-tab-dxpeditions']": {
-            next_target: "[data-tour='heatmap-continent-selector']",
+            next_targets: [
+                "[data-tour='heatmap-panel']",
+                "[data-tour='heatmap-continent-selector']",
+            ],
             label: "Heatmap",
         },
         "[data-tour='side-panel-tab-missing']": {
-            next_target: "[data-tour='dxpeditions-sort']",
+            next_targets: ["[data-tour='dxpeditions-sort']"],
             label: "DXpeditions",
         },
     };
     const tab_restore = side_panel_back_tabs[current_step?.target];
 
-    if (chapter_id === "side_panel" && tab_restore?.next_target === next_step?.target) {
+    if (chapter_id === "side_panel" && tab_restore?.next_targets.includes(next_step?.target)) {
         return {
             detail: { label: tab_restore.label },
             event: TOUR_SELECT_SIDE_PANEL_TAB_EVENT,
