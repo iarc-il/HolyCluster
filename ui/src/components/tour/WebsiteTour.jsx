@@ -236,14 +236,29 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
         };
     }
 
-    if (
-        chapter_id === "settings" &&
-        ["[data-tour='settings-tab-bands-modes']", "[data-tour='settings-bands-modes']"].includes(
-            current_step?.target,
-        )
-    ) {
+    const settings_tab_restore = {
+        "[data-tour='settings-tab-cat-control']": {
+            "[data-tour='settings-distance-units']": "general",
+            [settings_modal_content_selector]: "general",
+        },
+        "[data-tour='settings-tab-bands-modes']": {
+            "[data-tour='settings-distance-units']": "general",
+            "[data-tour='settings-tab-cat-control']": "cat-control",
+            [settings_modal_content_selector]: "general",
+        },
+        "[data-tour='settings-bands-modes']": {
+            "[data-tour='settings-tab-bands-modes']": "general",
+        },
+        "[data-tour='settings-tab-import-export']": {
+            "[data-tour='settings-bands-modes']": "bands-modes",
+            [settings_modal_content_selector]: "bands-modes",
+        },
+    };
+    const settings_tab_label = settings_tab_restore[current_step?.target]?.[next_step?.target];
+
+    if (chapter_id === "settings" && settings_tab_label != null) {
         return {
-            detail: { label: "general" },
+            detail: { label: settings_tab_label },
             event: TOUR_SELECT_SETTINGS_TAB_EVENT,
             wait_needs_reset: true,
         };
@@ -319,6 +334,24 @@ function get_backward_step_index(chapter_id, steps, from_index, next_step_index)
     const current_step = steps[from_index];
     const next_step = steps[next_step_index];
     const previous_step = steps[next_step_index - 1];
+
+    const settings_back_targets = {
+        "[data-tour='settings-tab-cat-control']": "[data-tour='settings-distance-units']",
+        "[data-tour='settings-tab-bands-modes']": "[data-tour='settings-distance-units']",
+        "[data-tour='settings-tab-import-export']": "[data-tour='settings-bands-modes']",
+    };
+    const settings_back_target = settings_back_targets[current_step?.target];
+
+    if (
+        chapter_id === "settings" &&
+        settings_back_target != null &&
+        next_step?.target === settings_modal_content_selector
+    ) {
+        return (
+            find_previous_step_index_by_target(steps, steps.length - 1, settings_back_target) ??
+            next_step_index
+        );
+    }
 
     if (
         chapter_id === "settings" &&
