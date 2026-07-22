@@ -238,8 +238,9 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
 
     if (
         chapter_id === "settings" &&
-        current_step?.target === "[data-tour='settings-tab-bands-modes']" &&
-        next_step?.target === "[data-tour='settings-distance-units']"
+        ["[data-tour='settings-tab-bands-modes']", "[data-tour='settings-bands-modes']"].includes(
+            current_step?.target,
+        )
     ) {
         return {
             detail: { label: "general" },
@@ -318,6 +319,21 @@ function get_backward_step_index(chapter_id, steps, from_index, next_step_index)
     const current_step = steps[from_index];
     const next_step = steps[next_step_index];
     const previous_step = steps[next_step_index - 1];
+
+    if (
+        chapter_id === "settings" &&
+        ["[data-tour='settings-tab-bands-modes']", "[data-tour='settings-bands-modes']"].includes(
+            current_step?.target,
+        )
+    ) {
+        return (
+            find_previous_step_index_by_target(
+                steps,
+                steps.length - 1,
+                "[data-tour='settings-distance-units']",
+            ) ?? next_step_index
+        );
+    }
 
     if (
         chapter_id === "filters" &&
@@ -597,7 +613,16 @@ function WebsiteTour() {
                 if (filter_state_update) {
                     setCallsignFilters(filter_state_update);
                 }
-                pending_backward_side_effect_ref.current = side_effect;
+                if (
+                    [TOUR_SELECT_SIDE_PANEL_TAB_EVENT, TOUR_SELECT_SETTINGS_TAB_EVENT].includes(
+                        side_effect?.event,
+                    )
+                ) {
+                    dispatch_tour_side_effect(side_effect);
+                    pending_backward_side_effect_ref.current = null;
+                } else {
+                    pending_backward_side_effect_ref.current = side_effect;
+                }
                 backward_wait_ref.current = {
                     key: side_effect?.wait_needs_reset
                         ? get_step_wait_key(
