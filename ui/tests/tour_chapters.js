@@ -278,7 +278,7 @@ describe("tour chapters", () => {
 
     it("keeps interactive mobile placements target-clickable", () => {
         const interactive_mobile_targets = [
-            ["map", "[data-tour='mobile-main-tabs']", "center"],
+            ["map", "[data-tour='mobile-main-tab-map']", "bottom"],
             ["spots_table", "[data-tour='mobile-main-tab-table']", "bottom"],
             ["spots_table", "[data-tour='table-header-dx_callsign']", "auto"],
             ["spots_table", "[data-tour='spot-row']", "auto"],
@@ -341,7 +341,6 @@ describe("tour chapters", () => {
 
     it("disables the mobile overlay for touch-sensitive tour steps", () => {
         const touch_sensitive_targets = [
-            ["map", "[data-tour='mobile-main-tabs']"],
             ["filters", "[data-tour='filter-options-trigger-bands-20']"],
             ["filters", "[data-tour='modal-apply-button']"],
             ["filters", "[data-tour='filter-line-alert']"],
@@ -383,6 +382,14 @@ describe("tour chapters", () => {
         );
 
         expect(step?.target).toBe("[data-tour='mobile-main-tab-table']");
+        expect(step?.placement).toBe("bottom");
+        expect(step?.mobileHideOverlay).not.toBe(true);
+    });
+
+    it("highlights the map tab when asking mobile users to show it", () => {
+        const step = TOUR_CHAPTERS.map.steps.find(candidate => candidate.title === "Show The Map");
+
+        expect(step?.target).toBe("[data-tour='mobile-main-tab-map']");
         expect(step?.placement).toBe("bottom");
         expect(step?.mobileHideOverlay).not.toBe(true);
     });

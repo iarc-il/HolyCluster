@@ -299,7 +299,9 @@ function TestHarness() {
         <>
             <WebsiteTour />
             <div data-tour="mobile-main-tabs">
-                <button type="button">Map</button>
+                <button type="button" data-tour="mobile-main-tab-map">
+                    Map
+                </button>
                 <button type="button" data-tour="mobile-main-tab-table">
                     Table
                 </button>
@@ -1180,6 +1182,9 @@ describe("WebsiteTour", () => {
         await waitFor(() => {
             expect(screen.getByRole("heading", { name: "Show The Map" })).not.toBeNull();
         });
+        expect(screen.getByTestId("joyride-step").dataset.stepTarget).toBe(
+            "[data-tour='mobile-main-tab-map']",
+        );
         expect(screen.getByTestId("joyride-buttons").textContent).toContain("primary");
         expect(screen.getByTestId("joyride-buttons").textContent).not.toContain("back");
 

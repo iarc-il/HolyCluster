@@ -128,15 +128,14 @@ export const TOUR_CHAPTERS = {
         description: "Learn the map controls, overlays, and propagation indicators.",
         steps: [
             {
-                target: "[data-tour='mobile-main-tabs']",
+                target: "[data-tour='mobile-main-tab-map']",
                 title: "Show The Map",
                 content: "Tap the Map tab if the map is not currently visible.",
                 mobileOnly: true,
                 optional: true,
                 waitFor: "[data-tour='map-controls']",
                 buttons: action_buttons,
-                placement: "center",
-                mobileHideOverlay: true,
+                placement: "bottom",
                 showWhenAlreadySatisfied: true,
                 skipBeacon: true,
             },
