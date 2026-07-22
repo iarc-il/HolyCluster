@@ -800,7 +800,7 @@ export const TOUR_CHAPTERS = {
                 title: "DXpedition Summary",
                 content: "The summary shows the current expedition activity at a glance.",
                 placement: "left",
-                mobilePlacement: "center",
+                mobilePlacement: "bottom",
             },
             {
                 target: "[data-tour='dxpeditions-filter']",

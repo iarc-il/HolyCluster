@@ -193,7 +193,6 @@ describe("tour chapters", () => {
             ["side_panel", "[data-tour='band-bar-chart']"],
             ["side_panel", "[data-tour='heatmap-panel']"],
             ["side_panel", "[data-tour='dxpeditions-panel']"],
-            ["side_panel", "[data-tour='dxpeditions-summary']"],
             ["side_panel", "[data-tour='dxpeditions-filter']"],
             ["side_panel", "[data-tour='dxpeditions-sort']"],
             ["side_panel", "[data-tour='hunter-panel']"],
@@ -462,6 +461,14 @@ describe("tour chapters", () => {
             expect(step, target).toBeDefined();
             expect(step.optional, target).not.toBe(true);
         }
+    });
+
+    it("highlights the DXpedition summary on mobile", () => {
+        const step = TOUR_CHAPTERS.side_panel.steps.find(
+            candidate => candidate.title === "DXpedition Summary",
+        );
+
+        expect(step?.mobilePlacement).toBe("bottom");
     });
 
     it("asks users to open the band ONLY/ALL popup", () => {
