@@ -312,6 +312,7 @@ function TestHarness() {
             </button>
             {show_map_controls_panel ? (
                 <div data-tour="map-controls-panel">
+                    <div data-tour="map-theme-buttons">Map themes</div>
                     <button type="button" data-tour="map-projection-toggle" data-tour-state="globe">
                         Projection
                     </button>
@@ -1182,11 +1183,26 @@ describe("WebsiteTour", () => {
         });
     });
 
+    it("introduces map themes after the display panel", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await open_map_tour_display_panel(user);
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+
+        expect(screen.getByRole("heading", { name: "Map Themes" })).not.toBeNull();
+        await user.click(screen.getByRole("button", { name: "Joyride back" }));
+        expect(screen.getByRole("heading", { name: "Display Panel" })).not.toBeNull();
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+        expect(screen.getByRole("heading", { name: "Map Themes" })).not.toBeNull();
+    });
+
     it("keeps map controls open when backing from night overlay", async () => {
         const user = userEvent.setup();
         render(<TestHarness />);
 
         await open_map_tour_display_panel(user);
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
         await user.click(screen.getByRole("button", { name: "Joyride next" }));
 
         await waitFor(() => {
@@ -1196,7 +1212,7 @@ describe("WebsiteTour", () => {
         await user.click(screen.getByRole("button", { name: "Joyride back" }));
 
         await waitFor(() => {
-            expect(screen.getByText("Display Panel")).not.toBeNull();
+            expect(screen.getByText("Map Themes")).not.toBeNull();
         });
         expect(screen.queryByText("Projection")).not.toBeNull();
     });
