@@ -279,7 +279,7 @@ describe("tour chapters", () => {
     it("keeps interactive mobile placements target-clickable", () => {
         const interactive_mobile_targets = [
             ["map", "[data-tour='mobile-main-tabs']", "center"],
-            ["spots_table", "[data-tour='mobile-main-tabs']", "center"],
+            ["spots_table", "[data-tour='mobile-main-tab-table']", "bottom"],
             ["spots_table", "[data-tour='table-header-dx_callsign']", "auto"],
             ["spots_table", "[data-tour='spot-row']", "auto"],
             ["spots_table", "[data-tour='spot-row-dx-callsign']", "auto"],
@@ -342,7 +342,6 @@ describe("tour chapters", () => {
     it("disables the mobile overlay for touch-sensitive tour steps", () => {
         const touch_sensitive_targets = [
             ["map", "[data-tour='mobile-main-tabs']"],
-            ["spots_table", "[data-tour='mobile-main-tabs']"],
             ["filters", "[data-tour='filter-options-trigger-bands-20']"],
             ["filters", "[data-tour='modal-apply-button']"],
             ["filters", "[data-tour='filter-line-alert']"],
@@ -376,6 +375,16 @@ describe("tour chapters", () => {
         expect(tabs_step?.target).toBe("[data-tour='mobile-main-tabs-tabs']");
         expect(tabs_step?.placement).toBe("bottom");
         expect(tabs_step?.mobileHideOverlay).not.toBe(true);
+    });
+
+    it("highlights the table tab when asking mobile users to show it", () => {
+        const step = TOUR_CHAPTERS.spots_table.steps.find(
+            candidate => candidate.title === "Show The Table",
+        );
+
+        expect(step?.target).toBe("[data-tour='mobile-main-tab-table']");
+        expect(step?.placement).toBe("bottom");
+        expect(step?.mobileHideOverlay).not.toBe(true);
     });
 
     it("introduces map themes after the first display controls", () => {

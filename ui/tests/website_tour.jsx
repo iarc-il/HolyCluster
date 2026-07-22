@@ -64,6 +64,7 @@ vi.mock("react-joyride", async () => {
             <div
                 data-testid="joyride-step"
                 data-step-has-width={Object.hasOwn(step, "width")}
+                data-step-target={step?.target}
                 data-step-width={step?.width}
             >
                 <h2>{step?.title}</h2>
@@ -299,7 +300,9 @@ function TestHarness() {
             <WebsiteTour />
             <div data-tour="mobile-main-tabs">
                 <button type="button">Map</button>
-                <button type="button">Table</button>
+                <button type="button" data-tour="mobile-main-tab-table">
+                    Table
+                </button>
             </div>
             <div data-tour="map-panel">Map</div>
             <div data-tour="map-controls">Map controls</div>
@@ -1197,6 +1200,9 @@ describe("WebsiteTour", () => {
         await waitFor(() => {
             expect(screen.getByRole("heading", { name: "Show The Table" })).not.toBeNull();
         });
+        expect(screen.getByTestId("joyride-step").dataset.stepTarget).toBe(
+            "[data-tour='mobile-main-tab-table']",
+        );
         await user.click(screen.getByRole("button", { name: "Joyride next" }));
 
         await waitFor(() => {

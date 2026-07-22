@@ -380,6 +380,7 @@ function MainContent({
         map: {
             label: "Map",
             content: map,
+            data_tour: "mobile-main-tab-map",
             icon: MAP_TAB_ICON,
             viewbox: "0 0 16 16",
             size: "16",
@@ -387,6 +388,7 @@ function MainContent({
         table: {
             label: "Table",
             content: table,
+            data_tour: "mobile-main-tab-table",
             icon: TABLE_TAB_ICON,
             viewbox: "0 0 16 16",
             size: "16",

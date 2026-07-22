@@ -277,15 +277,14 @@ export const TOUR_CHAPTERS = {
         description: "Learn the live spots table, search, sorting, and spot row fields.",
         steps: [
             {
-                target: "[data-tour='mobile-main-tabs']",
+                target: "[data-tour='mobile-main-tab-table']",
                 title: "Show The Table",
                 content: "Tap the Table tab if the spots table is not currently visible.",
                 mobileOnly: true,
                 optional: true,
                 waitFor: "[data-tour='spots-table']",
                 buttons: action_buttons,
-                placement: "center",
-                mobileHideOverlay: true,
+                placement: "bottom",
                 showWhenAlreadySatisfied: true,
                 skipBeacon: true,
             },
