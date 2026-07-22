@@ -1,6 +1,7 @@
 import Maidenhead from "maidenhead";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { TOUR_SELECT_SETTINGS_TAB_EVENT } from "@/components/tour/tour_events.js";
 import Modal from "@/components/ui/Modal.jsx";
 import Tabs from "@/components/ui/Tabs";
 import { bands, modes } from "@/data/filters_data.js";
@@ -70,6 +71,17 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
     const { is_radio_available } = use_radio();
     const is_mobile_settings = useMediaQuery("only screen and (max-width : 768px)");
+
+    useEffect(() => {
+        function select_tab(event) {
+            const label = event.detail?.label;
+            if (label == null) return;
+            document.querySelector(`[data-tour='settings-tab-${label}']`)?.click();
+        }
+
+        document.addEventListener(TOUR_SELECT_SETTINGS_TAB_EVENT, select_tab);
+        return () => document.removeEventListener(TOUR_SELECT_SETTINGS_TAB_EVENT, select_tab);
+    }, []);
 
     function disable_settings_filters(current_filters, new_settings) {
         const updated_bands = { ...current_filters.bands };

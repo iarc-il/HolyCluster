@@ -17,6 +17,7 @@ import {
     TOUR_CLOSE_MODAL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
     TOUR_FILTER_OPTIONS_EVENT,
+    TOUR_SELECT_SETTINGS_TAB_EVENT,
     TOUR_SELECT_SIDE_PANEL_TAB_EVENT,
     TOUR_TABLE_CONTEXT_MENU_EVENT,
     TOUR_TABLE_SPOT_ROW_EVENT,
@@ -231,6 +232,18 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
         return {
             detail: { label: tab_restore.label },
             event: TOUR_SELECT_SIDE_PANEL_TAB_EVENT,
+            wait_needs_reset: true,
+        };
+    }
+
+    if (
+        chapter_id === "settings" &&
+        current_step?.target === "[data-tour='settings-tab-bands-modes']" &&
+        next_step?.target === "[data-tour='settings-distance-units']"
+    ) {
+        return {
+            detail: { label: "general" },
+            event: TOUR_SELECT_SETTINGS_TAB_EVENT,
             wait_needs_reset: true,
         };
     }
