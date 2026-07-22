@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
+    TOUR_CLOSE_LEFT_PANEL_EVENT,
     TOUR_CLOSE_MAP_CONTROLS_EVENT,
     TOUR_CLOSE_MODAL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
@@ -759,6 +760,34 @@ describe("WebsiteTour", () => {
             expect(screen.getByText("Welcome")).not.toBeNull();
         });
         expect(test_state.local_storage.get("first_launch")).toBe(false);
+    });
+
+    it("closes both columns when every chapter starts on mobile", async () => {
+        test_state.is_mobile = true;
+        const close_left_panel = vi.fn();
+        const close_side_panel = vi.fn();
+        document.addEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel);
+        document.addEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel);
+
+        const chapter_titles = [
+            "Quick Start",
+            "Map",
+            "Spots Table",
+            "Filters",
+            "Side Panel",
+            "Settings",
+        ];
+        for (const chapter_title of chapter_titles) {
+            const user = userEvent.setup();
+            const view = render(<TestHarness />);
+            await start_tour(user, chapter_title);
+            view.unmount();
+        }
+
+        expect(close_left_panel).toHaveBeenCalledTimes(chapter_titles.length);
+        expect(close_side_panel).toHaveBeenCalledTimes(chapter_titles.length);
+        document.removeEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel);
+        document.removeEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel);
     });
 
     it("advances waitForChange steps after the action re-renders the tour", async () => {

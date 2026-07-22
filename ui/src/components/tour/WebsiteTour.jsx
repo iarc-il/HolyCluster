@@ -12,6 +12,7 @@ import {
     get_tour_chapter,
 } from "./tour_chapters.jsx";
 import {
+    TOUR_CLOSE_LEFT_PANEL_EVENT,
     TOUR_CLOSE_MAP_CONTROLS_EVENT,
     TOUR_CLOSE_MODAL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
@@ -591,13 +592,18 @@ function WebsiteTour() {
                 return;
             }
 
+            if (is_mobile) {
+                document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
+                document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
+            }
+
             set_tour_state({
                 current_chapter_id: chapter.id,
                 is_running: true,
                 step_index: 0,
             });
         },
-        [get_available_steps, mark_chapter_done, stop_tour],
+        [get_available_steps, is_mobile, mark_chapter_done, stop_tour],
     );
 
     useEffect(() => {
