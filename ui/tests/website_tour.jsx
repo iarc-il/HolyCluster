@@ -61,7 +61,11 @@ vi.mock("react-joyride", async () => {
         const step = steps[stepIndex];
         const buttons = step?.buttons ?? ["back", "close", "primary"];
         return (
-            <div data-testid="joyride-step">
+            <div
+                data-testid="joyride-step"
+                data-step-has-width={Object.hasOwn(step, "width")}
+                data-step-width={step?.width}
+            >
                 <h2>{step?.title}</h2>
                 <p>{step?.content}</p>
                 <div data-testid="joyride-buttons">{buttons.join(",")}</div>
@@ -1150,6 +1154,7 @@ describe("WebsiteTour", () => {
         render(<TestHarness />);
 
         await start_tour(user, "Quick Start");
+        expect(screen.getByTestId("joyride-step").dataset.stepHasWidth).toBe("false");
         for (let index = 0; index < 4; index += 1) {
             await user.click(screen.getByRole("button", { name: "Joyride next" }));
         }
@@ -1162,6 +1167,7 @@ describe("WebsiteTour", () => {
         await waitFor(() => {
             expect(screen.getByRole("heading", { name: "Band And Mode Filters" })).not.toBeNull();
         });
+        expect(screen.getByTestId("joyride-step").dataset.stepWidth).toBe("320");
         await user.click(screen.getByRole("button", { name: "Joyride back" }));
 
         await waitFor(() => {

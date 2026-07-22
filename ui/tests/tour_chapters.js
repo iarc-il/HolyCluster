@@ -184,7 +184,6 @@ describe("tour chapters", () => {
 
     it("uses mobile-safe placement for large overview panels", () => {
         const large_panel_targets = [
-            ["quick_start", "[data-tour='left-column']"],
             ["filters", "[data-tour='left-column']"],
             ["filters", "[data-tour='filters-panel']"],
             ["side_panel", "[data-tour='side-panel']"],
@@ -207,6 +206,15 @@ describe("tour chapters", () => {
             expect(step, `${chapter_id}: ${target}`).toBeDefined();
             expect(step?.mobilePlacement, `${chapter_id}: ${target}`).toBe("center");
         }
+    });
+
+    it("keeps the mobile band and mode filter spotlight target-aware", () => {
+        const step = TOUR_CHAPTERS.quick_start.steps.find(
+            candidate => candidate.title === "Band And Mode Filters",
+        );
+
+        expect(step?.mobilePlacement).toBe("auto");
+        expect(step?.mobileWidth).toBe(320);
     });
 
     it("uses shared auto placement for responsive compact targets", () => {

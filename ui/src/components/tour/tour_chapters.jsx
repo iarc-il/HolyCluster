@@ -68,7 +68,8 @@ export const TOUR_CHAPTERS = {
                 content: "The left rail filters spots by band and mode with one-click toggles.",
                 optional: true,
                 placement: "right",
-                mobilePlacement: "center",
+                mobilePlacement: "auto",
+                mobileWidth: 320,
             },
             {
                 target: "[data-tour='mobile-main-tabs-tabs']",
