@@ -171,6 +171,7 @@ describe("tour chapters", () => {
             "[data-tour='settings-modal-content']",
             "[data-tour='settings-cat-control']",
             "[data-tour='settings-bands-modes']",
+            "[data-tour='settings-profiles']",
             "[data-tour='settings-import-export']",
         ];
 

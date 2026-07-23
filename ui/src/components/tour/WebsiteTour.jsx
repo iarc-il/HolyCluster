@@ -39,6 +39,26 @@ const spot_row_selector = "[data-tour='spot-row']";
 const spot_row_dx_callsign_selector = "[data-tour='spot-row-dx-callsign']";
 const table_context_menu_selector = "[data-tour='table-context-menu']";
 const table_context_menu_state_pattern = /\[data-tour-state=['"]([^'"]+)['"]\]/;
+const settings_tab_transitions = {
+    "[data-tour='settings-tab-cat-control']": {
+        "[data-tour='settings-distance-units']": "general",
+        [settings_modal_content_selector]: "general",
+    },
+    "[data-tour='settings-tab-bands-modes']": {
+        "[data-tour='settings-distance-units']": "general",
+        "[data-tour='settings-tab-cat-control']": "cat-control",
+        [settings_modal_content_selector]: "general",
+    },
+    "[data-tour='settings-bands-modes']": {
+        "[data-tour='settings-tab-bands-modes']": "general",
+        "[data-tour='settings-profiles']": "profiles",
+    },
+    "[data-tour='settings-tab-import-export']": {
+        "[data-tour='settings-profiles']": "profiles",
+        "[data-tour='settings-bands-modes']": "bands-modes",
+        [settings_modal_content_selector]: "bands-modes",
+    },
+};
 
 function as_array(value) {
     if (value == null) return [];
@@ -145,6 +165,16 @@ function dispatch_tour_side_effect(side_effect) {
     document.dispatchEvent(new CustomEvent(side_effect.event, { detail: side_effect.detail }));
 }
 
+function get_settings_tab_side_effect(current_step, next_step) {
+    const label = settings_tab_transitions[current_step?.target]?.[next_step?.target];
+    if (label == null) return null;
+
+    return {
+        detail: { label },
+        event: TOUR_SELECT_SETTINGS_TAB_EVENT,
+    };
+}
+
 function find_previous_step_index_by_target(steps, from_index, target) {
     for (let index = from_index; index >= 0; index -= 1) {
         if (steps[index]?.target === target) return index;
@@ -236,30 +266,11 @@ function get_backward_step_side_effect(chapter_id, steps, from_index, next_step_
         };
     }
 
-    const settings_tab_restore = {
-        "[data-tour='settings-tab-cat-control']": {
-            "[data-tour='settings-distance-units']": "general",
-            [settings_modal_content_selector]: "general",
-        },
-        "[data-tour='settings-tab-bands-modes']": {
-            "[data-tour='settings-distance-units']": "general",
-            "[data-tour='settings-tab-cat-control']": "cat-control",
-            [settings_modal_content_selector]: "general",
-        },
-        "[data-tour='settings-bands-modes']": {
-            "[data-tour='settings-tab-bands-modes']": "general",
-        },
-        "[data-tour='settings-tab-import-export']": {
-            "[data-tour='settings-bands-modes']": "bands-modes",
-            [settings_modal_content_selector]: "bands-modes",
-        },
-    };
-    const settings_tab_label = settings_tab_restore[current_step?.target]?.[next_step?.target];
+    const settings_tab_side_effect = get_settings_tab_side_effect(current_step, next_step);
 
-    if (chapter_id === "settings" && settings_tab_label != null) {
+    if (chapter_id === "settings" && settings_tab_side_effect) {
         return {
-            detail: { label: settings_tab_label },
-            event: TOUR_SELECT_SETTINGS_TAB_EVENT,
+            ...settings_tab_side_effect,
             wait_needs_reset: true,
         };
     }
@@ -674,6 +685,12 @@ function WebsiteTour() {
                     saw_unsatisfied: false,
                 };
                 pending_backward_side_effect_ref.current = null;
+
+                if (tour_state.current_chapter_id === "settings") {
+                    dispatch_tour_side_effect(
+                        get_settings_tab_side_effect(steps[from_index], steps[next_step_index]),
+                    );
+                }
             }
 
             set_tour_state(state => {

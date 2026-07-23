@@ -974,6 +974,14 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
+                target: "[data-tour='settings-profiles']",
+                title: "Profiles",
+                content:
+                    "A profile saves station settings, filters, and other operating preferences so you can switch setups without reconfiguring them.",
+                placement: "left",
+                mobilePlacement: "center",
+            },
+            {
                 target: "[data-tour='settings-tab-import-export']",
                 title: "Import And Export",
                 content: "Click Import/Export to manage settings and filter files.",
