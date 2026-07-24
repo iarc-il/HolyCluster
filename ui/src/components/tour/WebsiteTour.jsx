@@ -452,6 +452,7 @@ function WebsiteTour() {
     const wait_for_change_ref = useRef({ key: null, value: null });
     const backward_wait_ref = useRef({ key: null, reset_value: null, saw_unsatisfied: false });
     const pending_backward_side_effect_ref = useRef(null);
+    const has_temporary_profile_ref = useRef(false);
     const stop_temporary_profile_ref = useRef(stop_temporary_profile);
 
     useEffect(() => {
@@ -459,7 +460,12 @@ function WebsiteTour() {
     }, [stop_temporary_profile]);
 
     useEffect(() => {
-        return () => stop_temporary_profile_ref.current();
+        return () => {
+            if (!has_temporary_profile_ref.current) return;
+
+            has_temporary_profile_ref.current = false;
+            stop_temporary_profile_ref.current();
+        };
     }, []);
 
     const current_chapter = get_tour_chapter(tour_state.current_chapter_id);
@@ -498,6 +504,7 @@ function WebsiteTour() {
             }
 
             cleanup_chapter(tour_state.current_chapter_id);
+            has_temporary_profile_ref.current = false;
             stop_temporary_profile();
             stop_tour();
         },
@@ -747,6 +754,7 @@ function WebsiteTour() {
             }
 
             start_temporary_profile();
+            has_temporary_profile_ref.current = true;
             set_tour_state({
                 current_chapter_id: chapter.id,
                 is_running: true,
@@ -1010,6 +1018,7 @@ function WebsiteTour() {
 
             if (action === ACTIONS.CLOSE) {
                 cleanup_chapter(tour_state.current_chapter_id);
+                has_temporary_profile_ref.current = false;
                 stop_temporary_profile();
                 stop_tour();
                 return;

@@ -102,6 +102,36 @@ vi.mock("react-joyride", async () => {
                         Joyride next
                     </button>
                 ) : null}
+                {buttons.includes("close") ? (
+                    <button
+                        type="button"
+                        onClick={() =>
+                            onEvent({
+                                action: ACTIONS.CLOSE,
+                                index: stepIndex,
+                                status: "running",
+                                type: EVENTS.STEP_AFTER,
+                            })
+                        }
+                    >
+                        Joyride close
+                    </button>
+                ) : null}
+                {buttons.includes("skip") ? (
+                    <button
+                        type="button"
+                        onClick={() =>
+                            onEvent({
+                                action: "skip",
+                                index: stepIndex,
+                                status: STATUS.SKIPPED,
+                                type: EVENTS.STEP_AFTER,
+                            })
+                        }
+                    >
+                        Joyride skip
+                    </button>
+                ) : null}
             </div>
         );
     }
@@ -822,6 +852,8 @@ describe("WebsiteTour", () => {
 
     beforeEach(() => {
         test_state.local_storage.set("first_launch", false);
+        test_state.start_temporary_profile.mockClear();
+        test_state.stop_temporary_profile.mockClear();
         get_client_rects = HTMLElement.prototype.getClientRects;
         HTMLElement.prototype.getClientRects = () => [
             { bottom: 1, height: 1, left: 0, right: 1, top: 0, width: 1 },
@@ -835,8 +867,6 @@ describe("WebsiteTour", () => {
         test_state.local_storage.clear();
         test_state.set_spot_buffering.mockClear();
         test_state.show_left_menu = false;
-        test_state.start_temporary_profile.mockClear();
-        test_state.stop_temporary_profile.mockClear();
         cleanup();
         vi.restoreAllMocks();
     });
@@ -849,6 +879,38 @@ describe("WebsiteTour", () => {
             expect(screen.getByText("Welcome")).not.toBeNull();
         });
         expect(test_state.local_storage.get("first_launch")).toBe(false);
+        expect(test_state.start_temporary_profile).toHaveBeenCalledTimes(1);
+    });
+
+    it("discards the temporary profile when the tour is closed", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Quick Start");
+        expect(test_state.start_temporary_profile).toHaveBeenCalledTimes(1);
+
+        await user.click(screen.getByRole("button", { name: "Joyride close" }));
+        expect(test_state.stop_temporary_profile).toHaveBeenCalledTimes(1);
+    });
+
+    it("discards the temporary profile when the tour is skipped", async () => {
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Quick Start");
+        await user.click(screen.getByRole("button", { name: "Joyride skip" }));
+
+        expect(test_state.stop_temporary_profile).toHaveBeenCalledTimes(1);
+    });
+
+    it("discards the temporary profile when the tour unmounts", async () => {
+        const user = userEvent.setup();
+        const { unmount } = render(<TestHarness />);
+
+        await start_tour(user, "Quick Start");
+        unmount();
+
+        expect(test_state.stop_temporary_profile).toHaveBeenCalledTimes(1);
     });
 
     it("closes both columns when every chapter starts on mobile", async () => {
