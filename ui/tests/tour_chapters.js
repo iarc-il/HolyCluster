@@ -53,6 +53,21 @@ describe("tour chapters", () => {
         expect(welcome.content).toContain("inspect a relevant spot");
     });
 
+    it("keeps Quick Start focused on the core workflow", () => {
+        const targets = TOUR_CHAPTERS.quick_start.steps.map(step => step.target);
+
+        expect(targets).toEqual([
+            "[data-tour='top-bar']",
+            "[data-tour='top-bar-time-limit']",
+            "[data-tour='top-bar-submit-spot']",
+            "[data-tour='top-bar-left-menu']",
+            "[data-tour='left-column']",
+            "[data-tour='mobile-main-tabs-tabs']",
+            "[data-tour='map-panel']",
+            "[data-tour='table-panel']",
+        ]);
+    });
+
     it("requires user action for wait steps", () => {
         for (const { chapter, step } of all_steps()) {
             if (!step.waitFor && !step.waitForGone && !step.waitForChange) continue;

@@ -53,13 +53,6 @@ export const TOUR_CHAPTERS = {
                 placement: "bottom",
             },
             {
-                target: "[data-tour='top-bar-settings']",
-                title: "Settings",
-                content:
-                    "Open settings here to configure your station, display, filters, and imports.",
-                placement: "bottom",
-            },
-            {
                 target: "[data-tour='top-bar-left-menu']",
                 title: "Open The Filter Rail",
                 content: "Click this menu button if the band and mode filter rail is hidden.",
@@ -103,29 +96,6 @@ export const TOUR_CHAPTERS = {
                 desktopOnly: true,
                 optional: true,
                 placement: "left",
-            },
-            {
-                target: "[data-tour='top-bar-right-menu']",
-                title: "Open The Side Panel",
-                content: "Click this menu button if the side panel is hidden.",
-                optional: true,
-                waitFor: "[data-tour='side-panel']",
-                buttons: action_buttons,
-                placement: "bottom",
-            },
-            {
-                target: "[data-tour='side-panel-tabs']",
-                title: "Feature Panels",
-                content:
-                    "These tabs switch between advanced filters, band activity, heatmap, DXpeditions, and ADIF tools.",
-                optional: true,
-                placement: "left",
-            },
-            {
-                target: "[data-tour='tour-launcher']",
-                title: "Tour Launcher",
-                content: "Use this launcher to restart this tour or choose a more focused chapter.",
-                placement: "top",
             },
         ],
     },

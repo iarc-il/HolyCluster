@@ -1301,7 +1301,7 @@ describe("WebsiteTour", () => {
 
         await start_tour(user, "Quick Start");
         expect(screen.getByTestId("joyride-step").dataset.stepHasWidth).toBe("false");
-        for (let index = 0; index < 4; index += 1) {
+        for (let index = 0; index < 3; index += 1) {
             await user.click(screen.getByRole("button", { name: "Joyride next" }));
         }
 
