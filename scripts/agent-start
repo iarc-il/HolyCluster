@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+    printf 'Usage: %s <task-brief.md>\n' "${0##*/}"
+}
+
+if [[ $# -ne 1 ]]; then
+    usage >&2
+    exit 2
+fi
+
+task_file=$(realpath "$1")
+if [[ ! -f $task_file ]]; then
+    printf 'Task brief does not exist: %s\n' "$task_file" >&2
+    exit 1
+fi
+
+task=${task_file##*/}
+task=${task%.md}
+if [[ ! $task =~ ^[a-zA-Z0-9._-]+$ ]]; then
+    printf 'Task filename must contain only letters, numbers, dots, underscores, and hyphens\n' >&2
+    exit 1
+fi
+
+repo=$(git rev-parse --show-toplevel)
+repo_name=${repo##*/}
+branch="agent/$task"
+worktree_root=${AGENT_WORKTREE_ROOT:-"$(dirname "$repo")/$repo_name-worktrees"}
+worktree="$worktree_root/$task"
+tmux_session=${AGENT_TMUX_SESSION:-agents}
+
+if git show-ref --verify --quiet "refs/heads/$branch"; then
+    printf 'Branch already exists: %s\n' "$branch" >&2
+    exit 1
+fi
+
+if [[ -e $worktree ]]; then
+    printf 'Worktree path already exists: %s\n' "$worktree" >&2
+    exit 1
+fi
+
+mkdir -p "$worktree_root"
+git worktree add -b "$branch" "$worktree"
+
+prompt=$(<"$task_file")
+printf -v quoted_prompt '%q' "$prompt"
+opencode_command="exec opencode --prompt=$quoted_prompt"
+
+if tmux has-session -t "$tmux_session" 2>/dev/null; then
+    tmux new-window -d -t "$tmux_session:" -n "$task" -c "$worktree" "$opencode_command"
+else
+    tmux new-session -d -s "$tmux_session" -n "$task" -c "$worktree" "$opencode_command"
+fi
+
+printf 'Task:     %s\n' "$task"
+printf 'Branch:   %s\n' "$branch"
+printf 'Worktree: %s\n' "$worktree"
+printf 'Tmux:     %s:%s\n' "$tmux_session" "$task"
+printf '\nAttach with: tmux attach-session -t %q \\; select-window -t %q\n' \
+    "$tmux_session" "$tmux_session:$task"
