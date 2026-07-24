@@ -20,6 +20,8 @@ const test_state = vi.hoisted(() => ({
     local_storage: new Map(),
     set_spot_buffering: vi.fn(),
     show_left_menu: false,
+    start_temporary_profile: vi.fn(),
+    stop_temporary_profile: vi.fn(),
 }));
 
 vi.mock("@uidotdev/usehooks", async () => {
@@ -122,6 +124,13 @@ vi.mock("@/hooks/useColors", () => ({
 
 vi.mock("@/hooks/useFilters", () => ({
     useFilters: () => test_state.filters_context,
+}));
+
+vi.mock("@/hooks/useProfiles", () => ({
+    useProfiles: () => ({
+        start_temporary_profile: test_state.start_temporary_profile,
+        stop_temporary_profile: test_state.stop_temporary_profile,
+    }),
 }));
 
 vi.mock("@/hooks/useRadio", () => ({
@@ -826,6 +835,8 @@ describe("WebsiteTour", () => {
         test_state.local_storage.clear();
         test_state.set_spot_buffering.mockClear();
         test_state.show_left_menu = false;
+        test_state.start_temporary_profile.mockClear();
+        test_state.stop_temporary_profile.mockClear();
         cleanup();
         vi.restoreAllMocks();
     });

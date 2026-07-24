@@ -1,4 +1,5 @@
 import { useFilters } from "@/hooks/useFilters";
+import { useProfiles } from "@/hooks/useProfiles";
 import use_radio from "@/hooks/useRadio";
 import { useRestData } from "@/hooks/useRestData";
 import { useSpotData } from "@/hooks/useSpotData";
@@ -433,6 +434,7 @@ function get_backward_filter_state_update(chapter_id, steps, from_index, next_st
 function WebsiteTour() {
     const { propagation } = useRestData();
     const { filters, setCallsignFilters } = useFilters();
+    const { start_temporary_profile, stop_temporary_profile } = useProfiles();
     const { radio_status } = use_radio();
     const { spots, set_spot_buffering } = useSpotData();
     const is_mobile = useMediaQuery("only screen and (max-width : 768px)");
@@ -450,6 +452,15 @@ function WebsiteTour() {
     const wait_for_change_ref = useRef({ key: null, value: null });
     const backward_wait_ref = useRef({ key: null, reset_value: null, saw_unsatisfied: false });
     const pending_backward_side_effect_ref = useRef(null);
+    const stop_temporary_profile_ref = useRef(stop_temporary_profile);
+
+    useEffect(() => {
+        stop_temporary_profile_ref.current = stop_temporary_profile;
+    }, [stop_temporary_profile]);
+
+    useEffect(() => {
+        return () => stop_temporary_profile_ref.current();
+    }, []);
 
     const current_chapter = get_tour_chapter(tour_state.current_chapter_id);
     const chapter_steps = useMemo(() => current_chapter?.steps ?? [], [current_chapter]);
@@ -487,9 +498,10 @@ function WebsiteTour() {
             }
 
             cleanup_chapter(tour_state.current_chapter_id);
+            stop_temporary_profile();
             stop_tour();
         },
-        [mark_chapter_done, stop_tour, tour_state.current_chapter_id],
+        [mark_chapter_done, stop_temporary_profile, stop_tour, tour_state.current_chapter_id],
     );
 
     const should_exclude_step = useCallback(
@@ -734,13 +746,14 @@ function WebsiteTour() {
                 document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
             }
 
+            start_temporary_profile();
             set_tour_state({
                 current_chapter_id: chapter.id,
                 is_running: true,
                 step_index: 0,
             });
         },
-        [get_available_steps, is_mobile, mark_chapter_done, stop_tour],
+        [get_available_steps, is_mobile, mark_chapter_done, start_temporary_profile, stop_tour],
     );
 
     useEffect(() => {
@@ -997,6 +1010,7 @@ function WebsiteTour() {
 
             if (action === ACTIONS.CLOSE) {
                 cleanup_chapter(tour_state.current_chapter_id);
+                stop_temporary_profile();
                 stop_tour();
                 return;
             }
@@ -1013,7 +1027,7 @@ function WebsiteTour() {
                 advance_tour(index, direction);
             }
         },
-        [advance_tour, finish_tour, steps, stop_tour],
+        [advance_tour, finish_tour, steps, stop_temporary_profile, stop_tour],
     );
 
     return (
