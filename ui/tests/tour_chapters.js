@@ -42,6 +42,17 @@ describe("tour chapters", () => {
         }
     });
 
+    it("sets the Quick Start duration and outcome", () => {
+        const quick_start = TOUR_CHAPTERS.quick_start;
+        const welcome = quick_start.steps[0];
+
+        expect(quick_start.description).toContain("2 minutes");
+        expect(welcome.content).toContain("narrow the live spot list");
+        expect(welcome.content).toContain("submit a spot");
+        expect(welcome.content).toContain("find activity");
+        expect(welcome.content).toContain("inspect a relevant spot");
+    });
+
     it("requires user action for wait steps", () => {
         for (const { chapter, step } of all_steps()) {
             if (!step.waitFor && !step.waitForGone && !step.waitForChange) continue;

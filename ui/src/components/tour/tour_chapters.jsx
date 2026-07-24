@@ -30,13 +30,13 @@ export const TOUR_CHAPTERS = {
     quick_start: {
         id: "quick_start",
         title: "Quick Start",
-        description: "A short introduction to the main Holy Cluster workflow.",
+        description: "Learn the core workflow in about 2 minutes.",
         steps: [
             {
                 target: "[data-tour='top-bar']",
                 title: "Welcome",
                 content:
-                    "Welcome to The Holy Cluster. This short tour shows where the main controls live.",
+                    "In about 2 minutes, you will learn to narrow the live spot list, submit a spot, find activity, and inspect a relevant spot.",
                 placement: "center",
                 skipBeacon: true,
             },
