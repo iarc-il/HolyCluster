@@ -68,6 +68,21 @@ describe("tour chapters", () => {
         ]);
     });
 
+    it("describes the Quick Start as an operating workflow", () => {
+        const steps = TOUR_CHAPTERS.quick_start.steps;
+        const step_for = target => steps.find(step => step.target === target);
+
+        expect(step_for("[data-tour='top-bar-time-limit']")?.content).toContain("Start by");
+        expect(step_for("[data-tour='top-bar-submit-spot']")?.content).toContain("sharing");
+        expect(step_for("[data-tour='left-column']")?.content).toContain("relevant");
+        expect(step_for("[data-tour='mobile-main-tabs-tabs']")?.content).toContain(
+            "choose a spot and act on it",
+        );
+        expect(step_for("[data-tour='map-panel']")?.content).toContain("geographic clusters");
+        expect(step_for("[data-tour='table-panel']")?.content).toContain("inspect");
+        expect(step_for("[data-tour='table-panel']")?.content).toContain("act on it");
+    });
+
     it("requires user action for wait steps", () => {
         for (const { chapter, step } of all_steps()) {
             if (!step.waitFor && !step.waitForGone && !step.waitForChange) continue;

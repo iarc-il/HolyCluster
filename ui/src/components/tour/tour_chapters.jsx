@@ -43,19 +43,22 @@ export const TOUR_CHAPTERS = {
             {
                 target: "[data-tour='top-bar-time-limit']",
                 title: "Spot Window",
-                content: "Use this selector to choose how far back the live spot list should look.",
+                content:
+                    "Start by choosing how far back to look, so the live spot list covers your operating window.",
                 placement: "bottom",
             },
             {
                 target: "[data-tour='top-bar-submit-spot']",
                 title: "Submit Spots",
-                content: "This button opens the spot submission form when you want to add a spot.",
+                content:
+                    "When you have activity worth sharing, use this button to submit a spot to the cluster.",
                 placement: "bottom",
             },
             {
                 target: "[data-tour='top-bar-left-menu']",
                 title: "Open The Filter Rail",
-                content: "Click this menu button if the band and mode filter rail is hidden.",
+                content:
+                    "Open the filter rail if it is hidden, then narrow the live feed to what you can work.",
                 optional: true,
                 waitFor: "[data-tour='left-column']",
                 buttons: action_buttons,
@@ -65,7 +68,8 @@ export const TOUR_CHAPTERS = {
             {
                 target: "[data-tour='left-column']",
                 title: "Band And Mode Filters",
-                content: "The left rail filters spots by band and mode with one-click toggles.",
+                content:
+                    "Use the one-click band and mode filters to keep only the spots relevant to your station.",
                 optional: true,
                 placement: "right",
                 mobilePlacement: "auto",
@@ -74,16 +78,17 @@ export const TOUR_CHAPTERS = {
             {
                 target: "[data-tour='mobile-main-tabs-tabs']",
                 title: "Map And Table Tabs",
-                content: "On narrow screens, use these tabs to switch between the map and table.",
+                content:
+                    "On narrow screens, use Map to find activity and Table to inspect it, then choose a spot and act on it.",
                 mobileOnly: true,
                 optional: true,
                 placement: "bottom",
             },
             {
                 target: "[data-tour='map-panel']",
-                title: "Map",
+                title: "Find Activity",
                 content:
-                    "The map shows where spots are coming from and gives quick geographic context.",
+                    "Use the map to find geographic clusters and openings among your filtered spots.",
                 desktopOnly: true,
                 optional: true,
                 placement: "right",
@@ -91,8 +96,9 @@ export const TOUR_CHAPTERS = {
             },
             {
                 target: "[data-tour='table-panel']",
-                title: "Spots Table",
-                content: "The table gives a detailed sortable view of the current spots.",
+                title: "Inspect A Spot",
+                content:
+                    "Use the sortable table to inspect callsigns, frequencies, modes, and spot details, then choose a spot and act on it.",
                 desktopOnly: true,
                 optional: true,
                 placement: "left",
