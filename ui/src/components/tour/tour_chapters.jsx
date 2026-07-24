@@ -76,7 +76,7 @@ export const TOUR_CHAPTERS = {
                 mobileWidth: 320,
             },
             {
-                target: "[data-tour='mobile-main-tabs-tabs']",
+                target: "[data-tour='mobile-main-tabs']",
                 title: "Map And Table Tabs",
                 content:
                     "On narrow screens, use Map to find activity and Table to inspect it, then choose a spot and act on it.",

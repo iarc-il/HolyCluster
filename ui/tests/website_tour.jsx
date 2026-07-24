@@ -525,58 +525,63 @@ function TestHarness() {
             >
                 SSB
             </button>
-            <div data-tour="spots-table">Spots table</div>
-            <input aria-label="Mobile callsign search" data-tour="table-search-mobile" />
-            <button
-                type="button"
-                data-tour="table-search-single-spot-toggle"
-                data-tour-state={filters.show_only_latest_spot ? "on" : "off"}
-                onClick={() =>
-                    setFilters(current_filters => ({
-                        ...current_filters,
-                        show_only_latest_spot: !current_filters.show_only_latest_spot,
-                    }))
-                }
-            >
-                Single spot per station
-            </button>
-            <button
-                type="button"
-                data-tour="table-header-dx_callsign"
-                data-tour-state={table_sort_state}
-                onClick={() => set_table_sort_state("active")}
-            >
-                DX
-            </button>
-            <div
-                data-tour="spot-row"
-                data-tour-state={spot_row_state}
-                onClick={() => set_spot_row_state("pinned")}
-            >
-                <span>Spot row</span>
+            <div data-tour="table-panel">
+                <div data-tour="spots-table">Spots table</div>
+                <input aria-label="Mobile callsign search" data-tour="table-search-mobile" />
                 <button
                     type="button"
-                    data-tour="spot-row-dx-callsign"
-                    onContextMenu={event => open_table_context_menu(event, "callsign")}
+                    data-tour="table-search-single-spot-toggle"
+                    data-tour-state={filters.show_only_latest_spot ? "on" : "off"}
+                    onClick={() =>
+                        setFilters(current_filters => ({
+                            ...current_filters,
+                            show_only_latest_spot: !current_filters.show_only_latest_spot,
+                        }))
+                    }
                 >
-                    DX callsign
+                    Single spot per station
                 </button>
                 <button
                     type="button"
-                    data-tour="spot-row-flag"
-                    onContextMenu={event => open_table_context_menu(event, "flag")}
+                    data-tour="table-header-dx_callsign"
+                    data-tour-state={table_sort_state}
+                    onClick={() => set_table_sort_state("active")}
                 >
-                    Flag
+                    DX
                 </button>
-                <button type="button" data-tour="spot-row-frequency">
-                    Frequency cell
-                </button>
-            </div>
-            {table_context_menu.visible ? (
-                <div data-tour="table-context-menu" data-tour-state={table_context_menu.menu_type}>
-                    Table {table_context_menu.menu_type} menu
+                <div
+                    data-tour="spot-row"
+                    data-tour-state={spot_row_state}
+                    onClick={() => set_spot_row_state("pinned")}
+                >
+                    <span>Spot row</span>
+                    <button
+                        type="button"
+                        data-tour="spot-row-dx-callsign"
+                        onContextMenu={event => open_table_context_menu(event, "callsign")}
+                    >
+                        DX callsign
+                    </button>
+                    <button
+                        type="button"
+                        data-tour="spot-row-flag"
+                        onContextMenu={event => open_table_context_menu(event, "flag")}
+                    >
+                        Flag
+                    </button>
+                    <button type="button" data-tour="spot-row-frequency">
+                        Frequency cell
+                    </button>
                 </div>
-            ) : null}
+                {table_context_menu.visible ? (
+                    <div
+                        data-tour="table-context-menu"
+                        data-tour-state={table_context_menu.menu_type}
+                    >
+                        Table {table_context_menu.menu_type} menu
+                    </div>
+                ) : null}
+            </div>
             <button
                 type="button"
                 data-tour="top-bar-right-menu"
@@ -684,6 +689,31 @@ async function start_tour(user, chapter_title) {
     await user.click(screen.getByRole("button", { name: "Start tour" }));
 }
 
+async function complete_quick_start(user, expected_steps) {
+    for (const [index, expected_step] of expected_steps.entries()) {
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: expected_step.title })).not.toBeNull();
+        });
+        expect(screen.getByTestId("joyride-step").dataset.stepTarget).toBe(expected_step.target);
+
+        if (index > 0) {
+            await user.click(screen.getByRole("button", { name: "Joyride back" }));
+            await waitFor(() => {
+                expect(
+                    screen.getByRole("heading", { name: expected_steps[index - 1].title }),
+                ).not.toBeNull();
+            });
+            await user.click(screen.getByRole("button", { name: "Joyride next" }));
+        }
+
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+    }
+
+    await waitFor(() => {
+        expect(screen.queryByTestId("joyride-step")).toBeNull();
+    });
+}
+
 async function open_map_tour_display_panel(user) {
     await start_tour(user, "Map");
     await user.click(screen.getByRole("button", { name: "Joyride next" }));
@@ -705,6 +735,10 @@ function close_table_context_menu() {
 
 async function open_table_tour_callsign_prompt(user) {
     await start_tour(user, "Spots Table");
+
+    if (screen.queryByRole("heading", { name: "Table View" })) {
+        await user.click(screen.getByRole("button", { name: "Joyride next" }));
+    }
 
     await waitFor(() => {
         expect(screen.getByRole("heading", { name: "Single Spot Mode" })).not.toBeNull();
@@ -913,6 +947,56 @@ describe("WebsiteTour", () => {
         expect(test_state.stop_temporary_profile).toHaveBeenCalledTimes(1);
     });
 
+    it("completes the Quick Start workflow on mobile", async () => {
+        test_state.is_mobile = true;
+        test_state.show_left_menu = true;
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Quick Start");
+        await complete_quick_start(user, [
+            { title: "Welcome", target: "[data-tour='top-bar']" },
+            { title: "Spot Window", target: "[data-tour='top-bar-time-limit']" },
+            { title: "Submit Spots", target: "[data-tour='top-bar-submit-spot']" },
+            { title: "Open The Filter Rail", target: "[data-tour='top-bar-left-menu']" },
+            { title: "Band And Mode Filters", target: "[data-tour='left-column']" },
+            { title: "Map And Table Tabs", target: "[data-tour='mobile-main-tabs']" },
+        ]);
+    });
+
+    it("completes the Quick Start workflow on reduced desktop", async () => {
+        test_state.show_left_menu = true;
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Quick Start");
+        await complete_quick_start(user, [
+            { title: "Welcome", target: "[data-tour='top-bar']" },
+            { title: "Spot Window", target: "[data-tour='top-bar-time-limit']" },
+            { title: "Submit Spots", target: "[data-tour='top-bar-submit-spot']" },
+            { title: "Open The Filter Rail", target: "[data-tour='top-bar-left-menu']" },
+            { title: "Band And Mode Filters", target: "[data-tour='left-column']" },
+            { title: "Find Activity", target: "[data-tour='map-panel']" },
+            { title: "Inspect A Spot", target: "[data-tour='table-panel']" },
+        ]);
+    });
+
+    it("completes the Quick Start workflow on full desktop", async () => {
+        test_state.show_left_menu = false;
+        const user = userEvent.setup();
+        render(<TestHarness />);
+
+        await start_tour(user, "Quick Start");
+        await complete_quick_start(user, [
+            { title: "Welcome", target: "[data-tour='top-bar']" },
+            { title: "Spot Window", target: "[data-tour='top-bar-time-limit']" },
+            { title: "Submit Spots", target: "[data-tour='top-bar-submit-spot']" },
+            { title: "Band And Mode Filters", target: "[data-tour='left-column']" },
+            { title: "Find Activity", target: "[data-tour='map-panel']" },
+            { title: "Inspect A Spot", target: "[data-tour='table-panel']" },
+        ]);
+    });
+
     it("closes both columns when every chapter starts on mobile", async () => {
         test_state.is_mobile = true;
         const close_left_panel = vi.fn();
@@ -940,7 +1024,7 @@ describe("WebsiteTour", () => {
 
         await start_tour(user, "Spots Table");
 
-        if (screen.queryByRole("heading", { name: "Spots Table" })) {
+        if (screen.queryByRole("heading", { name: "Table View" })) {
             await user.click(screen.getByRole("button", { name: "Joyride next" }));
         }
 
