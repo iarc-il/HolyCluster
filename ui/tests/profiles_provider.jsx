@@ -152,6 +152,8 @@ function SharedFiltersHarness() {
         useFilters();
     const {
         active_profile_data: { filters: profile_filters },
+        start_temporary_profile,
+        stop_temporary_profile,
     } = useProfiles();
     const location = useLocation();
 
@@ -161,6 +163,12 @@ function SharedFiltersHarness() {
             <div data-testid="profile-time-limit">{profile_filters.time_limit}</div>
             <div data-testid="shared-state">{is_shared_filter_state ? "yes" : "no"}</div>
             <div data-testid="search">{location.search}</div>
+            <button type="button" onClick={start_temporary_profile}>
+                Start Temporary Profile
+            </button>
+            <button type="button" onClick={stop_temporary_profile}>
+                Stop Temporary Profile
+            </button>
             <button
                 type="button"
                 onClick={() =>
@@ -365,5 +373,46 @@ describe("profile provider integration", () => {
         expect(screen.getByTestId("visible-time-limit").textContent).toBe("1800");
         expect(screen.getByTestId("profile-time-limit").textContent).toBe("1800");
         expect(screen.getByTestId("search").textContent).toBe("?keep=1");
+    });
+
+    it("uses default filters while a temporary profile is active", async () => {
+        const user = userEvent.setup();
+        const stored_profile_data = create_profile_data({
+            filters: {
+                ...create_default_profile_data().filters,
+                time_limit: 7200,
+            },
+        });
+        const shared_filter_param = encode_filter_state(
+            {
+                ...stored_profile_data.filters,
+                time_limit: 900,
+            },
+            stored_profile_data.callsign_filters,
+        );
+
+        write_profile_store({
+            profiles: [{ name: "Default", data: stored_profile_data }],
+        });
+
+        render_with_router(
+            <ProfilesProvider>
+                <FiltersProvider>
+                    <SharedFiltersHarness />
+                </FiltersProvider>
+            </ProfilesProvider>,
+            `/?filters=${shared_filter_param}&keep=1`,
+        );
+
+        expect(screen.getByTestId("visible-time-limit").textContent).toBe("900");
+
+        await user.click(screen.getByText("Start Temporary Profile"));
+        await waitFor(() => expect(screen.getByTestId("shared-state").textContent).toBe("no"));
+        expect(screen.getByTestId("visible-time-limit").textContent).toBe("3600");
+        expect(screen.getByTestId("search").textContent).toContain("filters=");
+
+        await user.click(screen.getByText("Stop Temporary Profile"));
+        await waitFor(() => expect(screen.getByTestId("shared-state").textContent).toBe("yes"));
+        expect(screen.getByTestId("visible-time-limit").textContent).toBe("900");
     });
 });

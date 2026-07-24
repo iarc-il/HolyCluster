@@ -278,6 +278,7 @@ export function ProfilesProvider({ children }) {
                 active_profile,
                 active_profile_name: active_profile.name,
                 active_profile_data: active_profile.data,
+                is_temporary_profile: temporary_profile_store != null,
                 set_active_profile_name,
                 create_profile,
                 rename_profile,

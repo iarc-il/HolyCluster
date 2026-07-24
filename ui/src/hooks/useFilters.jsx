@@ -128,6 +128,7 @@ export const FiltersProvider = ({ children }) => {
             filters: profile_filters,
             callsign_filters: profile_callsign_filters,
         },
+        is_temporary_profile,
         update_active_profile_data,
         update_active_profile_section,
     } = useProfiles();
@@ -141,7 +142,7 @@ export const FiltersProvider = ({ children }) => {
         set_shared_filter_state(decode_filter_state(filter_url_value));
     }, [filter_url_value]);
 
-    const is_shared_filter_state = shared_filter_state != null;
+    const is_shared_filter_state = shared_filter_state != null && !is_temporary_profile;
     const filters = is_shared_filter_state ? shared_filter_state.filters : profile_filters;
     const callsign_filters = is_shared_filter_state
         ? shared_filter_state.callsign_filters
