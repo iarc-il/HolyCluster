@@ -847,14 +847,7 @@ describe("WebsiteTour", () => {
         document.addEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel);
         document.addEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel);
 
-        const chapter_titles = [
-            "Quick Start",
-            "Map",
-            "Spots Table",
-            "Filters",
-            "Side Panel",
-            "Settings",
-        ];
+        const chapter_titles = ["Quick Start", "Map", "Spots Table", "Filters", "Side Panel"];
         for (const chapter_title of chapter_titles) {
             const user = userEvent.setup();
             const view = render(<TestHarness />);
@@ -957,7 +950,7 @@ describe("WebsiteTour", () => {
         });
     });
 
-    it("keeps settings modal steps after opening the dialog", async () => {
+    /* it("keeps settings modal steps after opening the dialog", async () => {
         const user = userEvent.setup();
         render(<TestHarness />);
 
@@ -971,9 +964,9 @@ describe("WebsiteTour", () => {
 
         await user.click(screen.getByRole("button", { name: "Joyride next" }));
         expect(screen.getByText("General Settings")).not.toBeNull();
-    });
+    }); */
 
-    it("returns to the settings open prompt when backing from the dialog", async () => {
+    /* it("returns to the settings open prompt when backing from the dialog", async () => {
         const user = userEvent.setup();
         render(<TestHarness />);
 
@@ -996,7 +989,7 @@ describe("WebsiteTour", () => {
         await waitFor(() => {
             expect(screen.getByRole("heading", { name: "Settings Dialog" })).not.toBeNull();
         });
-    });
+    }); */
 
     it("does not show back on the first filters step", async () => {
         const user = userEvent.setup();

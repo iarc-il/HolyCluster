@@ -864,7 +864,7 @@ export const TOUR_CHAPTERS = {
             },
         ],
     },
-    settings: {
+    /* settings: {
         id: "settings",
         title: "Settings",
         description: "Learn the main station, display, CAT, and import/export settings.",
@@ -1012,7 +1012,7 @@ export const TOUR_CHAPTERS = {
                 mobileHideOverlay: true,
             },
         ],
-    },
+    }, */
 };
 
 export function get_tour_chapter(chapter_id) {
