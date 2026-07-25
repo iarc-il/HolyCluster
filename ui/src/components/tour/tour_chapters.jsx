@@ -810,8 +810,8 @@ export const TOUR_CHAPTERS = {
             },
             {
                 target: "[data-tour='side-panel-tab-missing']",
-                title: "Missing View",
-                content: "Click the ADIF tab to show ADIF worked tracking.",
+                title: "Missing",
+                content: "Click the Missing tab to see what you have worked and still need.",
                 buttons: action_buttons,
                 placement: "auto",
                 waitForChange: {
@@ -822,7 +822,7 @@ export const TOUR_CHAPTERS = {
             },
             {
                 target: "[data-tour='hunter-panel']",
-                title: "Missing And Worked",
+                title: "Missing",
                 content:
                     "This panel uses your ADIF data to track what you have worked and still need.",
                 placement: "left",
@@ -831,7 +831,7 @@ export const TOUR_CHAPTERS = {
             {
                 target: "[data-tour='hunter-adif-import']",
                 title: "ADIF Import",
-                content: "Import ADIF logs here so the ADIF panel can track your progress.",
+                content: "Import ADIF logs here so Missing can track your progress.",
                 placement: "left",
                 mobilePlacement: "bottom-end",
                 mobileFloatingOptions: {

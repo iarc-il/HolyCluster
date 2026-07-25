@@ -17,7 +17,7 @@ const RELEASES = [
             "Layout settings now allowing configuration of the view: map only, table only and view order",
             "Added profiles to quickly switch between setttings and filters",
             "Added sharing filter state using a URL",
-            "ADIF panel now support larger 50 MB files",
+            "Missing panel now supports larger 50 MB files",
             "Added map maidenhead locator grid overlay",
             "Added 3 map color themes in settings",
         ],
@@ -27,9 +27,9 @@ const RELEASES = [
         [
             "We had a vote in Friedrichshafen on the next feature to release!",
             <>
-                The winner is <b key="hunter-panel">hunter panel 🏹</b>
+                The winner is <b key="hunter-panel">Missing panel 🏹</b>
             </>,
-            "Hunter panel is for tracking needed DXCC entities, CQ zones, ITU zones, US states and Canada provinces",
+            "Missing panel tracks needed DXCC entities, CQ zones, ITU zones, US states and Canada provinces",
             "Import ADIF logs to update missing progress, with progress display and clearer invalid-file errors",
         ],
     ],

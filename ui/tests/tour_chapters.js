@@ -285,7 +285,7 @@ describe("tour chapters", () => {
             ["side_panel", "Heatmap View", "[data-tour='side-panel-tab-heatmap']"],
             ["side_panel", "Heatmap Region", "[data-tour='heatmap-continent-selector']"],
             ["side_panel", "DXpeditions View", "[data-tour='side-panel-tab-dxpeditions']"],
-            ["side_panel", "Missing View", "[data-tour='side-panel-tab-missing']"],
+            ["side_panel", "Missing", "[data-tour='side-panel-tab-missing']"],
         ];
 
         for (const [chapter_id, title, target] of shared_auto_steps) {
