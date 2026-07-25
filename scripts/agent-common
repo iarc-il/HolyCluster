@@ -10,7 +10,11 @@ agent_init() {
     AGENT_REPO=$(git -C "$location" rev-parse --show-toplevel)
     AGENT_COMMON_DIR=$(git -C "$AGENT_REPO" rev-parse --path-format=absolute --git-common-dir)
     AGENT_STATE_ROOT="$AGENT_COMMON_DIR/agent-workflow"
-    mkdir -p "$AGENT_STATE_ROOT/states" "$AGENT_STATE_ROOT/reports" "$AGENT_STATE_ROOT/reviews"
+    mkdir -p \
+        "$AGENT_STATE_ROOT/states" \
+        "$AGENT_STATE_ROOT/reports" \
+        "$AGENT_STATE_ROOT/reviews" \
+        "$AGENT_STATE_ROOT/prompts"
 }
 
 agent_validate_task() {

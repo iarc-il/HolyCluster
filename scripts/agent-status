@@ -35,7 +35,7 @@ print_task() {
         printf 'Blocker: %s\n' "$(agent_state_get "$task" blocker)"
     fi
     if [[ $status == integration-* ]]; then
-        printf 'Staging: %s\n' "$(agent_state_get "$task" staging_worktree)"
+        printf 'Integration worktree: %s\n' "$worktree"
     fi
 }
 

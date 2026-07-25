@@ -15,6 +15,18 @@ agent_validate_task "$task"
 worktree=$(agent_state_get "$task" worktree)
 base=$(agent_state_get "$task" base)
 task_file=$(agent_state_get "$task" task_file)
+status=$(agent_state_get "$task" status)
+if [[ $status == integration-conflict ]]; then
+    integration_base=$(agent_state_get "$task" integration_base)
+    pre_rebase_base=$(agent_state_get "$task" pre_rebase_base)
+    branch=$(agent_state_get "$task" branch)
+    if git -C "$worktree" merge-base --is-ancestor "$integration_base" "$branch"; then
+        base=$integration_base
+    else
+        base=$pre_rebase_base
+    fi
+    agent_state_put "$task" base "$base"
+fi
 [[ -d $worktree ]] || agent_die "Worktree does not exist: $worktree"
 [[ -f $task_file ]] || agent_die "Task brief does not exist: $task_file"
 [[ -z $(git -C "$worktree" status --porcelain) ]] || \

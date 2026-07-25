@@ -60,6 +60,27 @@ rollback_launch() {
     agent_die "$reason"
 }
 
+build_execution_prompt() {
+    execution_prompt="$AGENT_STATE_ROOT/prompts/$task.md"
+    {
+        command cat "$task_file"
+        printf '\n\n# Execution Contract\n\n'
+        printf '%s\n' \
+            '- Work autonomously until the task is complete and every verification command passes.' \
+            '- Resolve recoverable environment and test failures instead of stopping after reporting them.' \
+            '- If intentional behavior changes invalidate tests, update those tests only when they are inside the declared file scope.' \
+            '- Never preserve obsolete user-facing or accessibility behavior merely to satisfy stale tests.' \
+            '- If completion requires changes outside declared scope or a human decision, stop and report a precise blocker.' \
+            '- Keep every commit coherent and focused. Create as many commits as the implementation logically requires.' \
+            '- Do not include unrelated changes, generated artifacts, debug output, or dependency directories.' \
+            '- Review the final diff and ensure the worktree is clean after committing.' \
+            "- Run scripts/agent-check $task after all intended changes are committed." \
+            "- If blocked, run scripts/agent-finish $task --blocked '<reason>'." \
+            "- When verification passes, run scripts/agent-finish $task --ready --risk '<risk or None>' --decision '<decision or None>'." \
+            '- Never report completion while changes are uncommitted or verification is failing.'
+    } >"$execution_prompt"
+}
+
 mapfile -t requirements < <(agent_read_list requires "$task_file")
 mapfile -t setup_commands < <(agent_read_list setup "$task_file")
 for required in "${requirements[@]}"; do
@@ -89,7 +110,8 @@ if [[ $mode == resume ]]; then
         agent_print_location "$task" "$branch" "$worktree" "$tmux_session"
         exit 0
     fi
-    if ! agent_launch_opencode "$tmux_session" "$task" "$worktree" "$task_file"; then
+    build_execution_prompt
+    if ! agent_launch_opencode "$tmux_session" "$task" "$worktree" "$execution_prompt"; then
         agent_state_put "$task" status launch-failed
         exit 1
     fi
@@ -121,7 +143,8 @@ for command in "${setup_commands[@]}"; do
         rollback_launch "Worktree setup failed: $command"
     fi
 done
-if ! agent_launch_opencode "$tmux_session" "$task" "$worktree" "$task_file"; then
+build_execution_prompt
+if ! agent_launch_opencode "$tmux_session" "$task" "$worktree" "$execution_prompt"; then
     rollback_launch 'OpenCode launch failed'
 fi
 
