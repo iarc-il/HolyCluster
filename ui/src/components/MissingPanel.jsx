@@ -1,7 +1,6 @@
 import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import SearchIcon from "@/components/ui/SearchIcon.jsx";
-import X from "@/components/ui/X.jsx";
 import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
 import {
     MISSING_SECTION_KEYS,
@@ -15,7 +14,7 @@ import { import_missing_adif_in_worker } from "@/utils/missing_adif_worker_clien
 import { create_default_missing } from "@/utils/profile_data.js";
 import { useMemo, useState } from "react";
 
-const SECTION_DONE_MESSAGES = {
+const SECTION_COMPLETION_MESSAGES = {
     dxcc: "No DXCC entities left",
     cq_zone: "No CQ zones left",
     itu_zone: "No ITU zones left",
@@ -149,14 +148,14 @@ function sum_added_counts(added_counts) {
 
 function get_section_progress(items, worked_values) {
     const worked = new Set(worked_values);
-    const done_count = items.filter(item => worked.has(item.value)).length;
-    const needed_count = items.length - done_count;
+    const worked_count = items.filter(item => worked.has(item.value)).length;
+    const needed_count = items.length - worked_count;
 
     return {
         worked,
-        done_count,
+        worked_count,
         needed_count,
-        is_section_done: needed_count === 0 && items.length > 0,
+        is_section_complete: needed_count === 0 && items.length > 0,
     };
 }
 
@@ -164,9 +163,9 @@ function get_visible_section_items(items, worked, list_mode, search) {
     const normalized_search = search.trim().toLowerCase();
 
     return items.filter(item => {
-        const is_done = worked.has(item.value);
-        if (list_mode === "needed" && is_done) return false;
-        if (list_mode === "done" && !is_done) return false;
+        const is_worked = worked.has(item.value);
+        if (list_mode === "needed" && is_worked) return false;
+        if (list_mode === "worked" && !is_worked) return false;
         return normalized_search.length === 0 || item.search.includes(normalized_search);
     });
 }
@@ -191,22 +190,24 @@ function TrophyIcon() {
     );
 }
 
-function SectionDoneState({ section }) {
+function SectionCompleteState({ section }) {
     return (
         <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/10 px-4 py-5 text-center">
             <TrophyIcon />
-            <p className="mt-2 text-sm font-bold">{SECTION_DONE_MESSAGES[section]}</p>
-            <p>Well done!</p>
+            <p className="mt-2 text-sm font-bold">{SECTION_COMPLETION_MESSAGES[section]}</p>
+            <p>All worked!</p>
         </div>
     );
 }
 
-function SectionStats({ done_count, needed_count, total_count }) {
+function SectionStats({ worked_count, needed_count, total_count }) {
     return (
         <div className="mt-2 space-y-1 text-sm">
-            <div className="flex items-baseline gap-3" aria-label={`${done_count} done`}>
-                <span className="w-14 opacity-80">Done</span>
-                <span className="text-lg font-bold tabular-nums text-green-500">{done_count}</span>
+            <div className="flex items-baseline gap-3" aria-label={`${worked_count} worked`}>
+                <span className="w-14 opacity-80">Worked</span>
+                <span className="text-lg font-bold tabular-nums text-green-500">
+                    {worked_count}
+                </span>
             </div>
             <div className="flex items-baseline gap-3" aria-label={`${needed_count} needed`}>
                 <span className="w-14 opacity-80">Needed</span>
@@ -225,11 +226,11 @@ function SectionStats({ done_count, needed_count, total_count }) {
 
 function MissingSectionCard({ section, items, missing, colors, on_apply_section }) {
     const worked_values = missing.worked[section]?.global ?? [];
-    const { done_count, needed_count, is_section_done } = get_section_progress(
+    const { worked_count, needed_count, is_section_complete } = get_section_progress(
         items,
         worked_values,
     );
-    const progress_percentage = items.length === 0 ? 0 : (done_count / items.length) * 100;
+    const progress_percentage = items.length === 0 ? 0 : (worked_count / items.length) * 100;
 
     return (
         <section
@@ -241,15 +242,15 @@ function MissingSectionCard({ section, items, missing, colors, on_apply_section 
                 <div>
                     <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
                     <SectionStats
-                        done_count={done_count}
+                        worked_count={worked_count}
                         needed_count={needed_count}
                         total_count={items.length}
                     />
                 </div>
             </div>
 
-            {is_section_done ? (
-                <SectionDoneState section={section} />
+            {is_section_complete ? (
+                <SectionCompleteState section={section} />
             ) : (
                 <div className="h-2 rounded-full overflow-hidden bg-slate-500/30">
                     <div
@@ -293,9 +294,9 @@ function MissingSectionModal({ section, items, missing, colors, on_apply_section
         set_search("");
     }
 
-    function set_done(_section, value, is_done) {
+    function set_worked(_section, value, is_worked) {
         set_draft_worked_values(current => {
-            if (is_done) {
+            if (is_worked) {
                 return current.includes(value) ? current : [...current, value];
             }
 
@@ -331,8 +332,8 @@ function MissingSectionModal({ section, items, missing, colors, on_apply_section
                     colors={colors}
                     on_set_list_mode={(_section, mode) => set_list_mode(mode)}
                     on_set_search={(_section, next_search) => set_search(next_search)}
-                    on_set_done={set_done}
-                    on_clear_done={() => set_draft_worked_values([])}
+                    on_set_worked={set_worked}
+                    on_clear_worked={() => set_draft_worked_values([])}
                 />
             </div>
         </Modal>
@@ -348,11 +349,14 @@ function MissingSection({
     colors,
     on_set_list_mode,
     on_set_search,
-    on_set_done,
-    on_clear_done,
+    on_set_worked,
+    on_clear_worked,
 }) {
     const worked_values = missing.worked[section]?.global ?? [];
-    const { worked, done_count, is_section_done } = get_section_progress(items, worked_values);
+    const { worked, worked_count, is_section_complete } = get_section_progress(
+        items,
+        worked_values,
+    );
     const visible_items = get_visible_section_items(items, worked, list_mode, search);
 
     return (
@@ -367,7 +371,7 @@ function MissingSection({
                 <div
                     className="h-full bg-green-500"
                     style={{
-                        width: `${items.length === 0 ? 0 : (done_count / items.length) * 100}%`,
+                        width: `${items.length === 0 ? 0 : (worked_count / items.length) * 100}%`,
                     }}
                 />
             </div>
@@ -375,7 +379,7 @@ function MissingSection({
             <div className="flex gap-2">
                 {[
                     ["needed", "Needed"],
-                    ["done", "Done"],
+                    ["worked", "Worked"],
                 ].map(([mode, label]) => (
                     <button
                         key={mode}
@@ -421,26 +425,26 @@ function MissingSection({
                         style={{ color: colors.theme.text }}
                     />
                 </div>
-                {list_mode === "done" && (
-                    <ClearDoneButton
+                {list_mode === "worked" && (
+                    <ClearWorkedButton
                         section={section}
-                        done_count={done_count}
+                        worked_count={worked_count}
                         colors={colors}
-                        on_clear_done={on_clear_done}
+                        on_clear_worked={on_clear_worked}
                     />
                 )}
             </div>
 
             <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
                 {visible_items.length === 0 ? (
-                    is_section_done && list_mode === "needed" ? (
-                        <SectionDoneState section={section} />
+                    is_section_complete && list_mode === "needed" ? (
+                        <SectionCompleteState section={section} />
                     ) : (
                         <p className="text-sm opacity-75">No {list_mode} items match.</p>
                     )
                 ) : (
                     visible_items.map(item => {
-                        const is_done = worked.has(item.value);
+                        const is_worked = worked.has(item.value);
                         return (
                             <div
                                 key={`${section}:${item.value}`}
@@ -448,27 +452,23 @@ function MissingSection({
                                 style={{ backgroundColor: colors.theme.background }}
                             >
                                 <span>{item.label}</span>
-                                {is_done ? (
+                                {is_worked ? (
                                     <button
                                         type="button"
-                                        className="flex items-center justify-center"
-                                        onClick={() => on_set_done(section, item.value, false)}
-                                        aria-label={`Mark ${item.label} needed`}
+                                        className="rounded px-2 py-0.5 text-xs font-semibold text-red-500 hover:text-red-600"
+                                        onClick={() => on_set_worked(section, item.value, false)}
+                                        aria-label={`Remove ${item.label} from Worked`}
                                     >
-                                        <X size="20" />
+                                        Remove from Worked
                                     </button>
                                 ) : (
                                     <button
                                         type="button"
-                                        className="rounded px-2 py-0.5 text-xs font-semibold"
-                                        style={{
-                                            backgroundColor: "#16a34a",
-                                            color: "white",
-                                        }}
-                                        onClick={() => on_set_done(section, item.value, true)}
-                                        aria-label={`Mark ${item.label} done`}
+                                        className="rounded bg-orange-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-orange-700"
+                                        onClick={() => on_set_worked(section, item.value, true)}
+                                        aria-label={`Mark ${item.label} as Worked`}
                                     >
-                                        Done
+                                        Mark as Worked
                                     </button>
                                 )}
                             </div>
@@ -480,10 +480,10 @@ function MissingSection({
     );
 }
 
-function ClearDoneButton({ section, done_count, colors, on_clear_done }) {
+function ClearWorkedButton({ section, worked_count, colors, on_clear_worked }) {
     const [is_confirming, set_is_confirming] = useState(false);
 
-    if (done_count === 0) {
+    if (worked_count === 0) {
         return (
             <button
                 type="button"
@@ -503,8 +503,8 @@ function ClearDoneButton({ section, done_count, colors, on_clear_done }) {
         return (
             <div className="shrink-0 flex items-center gap-1 text-[11px]">
                 <span className="font-semibold">
-                    Clear {done_count} done {SECTION_LABELS[section]} item
-                    {done_count === 1 ? "" : "s"}?
+                    Clear {worked_count} worked {SECTION_LABELS[section]} item
+                    {worked_count === 1 ? "" : "s"}?
                 </span>
                 <button
                     type="button"
@@ -521,7 +521,7 @@ function ClearDoneButton({ section, done_count, colors, on_clear_done }) {
                     type="button"
                     className="rounded px-2 py-1 font-semibold text-white bg-red-600 hover:bg-red-700"
                     onClick={() => {
-                        on_clear_done(section);
+                        on_clear_worked(section);
                         set_is_confirming(false);
                     }}
                 >

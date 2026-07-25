@@ -59,9 +59,9 @@ function section_by_heading(name) {
     return screen.getByRole("heading", { name }).closest("section");
 }
 
-function expect_section_stats(container, { done, needed, total }) {
+function expect_section_stats(container, { worked, needed, total }) {
     const scoped = within(container);
-    expect(scoped.getByLabelText(`${done} done`)).toBeTruthy();
+    expect(scoped.getByLabelText(`${worked} worked`)).toBeTruthy();
     expect(scoped.getByLabelText(`${needed} needed`)).toBeTruthy();
     expect(scoped.getByLabelText(`${total} total`)).toBeTruthy();
 }
@@ -85,7 +85,7 @@ describe("MissingPanel", () => {
         render_missing_panel();
 
         const dxcc_section = section_by_heading("DXCC");
-        expect_section_stats(dxcc_section, { done: 0, needed: 4, total: 4 });
+        expect_section_stats(dxcc_section, { worked: 0, needed: 4, total: 4 });
         expect(within(dxcc_section).getByRole("button", { name: "Edit" })).toBeTruthy();
         expect(within(dxcc_section).queryByRole("switch")).toBeNull();
     });
@@ -99,7 +99,7 @@ describe("MissingPanel", () => {
 
         const dialog = await screen.findByRole("dialog");
         expect(within(dialog).getAllByRole("heading", { name: "DXCC" }).length).toBeGreaterThan(0);
-        expect(within(dialog).queryByLabelText("0 done")).toBeNull();
+        expect(within(dialog).queryByLabelText("0 worked")).toBeNull();
         expect(within(dialog).queryByLabelText("4 needed")).toBeNull();
         expect_before(within(dialog).getByText("Albania"), within(dialog).getByText("Canada"));
         expect_before(within(dialog).getByText("Canada"), within(dialog).getByText("Germany"));
@@ -117,33 +117,40 @@ describe("MissingPanel", () => {
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
         const dialog = await screen.findByRole("dialog");
 
-        await user.click(within(dialog).getByRole("button", { name: "Mark Germany done" }));
+        const mark_worked_button = within(dialog).getByRole("button", {
+            name: "Mark Germany as Worked",
+        });
+        expect(mark_worked_button.className).toContain("bg-orange-600");
+        await user.click(mark_worked_button);
 
         await waitFor(() => {
             expect(within(dialog).queryByText("Germany")).toBeNull();
-            expect_section_stats(dxcc_section, { done: 0, needed: 4, total: 4 });
+            expect_section_stats(dxcc_section, { worked: 0, needed: 4, total: 4 });
         });
 
         await user.click(within(dialog).getByRole("button", { name: "Apply" }));
 
         await waitFor(() => {
             expect(screen.queryByRole("dialog")).toBeNull();
-            expect_section_stats(dxcc_section, { done: 1, needed: 3, total: 4 });
+            expect_section_stats(dxcc_section, { worked: 1, needed: 3, total: 4 });
         });
 
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
         const reopened_dialog = await screen.findByRole("dialog");
-        await user.click(within(reopened_dialog).getByRole("button", { name: "Done" }));
+        await user.click(within(reopened_dialog).getByRole("button", { name: "Worked" }));
         expect(within(reopened_dialog).getByText("Germany")).toBeTruthy();
 
-        await user.click(
-            within(reopened_dialog).getByRole("button", { name: "Mark Germany needed" }),
-        );
+        const remove_worked_button = within(reopened_dialog).getByRole("button", {
+            name: "Remove Germany from Worked",
+        });
+        expect(remove_worked_button.textContent).toBe("Remove from Worked");
+        expect(remove_worked_button.className).toContain("text-red-500");
+        await user.click(remove_worked_button);
         await user.click(within(reopened_dialog).getByRole("button", { name: "Apply" }));
 
         await waitFor(() => {
             expect(screen.queryByRole("dialog")).toBeNull();
-            expect_section_stats(dxcc_section, { done: 0, needed: 4, total: 4 });
+            expect_section_stats(dxcc_section, { worked: 0, needed: 4, total: 4 });
         });
     });
 
@@ -155,16 +162,16 @@ describe("MissingPanel", () => {
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
         const dialog = await screen.findByRole("dialog");
 
-        await user.click(within(dialog).getByRole("button", { name: "Mark Germany done" }));
+        await user.click(within(dialog).getByRole("button", { name: "Mark Germany as Worked" }));
 
         await waitFor(() => expect(within(dialog).queryByText("Germany")).toBeNull());
-        expect_section_stats(dxcc_section, { done: 0, needed: 4, total: 4 });
+        expect_section_stats(dxcc_section, { worked: 0, needed: 4, total: 4 });
 
         await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
         await waitFor(() => {
             expect(screen.queryByRole("dialog")).toBeNull();
-            expect_section_stats(dxcc_section, { done: 0, needed: 4, total: 4 });
+            expect_section_stats(dxcc_section, { worked: 0, needed: 4, total: 4 });
         });
 
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
@@ -173,42 +180,42 @@ describe("MissingPanel", () => {
         expect(within(reopened_dialog).queryByRole("switch")).toBeNull();
     });
 
-    it("clears done items in one section from the edit modal", async () => {
+    it("clears worked items in one section from the edit modal", async () => {
         const user = userEvent.setup();
         const profile_data = create_default_profile_data();
         profile_data.missing.worked.dxcc.global = [230];
         render_missing_panel(profile_data);
 
         const dxcc_section = section_by_heading("DXCC");
-        expect_section_stats(dxcc_section, { done: 1, needed: 3, total: 4 });
+        expect_section_stats(dxcc_section, { worked: 1, needed: 3, total: 4 });
 
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
         const dialog = await screen.findByRole("dialog");
-        await user.click(within(dialog).getByRole("button", { name: "Done" }));
+        await user.click(within(dialog).getByRole("button", { name: "Worked" }));
 
         const clear_button = within(dialog).getByRole("button", { name: "Clear" });
         await waitFor(() => expect(clear_button.disabled).toBe(false));
         await user.click(clear_button);
 
-        expect(within(dialog).getByText(/Clear 1 done DXCC item/)).toBeTruthy();
+        expect(within(dialog).getByText(/Clear 1 worked DXCC item/)).toBeTruthy();
         expect(screen.getAllByRole("dialog")).toHaveLength(1);
 
         await user.click(within(dialog).getByRole("button", { name: "Clear" }));
 
         await waitFor(() => {
             expect(within(dialog).queryByText("Germany")).toBeNull();
-            expect_section_stats(dxcc_section, { done: 1, needed: 3, total: 4 });
+            expect_section_stats(dxcc_section, { worked: 1, needed: 3, total: 4 });
         });
         await user.click(within(dialog).getByRole("button", { name: "Needed" }));
         expect(within(dialog).getByText("Germany")).toBeTruthy();
-        await user.click(within(dialog).getByRole("button", { name: "Done" }));
+        await user.click(within(dialog).getByRole("button", { name: "Worked" }));
         expect(within(dialog).getByRole("button", { name: "Clear" }).disabled).toBe(true);
 
         await user.click(within(dialog).getByRole("button", { name: "Apply" }));
 
         await waitFor(() => {
             expect(screen.queryByRole("dialog")).toBeNull();
-            expect_section_stats(dxcc_section, { done: 0, needed: 4, total: 4 });
+            expect_section_stats(dxcc_section, { worked: 0, needed: 4, total: 4 });
         });
     });
 
@@ -227,7 +234,7 @@ describe("MissingPanel", () => {
         expect(within(dialog).queryByText("AL - Alabama")).toBeNull();
     });
 
-    it("shows done section progress in summaries and edit modal", async () => {
+    it("shows worked section progress in summaries and edit modal", async () => {
         const user = userEvent.setup();
         const profile_data = create_default_profile_data();
         profile_data.missing.worked.cq_zone.global = Array.from(
@@ -238,7 +245,7 @@ describe("MissingPanel", () => {
         render_missing_panel(profile_data);
 
         const cq_section = section_by_heading("CQ");
-        expect_section_stats(cq_section, { done: 40, needed: 0, total: 40 });
+        expect_section_stats(cq_section, { worked: 40, needed: 0, total: 40 });
         expect(within(cq_section).getByRole("img", { name: "Trophy" })).toBeTruthy();
         expect(within(cq_section).getByText("No CQ zones left")).toBeTruthy();
 
@@ -246,7 +253,7 @@ describe("MissingPanel", () => {
         const dialog = await screen.findByRole("dialog");
         expect(within(dialog).getByRole("img", { name: "Trophy" })).toBeTruthy();
         expect(within(dialog).getByText("No CQ zones left")).toBeTruthy();
-        expect(within(dialog).getByText("Well done!")).toBeTruthy();
+        expect(within(dialog).getByText("All worked!")).toBeTruthy();
         expect(within(dialog).queryByText("No needed items match.")).toBeNull();
     });
 
@@ -303,7 +310,11 @@ describe("MissingPanel", () => {
 
         await waitFor(() => {
             expect(screen.queryByRole("dialog")).toBeNull();
-            expect_section_stats(section_by_heading("DXCC"), { done: 0, needed: 4, total: 4 });
+            expect_section_stats(section_by_heading("DXCC"), {
+                worked: 0,
+                needed: 4,
+                total: 4,
+            });
             expect(screen.queryByText("old.adi")).toBeNull();
         });
         const stored_profiles = JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY));
