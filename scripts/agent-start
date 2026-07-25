@@ -68,7 +68,8 @@ build_execution_prompt() {
         printf '%s\n' \
             '- Work autonomously until the task is complete and every verification command passes.' \
             '- Resolve recoverable environment and test failures instead of stopping after reporting them.' \
-            '- If intentional behavior changes invalidate tests, update those tests only when they are inside the declared file scope.' \
+            '- Update tests whenever intentional behavior changes invalidate or require coverage. Recognized test paths are always allowed outside declared implementation scope.' \
+            '- Preserve meaningful assertions and test the intended behavior; never weaken tests merely to make them pass.' \
             '- Never preserve obsolete user-facing or accessibility behavior merely to satisfy stale tests.' \
             '- If completion requires changes outside declared scope or a human decision, stop and report a precise blocker.' \
             '- Keep every commit coherent and focused. Create as many commits as the implementation logically requires.' \

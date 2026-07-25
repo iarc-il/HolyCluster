@@ -7,6 +7,13 @@ script_dir=$(dirname "$(realpath "$0")")
 source "$script_dir/agent-common"
 agent_init "$script_dir/.."
 
+is_test_path() {
+    local path=$1
+    [[ $path == tests/* || $path == test/* || $path == */tests/* || $path == */test/* || \
+        $path == */__tests__/* || $path == *.test.* || $path == *.spec.* || \
+        ${path##*/} == test_* || ${path##*/} == *_test.* ]]
+}
+
 [[ $# -eq 1 ]] || { printf 'Usage: %s <task>\n' "${0##*/}" >&2; exit 2; }
 task=$1
 agent_validate_task "$task"
@@ -47,6 +54,7 @@ for path in "${changed[@]}"; do
             break
         fi
     done
+    is_test_path "$path" && permitted=true
     [[ $permitted == true ]] || unexpected+=("$path")
 done
 if (( ${#unexpected[@]} )); then

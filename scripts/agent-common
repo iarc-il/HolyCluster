@@ -136,12 +136,14 @@ agent_window_exists() {
 
 agent_launch_opencode() {
     local session=$1 window=$2 worktree=$3 task_file=$4
-    local prompt opencode_path quoted_prompt quoted_opencode command output status
-    prompt=$(<"$task_file")
+    local opencode_path runner quoted_prompt_file quoted_opencode quoted_runner command output status
     opencode_path=$(command -v opencode) || agent_die 'opencode is not available in PATH'
-    printf -v quoted_prompt '%q' "$prompt"
+    runner="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/agent-opencode"
+    [[ -x $runner ]] || agent_die "OpenCode runner is not executable: $runner"
+    printf -v quoted_prompt_file '%q' "$task_file"
     printf -v quoted_opencode '%q' "$opencode_path"
-    command="exec $quoted_opencode --prompt=$quoted_prompt"
+    printf -v quoted_runner '%q' "$runner"
+    command="exec $quoted_runner $quoted_prompt_file $quoted_opencode"
 
     if tmux has-session -t "$session" 2>/dev/null; then
         tmux new-window -d -t "$session:" -n "$window" -c "$worktree"

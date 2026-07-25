@@ -44,6 +44,10 @@ printf '%s\n' \
     '# Update app' \
     '' \
     'Change app.txt.' >"$repo/.agent-tasks/ready/example.md"
+for ((line = 0; line < 800; line += 1)); do
+    printf 'Additional review context line %04d: verify behavior without weakening assertions.\n' "$line" \
+        >>"$repo/.agent-tasks/ready/example.md"
+done
 printf '%s\n' \
     '---' \
     'requires:' \
@@ -206,7 +210,9 @@ fi
 git -C "$worktrees/example" add app.txt
 git -C "$worktrees/example" -c user.name=Test -c user.email=test@example.com commit -qm 'Start updating app'
 printf '%s\n' 'changed' >"$worktrees/example/app.txt"
-git -C "$worktrees/example" add app.txt
+mkdir -p "$worktrees/example/tests"
+printf '%s\n' 'updated behavior test' >"$worktrees/example/tests/app.test"
+git -C "$worktrees/example" add app.txt tests/app.test
 git -C "$worktrees/example" -c user.name=Test -c user.email=test@example.com commit -qm 'Finish updating app'
 
 "$repo/scripts/agent-check" example
@@ -227,6 +233,15 @@ printf '%s\n' 'upstream' >"$repo/upstream.txt"
 git -C "$repo" add upstream.txt
 git -C "$repo" -c user.name=Test -c user.email=test@example.com commit -qm 'Advance integration branch'
 upstream_tip=$(git -C "$repo" rev-parse HEAD)
+original_app=$(<"$repo/app.txt")
+printf '%s\n' 'tracked integration dirt' >"$repo/app.txt"
+if "$repo/scripts/agent-integrate" --yes example 2>/dev/null; then
+    printf 'Integration accepted a dirty tracked non-script path\n' >&2
+    exit 1
+fi
+printf '%s\n' "$original_app" >"$repo/app.txt"
+printf '%s\n' 'untracked integration file' >"$repo/unrelated.txt"
+printf '%s\n' 'local workflow edit' >"$repo/scripts/local-only"
 "$repo/scripts/agent-integrate" --yes example
 [[ $(git -C "$repo" rev-parse HEAD) == "$upstream_tip" ]]
 output=$("$repo/scripts/agent-status" example)
@@ -235,7 +250,10 @@ output=$("$repo/scripts/agent-review" --no-launch example)
 [[ $output == *'Start updating app'* && $output == *'Finish updating app'* ]]
 "$repo/scripts/agent-review" --approve example
 "$repo/scripts/agent-integrate" --yes example
+[[ $(<"$repo/scripts/local-only") == 'local workflow edit' ]]
+[[ $(<"$repo/unrelated.txt") == 'untracked integration file' ]]
 [[ $(<"$repo/app.txt") == changed ]]
+[[ $(<"$repo/tests/app.test") == 'updated behavior test' ]]
 [[ $(git -C "$repo" rev-list --count "$example_base..main") == 3 ]]
 output=$("$repo/scripts/agent-status" example)
 [[ $output == *integrated* ]]

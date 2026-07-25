@@ -11,6 +11,11 @@ usage() {
     printf 'Usage: %s [--yes] <task>\n' "${0##*/}"
 }
 
+integration_status() {
+    git -C "$AGENT_REPO" status --porcelain --untracked-files=no -- \
+        . ':(exclude)scripts' ':(exclude)scripts/**'
+}
+
 approved=false
 if [[ ${1:-} == --yes ]]; then
     approved=true
@@ -33,7 +38,7 @@ review_window=$(agent_state_get "$task" review_window 2>/dev/null || true)
 reviewed_commit=$(agent_state_get "$task" reviewed_commit)
 current_branch=$(git -C "$AGENT_REPO" branch --show-current)
 [[ $current_branch == "$base_branch" ]] || agent_die "Run integration from $base_branch, not $current_branch"
-[[ -z $(git -C "$AGENT_REPO" status --porcelain) ]] || agent_die 'Integration checkout is not clean'
+[[ -z $(integration_status) ]] || agent_die 'Integration checkout is not clean outside scripts/'
 [[ -z $(git -C "$worktree" status --porcelain) ]] || agent_die "Task worktree is not clean: $worktree"
 [[ $(git -C "$worktree" rev-parse "$branch") == "$reviewed_commit" ]] || agent_die 'Branch changed after review approval'
 mapfile -t commits < <(git -C "$AGENT_REPO" rev-list --reverse "$base..$reviewed_commit")
@@ -90,7 +95,7 @@ rebased_commit=$(agent_state_get "$task" verified_commit)
 git -C "$AGENT_REPO" merge-base --is-ancestor "$integration_base" "$rebased_commit" || \
     agent_die "$branch is not rebased onto $base_branch"
 
-[[ -z $(git -C "$AGENT_REPO" status --porcelain) ]] || agent_die 'Integration checkout changed during verification'
+[[ -z $(integration_status) ]] || agent_die 'Integration checkout changed outside scripts/ during verification'
 current_branch=$(git -C "$AGENT_REPO" branch --show-current)
 if [[ $current_branch != "$base_branch" || $(git -C "$AGENT_REPO" rev-parse HEAD) != "$integration_base" ]]; then
     agent_state_put "$task" status integration-stale
