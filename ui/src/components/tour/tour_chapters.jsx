@@ -821,7 +821,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
-                target: "[data-tour='hunter-panel']",
+                target: "[data-tour='missing-panel']",
                 title: "Missing",
                 content:
                     "This panel uses your ADIF data to track what you have worked and still need.",
@@ -829,7 +829,7 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
-                target: "[data-tour='hunter-adif-import']",
+                target: "[data-tour='missing-adif-import']",
                 title: "ADIF Import",
                 content: "Import ADIF logs here so Missing can track your progress.",
                 placement: "left",

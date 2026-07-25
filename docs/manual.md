@@ -6,7 +6,7 @@
 
 ### What is the Holy Cluster?
 
-The Holy Cluster is a modern graphical DX cluster with an interactive map helping operators and DX hunters
+The Holy Cluster is a modern graphical DX cluster with an interactive map helping operators and DX missings
 to track, visualize, filter and monitor DX station and view the state of the bands.
 Developed by Israeli amateur radio development team with support from the Israeli Association of Radio Communication (IARC).
 

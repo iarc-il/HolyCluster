@@ -363,7 +363,7 @@ sequenceDiagram
     A->>A: telnet submit to dxc.ai9t.com:7300
     A-->>B: {type:"submit", status:"success"|"failure", error_type}
 
-    B->>A: {version:1, type:"hunter", action:"start"/"add"/"finish", callsigns:[...]}
+    B->>A: {version:1, type:"missing", action:"start"/"add"/"finish", callsigns:[...]}
     A-->>B: batch callsign resolutions (worker pool 4, batches of 50)
 
     B->>A: {version:1, type:"radio", ...}
@@ -421,7 +421,7 @@ flowchart TB
 
 ⚠ Ordering is load-bearing: `SettingsProvider`, `FiltersProvider`, `ColorsProvider` all read from `ProfilesProvider` and throw if mounted outside it.
 
-Profile sections (defined in `utils/profile_data.js`): `settings`, `filters`, `callsign_filters`, `hunter`, `map_controls`, `map_view`, `table_sort`, `history`, `panels`, `radio`.
+Profile sections (defined in `utils/profile_data.js`): `settings`, `filters`, `callsign_filters`, `missing`, `map_controls`, `map_view`, `table_sort`, `history`, `panels`, `radio`.
 
 ### 5.3 Data flow into the UI
 
@@ -435,7 +435,7 @@ flowchart LR
     subgraph DATA["Data hooks"]
         SWS["useSpotWebSocket<br/>normalize, 1h trim,<br/>catch_up on reconnect"]
         HIST["useHistorySpots<br/>IndexedDB gap-fill cache"]
-        FILT["useSpotFiltering<br/>time/band/mode/continent/<br/>callsign/hunter → slice(0,100)"]
+        FILT["useSpotFiltering<br/>time/band/mode/continent/<br/>callsign/missing → slice(0,100)"]
         RESTD["useRestData<br/>propagation + dxpeditions<br/>hourly polls"]
         VOA["useVoacap<br/>350ms debounce + LRU"]
         RADH["useRadio<br/>status/freq/mode"]
@@ -445,7 +445,7 @@ flowchart LR
         MAP["CanvasMap"]
         TABLE["SpotsTable"]
         BARS["PropagationBar / FrequencyBar"]
-        HP["HunterPanel / DXpeditions"]
+        HP["MissingPanel / DXpeditions"]
     end
 
     WSOCK -->|"type: spots"| SWS
@@ -506,7 +506,7 @@ There is **no server-side account or sync** — profiles are exported/imported a
 | Spots table | `SpotsTable.jsx` (908 lines) | Sortable, row click tunes radio, context menu adds filters |
 | Filters | `useFilters.jsx`, `FilterModal.jsx` | Bands/modes/continents/callsign rules; shareable URLs; 3-state zone cycle |
 | Settings | `settings/Settings.jsx` + tabs | temp-copy edit, committed on save |
-| Hunter panel | `HunterPanel.jsx` (729 lines), `hunter_adif*` | ADIF import in a Web Worker (50 MB limit); flags "needed" spots |
+| Missing panel | `MissingPanel.jsx` (729 lines), `missing_adif*` | ADIF import in a Web Worker (50 MB limit); flags "needed" spots |
 | DXpeditions | `DXpeditions.jsx` | From NG3K via backend |
 | Propagation | `PropagationBar.jsx` | SFI / A / K indices |
 | VOACAP overlay | `useVoacap.jsx`, `draw_voacap.js` | ⚠ dev-mode gated |

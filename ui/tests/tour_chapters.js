@@ -235,7 +235,7 @@ describe("tour chapters", () => {
             ["side_panel", "[data-tour='band-bar-chart']"],
             ["side_panel", "[data-tour='heatmap-panel']"],
             ["side_panel", "[data-tour='dxpeditions-panel']"],
-            ["side_panel", "[data-tour='hunter-panel']"],
+            ["side_panel", "[data-tour='missing-panel']"],
         ];
 
         for (const [chapter_id, target] of large_panel_targets) {

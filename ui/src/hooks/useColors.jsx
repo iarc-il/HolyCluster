@@ -107,8 +107,8 @@ const base_theme = {
     spots: {
         alert_border: "white",
         dxpedition_alert: "#FFD700",
-        hunter_alert_flash: "#ef4444",
-        hunter_alert_flash_border: "#ffffff",
+        missing_alert_flash: "#ef4444",
+        missing_alert_flash_border: "#ffffff",
     },
     map: {
         background: "#b8e8ee",
@@ -265,7 +265,7 @@ const themes = {
             progress_track: "#d1d5db",
         },
         spots: {
-            hunter_alert_flash_border: "#111827",
+            missing_alert_flash_border: "#111827",
         },
         seven_segment: {
             on: "#ef4444",
@@ -370,7 +370,7 @@ const themes = {
             odd_text: "#000000",
         },
         spots: {
-            hunter_alert_flash_border: "#111827",
+            missing_alert_flash_border: "#111827",
         },
         seven_segment: {
             on: "#ef4444",

@@ -70,16 +70,16 @@ function draw_spot_dx(
     dx_x,
     dx_y,
     dx_size,
-    hunter_flash_phase,
-    hunter_flash_color,
+    missing_flash_phase,
+    missing_flash_color,
 ) {
-    const is_hunter_alerted = Boolean(spot.hunterNeeded?.is_needed);
+    const is_missing_alerted = Boolean(spot.missingNeeded?.is_needed);
 
-    if (is_hunter_alerted) {
+    if (is_missing_alerted) {
         context.beginPath();
-        draw_dx_shape_path(context, spot, dx_x, dx_y, dx_size + 5 + hunter_flash_phase * 5);
-        context.strokeStyle = with_alpha(hunter_flash_color, 0.45 + hunter_flash_phase * 0.45);
-        context.lineWidth = 2 + hunter_flash_phase * 2;
+        draw_dx_shape_path(context, spot, dx_x, dx_y, dx_size + 5 + missing_flash_phase * 5);
+        context.strokeStyle = with_alpha(missing_flash_color, 0.45 + missing_flash_phase * 0.45);
+        context.lineWidth = 2 + missing_flash_phase * 2;
         context.stroke();
     }
 
@@ -89,10 +89,10 @@ function draw_spot_dx(
     context.lineWidth = 1;
     draw_dx_shape_path(context, spot, dx_x, dx_y, dx_size);
     context.fill();
-    if (is_hunter_alerted) {
-        context.fillStyle = with_alpha(hunter_flash_color, 0.2 + hunter_flash_phase * 0.65);
+    if (is_missing_alerted) {
+        context.fillStyle = with_alpha(missing_flash_color, 0.2 + missing_flash_phase * 0.65);
         context.fill();
-        context.strokeStyle = with_alpha(hunter_flash_color, 0.85);
+        context.strokeStyle = with_alpha(missing_flash_color, 0.85);
         context.lineWidth = 1.5;
     }
     context.stroke();
@@ -103,7 +103,7 @@ function draw_spot(
     spot,
     colors,
     dash_offset,
-    hunter_flash_phase,
+    missing_flash_phase,
     { is_bold, path_generator, projection, is_visible },
 ) {
     const line = build_geojson_line(spot);
@@ -141,8 +141,8 @@ function draw_spot(
             dx_x,
             dx_y,
             dx_size,
-            hunter_flash_phase,
-            colors.spots?.hunter_alert_flash ?? "#ef4444",
+            missing_flash_phase,
+            colors.spots?.missing_alert_flash ?? "#ef4444",
         );
     }
 
@@ -275,7 +275,7 @@ export function draw_spots(
     show_dev_bearings,
     rotator_azimuth,
     rotator_target_azimuth,
-    hunter_flash_phase = 0,
+    missing_flash_phase = 0,
 ) {
     const path_generator = d3.geoPath().projection(projection).context(context);
     const is_visible = is_globe ? make_visibility_check(projection) : () => true;
@@ -293,14 +293,14 @@ export function draw_spots(
         if (hovered_spot.id === spot.id || pinned_spot === spot.id) {
             bold_spots.push(spot);
         } else if (is_band_highlighted || is_freq_highlighted) {
-            draw_spot(context, spot, colors, dash_offset, hunter_flash_phase, {
+            draw_spot(context, spot, colors, dash_offset, missing_flash_phase, {
                 is_bold: true,
                 path_generator,
                 projection,
                 is_visible,
             });
         } else {
-            draw_spot(context, spot, colors, dash_offset, hunter_flash_phase, {
+            draw_spot(context, spot, colors, dash_offset, missing_flash_phase, {
                 is_bold: false,
                 path_generator,
                 projection,
@@ -358,7 +358,7 @@ export function draw_spots(
 
     // Bold spot drawn last (on top)
     for (const spot of bold_spots) {
-        draw_spot(context, spot, colors, dash_offset, hunter_flash_phase, {
+        draw_spot(context, spot, colors, dash_offset, missing_flash_phase, {
             is_bold: true,
             path_generator,
             projection,

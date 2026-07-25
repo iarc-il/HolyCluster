@@ -19,13 +19,13 @@ vi.mock("virtual:cty-dxcc-entities", () => ({
 }));
 
 import {
-    HUNTER_ADIF_MAX_FILE_SIZE_BYTES,
-    HunterAdifImportError,
-    import_hunter_adif,
-    resolve_hunter_callsigns,
-} from "@/utils/hunter_adif.js";
-import { import_hunter_adif_in_worker } from "@/utils/hunter_adif_worker_client.js";
-import { create_default_hunter } from "@/utils/profile_data.js";
+    MISSING_ADIF_MAX_FILE_SIZE_BYTES,
+    MissingAdifImportError,
+    import_missing_adif,
+    resolve_missing_callsigns,
+} from "@/utils/missing_adif.js";
+import { import_missing_adif_in_worker } from "@/utils/missing_adif_worker_client.js";
+import { create_default_missing } from "@/utils/profile_data.js";
 
 function adif_record(fields) {
     return `${Object.entries(fields)
@@ -78,9 +78,9 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
-describe("hunter_adif", () => {
+describe("missing_adif", () => {
     it("parses direct ADIF records and records import metadata", async () => {
-        const result = await import_hunter_adif({
+        const result = await import_missing_adif({
             adif_text: adif_record({
                 CALL: "K1ABC",
                 DXCC: "291",
@@ -94,10 +94,10 @@ describe("hunter_adif", () => {
             resolve_callsigns: failing_resolver,
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual([291]);
-        expect(result.hunter.worked.cq_zone.global).toEqual([5]);
-        expect(result.hunter.worked.itu_zone.global).toEqual([8]);
-        expect(result.hunter.worked.us_state.global).toEqual(["CA"]);
+        expect(result.missing.worked.dxcc.global).toEqual([291]);
+        expect(result.missing.worked.cq_zone.global).toEqual([5]);
+        expect(result.missing.worked.itu_zone.global).toEqual([8]);
+        expect(result.missing.worked.us_state.global).toEqual(["CA"]);
         expect(result.metadata).toEqual({
             file_name: "basic.adi",
             imported_at: 123,
@@ -114,11 +114,11 @@ describe("hunter_adif", () => {
             unresolved_count: 0,
             conflict_count: 0,
         });
-        expect(result.hunter.imports).toEqual([result.metadata]);
+        expect(result.missing.imports).toEqual([result.metadata]);
     });
 
     it("uses ADIF DXCC over COUNTRY and counts conflicts", async () => {
-        const result = await import_hunter_adif({
+        const result = await import_missing_adif({
             adif_text: adif_record({
                 CALL: "DL1ABC",
                 DXCC: "230",
@@ -129,31 +129,31 @@ describe("hunter_adif", () => {
             resolve_callsigns: failing_resolver,
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual([230]);
-        expect(result.hunter.worked.cq_zone.global).toEqual([14]);
+        expect(result.missing.worked.dxcc.global).toEqual([230]);
+        expect(result.missing.worked.cq_zone.global).toEqual([14]);
         expect(result.metadata.conflict_count).toBe(1);
     });
 
     it("skips no-call records for inference while keeping direct fields", async () => {
-        const result = await import_hunter_adif({
+        const result = await import_missing_adif({
             adif_text: [adif_record({ DXCC: "291" }), adif_record({ BAND: "20" })].join(""),
             resolve_callsigns: failing_resolver,
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual([291]);
+        expect(result.missing.worked.dxcc.global).toEqual([291]);
         expect(result.metadata.qso_count).toBe(2);
         expect(result.metadata.skipped_count).toBe(1);
         expect(result.metadata.unresolved_count).toBe(0);
     });
 
     it("merges resolver features into existing worked state without replacing", async () => {
-        const hunter = create_default_hunter();
-        hunter.worked.dxcc.global = [291];
-        hunter.imports = [{ file_name: "old.adi", imported_at: 1 }];
+        const missing = create_default_missing();
+        missing.worked.dxcc.global = [291];
+        missing.imports = [{ file_name: "old.adi", imported_at: 1 }];
         const resolved_batches = [];
 
-        const result = await import_hunter_adif({
-            hunter,
+        const result = await import_missing_adif({
+            missing,
             adif_text: [adif_record({ CALL: "VE3XYZ" }), adif_record({ CALL: "VE3XYZ" })].join(""),
             imported_at: 456,
             resolve_callsigns: async callsigns => {
@@ -175,13 +175,13 @@ describe("hunter_adif", () => {
         });
 
         expect(resolved_batches).toEqual([["VE3XYZ"]]);
-        expect(result.hunter.worked.dxcc.global).toEqual([291, 1]);
-        expect(result.hunter.worked.cq_zone.global).toEqual([4]);
-        expect(result.hunter.worked.itu_zone.global).toEqual([4]);
-        expect(result.hunter.worked.ca_province.global).toEqual(["ON"]);
+        expect(result.missing.worked.dxcc.global).toEqual([291, 1]);
+        expect(result.missing.worked.cq_zone.global).toEqual([4]);
+        expect(result.missing.worked.itu_zone.global).toEqual([4]);
+        expect(result.missing.worked.ca_province.global).toEqual(["ON"]);
         expect(result.metadata.added_counts.dxcc).toBe(1);
         expect(result.metadata.resolved_count).toBe(1);
-        expect(result.hunter.imports).toHaveLength(2);
+        expect(result.missing.imports).toHaveLength(2);
     });
 
     it("reports resolver progress for one logical resolver job", async () => {
@@ -191,7 +191,7 @@ describe("hunter_adif", () => {
             adif_record({ CALL: `K${index}ABC` }),
         ).join("");
 
-        const result = await import_hunter_adif({
+        const result = await import_missing_adif({
             adif_text,
             resolve_callsigns: async callsigns => {
                 resolved_batches.push(callsigns);
@@ -232,7 +232,7 @@ describe("hunter_adif", () => {
     it("resolves callsigns over websocket and retries unresolved callsigns after disconnect", async () => {
         vi.stubGlobal("WebSocket", FakeWebSocket);
         const progress = [];
-        const resolve_promise = resolve_hunter_callsigns(["K1ABC", "VE3XYZ"], completed => {
+        const resolve_promise = resolve_missing_callsigns(["K1ABC", "VE3XYZ"], completed => {
             progress.push(completed);
         });
 
@@ -241,20 +241,20 @@ describe("hunter_adif", () => {
         const first_job_id = first_socket.sent[0].job_id;
         expect(first_socket.url).toBe("ws://localhost:3000/ws");
         expect(first_socket.sent).toEqual([
-            { version: 1, type: "hunter", action: "start", job_id: first_job_id },
+            { version: 1, type: "missing", action: "start", job_id: first_job_id },
             {
                 version: 1,
-                type: "hunter",
+                type: "missing",
                 action: "add",
                 job_id: first_job_id,
                 callsigns: ["K1ABC", "VE3XYZ"],
             },
-            { version: 1, type: "hunter", action: "finish", job_id: first_job_id },
+            { version: 1, type: "missing", action: "finish", job_id: first_job_id },
         ]);
 
         first_socket.receive({
             version: 1,
-            type: "hunter",
+            type: "missing",
             event: "results",
             job_id: first_job_id,
             results: { K1ABC: { country: "USA" } },
@@ -268,7 +268,7 @@ describe("hunter_adif", () => {
         const second_job_id = second_socket.sent[0].job_id;
         expect(second_socket.sent[1]).toEqual({
             version: 1,
-            type: "hunter",
+            type: "missing",
             action: "add",
             job_id: second_job_id,
             callsigns: ["VE3XYZ"],
@@ -276,7 +276,7 @@ describe("hunter_adif", () => {
 
         second_socket.receive({
             version: 1,
-            type: "hunter",
+            type: "missing",
             event: "results",
             job_id: second_job_id,
             results: { VE3XYZ: { country: "Canada" } },
@@ -284,7 +284,7 @@ describe("hunter_adif", () => {
         });
         second_socket.receive({
             version: 1,
-            type: "hunter",
+            type: "missing",
             event: "complete",
             job_id: second_job_id,
         });
@@ -304,7 +304,7 @@ describe("hunter_adif", () => {
         FakeWebSocket.should_open = url => url.endsWith("/submit_spot");
         vi.stubGlobal("WebSocket", FakeWebSocket);
 
-        const resolve_promise = resolve_hunter_callsigns(["K1ABC"]);
+        const resolve_promise = resolve_missing_callsigns(["K1ABC"]);
         await vi.advanceTimersByTimeAsync(1500);
 
         expect(FakeWebSocket.instances.map(socket => socket.url)).toEqual([
@@ -315,20 +315,20 @@ describe("hunter_adif", () => {
         fallback_socket.onopen();
         const job_id = fallback_socket.sent[0].job_id;
         expect(fallback_socket.sent).toEqual([
-            { version: 1, type: "hunter", action: "start", job_id },
+            { version: 1, type: "missing", action: "start", job_id },
             {
                 version: 1,
-                type: "hunter",
+                type: "missing",
                 action: "add",
                 job_id,
                 callsigns: ["K1ABC"],
             },
-            { version: 1, type: "hunter", action: "finish", job_id },
+            { version: 1, type: "missing", action: "finish", job_id },
         ]);
 
         fallback_socket.receive({
             version: 1,
-            type: "hunter",
+            type: "missing",
             event: "results",
             job_id,
             results: { K1ABC: { country: "USA" } },
@@ -336,7 +336,7 @@ describe("hunter_adif", () => {
         });
         fallback_socket.receive({
             version: 1,
-            type: "hunter",
+            type: "missing",
             event: "complete",
             job_id,
         });
@@ -348,7 +348,7 @@ describe("hunter_adif", () => {
     });
 
     it("worker client falls back when a custom resolver is supplied", async () => {
-        const result = await import_hunter_adif_in_worker({
+        const result = await import_missing_adif_in_worker({
             adif_text: adif_record({ CALL: "K1ABC" }),
             resolve_callsigns: async () => ({
                 results: {
@@ -363,12 +363,12 @@ describe("hunter_adif", () => {
             }),
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual([291]);
+        expect(result.missing.worked.dxcc.global).toEqual([291]);
         expect(result.metadata.resolved_count).toBe(1);
     });
 
     it("uses direct state over resolver state and coordinate inference", async () => {
-        const result = await import_hunter_adif({
+        const result = await import_missing_adif({
             adif_text: adif_record({ CALL: "K1ABC", COUNTRY: "United States", STATE: "CA" }),
             resolve_callsigns: async () => ({
                 results: {
@@ -385,14 +385,14 @@ describe("hunter_adif", () => {
             }),
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual([291]);
-        expect(result.hunter.worked.us_state.global).toEqual(["CA"]);
-        expect(result.hunter.worked.cq_zone.global).toEqual([5]);
+        expect(result.missing.worked.dxcc.global).toEqual([291]);
+        expect(result.missing.worked.us_state.global).toEqual(["CA"]);
+        expect(result.missing.worked.cq_zone.global).toEqual([5]);
         expect(result.metadata.resolved_count).toBe(1);
     });
 
     it("infers US and Canada state/province from resolver coordinates", async () => {
-        const result = await import_hunter_adif({
+        const result = await import_missing_adif({
             adif_text: [adif_record({ CALL: "K1ABC" }), adif_record({ CALL: "VE3XYZ" })].join(""),
             resolve_callsigns: async () => ({
                 results: {
@@ -417,12 +417,12 @@ describe("hunter_adif", () => {
             }),
         });
 
-        expect(result.hunter.worked.us_state.global).toEqual(["CA"]);
-        expect(result.hunter.worked.ca_province.global).toEqual(["ON"]);
+        expect(result.missing.worked.us_state.global).toEqual(["CA"]);
+        expect(result.missing.worked.ca_province.global).toEqual(["ON"]);
     });
 
     it("continues import when some callsigns fail resolution", async () => {
-        const result = await import_hunter_adif({
+        const result = await import_missing_adif({
             adif_text: [adif_record({ CALL: "K1ABC" }), adif_record({ CALL: "BAD" })].join(""),
             resolve_callsigns: async () => ({
                 results: {
@@ -439,7 +439,7 @@ describe("hunter_adif", () => {
             }),
         });
 
-        expect(result.hunter.worked.dxcc.global).toEqual([291]);
+        expect(result.missing.worked.dxcc.global).toEqual([291]);
         expect(result.metadata.resolved_count).toBe(1);
         expect(result.metadata.unresolved_count).toBe(1);
         expect(result.resolver_errors).toEqual({ BAD: "not found" });
@@ -448,13 +448,13 @@ describe("hunter_adif", () => {
     it("rejects empty ADIF imports", async () => {
         for (const adif_text of ["", "   \n\t"]) {
             await expect(
-                import_hunter_adif({
+                import_missing_adif({
                     adif_text,
                     resolve_callsigns: failing_resolver,
                 }),
-            ).rejects.toThrow(HunterAdifImportError);
+            ).rejects.toThrow(MissingAdifImportError);
             await expect(
-                import_hunter_adif({
+                import_missing_adif({
                     adif_text,
                     resolve_callsigns: failing_resolver,
                 }),
@@ -465,13 +465,13 @@ describe("hunter_adif", () => {
     it("rejects text and binary-looking files that do not look like ADIF", async () => {
         for (const adif_text of ["not an adif", `\u007fELF${"a".repeat(1000)}<bad>`]) {
             await expect(
-                import_hunter_adif({
+                import_missing_adif({
                     adif_text,
                     resolve_callsigns: failing_resolver,
                 }),
-            ).rejects.toThrow(HunterAdifImportError);
+            ).rejects.toThrow(MissingAdifImportError);
             await expect(
-                import_hunter_adif({
+                import_missing_adif({
                     adif_text,
                     resolve_callsigns: failing_resolver,
                 }),
@@ -481,7 +481,7 @@ describe("hunter_adif", () => {
 
     it("rejects ADIF-like files without QSO records", async () => {
         await expect(
-            import_hunter_adif({
+            import_missing_adif({
                 adif_text: "<EOH>",
                 resolve_callsigns: failing_resolver,
             }),
@@ -490,7 +490,7 @@ describe("hunter_adif", () => {
 
     it("hides raw parser details for malformed ADIF", async () => {
         await expect(
-            import_hunter_adif({
+            import_missing_adif({
                 adif_text: "<CALL:5>ABC<EOR><BAD>",
                 resolve_callsigns: failing_resolver,
             }),
@@ -499,7 +499,7 @@ describe("hunter_adif", () => {
         );
 
         await expect(
-            import_hunter_adif({
+            import_missing_adif({
                 adif_text: "<CALL:5>ABC<EOR><BAD>",
                 resolve_callsigns: failing_resolver,
             }),
@@ -508,10 +508,10 @@ describe("hunter_adif", () => {
 
     it("respects the file size limit", async () => {
         await expect(
-            import_hunter_adif({
+            import_missing_adif({
                 adif_text: "",
-                file_size: HUNTER_ADIF_MAX_FILE_SIZE_BYTES + 1,
+                file_size: MISSING_ADIF_MAX_FILE_SIZE_BYTES + 1,
             }),
-        ).rejects.toThrow(HunterAdifImportError);
+        ).rejects.toThrow(MissingAdifImportError);
     });
 });

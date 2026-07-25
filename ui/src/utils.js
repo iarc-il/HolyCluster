@@ -55,10 +55,10 @@ export function get_bearing_origin(settings, fallback_location) {
 
 export const mod = (n, m) => ((n % m) + m) % m;
 
-const HUNTER_ALERT_FLASH_PERIOD_MS = 800;
+const MISSING_ALERT_FLASH_PERIOD_MS = 800;
 
-export function get_hunter_alert_flash_phase(now = Date.now()) {
-    return (Math.sin((now / HUNTER_ALERT_FLASH_PERIOD_MS) * Math.PI * 2) + 1) / 2;
+export function get_missing_alert_flash_phase(now = Date.now()) {
+    return (Math.sin((now / MISSING_ALERT_FLASH_PERIOD_MS) * Math.PI * 2) + 1) / 2;
 }
 
 export function compare_version(a, b) {

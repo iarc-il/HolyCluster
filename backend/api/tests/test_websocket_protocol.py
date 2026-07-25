@@ -250,7 +250,7 @@ class WebSocketProtocolTest(unittest.TestCase):
             )
             self.assertEqual(len(app.state.active_ws_spot_connections), 0)
 
-    def test_ws_hunter_resolves_streamed_job(self):
+    def test_ws_missing_resolves_streamed_job(self):
         app.state.valkey_client = object()
         app.state.http_client = object()
         resolved_callsigns = []
@@ -258,7 +258,7 @@ class WebSocketProtocolTest(unittest.TestCase):
         async def fake_get_geo_details(_valkey_client, _qrz_key, callsign, *_args):
             resolved_callsigns.append(callsign)
             if callsign == "BAD":
-                raise GeoException(callsign, "hunter_import", "locator")
+                raise GeoException(callsign, "missing_import", "locator")
             return create_geo_data(callsign, cached=callsign == "K1ABC", source="cty")
 
         with (
@@ -266,23 +266,23 @@ class WebSocketProtocolTest(unittest.TestCase):
             patch("api.main.get_geo_details", new=fake_get_geo_details),
             self.client.websocket_connect("/ws") as websocket,
         ):
-            websocket.send_json({"version": 1, "type": "hunter", "action": "start", "job_id": "job-1"})
+            websocket.send_json({"version": 1, "type": "missing", "action": "start", "job_id": "job-1"})
             websocket.send_json(
                 {
                     "version": 1,
-                    "type": "hunter",
+                    "type": "missing",
                     "action": "add",
                     "job_id": "job-1",
                     "callsigns": ["k1abc", "BAD", "BAD!", "K1ABC"],
                 }
             )
-            websocket.send_json({"version": 1, "type": "hunter", "action": "finish", "job_id": "job-1"})
+            websocket.send_json({"version": 1, "type": "missing", "action": "finish", "job_id": "job-1"})
 
             self.assertEqual(
                 websocket.receive_json(),
                 {
                     "version": 1,
-                    "type": "hunter",
+                    "type": "missing",
                     "event": "accepted",
                     "job_id": "job-1",
                     "total": 3,
@@ -307,7 +307,7 @@ class WebSocketProtocolTest(unittest.TestCase):
             complete,
             {
                 "version": 1,
-                "type": "hunter",
+                "type": "missing",
                 "event": "complete",
                 "job_id": "job-1",
                 "completed": 3,
@@ -315,26 +315,26 @@ class WebSocketProtocolTest(unittest.TestCase):
             },
         )
 
-    def test_legacy_submit_socket_routes_hunter_jobs(self):
+    def test_legacy_submit_socket_routes_missing_jobs(self):
         app.state.valkey_client = AsyncMock()
         with self.client.websocket_connect("/submit_spot") as websocket:
-            websocket.send_json({"version": 1, "type": "hunter", "action": "start", "job_id": "job-1"})
+            websocket.send_json({"version": 1, "type": "missing", "action": "start", "job_id": "job-1"})
             websocket.send_json(
                 {
                     "version": 1,
-                    "type": "hunter",
+                    "type": "missing",
                     "action": "add",
                     "job_id": "job-1",
                     "callsigns": [],
                 }
             )
-            websocket.send_json({"version": 1, "type": "hunter", "action": "finish", "job_id": "job-1"})
+            websocket.send_json({"version": 1, "type": "missing", "action": "finish", "job_id": "job-1"})
 
             self.assertEqual(
                 websocket.receive_json(),
                 {
                     "version": 1,
-                    "type": "hunter",
+                    "type": "missing",
                     "event": "accepted",
                     "job_id": "job-1",
                     "total": 0,
@@ -344,7 +344,7 @@ class WebSocketProtocolTest(unittest.TestCase):
                 websocket.receive_json(),
                 {
                     "version": 1,
-                    "type": "hunter",
+                    "type": "missing",
                     "event": "complete",
                     "job_id": "job-1",
                     "completed": 0,
@@ -352,9 +352,9 @@ class WebSocketProtocolTest(unittest.TestCase):
                 },
             )
 
-    def test_ws_hunter_requires_job_id(self):
+    def test_ws_missing_requires_job_id(self):
         with self.client.websocket_connect("/ws") as websocket:
-            websocket.send_json({"version": 1, "type": "hunter", "action": "start"})
+            websocket.send_json({"version": 1, "type": "missing", "action": "start"})
 
             self.assertEqual(
                 websocket.receive_json(),
@@ -367,9 +367,9 @@ class WebSocketProtocolTest(unittest.TestCase):
                 },
             )
 
-    def test_ws_hunter_rejects_unknown_job(self):
+    def test_ws_missing_rejects_unknown_job(self):
         with self.client.websocket_connect("/ws") as websocket:
-            websocket.send_json({"version": 1, "type": "hunter", "action": "finish", "job_id": "job-1"})
+            websocket.send_json({"version": 1, "type": "missing", "action": "finish", "job_id": "job-1"})
 
             self.assertEqual(
                 websocket.receive_json(),
@@ -377,7 +377,7 @@ class WebSocketProtocolTest(unittest.TestCase):
                     "version": 1,
                     "type": "error",
                     "error_type": "UnknownJob",
-                    "message": "Unknown hunter job",
+                    "message": "Unknown missing job",
                     "job_id": "job-1",
                 },
             )

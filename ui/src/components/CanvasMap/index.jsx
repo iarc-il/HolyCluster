@@ -28,8 +28,8 @@ import {
     build_map_context_filter,
 } from "./map_context_menu.js";
 import {
-    build_hunter_overlay_highlights,
-    get_active_hunter_filter_actions,
+    build_missing_overlay_highlights,
+    get_active_missing_filter_actions,
 } from "./overlay_highlights.js";
 import { DPR } from "./render_helpers.js";
 import { useCanvasLayers } from "./useCanvasLayers.js";
@@ -51,7 +51,7 @@ function CanvasMap({
     const { spots, current_freq_spots } = useSpotData();
     const { callsign_filters, get_filter_add_status, add_filter_if_allowed } = useFilters();
     const {
-        active_profile_data: { hunter },
+        active_profile_data: { missing },
     } = useProfiles();
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
@@ -133,8 +133,8 @@ function CanvasMap({
             : null;
     const home_location = useMemo(() => get_station_location(settings), [settings.locator]);
     const night_time_ms = night_time?.getTime() ?? null;
-    const hunter_overlay_actions = useMemo(
-        () => get_active_hunter_filter_actions(callsign_filters),
+    const missing_overlay_actions = useMemo(
+        () => get_active_missing_filter_actions(callsign_filters),
         [
             callsign_filters.filters,
             callsign_filters.is_alert_filters_active,
@@ -143,8 +143,8 @@ function CanvasMap({
         ],
     );
     const overlay_highlights = useMemo(
-        () => build_hunter_overlay_highlights(hunter, hunter_overlay_actions),
-        [hunter, hunter_overlay_actions],
+        () => build_missing_overlay_highlights(missing, missing_overlay_actions),
+        [missing, missing_overlay_actions],
     );
 
     const render_state_ref = useRef({});

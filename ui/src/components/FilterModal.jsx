@@ -22,7 +22,7 @@ export const empty_filter_data = {
     value: "",
     spotter_or_dx: "dx",
     zone_system: "cq",
-    hunter_section: "dxcc",
+    missing_section: "dxcc",
 };
 
 function RadioButton({ children, disabled, on_click, data_tour = null }) {
@@ -189,11 +189,11 @@ function FilterModal({
                         };
                     }
 
-                    if (temp_data.type === "hunter") {
+                    if (temp_data.type === "missing") {
                         return {
                             action: temp_data.action,
-                            type: "hunter",
-                            hunter_section: temp_data.hunter_section,
+                            type: "missing",
+                            missing_section: temp_data.missing_section,
                         };
                     }
 
@@ -210,7 +210,7 @@ function FilterModal({
                 const is_value_required =
                     temp_data.type !== "self_spotters" &&
                     temp_data.type !== "dxpeditions" &&
-                    temp_data.type !== "hunter" &&
+                    temp_data.type !== "missing" &&
                     temp_data.type !== "zone" &&
                     temp_data.type !== "zone_region";
                 if (is_value_required && temp_data.value.toString().trim().length === 0) {
@@ -250,7 +250,7 @@ function FilterModal({
                         { label: "US/Canada", value: "zone_region" },
                         { label: "Zone", value: "zone" },
                         { label: "Comment", value: "comment" },
-                        { label: "Missing", value: "hunter" },
+                        { label: "Missing", value: "missing" },
                         { label: "Self Spotters", value: "self_spotters" },
                         { label: "DXpeditions", value: "dxpeditions" },
                     ]}
@@ -282,11 +282,11 @@ function FilterModal({
                                 spotter_or_dx: "dx",
                             };
                         }
-                        if (value === "hunter") {
+                        if (value === "missing") {
                             return {
                                 ...temp_data,
                                 [field]: value,
-                                hunter_section: temp_data.hunter_section || "dxcc",
+                                missing_section: temp_data.missing_section || "dxcc",
                                 value: "",
                                 spotter_or_dx: "dx",
                             };
@@ -408,7 +408,7 @@ function FilterModal({
                             </div>
                         </div>
                     </>
-                ) : temp_data.type === "hunter" ? (
+                ) : temp_data.type === "missing" ? (
                     <>
                         <hr />
                         <SelectionLine
@@ -416,10 +416,10 @@ function FilterModal({
                                 label: MISSING_SECTION_LABELS[section],
                                 value: section,
                             }))}
-                            field="hunter_section"
+                            field="missing_section"
                             temp_data={temp_data}
                             set_temp_data={set_temp_data}
-                            data_tour_prefix="filter-modal-hunter-section"
+                            data_tour_prefix="filter-modal-missing-section"
                         />
                     </>
                 ) : temp_data.type !== "self_spotters" &&

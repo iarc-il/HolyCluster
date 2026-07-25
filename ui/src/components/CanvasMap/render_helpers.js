@@ -196,7 +196,7 @@ export function do_redraw(
                         show_dev_bearings,
                         render_state_ref.current.rotator_azimuth,
                         render_state_ref.current.rotator_target_azimuth,
-                        canvas_refs.hunter_flash_phase_ref.current,
+                        canvas_refs.missing_flash_phase_ref.current,
                     );
                 });
                 profile_map(fast ? "draw_zone_labels.fast" : "draw_zone_labels", () => {

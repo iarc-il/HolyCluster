@@ -3,10 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const import_hunter_adif_in_worker = vi.hoisted(() => vi.fn());
+const import_missing_adif_in_worker = vi.hoisted(() => vi.fn());
 
-vi.mock("@/utils/hunter_adif_worker_client.js", () => ({
-    import_hunter_adif_in_worker,
+vi.mock("@/utils/missing_adif_worker_client.js", () => ({
+    import_missing_adif_in_worker,
 }));
 
 vi.mock("virtual:cty-dxcc-entities", () => ({
@@ -25,7 +25,7 @@ vi.mock("virtual:cty-dxcc-entities", () => ({
     },
 }));
 
-import HunterPanel from "@/components/HunterPanel.jsx";
+import MissingPanel from "@/components/MissingPanel.jsx";
 import { ColorsProvider } from "@/hooks/useColors.jsx";
 import { ProfilesProvider } from "@/hooks/useProfiles.jsx";
 import {
@@ -34,7 +34,7 @@ import {
     create_default_profile_data,
 } from "@/utils/profile_data.js";
 
-function render_hunter_panel(profile_data = create_default_profile_data(), props = {}) {
+function render_missing_panel(profile_data = create_default_profile_data(), props = {}) {
     window.localStorage.setItem(
         PROFILE_STORE_KEY,
         JSON.stringify({
@@ -48,7 +48,7 @@ function render_hunter_panel(profile_data = create_default_profile_data(), props
         <MemoryRouter>
             <ProfilesProvider>
                 <ColorsProvider>
-                    <HunterPanel {...props} />
+                    <MissingPanel {...props} />
                 </ColorsProvider>
             </ProfilesProvider>
         </MemoryRouter>,
@@ -70,10 +70,10 @@ function expect_before(first, second) {
     expect(first.compareDocumentPosition(second)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 }
 
-describe("HunterPanel", () => {
+describe("MissingPanel", () => {
     beforeEach(() => {
         window.localStorage.clear();
-        import_hunter_adif_in_worker.mockReset();
+        import_missing_adif_in_worker.mockReset();
     });
 
     afterEach(() => {
@@ -82,7 +82,7 @@ describe("HunterPanel", () => {
     });
 
     it("shows section summaries", () => {
-        render_hunter_panel();
+        render_missing_panel();
 
         const dxcc_section = section_by_heading("DXCC");
         expect_section_stats(dxcc_section, { done: 0, needed: 4, total: 4 });
@@ -92,7 +92,7 @@ describe("HunterPanel", () => {
 
     it("opens a section edit modal", async () => {
         const user = userEvent.setup();
-        render_hunter_panel();
+        render_missing_panel();
 
         const dxcc_section = section_by_heading("DXCC");
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
@@ -111,7 +111,7 @@ describe("HunterPanel", () => {
 
     it("applies section edits from the edit modal", async () => {
         const user = userEvent.setup();
-        render_hunter_panel();
+        render_missing_panel();
 
         const dxcc_section = section_by_heading("DXCC");
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
@@ -149,7 +149,7 @@ describe("HunterPanel", () => {
 
     it("cancels section edit drafts", async () => {
         const user = userEvent.setup();
-        render_hunter_panel();
+        render_missing_panel();
 
         const dxcc_section = section_by_heading("DXCC");
         await user.click(within(dxcc_section).getByRole("button", { name: "Edit" }));
@@ -176,8 +176,8 @@ describe("HunterPanel", () => {
     it("clears done items in one section from the edit modal", async () => {
         const user = userEvent.setup();
         const profile_data = create_default_profile_data();
-        profile_data.hunter.worked.dxcc.global = [230];
-        render_hunter_panel(profile_data);
+        profile_data.missing.worked.dxcc.global = [230];
+        render_missing_panel(profile_data);
 
         const dxcc_section = section_by_heading("DXCC");
         expect_section_stats(dxcc_section, { done: 1, needed: 3, total: 4 });
@@ -214,7 +214,7 @@ describe("HunterPanel", () => {
 
     it("filters the visible list from the edit modal", async () => {
         const user = userEvent.setup();
-        render_hunter_panel();
+        render_missing_panel();
 
         const states_section = section_by_heading("US");
         await user.click(within(states_section).getByRole("button", { name: "Edit" }));
@@ -230,12 +230,12 @@ describe("HunterPanel", () => {
     it("shows done section progress in summaries and edit modal", async () => {
         const user = userEvent.setup();
         const profile_data = create_default_profile_data();
-        profile_data.hunter.worked.cq_zone.global = Array.from(
+        profile_data.missing.worked.cq_zone.global = Array.from(
             { length: 40 },
             (_, index) => index + 1,
         );
 
-        render_hunter_panel(profile_data);
+        render_missing_panel(profile_data);
 
         const cq_section = section_by_heading("CQ");
         expect_section_stats(cq_section, { done: 40, needed: 0, total: 40 });
@@ -252,7 +252,7 @@ describe("HunterPanel", () => {
 
     it("shows recent import metadata", () => {
         const profile_data = create_default_profile_data();
-        profile_data.hunter.imports = [
+        profile_data.missing.imports = [
             {
                 file_name: "old.adi",
                 imported_at: 123,
@@ -271,17 +271,17 @@ describe("HunterPanel", () => {
             },
         ];
 
-        render_hunter_panel(profile_data);
+        render_missing_panel(profile_data);
 
         expect(screen.getByText("old.adi")).toBeTruthy();
         expect(screen.getByText("12 QSOs, 3 added, 1 unresolved")).toBeTruthy();
     });
 
-    it("deletes all hunter data after confirmation", async () => {
+    it("deletes all missing data after confirmation", async () => {
         const user = userEvent.setup();
         const profile_data = create_default_profile_data();
-        profile_data.hunter.worked.dxcc.global = [230];
-        profile_data.hunter.imports = [
+        profile_data.missing.worked.dxcc.global = [230];
+        profile_data.missing.imports = [
             {
                 file_name: "old.adi",
                 imported_at: 123,
@@ -290,7 +290,7 @@ describe("HunterPanel", () => {
                 unresolved_count: 0,
             },
         ];
-        render_hunter_panel(profile_data);
+        render_missing_panel(profile_data);
 
         const delete_button = screen.getByRole("button", { name: "Delete All" });
         const import_button = screen.getByRole("button", { name: "Import ADIF" });
@@ -307,37 +307,37 @@ describe("HunterPanel", () => {
             expect(screen.queryByText("old.adi")).toBeNull();
         });
         const stored_profiles = JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY));
-        expect(stored_profiles.profiles[0].data.hunter).toEqual(
-            create_default_profile_data().hunter,
+        expect(stored_profiles.profiles[0].data.missing).toEqual(
+            create_default_profile_data().missing,
         );
     });
 
     it("reports a completed ADIF import after saving it", async () => {
         const user = userEvent.setup();
         const profile_data = create_default_profile_data();
-        const imported_hunter = {
-            ...profile_data.hunter,
+        const imported_missing = {
+            ...profile_data.missing,
             imports: [{ file_name: "upload.adi", imported_at: 123 }],
         };
         const on_import_complete = vi.fn();
-        import_hunter_adif_in_worker.mockResolvedValue({ hunter: imported_hunter });
-        render_hunter_panel(profile_data, { on_import_complete });
+        import_missing_adif_in_worker.mockResolvedValue({ missing: imported_missing });
+        render_missing_panel(profile_data, { on_import_complete });
 
         await user.upload(
-            screen.getByTestId("hunter-adif-input"),
+            screen.getByTestId("missing-adif-input"),
             new File(["<CALL:5>K1ABC<EOR>"], "upload.adi", { type: "text/plain" }),
         );
 
         await waitFor(() => expect(on_import_complete).toHaveBeenCalledOnce());
-        expect(import_hunter_adif_in_worker).toHaveBeenCalledWith(
+        expect(import_missing_adif_in_worker).toHaveBeenCalledWith(
             expect.objectContaining({
-                hunter: profile_data.hunter,
+                missing: profile_data.missing,
                 adif_text: "<CALL:5>K1ABC<EOR>",
                 file_name: "upload.adi",
             }),
         );
         const stored_profiles = JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY));
-        expect(stored_profiles.profiles[0].data.hunter.imports[0]).toEqual(
+        expect(stored_profiles.profiles[0].data.missing.imports[0]).toEqual(
             expect.objectContaining({ file_name: "upload.adi", imported_at: 123 }),
         );
     });
@@ -345,11 +345,11 @@ describe("HunterPanel", () => {
     it("does not report a failed ADIF import as complete", async () => {
         const user = userEvent.setup();
         const on_import_complete = vi.fn();
-        import_hunter_adif_in_worker.mockRejectedValue(new Error("Import failed"));
-        render_hunter_panel(create_default_profile_data(), { on_import_complete });
+        import_missing_adif_in_worker.mockRejectedValue(new Error("Import failed"));
+        render_missing_panel(create_default_profile_data(), { on_import_complete });
 
         await user.upload(
-            screen.getByTestId("hunter-adif-input"),
+            screen.getByTestId("missing-adif-input"),
             new File(["invalid"], "upload.adi", { type: "text/plain" }),
         );
 

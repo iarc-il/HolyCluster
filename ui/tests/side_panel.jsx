@@ -13,7 +13,7 @@ vi.mock("virtual:cty-dxcc-entities", () => ({
     dxcc_code_entities: { 1: "Canada", 291: "United States" },
 }));
 
-vi.mock("@/components/HunterPanel.jsx", () => ({
+vi.mock("@/components/MissingPanel.jsx", () => ({
     default: ({ on_import_complete }) => (
         <button type="button" onClick={on_import_complete}>
             Complete import
@@ -104,8 +104,8 @@ describe("SidePanel", () => {
             "true",
         );
         expect_selected(dialog, "filter-modal-action-alert");
-        expect_selected(dialog, "filter-modal-type-hunter");
-        expect_selected(dialog, "filter-modal-hunter-section-dxcc");
+        expect_selected(dialog, "filter-modal-type-missing");
+        expect_selected(dialog, "filter-modal-missing-section-dxcc");
 
         await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());

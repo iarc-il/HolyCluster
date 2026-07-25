@@ -108,7 +108,7 @@ The early days of the website, which was pretty horrible.
 - Advanced filtering system
 - Fully synchronized UI
 - Mobile friendly design
-- DX hunters focused design
+- DX missings focused design
 - CAT Control
 
 ::: notes
@@ -185,7 +185,7 @@ Also, this software is open source, you can contribute.
 #### Which feature should we release RIGHT NOW?
 
 - POTA / SOTA / WWFF Spots
-- Hunter View (Missing DXCC / CQ / ITU / States / Provinces tracker)
+- Missing View (Missing DXCC / CQ / ITU / States / Provinces tracker)
 - Profiles / Layout settings / Maidenhead grid overlay
 
 ::: notes

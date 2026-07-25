@@ -27,7 +27,7 @@ const RELEASES = [
         [
             "We had a vote in Friedrichshafen on the next feature to release!",
             <>
-                The winner is <b key="hunter-panel">Missing panel 🏹</b>
+                The winner is <b key="missing-panel">Missing panel 🏹</b>
             </>,
             "Missing panel tracks needed DXCC entities, CQ zones, ITU zones, US states and Canada provinces",
             "Import ADIF logs to update missing progress, with progress display and clearer invalid-file errors",

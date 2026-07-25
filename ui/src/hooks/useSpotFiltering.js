@@ -125,11 +125,17 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     const spots_with_alerts = useMemo(() => {
         const regular_alerts = alerts.filter(filter => filter.type !== "missing");
         const alert_missing_sections = callsign_filters.is_alert_filters_active
-            ? alerts.filter(filter => filter.type === "missing").map(filter => filter.missing_section)
+            ? alerts
+                  .filter(filter => filter.type === "missing")
+                  .map(filter => filter.missing_section)
             : [];
 
         return source_spots.map(spot => {
-            const missing_needed_result = check_missing_needed(spot, missing, alert_missing_sections);
+            const missing_needed_result = check_missing_needed(
+                spot,
+                missing,
+                alert_missing_sections,
+            );
             const is_alert_filter_match =
                 is_matching_list(regular_alerts, spot) && callsign_filters.is_alert_filters_active;
             return {

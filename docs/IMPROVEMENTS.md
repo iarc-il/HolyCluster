@@ -252,7 +252,7 @@ flowchart LR
         DM["draw_map.js — 1546"]
         ST["SpotsTable.jsx — 908"]
         MC["MapControls.jsx — 774"]
-        HP["HunterPanel.jsx — 729"]
+        HP["MissingPanel.jsx — 729"]
         MG["useMapGestures.js — 602"]
     end
     TESTS["ui/tests/ — 23 files<br/>cover data/utils + a few components<br/>❌ zero coverage of canvas drawing,<br/>projections, gestures, hit-testing"]

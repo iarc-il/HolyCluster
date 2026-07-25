@@ -223,8 +223,8 @@ function SectionStats({ done_count, needed_count, total_count }) {
     );
 }
 
-function HunterSectionCard({ section, items, hunter, colors, on_apply_section }) {
-    const worked_values = hunter.worked[section]?.global ?? [];
+function MissingSectionCard({ section, items, missing, colors, on_apply_section }) {
+    const worked_values = missing.worked[section]?.global ?? [];
     const { done_count, needed_count, is_section_done } = get_section_progress(
         items,
         worked_values,
@@ -234,7 +234,7 @@ function HunterSectionCard({ section, items, hunter, colors, on_apply_section })
     return (
         <section
             className="rounded-lg border p-3 space-y-3"
-            data-tour={`hunter-section-${section}`}
+            data-tour={`missing-section-${section}`}
             style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
         >
             <div className="flex items-start justify-between gap-3">
@@ -259,10 +259,10 @@ function HunterSectionCard({ section, items, hunter, colors, on_apply_section })
                 </div>
             )}
 
-            <HunterSectionModal
+            <MissingSectionModal
                 section={section}
                 items={items}
-                hunter={hunter}
+                missing={missing}
                 colors={colors}
                 on_apply_section={on_apply_section}
             />
@@ -270,25 +270,25 @@ function HunterSectionCard({ section, items, hunter, colors, on_apply_section })
     );
 }
 
-function HunterSectionModal({ section, items, hunter, colors, on_apply_section }) {
+function MissingSectionModal({ section, items, missing, colors, on_apply_section }) {
     const [draft_worked_values, set_draft_worked_values] = useState(
-        hunter.worked[section]?.global ?? [],
+        missing.worked[section]?.global ?? [],
     );
     const [list_mode, set_list_mode] = useState("needed");
     const [search, set_search] = useState("");
-    const draft_hunter = {
-        ...hunter,
+    const draft_missing = {
+        ...missing,
         worked: {
-            ...hunter.worked,
+            ...missing.worked,
             [section]: {
-                ...(hunter.worked[section] ?? {}),
+                ...(missing.worked[section] ?? {}),
                 global: draft_worked_values,
             },
         },
     };
 
     function reset_draft() {
-        set_draft_worked_values([...(hunter.worked[section]?.global ?? [])]);
+        set_draft_worked_values([...(missing.worked[section]?.global ?? [])]);
         set_list_mode("needed");
         set_search("");
     }
@@ -306,8 +306,8 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
     return (
         <Modal
             title={<h2 className="font-bold">{SECTION_LABELS[section]}</h2>}
-            data_tour={`hunter-section-edit-${section}`}
-            dialog_data_tour="hunter-section-modal"
+            data_tour={`missing-section-edit-${section}`}
+            dialog_data_tour="missing-section-modal"
             button={
                 <Button type="button" color="blue" className="px-3 py-1">
                     Edit
@@ -322,10 +322,10 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
             modal_style={{ width: "min(42rem, calc(100vw - 2rem))" }}
         >
             <div className="p-3">
-                <HunterSection
+                <MissingSection
                     section={section}
                     items={items}
-                    hunter={draft_hunter}
+                    missing={draft_missing}
                     list_mode={list_mode}
                     search={search}
                     colors={colors}
@@ -339,10 +339,10 @@ function HunterSectionModal({ section, items, hunter, colors, on_apply_section }
     );
 }
 
-function HunterSection({
+function MissingSection({
     section,
     items,
-    hunter,
+    missing,
     list_mode,
     search,
     colors,
@@ -351,14 +351,14 @@ function HunterSection({
     on_set_done,
     on_clear_done,
 }) {
-    const worked_values = hunter.worked[section]?.global ?? [];
+    const worked_values = missing.worked[section]?.global ?? [];
     const { worked, done_count, is_section_done } = get_section_progress(items, worked_values);
     const visible_items = get_visible_section_items(items, worked, list_mode, search);
 
     return (
         <section
             className="rounded-lg border p-3 space-y-3"
-            data-tour="hunter-section-editor"
+            data-tour="missing-section-editor"
             style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
         >
             <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
@@ -552,7 +552,7 @@ function RecentImports({ imports, colors }) {
     return (
         <section
             className="rounded-lg border p-3 space-y-2"
-            data-tour="hunter-recent-imports"
+            data-tour="missing-recent-imports"
             style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
         >
             <h3 className="font-bold">Recent Imports</h3>
@@ -581,7 +581,7 @@ function RecentImports({ imports, colors }) {
 export default function MissingPanel({ on_import_complete = null }) {
     const { colors } = useColors();
     const {
-        active_profile_data: { missing: hunter },
+        active_profile_data: { missing },
         update_active_profile_section,
     } = useProfiles();
     const [import_error, set_import_error] = useState("");
@@ -589,12 +589,12 @@ export default function MissingPanel({ on_import_complete = null }) {
     const [import_progress, set_import_progress] = useState(null);
     const section_items = useMemo(create_section_items, []);
 
-    function update_hunter(updater) {
+    function update_missing(updater) {
         update_active_profile_section("missing", current => updater(current));
     }
 
     function apply_section(section, worked_values) {
-        update_hunter(current => ({
+        update_missing(current => ({
             ...current,
             worked: {
                 ...current.worked,
@@ -625,7 +625,7 @@ export default function MissingPanel({ on_import_complete = null }) {
                 set_import_progress(create_import_progress({ phase: "reading", percentage }));
             });
             const result = await import_missing_adif_in_worker({
-                missing: hunter,
+                missing: missing,
                 adif_text,
                 file_name: file.name,
                 file_size: file.size,
@@ -646,12 +646,12 @@ export default function MissingPanel({ on_import_complete = null }) {
     return (
         <div
             className="p-3 space-y-3"
-            data-tour="hunter-panel"
+            data-tour="missing-panel"
             style={{ color: colors.theme.text }}
         >
             <section
                 className="rounded-lg border p-3 space-y-2"
-                data-tour="hunter-adif-import"
+                data-tour="missing-adif-import"
                 style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
             >
                 <h2 className="text-lg font-bold">Missing</h2>
@@ -663,15 +663,15 @@ export default function MissingPanel({ on_import_complete = null }) {
                             onChange={handle_import_file}
                             className="hidden"
                             disabled={is_importing}
-                            data-testid="hunter-adif-input"
-                            data-tour="hunter-adif-input"
+                            data-testid="missing-adif-input"
+                            data-tour="missing-adif-input"
                         />
                         <span>
                             <Button
                                 type="button"
                                 color="blue"
                                 disabled={is_importing}
-                                data-tour="hunter-adif-import-button"
+                                data-tour="missing-adif-import-button"
                                 on_click={event => {
                                     event.currentTarget
                                         .closest("label")
@@ -736,17 +736,17 @@ export default function MissingPanel({ on_import_complete = null }) {
             </section>
 
             {MISSING_SECTION_KEYS.map(section => (
-                <HunterSectionCard
+                <MissingSectionCard
                     key={section}
                     section={section}
                     items={section_items[section]}
-                    hunter={hunter}
+                    missing={missing}
                     colors={colors}
                     on_apply_section={apply_section}
                 />
             ))}
 
-            <RecentImports imports={hunter.imports} colors={colors} />
+            <RecentImports imports={missing.imports} colors={colors} />
         </div>
     );
 }

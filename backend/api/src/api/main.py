@@ -213,9 +213,9 @@ async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False
 app = fastapi.FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-HUNTER_RESOLVE_RESULT_BATCH_SIZE = 50
-HUNTER_RESOLVE_WORKER_COUNT = 4
-HUNTER_CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/]{0,31}$")
+MISSING_RESOLVE_RESULT_BATCH_SIZE = 50
+MISSING_RESOLVE_WORKER_COUNT = 4
+MISSING_CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/]{0,31}$")
 PROPAGATION_METRICS = ("a_index", "k_index", "sfi")
 MAX_PROPAGATION_HISTORY_RANGE_SECONDS = 86400
 PROPAGATION_BUCKET_SECONDS = 1800
@@ -236,7 +236,7 @@ class WsMessageType(StrEnum):
     SPOTS = "spots"
     SUBMIT = "submit"
     RADIO = "radio"
-    HUNTER = "hunter"
+    MISSING = "missing"
     HISTORY = "history"
 
 
@@ -259,13 +259,13 @@ class WsHistoryEvent(StrEnum):
     PROPAGATION = "propagation"
 
 
-class WsHunterAction(StrEnum):
+class WsMissingAction(StrEnum):
     START = "start"
     ADD = "add"
     FINISH = "finish"
 
 
-class WsHunterEvent(StrEnum):
+class WsMissingEvent(StrEnum):
     ACCEPTED = "accepted"
     RESULTS = "results"
     COMPLETE = "complete"
@@ -402,7 +402,7 @@ def bucket_propagation_history(history):
 
 
 @dataclass
-class HunterWsJob:
+class MissingWsJob:
     job_id: str
     callsigns: list[str] = field(default_factory=list)
     seen_callsigns: set[str] = field(default_factory=set)
@@ -479,7 +479,7 @@ async def get_qrz_session_key_from_redis() -> str:
     return qrz_key
 
 
-def normalize_hunter_callsigns(callsigns):
+def normalize_missing_callsigns(callsigns):
     normalized_callsigns = []
     errors = {}
     seen_callsigns = set()
@@ -489,7 +489,7 @@ def normalize_hunter_callsigns(callsigns):
             errors[str(callsign)] = "invalid callsign"
             continue
         normalized = callsign.strip().upper()
-        if not HUNTER_CALLSIGN_PATTERN.fullmatch(normalized):
+        if not MISSING_CALLSIGN_PATTERN.fullmatch(normalized):
             errors[normalized] = "invalid callsign"
             continue
         if normalized in seen_callsigns:
@@ -500,15 +500,15 @@ def normalize_hunter_callsigns(callsigns):
     return normalized_callsigns, errors
 
 
-async def get_hunter_qrz_session_key():
+async def get_missing_qrz_session_key():
     try:
         return await get_qrz_session_key_from_redis()
     except Exception as e:
-        logger.warning(f"QRZ session key unavailable for hunter resolve; continuing with CTY fallback: {e}")
+        logger.warning(f"QRZ session key unavailable for missing resolve; continuing with CTY fallback: {e}")
         return ""
 
 
-def build_hunter_geo_result(callsign, geo_data):
+def build_missing_geo_result(callsign, geo_data):
     return {
         "callsign": callsign,
         "dxcc_code": geo_data.dxcc_code,
@@ -523,16 +523,16 @@ def build_hunter_geo_result(callsign, geo_data):
     }
 
 
-async def resolve_hunter_callsign(callsign, qrz_session_key):
+async def resolve_missing_callsign(callsign, qrz_session_key):
     geo_data = await get_geo_details(
         app.state.valkey_client,
         qrz_session_key,
         callsign,
         settings.valkey_geo_expiration,
         app.state.http_client,
-        "hunter_import",
+        "missing_import",
     )
-    return build_hunter_geo_result(callsign, geo_data)
+    return build_missing_geo_result(callsign, geo_data)
 
 
 async def compute_cluster_stats(valkey_client, hours: int | None = None):
@@ -721,7 +721,7 @@ async def radio(websocket: fastapi.WebSocket):
 @app.websocket("/submit_spot")
 async def submit_spot_one_spot(websocket: fastapi.WebSocket):
     await websocket.accept()
-    hunter_jobs = {}
+    missing_jobs = {}
     send_lock = asyncio.Lock()
 
     try:
@@ -731,24 +731,24 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
             except websockets.WebSocketDisconnect:
                 break
 
-            if message.get("version") == WS_PROTOCOL_VERSION and message.get("type") == WsMessageType.HUNTER.value:
+            if message.get("version") == WS_PROTOCOL_VERSION and message.get("type") == WsMessageType.MISSING.value:
                 error = validate_ws_protocol_message(message)
                 if error is not None:
                     await send_ws_json(websocket, send_lock, error)
                     continue
-                await send_ws_hunter(websocket, send_lock, hunter_jobs, message)
+                await send_ws_missing(websocket, send_lock, missing_jobs, message)
                 continue
 
             response = await submit_spot.handle_spot(message, app.state.valkey_client)
             await send_ws_json(websocket, send_lock, response)
     finally:
-        await cancel_hunter_jobs(hunter_jobs)
+        await cancel_missing_jobs(missing_jobs)
 
 
 @app.websocket("/ws")
 async def ws(websocket: fastapi.WebSocket):
     await websocket.accept()
-    hunter_jobs = {}
+    missing_jobs = {}
     send_lock = asyncio.Lock()
 
     try:
@@ -785,8 +785,8 @@ async def ws(websocket: fastapi.WebSocket):
                 )
                 continue
 
-            if message.get("type") == WsMessageType.HUNTER.value:
-                await send_ws_hunter(websocket, send_lock, hunter_jobs, message)
+            if message.get("type") == WsMessageType.MISSING.value:
+                await send_ws_missing(websocket, send_lock, missing_jobs, message)
                 continue
 
             if message.get("type") == WsMessageType.HISTORY.value:
@@ -801,7 +801,7 @@ async def ws(websocket: fastapi.WebSocket):
                 )
             )
     finally:
-        await cancel_hunter_jobs(hunter_jobs)
+        await cancel_missing_jobs(missing_jobs)
         app.state.active_ws_spot_connections.discard(websocket)
 
 
@@ -880,8 +880,8 @@ async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
         )
 
 
-async def cancel_hunter_jobs(hunter_jobs):
-    tasks = [job.task for job in hunter_jobs.values() if job.task is not None]
+async def cancel_missing_jobs(missing_jobs):
+    tasks = [job.task for job in missing_jobs.values() if job.task is not None]
     for task in tasks:
         if not task.done():
             task.cancel()
@@ -889,7 +889,7 @@ async def cancel_hunter_jobs(hunter_jobs):
         await asyncio.gather(*tasks, return_exceptions=True)
 
 
-async def send_ws_hunter(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, hunter_jobs, message: dict):
+async def send_ws_missing(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, missing_jobs, message: dict):
     action = message.get("action")
     job_id = message.get("job_id")
     if not job_id:
@@ -898,28 +898,28 @@ async def send_ws_hunter(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, 
         )
         return
 
-    if action == WsHunterAction.START.value:
-        old_job = hunter_jobs.get(job_id)
+    if action == WsMissingAction.START.value:
+        old_job = missing_jobs.get(job_id)
         if old_job is not None and old_job.task is not None and not old_job.task.done():
             old_job.task.cancel()
-        hunter_jobs[job_id] = HunterWsJob(job_id=job_id)
+        missing_jobs[job_id] = MissingWsJob(job_id=job_id)
         return
 
-    job = hunter_jobs.get(job_id)
+    job = missing_jobs.get(job_id)
     if job is None:
         await send_ws_json(
             websocket,
             send_lock,
-            build_ws_error(WsErrorType.UNKNOWN_JOB, "Unknown hunter job", job_id=job_id),
+            build_ws_error(WsErrorType.UNKNOWN_JOB, "Unknown missing job", job_id=job_id),
         )
         return
 
-    if action == WsHunterAction.ADD.value:
+    if action == WsMissingAction.ADD.value:
         if job.task is not None:
             await send_ws_json(
                 websocket,
                 send_lock,
-                build_ws_error(WsErrorType.UNSUPPORTED_ACTION, "Hunter job is already running", job_id=job_id),
+                build_ws_error(WsErrorType.UNSUPPORTED_ACTION, "Missing job is already running", job_id=job_id),
             )
             return
 
@@ -932,7 +932,7 @@ async def send_ws_hunter(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, 
             )
             return
 
-        normalized_callsigns, errors = normalize_hunter_callsigns(callsigns)
+        normalized_callsigns, errors = normalize_missing_callsigns(callsigns)
         job.errors.update(errors)
         for callsign in normalized_callsigns:
             if callsign in job.seen_callsigns:
@@ -941,33 +941,33 @@ async def send_ws_hunter(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, 
             job.callsigns.append(callsign)
         return
 
-    if action == WsHunterAction.FINISH.value:
+    if action == WsMissingAction.FINISH.value:
         if job.task is not None and not job.task.done():
             await send_ws_json(
                 websocket,
                 send_lock,
-                build_ws_error(WsErrorType.UNSUPPORTED_ACTION, "Hunter job is already running", job_id=job_id),
+                build_ws_error(WsErrorType.UNSUPPORTED_ACTION, "Missing job is already running", job_id=job_id),
             )
             return
-        job.task = asyncio.create_task(run_hunter_resolve_job(websocket, send_lock, job))
+        job.task = asyncio.create_task(run_missing_resolve_job(websocket, send_lock, job))
         return
 
     await send_ws_json(
         websocket,
         send_lock,
         build_ws_error(
-            WsErrorType.UNSUPPORTED_ACTION, "Unsupported hunter action", received_action=action, job_id=job_id
+            WsErrorType.UNSUPPORTED_ACTION, "Unsupported missing action", received_action=action, job_id=job_id
         ),
     )
 
 
-async def run_hunter_resolve_job(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, job: HunterWsJob):
+async def run_missing_resolve_job(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, job: MissingWsJob):
     total = len(job.callsigns) + len(job.errors)
     completed = 0
     await send_ws_json(
         websocket,
         send_lock,
-        build_ws_message(WsMessageType.HUNTER, event=WsHunterEvent.ACCEPTED.value, job_id=job.job_id, total=total),
+        build_ws_message(WsMessageType.MISSING, event=WsMissingEvent.ACCEPTED.value, job_id=job.job_id, total=total),
     )
 
     if job.errors:
@@ -976,8 +976,8 @@ async def run_hunter_resolve_job(websocket: fastapi.WebSocket, send_lock: asynci
             websocket,
             send_lock,
             build_ws_message(
-                WsMessageType.HUNTER,
-                event=WsHunterEvent.RESULTS.value,
+                WsMessageType.MISSING,
+                event=WsMissingEvent.RESULTS.value,
                 job_id=job.job_id,
                 completed=completed,
                 total=total,
@@ -991,8 +991,8 @@ async def run_hunter_resolve_job(websocket: fastapi.WebSocket, send_lock: asynci
             websocket,
             send_lock,
             build_ws_message(
-                WsMessageType.HUNTER,
-                event=WsHunterEvent.COMPLETE.value,
+                WsMessageType.MISSING,
+                event=WsMissingEvent.COMPLETE.value,
                 job_id=job.job_id,
                 completed=completed,
                 total=total,
@@ -1000,16 +1000,16 @@ async def run_hunter_resolve_job(websocket: fastapi.WebSocket, send_lock: asynci
         )
         return
 
-    qrz_session_key = await get_hunter_qrz_session_key()
+    qrz_session_key = await get_missing_qrz_session_key()
     queue = asyncio.Queue()
     result_queue = asyncio.Queue()
 
     for callsign in job.callsigns:
         queue.put_nowait(callsign)
 
-    worker_count = min(HUNTER_RESOLVE_WORKER_COUNT, len(job.callsigns))
+    worker_count = min(MISSING_RESOLVE_WORKER_COUNT, len(job.callsigns))
     workers = [
-        asyncio.create_task(resolve_hunter_queue_worker(queue, result_queue, qrz_session_key))
+        asyncio.create_task(resolve_missing_queue_worker(queue, result_queue, qrz_session_key))
         for _ in range(worker_count)
     ]
     for _ in workers:
@@ -1026,15 +1026,15 @@ async def run_hunter_resolve_job(websocket: fastapi.WebSocket, send_lock: asynci
             else:
                 batch_errors[callsign] = error
 
-            if len(batch_results) + len(batch_errors) >= HUNTER_RESOLVE_RESULT_BATCH_SIZE:
-                await send_hunter_result_batch(
+            if len(batch_results) + len(batch_errors) >= MISSING_RESOLVE_RESULT_BATCH_SIZE:
+                await send_missing_result_batch(
                     websocket, send_lock, job.job_id, completed, total, batch_results, batch_errors
                 )
                 batch_results = {}
                 batch_errors = {}
 
         if batch_results or batch_errors:
-            await send_hunter_result_batch(
+            await send_missing_result_batch(
                 websocket, send_lock, job.job_id, completed, total, batch_results, batch_errors
             )
 
@@ -1043,8 +1043,8 @@ async def run_hunter_resolve_job(websocket: fastapi.WebSocket, send_lock: asynci
             websocket,
             send_lock,
             build_ws_message(
-                WsMessageType.HUNTER,
-                event=WsHunterEvent.COMPLETE.value,
+                WsMessageType.MISSING,
+                event=WsMissingEvent.COMPLETE.value,
                 job_id=job.job_id,
                 completed=completed,
                 total=total,
@@ -1057,13 +1057,13 @@ async def run_hunter_resolve_job(websocket: fastapi.WebSocket, send_lock: asynci
         await asyncio.gather(*workers, return_exceptions=True)
 
 
-async def send_hunter_result_batch(websocket, send_lock, job_id, completed, total, results, errors):
+async def send_missing_result_batch(websocket, send_lock, job_id, completed, total, results, errors):
     await send_ws_json(
         websocket,
         send_lock,
         build_ws_message(
-            WsMessageType.HUNTER,
-            event=WsHunterEvent.RESULTS.value,
+            WsMessageType.MISSING,
+            event=WsMissingEvent.RESULTS.value,
             job_id=job_id,
             completed=completed,
             total=total,
@@ -1073,19 +1073,19 @@ async def send_hunter_result_batch(websocket, send_lock, job_id, completed, tota
     )
 
 
-async def resolve_hunter_queue_worker(queue, result_queue, qrz_session_key):
+async def resolve_missing_queue_worker(queue, result_queue, qrz_session_key):
     while True:
         callsign = await queue.get()
         try:
             if callsign is None:
                 return
             try:
-                result = await resolve_hunter_callsign(callsign, qrz_session_key)
+                result = await resolve_missing_callsign(callsign, qrz_session_key)
                 await result_queue.put((callsign, result, None))
             except GeoException as e:
                 await result_queue.put((callsign, None, f"{e.data_type} not found"))
             except Exception:
-                logger.exception(f"Failed to resolve hunter callsign: {callsign}")
+                logger.exception(f"Failed to resolve missing callsign: {callsign}")
                 await result_queue.put((callsign, None, "not found"))
         finally:
             queue.task_done()

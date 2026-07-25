@@ -332,7 +332,7 @@ sequenceDiagram
     Note over B,A: on reconnect → {action:"catch_up", last_time}
     B->>A: {version:1, type:"submit", spotter, dx, freq, comment}
     A-->>B: {type:"submit", status:"success"|"failure"}
-    B->>A: {version:1, type:"hunter", action:"start/add/finish", callsigns}
+    B->>A: {version:1, type:"missing", action:"start/add/finish", callsigns}
     A-->>B: batch callsign resolutions (4 workers × 50)
     B->>A: {version:1, type:"radio", ...}
     A-->>B: {type:"radio", status:"unavailable"}
@@ -372,7 +372,7 @@ flowchart TB
     REST --> SPOT["SpotDataProvider&lt;br/&gt;live WS | history → filtering"]
     SPOT --> UI2["TopBar / LeftColumn / CanvasMap / SpotsTable / SidePanel / HistoryBar"]
 </pre><div class="caption">⚠ Ordering is load-bearing: Settings/Filters/Colors all read from ProfilesProvider and throw outside it.</div></div>
-<p>Profile sections (<code>utils/profile_data.js</code>): <code>settings</code>, <code>filters</code>, <code>callsign_filters</code>, <code>hunter</code>, <code>map_controls</code>, <code>map_view</code>, <code>table_sort</code>, <code>history</code>, <code>panels</code>, <code>radio</code>.</p>
+<p>Profile sections (<code>utils/profile_data.js</code>): <code>settings</code>, <code>filters</code>, <code>callsign_filters</code>, <code>missing</code>, <code>map_controls</code>, <code>map_view</code>, <code>table_sort</code>, <code>history</code>, <code>panels</code>, <code>radio</code>.</p>
 
 <h3 id="dataflow">5.2 Data flow into the UI</h3>
 <div class="diagram"><pre class="mermaid">
@@ -393,7 +393,7 @@ flowchart LR
         MAP["CanvasMap"]
         TABLE["SpotsTable"]
         BARS["Propagation / Frequency bars"]
-        HP["HunterPanel / DXpeditions"]
+        HP["MissingPanel / DXpeditions"]
     end
     WSOCK -->|"type: spots"| SWS
     WSOCK -->|"type: radio"| RADH
@@ -441,7 +441,7 @@ flowchart TB
 <tr><th>Feature</th><th>Key files</th><th>Notes</th></tr>
 <tr><td>Spots table</td><td><code>SpotsTable.jsx</code> (908 ln)</td><td>Row click tunes radio; context menu adds filters</td></tr>
 <tr><td>Filters</td><td><code>useFilters.jsx</code>, <code>FilterModal.jsx</code></td><td>Shareable URLs; 3-state zone cycle</td></tr>
-<tr><td>Hunter panel</td><td><code>HunterPanel.jsx</code> (729 ln)</td><td>ADIF import in a Web Worker (50 MB limit)</td></tr>
+<tr><td>Missing panel</td><td><code>MissingPanel.jsx</code> (729 ln)</td><td>ADIF import in a Web Worker (50 MB limit)</td></tr>
 <tr><td>VOACAP overlay · History playback</td><td><code>useVoacap.jsx</code> · <code>history/</code></td><td>⚠ both dev-mode gated</td></tr>
 <tr><td>Guided tour</td><td><code>tour/</code> (react-joyride)</td><td>Targets <code>data-tour</code> attributes</td></tr>
 <tr><td>Radio CAT</td><td><code>useRadio.jsx</code></td><td>Features gated by parsed catserver version</td></tr>

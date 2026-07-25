@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
+import { MISSING_SECTION_KEYS } from "@/data/missing_sections.js";
 import {
     DEFAULT_PROFILE_NAME,
     PROFILE_SECTION_KEYS,
@@ -26,8 +26,8 @@ function create_storage(values) {
     };
 }
 
-function create_default_hunter_worked() {
-    return Object.fromEntries(HUNTER_SECTION_KEYS.map(section => [section, { global: [] }]));
+function create_default_missing_worked() {
+    return Object.fromEntries(MISSING_SECTION_KEYS.map(section => [section, { global: [] }]));
 }
 
 describe("profile_data", () => {
@@ -43,8 +43,8 @@ describe("profile_data", () => {
         expect(store.profiles[0].data.settings.main_view_order).toBe("map_table");
         expect(store.profiles[0].data.settings).not.toHaveProperty("map_theme");
         expect(store.profiles[0].data.settings).not.toHaveProperty("show_equator");
-        expect(store.profiles[0].data.hunter).toEqual({
-            worked: create_default_hunter_worked(),
+        expect(store.profiles[0].data.missing).toEqual({
+            worked: create_default_missing_worked(),
             imports: [],
         });
         expect(store.profiles[0].data.map_controls.show_maidenhead_grid).toBe(false);
@@ -118,7 +118,7 @@ describe("profile_data", () => {
             radio: {
                 requested_rig: 3,
             },
-            hunter: {
+            missing: {
                 worked: {
                     dxcc: {
                         global: [
@@ -178,7 +178,7 @@ describe("profile_data", () => {
         expect(data.history).toEqual(defaults.history);
         expect(data.panels).toEqual(defaults.panels);
         expect(data.radio).toEqual(defaults.radio);
-        expect(data.hunter).toEqual({
+        expect(data.missing).toEqual({
             worked: {
                 dxcc: { global: [291, 230] },
                 cq_zone: { global: [1, 40] },
@@ -241,13 +241,13 @@ describe("profile_data", () => {
                     },
                     {
                         action: "show_only",
-                        type: "hunter",
-                        hunter_section: "dxcc",
+                        type: "missing",
+                        missing_section: "dxcc",
                     },
                     {
                         action: "hide",
-                        type: "hunter",
-                        hunter_section: "unknown",
+                        type: "missing",
+                        missing_section: "unknown",
                     },
                 ],
             }),
@@ -295,8 +295,8 @@ describe("profile_data", () => {
             },
             {
                 action: "show_only",
-                type: "hunter",
-                hunter_section: "dxcc",
+                type: "missing",
+                missing_section: "dxcc",
             },
         ]);
         expect(data.map_controls.night).toBe(true);
@@ -346,40 +346,40 @@ describe("profile_data", () => {
                     ...defaults.panels,
                     frequency_bar_band: -1,
                 },
-                hunter: {
-                    ...defaults.hunter,
+                missing: {
+                    ...defaults.missing,
                     worked: {
-                        ...defaults.hunter.worked,
+                        ...defaults.missing.worked,
                         dxcc: { global: [291] },
                     },
                 },
             },
         };
 
-        const exported = create_profile_export(profile, ["settings", "filters", "hunter"]);
+        const exported = create_profile_export(profile, ["settings", "filters", "missing"]);
         const map_controls_export = create_profile_export(profile, ["map_controls"]);
         const imported = sanitize_imported_profile(exported);
 
-        expect(PROFILE_SECTION_KEYS).toContain("hunter");
+        expect(PROFILE_SECTION_KEYS).toContain("missing");
         expect(exported).toEqual({
             version: PROFILE_STORE_VERSION,
             name: "Portable",
             data: {
                 settings: profile.data.settings,
                 filters: profile.data.filters,
-                hunter: profile.data.hunter,
+                missing: profile.data.missing,
             },
         });
         expect(imported.name).toBe("Portable");
         expect(imported.data.settings.callsign).toBe("N0CALL");
         expect(imported.data.filters.time_limit).toBe(900);
-        expect(imported.data.hunter.worked.dxcc.global).toEqual([291]);
+        expect(imported.data.missing.worked.dxcc.global).toEqual([291]);
         expect(imported.data.panels.frequency_bar_band).toBe(defaults.panels.frequency_bar_band);
         expect(exported.data.settings).not.toHaveProperty("map_theme");
         expect(map_controls_export.data.map_controls.map_theme).toBe("earth");
     });
 
-    it("adds default hunter data to old profiles without hunter", () => {
+    it("adds default missing data to old profiles without missing", () => {
         const defaults = create_default_profile_data();
         const imported = sanitize_imported_profile({
             name: "Old Profile",
@@ -390,7 +390,7 @@ describe("profile_data", () => {
 
         expect(imported.name).toBe("Old Profile");
         expect(imported.data.settings.callsign).toBe("OLD");
-        expect(imported.data.hunter).toEqual(defaults.hunter);
+        expect(imported.data.missing).toEqual(defaults.missing);
     });
 
     it("imports the active profile from a profile store export", () => {
