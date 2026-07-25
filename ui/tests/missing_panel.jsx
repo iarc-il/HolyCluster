@@ -253,7 +253,7 @@ describe("MissingPanel", () => {
         const dialog = await screen.findByRole("dialog");
         expect(within(dialog).getByRole("img", { name: "Trophy" })).toBeTruthy();
         expect(within(dialog).getByText("No CQ zones left")).toBeTruthy();
-        expect(within(dialog).getByText("All worked!")).toBeTruthy();
+        expect(within(dialog).getByText("Well done!")).toBeTruthy();
         expect(within(dialog).queryByText("No needed items match.")).toBeNull();
     });
 
