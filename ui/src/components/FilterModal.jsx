@@ -3,10 +3,7 @@ import Input from "@/components/ui/Input.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import Select from "@/components/ui/Select.jsx";
 import { dxcc_entity_options, get_dxcc_label } from "@/data/dxcc_entities.js";
-import {
-    MISSING_SECTION_KEYS as HUNTER_SECTION_KEYS,
-    MISSING_SECTION_LABELS as HUNTER_SECTION_LABELS,
-} from "@/data/missing_sections.js";
+import { MISSING_SECTION_KEYS, MISSING_SECTION_LABELS } from "@/data/missing_sections.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
@@ -415,8 +412,8 @@ function FilterModal({
                     <>
                         <hr />
                         <SelectionLine
-                            states={HUNTER_SECTION_KEYS.map(section => ({
-                                label: HUNTER_SECTION_LABELS[section],
+                            states={MISSING_SECTION_KEYS.map(section => ({
+                                label: MISSING_SECTION_LABELS[section],
                                 value: section,
                             }))}
                             field="hunter_section"
