@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir=$(dirname "$(realpath "$0")")
+# shellcheck disable=SC1091
+source "$script_dir/agent-common"
+agent_init "$script_dir/.."
+
+usage() {
+    printf 'Usage: %s <task> --blocked <reason> | --ready [--risk <text>] [--decision <text>]\n' "${0##*/}"
+}
+
+[[ $# -ge 2 ]] || { usage >&2; exit 2; }
+task=$1
+shift
+agent_validate_task "$task"
+[[ -f $(agent_state_file "$task") ]] || agent_die "Unknown task: $task"
+
+mode=''
+reason=''
+risk=None
+decision=None
+while (( $# )); do
+    case $1 in
+        --blocked)
+            [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+            mode=blocked
+            reason=$2
+            shift 2
+            ;;
+        --ready)
+            mode=ready
+            shift
+            ;;
+        --risk)
+            [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+            risk=$2
+            shift 2
+            ;;
+        --decision)
+            [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+            decision=$2
+            shift 2
+            ;;
+        *)
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+report="$AGENT_STATE_ROOT/reports/$task.md"
+branch=$(agent_state_get "$task" branch)
+base=$(agent_state_get "$task" base)
+worktree=$(agent_state_get "$task" worktree)
+fence='```'
+
+if [[ $mode == blocked ]]; then
+    [[ -n $reason ]] || agent_die 'A blocker reason is required'
+    agent_state_update "$task" status blocked blocker "$reason"
+    printf '# %s Blocker\n\nStatus: blocked\n\nReason: %s\n' "$task" "$reason" >"$report"
+    printf 'Task %s is blocked: %s\n' "$task" "$reason"
+else
+    [[ $mode == ready ]] || { usage >&2; exit 2; }
+    [[ $(agent_state_get "$task" verification 2>/dev/null || true) == passed ]] || \
+        agent_die "Task has not passed agent-check: $task"
+    [[ -d $worktree ]] || agent_die "Worktree does not exist: $worktree"
+    agent_state_update "$task" status review blocker ''
+    {
+        printf '# %s Completion Report\n\n' "$task"
+        printf 'Status: ready for review\n\nBranch: %s%s%s\n\n' '`' "$branch" '`'
+        printf '## Commits\n\n%stext\n' "$fence"
+        git -C "$worktree" log --oneline "$base..$branch"
+        printf '%s\n\n## Changed Files\n\n%stext\n' "$fence" "$fence"
+        git -C "$worktree" diff --name-only "$base..$branch"
+        printf '%s\n\n## Verification\n\nPassed %sagent-check%s.\n\n' "$fence" '`' '`'
+        printf '## Risks\n\n%s\n\n## Unresolved Decisions\n\n%s\n' "$risk" "$decision"
+    } >"$report"
+    printf 'Task %s is ready for review\nReport: %s\n' "$task" "$report"
+fi
+
+if [[ -n ${DISPLAY:-} ]] && command -v notify-send >/dev/null 2>&1; then
+    notify-send "Agent task: $task" "Status: $(agent_state_get "$task" status)"
+fi

@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir=$(dirname "$(realpath "$0")")
+# shellcheck disable=SC1091
+source "$script_dir/agent-common"
+agent_init "$script_dir/.."
+
+usage() {
+    printf 'Usage: %s [--yes] <task>\n' "${0##*/}"
+}
+
+approved=false
+if [[ ${1:-} == --yes ]]; then
+    approved=true
+    shift
+fi
+[[ $# -eq 1 ]] || { usage >&2; exit 2; }
+task=$1
+agent_validate_task "$task"
+state_file=$(agent_state_file "$task")
+[[ -f $state_file ]] || agent_die "Unknown task: $task"
+
+branch=$(agent_state_get "$task" branch)
+base=$(agent_state_get "$task" base)
+worktree=$(agent_state_get "$task" worktree)
+session=$(agent_state_get "$task" session)
+window=$(agent_state_get "$task" window)
+review_window=$(agent_state_get "$task" review_window 2>/dev/null || true)
+
+printf 'Cancel task %s and remove its clean, unchanged worktree?\n' "$task"
+if [[ $approved == false ]]; then
+    read -r -p 'Continue? [y/N] ' response
+    [[ $response == y || $response == Y || $response == yes || $response == YES ]] || agent_die 'Cancellation stopped'
+fi
+
+if [[ -n $review_window ]] && agent_window_exists "$session" "$review_window"; then
+    tmux kill-window -t "$session:$review_window"
+fi
+if agent_window_exists "$session" "$window"; then
+    tmux kill-window -t "$session:$window" 2>/dev/null || true
+fi
+[[ -d $worktree ]] || agent_die "Worktree does not exist: $worktree"
+[[ -z $(git -C "$worktree" status --porcelain) ]] || agent_die "Refusing to cancel a dirty worktree: $worktree"
+branch_tip=$(git -C "$AGENT_REPO" rev-parse "$branch")
+commits=$(git -C "$AGENT_REPO" rev-list --count "$base..$branch_tip")
+(( commits == 0 )) || agent_die "Refusing to cancel a branch with $commits unintegrated commit(s)"
+[[ $(git -C "$AGENT_REPO" rev-parse "$branch") == "$branch_tip" ]] || agent_die 'Branch changed during cancellation'
+git -C "$AGENT_REPO" worktree remove "$worktree"
+git -C "$AGENT_REPO" update-ref -d "refs/heads/$branch" "$branch_tip"
+agent_state_put "$task" status cancelled
+mkdir -p "$AGENT_STATE_ROOT/archive"
+mv "$state_file" "$AGENT_STATE_ROOT/archive/$task.tsv"
+printf 'Cancelled task %s\n' "$task"

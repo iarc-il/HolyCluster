@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+
+agent_die() {
+    printf '%s\n' "$*" >&2
+    exit 1
+}
+
+agent_init() {
+    local location=${1:-.}
+    AGENT_REPO=$(git -C "$location" rev-parse --show-toplevel)
+    AGENT_COMMON_DIR=$(git -C "$AGENT_REPO" rev-parse --path-format=absolute --git-common-dir)
+    AGENT_STATE_ROOT="$AGENT_COMMON_DIR/agent-workflow"
+    mkdir -p "$AGENT_STATE_ROOT/states" "$AGENT_STATE_ROOT/reports" "$AGENT_STATE_ROOT/reviews"
+}
+
+agent_validate_task() {
+    [[ $1 =~ ^[a-zA-Z0-9._-]+$ ]] || agent_die \
+        'Task name must contain only letters, numbers, dots, underscores, and hyphens'
+}
+
+agent_task_from_file() {
+    local name=${1##*/}
+    name=${name%.md}
+    agent_validate_task "$name"
+    printf '%s\n' "$name"
+}
+
+agent_state_file() {
+    printf '%s/states/%s.tsv\n' "$AGENT_STATE_ROOT" "$1"
+}
+
+agent_state_get() {
+    local file key entry value
+    file=$(agent_state_file "$1")
+    key=$2
+    [[ -f $file ]] || return 1
+    while IFS=$'\t' read -r entry value; do
+        if [[ $entry == "$key" ]]; then
+            printf '%s\n' "$value"
+            return 0
+        fi
+    done <"$file"
+    return 1
+}
+
+agent_state_put() {
+    agent_state_update "$1" "$2" "$3"
+}
+
+agent_state_update() {
+    local task=$1 file temporary entry current lock_fd
+    local -A updates=()
+    shift
+    (( $# > 0 && $# % 2 == 0 )) || agent_die 'State updates require key-value pairs'
+    while (( $# )); do
+        [[ $2 != *$'\n'* && $2 != *$'\t'* ]] || agent_die "Invalid state value for $1"
+        updates["$1"]=$2
+        shift 2
+    done
+    file=$(agent_state_file "$task")
+    exec {lock_fd}>"$file.lock"
+    flock "$lock_fd"
+    temporary=$(mktemp "$AGENT_STATE_ROOT/states/.state.XXXXXX")
+    if [[ -f $file ]]; then
+        while IFS=$'\t' read -r entry current; do
+            if [[ ${updates[$entry]+present} ]]; then
+                printf '%s\t%s\n' "$entry" "${updates[$entry]}" >>"$temporary"
+                unset 'updates[$entry]'
+            else
+                printf '%s\t%s\n' "$entry" "$current" >>"$temporary"
+            fi
+        done <"$file"
+    fi
+    for entry in "${!updates[@]}"; do
+        printf '%s\t%s\n' "$entry" "${updates[$entry]}" >>"$temporary"
+    done
+    mv "$temporary" "$file"
+    flock -u "$lock_fd"
+    exec {lock_fd}>&-
+}
+
+agent_write_state() {
+    local task=$1 file temporary lock_fd
+    shift
+    file=$(agent_state_file "$task")
+    exec {lock_fd}>"$file.lock"
+    flock "$lock_fd"
+    temporary=$(mktemp "$AGENT_STATE_ROOT/states/.state.XXXXXX")
+    while (( $# )); do
+        [[ $2 != *$'\n'* && $2 != *$'\t'* ]] || agent_die "Invalid state value for $1"
+        printf '%s\t%s\n' "$1" "$2" >>"$temporary"
+        shift 2
+    done
+    mv "$temporary" "$file"
+    flock -u "$lock_fd"
+    exec {lock_fd}>&-
+}
+
+agent_read_list() {
+    local key=$1 file=$2 line current='' in_frontmatter=false value
+    while IFS= read -r line; do
+        if [[ $line == '---' ]]; then
+            if [[ $in_frontmatter == true ]]; then
+                break
+            fi
+            in_frontmatter=true
+            continue
+        fi
+        [[ $in_frontmatter == true ]] || continue
+        if [[ $line =~ ^([a-zA-Z_][a-zA-Z0-9_-]*): ]]; then
+            current=${BASH_REMATCH[1]}
+            continue
+        fi
+        if [[ $current == "$key" && $line =~ ^[[:space:]]*-[[:space:]]+(.*)$ ]]; then
+            value=${BASH_REMATCH[1]}
+            if [[ $value == \"*\" || $value == \'*\' ]]; then
+                value=${value:1:${#value}-2}
+            fi
+            printf '%s\n' "$value"
+        fi
+    done <"$file"
+}
+
+agent_window_exists() {
+    local session=$1 window=$2 name
+    tmux has-session -t "$session" 2>/dev/null || return 1
+    while IFS= read -r name; do
+        [[ $name == "$window" ]] && return 0
+    done < <(tmux list-windows -t "$session" -F '#{window_name}')
+    return 1
+}
+
+agent_launch_opencode() {
+    local session=$1 window=$2 worktree=$3 task_file=$4
+    local prompt opencode_path quoted_prompt quoted_opencode command output status
+    prompt=$(<"$task_file")
+    opencode_path=$(command -v opencode) || agent_die 'opencode is not available in PATH'
+    printf -v quoted_prompt '%q' "$prompt"
+    printf -v quoted_opencode '%q' "$opencode_path"
+    command="exec $quoted_opencode --prompt=$quoted_prompt"
+
+    if tmux has-session -t "$session" 2>/dev/null; then
+        tmux new-window -d -t "$session:" -n "$window" -c "$worktree"
+    else
+        tmux new-session -d -s "$session" -n "$window" -c "$worktree"
+    fi
+    tmux set-window-option -t "$session:$window" remain-on-exit on >/dev/null
+    tmux respawn-pane -k -t "$session:$window" "$command"
+    sleep 1
+    status=$(tmux display-message -p -t "$session:$window" '#{pane_dead}')
+    if [[ $status == 1 ]]; then
+        output=$(tmux capture-pane -p -t "$session:$window" -S -)
+        tmux kill-window -t "$session:$window" 2>/dev/null || true
+        printf 'OpenCode exited during launch:\n%s\n' "$output" >&2
+        return 1
+    fi
+    tmux set-window-option -t "$session:$window" remain-on-exit off >/dev/null
+}
+
+agent_print_location() {
+    printf 'Task:     %s\n' "$1"
+    printf 'Branch:   %s\n' "$2"
+    printf 'Worktree: %s\n' "$3"
+    printf 'Tmux:     %s:%s\n' "$4" "$1"
+    printf '\nAttach with: tmux attach-session -t %q \\; select-window -t %q\n' \
+        "$4" "$4:$1"
+}

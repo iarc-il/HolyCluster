@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir=$(dirname "$(realpath "$0")")
+# shellcheck disable=SC1091
+source "$script_dir/agent-common"
+agent_init "$script_dir/.."
+
+usage() {
+    printf 'Usage: %s [--yes] <task>\n' "${0##*/}"
+}
+
+approved=false
+if [[ ${1:-} == --yes ]]; then
+    approved=true
+    shift
+fi
+[[ $# -eq 1 ]] || { usage >&2; exit 2; }
+task=$1
+agent_validate_task "$task"
+[[ -f $(agent_state_file "$task") ]] || agent_die "Unknown task: $task"
+[[ $(agent_state_get "$task" status) == review ]] || agent_die "Task is not ready for integration: $task"
+[[ $(agent_state_get "$task" review 2>/dev/null || true) == approved ]] || agent_die "Review is not approved: $task"
+
+branch=$(agent_state_get "$task" branch)
+base=$(agent_state_get "$task" base)
+base_branch=$(agent_state_get "$task" base_branch)
+worktree=$(agent_state_get "$task" worktree)
+task_file=$(agent_state_get "$task" task_file)
+session=$(agent_state_get "$task" session)
+window=$(agent_state_get "$task" window)
+review_window=$(agent_state_get "$task" review_window 2>/dev/null || true)
+reviewed_commit=$(agent_state_get "$task" reviewed_commit)
+current_branch=$(git -C "$AGENT_REPO" branch --show-current)
+[[ $current_branch == "$base_branch" ]] || agent_die "Run integration from $base_branch, not $current_branch"
+[[ -z $(git -C "$AGENT_REPO" status --porcelain) ]] || agent_die 'Integration checkout is not clean'
+[[ $(git -C "$worktree" rev-parse "$branch") == "$reviewed_commit" ]] || agent_die 'Branch changed after review approval'
+mapfile -t commits < <(git -C "$AGENT_REPO" rev-list --reverse "$base..$reviewed_commit")
+(( ${#commits[@]} )) || agent_die "Task has no commits: $task"
+
+printf 'Task: %s\nBranch: %s\nCommits:\n' "$task" "$branch"
+git -C "$AGENT_REPO" log --oneline "$base..$reviewed_commit"
+if [[ $approved == false ]]; then
+    read -r -p 'Integrate these commits? [y/N] ' response
+    [[ $response == y || $response == Y || $response == yes || $response == YES ]] || agent_die 'Integration cancelled'
+fi
+
+if [[ -n $review_window ]] && agent_window_exists "$session" "$review_window"; then
+    tmux kill-window -t "$session:$review_window"
+fi
+if agent_window_exists "$session" "$window"; then
+    tmux kill-window -t "$session:$window" 2>/dev/null || true
+fi
+"$script_dir/agent-check" "$task"
+verified_commit=$(agent_state_get "$task" verified_commit)
+[[ $verified_commit == "$reviewed_commit" ]] || agent_die 'Reviewed commit did not pass final verification'
+[[ $(git -C "$worktree" rev-parse "$branch") == "$reviewed_commit" ]] || agent_die 'Branch changed during final verification'
+
+integration_base=$(git -C "$AGENT_REPO" rev-parse "$base_branch")
+staging_branch="integration/$task"
+staging_worktree="$(dirname "$worktree")/.integration-$task"
+git -C "$AGENT_REPO" show-ref --verify --quiet "refs/heads/$staging_branch" && \
+    agent_die "Staging branch already exists: $staging_branch"
+[[ ! -e $staging_worktree ]] || agent_die "Staging worktree already exists: $staging_worktree"
+git -C "$AGENT_REPO" worktree add -b "$staging_branch" "$staging_worktree" "$integration_base"
+agent_state_update "$task" status integrating staging_worktree "$staging_worktree" staging_branch "$staging_branch"
+
+if ! git -C "$staging_worktree" cherry-pick "${commits[@]}"; then
+    agent_state_put "$task" status integration-conflict
+    agent_die "Integration conflict preserved at $staging_worktree"
+fi
+staging_tip=$(git -C "$staging_worktree" rev-parse HEAD)
+
+mapfile -t commands < <(agent_read_list verify "$task_file")
+for command in "${commands[@]}"; do
+    printf '$ %s\n' "$command"
+    if ! (cd "$staging_worktree" && bash -lc "$command"); then
+        agent_state_put "$task" status integration-failed
+        agent_die "Staged integration verification failed at $staging_worktree: $command"
+    fi
+done
+
+if [[ -n $(git -C "$staging_worktree" status --porcelain) || \
+    $(git -C "$staging_worktree" rev-parse HEAD) != "$staging_tip" ]]; then
+    agent_state_put "$task" status integration-failed
+    agent_die "Verification modified the staged integration at $staging_worktree"
+fi
+[[ -z $(git -C "$AGENT_REPO" status --porcelain) ]] || agent_die 'Integration checkout changed during staging'
+if [[ $(git -C "$AGENT_REPO" rev-parse "$base_branch") != "$integration_base" ]]; then
+    agent_state_put "$task" status integration-stale
+    agent_die "Integration branch advanced; staged result preserved at $staging_worktree"
+fi
+current_branch=$(git -C "$AGENT_REPO" branch --show-current)
+if [[ $current_branch != "$base_branch" || $(git -C "$AGENT_REPO" rev-parse HEAD) != "$integration_base" ]]; then
+    agent_state_put "$task" status integration-stale
+    agent_die "Integration checkout changed; staged result preserved at $staging_worktree"
+fi
+git -C "$AGENT_REPO" merge --ff-only "$staging_branch"
+[[ $(git -C "$AGENT_REPO" branch --show-current) == "$base_branch" ]] || \
+    agent_die 'Integration checkout changed during fast-forward'
+[[ $(git -C "$AGENT_REPO" rev-parse HEAD) == "$staging_tip" ]] || \
+    agent_die 'Integration fast-forward produced an unexpected commit'
+git -C "$AGENT_REPO" worktree remove "$staging_worktree"
+git -C "$AGENT_REPO" update-ref -d "refs/heads/$staging_branch" "$staging_tip"
+agent_state_update "$task" status integrated integrated_commit "$(git -C "$AGENT_REPO" rev-parse HEAD)"
+printf 'Integrated %s into %s\n' "$task" "$base_branch"

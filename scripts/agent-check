@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir=$(dirname "$(realpath "$0")")
+# shellcheck disable=SC1091
+source "$script_dir/agent-common"
+agent_init "$script_dir/.."
+
+[[ $# -eq 1 ]] || { printf 'Usage: %s <task>\n' "${0##*/}" >&2; exit 2; }
+task=$1
+agent_validate_task "$task"
+[[ -f $(agent_state_file "$task") ]] || agent_die "Unknown task: $task"
+
+worktree=$(agent_state_get "$task" worktree)
+base=$(agent_state_get "$task" base)
+task_file=$(agent_state_get "$task" task_file)
+[[ -d $worktree ]] || agent_die "Worktree does not exist: $worktree"
+[[ -f $task_file ]] || agent_die "Task brief does not exist: $task_file"
+[[ -z $(git -C "$worktree" status --porcelain) ]] || \
+    agent_die "Commit or remove worktree changes before verification: $worktree"
+check_commit=$(git -C "$worktree" rev-parse HEAD)
+
+mapfile -t allowed < <(agent_read_list files "$task_file")
+mapfile -t changed < <(
+    git -C "$worktree" diff --name-only "$base"
+)
+unexpected=()
+for path in "${changed[@]}"; do
+    permitted=false
+    for scope in "${allowed[@]}"; do
+        scope=${scope%/}
+        if [[ $path == "$scope" || $path == "$scope/"* ]]; then
+            permitted=true
+            break
+        fi
+    done
+    [[ $permitted == true ]] || unexpected+=("$path")
+done
+if (( ${#unexpected[@]} )); then
+    printf 'Changes outside declared task scope:\n' >&2
+    printf '  %s\n' "${unexpected[@]}" >&2
+    agent_state_put "$task" verification failed
+    exit 1
+fi
+
+mapfile -t commands < <(agent_read_list verify "$task_file")
+(( ${#commands[@]} )) || agent_die "Task has no verification commands: $task_file"
+check_report="$AGENT_STATE_ROOT/reports/$task-check.txt"
+: >"$check_report"
+for command in "${commands[@]}"; do
+    printf '$ %s\n' "$command" | tee -a "$check_report"
+    if ! (cd "$worktree" && bash -lc "$command") 2>&1 | tee -a "$check_report"; then
+        agent_state_put "$task" verification failed
+        agent_die "Verification failed: $command"
+    fi
+done
+
+if [[ -n $(git -C "$worktree" status --porcelain) || \
+    $(git -C "$worktree" rev-parse HEAD) != "$check_commit" ]]; then
+    agent_state_put "$task" verification failed
+    agent_die "Verification modified the task worktree: $worktree"
+fi
+agent_state_update "$task" verification passed verified_commit "$check_commit"
+printf 'Verification passed for %s\n' "$task"
