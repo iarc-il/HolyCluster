@@ -78,3 +78,15 @@ venv.bak/
 target
 
 docs/*.pdf
+
+# Matt Pocock engineering skills (installed per-repo, not source)
+.claude/skills/
+.agents/skills/
+skills-lock.json
+
+# Matt Pocock working trail (local only)
+.scratch/
+docs/adr/
+CONTEXT.md
+CLAUDE.md
+docs/agents/
