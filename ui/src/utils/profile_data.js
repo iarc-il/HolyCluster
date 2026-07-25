@@ -1,7 +1,7 @@
 import { normalize_dxcc_entity_code } from "@/data/dxcc_entities.js";
 import { create_initial_callsign_filters, create_initial_filters } from "@/data/filter_defaults.js";
 import { bands, continents, modes } from "@/data/filters_data.js";
-import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
+import { MISSING_SECTION_KEYS } from "@/data/missing_sections.js";
 import { STATES } from "@/data/states.js";
 import { sanitize_callsign_filters, sanitize_filters } from "@/utils/filter_url_state.js";
 import Maidenhead from "maidenhead";
@@ -24,9 +24,9 @@ const MAIN_VIEW_ORDERS = new Set(["map_table", "table_map"]);
 const VOACAP_BANDS = new Set(["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"]);
 const DXPEDITION_SORT_KEYS = new Set(["start", "end", "on_air"]);
 const DXPEDITION_FILTER_KEYS = new Set(["all", "active", "upcoming"]);
-const HUNTER_US_STATE_CODES = new Set(Object.keys(STATES.USA));
-const HUNTER_CA_PROVINCE_CODES = new Set(Object.keys(STATES.Canada));
-const HUNTER_IMPORT_COUNT_KEYS = [
+const MISSING_US_STATE_CODES = new Set(Object.keys(STATES.USA));
+const MISSING_CA_PROVINCE_CODES = new Set(Object.keys(STATES.Canada));
+const MISSING_IMPORT_COUNT_KEYS = [
     "qso_count",
     "skipped_count",
     "resolved_count",
@@ -55,7 +55,7 @@ export const PROFILE_SECTION_DEFINITIONS = {
         label: "Callsign Filters",
         description: "Alert, show only, and hide filter rules",
     },
-    hunter: {
+    missing: {
         label: "Missing Progress",
         description: "Worked entities and ADIF import metadata",
     },
@@ -223,7 +223,7 @@ function sanitize_choice(value, fallback, valid_values) {
     return valid_values.has(value) ? value : fallback;
 }
 
-function sanitize_hunter_zone(value, min, max) {
+function sanitize_missing_zone(value, min, max) {
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
         return null;
@@ -231,32 +231,32 @@ function sanitize_hunter_zone(value, min, max) {
     return parsed;
 }
 
-function sanitize_hunter_state_code(value, valid_codes) {
+function sanitize_missing_state_code(value, valid_codes) {
     const code = (value ?? "").toString().trim().toUpperCase();
     return valid_codes.has(code) ? code : null;
 }
 
-function sanitize_hunter_dxcc(value) {
+function sanitize_missing_dxcc(value) {
     return normalize_dxcc_entity_code(value);
 }
 
-function sanitize_hunter_worked_value(section, value) {
-    if (section === "dxcc") return sanitize_hunter_dxcc(value);
-    if (section === "cq_zone") return sanitize_hunter_zone(value, 1, 40);
-    if (section === "itu_zone") return sanitize_hunter_zone(value, 1, 90);
-    if (section === "us_state") return sanitize_hunter_state_code(value, HUNTER_US_STATE_CODES);
+function sanitize_missing_worked_value(section, value) {
+    if (section === "dxcc") return sanitize_missing_dxcc(value);
+    if (section === "cq_zone") return sanitize_missing_zone(value, 1, 40);
+    if (section === "itu_zone") return sanitize_missing_zone(value, 1, 90);
+    if (section === "us_state") return sanitize_missing_state_code(value, MISSING_US_STATE_CODES);
     if (section === "ca_province")
-        return sanitize_hunter_state_code(value, HUNTER_CA_PROVINCE_CODES);
+        return sanitize_missing_state_code(value, MISSING_CA_PROVINCE_CODES);
     return null;
 }
 
-function sanitize_hunter_worked_values(section, values) {
+function sanitize_missing_worked_values(section, values) {
     const source = Array.isArray(values) ? values : [];
     const seen = new Set();
     const result = [];
 
     for (const value of source) {
-        const normalized = sanitize_hunter_worked_value(section, value);
+        const normalized = sanitize_missing_worked_value(section, value);
         if (normalized == null) continue;
 
         const key = `${typeof normalized}:${normalized}`;
@@ -269,52 +269,52 @@ function sanitize_hunter_worked_values(section, values) {
     return result;
 }
 
-function sanitize_hunter_worked(value) {
+function sanitize_missing_worked(value) {
     const source = is_plain_object(value) ? value : {};
 
     return Object.fromEntries(
-        HUNTER_SECTION_KEYS.map(section => {
+        MISSING_SECTION_KEYS.map(section => {
             const section_source = is_plain_object(source[section]) ? source[section] : {};
             return [
                 section,
                 {
-                    global: sanitize_hunter_worked_values(section, section_source.global),
+                    global: sanitize_missing_worked_values(section, section_source.global),
                 },
             ];
         }),
     );
 }
 
-function sanitize_hunter_added_counts(value) {
+function sanitize_missing_added_counts(value) {
     const source = is_plain_object(value) ? value : {};
 
     return Object.fromEntries(
-        HUNTER_SECTION_KEYS.map(section => [
+        MISSING_SECTION_KEYS.map(section => [
             section,
             to_number(source[section], 0, { min: 0, integer: true }),
         ]),
     );
 }
 
-function sanitize_hunter_import(value) {
+function sanitize_missing_import(value) {
     if (!is_plain_object(value)) return null;
 
     return {
         file_name: to_limited_text(value.file_name, "ADIF import", 120),
         imported_at: to_number(value.imported_at, 0, { min: 0, integer: true }),
         ...Object.fromEntries(
-            HUNTER_IMPORT_COUNT_KEYS.map(key => [
+            MISSING_IMPORT_COUNT_KEYS.map(key => [
                 key,
                 to_number(value[key], 0, { min: 0, integer: true }),
             ]),
         ),
-        added_counts: sanitize_hunter_added_counts(value.added_counts),
+        added_counts: sanitize_missing_added_counts(value.added_counts),
     };
 }
 
-function sanitize_hunter_imports(value) {
+function sanitize_missing_imports(value) {
     if (!Array.isArray(value)) return [];
-    return value.map(sanitize_hunter_import).filter(Boolean);
+    return value.map(sanitize_missing_import).filter(Boolean);
 }
 
 function read_storage_value(storage, key) {
@@ -424,10 +424,10 @@ export function create_default_radio() {
     };
 }
 
-export function create_default_hunter() {
+export function create_default_missing() {
     return {
         worked: Object.fromEntries(
-            HUNTER_SECTION_KEYS.map(section => [
+            MISSING_SECTION_KEYS.map(section => [
                 section,
                 {
                     global: [],
@@ -445,7 +445,7 @@ export function create_default_profile_data() {
         settings,
         filters: create_initial_filters(),
         callsign_filters: create_initial_callsign_filters(),
-        hunter: create_default_hunter(),
+        missing: create_default_missing(),
         map_controls: create_default_map_controls(),
         map_view: create_default_map_view(settings.default_radius),
         table_sort: create_default_table_sort(),
@@ -613,12 +613,12 @@ export function sanitize_radio(value, defaults = create_default_radio()) {
     };
 }
 
-export function sanitize_hunter(value, defaults = create_default_hunter()) {
+export function sanitize_missing(value, defaults = create_default_missing()) {
     const source = is_plain_object(value) ? value : {};
 
     return {
-        worked: sanitize_hunter_worked(source.worked),
-        imports: sanitize_hunter_imports(source.imports),
+        worked: sanitize_missing_worked(source.worked),
+        imports: sanitize_missing_imports(source.imports),
     };
 }
 
@@ -635,7 +635,7 @@ export function sanitize_profile_data(value, defaults = create_default_profile_d
         callsign_filters: sanitize_callsign_filters(
             source.callsign_filters ?? defaults.callsign_filters,
         ),
-        hunter: sanitize_hunter(source.hunter, defaults.hunter),
+        missing: sanitize_missing(source.missing ?? source.hunter, defaults.missing),
         map_controls: sanitize_map_controls(source.map_controls, defaults.map_controls),
         map_view: sanitize_map_view(source.map_view, map_view_defaults),
         table_sort: sanitize_table_sort(source.table_sort, defaults.table_sort),

@@ -4,7 +4,7 @@ import FilterOptions from "@/components/FilterOptions.jsx";
 import Filters from "@/components/Filters.jsx";
 import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Heatmap from "@/components/Heatmap.jsx";
-import HunterPanel from "@/components/HunterPanel.jsx";
+import MissingPanel from "@/components/MissingPanel.jsx";
 import RotatorPanel from "@/components/RotatorPanel.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
 import { TOUR_SELECT_SIDE_PANEL_TAB_EVENT } from "@/components/tour/tour_events.js";
@@ -293,7 +293,7 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
             <Heatmap />
         </div>,
         <DXpeditions key="dxpeditions" />,
-        <HunterPanel key="hunter" on_import_complete={handle_import_complete} />,
+        <MissingPanel key="missing" on_import_complete={handle_import_complete} />,
         <RotatorPanel key="rotator" />,
     ];
     const active_view_label = view_options[effective_active_view]?.label

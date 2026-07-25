@@ -5,7 +5,7 @@ import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
 
 import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
-import { HUNTER_SECTION_LABELS } from "@/data/hunter_sections.js";
+import { MISSING_SECTION_LABELS as HUNTER_SECTION_LABELS } from "@/data/missing_sections.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";

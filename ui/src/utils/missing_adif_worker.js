@@ -1,10 +1,10 @@
-import { import_hunter_adif } from "@/utils/hunter_adif.js";
+import { import_missing_adif } from "@/utils/missing_adif.js";
 
 self.onmessage = async event => {
     const { id, options } = event.data ?? {};
 
     try {
-        const result = await import_hunter_adif({
+        const result = await import_missing_adif({
             ...options,
             on_progress: progress => {
                 self.postMessage({ id, type: "progress", progress });

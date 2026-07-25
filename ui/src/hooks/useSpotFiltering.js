@@ -6,7 +6,7 @@ import {
 } from "@/data/dxcc_entities.js";
 import { bands, modes } from "@/data/filters_data.js";
 import { get_dxcc_flag } from "@/data/flags.js";
-import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
+import { MISSING_SECTION_KEYS as HUNTER_SECTION_KEYS } from "@/data/missing_sections.js";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { useSettings } from "@/hooks/useSettings";
 import { is_matching_list, sort_spots } from "@/utils.js";

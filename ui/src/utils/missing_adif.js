@@ -4,17 +4,17 @@ import {
     is_us_state_dxcc_code,
     normalize_dxcc_entity_code,
 } from "@/data/dxcc_entities.js";
-import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
-import { create_default_hunter, sanitize_hunter } from "@/utils/profile_data.js";
+import { MISSING_SECTION_KEYS } from "@/data/missing_sections.js";
+import { create_default_missing, sanitize_missing } from "@/utils/profile_data.js";
 import { find_zone_number, is_valid_zone_number, normalize_zone_value } from "@/utils/zones.js";
 import { AdifParser } from "adif-parser-ts";
 
-export const HUNTER_ADIF_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
-const HUNTER_RESOLVE_WS_CHUNK_SIZE = 500;
-const HUNTER_RESOLVE_MAX_ATTEMPTS = 3;
-const HUNTER_RESOLVE_WS_PROBE_TIMEOUT_MS = 1500;
+export const MISSING_ADIF_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+const MISSING_RESOLVE_WS_CHUNK_SIZE = 500;
+const MISSING_RESOLVE_MAX_ATTEMPTS = 3;
+const MISSING_RESOLVE_WS_PROBE_TIMEOUT_MS = 1500;
 const WS_PROTOCOL_VERSION = 1;
-export const HUNTER_IMPORT_PHASES = Object.freeze({
+export const MISSING_IMPORT_PHASES = Object.freeze({
     PARSING: "parsing",
     PROCESSING: "processing",
     RESOLVING: "resolving",
@@ -22,7 +22,7 @@ export const HUNTER_IMPORT_PHASES = Object.freeze({
     COMPLETE: "complete",
 });
 
-const HUNTER_IMPORT_COUNT_KEYS = ["dxcc", "cq_zone", "itu_zone", "us_state", "ca_province"];
+const MISSING_IMPORT_COUNT_KEYS = ["dxcc", "cq_zone", "itu_zone", "us_state", "ca_province"];
 
 const ADIF_EMPTY_ERROR_MESSAGE = "ADIF file is empty.";
 const ADIF_NOT_ADIF_ERROR_MESSAGE =
@@ -31,10 +31,10 @@ const ADIF_PARSE_ERROR_MESSAGE =
     "Could not parse ADIF file. Make sure it is a text .adi or .adif export.";
 const ADIF_NO_QSO_ERROR_MESSAGE = "ADIF file does not contain any QSO records.";
 
-export class HunterAdifImportError extends Error {
+export class MissingAdifImportError extends Error {
     constructor(message) {
         super(message);
-        this.name = "HunterAdifImportError";
+        this.name = "MissingAdifImportError";
     }
 }
 
@@ -85,11 +85,11 @@ function add_feature(features, section, value) {
 }
 
 function create_empty_feature_sets() {
-    return Object.fromEntries(HUNTER_SECTION_KEYS.map(section => [section, new Set()]));
+    return Object.fromEntries(MISSING_SECTION_KEYS.map(section => [section, new Set()]));
 }
 
 function create_empty_added_counts() {
-    return Object.fromEntries(HUNTER_IMPORT_COUNT_KEYS.map(section => [section, 0]));
+    return Object.fromEntries(MISSING_IMPORT_COUNT_KEYS.map(section => [section, 0]));
 }
 
 function extract_direct_record_features(record) {
@@ -187,19 +187,19 @@ function merge_resolved_record_features(direct_record, resolved) {
 }
 
 function add_record_features(feature_sets, features) {
-    for (const section of HUNTER_SECTION_KEYS) {
+    for (const section of MISSING_SECTION_KEYS) {
         if (features[section] != null) {
             feature_sets[section].add(features[section]);
         }
     }
 }
 
-function merge_hunter_worked(hunter, feature_sets) {
-    const source = sanitize_hunter(hunter ?? create_default_hunter());
+function merge_missing_worked(missing, feature_sets) {
+    const source = sanitize_missing(missing ?? create_default_missing());
     const added_counts = create_empty_added_counts();
     const worked = {};
 
-    for (const section of HUNTER_SECTION_KEYS) {
+    for (const section of MISSING_SECTION_KEYS) {
         const existing = source.worked[section]?.global ?? [];
         const values = [...existing];
         const known = new Set(existing);
@@ -215,7 +215,7 @@ function merge_hunter_worked(hunter, feature_sets) {
     }
 
     return {
-        hunter: {
+        missing: {
             ...source,
             worked,
         },
@@ -223,12 +223,12 @@ function merge_hunter_worked(hunter, feature_sets) {
     };
 }
 
-export function parse_hunter_adif_records(adif_text) {
+export function parse_missing_adif_records(adif_text) {
     try {
         const parsed = new AdifParser(adif_text).parseTopLevel();
         return Array.isArray(parsed.records) ? parsed.records : [];
     } catch (_error) {
-        throw new HunterAdifImportError(ADIF_PARSE_ERROR_MESSAGE);
+        throw new MissingAdifImportError(ADIF_PARSE_ERROR_MESSAGE);
     }
 }
 
@@ -238,26 +238,26 @@ function looks_like_adif_text(adif_text) {
 
 function validate_adif_text(adif_text) {
     if (adif_text.trim().length === 0) {
-        throw new HunterAdifImportError(ADIF_EMPTY_ERROR_MESSAGE);
+        throw new MissingAdifImportError(ADIF_EMPTY_ERROR_MESSAGE);
     }
     if (!looks_like_adif_text(adif_text)) {
-        throw new HunterAdifImportError(ADIF_NOT_ADIF_ERROR_MESSAGE);
+        throw new MissingAdifImportError(ADIF_NOT_ADIF_ERROR_MESSAGE);
     }
 }
 
 function validate_import_limits({ file_size }) {
-    if (file_size != null && file_size > HUNTER_ADIF_MAX_FILE_SIZE_BYTES) {
-        throw new HunterAdifImportError("ADIF file is too large. Maximum size is 50 MB.");
+    if (file_size != null && file_size > MISSING_ADIF_MAX_FILE_SIZE_BYTES) {
+        throw new MissingAdifImportError("ADIF file is too large. Maximum size is 50 MB.");
     }
 }
 
 function validate_adif_records(records) {
     if (records.length === 0) {
-        throw new HunterAdifImportError(ADIF_NO_QSO_ERROR_MESSAGE);
+        throw new MissingAdifImportError(ADIF_NO_QSO_ERROR_MESSAGE);
     }
 }
 
-function resolve_hunter_callsigns_once(callsigns, pending, results, errors, on_progress) {
+function resolve_missing_callsigns_once(callsigns, pending, results, errors, on_progress) {
     return new Promise((resolve, reject) => {
         const job_id =
             typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -293,7 +293,7 @@ function resolve_hunter_callsigns_once(callsigns, pending, results, errors, on_p
 
             function send(data) {
                 candidate.send(
-                    JSON.stringify({ version: WS_PROTOCOL_VERSION, type: "hunter", ...data }),
+                    JSON.stringify({ version: WS_PROTOCOL_VERSION, type: "missing", ...data }),
                 );
             }
 
@@ -316,12 +316,12 @@ function resolve_hunter_callsigns_once(callsigns, pending, results, errors, on_p
                 for (
                     let index = 0;
                     index < callsigns.length;
-                    index += HUNTER_RESOLVE_WS_CHUNK_SIZE
+                    index += MISSING_RESOLVE_WS_CHUNK_SIZE
                 ) {
                     send({
                         action: "add",
                         job_id,
-                        callsigns: callsigns.slice(index, index + HUNTER_RESOLVE_WS_CHUNK_SIZE),
+                        callsigns: callsigns.slice(index, index + MISSING_RESOLVE_WS_CHUNK_SIZE),
                     });
                 }
                 send({ action: "finish", job_id });
@@ -341,7 +341,7 @@ function resolve_hunter_callsigns_once(callsigns, pending, results, errors, on_p
                     fail(new Error(message.message || "Missing resolver failed."));
                     return;
                 }
-                if (message.type !== "hunter" || message.job_id !== job_id) return;
+                if (message.type !== "missing" || message.job_id !== job_id) return;
 
                 if (message.event === "results") {
                     for (const [callsign, result] of Object.entries(message.results ?? {})) {
@@ -380,7 +380,7 @@ function resolve_hunter_callsigns_once(callsigns, pending, results, errors, on_p
             };
 
             if (allow_fallback) {
-                probe_timeout = setTimeout(start_fallback, HUNTER_RESOLVE_WS_PROBE_TIMEOUT_MS);
+                probe_timeout = setTimeout(start_fallback, MISSING_RESOLVE_WS_PROBE_TIMEOUT_MS);
             }
         }
 
@@ -388,7 +388,7 @@ function resolve_hunter_callsigns_once(callsigns, pending, results, errors, on_p
     });
 }
 
-export async function resolve_hunter_callsigns(callsigns, on_progress) {
+export async function resolve_missing_callsigns(callsigns, on_progress) {
     const results = {};
     const errors = {};
     const pending = new Set(callsigns);
@@ -402,10 +402,10 @@ export async function resolve_hunter_callsigns(callsigns, on_progress) {
         on_progress?.(completed);
     }
 
-    while (pending.size > 0 && attempts < HUNTER_RESOLVE_MAX_ATTEMPTS) {
+    while (pending.size > 0 && attempts < MISSING_RESOLVE_MAX_ATTEMPTS) {
         attempts += 1;
         try {
-            await resolve_hunter_callsigns_once([...pending], pending, results, errors, () => {
+            await resolve_missing_callsigns_once([...pending], pending, results, errors, () => {
                 report_completed(total - pending.size);
             });
         } catch (_error) {
@@ -431,7 +431,7 @@ function report_import_progress(on_progress, progress) {
 function report_resolve_progress(on_progress, completed, total) {
     const percentage = total === 0 ? 100 : Math.round((completed / total) * 100);
     report_import_progress(on_progress, {
-        phase: HUNTER_IMPORT_PHASES.RESOLVING,
+        phase: MISSING_IMPORT_PHASES.RESOLVING,
         completed,
         total,
         percentage,
@@ -462,24 +462,24 @@ async function resolve_callsigns_for_import(callsigns, resolve_callsigns, on_pro
     }
 }
 
-export async function import_hunter_adif({
-    hunter = create_default_hunter(),
+export async function import_missing_adif({
+    missing = create_default_missing(),
     adif_text,
     file_name = "ADIF import",
     file_size = null,
     imported_at = Math.floor(Date.now() / 1000),
-    resolve_callsigns = resolve_hunter_callsigns,
+    resolve_callsigns = resolve_missing_callsigns,
     on_progress = null,
 } = {}) {
     validate_import_limits({ file_size });
 
-    report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.PARSING });
+    report_import_progress(on_progress, { phase: MISSING_IMPORT_PHASES.PARSING });
     const source_adif_text = adif_text ?? "";
     validate_adif_text(source_adif_text);
-    const records = parse_hunter_adif_records(source_adif_text);
+    const records = parse_missing_adif_records(source_adif_text);
     validate_adif_records(records);
 
-    report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.PROCESSING });
+    report_import_progress(on_progress, { phase: MISSING_IMPORT_PHASES.PROCESSING });
     const direct_records = records.map(extract_direct_record_features);
     const conflict_count = direct_records.filter(record => record.conflict).length;
     const callsigns_to_resolve = Array.from(
@@ -490,7 +490,7 @@ export async function import_hunter_adif({
         resolve_callsigns,
         on_progress,
     );
-    report_import_progress(on_progress, { phase: HUNTER_IMPORT_PHASES.MERGING });
+    report_import_progress(on_progress, { phase: MISSING_IMPORT_PHASES.MERGING });
     const feature_sets = create_empty_feature_sets();
     let skipped_count = 0;
 
@@ -505,7 +505,7 @@ export async function import_hunter_adif({
         add_record_features(feature_sets, features);
     }
 
-    const merged = merge_hunter_worked(hunter, feature_sets);
+    const merged = merge_missing_worked(missing, feature_sets);
     const unresolved_count = callsigns_to_resolve.filter(
         callsign => !resolved.results[callsign],
     ).length;
@@ -521,16 +521,16 @@ export async function import_hunter_adif({
     };
 
     const result = {
-        hunter: {
-            ...merged.hunter,
-            imports: [...merged.hunter.imports, metadata],
+        missing: {
+            ...merged.missing,
+            imports: [...merged.missing.imports, metadata],
         },
         metadata,
         resolver_errors: resolved.errors,
     };
 
     report_import_progress(on_progress, {
-        phase: HUNTER_IMPORT_PHASES.COMPLETE,
+        phase: MISSING_IMPORT_PHASES.COMPLETE,
         percentage: 100,
     });
 

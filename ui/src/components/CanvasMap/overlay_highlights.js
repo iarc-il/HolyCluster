@@ -3,7 +3,10 @@ import {
     is_filterable_dxcc_entity,
     normalize_dxcc_entity_code,
 } from "@/data/dxcc_entities.js";
-import { create_default_hunter, sanitize_hunter } from "@/utils/profile_data.js";
+import {
+    create_default_missing as create_default_hunter,
+    sanitize_missing as sanitize_hunter,
+} from "@/utils/profile_data.js";
 import { get_valid_zone_values, normalize_zone_value } from "@/utils/zones.js";
 
 const HUNTER_SECTION_OVERLAYS = {

@@ -4,15 +4,15 @@ import SearchIcon from "@/components/ui/SearchIcon.jsx";
 import X from "@/components/ui/X.jsx";
 import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
 import {
-    HUNTER_SECTION_KEYS,
-    HUNTER_SECTION_LABELS as SECTION_LABELS,
-} from "@/data/hunter_sections.js";
+    MISSING_SECTION_KEYS,
+    MISSING_SECTION_LABELS as SECTION_LABELS,
+} from "@/data/missing_sections.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
-import { HUNTER_ADIF_MAX_FILE_SIZE_BYTES, HUNTER_IMPORT_PHASES } from "@/utils/hunter_adif.js";
-import { import_hunter_adif_in_worker } from "@/utils/hunter_adif_worker_client.js";
-import { create_default_hunter } from "@/utils/profile_data.js";
+import { MISSING_ADIF_MAX_FILE_SIZE_BYTES, MISSING_IMPORT_PHASES } from "@/utils/missing_adif.js";
+import { import_missing_adif_in_worker } from "@/utils/missing_adif_worker_client.js";
+import { create_default_missing } from "@/utils/profile_data.js";
 import { useMemo, useState } from "react";
 
 const SECTION_DONE_MESSAGES = {
@@ -25,11 +25,11 @@ const SECTION_DONE_MESSAGES = {
 
 const IMPORT_PHASE_LABELS = {
     reading: "Reading ADIF",
-    [HUNTER_IMPORT_PHASES.PARSING]: "Parsing ADIF",
-    [HUNTER_IMPORT_PHASES.PROCESSING]: "Processing QSOs",
-    [HUNTER_IMPORT_PHASES.RESOLVING]: "Resolving callsigns",
-    [HUNTER_IMPORT_PHASES.MERGING]: "Saving missing data",
-    [HUNTER_IMPORT_PHASES.COMPLETE]: "Import complete",
+    [MISSING_IMPORT_PHASES.PARSING]: "Parsing ADIF",
+    [MISSING_IMPORT_PHASES.PROCESSING]: "Processing QSOs",
+    [MISSING_IMPORT_PHASES.RESOLVING]: "Resolving callsigns",
+    [MISSING_IMPORT_PHASES.MERGING]: "Saving missing data",
+    [MISSING_IMPORT_PHASES.COMPLETE]: "Import complete",
 };
 
 const SECTION_ITEM_SORT_OPTIONS = { numeric: true, sensitivity: "base" };
@@ -101,19 +101,19 @@ function clamp_percentage(value) {
 
 function get_overall_import_percentage({ phase, percentage }) {
     if (phase === "reading") return clamp_percentage((percentage ?? 0) * 0.1);
-    if (phase === HUNTER_IMPORT_PHASES.PARSING) return 15;
-    if (phase === HUNTER_IMPORT_PHASES.PROCESSING) return 25;
-    if (phase === HUNTER_IMPORT_PHASES.RESOLVING) {
+    if (phase === MISSING_IMPORT_PHASES.PARSING) return 15;
+    if (phase === MISSING_IMPORT_PHASES.PROCESSING) return 25;
+    if (phase === MISSING_IMPORT_PHASES.RESOLVING) {
         return clamp_percentage(30 + (percentage ?? 0) * 0.65);
     }
-    if (phase === HUNTER_IMPORT_PHASES.MERGING) return 98;
-    if (phase === HUNTER_IMPORT_PHASES.COMPLETE) return 100;
+    if (phase === MISSING_IMPORT_PHASES.MERGING) return 98;
+    if (phase === MISSING_IMPORT_PHASES.COMPLETE) return 100;
     return clamp_percentage(percentage ?? 0);
 }
 
 function create_import_progress(update) {
     const progress = {
-        phase: update?.phase ?? HUNTER_IMPORT_PHASES.RESOLVING,
+        phase: update?.phase ?? MISSING_IMPORT_PHASES.RESOLVING,
         percentage: update?.percentage,
     };
     return {
@@ -578,10 +578,10 @@ function RecentImports({ imports, colors }) {
     );
 }
 
-export default function HunterPanel({ on_import_complete = null }) {
+export default function MissingPanel({ on_import_complete = null }) {
     const { colors } = useColors();
     const {
-        active_profile_data: { hunter },
+        active_profile_data: { missing: hunter },
         update_active_profile_section,
     } = useProfiles();
     const [import_error, set_import_error] = useState("");
@@ -590,7 +590,7 @@ export default function HunterPanel({ on_import_complete = null }) {
     const section_items = useMemo(create_section_items, []);
 
     function update_hunter(updater) {
-        update_active_profile_section("hunter", current => updater(current));
+        update_active_profile_section("missing", current => updater(current));
     }
 
     function apply_section(section, worked_values) {
@@ -611,7 +611,7 @@ export default function HunterPanel({ on_import_complete = null }) {
         event.target.value = "";
         if (!file) return;
 
-        if (file.size > HUNTER_ADIF_MAX_FILE_SIZE_BYTES) {
+        if (file.size > MISSING_ADIF_MAX_FILE_SIZE_BYTES) {
             set_import_error("ADIF file is too large. Maximum size is 50 MB.");
             set_import_progress(null);
             return;
@@ -624,8 +624,8 @@ export default function HunterPanel({ on_import_complete = null }) {
             const adif_text = await read_file_text(file, percentage => {
                 set_import_progress(create_import_progress({ phase: "reading", percentage }));
             });
-            const result = await import_hunter_adif_in_worker({
-                hunter,
+            const result = await import_missing_adif_in_worker({
+                missing: hunter,
                 adif_text,
                 file_name: file.name,
                 file_size: file.size,
@@ -633,7 +633,7 @@ export default function HunterPanel({ on_import_complete = null }) {
                     set_import_progress(create_import_progress(progress));
                 },
             });
-            update_active_profile_section("hunter", result.hunter);
+            update_active_profile_section("missing", result.missing);
             on_import_complete?.();
         } catch (error) {
             set_import_error(error.message || "Could not import the selected ADIF file.");
@@ -692,7 +692,7 @@ export default function HunterPanel({ on_import_complete = null }) {
                         }
                         on_cancel={() => {}}
                         on_apply={() => {
-                            update_active_profile_section("hunter", create_default_hunter());
+                            update_active_profile_section("missing", create_default_missing());
                             set_import_error("");
                             return true;
                         }}
@@ -735,7 +735,7 @@ export default function HunterPanel({ on_import_complete = null }) {
                 {import_error ? <p className="text-sm text-red-500">{import_error}</p> : null}
             </section>
 
-            {HUNTER_SECTION_KEYS.map(section => (
+            {MISSING_SECTION_KEYS.map(section => (
                 <HunterSectionCard
                     key={section}
                     section={section}
