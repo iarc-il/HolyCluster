@@ -17,6 +17,7 @@ mod freq;
 mod omnirig;
 #[cfg(windows)]
 mod pstrotator;
+pub mod radio_config;
 mod reporting;
 mod rig;
 #[cfg(not(windows))]
@@ -27,6 +28,9 @@ mod rotctld;
 mod server;
 mod tray_icon;
 mod utils;
+
+#[cfg(test)]
+mod radio_config_tests;
 
 use dummy::DummyRadio;
 use dummy_rotator::DummyRotator;
