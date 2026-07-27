@@ -5,7 +5,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace]
-members = ["crates/hamlib-src"]
+members = ["crates/hamlib-src", "crates/hamlib-sys"]
 resolver = "3"
 
 [profile.release]

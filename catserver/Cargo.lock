@@ -1114,6 +1114,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hamlib-sys"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "hamlib-src",
+ "pkg-config",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

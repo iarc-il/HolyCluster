@@ -1,0 +1,13 @@
+[package]
+name = "hamlib-sys"
+version = "0.1.0"
+edition = "2024"
+links = "hamlib"
+build = "build.rs"
+
+[dependencies]
+hamlib-src = { path = "../hamlib-src" }
+
+[build-dependencies]
+cc = "1.2.18"
+pkg-config = "0.3.32"
