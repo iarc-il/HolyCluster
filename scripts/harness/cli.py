@@ -87,8 +87,21 @@ def watch() -> None:
         for slug, fut in list(inflight.items()):
             if fut.done():
                 inflight.pop(slug)
+        summary = ", ".join(f"{r.slug}={r.phase}" for r in recs) or "(no tasks)"
+        print(f"[harness] poll: {summary}")
         for rec in recs:
-            if rec.slug in inflight or rec.phase in ("implementing", "ci_fixing", "addressing"):
+            if rec.slug in inflight:
+                continue
+            if rec.phase in ("implementing", "ci_fixing", "addressing"):
+                # No worker in THIS process is tracking it (else it'd be in
+                # `inflight`), so it's orphaned from a watch process that died
+                # mid-job. Surface it instead of silently doing nothing forever.
+                _set(rec.slug, phase="blocked")
+                notify.desktop(
+                    "Harness: orphaned job",
+                    f"{rec.slug} was mid-'{rec.phase}' with no active worker "
+                    f"(a previous watch process likely died) — check {rec.worktree_path}",
+                )
                 continue
             facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
                      if rec.pr_number else None)
