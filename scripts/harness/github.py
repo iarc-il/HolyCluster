@@ -43,6 +43,34 @@ def open_pr(worktree_path: str, branch: str, title: str, body: str) -> int:
     return int(num)
 
 
+def has_uncommitted_changes(worktree_path: str) -> bool:
+    return bool(_run(["git", "status", "--porcelain"], cwd=worktree_path))
+
+
+def find_existing_pr(branch: str) -> Optional[int]:
+    """PR number for `branch` if one already exists (any state), else None."""
+    raw = subprocess.run(["gh", "pr", "view", branch, "--json", "number", "--jq", ".number"],
+                         capture_output=True, text=True)
+    if raw.returncode != 0 or not raw.stdout.strip():
+        return None
+    return int(raw.stdout.strip())
+
+
+def ensure_committed_and_pushed(worktree_path: str, branch: str, message: str) -> bool:
+    """Idempotent version of commit_and_push: safe to call no matter how far a
+    previous, interrupted attempt already got. Commits pending changes if any,
+    then pushes if the branch is ahead of BASE_BRANCH. Returns whether there is
+    anything on the branch worth a PR for."""
+    _run(["git", "add", "-A"], cwd=worktree_path)
+    if _run(["git", "status", "--porcelain"], cwd=worktree_path):
+        _run(["git", "commit", "-m", message], cwd=worktree_path)
+    ahead = _run(["git", "rev-list", "--count", f"origin/{BASE_BRANCH}..HEAD"], cwd=worktree_path)
+    if ahead == "0":
+        return False
+    _run(["git", "push", "-u", "origin", branch], cwd=worktree_path)
+    return True
+
+
 def _ci_status(pr_number: int) -> str:
     raw = subprocess.run(
         ["gh", "pr", "checks", str(pr_number), "--json", "state"],

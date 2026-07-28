@@ -2,9 +2,10 @@ import argparse
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from . import agent, config, github, notify
-from .lifecycle import Action, decide
+from .lifecycle import Action, GHFacts, decide
 from .state import (PRRecord, load_state, save_state, slugify)
 
 _lock = threading.Lock()
@@ -78,6 +79,106 @@ def _job_address(rec: PRRecord, review) -> None:
     _set(rec.slug, phase="ci", ci_fix_attempts=0, last_handled_review_id=review.id)
 
 
+def _resume_stalled(rec: PRRecord) -> None:
+    """Recover a job whose worker died mid-flight (e.g. a previous `watch`
+    process was killed) without redoing work that already happened. Inspects
+    ground truth (worktree existence, uncommitted diff, an already-open PR)
+    instead of trusting `phase` alone, so it's safe to call repeatedly."""
+    if not rec.worktree_path or not Path(rec.worktree_path).exists():
+        # Nothing was ever created (or it's gone) — safe to start clean.
+        _set(rec.slug, phase="queued", worktree_path="")
+        _job_implement(rec)
+        return
+
+    dirty = github.has_uncommitted_changes(rec.worktree_path)
+
+    if rec.phase == "implementing":
+        if not dirty:
+            agent.run(rec.worktree_path, agent.IMPLEMENT_TMPL(rec.task))
+        if not github.ensure_committed_and_pushed(rec.worktree_path, rec.branch, rec.task):
+            _set(rec.slug, phase="blocked")
+            notify.desktop("Harness: no changes", f"{rec.slug} produced no diff — blocked")
+            return
+        pr = github.find_existing_pr(rec.branch) or github.open_pr(
+            rec.worktree_path, rec.branch, rec.task, f"Automated PR for: {rec.task}")
+        _set(rec.slug, pr_number=pr, phase="ci")
+        return
+
+    if rec.phase == "ci_fixing":
+        if not dirty:
+            logs = github._run(["gh", "pr", "checks", str(rec.pr_number)])[:4000] if rec.pr_number else ""
+            agent.run(rec.worktree_path, agent.FIX_CI_TMPL(logs))
+        github.ensure_committed_and_pushed(rec.worktree_path, rec.branch, f"Fix CI for {rec.slug}")
+        _set(rec.slug, phase="ci")
+        return
+
+    if rec.phase == "addressing":
+        if not dirty:
+            facts = github.fetch_facts(rec.pr_number, None) if rec.pr_number else None
+            review_text = (facts.new_review.text if facts and facts.new_review
+                          else "(review text unavailable — re-check the PR manually)")
+            agent.run(rec.worktree_path, agent.ADDRESS_TMPL(review_text))
+        github.ensure_committed_and_pushed(rec.worktree_path, rec.branch, f"Address review on {rec.slug}")
+        _set(rec.slug, phase="ci", ci_fix_attempts=0)
+        return
+
+
+def _resume_one(rec: PRRecord) -> None:
+    print(f"[resume] {rec.slug}: phase={rec.phase}")
+    try:
+        if rec.phase == "queued":
+            _job_implement(rec)
+        elif rec.phase in ("implementing", "ci_fixing", "addressing"):
+            _resume_stalled(rec)
+        else:
+            # done/blocked/ci/await_review: just re-run one lifecycle tick.
+            # decide() intentionally returns NONE for "blocked" and for
+            # already-"done" records, so this never auto-unblocks anything —
+            # it only nudges tasks that already have a legitimate next step.
+            facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
+                     if rec.pr_number else GHFacts("none", None, False))
+            action = decide(rec, facts)
+            print(f"[resume] {rec.slug}: decide -> {action.name}")
+            if action == Action.IMPLEMENT:
+                _job_implement(rec)
+            elif action == Action.FIX_CI:
+                _job_fix_ci(rec)
+            elif action == Action.ADDRESS_REVIEW:
+                _job_address(rec, facts.new_review)
+            elif action == Action.REQUEST_REVIEW:
+                github.rerequest_review(rec.pr_number)
+                _set(rec.slug, phase="await_review")
+                notify.desktop("Harness: review ready", f"PR #{rec.pr_number} — {rec.slug}")
+            elif action == Action.BLOCK:
+                _set(rec.slug, phase="blocked")
+                notify.desktop("Harness: CI blocked", f"PR #{rec.pr_number} — {rec.slug} needs you")
+            elif action == Action.CLEANUP:
+                github.remove_worktree(rec.worktree_path, rec.branch)
+                _set(rec.slug, phase="done")
+                notify.desktop("Harness: merged", f"{rec.slug} merged and cleaned up")
+            else:
+                print(f"[resume] {rec.slug}: nothing to do")
+    except Exception as e:  # noqa: BLE001 - same job-boundary catch-all as _guard
+        _set(rec.slug, phase="blocked")
+        notify.desktop("Harness: resume failed", f"{rec.slug}: {e}")
+        print(f"[resume] {rec.slug}: FAILED — {e}")
+
+
+def resume(slugs: list[str] | None) -> None:
+    """Inspect state and, for each targeted task, do whatever is needed to
+    move it forward — starting/continuing an agent only if the work isn't
+    already done. Runs in the foreground, one task at a time (not through the
+    concurrent pool `watch` uses), so it's safe to run any time state looks
+    stuck, e.g. after a `watch` process died mid-job."""
+    recs = load_state(config.state_path())
+    targets = [r for r in recs if (not slugs or r.slug in slugs) and r.phase != "done"]
+    if not targets:
+        print("resume: nothing to do")
+        return
+    for rec in targets:
+        _resume_one(rec)
+
+
 def watch() -> None:
     pool = ThreadPoolExecutor(max_workers=config.MAX_CONCURRENT)
     inflight: dict[str, object] = {}
@@ -104,9 +205,7 @@ def watch() -> None:
                 )
                 continue
             facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
-                     if rec.pr_number else None)
-            from .lifecycle import GHFacts
-            facts = facts or GHFacts("none", None, False)
+                     if rec.pr_number else GHFacts("none", None, False))
             action = decide(rec, facts)
             # Concurrency is capped by the pool's max_workers; extra submissions
             # simply queue as Futures. `inflight` only prevents double-submitting
@@ -138,6 +237,8 @@ def main(argv=None) -> int:
     n.add_argument("task", nargs="?")
     n.add_argument("-f", "--file")
     sub.add_parser("watch")
+    r = sub.add_parser("resume")
+    r.add_argument("slug", nargs="*", help="slug(s) to resume; omit to resume all non-done tasks")
     args = p.parse_args(argv)
     if args.cmd == "new":
         if args.file:
@@ -151,5 +252,8 @@ def main(argv=None) -> int:
         return 0
     if args.cmd == "watch":
         watch()
+        return 0
+    if args.cmd == "resume":
+        resume(args.slug or None)
         return 0
     return 1
