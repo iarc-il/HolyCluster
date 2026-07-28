@@ -13,7 +13,7 @@ def _run(args, cwd=None) -> str:
 
 
 def create_worktree(slug: str, branch: str) -> str:
-    path = str(worktree_parent() / f"HolyCluster-{slug}")
+    path = str(worktree_parent() / slug)
     _run(["git", "fetch", "origin", BASE_BRANCH])
     _run(["git", "worktree", "add", "-b", branch, path, f"origin/{BASE_BRANCH}"])
     return path

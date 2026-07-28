@@ -92,3 +92,4 @@ CLAUDE.md
 docs/agents/
 
 .harness/
+.worktrees/
