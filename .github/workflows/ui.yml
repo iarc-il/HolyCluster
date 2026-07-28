@@ -9,12 +9,18 @@ on:
       - "dev"
     tags:
       - "v*"
+  pull_request:
+    paths:
+      - "ui/**"
+      - ".github/workflows/ui.yml"
+    branches:
+      - "dev"
 
 jobs:
   build-and-deploy-ui:
     name: Build, Lint, and Deploy the UI
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -47,6 +53,7 @@ jobs:
           npm run build
 
       - name: Setup SSH
+        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
