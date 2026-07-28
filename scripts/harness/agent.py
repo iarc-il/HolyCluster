@@ -27,7 +27,9 @@ def run(worktree_path: str, prompt: str) -> None:
     status_file = Path(worktree_path) / ".harness-exit-code"
     status_file.unlink(missing_ok=True)
     subprocess.run(["tmux", "kill-window", "-t", f"{SESSION}:{window}"], capture_output=True)
-    inner = f"opencode run {shlex.quote(prompt)}; echo $? > {shlex.quote(str(status_file))}"
+    # -i/--interactive: regular split-footer TUI, not the full-screen textual app,
+    # so opencode can actually prompt for permissions instead of auto-rejecting them.
+    inner = f"opencode run -i {shlex.quote(prompt)}; echo $? > {shlex.quote(str(status_file))}"
     subprocess.run(["tmux", "new-window", "-t", SESSION, "-n", window, "-c", worktree_path,
                     "bash", "-lc", inner], check=True)
     notify.desktop("Harness: agent started", f"tmux attach -t {SESSION} (window: {window})")
