@@ -5,36 +5,38 @@ from pathlib import Path
 
 from . import notify
 
+SESSION = "agents"
 POLL_SECONDS = 2
 
 
-def _session_name(worktree_path: str) -> str:
-    return f"harness-{Path(worktree_path).name}"
+def _ensure_session() -> None:
+    # Idempotent: no-op (fails silently) if the session already exists.
+    subprocess.run(["tmux", "new-session", "-d", "-s", SESSION], capture_output=True)
 
 
-def _session_alive(session: str) -> bool:
-    return subprocess.run(["tmux", "has-session", "-t", session],
-                          capture_output=True).returncode == 0
+def _window_name(worktree_path: str) -> str:
+    return Path(worktree_path).name
 
 
 def run(worktree_path: str, prompt: str) -> None:
-    """Run `opencode run` inside a dedicated, detached tmux session so a human
-    can attach and answer permission prompts (opencode auto-rejects them when
-    run headless with no TTY). Blocks until the session exits."""
-    session = _session_name(worktree_path)
+    """Run `opencode run` in its own window inside the shared 'agents' tmux
+    session so a human can attach and answer permission prompts (opencode
+    auto-rejects them when run headless with no TTY). Blocks until done."""
+    _ensure_session()
+    window = _window_name(worktree_path)
     status_file = Path(worktree_path) / ".harness-exit-code"
     status_file.unlink(missing_ok=True)
-    subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
+    subprocess.run(["tmux", "kill-window", "-t", f"{SESSION}:{window}"], capture_output=True)
     inner = f"opencode run {shlex.quote(prompt)}; echo $? > {shlex.quote(str(status_file))}"
-    subprocess.run(["tmux", "new-session", "-d", "-s", session, "-c", worktree_path,
+    subprocess.run(["tmux", "new-window", "-t", SESSION, "-n", window, "-c", worktree_path,
                     "bash", "-lc", inner], check=True)
-    notify.desktop("Harness: agent started", f"tmux attach -t {session}")
-    print(f"[harness] agent running — attach with: tmux attach -t {session}")
-    while _session_alive(session):
+    notify.desktop("Harness: agent started", f"tmux attach -t {SESSION} (window: {window})")
+    print(f"[harness] agent running — tmux attach -t {SESSION}, window '{window}'")
+    while not status_file.exists():
         time.sleep(POLL_SECONDS)
-    code = int(status_file.read_text().strip()) if status_file.exists() else 1
+    code = int(status_file.read_text().strip())
     if code != 0:
-        raise RuntimeError(f"opencode run failed in tmux session '{session}' (exit {code})")
+        raise RuntimeError(f"opencode run failed in tmux window '{window}' (exit {code})")
 
 
 def IMPLEMENT_TMPL(task: str) -> str:
