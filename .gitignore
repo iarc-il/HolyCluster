@@ -90,3 +90,5 @@ docs/adr/
 CONTEXT.md
 CLAUDE.md
 docs/agents/
+
+.harness/
