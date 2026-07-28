@@ -2,7 +2,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 
 use crate::freq::Freq;
-use crate::rig::{Mode, Radio, Slot, Status};
+use crate::rig::{Mode, Radio, RadioInitError, Slot, Status};
 
 pub struct RigctldRadio {
     stream: Option<TcpStream>,
@@ -51,36 +51,35 @@ impl RigctldRadio {
                 self.reconnect_counter += 1;
                 if self.reconnect_counter >= 5 {
                     self.reconnect_counter = 0;
-                    self.init();
+                    let _ = self.init();
                 }
                 None
             }
         }
     }
 
-    fn connect(&mut self) -> bool {
+    fn connect(&mut self) -> Result<(), RadioInitError> {
         match TcpStream::connect(format!("{}:{}", self.host, self.port)) {
             Ok(stream) => {
                 self.stream = Some(stream);
-                true
+                Ok(())
             }
-            Err(e) => {
-                tracing::error!("Failed to connect to rigctld: {}", e);
-                false
+            Err(error) => {
+                tracing::error!("Failed to connect to rigctld: {error}");
+                Err(RadioInitError::Io {
+                    backend: "rigctld",
+                    kind: error.kind(),
+                })
             }
         }
     }
 }
 
 impl Radio for RigctldRadio {
-    fn init(&mut self) {
-        if self.connect() {
-            tracing::info!("Connected to rigctld at {}:{}", self.host, self.port);
-        }
-    }
-
-    fn get_name(&self) -> &str {
-        "rigctld"
+    fn init(&mut self) -> Result<(), RadioInitError> {
+        self.connect()?;
+        tracing::info!("Connected to rigctld at {}:{}", self.host, self.port);
+        Ok(())
     }
 
     fn set_mode(&mut self, mode: Mode) {
@@ -117,12 +116,7 @@ impl Radio for RigctldRadio {
     }
 
     fn get_status(&mut self) -> Status {
-        let mut status = Status {
-            freq: 0,
-            status: "disconnected".into(),
-            mode: "unknown".into(),
-            current_rig: self.current_rig,
-        };
+        let mut status = Status::disconnected(self.current_rig);
 
         if let Some(response) = self.send_command("f") {
             if let Ok(freq) = response.parse::<u32>() {
@@ -149,10 +143,5 @@ impl Radio for RigctldRadio {
         }
 
         status
-    }
-
-    fn is_available(&self) -> bool {
-        // TODO: implement this
-        true
     }
 }

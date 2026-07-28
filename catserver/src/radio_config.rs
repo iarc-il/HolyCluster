@@ -225,7 +225,7 @@ impl RadioConfig {
         })
     }
 
-    fn validate(&self) -> Result<(), RadioConfigError> {
+    pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
         if !self.backend.is_supported_on_platform() {
             return Err(RadioConfigError::PlatformUnsupportedBackend(self.backend));
         }

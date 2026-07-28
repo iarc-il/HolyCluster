@@ -1,5 +1,5 @@
 use crate::freq::Freq;
-use crate::rig::{Mode, Radio, Slot, Status};
+use crate::rig::{Mode, Radio, RadioInitError, Slot, Status};
 
 #[derive(Clone)]
 pub struct DummyRadio {
@@ -25,10 +25,8 @@ impl DummyRadio {
 }
 
 impl Radio for DummyRadio {
-    fn init(&mut self) {}
-
-    fn get_name(&self) -> &str {
-        "dummy"
+    fn init(&mut self) -> Result<(), RadioInitError> {
+        Ok(())
     }
 
     fn set_mode(&mut self, mode: Mode) {
@@ -78,9 +76,5 @@ impl Radio for DummyRadio {
             status: "connected".into(),
             current_rig: self.current_rig,
         }
-    }
-
-    fn is_available(&self) -> bool {
-        true
     }
 }
