@@ -1102,6 +1102,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hamlib"
+version = "0.1.0"
+dependencies = [
+ "hamlib-sys",
+ "serde",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "hamlib-src"
 version = "0.1.0"
 dependencies = [
