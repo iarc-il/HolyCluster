@@ -1,14 +1,20 @@
 #![deny(unsafe_code)]
 
+mod config;
 mod descriptor;
 mod error;
 mod ffi;
+mod rig;
 mod types;
 
 #[cfg(test)]
 mod safety_tests;
 
-pub use error::{CatalogError, ConfigTokenError, HamlibError};
+pub use error::{
+    CatalogError, ConfigTokenError, ConfigValueError, ConfigurationError, HamlibError,
+    RigControlError,
+};
+pub use rig::{Closed, Frequency, Mode, Open, PassbandWidth, Rig, Vfo};
 pub use types::{ConfigDescriptor, ConfigToken, ConfigValue, RigModel, RigModelId, RigModelStatus};
 
 #[derive(Clone, Debug)]

@@ -65,7 +65,7 @@ pub(crate) fn unique_descriptors(
     Ok(tokens.into_values().collect())
 }
 
-fn load_backends() -> Result<(), HamlibError> {
+pub(crate) fn load_backends() -> Result<(), HamlibError> {
     BACKENDS
         .get_or_init(|| {
             // SAFETY: Hamlib's process-wide backend registry is initialized exactly once here.
@@ -76,7 +76,7 @@ fn load_backends() -> Result<(), HamlibError> {
         .clone()
 }
 
-fn hamlib_result(operation: &'static str, result: i32) -> Result<(), HamlibError> {
+pub(crate) fn hamlib_result(operation: &'static str, result: i32) -> Result<(), HamlibError> {
     if result == 0 {
         return Ok(());
     }
