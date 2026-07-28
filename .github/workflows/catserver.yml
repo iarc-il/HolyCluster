@@ -17,6 +17,13 @@ on:
       - "dev"
 
 env:
+  CARGO_TARGET_DIR: target
+  HAMLIB_SHA256: ae1fcf2dbc80ea0786ea8f047b09399c3f7737d1930442f61a031708ed33e88f
+  HAMLIB_VERSION: 4.7.2
+  HAMLIB_LIBUSB_INCLUDE_DIR: /opt/hamlib-libusb/x86_64-w64-mingw32/include
+  HAMLIB_LIBUSB_LIB_DIR: /opt/hamlib-libusb/x86_64-w64-mingw32/lib
+  LIBUSB_SHA256: fea36f34f9156400209595e300840767ab1a385ede1dc7ee893015aea9c6dbaf
+  LIBUSB_VERSION: 1.0.30
   TARGET: x86_64-pc-windows-gnu
 
 jobs:
@@ -50,10 +57,17 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            catserver/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-${{ env.TARGET }}-
+
+      - name: Cache Hamlib source and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            catserver/${{ env.CARGO_TARGET_DIR }}/hamlib-src
+            catserver/${{ env.CARGO_TARGET_DIR }}/**/build/hamlib-src-*/out
+          key: ${{ runner.os }}-hamlib-${{ env.HAMLIB_VERSION }}-${{ env.HAMLIB_SHA256 }}-libusb-${{ env.LIBUSB_VERSION }}-${{ env.LIBUSB_SHA256 }}-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
 
       - name: Fix git errors
         run: |
@@ -64,19 +78,46 @@ jobs:
         working-directory: catserver
         run: cargo fmt --check
 
+      - name: Verify Hamlib build toolchain
+        run: |
+          test "$CATSERVER_CI_TOOLCHAIN_CONTRACT" = "hamlib-4.7.2-libusb-1.0.30"
+          autoconf --version
+          automake --version
+          libtool --version
+          make --version
+          pkg-config --version
+          pkg-config --modversion libusb-1.0
+          gcc --version
+          x86_64-w64-mingw32-gcc --version
+          x86_64-w64-mingw32-g++ --version
+          x86_64-w64-mingw32-ar --version
+          x86_64-w64-mingw32-dlltool --version
+          x86_64-w64-mingw32-objdump --version
+          x86_64-w64-mingw32-ranlib --version
+          x86_64-w64-mingw32-strip --version
+          x86_64-w64-mingw32-windres --version
+          test -f "$HAMLIB_LIBUSB_INCLUDE_DIR/libusb-1.0/libusb.h"
+          test -f "$HAMLIB_LIBUSB_LIB_DIR/libusb-1.0.dll.a"
+          test -f "$(dirname "$HAMLIB_LIBUSB_LIB_DIR")/bin/libusb-1.0.dll"
+          PKG_CONFIG_LIBDIR="$HAMLIB_LIBUSB_LIB_DIR/pkgconfig" PKG_CONFIG_PATH= pkg-config --modversion libusb-1.0
+
+      - name: Run host workspace tests
+        working-directory: ./catserver
+        run: cargo test --workspace
+
       - name: Run Clippy
         working-directory: ./catserver
-        run: cargo clippy --target $TARGET -- -D warnings
+        run: cargo clippy --workspace --target $TARGET -- -D warnings
 
       - name: Build development catserver
         if: github.ref == 'refs/heads/dev'
         working-directory: ./catserver
-        run: cargo build --target $TARGET --release
+        run: cargo build --workspace --target $TARGET --release
 
       - name: Build production catserver
         if: startsWith(github.ref, 'refs/tags/')
         working-directory: ./catserver
-        run: cargo build --target $TARGET --release
+        run: cargo build --workspace --target $TARGET --release
 
       - name: Change build artifacts ownership
         if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
