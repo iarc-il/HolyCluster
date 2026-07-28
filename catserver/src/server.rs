@@ -1,9 +1,14 @@
 mod http_proxy;
 mod radio;
+mod radio_actions;
+mod radio_configuration;
+mod radio_control;
 mod rotator;
 mod session;
 mod state;
 
+#[cfg(test)]
+mod radio_actions_tests;
 #[cfg(test)]
 mod tests;
 

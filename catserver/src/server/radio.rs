@@ -1,9 +1,12 @@
-use anyhow::{Context, Result, bail};
+use anyhow::Result;
 use axum::extract::ws::Message;
-use serde::{Deserialize, Serialize};
-use tokio::net::UdpSocket;
+use serde::Serialize;
 
-use crate::{freq::Freq, radio_manager::RadioManager, rig::Mode};
+use crate::{
+    radio_config::{ActiveRadioBackend, RadioBackendKind},
+    radio_manager::{ConnectionState, RadioManager},
+    rig::Status,
+};
 
 const VERSION: u8 = 1;
 const TYPE: &str = "radio";
@@ -19,9 +22,16 @@ struct ServerMessage<'a, T: Serialize> {
 }
 
 #[derive(Serialize)]
-pub(super) struct RadioInitMessage {
-    pub(super) status: String,
-    pub(super) catserver_version: String,
+struct LegacyMessage<'a, T: Serialize> {
+    event: &'static str,
+    #[serde(flatten)]
+    data: &'a T,
+}
+
+#[derive(Serialize)]
+struct RadioInitMessage {
+    status: String,
+    catserver_version: String,
 }
 
 #[derive(Serialize)]
@@ -31,69 +41,29 @@ struct LegacyInitMessage {
 }
 
 #[derive(Serialize)]
-struct CloseMessage {
-    close: bool,
-}
-
-#[derive(Serialize)]
-struct FocusMessage {
+struct BoolMessage {
     focus: bool,
 }
 
-#[derive(Deserialize)]
-struct Envelope {
-    version: u8,
-    #[serde(rename = "type")]
-    message_type: String,
+pub(super) fn init_message() -> Result<Message> {
+    message(
+        "status",
+        &RadioInitMessage {
+            status: "connected".into(),
+            catserver_version: env!("VERSION").into(),
+        },
+    )
 }
 
-#[derive(Deserialize)]
-struct SetModeAndFreq {
-    mode: String,
-    freq: f32,
+pub(super) fn status_message(data: &Status, radio: &RadioManager) -> Result<Message> {
+    message("status", &status_data(data, radio))
 }
-
-#[derive(Deserialize)]
-struct SetRig {
-    rig: u8,
-}
-
-#[derive(Deserialize)]
-struct HighlightSpot {
-    dx_callsign: String,
-    de_callsign: String,
-    freq: u64,
-    mode: String,
-    udp_port: u16,
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "type")]
-enum LegacyClientMessage {
-    SetRig(SetRig),
-    SetModeAndFreq(SetModeAndFreq),
-    HighlightSpot(HighlightSpot),
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "action")]
-enum ClientMessage {
-    SetRig(SetRig),
-    SetModeAndFreq(SetModeAndFreq),
-    HighlightSpot(HighlightSpot),
-}
-
-pub(super) fn status_message<T: Serialize>(data: &T) -> Result<Message> {
-    message("status", data)
-}
-
 pub(super) fn focus_message() -> Result<Message> {
-    message("focus", &FocusMessage { focus: true })
+    message("focus", &BoolMessage { focus: true })
 }
 pub(super) fn close_message() -> Result<Message> {
-    message("close", &CloseMessage { close: true })
+    message("close", &serde_json::json!({"close": true}))
 }
-
 pub(super) fn legacy_init_message() -> Result<Message> {
     Ok(Message::Text(
         serde_json::to_string(&LegacyInitMessage {
@@ -103,53 +73,44 @@ pub(super) fn legacy_init_message() -> Result<Message> {
         .into(),
     ))
 }
-
-pub(super) fn legacy_status_message<T: Serialize>(data: &T) -> Result<Message> {
-    Ok(Message::Text(serde_json::to_string(data)?.into()))
+pub(super) fn legacy_status_message(data: &Status, radio: &RadioManager) -> Result<Message> {
+    Ok(Message::Text(
+        serde_json::to_string(&status_data(data, radio))?.into(),
+    ))
 }
-
 pub(super) fn legacy_focus_message() -> Result<Message> {
     Ok(Message::Text(
-        serde_json::to_string(&FocusMessage { focus: true })?.into(),
+        serde_json::to_string(&BoolMessage { focus: true })?.into(),
     ))
 }
-
 pub(super) fn legacy_close_message() -> Result<Message> {
     Ok(Message::Text(
-        serde_json::to_string(&CloseMessage { close: true })?.into(),
+        serde_json::to_string(&serde_json::json!({"close": true}))?.into(),
     ))
 }
 
-pub(super) fn is_message(message: &str) -> bool {
-    serde_json::from_str::<Envelope>(message)
-        .is_ok_and(|message| message.version == VERSION && message.message_type == TYPE)
+fn status_data(data: &Status, radio: &RadioManager) -> serde_json::Value {
+    let snapshot = radio.snapshot();
+    serde_json::json!({"freq": data.freq, "status": data.status, "mode": data.mode, "current_rig": data.current_rig, "backend": backend(snapshot.selected), "connection": connection(snapshot.connection), "error": snapshot.last_error.map(|error| error.to_string()), "features": ["radio_configuration"]})
 }
 
-pub(super) async fn process_legacy(message: String, radio: &RadioManager) -> Result<()> {
-    let Ok(message) = serde_json::from_str::<LegacyClientMessage>(&message) else {
-        tracing::error!("Failed to parse message: {message}");
-        return Ok(());
-    };
-    process(
-        match message {
-            LegacyClientMessage::SetRig(message) => ClientMessage::SetRig(message),
-            LegacyClientMessage::SetModeAndFreq(message) => ClientMessage::SetModeAndFreq(message),
-            LegacyClientMessage::HighlightSpot(message) => ClientMessage::HighlightSpot(message),
-        },
-        radio,
-    )
-    .await
+fn backend(backend: ActiveRadioBackend) -> &'static str {
+    match backend {
+        ActiveRadioBackend::Dummy => "dummy",
+        ActiveRadioBackend::Configured(RadioBackendKind::Omnirig) => "omnirig",
+        ActiveRadioBackend::Configured(RadioBackendKind::Rigctld) => "rigctld",
+        ActiveRadioBackend::Configured(RadioBackendKind::Hamlib) => "hamlib",
+    }
 }
 
-pub(super) async fn process_ws(message: String, radio: &RadioManager) -> Result<()> {
-    let Ok(message) = serde_json::from_str::<ClientMessage>(&message) else {
-        tracing::error!("Failed to parse radio message: {message}");
-        return Ok(());
-    };
-    process(message, radio).await
+fn connection(connection: ConnectionState) -> &'static str {
+    match connection {
+        ConnectionState::Connected => "connected",
+        ConnectionState::Disconnected => "disconnected",
+    }
 }
 
-fn message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
+pub(super) fn message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
     Ok(Message::Text(
         serde_json::to_string(&ServerMessage {
             version: VERSION,
@@ -160,62 +121,8 @@ fn message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
         .into(),
     ))
 }
-
-async fn process(message: ClientMessage, radio: &RadioManager) -> Result<()> {
-    match message {
-        ClientMessage::SetRig(message) => {
-            tracing::debug!("Setting rig to {}", message.rig);
-            radio.set_rig(message.rig).await?;
-        }
-        ClientMessage::SetModeAndFreq(message) => {
-            let mode = match (message.mode.as_str(), is_upper_sideband(message.freq)) {
-                ("SSB", true) => Mode::USB,
-                ("SSB", false) => Mode::LSB,
-                ("DIGI" | "FT8" | "FT4", _) => Mode::Data,
-                ("CW", _) => Mode::CW,
-                (mode, is_upper) => bail!("Unknown mode: {mode}, is upper: {is_upper}"),
-            };
-            tracing::debug!("Setting mode to {mode:?}");
-            let freq = Freq::from_f32_khz(message.freq);
-            tracing::debug!("Setting freq to {freq:?}");
-            radio.set_mode_and_frequency(mode, freq).await?;
-        }
-        ClientMessage::HighlightSpot(message) => send_spot(message).await?,
-    }
-    Ok(())
-}
-
-async fn send_spot(message: HighlightSpot) -> Result<()> {
-    let mode = match message.mode.as_str() {
-        "FT8" => crate::reporting::Mode::FT8,
-        "FT4" => crate::reporting::Mode::FT4,
-        "CW" => crate::reporting::Mode::CW,
-        "SSB" => crate::reporting::Mode::Ssb,
-        "DIGI" => crate::reporting::Mode::Rtty,
-        mode => {
-            tracing::error!("Unknown mode: {mode}");
-            return Ok(());
-        }
-    };
-    let packet = crate::reporting::build_status_packet(
-        &message.dx_callsign,
-        &message.de_callsign,
-        message.freq,
-        mode,
-        "0",
-        "",
-        "",
-    );
-    let socket = UdpSocket::bind("127.0.0.1:0").await?;
-    socket
-        .send_to(&packet, format!("127.0.0.1:{}", message.udp_port))
-        .await
-        .with_context(|| format!("Failed to send UDP packet to port {}", message.udp_port))?;
-    Ok(())
-}
-
-fn is_upper_sideband(freq: f32) -> bool {
-    !(1800.0..=2000.0).contains(&freq)
-        && !(3500.0..=4000.0).contains(&freq)
-        && !(7000.0..=7300.0).contains(&freq)
+pub(super) fn legacy_message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
+    Ok(Message::Text(
+        serde_json::to_string(&LegacyMessage { event, data })?.into(),
+    ))
 }

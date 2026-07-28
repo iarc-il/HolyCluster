@@ -11,7 +11,7 @@ use tokio_tungstenite::connect_async;
 
 use crate::{radio_manager::RadioManager, rotator::AnyRotator, tray_icon::UserEvent, utils};
 
-use super::{ServerConfig, radio, rotator, state::AppState};
+use super::{ServerConfig, radio, radio_actions, rotator, state::AppState};
 
 pub(super) async fn cat_control_handler(
     websocket: WebSocketUpgrade,
@@ -23,7 +23,14 @@ pub(super) async fn cat_control_handler(
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
         .on_upgrade(move |websocket| async move {
-            if let Err(error) = handle_cat_control_socket(websocket, state.radio, receiver).await {
+            if let Err(error) = handle_cat_control_socket(
+                websocket,
+                state.radio,
+                state.radio_configuration,
+                receiver,
+            )
+            .await
+            {
                 tracing::error!(?error, "CAT control WebSocket handler failed");
             }
         })
@@ -43,6 +50,7 @@ pub(super) async fn ws_handler(
                 websocket,
                 state.server_config,
                 state.radio,
+                state.radio_configuration,
                 state.rotator,
                 receiver,
             )
@@ -57,18 +65,14 @@ async fn handle_ws_socket(
     socket: WebSocket,
     server_config: ServerConfig,
     radio_manager: RadioManager,
+    radio_configuration: super::radio_configuration::RadioConfiguration,
     rotator_device: AnyRotator,
     mut receiver: Receiver<UserEvent>,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = socket.split();
     let (stream, _) = connect_async(server_config.build_uri("ws", "/ws")).await?;
     let (mut server_sender, mut server_receiver) = stream.split();
-    client_sender
-        .send(radio::status_message(&radio::RadioInitMessage {
-            status: "connected".into(),
-            catserver_version: env!("VERSION").into(),
-        })?)
-        .await?;
+    client_sender.send(radio::init_message()?).await?;
     let rotator_status = rotator_device.write().get_status();
     client_sender
         .send(rotator::status_message(&rotator_status)?)
@@ -80,9 +84,11 @@ async fn handle_ws_socket(
     loop {
         tokio::select! {
             Some(message) = client_receiver.next() => match message? {
-                Message::Text(text) if radio::is_message(text.as_ref()) => {
-                    radio::process_ws(text.to_string(), &radio_manager).await?;
-                    client_sender.send(radio::status_message(&radio_manager.status())?).await?;
+                Message::Text(text) if radio_actions::is_message(text.as_ref()) => {
+                    if let Some(response) = radio_actions::process_ws(text.to_string(), &radio_manager, &radio_configuration).await? {
+                        client_sender.send(response).await?;
+                    }
+                    client_sender.send(radio::status_message(&radio_manager.status(), &radio_manager)?).await?;
                 }
                 Message::Text(text) if rotator::is_message(text.as_ref()) => rotator::process(text.to_string(), &rotator_device).await?,
                 Message::Text(text) => {
@@ -105,7 +111,7 @@ async fn handle_ws_socket(
             _ = radio_interval.tick() => {
                 let data = radio_manager.poll_status().await;
                 if previous_radio_data.as_ref() != Some(&data) {
-                    client_sender.send(radio::status_message(&data)?).await?;
+                    client_sender.send(radio::status_message(&data, &radio_manager)?).await?;
                     previous_radio_data = Some(data);
                 }
             }
@@ -154,6 +160,7 @@ async fn forward_to_server(
 async fn handle_cat_control_socket(
     socket: WebSocket,
     radio_manager: RadioManager,
+    radio_configuration: super::radio_configuration::RadioConfiguration,
     mut receiver: Receiver<UserEvent>,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = socket.split();
@@ -164,8 +171,10 @@ async fn handle_cat_control_socket(
         tokio::select! {
             Some(message) = client_receiver.next() => match message? {
                 Message::Text(text) => {
-                    radio::process_legacy(text.to_string(), &radio_manager).await?;
-                    client_sender.send(radio::legacy_status_message(&radio_manager.status())?).await?;
+                    if let Some(response) = radio_actions::process_legacy(text.to_string(), &radio_manager, &radio_configuration).await? {
+                        client_sender.send(response).await?;
+                    }
+                    client_sender.send(radio::legacy_status_message(&radio_manager.status(), &radio_manager)?).await?;
                 }
                 Message::Binary(data) => tracing::warn!("Ignoring binary data: {data:?}"),
                 Message::Close(_) => break,
@@ -178,7 +187,7 @@ async fn handle_cat_control_socket(
             _ = interval.tick() => {
                 let data = radio_manager.poll_status().await;
                 if previous_data.as_ref() != Some(&data) {
-                    client_sender.send(radio::legacy_status_message(&data)?).await?;
+                    client_sender.send(radio::legacy_status_message(&data, &radio_manager)?).await?;
                     previous_data = Some(data);
                 }
             }

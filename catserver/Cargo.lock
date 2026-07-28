@@ -371,6 +371,7 @@ dependencies = [
  "axum",
  "directories",
  "futures-util",
+ "hamlib",
  "hyper",
  "hyper-tls",
  "hyper-util",
