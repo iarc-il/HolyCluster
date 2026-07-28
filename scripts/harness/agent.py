@@ -29,7 +29,12 @@ def run(worktree_path: str, prompt: str) -> None:
     subprocess.run(["tmux", "kill-window", "-t", f"{SESSION}:{window}"], capture_output=True)
     # -i/--interactive: regular split-footer TUI, not the full-screen textual app,
     # so opencode can actually prompt for permissions instead of auto-rejecting them.
-    inner = f"opencode run -i {shlex.quote(prompt)}; echo $? > {shlex.quote(str(status_file))}"
+    # After it exits, drop into an interactive shell in the same window instead of
+    # letting tmux close it, so the human can still attach and keep working the
+    # task by hand (e.g. `opencode run -c -i "..."` to continue the same session)
+    # if GitHub review comments alone aren't enough.
+    inner = (f"opencode run -i {shlex.quote(prompt)}; "
+             f"echo $? > {shlex.quote(str(status_file))}; exec bash")
     subprocess.run(["tmux", "new-window", "-t", SESSION, "-n", window, "-c", worktree_path,
                     "bash", "-lc", inner], check=True)
     notify.desktop("Harness: agent started", f"tmux attach -t {SESSION} (window: {window})")
