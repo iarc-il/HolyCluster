@@ -7,7 +7,56 @@ import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+const MINIMUM_VISIBLE_RANGE_RATIO = 0.01;
+
+export function constrain_frequency_range(min, max, lower_bound, upper_bound) {
+    const span = max - min;
+
+    if (span >= upper_bound - lower_bound) {
+        return { min: lower_bound, max: upper_bound };
+    }
+
+    if (min < lower_bound) {
+        return { min: lower_bound, max: lower_bound + span };
+    }
+
+    if (max > upper_bound) {
+        return { min: upper_bound - span, max: upper_bound };
+    }
+
+    return { min, max };
+}
+
+export function scroll_frequency_range(range, delta_y, lower_bound, upper_bound) {
+    const offset = (delta_y / 1000) * (range.max - range.min);
+    return constrain_frequency_range(
+        range.min + offset,
+        range.max + offset,
+        lower_bound,
+        upper_bound,
+    );
+}
+
+export function zoom_frequency_range(range, focus, delta_y, lower_bound, upper_bound) {
+    const full_span = upper_bound - lower_bound;
+    const span = Math.min(
+        full_span,
+        Math.max(
+            full_span * MINIMUM_VISIBLE_RANGE_RATIO,
+            (range.max - range.min) * Math.exp(delta_y / 500),
+        ),
+    );
+    const focus_frequency = range.min + focus * (range.max - range.min);
+
+    return constrain_frequency_range(
+        focus_frequency - focus * span,
+        focus_frequency + (1 - focus) * span,
+        lower_bound,
+        upper_bound,
+    );
+}
 
 function useBandSpots(spots, band) {
     const sorted = useMemo(() => {
@@ -219,6 +268,8 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
 
     const sorted_spots = useBandSpots(spots, band);
     const callsign_refs = useRef([]);
+    const chart_ref = useRef(null);
+    const [frequency_range, set_frequency_range] = useState(null);
 
     let freq_offset;
     let max_freq;
@@ -234,6 +285,43 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
         features = band_plans[band].features;
         ranges = band_plans[band].ranges;
     }
+
+    const displayed_range = frequency_range?.band === band ? frequency_range : null;
+    const displayed_min_freq = displayed_range?.min ?? min_freq;
+    const displayed_max_freq = displayed_range?.max ?? max_freq;
+    const displayed_spots = sorted_spots.filter(
+        spot => spot.freq >= displayed_min_freq && spot.freq <= displayed_max_freq,
+    );
+    const displayed_freq_spots = freq_spots.filter(spot_id =>
+        displayed_spots.some(spot => spot.id === spot_id),
+    );
+    const displayed_radio_freq =
+        radio_freq >= displayed_min_freq && radio_freq <= displayed_max_freq ? radio_freq : 0;
+
+    useEffect(() => {
+        const chart = chart_ref.current;
+        if (!chart || !band_plans[band]) return;
+
+        function handle_wheel(event) {
+            event.preventDefault();
+            const bounds = chart.getBoundingClientRect();
+            const focus = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
+
+            set_frequency_range(previous => {
+                const range =
+                    previous?.band === band ? previous : { band, min: min_freq, max: max_freq };
+                const next_range =
+                    event.ctrlKey || event.metaKey
+                        ? zoom_frequency_range(range, focus, event.deltaY, min_freq, max_freq)
+                        : scroll_frequency_range(range, event.deltaY, min_freq, max_freq);
+
+                return { band, ...next_range };
+            });
+        }
+
+        chart.addEventListener("wheel", handle_wheel, { passive: false });
+        return () => chart.removeEventListener("wheel", handle_wheel);
+    }, [band, max_freq, min_freq]);
 
     function dx_handle_click(spot_id, spot) {
         if (pinned_spot === spot_id) {
@@ -251,13 +339,13 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
     let bracket_y;
     let bracket_height;
 
-    if (radio_freq) {
+    if (displayed_radio_freq) {
         ({ bracket_y, bracket_height } = calculate_bracket_position(
-            radio_freq,
-            freq_spots,
-            sorted_spots,
-            min_freq,
-            max_freq,
+            displayed_radio_freq,
+            displayed_freq_spots,
+            displayed_spots,
+            displayed_min_freq,
+            displayed_max_freq,
             band,
         ));
     }
@@ -297,26 +385,28 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
             {!(selected_band === -1 && radio_band === -1) && (
                 <>
                     <svg
+                        ref={chart_ref}
                         className={"w-full h-[85%] left-0 box-border"}
                         data-tour="band-bar-chart"
                         style={{ background: colors.theme.background }}
                     >
                         <title>Frequency bar chart</title>
                         <Ruler
-                            min_freq={min_freq}
-                            max_freq={max_freq}
-                            radio_freq={radio_freq}
+                            min_freq={displayed_min_freq}
+                            max_freq={displayed_max_freq}
+                            radio_freq={displayed_radio_freq}
                             band={band}
                             radio_status={radio_status}
                         />
 
-                        {sorted_spots.map((spot, i) => {
+                        {displayed_spots.map((spot, i) => {
                             const highlight_spot =
-                                (radio_status === "connected" && freq_spots.includes(spot.id)) ||
+                                (radio_status === "connected" &&
+                                    displayed_freq_spots.includes(spot.id)) ||
                                 (radio_status !== "connected" && spot.id === pinned_spot) ||
                                 spot.id === hovered_spot.id;
 
-                            const spot_y_pct = `${(i * 100) / sorted_spots.length + 3}%`;
+                            const spot_y_pct = `${(i * 100) / displayed_spots.length + 3}%`;
 
                             return (
                                 <g
@@ -333,9 +423,11 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                                         x1={"30%"}
                                         x2={"54%"}
                                         y1={`${
-                                            ((spot.freq - min_freq) / (max_freq - min_freq)) * 100
+                                            ((spot.freq - displayed_min_freq) /
+                                                (displayed_max_freq - displayed_min_freq)) *
+                                            100
                                         }%`}
-                                        y2={`${(i * 100) / sorted_spots.length + 2.5}%`}
+                                        y2={`${(i * 100) / displayed_spots.length + 2.5}%`}
                                         strokeWidth={highlight_spot ? "2" : "1"}
                                         stroke={highlight_spot ? "#3b82f6" : colors.theme.text}
                                         className={`group-hover:opacity-100 ${
@@ -415,8 +507,8 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                         })}
 
                         <FrequencyBracket
-                            radio_freq={radio_freq}
-                            freq_spots={freq_spots}
+                            radio_freq={displayed_radio_freq}
+                            freq_spots={displayed_freq_spots}
                             bracket_y={bracket_y}
                             bracket_height={bracket_height}
                             stroke={colors.theme.text}
