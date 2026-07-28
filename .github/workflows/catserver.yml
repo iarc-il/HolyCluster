@@ -9,6 +9,12 @@ on:
       - "dev"
     tags:
       - "catserver-v*"
+  pull_request:
+    paths:
+      - "catserver/**"
+      - ".github/workflows/catserver.yml"
+    branches:
+      - "dev"
 
 env:
   TARGET: x86_64-pc-windows-gnu
@@ -27,6 +33,7 @@ jobs:
           fetch-tags: true
 
       - name: Setup SSH
+        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
         run: |
           export HOME=/root
           mkdir -p $HOME/.ssh
