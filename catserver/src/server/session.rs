@@ -13,29 +13,6 @@ use crate::{radio_manager::RadioManager, rotator::AnyRotator, tray_icon::UserEve
 
 use super::{ServerConfig, radio, radio_actions, rotator, state::AppState};
 
-pub(super) async fn cat_control_handler(
-    websocket: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> impl axum::response::IntoResponse {
-    let receiver = state.sender.subscribe();
-    websocket
-        .write_buffer_size(0)
-        .read_buffer_size(0)
-        .accept_unmasked_frames(true)
-        .on_upgrade(move |websocket| async move {
-            if let Err(error) = handle_cat_control_socket(
-                websocket,
-                state.radio,
-                state.radio_configuration,
-                receiver,
-            )
-            .await
-            {
-                tracing::error!(?error, "CAT control WebSocket handler failed");
-            }
-        })
-}
-
 pub(super) async fn ws_handler(
     websocket: WebSocketUpgrade,
     State(state): State<AppState>,
@@ -155,43 +132,4 @@ async fn forward_to_server(
         Err(tokio_tungstenite::tungstenite::Error::ConnectionClosed) => Ok(true),
         Err(error) => Err(error.into()),
     }
-}
-
-async fn handle_cat_control_socket(
-    socket: WebSocket,
-    radio_manager: RadioManager,
-    radio_configuration: super::radio_configuration::RadioConfiguration,
-    mut receiver: Receiver<UserEvent>,
-) -> Result<()> {
-    let (mut client_sender, mut client_receiver) = socket.split();
-    client_sender.send(radio::legacy_init_message()?).await?;
-    let mut interval = tokio::time::interval(Duration::from_millis(500));
-    let mut previous_data = None;
-    loop {
-        tokio::select! {
-            Some(message) = client_receiver.next() => match message? {
-                Message::Text(text) => {
-                    if let Some(response) = radio_actions::process_legacy(text.to_string(), &radio_manager, &radio_configuration).await? {
-                        client_sender.send(response).await?;
-                    }
-                    client_sender.send(radio::legacy_status_message(&radio_manager.status(), &radio_manager)?).await?;
-                }
-                Message::Binary(data) => tracing::warn!("Ignoring binary data: {data:?}"),
-                Message::Close(_) => break,
-                message => tracing::warn!("Ignoring message: {message:?}"),
-            },
-            event = receiver.recv() => match event? {
-                UserEvent::Quit => { let _ = client_sender.send(radio::legacy_close_message()?).await; break; }
-                UserEvent::OpenBrowser => client_sender.send(radio::legacy_focus_message()?).await?,
-            },
-            _ = interval.tick() => {
-                let data = radio_manager.poll_status().await;
-                if previous_data.as_ref() != Some(&data) {
-                    client_sender.send(radio::legacy_status_message(&data, &radio_manager)?).await?;
-                    previous_data = Some(data);
-                }
-            }
-        }
-    }
-    Ok(())
 }

@@ -22,22 +22,9 @@ struct ServerMessage<'a, T: Serialize> {
 }
 
 #[derive(Serialize)]
-struct LegacyMessage<'a, T: Serialize> {
-    event: &'static str,
-    #[serde(flatten)]
-    data: &'a T,
-}
-
-#[derive(Serialize)]
 struct RadioInitMessage {
     status: String,
     catserver_version: String,
-}
-
-#[derive(Serialize)]
-struct LegacyInitMessage {
-    status: String,
-    version: String,
 }
 
 #[derive(Serialize)]
@@ -63,30 +50,6 @@ pub(super) fn focus_message() -> Result<Message> {
 }
 pub(super) fn close_message() -> Result<Message> {
     message("close", &serde_json::json!({"close": true}))
-}
-pub(super) fn legacy_init_message() -> Result<Message> {
-    Ok(Message::Text(
-        serde_json::to_string(&LegacyInitMessage {
-            status: "connected".into(),
-            version: env!("VERSION").into(),
-        })?
-        .into(),
-    ))
-}
-pub(super) fn legacy_status_message(data: &Status, radio: &RadioManager) -> Result<Message> {
-    Ok(Message::Text(
-        serde_json::to_string(&status_data(data, radio))?.into(),
-    ))
-}
-pub(super) fn legacy_focus_message() -> Result<Message> {
-    Ok(Message::Text(
-        serde_json::to_string(&BoolMessage { focus: true })?.into(),
-    ))
-}
-pub(super) fn legacy_close_message() -> Result<Message> {
-    Ok(Message::Text(
-        serde_json::to_string(&serde_json::json!({"close": true}))?.into(),
-    ))
 }
 
 fn status_data(data: &Status, radio: &RadioManager) -> serde_json::Value {
@@ -119,10 +82,5 @@ pub(super) fn message<T: Serialize>(event: &'static str, data: &T) -> Result<Mes
             data,
         })?
         .into(),
-    ))
-}
-pub(super) fn legacy_message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
-    Ok(Message::Text(
-        serde_json::to_string(&LegacyMessage { event, data })?.into(),
     ))
 }

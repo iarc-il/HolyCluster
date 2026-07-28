@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use super::{
-    radio_actions::{process_legacy, process_ws},
+    radio_actions::process_ws,
     radio_configuration::{
         Capabilities, ConfigurationResult, FieldError, HamlibModel, ProductionRadioConfiguration,
         RadioConfiguration, RadioConfigurationService,
@@ -48,7 +48,7 @@ fn radio() -> RadioManager {
 }
 
 #[tokio::test]
-async fn unified_and_legacy_actions_return_equivalent_data() {
+async fn unified_actions_return_typed_data() {
     let radio = radio();
     let service: RadioConfiguration = Arc::new(Service);
     let unified = process_ws(
@@ -61,17 +61,10 @@ async fn unified_and_legacy_actions_return_equivalent_data() {
     .unwrap()
     .into_text()
     .unwrap();
-    let legacy = process_legacy(r#"{"type":"ListHamlibModels"}"#.into(), &radio, &service)
-        .await
-        .unwrap()
-        .unwrap()
-        .into_text()
-        .unwrap();
-    let mut unified: serde_json::Value = serde_json::from_str(&unified).unwrap();
-    let legacy: serde_json::Value = serde_json::from_str(&legacy).unwrap();
-    unified.as_object_mut().unwrap().remove("version");
-    unified.as_object_mut().unwrap().remove("type");
-    assert_eq!(unified, legacy);
+    let unified: serde_json::Value = serde_json::from_str(&unified).unwrap();
+    assert_eq!(unified["type"], "radio");
+    assert_eq!(unified["event"], "hamlib_models");
+    assert_eq!(unified["models"][0]["id"], "1");
 }
 #[tokio::test]
 async fn invalid_configuration_returns_a_field_error() {

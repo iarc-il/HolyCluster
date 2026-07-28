@@ -31,7 +31,7 @@ use crate::{radio_manager::RadioManager, rotator::AnyRotator, tray_icon::UserEve
 
 use self::{
     http_proxy::{local_ui, proxy},
-    session::{cat_control_handler, ws_handler},
+    session::ws_handler,
     state::AppState,
 };
 
@@ -72,7 +72,6 @@ impl Server {
         let state = AppState::new(server_config, radio, rotator, sender.clone(), ui_dir);
         let app = Router::new()
             .route("/ws", any(ws_handler))
-            .route("/radio", any(cat_control_handler))
             .route("/exit", post(exit_server_handler))
             .route("/open", post(open_tab_handler));
         let app = if use_local_ui {

@@ -8,7 +8,7 @@ use crate::{
 };
 
 use super::{
-    radio::{legacy_message, message},
+    radio::message,
     radio_configuration::{ConfigurationInput, ConfigurationResult, RadioConfiguration},
     radio_control::{ControlMessage, process_control},
 };
@@ -50,35 +50,6 @@ enum ClientMessage {
     },
     RetryRadio,
 }
-#[derive(Deserialize)]
-#[serde(tag = "type")]
-enum LegacyClientMessage {
-    SetRig {
-        rig: u8,
-    },
-    SetModeAndFreq {
-        mode: String,
-        freq: f32,
-    },
-    HighlightSpot {
-        dx_callsign: String,
-        de_callsign: String,
-        freq: u64,
-        mode: String,
-        udp_port: u16,
-    },
-    GetCapabilities,
-    ListHamlibModels,
-    DescribeHamlibModel {
-        model_id: String,
-    },
-    GetRadioConfiguration,
-    SetRadioConfiguration {
-        configuration: ConfigurationInput,
-    },
-    RetryRadio,
-}
-
 pub(super) fn is_message(message: &str) -> bool {
     serde_json::from_str::<Envelope>(message)
         .is_ok_and(|value| value.version == VERSION && value.message_type == TYPE)
@@ -89,17 +60,7 @@ pub(super) async fn process_ws(
     service: &RadioConfiguration,
 ) -> Result<Option<Message>> {
     match serde_json::from_str(&message) {
-        Ok(request) => process(request, radio, service, false).await,
-        Err(_) => Ok(None),
-    }
-}
-pub(super) async fn process_legacy(
-    message: String,
-    radio: &RadioManager,
-    service: &RadioConfiguration,
-) -> Result<Option<Message>> {
-    match serde_json::from_str::<LegacyClientMessage>(&message) {
-        Ok(request) => process(legacy_to_client(request), radio, service, true).await,
+        Ok(request) => process(request, radio, service).await,
         Err(_) => Ok(None),
     }
 }
@@ -108,7 +69,6 @@ async fn process(
     request: ClientMessage,
     radio: &RadioManager,
     service: &RadioConfiguration,
-    legacy: bool,
 ) -> Result<Option<Message>> {
     let (event, data) = match request {
         ClientMessage::SetRig { rig } => {
@@ -175,46 +135,11 @@ async fn process(
             ("configuration_result", serde_json::json!({"ok": true}))
         }
     };
-    Ok(Some(if legacy {
-        legacy_message(event, &data)?
-    } else {
-        message(event, &data)?
-    }))
+    Ok(Some(message(event, &data)?))
 }
 async fn control(message: ControlMessage, radio: &RadioManager) -> Result<Option<Message>> {
     process_control(message, radio).await?;
     Ok(None)
-}
-fn legacy_to_client(request: LegacyClientMessage) -> ClientMessage {
-    match request {
-        LegacyClientMessage::SetRig { rig } => ClientMessage::SetRig { rig },
-        LegacyClientMessage::SetModeAndFreq { mode, freq } => {
-            ClientMessage::SetModeAndFreq { mode, freq }
-        }
-        LegacyClientMessage::HighlightSpot {
-            dx_callsign,
-            de_callsign,
-            freq,
-            mode,
-            udp_port,
-        } => ClientMessage::HighlightSpot {
-            dx_callsign,
-            de_callsign,
-            freq,
-            mode,
-            udp_port,
-        },
-        LegacyClientMessage::GetCapabilities => ClientMessage::GetCapabilities,
-        LegacyClientMessage::ListHamlibModels => ClientMessage::ListHamlibModels,
-        LegacyClientMessage::DescribeHamlibModel { model_id } => {
-            ClientMessage::DescribeHamlibModel { model_id }
-        }
-        LegacyClientMessage::GetRadioConfiguration => ClientMessage::GetRadioConfiguration,
-        LegacyClientMessage::SetRadioConfiguration { configuration } => {
-            ClientMessage::SetRadioConfiguration { configuration }
-        }
-        LegacyClientMessage::RetryRadio => ClientMessage::RetryRadio,
-    }
 }
 fn configuration_data(configuration: RadioConfig) -> serde_json::Value {
     let backend = match configuration.backend {
