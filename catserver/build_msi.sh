@@ -19,6 +19,9 @@ VERSION=$MAJOR_AND_MINOR_VERSION.$NEW_BUGFIX_VERSION
 
 run_wix() {
     cp $BUILD_DIR/catserver.exe $BUILD_DIR/HolyCluster.exe
+    python3 scripts/stage-windows-runtime.py \
+        --build-dir "$BUILD_DIR" \
+        --libusb-prefix "$HAMLIB_LIBUSB_PREFIX"
     wix build \
         -d Version=$VERSION \
         -d CargoTargetBinDir=$BUILD_DIR \
