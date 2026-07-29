@@ -18,17 +18,30 @@ def _window_name(worktree_path: str) -> str:
     return Path(worktree_path).name
 
 
+def _status_file(worktree_path: str) -> Path:
+    return config.main_repo_root() / ".harness" / "exit-codes" / f"{_window_name(worktree_path)}.code"
+
+
 def window_alive(worktree_path: str) -> bool:
-    """True if this task's agent window still exists in the shared session — i.e.
-    an agent that outlived the watch process that launched it (e.g. after a crash)."""
+    """True if this task's tmux window still exists. NOTE: the window lingers open
+    (interactive shell via `exec bash`) AFTER opencode exits, so this alone is NOT
+    a 'still working' signal — use is_running() for that."""
     r = subprocess.run(["tmux", "list-windows", "-t", SESSION, "-F", "#{window_name}"],
                        capture_output=True, text=True)
     return r.returncode == 0 and _window_name(worktree_path) in r.stdout.split()
 
 
+def is_running(worktree_path: str) -> bool:
+    """True only while the agent is actively working: its window exists AND it has
+    not yet written its exit-code marker. The marker (written the instant opencode
+    exits, before the shell lingers) is the real completion signal."""
+    return window_alive(worktree_path) and not _status_file(worktree_path).exists()
+
+
 def wait_for(worktree_path: str) -> None:
-    """Block until the agent already running in this task's window finishes."""
-    while window_alive(worktree_path):
+    """Block until the agent already running in this task's window finishes
+    (marker appears) or the window is gone."""
+    while is_running(worktree_path):
         time.sleep(POLL_SECONDS)
 
 
@@ -38,11 +51,10 @@ def run(worktree_path: str, prompt: str) -> None:
     auto-rejects them when run headless with no TTY). Blocks until done."""
     _ensure_session()
     window = _window_name(worktree_path)
-    # Keep the marker OUTSIDE the worktree so `git add -A` can never sweep it into
-    # a commit/PR. It lives under the harness's gitignored .harness/ state dir.
-    status_dir = config.main_repo_root() / ".harness" / "exit-codes"
-    status_dir.mkdir(parents=True, exist_ok=True)
-    status_file = status_dir / f"{window}.code"
+    # Marker lives OUTSIDE the worktree (gitignored .harness/) so `git add -A`
+    # can never sweep it into a commit/PR. It is also the completion signal.
+    status_file = _status_file(worktree_path)
+    status_file.parent.mkdir(parents=True, exist_ok=True)
     status_file.unlink(missing_ok=True)
     subprocess.run(["tmux", "kill-window", "-t", f"{SESSION}:{window}"], capture_output=True)
     # -i/--interactive: regular split-footer TUI, not the full-screen textual app,

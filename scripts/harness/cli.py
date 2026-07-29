@@ -195,7 +195,7 @@ def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
         # `inflight`). Recover the work instead of stranding it: adopt the agent
         # if its tmux window is still alive, else resume the stalled task. Both
         # go through the idempotent resume path, so finished work is never redone.
-        job = _adopt_running if agent.window_alive(rec.worktree_path) else _resume_stalled
+        job = _adopt_running if agent.is_running(rec.worktree_path) else _resume_stalled
         inflight[rec.slug] = pool.submit(_guard, rec.slug, job, rec)
         return
     facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
