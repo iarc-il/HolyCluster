@@ -310,10 +310,9 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
             set_frequency_range(previous => {
                 const range =
                     previous?.band === band ? previous : { band, min: min_freq, max: max_freq };
-                const next_range =
-                    event.ctrlKey || event.metaKey
-                        ? zoom_frequency_range(range, focus, event.deltaY, min_freq, max_freq)
-                        : scroll_frequency_range(range, event.deltaY, min_freq, max_freq);
+                const next_range = event.shiftKey
+                    ? scroll_frequency_range(range, event.deltaY, min_freq, max_freq)
+                    : zoom_frequency_range(range, focus, event.deltaY, min_freq, max_freq);
 
                 return { band, ...next_range };
             });
