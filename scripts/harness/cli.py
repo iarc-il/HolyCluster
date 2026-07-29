@@ -179,6 +179,49 @@ def resume(slugs: list[str] | None) -> None:
         _resume_one(rec)
 
 
+def _adopt_running(rec: PRRecord) -> None:
+    # An agent launched by a prior (crashed) watch is still live in its detached
+    # tmux window. Wait for it to finish, then finalize via the idempotent resume
+    # path — never start a second agent on the same worktree.
+    agent.wait_for(rec.worktree_path)
+    _resume_stalled(rec)
+
+
+def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
+    if rec.slug in inflight:
+        return
+    if rec.phase in ("implementing", "ci_fixing", "addressing"):
+        # A watch process died mid-job (this one didn't launch it — not in
+        # `inflight`). Recover the work instead of stranding it: adopt the agent
+        # if its tmux window is still alive, else resume the stalled task. Both
+        # go through the idempotent resume path, so finished work is never redone.
+        job = _adopt_running if agent.window_alive(rec.worktree_path) else _resume_stalled
+        inflight[rec.slug] = pool.submit(_guard, rec.slug, job, rec)
+        return
+    facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
+             if rec.pr_number else GHFacts("none", None, False))
+    action = decide(rec, facts)
+    # Concurrency is capped by the pool's max_workers; extra submissions queue as
+    # Futures. `inflight` only prevents double-submitting the same slug.
+    if action == Action.IMPLEMENT:
+        inflight[rec.slug] = pool.submit(_guard, rec.slug, _job_implement, rec)
+    elif action == Action.FIX_CI:
+        inflight[rec.slug] = pool.submit(_guard, rec.slug, _job_fix_ci, rec)
+    elif action == Action.ADDRESS_REVIEW:
+        inflight[rec.slug] = pool.submit(_guard, rec.slug, _job_address, rec, facts.new_review)
+    elif action == Action.REQUEST_REVIEW:
+        github.rerequest_review(rec.pr_number)
+        _set(rec.slug, phase="await_review")
+        notify.desktop("Harness: review ready", f"PR #{rec.pr_number} — {rec.slug}")
+    elif action == Action.BLOCK:
+        _set(rec.slug, phase="blocked")
+        notify.desktop("Harness: CI blocked", f"PR #{rec.pr_number} — {rec.slug} needs you")
+    elif action == Action.CLEANUP:
+        github.remove_worktree(rec.worktree_path, rec.branch)
+        _set(rec.slug, phase="done")
+        notify.desktop("Harness: merged", f"{rec.slug} merged and cleaned up")
+
+
 def watch() -> None:
     pool = ThreadPoolExecutor(max_workers=config.MAX_CONCURRENT)
     inflight: dict[str, object] = {}
@@ -191,42 +234,12 @@ def watch() -> None:
         summary = ", ".join(f"{r.slug}={r.phase}" for r in recs) or "(no tasks)"
         print(f"[harness] poll: {summary}")
         for rec in recs:
-            if rec.slug in inflight:
-                continue
-            if rec.phase in ("implementing", "ci_fixing", "addressing"):
-                # No worker in THIS process is tracking it (else it'd be in
-                # `inflight`), so it's orphaned from a watch process that died
-                # mid-job. Surface it instead of silently doing nothing forever.
+            try:
+                _process_record(rec, inflight, pool)
+            except Exception as e:  # noqa: BLE001 - one PR's failure must not crash the poller
                 _set(rec.slug, phase="blocked")
-                notify.desktop(
-                    "Harness: orphaned job",
-                    f"{rec.slug} was mid-'{rec.phase}' with no active worker "
-                    f"(a previous watch process likely died) — check {rec.worktree_path}",
-                )
-                continue
-            facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
-                     if rec.pr_number else GHFacts("none", None, False))
-            action = decide(rec, facts)
-            # Concurrency is capped by the pool's max_workers; extra submissions
-            # simply queue as Futures. `inflight` only prevents double-submitting
-            # the same slug. No second concurrency gate is needed.
-            if action == Action.IMPLEMENT:
-                inflight[rec.slug] = pool.submit(_guard, rec.slug, _job_implement, rec)
-            elif action == Action.FIX_CI:
-                inflight[rec.slug] = pool.submit(_guard, rec.slug, _job_fix_ci, rec)
-            elif action == Action.ADDRESS_REVIEW:
-                inflight[rec.slug] = pool.submit(_guard, rec.slug, _job_address, rec, facts.new_review)
-            elif action == Action.REQUEST_REVIEW:
-                github.rerequest_review(rec.pr_number)
-                _set(rec.slug, phase="await_review")
-                notify.desktop("Harness: review ready", f"PR #{rec.pr_number} — {rec.slug}")
-            elif action == Action.BLOCK:
-                _set(rec.slug, phase="blocked")
-                notify.desktop("Harness: CI blocked", f"PR #{rec.pr_number} — {rec.slug} needs you")
-            elif action == Action.CLEANUP:
-                github.remove_worktree(rec.worktree_path, rec.branch)
-                _set(rec.slug, phase="done")
-                notify.desktop("Harness: merged", f"{rec.slug} merged and cleaned up")
+                notify.desktop("Harness: watch error", f"{rec.slug}: {e}")
+                print(f"[harness] error on {rec.slug}: {e}")
         time.sleep(config.POLL_INTERVAL_SECONDS)
 
 
