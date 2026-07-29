@@ -106,10 +106,13 @@ def _inline_comments(pr_number: int) -> str:
 
 
 def _latest_actionable_review(pr_number: int, last_id: Optional[int]) -> Optional[Review]:
-    data = json.loads(_run(["gh", "pr", "view", str(pr_number),
-                            "--json", "reviews"]))
+    # Use the REST API, which returns a numeric review `id`. `gh pr view --json
+    # reviews` returns a GraphQL node-id STRING (e.g. "PRR_kwDO...") that int()
+    # cannot parse. Consistent with _inline_comments, which also uses REST.
+    raw = _run(["gh", "api", f"repos/{_repo_slug()}/pulls/{pr_number}/reviews"])
+    reviews = json.loads(raw) if raw else []
     actionable = [
-        r for r in data["reviews"]
+        r for r in reviews
         if r.get("state") in ("CHANGES_REQUESTED", "COMMENTED")
         and int(r["id"]) > (last_id or 0)
     ]
