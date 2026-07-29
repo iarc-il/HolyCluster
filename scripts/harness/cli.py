@@ -246,6 +246,18 @@ def watch() -> None:
         time.sleep(config.POLL_INTERVAL_SECONDS)
 
 
+def _migrate_legacy_state() -> None:
+    """One-time safety net: earlier builds wrote state under the *worktree* root
+    (repo_root) rather than the shared main-checkout root. If a stray legacy file
+    exists and the canonical one doesn't, adopt it so tasks aren't stranded."""
+    legacy = config.repo_root() / ".harness" / "state.json"
+    canonical = config.state_path()
+    if legacy != canonical and legacy.exists() and not canonical.exists():
+        canonical.parent.mkdir(parents=True, exist_ok=True)
+        canonical.write_text(legacy.read_text())
+        print(f"[harness] migrated legacy state {legacy} -> {canonical}")
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="harness")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -256,6 +268,7 @@ def main(argv=None) -> int:
     r = sub.add_parser("resume")
     r.add_argument("slug", nargs="*", help="slug(s) to resume; omit to resume all non-done tasks")
     args = p.parse_args(argv)
+    _migrate_legacy_state()
     if args.cmd == "new":
         if args.file:
             tasks = [l.strip() for l in open(args.file) if l.strip()]
