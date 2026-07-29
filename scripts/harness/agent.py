@@ -3,7 +3,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from . import notify
+from . import config, notify
 
 SESSION = "agents"
 POLL_SECONDS = 2
@@ -18,13 +18,31 @@ def _window_name(worktree_path: str) -> str:
     return Path(worktree_path).name
 
 
+def window_alive(worktree_path: str) -> bool:
+    """True if this task's agent window still exists in the shared session — i.e.
+    an agent that outlived the watch process that launched it (e.g. after a crash)."""
+    r = subprocess.run(["tmux", "list-windows", "-t", SESSION, "-F", "#{window_name}"],
+                       capture_output=True, text=True)
+    return r.returncode == 0 and _window_name(worktree_path) in r.stdout.split()
+
+
+def wait_for(worktree_path: str) -> None:
+    """Block until the agent already running in this task's window finishes."""
+    while window_alive(worktree_path):
+        time.sleep(POLL_SECONDS)
+
+
 def run(worktree_path: str, prompt: str) -> None:
     """Run `opencode run` in its own window inside the shared 'agents' tmux
     session so a human can attach and answer permission prompts (opencode
     auto-rejects them when run headless with no TTY). Blocks until done."""
     _ensure_session()
     window = _window_name(worktree_path)
-    status_file = Path(worktree_path) / ".harness-exit-code"
+    # Keep the marker OUTSIDE the worktree so `git add -A` can never sweep it into
+    # a commit/PR. It lives under the harness's gitignored .harness/ state dir.
+    status_dir = config.main_repo_root() / ".harness" / "exit-codes"
+    status_dir.mkdir(parents=True, exist_ok=True)
+    status_file = status_dir / f"{window}.code"
     status_file.unlink(missing_ok=True)
     subprocess.run(["tmux", "kill-window", "-t", f"{SESSION}:{window}"], capture_output=True)
     # -i/--interactive: regular split-footer TUI, not the full-screen textual app,
