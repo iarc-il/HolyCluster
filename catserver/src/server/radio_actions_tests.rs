@@ -35,11 +35,16 @@ impl RadioConfigurationService for Service {
     fn configuration(&self, current: RadioConfig) -> RadioConfig {
         current
     }
-    fn set_configuration(&self, _: RadioConfig) -> ConfigurationResult {
-        ConfigurationResult {
-            ok: true,
-            error: None,
-        }
+    fn set_configuration(
+        &self,
+        _: RadioConfig,
+    ) -> super::radio_configuration::ConfigurationFuture<'_> {
+        Box::pin(async {
+            ConfigurationResult {
+                ok: true,
+                error: None,
+            }
+        })
     }
 }
 fn radio() -> RadioManager {
@@ -77,18 +82,20 @@ async fn invalid_configuration_returns_a_field_error() {
     );
 }
 
-#[test]
-fn production_configuration_rejects_unknown_descriptor_tokens() {
-    let result = ProductionRadioConfiguration.set_configuration(RadioConfig {
-        backend: RadioBackendKind::Hamlib,
-        hamlib: Some(HamlibConfig {
-            rig1: HamlibRigConfig {
-                model_id: "1".into(),
-                token_values: BTreeMap::from([("unknown_token".into(), "value".into())]),
-            },
-            rig2: None,
-        }),
-    });
+#[tokio::test]
+async fn production_configuration_rejects_unknown_descriptor_tokens() {
+    let result = ProductionRadioConfiguration::new(radio())
+        .set_configuration(RadioConfig {
+            backend: RadioBackendKind::Hamlib,
+            hamlib: Some(HamlibConfig {
+                rig1: HamlibRigConfig {
+                    model_id: "1".into(),
+                    token_values: BTreeMap::from([("unknown_token".into(), "value".into())]),
+                },
+                rig2: None,
+            }),
+        })
+        .await;
     assert_eq!(
         result.error.expect("field error").token,
         Some("unknown_token".into())

@@ -36,12 +36,12 @@ impl AppState {
     ) -> Self {
         Self {
             server_config,
+            radio_configuration: production(radio.clone()),
             radio,
             rotator,
             http_client: Client::builder(TokioExecutor::new()).build(HttpsConnector::new()),
             sender,
             ui_dir,
-            radio_configuration: production(),
         }
     }
 }

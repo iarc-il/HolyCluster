@@ -7,12 +7,14 @@ mod args;
 mod dummy;
 mod dummy_rotator;
 mod freq;
+mod hamlib_radio;
 #[cfg(windows)]
 mod omnirig;
 #[cfg(windows)]
 mod pstrotator;
 mod radio_actor;
 pub mod radio_config;
+mod radio_factory;
 pub mod radio_manager;
 mod reporting;
 mod rig;
@@ -27,6 +29,8 @@ mod tracing_setup;
 mod tray_icon;
 mod utils;
 
+#[cfg(test)]
+mod hamlib_radio_tests;
 #[cfg(test)]
 mod radio_actor_regression_tests;
 #[cfg(test)]

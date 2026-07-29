@@ -123,7 +123,7 @@ async fn process(
         ClientMessage::SetRadioConfiguration { configuration } => (
             "configuration_result",
             serde_json::to_value(match configuration.into_config() {
-                Ok(value) => service.set_configuration(value),
+                Ok(value) => service.set_configuration(value).await,
                 Err(error) => ConfigurationResult {
                     ok: false,
                     error: Some(error),

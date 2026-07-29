@@ -13,7 +13,7 @@ pub enum Mode {
     CW,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[repr(u8)]
 pub enum Slot {
     A = 1,
@@ -40,8 +40,12 @@ impl Status {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum RadioInitError {
+    Hamlib {
+        rig: u8,
+        error: String,
+    },
     Io {
         backend: &'static str,
         kind: io::ErrorKind,
@@ -51,6 +55,9 @@ pub enum RadioInitError {
 impl fmt::Display for RadioInitError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Hamlib { rig, error } => {
+                write!(formatter, "Hamlib rig {rig} initialization failed: {error}")
+            }
             Self::Io { backend, kind } => {
                 write!(formatter, "{backend} initialization failed: {kind}")
             }

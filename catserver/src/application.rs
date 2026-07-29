@@ -4,21 +4,15 @@ use tokio::sync::broadcast::{self, Sender};
 
 use crate::{
     args::{Args, BASE_LOCAL_PORT, server_config},
-    dummy::DummyRadio,
     dummy_rotator::DummyRotator,
-    radio_config::{ActiveRadioBackend, RadioConfig},
+    radio_config::RadioConfig,
+    radio_factory,
     radio_manager::RadioManager,
-    rig::{Radio, UnavailableRadio},
     rotator::AnyRotator,
     server::{Server, ServerConfig},
     startup_radio, tray_icon,
     tray_icon::UserEvent,
 };
-
-#[cfg(windows)]
-use crate::omnirig::OmnirigRadio;
-#[cfg(not(windows))]
-use crate::rigctld::RigctldRadio;
 
 const INSTANCE_NAME: &str = "HolyCluster";
 
@@ -81,31 +75,6 @@ fn radio(config: RadioConfig, use_dummy: bool) -> Result<RadioManager> {
     Ok(RadioManager::new(config, selected)?)
 }
 
-fn build_radio(selected: &ActiveRadioBackend) -> Box<dyn Radio> {
-    match selected {
-        ActiveRadioBackend::Dummy => Box::new(DummyRadio::new()),
-        #[cfg(windows)]
-        ActiveRadioBackend::Configured(crate::radio_config::RadioBackendKind::Omnirig) => {
-            Box::new(OmnirigRadio::new())
-        }
-        #[cfg(not(windows))]
-        ActiveRadioBackend::Configured(crate::radio_config::RadioBackendKind::Rigctld) => {
-            Box::new(RigctldRadio::new("localhost".into(), 4532))
-        }
-        ActiveRadioBackend::Configured(crate::radio_config::RadioBackendKind::Hamlib) => {
-            Box::new(UnavailableRadio::new("hamlib"))
-        }
-        #[cfg(windows)]
-        ActiveRadioBackend::Configured(crate::radio_config::RadioBackendKind::Rigctld) => {
-            Box::new(UnavailableRadio::new("rigctld"))
-        }
-        #[cfg(not(windows))]
-        ActiveRadioBackend::Configured(crate::radio_config::RadioBackendKind::Omnirig) => {
-            Box::new(UnavailableRadio::new("omnirig"))
-        }
-    }
-}
-
 fn rotator(use_dummy: bool) -> AnyRotator {
     if use_dummy {
         return AnyRotator::new(DummyRotator::new());
@@ -138,10 +107,9 @@ async fn run_singleton(
 ) -> Result<()> {
     let snapshot = radio.snapshot();
     let selected = snapshot.selected.clone();
+    let factory = radio_factory::factory(snapshot.config.clone(), selected.clone());
     radio
-        .replace(snapshot.config, selected.clone(), move || {
-            build_radio(&selected)
-        })
+        .replace(snapshot.config, selected, move || factory())
         .await?;
     let snapshot = radio.snapshot();
     tracing::info!(?snapshot.connection, ?snapshot.selected, "Radio startup completed");

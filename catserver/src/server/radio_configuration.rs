@@ -1,8 +1,12 @@
-use std::sync::Arc;
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
-use crate::radio_config::{HamlibConfig, HamlibRigConfig, RadioBackendKind, RadioConfig};
+use crate::{
+    radio_config::{HamlibConfig, HamlibRigConfig, RadioBackendKind, RadioConfig},
+    radio_factory,
+    radio_manager::RadioManager,
+};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub(super) struct Capabilities {
@@ -39,12 +43,23 @@ pub(super) trait RadioConfigurationService: Send + Sync {
     fn models(&self) -> Result<Vec<HamlibModel>, FieldError>;
     fn describe(&self, model_id: &str) -> Result<Vec<serde_json::Value>, FieldError>;
     fn configuration(&self, current: RadioConfig) -> RadioConfig;
-    fn set_configuration(&self, configuration: RadioConfig) -> ConfigurationResult;
+    fn set_configuration(&self, configuration: RadioConfig) -> ConfigurationFuture<'_>;
 }
 
 pub(super) type RadioConfiguration = Arc<dyn RadioConfigurationService>;
+pub(super) type ConfigurationFuture<'a> =
+    Pin<Box<dyn Future<Output = ConfigurationResult> + Send + 'a>>;
 
-pub(super) struct ProductionRadioConfiguration;
+pub(super) struct ProductionRadioConfiguration {
+    radio: RadioManager,
+}
+
+impl ProductionRadioConfiguration {
+    #[cfg(test)]
+    pub(super) fn new(radio: RadioManager) -> Self {
+        Self { radio }
+    }
+}
 
 impl RadioConfigurationService for ProductionRadioConfiguration {
     fn capabilities(&self) -> Capabilities {
@@ -84,21 +99,31 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
         current
     }
 
-    fn set_configuration(&self, configuration: RadioConfig) -> ConfigurationResult {
-        match validate_configuration(&configuration) {
-            Ok(()) => ConfigurationResult {
-                ok: false,
-                error: Some(FieldError {
-                    field: "backend".into(),
-                    message: "applying radio configuration requires a radio backend".into(),
-                    token: None,
-                }),
-            },
-            Err(error) => ConfigurationResult {
-                ok: false,
-                error: Some(error),
-            },
-        }
+    fn set_configuration(&self, configuration: RadioConfig) -> ConfigurationFuture<'_> {
+        Box::pin(async move {
+            if let Err(error) = validate_configuration(&configuration) {
+                return ConfigurationResult {
+                    ok: false,
+                    error: Some(error),
+                };
+            }
+            let selected = configuration.effective_backend(false);
+            let factory = radio_factory::factory(configuration.clone(), selected.clone());
+            match self
+                .radio
+                .replace_and_persist(configuration, selected, move || factory())
+                .await
+            {
+                Ok(()) => ConfigurationResult {
+                    ok: true,
+                    error: None,
+                },
+                Err(error) => ConfigurationResult {
+                    ok: false,
+                    error: Some(manager_error(error)),
+                },
+            }
+        })
     }
 }
 
@@ -123,14 +148,15 @@ fn validate_hamlib(configuration: &HamlibConfig) -> Result<(), FieldError> {
 }
 
 fn validate_rig(field: &str, configuration: &HamlibRigConfig) -> Result<(), FieldError> {
-    let model = configuration
-        .model_id
-        .parse()
-        .map_err(|_| invalid_model(&configuration.model_id))?;
+    let model = configuration.model_id.parse().map_err(|_| FieldError {
+        field: format!("{field}.model_id"),
+        message: format!("invalid Hamlib model: {}", configuration.model_id),
+        token: None,
+    })?;
     let descriptors = hamlib::Catalog::load()
-        .map_err(catalog_error)?
+        .map_err(|error| model_error(field, error))?
         .describe_model(hamlib::RigModelId::new(model))
-        .map_err(catalog_error)?;
+        .map_err(|error| model_error(field, error))?;
     for (token, value) in &configuration.token_values {
         let descriptor = descriptors
             .iter()
@@ -149,8 +175,8 @@ fn validate_rig(field: &str, configuration: &HamlibRigConfig) -> Result<(), Fiel
     Ok(())
 }
 
-pub(super) fn production() -> RadioConfiguration {
-    Arc::new(ProductionRadioConfiguration)
+pub(super) fn production(radio: RadioManager) -> RadioConfiguration {
+    Arc::new(ProductionRadioConfiguration { radio })
 }
 
 pub(super) fn parse_backend(value: &str) -> Result<RadioBackendKind, FieldError> {
@@ -193,6 +219,22 @@ fn invalid_model(model_id: &str) -> FieldError {
 fn catalog_error(error: impl std::fmt::Display) -> FieldError {
     FieldError {
         field: "model_id".into(),
+        message: error.to_string(),
+        token: None,
+    }
+}
+
+fn model_error(field: &str, error: impl std::fmt::Display) -> FieldError {
+    FieldError {
+        field: format!("{field}.model_id"),
+        message: error.to_string(),
+        token: None,
+    }
+}
+
+fn manager_error(error: crate::radio_manager::RadioManagerError) -> FieldError {
+    FieldError {
+        field: "backend".into(),
         message: error.to_string(),
         token: None,
     }
