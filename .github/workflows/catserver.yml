@@ -79,10 +79,12 @@ jobs:
         run: cargo build --target $TARGET --release
 
       - name: Change build artifacts ownership
+        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
         working-directory: ./catserver
         run: chown -R wix:wix target
 
       - name: Build installer
+        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
         working-directory: ./catserver
         run: su wix -c "./build_msi.sh in-docker --default-shortcut-arguments '${DEFAULT_SHORTCUT_ARGUMENTS}'"
         env:
