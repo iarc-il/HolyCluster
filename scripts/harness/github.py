@@ -136,5 +136,8 @@ def fetch_facts(pr_number: int, last_handled_review_id: Optional[int]) -> GHFact
 
 
 def rerequest_review(pr_number: int) -> None:
+    # Self-ASSIGN, not request-review: GitHub forbids requesting a review from the
+    # PR author, and the harness opens PRs as REVIEWER itself. Assigning puts the
+    # PR in the human's "Assigned" queue as the ready-for-review signal.
     subprocess.run(["gh", "pr", "edit", str(pr_number),
-                    "--add-reviewer", REVIEWER])
+                    "--add-assignee", REVIEWER])
