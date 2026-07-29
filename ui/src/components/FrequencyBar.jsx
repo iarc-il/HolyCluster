@@ -7,9 +7,7 @@ import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { useEffect, useMemo, useRef, useState } from "react";
-
-const MINIMUM_VISIBLE_RANGE_RATIO = 0.01;
+import { useMemo, useRef, useState } from "react";
 
 export function constrain_frequency_range(min, max, lower_bound, upper_bound) {
     const span = max - min;
@@ -43,10 +41,7 @@ export function zoom_frequency_range(range, focus, delta_y, lower_bound, upper_b
     const full_span = upper_bound - lower_bound;
     const span = Math.min(
         full_span,
-        Math.max(
-            full_span * MINIMUM_VISIBLE_RANGE_RATIO,
-            (range.max - range.min) * Math.exp(delta_y / 500),
-        ),
+        (range.max - range.min) * Math.exp(delta_y / 300),
     );
     const focus_frequency = range.min + focus * (range.max - range.min);
 
@@ -269,6 +264,8 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
     const sorted_spots = useBandSpots(spots, band);
     const callsign_refs = useRef([]);
     const chart_ref = useRef(null);
+    const drag_y_ref = useRef(null);
+    const dragged_ref = useRef(false);
     const [frequency_range, set_frequency_range] = useState(null);
 
     let freq_offset;
@@ -298,29 +295,53 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
     const displayed_radio_freq =
         radio_freq >= displayed_min_freq && radio_freq <= displayed_max_freq ? radio_freq : 0;
 
-    useEffect(() => {
-        const chart = chart_ref.current;
-        if (!chart || !band_plans[band]) return;
+    function update_frequency_range(update) {
+        set_frequency_range(previous => {
+            const range = previous?.band === band ? previous : { band, min: min_freq, max: max_freq };
+            return { band, ...update(range) };
+        });
+    }
 
-        function handle_wheel(event) {
-            event.preventDefault();
-            const bounds = chart.getBoundingClientRect();
-            const focus = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
+    function handle_wheel(event) {
+        event.preventDefault();
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const focus = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
+        update_frequency_range(range =>
+            zoom_frequency_range(range, focus, event.deltaY, min_freq, max_freq),
+        );
+    }
 
-            set_frequency_range(previous => {
-                const range =
-                    previous?.band === band ? previous : { band, min: min_freq, max: max_freq };
-                const next_range = event.shiftKey
-                    ? scroll_frequency_range(range, event.deltaY, min_freq, max_freq)
-                    : zoom_frequency_range(range, focus, event.deltaY, min_freq, max_freq);
+    function handle_pointer_down(event) {
+        if (event.button !== 0) return;
+        drag_y_ref.current = event.clientY;
+        dragged_ref.current = false;
+        event.currentTarget.setPointerCapture(event.pointerId);
+    }
 
-                return { band, ...next_range };
-            });
-        }
+    function handle_pointer_move(event) {
+        if (drag_y_ref.current == null) return;
+        const delta_y = event.clientY - drag_y_ref.current;
+        if (delta_y === 0) return;
 
-        chart.addEventListener("wheel", handle_wheel, { passive: false });
-        return () => chart.removeEventListener("wheel", handle_wheel);
-    }, [band, max_freq, min_freq]);
+        const height = event.currentTarget.getBoundingClientRect().height;
+        drag_y_ref.current = event.clientY;
+        dragged_ref.current ||= Math.abs(delta_y) > 2;
+        update_frequency_range(range =>
+            scroll_frequency_range(range, (-delta_y * 1000) / height, min_freq, max_freq),
+        );
+    }
+
+    function handle_pointer_up(event) {
+        drag_y_ref.current = null;
+        event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    function prevent_drag_click(event) {
+        if (!dragged_ref.current) return;
+        event.preventDefault();
+        event.stopPropagation();
+        dragged_ref.current = false;
+    }
 
     function dx_handle_click(spot_id, spot) {
         if (pinned_spot === spot_id) {
@@ -385,9 +406,15 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                 <>
                     <svg
                         ref={chart_ref}
-                        className={"w-full h-[85%] left-0 box-border"}
+                        className={"w-full h-[85%] left-0 box-border cursor-grab active:cursor-grabbing"}
                         data-tour="band-bar-chart"
                         style={{ background: colors.theme.background }}
+                        onWheel={handle_wheel}
+                        onPointerDown={handle_pointer_down}
+                        onPointerMove={handle_pointer_move}
+                        onPointerUp={handle_pointer_up}
+                        onPointerCancel={handle_pointer_up}
+                        onClickCapture={prevent_drag_click}
                     >
                         <title>Frequency bar chart</title>
                         <Ruler
