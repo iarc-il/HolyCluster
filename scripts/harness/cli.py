@@ -113,13 +113,16 @@ def _resume_stalled(rec: PRRecord) -> None:
         return
 
     if rec.phase == "addressing":
+        facts = github.fetch_facts(rec.pr_number, None) if rec.pr_number else None
+        review = facts.new_review if facts else None
         if not dirty:
-            facts = github.fetch_facts(rec.pr_number, None) if rec.pr_number else None
-            review_text = (facts.new_review.text if facts and facts.new_review
+            review_text = (review.text if review
                           else "(review text unavailable — re-check the PR manually)")
             agent.run(rec.worktree_path, agent.ADDRESS_TMPL(review_text))
         github.ensure_committed_and_pushed(rec.worktree_path, rec.branch, f"Address review on {rec.slug}")
-        _set(rec.slug, phase="ci", ci_fix_attempts=0)
+        # Record the handled review so the next poll doesn't re-address it forever.
+        _set(rec.slug, phase="ci", ci_fix_attempts=0,
+             last_handled_review_id=(review.id if review else rec.last_handled_review_id))
         return
 
 
