@@ -50,6 +50,7 @@ def _guard(slug, fn, *args) -> None:
     except Exception as e:  # noqa: BLE001 - deliberate catch-all at the job boundary
         _set(slug, phase="blocked")
         notify.desktop("Harness: task failed", f"{slug}: {e}")
+        print(f"[harness] {slug} BLOCKED by exception: {e!r}")
 
 
 def _job_implement(rec: PRRecord) -> None:
