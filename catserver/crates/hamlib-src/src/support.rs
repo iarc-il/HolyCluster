@@ -14,6 +14,7 @@ use crate::{
         validate_windows_naming,
     },
     plan::{BuildPlan, BuildPlanError, HAMLIB_SHA256, HAMLIB_VERSION, LinkMode},
+    source::{SourceOverrideError, local_source},
     target_dir::resolve_cargo_target_dir,
     toolchain::{MINGW_TOOLCHAIN, ToolchainError, validate_mingw_toolchain},
 };
@@ -32,6 +33,8 @@ pub enum SupportError {
     Libtool(#[from] LibtoolError),
     #[error(transparent)]
     Toolchain(#[from] ToolchainError),
+    #[error(transparent)]
+    SourceOverride(#[from] SourceOverrideError),
     #[error("Windows Hamlib builds require target libusb; set {0}")]
     MissingWindowsLibusb(&'static str),
     #[error("failed to run {program}: {source}")]
@@ -50,32 +53,21 @@ pub enum SupportError {
 
 pub fn build_from_environment() -> Result<(), SupportError> {
     println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_ARCHIVE");
+    println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_DIR");
     println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_NETWORK");
     println!("cargo:rerun-if-env-changed=HAMLIB_LIBUSB_INCLUDE_DIR");
     println!("cargo:rerun-if-env-changed=HAMLIB_LIBUSB_LIB_DIR");
     let out_dir = variable_path("OUT_DIR")?;
     let target = env::var("TARGET").map_err(|_| SupportError::MissingEnvironment("TARGET"))?;
     let plan = BuildPlan::for_target(&target)?;
-    let cache_path = cargo_target_dir(&out_dir, &target)?
-        .join("hamlib-src")
-        .join(HAMLIB_VERSION)
-        .join(HAMLIB_SHA256)
-        .join("hamlib-4.7.2.tar.gz");
-    let override_archive = env::var_os("HAMLIB_SOURCE_ARCHIVE").map(PathBuf::from);
-    let network = match env::var("HAMLIB_SOURCE_NETWORK").as_deref() {
-        Ok("0") => NetworkAccess::Disabled,
-        Ok(_) | Err(_) => NetworkAccess::Enabled,
+    let source_override = env::var_os("HAMLIB_SOURCE_DIR").map(PathBuf::from);
+    let source = match local_source(source_override.as_deref())? {
+        Some(source) => {
+            println!("cargo:rerun-if-changed={}", source.display());
+            source
+        }
+        None => pinned_source(&out_dir, &target)?,
     };
-    let archive = acquire_archive(&ArchiveRequest::official(
-        cache_path,
-        override_archive,
-        network,
-    ))?;
-    let extraction = out_dir.join("source");
-    if extraction.exists() {
-        fs::remove_dir_all(&extraction)?;
-    }
-    let source = extract_archive(&archive, &extraction, "hamlib-4.7.2")?;
     let prefix = out_dir.join("prefix");
     run_configure(&source, &plan, &prefix)?;
     run_make(&source)?;
@@ -98,6 +90,29 @@ pub fn build_from_environment() -> Result<(), SupportError> {
     }
     emit_metadata(&metadata, &prefix);
     Ok(())
+}
+
+fn pinned_source(out_dir: &Path, target: &str) -> Result<PathBuf, SupportError> {
+    let cache_path = cargo_target_dir(out_dir, target)?
+        .join("hamlib-src")
+        .join(HAMLIB_VERSION)
+        .join(HAMLIB_SHA256)
+        .join("hamlib-4.7.2.tar.gz");
+    let override_archive = env::var_os("HAMLIB_SOURCE_ARCHIVE").map(PathBuf::from);
+    let network = match env::var("HAMLIB_SOURCE_NETWORK").as_deref() {
+        Ok("0") => NetworkAccess::Disabled,
+        Ok(_) | Err(_) => NetworkAccess::Enabled,
+    };
+    let archive = acquire_archive(&ArchiveRequest::official(
+        cache_path,
+        override_archive,
+        network,
+    ))?;
+    let extraction = out_dir.join("source");
+    if extraction.exists() {
+        fs::remove_dir_all(&extraction)?;
+    }
+    extract_archive(&archive, &extraction, "hamlib-4.7.2").map_err(Into::into)
 }
 
 fn variable_path(name: &'static str) -> Result<PathBuf, SupportError> {

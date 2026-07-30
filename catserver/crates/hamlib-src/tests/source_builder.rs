@@ -1,14 +1,31 @@
 use {
     flate2::{Compression, write::GzEncoder},
     hamlib_src::{
-        ArchiveError, ArchiveRequest, BuildPlan, LinkMode, NetworkAccess, acquire_archive,
-        extract_archive, is_ar_archive, is_pe32_plus, stage_windows_artifacts,
+        ArchiveError, ArchiveRequest, BuildPlan, LinkMode, NetworkAccess, SourceOverrideError,
+        acquire_archive, extract_archive, is_ar_archive, is_pe32_plus, local_source,
+        stage_windows_artifacts,
     },
     sha2::{Digest, Sha256},
     std::{fs, io::Write, path::Path},
     tar::{Builder, Header},
     tempfile::TempDir,
 };
+
+#[test]
+fn accepts_a_local_source_tree_only_with_generated_configure() {
+    let temp = TempDir::new().unwrap();
+    let source = temp.path().join("hamlib");
+    fs::create_dir(&source).unwrap();
+    assert!(matches!(
+        local_source(Some(&source)),
+        Err(SourceOverrideError::MissingConfigure(_))
+    ));
+    fs::write(source.join("configure"), "#!/bin/sh\n").unwrap();
+    assert_eq!(
+        local_source(Some(&source)).unwrap(),
+        Some(source.canonicalize().unwrap())
+    );
+}
 
 #[test]
 fn rejects_wrong_sha_before_extraction() {

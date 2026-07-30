@@ -6,6 +6,8 @@ mod artifact;
 mod libtool;
 #[path = "src/plan.rs"]
 mod plan;
+#[path = "src/source.rs"]
+mod source;
 #[path = "src/support.rs"]
 mod support;
 #[path = "src/target_dir.rs"]
