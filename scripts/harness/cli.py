@@ -65,7 +65,7 @@ def _job_implement(rec: PRRecord) -> None:
 
 
 def _job_fix_ci(rec: PRRecord) -> None:
-    logs = github._run(["gh", "pr", "checks", str(rec.pr_number)])[:4000]
+    logs = github.ci_summary(rec.pr_number)[:4000]
     _set(rec.slug, phase="ci_fixing", ci_fix_attempts=rec.ci_fix_attempts + 1)
     agent.run(rec.worktree_path, agent.FIX_CI_TMPL(logs))
     github.commit_and_push(rec.worktree_path, rec.branch, f"Fix CI for {rec.slug}")
@@ -106,7 +106,7 @@ def _resume_stalled(rec: PRRecord) -> None:
 
     if rec.phase == "ci_fixing":
         if not dirty:
-            logs = github._run(["gh", "pr", "checks", str(rec.pr_number)])[:4000] if rec.pr_number else ""
+            logs = github.ci_summary(rec.pr_number)[:4000] if rec.pr_number else ""
             agent.run(rec.worktree_path, agent.FIX_CI_TMPL(logs))
         github.ensure_committed_and_pushed(rec.worktree_path, rec.branch, f"Fix CI for {rec.slug}")
         _set(rec.slug, phase="ci")

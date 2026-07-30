@@ -12,6 +12,14 @@ def _run(args, cwd=None) -> str:
                           check=True).stdout.strip()
 
 
+def ci_summary(pr_number: int) -> str:
+    # `gh pr checks` exits NON-ZERO when checks are failing/pending — i.e. exactly
+    # when FIX_CI needs it — so capture output WITHOUT check=True. Using _run here
+    # would raise precisely when CI is red and self-block the fix job.
+    return subprocess.run(["gh", "pr", "checks", str(pr_number)],
+                          capture_output=True, text=True).stdout.strip()
+
+
 def create_worktree(slug: str, branch: str) -> str:
     path = str(worktree_parent() / slug)
     _run(["git", "fetch", "origin", BASE_BRANCH])
