@@ -3,7 +3,7 @@ import os
 import re
 import secrets
 import tempfile
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict, fields
 from pathlib import Path
 from typing import Optional
 
@@ -36,10 +36,23 @@ def slugify(task: str) -> str:
 
 
 def load_state(path: Path) -> list[PRRecord]:
+    """Tolerate state written by a different version of this schema: unknown
+    fields (e.g. after a rollback) are dropped with a warning rather than
+    crashing every command with a bare TypeError."""
     if not path.exists():
         return []
     data = json.loads(path.read_text())
-    return [PRRecord(**d) for d in data]
+    known = {f.name for f in fields(PRRecord)}
+    records = []
+    for d in data:
+        unknown = sorted(set(d) - known)
+        if unknown:
+            print(f"[harness] ignoring unknown state fields {unknown} on {d.get('slug', '?')}")
+        try:
+            records.append(PRRecord(**{k: v for k, v in d.items() if k in known}))
+        except TypeError as e:
+            raise ValueError(f"malformed record in {path}: {d}") from e
+    return records
 
 
 def save_state(path: Path, records: list[PRRecord]) -> None:
