@@ -1,4 +1,5 @@
 import argparse
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -226,7 +227,27 @@ def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
         notify.desktop("Harness: merged", f"{rec.slug} merged and cleaned up")
 
 
+def _acquire_watch_lock() -> bool:
+    """Prevent two watchers from racing on the same state file. Returns False if
+    another LIVE watcher already holds the lock (stale/dead locks are taken over)."""
+    lock = config.state_path().parent / "watch.pid"
+    if lock.exists():
+        try:
+            other = int(lock.read_text().strip())
+            os.kill(other, 0)  # ProcessLookupError if that pid is dead
+        except (ValueError, ProcessLookupError):
+            pass  # garbage or dead pid -> safe to take over
+        else:
+            print(f"[harness] another watch is already running (pid {other}); refusing to start.")
+            return False
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text(str(os.getpid()))
+    return True
+
+
 def watch() -> None:
+    if not _acquire_watch_lock():
+        return
     pool = ThreadPoolExecutor(max_workers=config.MAX_CONCURRENT)
     inflight: dict[str, object] = {}
     print(f"harness watch: polling every {config.POLL_INTERVAL_SECONDS}s (Ctrl-C to stop)")
