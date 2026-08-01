@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import agent, config, github, notify
 from .lifecycle import Action, GHFacts, decide
-from .state import (PRRecord, load_state, save_state, slugify)
+from .state import (PRRecord, load_state, new_id, save_state, slugify)
 
 _lock = threading.Lock()
 
@@ -21,71 +21,68 @@ def _update(mutate):
 
 def enqueue(tasks: list[str]) -> None:
     def mutate(recs):
-        existing = {r.slug for r in recs}
         for task in tasks:
             slug = slugify(task)
-            if slug in existing:
-                print(f"skip (duplicate slug): {slug}")
-                continue
-            existing.add(slug)
-            recs.append(PRRecord(task=task, slug=slug, branch=f"{config.BRANCH_PREFIX}{slug}",
-                                 worktree_path="", phase="queued"))
-            print(f"queued: {slug}")
+            rec = PRRecord(id=new_id(), task=task, slug=slug,
+                           branch=f"{config.BRANCH_PREFIX}{slug}",
+                           worktree_path="", phase="queued")
+            recs.append(rec)
+            print(f"queued: {slug} (id {rec.id})")
     _update(mutate)
 
 
-def _set(slug, **fields):
+def _set(rec_id, **fields):
     def mutate(recs):
         for r in recs:
-            if r.slug == slug:
+            if r.id == rec_id:
                 for k, v in fields.items():
                     setattr(r, k, v)
     _update(mutate)
 
 
-def _guard(slug, fn, *args) -> None:
+def _guard(rec, fn, *args) -> None:
     """Run a worker job; on ANY failure mark the record blocked + notify.
     This keeps one failing PR from silently killing a pool worker or the loop."""
     try:
         fn(*args)
     except Exception as e:  # noqa: BLE001 - deliberate catch-all at the job boundary
-        _set(slug, phase="blocked")
-        notify.desktop("Harness: task failed", f"{slug}: {e}")
-        print(f"[harness] {slug} BLOCKED by exception: {e!r}")
+        _set(rec.id, phase="blocked")
+        notify.desktop("Harness: task failed", f"{rec.slug}: {e}")
+        print(f"[harness] {rec.slug} BLOCKED by exception: {e!r}")
 
 
 def _job_implement(rec: PRRecord) -> None:
     path = github.create_worktree(rec.slug, rec.branch)
-    _set(rec.slug, worktree_path=path, phase="implementing")
+    _set(rec.id, worktree_path=path, phase="implementing")
     agent.run(path, agent.IMPLEMENT_TMPL(rec.task))
     if not github.commit_and_push(path, rec.branch, rec.task):
-        _set(rec.slug, phase="blocked")
+        _set(rec.id, phase="blocked")
         notify.desktop("Harness: no changes", f"{rec.slug} produced no diff — blocked")
         return
     pr = github.open_pr(path, rec.branch, rec.task, f"Automated PR for: {rec.task}")
-    _set(rec.slug, pr_number=pr, phase="ci")
+    _set(rec.id, pr_number=pr, phase="ci")
 
 
 def _job_fix_ci(rec: PRRecord) -> None:
     logs = github.ci_summary(rec.pr_number)[:4000]
-    _set(rec.slug, phase="ci_fixing", ci_fix_attempts=rec.ci_fix_attempts + 1)
+    _set(rec.id, phase="ci_fixing", ci_fix_attempts=rec.ci_fix_attempts + 1)
     agent.run(rec.worktree_path, agent.FIX_CI_TMPL(logs))
     github.commit_and_push(rec.worktree_path, rec.branch, f"Fix CI for {rec.slug}")
-    _set(rec.slug, phase="ci")
+    _set(rec.id, phase="ci")
 
 
 def _job_address(rec: PRRecord, review) -> None:
-    _set(rec.slug, phase="addressing")
+    _set(rec.id, phase="addressing")
     agent.run(rec.worktree_path, agent.ADDRESS_TMPL(review.text))
     github.commit_and_push(rec.worktree_path, rec.branch, f"Address review on {rec.slug}")
-    _set(rec.slug, phase="ci", ci_fix_attempts=0, last_handled_review_id=review.id)
+    _set(rec.id, phase="ci", ci_fix_attempts=0, last_handled_review_id=review.id)
 
 
 def _cleanup(rec: PRRecord) -> None:
     """Bring a merged task to a terminal, valid state: close its tmux window,
     remove the worktree + branch, mark done, notify."""
     github.remove_worktree(rec.worktree_path, rec.branch)
-    _set(rec.slug, phase="done")
+    _set(rec.id, phase="done")
     notify.desktop("Harness: merged", f"{rec.slug} merged and cleaned up")
 
 
@@ -96,7 +93,7 @@ def _resume_stalled(rec: PRRecord) -> None:
     instead of trusting `phase` alone, so it's safe to call repeatedly."""
     if not rec.worktree_path or not Path(rec.worktree_path).exists():
         # Nothing was ever created (or it's gone) — safe to start clean.
-        _set(rec.slug, phase="queued", worktree_path="")
+        _set(rec.id, phase="queued", worktree_path="")
         _job_implement(rec)
         return
 
@@ -106,12 +103,12 @@ def _resume_stalled(rec: PRRecord) -> None:
         if not dirty:
             agent.run(rec.worktree_path, agent.IMPLEMENT_TMPL(rec.task))
         if not github.ensure_committed_and_pushed(rec.worktree_path, rec.branch, rec.task):
-            _set(rec.slug, phase="blocked")
+            _set(rec.id, phase="blocked")
             notify.desktop("Harness: no changes", f"{rec.slug} produced no diff — blocked")
             return
         pr = github.find_existing_pr(rec.branch) or github.open_pr(
             rec.worktree_path, rec.branch, rec.task, f"Automated PR for: {rec.task}")
-        _set(rec.slug, pr_number=pr, phase="ci")
+        _set(rec.id, pr_number=pr, phase="ci")
         return
 
     if rec.phase == "ci_fixing":
@@ -119,7 +116,7 @@ def _resume_stalled(rec: PRRecord) -> None:
             logs = github.ci_summary(rec.pr_number)[:4000] if rec.pr_number else ""
             agent.run(rec.worktree_path, agent.FIX_CI_TMPL(logs))
         github.ensure_committed_and_pushed(rec.worktree_path, rec.branch, f"Fix CI for {rec.slug}")
-        _set(rec.slug, phase="ci")
+        _set(rec.id, phase="ci")
         return
 
     if rec.phase == "addressing":
@@ -131,7 +128,7 @@ def _resume_stalled(rec: PRRecord) -> None:
             agent.run(rec.worktree_path, agent.ADDRESS_TMPL(review_text))
         github.ensure_committed_and_pushed(rec.worktree_path, rec.branch, f"Address review on {rec.slug}")
         # Record the handled review so the next poll doesn't re-address it forever.
-        _set(rec.slug, phase="ci", ci_fix_attempts=0,
+        _set(rec.id, phase="ci", ci_fix_attempts=0,
              last_handled_review_id=(review.id if review else rec.last_handled_review_id))
         return
 
@@ -165,17 +162,17 @@ def _resume_one(rec: PRRecord) -> None:
                 _job_address(rec, facts.new_review)
             elif action == Action.REQUEST_REVIEW:
                 github.rerequest_review(rec.pr_number)
-                _set(rec.slug, phase="await_review")
+                _set(rec.id, phase="await_review")
                 notify.desktop("Harness: review ready", f"PR #{rec.pr_number} — {rec.slug}")
             elif action == Action.BLOCK:
-                _set(rec.slug, phase="blocked")
+                _set(rec.id, phase="blocked")
                 notify.desktop("Harness: CI blocked", f"PR #{rec.pr_number} — {rec.slug} needs you")
             elif action == Action.CLEANUP:
                 _cleanup(rec)
             else:
                 print(f"[resume] {rec.slug}: nothing to do")
     except Exception as e:  # noqa: BLE001 - same job-boundary catch-all as _guard
-        _set(rec.slug, phase="blocked")
+        _set(rec.id, phase="blocked")
         notify.desktop("Harness: resume failed", f"{rec.slug}: {e}")
         print(f"[resume] {rec.slug}: FAILED — {e}")
 
@@ -187,7 +184,7 @@ def resume(slugs: list[str] | None) -> None:
     concurrent pool `watch` uses), so it's safe to run any time state looks
     stuck, e.g. after a `watch` process died mid-job."""
     recs = load_state(config.state_path())
-    targets = [r for r in recs if (not slugs or r.slug in slugs) and r.phase != "done"]
+    targets = [r for r in recs if (not slugs or r.slug in slugs or r.id in slugs) and r.phase != "done"]
     if not targets:
         print("resume: nothing to do")
         return
@@ -204,7 +201,7 @@ def _adopt_running(rec: PRRecord) -> None:
 
 
 def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
-    if rec.slug in inflight or rec.phase == "done":
+    if rec.id in inflight or rec.phase == "done":
         return
     facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
              if rec.pr_number else GHFacts("none", None, False))
@@ -220,23 +217,23 @@ def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
         # if its tmux window is still alive, else resume the stalled task. Both
         # go through the idempotent resume path, so finished work is never redone.
         job = _adopt_running if agent.is_running(rec.worktree_path) else _resume_stalled
-        inflight[rec.slug] = pool.submit(_guard, rec.slug, job, rec)
+        inflight[rec.id] = pool.submit(_guard, rec, job, rec)
         return
     action = decide(rec, facts)
     # Concurrency is capped by the pool's max_workers; extra submissions queue as
     # Futures. `inflight` only prevents double-submitting the same slug.
     if action == Action.IMPLEMENT:
-        inflight[rec.slug] = pool.submit(_guard, rec.slug, _job_implement, rec)
+        inflight[rec.id] = pool.submit(_guard, rec, _job_implement, rec)
     elif action == Action.FIX_CI:
-        inflight[rec.slug] = pool.submit(_guard, rec.slug, _job_fix_ci, rec)
+        inflight[rec.id] = pool.submit(_guard, rec, _job_fix_ci, rec)
     elif action == Action.ADDRESS_REVIEW:
-        inflight[rec.slug] = pool.submit(_guard, rec.slug, _job_address, rec, facts.new_review)
+        inflight[rec.id] = pool.submit(_guard, rec, _job_address, rec, facts.new_review)
     elif action == Action.REQUEST_REVIEW:
         github.rerequest_review(rec.pr_number)
-        _set(rec.slug, phase="await_review")
+        _set(rec.id, phase="await_review")
         notify.desktop("Harness: review ready", f"PR #{rec.pr_number} — {rec.slug}")
     elif action == Action.BLOCK:
-        _set(rec.slug, phase="blocked")
+        _set(rec.id, phase="blocked")
         notify.desktop("Harness: CI blocked", f"PR #{rec.pr_number} — {rec.slug} needs you")
     elif action == Action.CLEANUP:
         _cleanup(rec)
@@ -268,16 +265,16 @@ def watch() -> None:
     print(f"harness watch: polling every {config.POLL_INTERVAL_SECONDS}s (Ctrl-C to stop)")
     while True:
         recs = load_state(config.state_path())
-        for slug, fut in list(inflight.items()):
+        for key, fut in list(inflight.items()):
             if fut.done():
-                inflight.pop(slug)
+                inflight.pop(key)
         summary = ", ".join(f"{r.slug}={r.phase}" for r in recs) or "(no tasks)"
         print(f"[harness] poll: {summary}")
         for rec in recs:
             try:
                 _process_record(rec, inflight, pool)
             except Exception as e:  # noqa: BLE001 - one PR's failure must not crash the poller
-                _set(rec.slug, phase="blocked")
+                _set(rec.id, phase="blocked")
                 notify.desktop("Harness: watch error", f"{rec.slug}: {e}")
                 print(f"[harness] error on {rec.slug}: {e}")
         time.sleep(config.POLL_INTERVAL_SECONDS)
@@ -295,6 +292,18 @@ def _migrate_legacy_state() -> None:
         print(f"[harness] migrated legacy state {legacy} -> {canonical}")
 
 
+def _backfill_ids() -> None:
+    """Assign a stable id to any legacy record created before ids existed."""
+    recs = load_state(config.state_path())
+    changed = False
+    for r in recs:
+        if not r.id:
+            r.id = new_id()
+            changed = True
+    if changed:
+        save_state(config.state_path(), recs)
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="harness")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -303,9 +312,10 @@ def main(argv=None) -> int:
     n.add_argument("-f", "--file")
     sub.add_parser("watch")
     r = sub.add_parser("resume")
-    r.add_argument("slug", nargs="*", help="slug(s) to resume; omit to resume all non-done tasks")
+    r.add_argument("slug", nargs="*", help="id(s) or slug(s) to resume; omit to resume all non-done tasks")
     args = p.parse_args(argv)
     _migrate_legacy_state()
+    _backfill_ids()
     if args.cmd == "new":
         if args.file:
             tasks = [l.strip() for l in open(args.file) if l.strip()]

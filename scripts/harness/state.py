@@ -1,5 +1,6 @@
 import json
 import re
+import secrets
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional
@@ -17,9 +18,14 @@ class PRRecord:
     branch: str
     worktree_path: str
     phase: str
+    id: str = ""          # stable internal identity; slug is the display name
     pr_number: Optional[int] = None
     ci_fix_attempts: int = 0
     last_handled_review_id: Optional[int] = None
+
+
+def new_id() -> str:
+    return secrets.token_hex(4)
 
 
 def slugify(task: str) -> str:
