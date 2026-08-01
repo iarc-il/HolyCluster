@@ -3,7 +3,7 @@ use {
     flate2::read::GzDecoder,
     sha2::{Digest, Sha256},
     std::{
-        fs::{self, File, FileTimes},
+        fs::{self, File},
         io::{self, Read},
         path::{Component, Path, PathBuf},
         time::Duration,
@@ -104,20 +104,11 @@ pub fn extract_archive(
         {
             found_root = true;
         }
-        if entry.header().entry_type().is_dir() {
-            let output = destination.join(path);
-            fs::create_dir_all(&output)?;
-            restore_mtime(&output, entry.header().mtime()?)?;
-        } else if entry.header().entry_type().is_file() {
-            let output = destination.join(path);
-            if let Some(parent) = output.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            let mut file = File::create(&output)?;
-            io::copy(&mut entry, &mut file)?;
-            restore_mtime(&output, entry.header().mtime()?)?;
-        } else {
+        if !entry.header().entry_type().is_dir() && !entry.header().entry_type().is_file() {
             return Err(ArchiveError::UnsupportedEntry(path));
+        }
+        if !entry.unpack_in(destination)? {
+            return Err(ArchiveError::Traversal(path));
         }
     }
     let source_root = destination.join(root_name);
@@ -126,11 +117,6 @@ pub fn extract_archive(
     } else {
         Err(ArchiveError::MissingSourceRoot(root_name.to_owned()))
     }
-}
-
-fn restore_mtime(path: &Path, seconds: u64) -> Result<(), io::Error> {
-    let modified = std::time::UNIX_EPOCH + Duration::from_secs(seconds);
-    File::open(path)?.set_times(FileTimes::new().set_modified(modified))
 }
 
 fn download_verified(request: &ArchiveRequest) -> Result<PathBuf, ArchiveError> {
