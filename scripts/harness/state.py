@@ -1,6 +1,8 @@
 import json
+import os
 import re
 import secrets
+import tempfile
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional
@@ -41,8 +43,21 @@ def load_state(path: Path) -> list[PRRecord]:
 
 
 def save_state(path: Path, records: list[PRRecord]) -> None:
+    """Write atomically: a crash mid-write must never truncate the state file,
+    since a half-written state.json makes every later command unloadable and
+    strands the worktrees, branches, and PRs it described."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps([asdict(r) for r in records], indent=2))
+    payload = json.dumps([asdict(r) for r in records], indent=2)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".state-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def active_count(records: list[PRRecord]) -> int:
