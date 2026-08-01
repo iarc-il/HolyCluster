@@ -182,14 +182,21 @@ def resume(slugs: list[str] | None) -> None:
     move it forward — starting/continuing an agent only if the work isn't
     already done. Runs in the foreground, one task at a time (not through the
     concurrent pool `watch` uses), so it's safe to run any time state looks
-    stuck, e.g. after a `watch` process died mid-job."""
-    recs = load_state(config.state_path())
-    targets = [r for r in recs if (not slugs or r.slug in slugs or r.id in slugs) and r.phase != "done"]
-    if not targets:
-        print("resume: nothing to do")
+    stuck, e.g. after a `watch` process died mid-job. Takes the same lock as
+    `watch` — a resume racing a live watcher would double-drive the same task."""
+    if not _acquire_lock("resume"):
         return
-    for rec in targets:
-        _resume_one(rec)
+    try:
+        recs = load_state(config.state_path())
+        targets = [r for r in recs
+                   if (not slugs or r.slug in slugs or r.id in slugs) and r.phase != "done"]
+        if not targets:
+            print("resume: nothing to do")
+            return
+        for rec in targets:
+            _resume_one(rec)
+    finally:
+        _release_lock()
 
 
 def _adopt_running(rec: PRRecord) -> None:
@@ -239,10 +246,16 @@ def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
         _cleanup(rec)
 
 
-def _acquire_watch_lock() -> bool:
-    """Prevent two watchers from racing on the same state file. Returns False if
-    another LIVE watcher already holds the lock (stale/dead locks are taken over)."""
-    lock = config.state_path().parent / "watch.pid"
+def _lock_path():
+    return config.state_path().parent / "watch.pid"
+
+
+def _acquire_lock(what: str) -> bool:
+    """Serialize the state-driving commands (`watch`, `resume`) ACROSS processes.
+    Two of them dispatching on the same record would launch two agents in one
+    worktree, each killing the other's tmux window. Returns False if another LIVE
+    harness process holds the lock (stale/dead locks are taken over)."""
+    lock = _lock_path()
     if lock.exists():
         try:
             other = int(lock.read_text().strip())
@@ -250,34 +263,51 @@ def _acquire_watch_lock() -> bool:
         except (ValueError, ProcessLookupError):
             pass  # garbage or dead pid -> safe to take over
         else:
-            print(f"[harness] another watch is already running (pid {other}); refusing to start.")
+            print(f"[harness] another harness process is running (pid {other}); refusing to {what}.")
             return False
     lock.parent.mkdir(parents=True, exist_ok=True)
     lock.write_text(str(os.getpid()))
     return True
 
 
+def _release_lock() -> None:
+    # Only ever drop our OWN lock, never one a successor process took over.
+    lock = _lock_path()
+    try:
+        if lock.exists() and int(lock.read_text().strip()) == os.getpid():
+            lock.unlink()
+    except (ValueError, OSError):
+        pass
+
+
 def watch() -> None:
-    if not _acquire_watch_lock():
+    if not _acquire_lock("watch"):
         return
     pool = ThreadPoolExecutor(max_workers=config.MAX_CONCURRENT)
     inflight: dict[str, object] = {}
     print(f"harness watch: polling every {config.POLL_INTERVAL_SECONDS}s (Ctrl-C to stop)")
-    while True:
-        recs = load_state(config.state_path())
-        for key, fut in list(inflight.items()):
-            if fut.done():
-                inflight.pop(key)
-        summary = ", ".join(f"{r.slug}={r.phase}" for r in recs) or "(no tasks)"
-        print(f"[harness] poll: {summary}")
-        for rec in recs:
-            try:
-                _process_record(rec, inflight, pool)
-            except Exception as e:  # noqa: BLE001 - one PR's failure must not crash the poller
-                _set(rec.id, phase="blocked")
-                notify.desktop("Harness: watch error", f"{rec.slug}: {e}")
-                print(f"[harness] error on {rec.slug}: {e}")
-        time.sleep(config.POLL_INTERVAL_SECONDS)
+    try:
+        while True:
+            recs = load_state(config.state_path())
+            for key, fut in list(inflight.items()):
+                if fut.done():
+                    inflight.pop(key)
+            summary = ", ".join(f"{r.slug}={r.phase}" for r in recs) or "(no tasks)"
+            print(f"[harness] poll: {summary}")
+            for rec in recs:
+                try:
+                    _process_record(rec, inflight, pool)
+                except Exception as e:  # noqa: BLE001 - one PR's failure must not crash the poller
+                    _set(rec.id, phase="blocked")
+                    notify.desktop("Harness: watch error", f"{rec.slug}: {e}")
+                    print(f"[harness] error on {rec.slug}: {e}")
+            time.sleep(config.POLL_INTERVAL_SECONDS)
+    except KeyboardInterrupt:
+        running = [k for k, f in inflight.items() if not f.done()]
+        if running:
+            print(f"[harness] stopping — waiting for {len(running)} running agent(s)")
+    finally:
+        _release_lock()
 
 
 def _migrate_legacy_state() -> None:
