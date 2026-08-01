@@ -24,6 +24,7 @@ class PRRecord:
     pr_number: Optional[int] = None
     ci_fix_attempts: int = 0
     last_handled_review_id: Optional[int] = None
+    no_check_polls: int = 0   # consecutive polls that found no CI checks at all
 
 
 def new_id() -> str:

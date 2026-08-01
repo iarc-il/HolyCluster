@@ -90,6 +90,17 @@ def _cleanup(rec: PRRecord) -> None:
     notify.desktop("Harness: merged", f"{rec.slug} merged and cleaned up")
 
 
+def _track_missing_checks(rec: PRRecord, facts) -> None:
+    """Count consecutive polls that saw no CI checks, so decide() can tell a PR
+    that will never have checks from one whose checks have not registered yet."""
+    if rec.pr_number is None:
+        return
+    n = rec.no_check_polls + 1 if facts.ci_status == "none" else 0
+    if n != rec.no_check_polls:
+        rec.no_check_polls = n
+        _set(rec.id, no_check_polls=n)
+
+
 def _resume_stalled(rec: PRRecord) -> None:
     """Recover a job whose worker died mid-flight (e.g. a previous `watch`
     process was killed) without redoing work that already happened. Inspects
@@ -148,6 +159,7 @@ def _resume_one(rec: PRRecord) -> None:
             print(f"[resume] {rec.slug}: PR merged -> cleanup")
             _cleanup(rec)
             return
+        _track_missing_checks(rec, facts)
         if rec.phase == "queued":
             _job_implement(rec)
         elif rec.phase in ("implementing", "ci_fixing", "addressing"):
@@ -222,6 +234,7 @@ def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
     if facts.merged:
         _cleanup(rec)
         return
+    _track_missing_checks(rec, facts)
     if rec.phase in ("implementing", "ci_fixing", "addressing"):
         # A watch process died mid-job (this one didn't launch it — not in
         # `inflight`). Recover the work instead of stranding it: adopt the agent

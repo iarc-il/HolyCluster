@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Optional
 
-from .config import MAX_CI_FIX_ATTEMPTS
+from .config import MAX_CI_FIX_ATTEMPTS, NO_CHECK_GRACE_POLLS
 from .state import PRRecord
 
 
@@ -45,6 +45,12 @@ def decide(record: PRRecord, facts: GHFacts) -> Action:
         if record.ci_fix_attempts < MAX_CI_FIX_ATTEMPTS:
             return Action.FIX_CI
         return Action.BLOCK
-    if facts.ci_status == "success" and record.phase != "await_review":
+    # "none" means this PR has no checks at all — every workflow here is
+    # paths-filtered, so a PR outside backend/catserver/ui legitimately gets none.
+    # Requiring several consecutive empty polls distinguishes that from checks
+    # that simply have not registered yet, instead of stalling in `ci` forever.
+    ready = facts.ci_status == "success" or (
+        facts.ci_status == "none" and record.no_check_polls >= NO_CHECK_GRACE_POLLS)
+    if ready and record.phase != "await_review":
         return Action.REQUEST_REVIEW
     return Action.NONE
