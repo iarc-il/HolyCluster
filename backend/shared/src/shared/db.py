@@ -64,6 +64,7 @@ class HolySpot(SQLModel, table=True):
     dx_state: str
     dx_cq_zone: Optional[int] = None
     dx_itu_zone: Optional[int] = None
+    dx_lotw_status: Optional[str] = None
     pota_reference: Optional[str] = None
     pota_name: Optional[str] = None
     pota_description: Optional[str] = None

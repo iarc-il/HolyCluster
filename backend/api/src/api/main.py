@@ -444,6 +444,8 @@ def cleanup_spot(spot):
             "comment": spot["comment"],
             "is_dxpedition": bool(int(spot.get("is_dxpedition", 0))),
         }
+        if spot.get("dx_lotw_status") is not None:
+            cleaned_spot["dx_lotw_status"] = spot["dx_lotw_status"]
         spot_type = spot.get("type")
         if not spot_type and spot.get("cluster") == "pota.app":
             spot_type = "pota"

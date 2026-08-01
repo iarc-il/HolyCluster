@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from collectors.db.valkey_config import get_valkey_client
 from collectors.enrichers.dxpeditions import is_active_dxpedition
 from collectors.enrichers.frequencies import InvalidBandError, find_band, find_band_and_mode
+from collectors.enrichers.lotw import fetch_lotw_user_activity, get_lotw_status
 from collectors.pota import run_pota_collector
 from collectors.settings import settings
 from collectors.sota import run_sota_collector
@@ -28,6 +29,7 @@ from collectors.wwff import run_wwff_collector
 import aiomonitor
 
 STREAM_API = "stream-api"
+LOTW_USERS: dict[str, datetime] = {}
 
 
 class InvalidCallsignError(Exception):
@@ -85,6 +87,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             "mode": mode,
             "mode_selection": mode_selection,
             "is_dxpedition": 1 if is_active_dxpedition(spot["dx_callsign"]) else 0,
+            "dx_lotw_status": get_lotw_status(spot["dx_callsign"], LOTW_USERS),
             # Redis doesn't accept bools
             "spotter_geo_cache": 1 if spotter_geo.cached else 0,
             "spotter_locator_source": spotter_geo.locator_source,
@@ -144,6 +147,7 @@ async def add_spot_to_postgres(engine, spot: dict):
         dx_state=spot["dx_state"],
         dx_cq_zone=spot.get("dx_cq_zone"),
         dx_itu_zone=spot.get("dx_itu_zone"),
+        dx_lotw_status=spot["dx_lotw_status"],
         pota_reference=spot.get("pota_reference"),
         pota_name=spot.get("pota_name"),
         pota_description=spot.get("pota_description"),
@@ -235,6 +239,25 @@ async def refresh_dxpedition_data(valkey_client):
         await asyncio.sleep(sleep)
 
 
+async def update_lotw_user_data():
+    global LOTW_USERS
+
+    LOTW_USERS = await fetch_lotw_user_activity()
+    logger.info(f"LoTW user activity refreshed with {len(LOTW_USERS)} callsigns")
+
+
+async def refresh_lotw_user_data(valkey_client):
+    while True:
+        sleep = 7 * 86400
+        try:
+            await update_lotw_user_data()
+        except Exception as e:
+            logger.exception("Failed to refresh LoTW user activity")
+            await push_exception_event(valkey_client, "collector", f"LoTW refresh: {e}")
+            sleep = 600
+        await asyncio.sleep(sleep)
+
+
 STREAM_ARRIVALS_RETENTION_SECONDS = 7 * 86400
 
 
@@ -266,11 +289,13 @@ async def run_collector():
         redis_client=valkey_client,
     )
     await qrz_manager.start()
+    await update_lotw_user_data()
 
     qrz_refresh_task = asyncio.create_task(qrz_manager.refresh_loop(), name="qrz_refresh_task")
     dxpedition_refresh_task = asyncio.create_task(
         refresh_dxpedition_data(valkey_client), name="dxpedition_refresh_task"
     )
+    lotw_refresh_task = asyncio.create_task(refresh_lotw_user_data(valkey_client), name="lotw_refresh_task")
     trim_task = asyncio.create_task(trim_arrivals_stream(valkey_client), name="trim_arrivals_stream")
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
     collector_tasks = run_concurrent_telnet_connections(spots_queue)
@@ -278,7 +303,7 @@ async def run_collector():
     collector_tasks.append(asyncio.create_task(run_sota_collector(spots_queue), name="sota"))
     collector_tasks.append(asyncio.create_task(run_wwff_collector(spots_queue), name="spots.wwff.co"))
 
-    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task, trim_task]
+    tasks = [qrz_refresh_task, dxpedition_refresh_task, lotw_refresh_task, processor_task, trim_task]
     tasks.extend(collector_tasks)
 
     try:
