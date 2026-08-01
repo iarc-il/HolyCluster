@@ -9,10 +9,7 @@ from collectors.enrichers.lotw import get_lotw_status, parse_lotw_user_activity
 
 def test_parse_lotw_user_activity_skips_invalid_rows():
     users = parse_lotw_user_activity(
-        "K1ABC,2026-07-31,20:15:52\n"
-        "invalid\n"
-        "K2ABC,not-a-date,20:15:52\n"
-        "K3ABC,2026-07-30,12:00:00\n"
+        "K1ABC,2026-07-31,20:15:52\ninvalid\nK2ABC,not-a-date,20:15:52\nK3ABC,2026-07-30,12:00:00\n"
     )
 
     assert users == {
