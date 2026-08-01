@@ -2,8 +2,7 @@ use {
     flate2::{Compression, write::GzEncoder},
     hamlib_src::{
         ArchiveError, ArchiveRequest, BuildPlan, LinkMode, NetworkAccess, SourceOverrideError,
-        acquire_archive, extract_archive, is_ar_archive, is_pe32_plus, local_source,
-        stage_windows_artifacts,
+        acquire_archive, extract_archive, local_source,
     },
     sha2::{Digest, Sha256},
     std::{fs, io::Write, path::Path},
@@ -118,36 +117,6 @@ fn rejects_archive_without_expected_root() {
 }
 
 #[test]
-fn distinguishes_windows_runtime_dll_from_import_archive() {
-    assert!(is_ar_archive(b"!<arch>\nmember"));
-    assert!(!is_pe32_plus(b"!<arch>\nmember"));
-    assert!(is_pe32_plus(&pe32_plus_fixture()));
-}
-
-#[test]
-fn stages_runtime_from_libtool_layout_and_keeps_import_archive() {
-    let temp = TempDir::new().unwrap();
-    let source = temp.path().join("source");
-    let prefix = temp.path().join("prefix");
-    fs::create_dir_all(source.join("src/.libs")).unwrap();
-    fs::create_dir_all(prefix.join("lib")).unwrap();
-    fs::write(
-        source.join("src/.libs/libhamlib-4.dll"),
-        pe32_plus_fixture(),
-    )
-    .unwrap();
-    fs::write(prefix.join("lib/libhamlib.dll.a"), b"!<arch>\nimport").unwrap();
-    fs::write(
-        prefix.join("lib/libhamlib.la"),
-        "dlname='libhamlib-4.dll'\nlibrary_names='libhamlib-4.dll libhamlib.dll.a'\nold_library=''\n",
-    )
-    .unwrap();
-    let (runtime, import_library) = stage_windows_artifacts(&source, &prefix).unwrap();
-    assert!(is_pe32_plus(&fs::read(runtime).unwrap()));
-    assert!(is_ar_archive(&fs::read(import_library).unwrap()));
-}
-
-#[test]
 fn reuses_a_valid_cache_entry() {
     let temp = TempDir::new().unwrap();
     let archive = write_archive(temp.path(), "hamlib-4.7.2/configure", b"configure");
@@ -162,19 +131,28 @@ fn reuses_a_valid_cache_entry() {
 
 #[test]
 fn selects_expected_target_build_plan() {
+    let windows = BuildPlan::for_target("x86_64-pc-windows-gnu").unwrap();
+    assert!(windows.is_windows());
     assert_eq!(
-        BuildPlan::for_target("x86_64-pc-windows-gnu")
-            .unwrap()
-            .metadata(Path::new("prefix"))
-            .link_mode,
-        LinkMode::Shared
-    );
-    assert_eq!(
-        BuildPlan::for_target("x86_64-unknown-linux-gnu")
-            .unwrap()
-            .metadata(Path::new("prefix"))
-            .link_mode,
+        windows.metadata(Path::new("prefix")).link_mode,
         LinkMode::Static
+    );
+    assert!(
+        windows
+            .configure_args(Path::new("prefix"))
+            .contains(&"--host=x86_64-w64-mingw32".to_owned())
+    );
+
+    let host = BuildPlan::for_target("x86_64-unknown-linux-gnu").unwrap();
+    assert!(!host.is_windows());
+    assert_eq!(
+        host.metadata(Path::new("prefix")).link_mode,
+        LinkMode::Static
+    );
+    assert!(
+        !host
+            .configure_args(Path::new("prefix"))
+            .contains(&"--host=x86_64-w64-mingw32".to_owned())
     );
 }
 
@@ -184,8 +162,7 @@ fn emits_expected_metadata() {
         .unwrap()
         .metadata(Path::new("prefix"));
     assert_eq!(metadata.version, "4.7.2");
-    assert_eq!(metadata.library_file, "libhamlib-4.dll");
-    assert_eq!(metadata.runtime_dir, Path::new("prefix/bin"));
+    assert_eq!(metadata.library_file, "libhamlib.a");
 }
 
 fn request(
@@ -256,13 +233,4 @@ fn write_symlink_archive(root: &Path) -> std::path::PathBuf {
     let encoder = archive.into_inner().unwrap();
     encoder.finish().unwrap();
     archive_path
-}
-
-fn pe32_plus_fixture() -> Vec<u8> {
-    let mut bytes = vec![0_u8; 0x100];
-    bytes[..2].copy_from_slice(b"MZ");
-    bytes[0x3c..0x40].copy_from_slice(&0x80_u32.to_le_bytes());
-    bytes[0x80..0x84].copy_from_slice(b"PE\0\0");
-    bytes[0x98..0x9a].copy_from_slice(&0x20b_u16.to_le_bytes());
-    bytes
 }

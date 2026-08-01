@@ -8,8 +8,7 @@ fn main() {
         "DEP_HAMLIB_SRC_INCLUDE",
         "DEP_HAMLIB_SRC_LIBDIR",
         "DEP_HAMLIB_SRC_LIBRARY_FILE",
-        "DEP_HAMLIB_SRC_IMPORT_LIBRARY",
-        "DEP_HAMLIB_SRC_RUNTIME_LIBRARY",
+        "HAMLIB_LIBUSB_LIB_DIR",
         "TARGET",
     ] {
         println!("cargo:rerun-if-env-changed={variable}");
@@ -19,30 +18,27 @@ fn main() {
     assert_eq!(version, HAMLIB_VERSION, "unsupported Hamlib header version");
     let include_dir = required("DEP_HAMLIB_SRC_INCLUDE");
     let target = required("TARGET");
-    let library = if target == "x86_64-pc-windows-gnu" {
-        required("DEP_HAMLIB_SRC_IMPORT_LIBRARY")
-    } else {
-        required("DEP_HAMLIB_SRC_LIBRARY_FILE")
-    };
-    let library = Path::new(&library);
+    let lib_dir = required("DEP_HAMLIB_SRC_LIBDIR");
+    let library = Path::new(&lib_dir).join(required("DEP_HAMLIB_SRC_LIBRARY_FILE"));
+    assert!(
+        library.is_file(),
+        "Hamlib static archive is missing: {library:?}"
+    );
+    println!("cargo:rustc-link-search=native={}", lib_dir);
+    println!("cargo:rustc-link-lib=static=hamlib");
     if target == "x86_64-pc-windows-gnu" {
-        assert!(
-            library.is_file(),
-            "Hamlib import archive is missing: {library:?}"
+        println!(
+            "cargo:rustc-link-search=native={}",
+            required("HAMLIB_LIBUSB_LIB_DIR")
         );
-    }
-    println!(
-        "cargo:rustc-link-search=native={}",
-        required("DEP_HAMLIB_SRC_LIBDIR")
-    );
-    println!(
-        "cargo:rustc-link-lib={}=hamlib",
-        if target == "x86_64-pc-windows-gnu" {
-            "dylib"
-        } else {
-            "static"
+        println!("cargo:rustc-link-lib=static=usb-1.0");
+        println!("cargo:rustc-link-lib=static=winpthread");
+        for library in [
+            "advapi32", "cfgmgr32", "iphlpapi", "ole32", "setupapi", "user32", "winmm", "ws2_32",
+        ] {
+            println!("cargo:rustc-link-lib=dylib={library}");
         }
-    );
+    }
     if target.contains("linux") {
         pkg_config::Config::new()
             .probe("libusb-1.0")

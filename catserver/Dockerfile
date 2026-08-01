@@ -18,8 +18,7 @@ ENV WINEPATH="C:\\users\\wix\\.dotnet\\tools" \
     HAMLIB_LIBUSB_PREFIX=/opt/hamlib-libusb/x86_64-w64-mingw32 \
     HAMLIB_LIBUSB_INCLUDE_DIR=/opt/hamlib-libusb/x86_64-w64-mingw32/include \
     HAMLIB_LIBUSB_LIB_DIR=/opt/hamlib-libusb/x86_64-w64-mingw32/lib \
-    PATH=/opt/hamlib-libusb/x86_64-w64-mingw32/bin:${PATH} \
-    CATSERVER_CI_TOOLCHAIN_CONTRACT=hamlib-4.7.2-libusb-1.0.30
+    CATSERVER_CI_TOOLCHAIN_CONTRACT=hamlib-4.7.2-libusb-1.0.30-static
 
 RUN set -ex \
     && set -o allexport && . /etc/os-release && set +o allexport \
@@ -37,7 +36,6 @@ RUN set -ex \
         g++-mingw-w64-x86-64-posix \
         libappindicator3-dev \
         libgtk-3-dev \
-        libtool \
         libusb-1.0-0 \
         libusb-1.0-0-dev \
         libxdo-dev \

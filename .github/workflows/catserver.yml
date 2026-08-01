@@ -67,7 +67,7 @@ jobs:
           path: |
             catserver/${{ env.CARGO_TARGET_DIR }}/hamlib-src
             catserver/${{ env.CARGO_TARGET_DIR }}/**/build/hamlib-src-*/out
-          key: ${{ runner.os }}-hamlib-${{ env.HAMLIB_VERSION }}-${{ env.HAMLIB_SHA256 }}-libusb-${{ env.LIBUSB_VERSION }}-${{ env.LIBUSB_SHA256 }}-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
+          key: ${{ runner.os }}-hamlib-static-${{ env.HAMLIB_VERSION }}-${{ env.HAMLIB_SHA256 }}-libusb-static-${{ env.LIBUSB_VERSION }}-${{ env.LIBUSB_SHA256 }}-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/Dockerfile', 'catserver/build.rs', 'catserver/crates/hamlib-src/**', 'catserver/scripts/build-mingw-libusb.sh', 'catserver/scripts/libusb-source-metadata.sh') }}
 
       - name: Fix git errors
         run: |
@@ -80,10 +80,9 @@ jobs:
 
       - name: Verify Hamlib build toolchain
         run: |
-          test "$CATSERVER_CI_TOOLCHAIN_CONTRACT" = "hamlib-4.7.2-libusb-1.0.30"
+          test "$CATSERVER_CI_TOOLCHAIN_CONTRACT" = "hamlib-4.7.2-libusb-1.0.30-static"
           autoconf --version
           automake --version
-          libtool --version
           make --version
           pkg-config --version
           pkg-config --modversion libusb-1.0
@@ -97,8 +96,7 @@ jobs:
           x86_64-w64-mingw32-strip --version
           x86_64-w64-mingw32-windres --version
           test -f "$HAMLIB_LIBUSB_INCLUDE_DIR/libusb-1.0/libusb.h"
-          test -f "$HAMLIB_LIBUSB_LIB_DIR/libusb-1.0.dll.a"
-          test -f "$(dirname "$HAMLIB_LIBUSB_LIB_DIR")/bin/libusb-1.0.dll"
+          test -f "$HAMLIB_LIBUSB_LIB_DIR/libusb-1.0.a"
           PKG_CONFIG_LIBDIR="$HAMLIB_LIBUSB_LIB_DIR/pkgconfig" PKG_CONFIG_PATH= pkg-config --modversion libusb-1.0
 
       - name: Run host workspace tests
@@ -109,15 +107,20 @@ jobs:
         working-directory: ./catserver
         run: cargo clippy --workspace --target $TARGET -- -D warnings
 
-      - name: Build development catserver
-        if: github.ref == 'refs/heads/dev'
+      - name: Build static catserver
         working-directory: ./catserver
         run: cargo build --workspace --target $TARGET --release
 
-      - name: Build production catserver
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Reject non-system DLL imports
         working-directory: ./catserver
-        run: cargo build --workspace --target $TARGET --release
+        run: |
+          imports=$(x86_64-w64-mingw32-objdump -p target/$TARGET/release/catserver.exe | awk '/DLL Name:/ { print tolower($3) }')
+          for dll in $imports; do
+            case "$dll" in
+              advapi32.dll|bcrypt.dll|bcryptprimitives.dll|cfgmgr32.dll|comctl32.dll|comdlg32.dll|crypt32.dll|gdi32.dll|hid.dll|imm32.dll|iphlpapi.dll|kernel32.dll|kernelbase.dll|mpr.dll|msvcrt.dll|ntdll.dll|ole32.dll|oleaut32.dll|rpcrt4.dll|secur32.dll|setupapi.dll|shell32.dll|shlwapi.dll|user32.dll|uxtheme.dll|uuid.dll|version.dll|winhttp.dll|winmm.dll|winspool.drv|winusb.dll|ws2_32.dll|wtsapi32.dll|api-ms-win-*.dll|ext-ms-win-*.dll) ;;
+              *) echo "non-system DLL import: $dll" >&2; exit 1 ;;
+            esac
+          done
 
       - name: Change build artifacts ownership
         if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')

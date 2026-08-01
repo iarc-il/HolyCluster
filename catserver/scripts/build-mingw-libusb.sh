@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-. "$(dirname "$0")/windows-runtime-metadata.sh"
+. "$(dirname "$0")/libusb-source-metadata.sh"
 : "${HAMLIB_LIBUSB_PREFIX:?set HAMLIB_LIBUSB_PREFIX to the target libusb install path}"
 
 archive="${TMPDIR:-/tmp}/libusb-${LIBUSB_VERSION}.tar.bz2"
@@ -22,9 +22,8 @@ CC=x86_64-w64-mingw32-gcc \
 CXX=x86_64-w64-mingw32-g++ \
 AR=x86_64-w64-mingw32-ar \
 RANLIB=x86_64-w64-mingw32-ranlib \
-DLLTOOL=x86_64-w64-mingw32-dlltool \
 WINDRES=x86_64-w64-mingw32-windres \
-./configure --host=x86_64-w64-mingw32 --prefix="$HAMLIB_LIBUSB_PREFIX" --disable-static --enable-shared
+./configure --host=x86_64-w64-mingw32 --prefix="$HAMLIB_LIBUSB_PREFIX" --disable-shared --enable-static
 make -j"$(nproc)"
 make install
 install -Dm644 COPYING "$HAMLIB_LIBUSB_PREFIX/share/licenses/libusb/COPYING"
@@ -33,5 +32,4 @@ printf 'libusb %s\nLicense: %s\nSource: %s\nSHA-256: %s\n' \
     > "$HAMLIB_LIBUSB_PREFIX/share/licenses/libusb/NOTICE.txt"
 
 test -f "$HAMLIB_LIBUSB_PREFIX/include/libusb-1.0/libusb.h"
-test -f "$HAMLIB_LIBUSB_PREFIX/lib/libusb-1.0.dll.a"
-test -f "$HAMLIB_LIBUSB_PREFIX/bin/libusb-1.0.dll"
+test -f "$HAMLIB_LIBUSB_PREFIX/lib/libusb-1.0.a"

@@ -1,9 +1,5 @@
 #[path = "src/archive.rs"]
 mod archive;
-#[path = "src/artifact.rs"]
-mod artifact;
-#[path = "src/libtool.rs"]
-mod libtool;
 #[path = "src/plan.rs"]
 mod plan;
 #[path = "src/source.rs"]

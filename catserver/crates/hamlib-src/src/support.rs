@@ -8,12 +8,7 @@ use thiserror::Error;
 
 use crate::{
     archive::{ArchiveError, ArchiveRequest, NetworkAccess, acquire_archive, extract_archive},
-    artifact::{ArtifactError, stage_windows_artifacts},
-    libtool::{
-        LibtoolError, normalize_libusb_dependency_paths, sanitize_installed_metadata_paths,
-        validate_windows_naming,
-    },
-    plan::{BuildPlan, BuildPlanError, HAMLIB_SHA256, HAMLIB_VERSION, LinkMode},
+    plan::{BuildPlan, BuildPlanError, HAMLIB_SHA256, HAMLIB_VERSION},
     source::{SourceOverrideError, local_source},
     target_dir::resolve_cargo_target_dir,
     toolchain::{MINGW_TOOLCHAIN, ToolchainError, validate_mingw_toolchain},
@@ -27,10 +22,6 @@ pub enum SupportError {
     Archive(#[from] ArchiveError),
     #[error(transparent)]
     Plan(#[from] BuildPlanError),
-    #[error(transparent)]
-    Artifact(#[from] ArtifactError),
-    #[error(transparent)]
-    Libtool(#[from] LibtoolError),
     #[error(transparent)]
     Toolchain(#[from] ToolchainError),
     #[error(transparent)]
@@ -72,23 +63,7 @@ pub fn build_from_environment() -> Result<(), SupportError> {
     run_configure(&source, &plan, &prefix)?;
     run_make(&source)?;
     run_make_install(&source)?;
-    if plan.is_windows() {
-        let libusb_lib = required_env_path("HAMLIB_LIBUSB_LIB_DIR")?;
-        let metadata_path = prefix.join("lib/libhamlib.la");
-        let metadata = fs::read_to_string(&metadata_path)?;
-        let metadata = normalize_libusb_dependency_paths(&metadata, &libusb_lib)?;
-        fs::write(
-            metadata_path,
-            sanitize_installed_metadata_paths(&metadata, &prefix),
-        )?;
-    }
-    let mut metadata = plan.metadata(&prefix);
-    if plan.is_windows() {
-        let (runtime_library, import_library) = stage_windows_artifacts(&source, &prefix)?;
-        metadata.runtime_library = Some(runtime_library);
-        metadata.import_library = Some(import_library);
-    }
-    emit_metadata(&metadata, &prefix);
+    emit_metadata(&plan.metadata(&prefix), &prefix);
     Ok(())
 }
 
@@ -147,7 +122,6 @@ fn run_configure(source: &Path, plan: &BuildPlan, prefix: &Path) -> Result<(), S
     run("sh", &mut command)?;
     if plan.is_windows() {
         validate_mingw_toolchain(&fs::read_to_string(source.join("config.log"))?)?;
-        validate_windows_naming(&fs::read_to_string(source.join("libtool"))?)?;
     }
     Ok(())
 }
@@ -195,24 +169,10 @@ fn emit_metadata(metadata: &crate::plan::BuildMetadata, prefix: &Path) {
     println!("cargo:root={}", prefix.display());
     println!("cargo:include={}", metadata.include_dir.display());
     println!("cargo:libdir={}", metadata.lib_dir.display());
-    println!("cargo:runtimedir={}", metadata.runtime_dir.display());
     println!("cargo:version={}", metadata.version);
-    if let Some(runtime_library) = &metadata.runtime_library {
-        println!("cargo:runtime_library={}", runtime_library.display());
-    } else {
-        println!("cargo:library_file={}", metadata.library_file);
-    }
-    if let Some(import_library) = &metadata.import_library {
-        println!("cargo:import_library={}", import_library.display());
-    }
-    match metadata.link_mode {
-        LinkMode::Static => println!(
-            "cargo:rustc-link-search=native={}",
-            metadata.lib_dir.display()
-        ),
-        LinkMode::Shared => println!(
-            "cargo:rustc-link-search=native={}",
-            metadata.lib_dir.display()
-        ),
-    }
+    println!("cargo:library_file={}", metadata.library_file);
+    println!(
+        "cargo:rustc-link-search=native={}",
+        metadata.lib_dir.display()
+    );
 }
