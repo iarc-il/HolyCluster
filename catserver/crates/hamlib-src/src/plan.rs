@@ -2,10 +2,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
-pub const HAMLIB_VERSION: &str = "4.7.2";
-pub const HAMLIB_SHA256: &str = "ae1fcf2dbc80ea0786ea8f047b09399c3f7737d1930442f61a031708ed33e88f";
-pub const HAMLIB_ARCHIVE_URL: &str =
-    "https://github.com/Hamlib/Hamlib/releases/download/4.7.2/hamlib-4.7.2.tar.gz";
+use crate::package::HAMLIB;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LinkMode {
@@ -25,6 +22,13 @@ pub struct BuildMetadata {
     pub lib_dir: PathBuf,
     pub library_file: String,
     pub link_mode: LinkMode,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LibusbMetadata {
+    pub include_dir: PathBuf,
+    pub lib_dir: PathBuf,
+    pub artifact: PathBuf,
 }
 
 #[derive(Debug, Error)]
@@ -61,7 +65,7 @@ impl BuildPlan {
 
     pub fn metadata(&self, prefix: &Path) -> BuildMetadata {
         BuildMetadata {
-            version: HAMLIB_VERSION,
+            version: HAMLIB.version,
             include_dir: prefix.join("include"),
             lib_dir: prefix.join("lib"),
             library_file: "libhamlib.a".to_owned(),
@@ -71,5 +75,14 @@ impl BuildPlan {
 
     pub const fn is_windows(&self) -> bool {
         self.windows_target
+    }
+}
+
+pub fn libusb_metadata(prefix: &Path) -> LibusbMetadata {
+    let lib_dir = prefix.join("lib");
+    LibusbMetadata {
+        include_dir: prefix.join("include"),
+        artifact: lib_dir.join("libusb-1.0.a"),
+        lib_dir,
     }
 }

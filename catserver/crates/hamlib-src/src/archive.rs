@@ -1,4 +1,5 @@
 use {
+    bzip2::read::BzDecoder,
     flate2::read::GzDecoder,
     sha2::{Digest, Sha256},
     std::{
@@ -10,8 +11,6 @@ use {
     tar::Archive,
     thiserror::Error,
 };
-
-use crate::plan::{HAMLIB_ARCHIVE_URL, HAMLIB_SHA256};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkAccess {
@@ -50,22 +49,6 @@ pub enum ArchiveError {
     Io(#[from] io::Error),
 }
 
-impl ArchiveRequest {
-    pub fn official(
-        cache_path: PathBuf,
-        override_archive: Option<PathBuf>,
-        network: NetworkAccess,
-    ) -> Self {
-        Self {
-            cache_path,
-            override_archive,
-            expected_sha256: HAMLIB_SHA256.to_owned(),
-            network,
-            url: HAMLIB_ARCHIVE_URL.to_owned(),
-        }
-    }
-}
-
 pub fn acquire_archive(request: &ArchiveRequest) -> Result<PathBuf, ArchiveError> {
     if let Some(path) = &request.override_archive {
         verify_sha256(path, &request.expected_sha256)?;
@@ -96,8 +79,19 @@ pub fn extract_archive(
     root_name: &str,
 ) -> Result<PathBuf, ArchiveError> {
     fs::create_dir_all(destination)?;
+    let mut magic = [0; 2];
+    File::open(archive_path)?.read_exact(&mut magic)?;
     let archive_file = File::open(archive_path)?;
-    let mut archive = Archive::new(GzDecoder::new(archive_file));
+    let reader: Box<dyn Read> = match magic {
+        [0x1f, 0x8b] => Box::new(GzDecoder::new(archive_file)),
+        [b'B', b'Z'] => Box::new(BzDecoder::new(archive_file)),
+        _ => {
+            return Err(ArchiveError::Io(io::Error::other(
+                "unsupported archive compression",
+            )));
+        }
+    };
+    let mut archive = Archive::new(reader);
     let mut found_root = false;
     for entry_result in archive.entries()? {
         let mut entry = entry_result?;

@@ -2,9 +2,9 @@
 
 HolyCluster can be built with Hamlib 4.7.2 and libusb 1.0.30. Hamlib and libusb are licensed under LGPL-2.1-or-later.
 
-Windows releases link Hamlib and libusb statically into `HolyCluster.exe`; they do not distribute third-party runtime DLLs.
+Windows builds rebuild and link Hamlib and libusb statically into `HolyCluster.exe`; they do not distribute third-party runtime DLLs.
 
-The default build downloads only this pinned Hamlib release archive:
+The default Windows build downloads, verifies, and rebuilds these pinned release archives:
 
 - Source: `https://github.com/Hamlib/Hamlib/releases/download/4.7.2/hamlib-4.7.2.tar.gz`
 - SHA-256: `ae1fcf2dbc80ea0786ea8f047b09399c3f7737d1930442f61a031708ed33e88f`

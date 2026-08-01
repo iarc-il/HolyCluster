@@ -1,8 +1,4 @@
-use std::{
-    env,
-    path::Path,
-    process::Command,
-};
+use std::{env, path::Path, process::Command};
 
 const HAMLIB_VERSION: &str = "4.7.2";
 
@@ -12,7 +8,9 @@ fn main() {
         "DEP_HAMLIB_SRC_INCLUDE",
         "DEP_HAMLIB_SRC_LIBDIR",
         "DEP_HAMLIB_SRC_LIBRARY_FILE",
-        "HAMLIB_LIBUSB_LIB_DIR",
+        "DEP_HAMLIB_SRC_LIBUSB_INCLUDE",
+        "DEP_HAMLIB_SRC_LIBUSB_LIBDIR",
+        "DEP_HAMLIB_SRC_LIBUSB_ARTIFACT",
         "TARGET",
     ] {
         println!("cargo:rerun-if-env-changed={variable}");
@@ -31,10 +29,19 @@ fn main() {
     println!("cargo:rustc-link-search=native={}", lib_dir);
     println!("cargo:rustc-link-lib=static=hamlib");
     if target == "x86_64-pc-windows-gnu" {
+        let libusb_include = required("DEP_HAMLIB_SRC_LIBUSB_INCLUDE");
+        assert!(
+            Path::new(&libusb_include)
+                .join("libusb-1.0/libusb.h")
+                .is_file(),
+            "libusb header is missing from {libusb_include}"
+        );
         println!(
             "cargo:rustc-link-search=native={}",
-            required("HAMLIB_LIBUSB_LIB_DIR")
+            required("DEP_HAMLIB_SRC_LIBUSB_LIBDIR")
         );
+        let libusb = required("DEP_HAMLIB_SRC_LIBUSB_ARTIFACT");
+        assert_static_archive(Path::new(&libusb), "libusb");
         println!(
             "cargo:rustc-link-search=native={}",
             target_library_directory("libwinpthread.a")
@@ -60,6 +67,15 @@ fn main() {
         .compile("hamlib_sys_caps_metadata");
 }
 
+fn assert_static_archive(path: &Path, name: &str) {
+    let bytes = std::fs::read(path)
+        .unwrap_or_else(|error| panic!("{name} static archive is missing at {path:?}: {error}"));
+    assert!(
+        bytes.starts_with(b"!<arch>\n"),
+        "{name} archive is not a static ar archive: {path:?}"
+    );
+}
+
 fn required(name: &str) -> String {
     env::var(name).unwrap_or_else(|_| panic!("missing Hamlib source metadata {name}"))
 }
@@ -73,7 +89,10 @@ fn target_library_directory(name: &str) -> String {
     let path = String::from_utf8(output.stdout)
         .unwrap_or_else(|error| panic!("invalid target compiler output for {name}: {error}"));
     let path = Path::new(path.trim());
-    assert!(path.is_file(), "target runtime archive is missing: {path:?}");
+    assert!(
+        path.is_file(),
+        "target runtime archive is missing: {path:?}"
+    );
     path.parent()
         .unwrap_or_else(|| panic!("target runtime archive has no parent: {path:?}"))
         .display()

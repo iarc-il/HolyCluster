@@ -14,11 +14,7 @@ ENV WINEPATH="C:\\users\\wix\\.dotnet\\tools" \
     WINEARCH=win32 \
     WINEDEBUG=-all \
     DOTNET_CLI_TELEMETRY_OPTOUT=1 \
-    DOTNET_GENERATE_ASPNET_CERTIFICATE=false \
-    HAMLIB_LIBUSB_PREFIX=/opt/hamlib-libusb/x86_64-w64-mingw32 \
-    HAMLIB_LIBUSB_INCLUDE_DIR=/opt/hamlib-libusb/x86_64-w64-mingw32/include \
-    HAMLIB_LIBUSB_LIB_DIR=/opt/hamlib-libusb/x86_64-w64-mingw32/lib \
-    CATSERVER_CI_TOOLCHAIN_CONTRACT=hamlib-4.7.2-libusb-1.0.30-static
+    DOTNET_GENERATE_ASPNET_CERTIFICATE=false
 
 RUN set -ex \
     && set -o allexport && . /etc/os-release && set +o allexport \
@@ -28,7 +24,6 @@ RUN set -ex \
         autoconf \
         automake \
         binutils-mingw-w64-x86-64 \
-        bzip2 \
         build-essential \
         ca-certificates \
         curl \
@@ -63,13 +58,6 @@ RUN set -ex \
     && printf '#!/bin/sh\nexec wine wix.exe $@' > /usr/local/bin/wix \
     && chmod +x /usr/local/bin/dotnet /usr/local/bin/wix \
     && ln -sf /usr/local/bin/wix /usr/local/bin/wix.exe
-
-COPY scripts/build-mingw-libusb.sh scripts/libusb-source-metadata.sh /usr/local/bin/
-
-RUN mv /usr/local/bin/build-mingw-libusb.sh /usr/local/bin/build-mingw-libusb
-
-RUN chmod +x /usr/local/bin/build-mingw-libusb \
-    && /usr/local/bin/build-mingw-libusb
 
 USER wix
 WORKDIR /home/wix

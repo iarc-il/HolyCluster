@@ -18,12 +18,6 @@ on:
 
 env:
   CARGO_TARGET_DIR: target
-  HAMLIB_SHA256: ae1fcf2dbc80ea0786ea8f047b09399c3f7737d1930442f61a031708ed33e88f
-  HAMLIB_VERSION: 4.7.2
-  HAMLIB_LIBUSB_INCLUDE_DIR: /opt/hamlib-libusb/x86_64-w64-mingw32/include
-  HAMLIB_LIBUSB_LIB_DIR: /opt/hamlib-libusb/x86_64-w64-mingw32/lib
-  LIBUSB_SHA256: fea36f34f9156400209595e300840767ab1a385ede1dc7ee893015aea9c6dbaf
-  LIBUSB_VERSION: 1.0.30
   TARGET: x86_64-pc-windows-gnu
 
 jobs:
@@ -67,7 +61,7 @@ jobs:
           path: |
             catserver/${{ env.CARGO_TARGET_DIR }}/hamlib-src
             catserver/${{ env.CARGO_TARGET_DIR }}/**/build/hamlib-src-*/out
-          key: ${{ runner.os }}-hamlib-static-${{ env.HAMLIB_VERSION }}-${{ env.HAMLIB_SHA256 }}-libusb-static-${{ env.LIBUSB_VERSION }}-${{ env.LIBUSB_SHA256 }}-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/Dockerfile', 'catserver/build.rs', 'catserver/crates/hamlib-src/**', 'catserver/scripts/build-mingw-libusb.sh', 'catserver/scripts/libusb-source-metadata.sh') }}
+          key: ${{ runner.os }}-hamlib-static-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/Dockerfile', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
 
       - name: Fix git errors
         run: |
@@ -80,12 +74,10 @@ jobs:
 
       - name: Verify Hamlib build toolchain
         run: |
-          test "$CATSERVER_CI_TOOLCHAIN_CONTRACT" = "hamlib-4.7.2-libusb-1.0.30-static"
           autoconf --version
           automake --version
           make --version
           pkg-config --version
-          pkg-config --modversion libusb-1.0
           gcc --version
           x86_64-w64-mingw32-gcc --version
           x86_64-w64-mingw32-g++ --version
@@ -95,9 +87,6 @@ jobs:
           x86_64-w64-mingw32-ranlib --version
           x86_64-w64-mingw32-strip --version
           x86_64-w64-mingw32-windres --version
-          test -f "$HAMLIB_LIBUSB_INCLUDE_DIR/libusb-1.0/libusb.h"
-          test -f "$HAMLIB_LIBUSB_LIB_DIR/libusb-1.0.a"
-          PKG_CONFIG_LIBDIR="$HAMLIB_LIBUSB_LIB_DIR/pkgconfig" PKG_CONFIG_PATH= pkg-config --modversion libusb-1.0
 
       - name: Run host workspace tests
         working-directory: ./catserver

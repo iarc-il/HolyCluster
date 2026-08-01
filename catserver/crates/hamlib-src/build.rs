@@ -1,5 +1,7 @@
 #[path = "src/archive.rs"]
 mod archive;
+#[path = "src/package.rs"]
+mod package;
 #[path = "src/plan.rs"]
 mod plan;
 #[path = "src/source.rs"]
