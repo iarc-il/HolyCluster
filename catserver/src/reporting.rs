@@ -89,7 +89,7 @@ pub fn build_status_packet(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_status_packet, Mode};
+    use super::{Mode, build_status_packet};
 
     fn read_str(packet: &[u8], offset: &mut usize) -> Vec<u8> {
         let length = u32::from_be_bytes(packet[*offset..*offset + 4].try_into().unwrap()) as usize;
