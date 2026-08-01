@@ -39,10 +39,7 @@ export function scroll_frequency_range(range, delta_y, lower_bound, upper_bound)
 
 export function zoom_frequency_range(range, focus, delta_y, lower_bound, upper_bound) {
     const full_span = upper_bound - lower_bound;
-    const span = Math.min(
-        full_span,
-        (range.max - range.min) * Math.exp(delta_y / 300),
-    );
+    const span = Math.min(full_span, (range.max - range.min) * Math.exp(delta_y / 300));
     const focus_frequency = range.min + focus * (range.max - range.min);
 
     return constrain_frequency_range(
@@ -297,7 +294,8 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
 
     function update_frequency_range(update) {
         set_frequency_range(previous => {
-            const range = previous?.band === band ? previous : { band, min: min_freq, max: max_freq };
+            const range =
+                previous?.band === band ? previous : { band, min: min_freq, max: max_freq };
             return { band, ...update(range) };
         });
     }
@@ -406,7 +404,9 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                 <>
                     <svg
                         ref={chart_ref}
-                        className={"w-full h-[85%] left-0 box-border cursor-grab active:cursor-grabbing"}
+                        className={
+                            "w-full h-[85%] left-0 box-border cursor-grab active:cursor-grabbing"
+                        }
                         data-tour="band-bar-chart"
                         style={{ background: colors.theme.background }}
                         onWheel={handle_wheel}
