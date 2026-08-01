@@ -55,10 +55,10 @@ async fn send_spot(dx: &str, de: &str, freq: u64, mode: &str, port: u16) -> Resu
         "FT4" => crate::reporting::Mode::FT4,
         "CW" => crate::reporting::Mode::CW,
         "SSB" => crate::reporting::Mode::Ssb,
-        "DIGI" => crate::reporting::Mode::Rtty,
+        "DIGI" => crate::reporting::Mode::Digi,
         value => bail!("Unknown mode: {value}"),
     };
-    let packet = crate::reporting::build_status_packet(dx, de, freq, mode, "0", "", "");
+    let packet = crate::reporting::build_status_packet(dx, de, freq, mode, "", "");
     let socket = UdpSocket::bind("127.0.0.1:0").await?;
     socket
         .send_to(&packet, format!("127.0.0.1:{port}"))

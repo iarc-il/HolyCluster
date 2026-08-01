@@ -11,6 +11,7 @@ pub enum Mode {
     CW,
     Ssb,
     Rtty,
+    Digi,
 }
 
 impl Mode {
@@ -20,7 +21,16 @@ impl Mode {
             Mode::FT4 => b"FT4",
             Mode::CW => b"CW",
             Mode::Ssb => b"SSB",
-            Mode::Rtty => b"RTTY",
+            Mode::Rtty | Mode::Digi => b"RTTY",
+        }
+    }
+
+    fn report(&self) -> &[u8] {
+        match self {
+            Mode::FT8 | Mode::FT4 => b"+00",
+            Mode::CW | Mode::Rtty => b"599",
+            Mode::Ssb => b"59",
+            Mode::Digi => b"",
         }
     }
 }
@@ -30,7 +40,6 @@ pub fn build_status_packet(
     de_callsign: &str,
     freq: u64,
     mode: Mode,
-    report: &str,
     dx_grid: &str,
     de_grid: &str,
 ) -> Vec<u8> {
@@ -52,7 +61,7 @@ pub fn build_status_packet(
     write_str(&mut packet, mode.as_bytes());
     write_str(&mut packet, dx_callsign.as_bytes());
     // Report
-    write_str(&mut packet, report.as_bytes());
+    write_str(&mut packet, mode.report());
     // tx mode
     write_str(&mut packet, mode.as_bytes());
 
@@ -76,4 +85,37 @@ pub fn build_status_packet(
     packet.extend(b"\xFF\xFF\xFF\xFF");
 
     packet
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_status_packet, Mode};
+
+    fn read_str(packet: &[u8], offset: &mut usize) -> Vec<u8> {
+        let length = u32::from_be_bytes(packet[*offset..*offset + 4].try_into().unwrap()) as usize;
+        *offset += 4;
+        let value = packet[*offset..*offset + length].to_vec();
+        *offset += length;
+        value
+    }
+
+    fn packet_report(mode: Mode) -> Vec<u8> {
+        let packet = build_status_packet("DX1ABC", "DE1ABC", 14_074_000, mode, "", "");
+        let mut offset = 12;
+        read_str(&packet, &mut offset);
+        offset += 8;
+        read_str(&packet, &mut offset);
+        read_str(&packet, &mut offset);
+        read_str(&packet, &mut offset)
+    }
+
+    #[test]
+    fn sets_report_for_each_mode() {
+        assert_eq!(packet_report(Mode::FT8), b"+00");
+        assert_eq!(packet_report(Mode::FT4), b"+00");
+        assert_eq!(packet_report(Mode::CW), b"599");
+        assert_eq!(packet_report(Mode::Rtty), b"599");
+        assert_eq!(packet_report(Mode::Ssb), b"59");
+        assert_eq!(packet_report(Mode::Digi), b"");
+    }
 }
