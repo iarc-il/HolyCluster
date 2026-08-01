@@ -347,6 +347,67 @@ def watch() -> None:
         _release_lock()
 
 
+def status() -> None:
+    recs = load_state(config.state_path())
+    if not recs:
+        print("no tasks")
+        return
+    width = max(len(r.slug) for r in recs)
+    for r in recs:
+        pr = f"#{r.pr_number}" if r.pr_number else "-"
+        extra = f" ci_fixes={r.ci_fix_attempts}" if r.ci_fix_attempts else ""
+        print(f"{r.id}  {r.phase:<12} {pr:>6}  {r.slug:<{width}}{extra}")
+
+
+def _match(recs, keys):
+    return [r for r in recs if r.id in keys or r.slug in keys]
+
+
+def retry(keys: list[str]) -> None:
+    """Give a blocked task a way back into the lifecycle. decide() never
+    auto-unblocks, and _guard blocks on any exception including transient gh
+    failures, so without this the only recovery is hand-editing state.json.
+    Deliberately does NOT take the lock: unblocking a task while `watch` runs
+    is the point, and a live watcher picks the record up on its next poll."""
+    recs = load_state(config.state_path())
+    targets = [r for r in _match(recs, keys) if r.phase == "blocked"]
+    if not targets:
+        print("retry: no matching blocked task")
+        return
+    ids = {r.id for r in targets}
+
+    def mutate(rs):
+        for r in rs:
+            if r.id in ids:
+                r.phase = "ci" if r.pr_number else "queued"
+                r.ci_fix_attempts = 0
+                r.no_check_polls = 0
+                print(f"retry: {r.slug} -> {r.phase}")
+    _update(mutate)
+
+
+def cancel(keys: list[str], close_pr: bool) -> None:
+    """Abandon a task: kill its agent window, reclaim the worktree and branch,
+    and drop the record. Leaves any open PR alone unless --close-pr, since
+    closing it is an outward-facing action worth asking for explicitly."""
+    recs = load_state(config.state_path())
+    targets = _match(recs, keys)
+    if not targets:
+        print("cancel: no matching task")
+        return
+    for rec in targets:
+        github.remove_worktree(rec.worktree_path, rec.branch)
+        if rec.pr_number:
+            if close_pr:
+                github.close_pr(rec.pr_number)
+                print(f"cancel: closed PR #{rec.pr_number}")
+            else:
+                print(f"cancel: PR #{rec.pr_number} left open (--close-pr to close it)")
+        _update(lambda rs, i=rec.id: rs.__setitem__(
+            slice(None), [r for r in rs if r.id != i]))
+        print(f"cancelled: {rec.slug}")
+
+
 def _migrate_legacy_state() -> None:
     """One-time safety net: earlier builds wrote state under the *worktree* root
     (repo_root) rather than the shared main-checkout root. If a stray legacy file
@@ -378,8 +439,14 @@ def main(argv=None) -> int:
     n.add_argument("task", nargs="?")
     n.add_argument("-f", "--file")
     sub.add_parser("watch")
+    sub.add_parser("status")
     r = sub.add_parser("resume")
     r.add_argument("slug", nargs="*", help="id(s) or slug(s) to resume; omit to resume all non-done tasks")
+    t = sub.add_parser("retry")
+    t.add_argument("slug", nargs="+", help="id(s) or slug(s) of blocked task(s) to put back in the lifecycle")
+    c = sub.add_parser("cancel")
+    c.add_argument("slug", nargs="+", help="id(s) or slug(s) to abandon")
+    c.add_argument("--close-pr", action="store_true", help="also close the task's PR on GitHub")
     args = p.parse_args(argv)
     _migrate_legacy_state()
     _backfill_ids()
@@ -398,5 +465,14 @@ def main(argv=None) -> int:
         return 0
     if args.cmd == "resume":
         resume(args.slug or None)
+        return 0
+    if args.cmd == "status":
+        status()
+        return 0
+    if args.cmd == "retry":
+        retry(args.slug)
+        return 0
+    if args.cmd == "cancel":
+        cancel(args.slug, args.close_pr)
         return 0
     return 1
