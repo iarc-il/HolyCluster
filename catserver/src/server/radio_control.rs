@@ -55,6 +55,7 @@ async fn send_spot(dx: &str, de: &str, freq: u64, mode: &str, port: u16) -> Resu
         "FT4" => crate::reporting::Mode::FT4,
         "CW" => crate::reporting::Mode::CW,
         "SSB" => crate::reporting::Mode::Ssb,
+        "RTTY" => crate::reporting::Mode::Rtty,
         "DIGI" => crate::reporting::Mode::Digi,
         value => bail!("Unknown mode: {value}"),
     };
