@@ -80,18 +80,33 @@ def ensure_committed_and_pushed(worktree_path: str, branch: str, message: str) -
 
 
 def _ci_status(pr_number: int) -> str:
-    raw = subprocess.run(
-        ["gh", "pr", "checks", str(pr_number), "--json", "state"],
-        capture_output=True, text=True,
-    )
+    # Use statusCheckRollup via `gh pr view` (exits 0). `gh pr checks --json` exits
+    # NON-ZERO and prints nothing when CI is red/pending, which made a failing CI
+    # misread as "none" so FIX_CI never dispatched.
+    raw = subprocess.run(["gh", "pr", "view", str(pr_number), "--json", "statusCheckRollup"],
+                         capture_output=True, text=True)
     if raw.returncode != 0 or not raw.stdout.strip():
         return "none"
-    states = [c["state"] for c in json.loads(raw.stdout)]
-    if not states:
+    checks = json.loads(raw.stdout).get("statusCheckRollup") or []
+    if not checks:
         return "none"
-    if any(s in ("FAILURE", "ERROR", "CANCELLED", "TIMED_OUT") for s in states):
+
+    def one(c):
+        if c.get("__typename") == "CheckRun":
+            if c.get("status") != "COMPLETED":
+                return "pending"
+            return "success" if c.get("conclusion") in ("SUCCESS", "NEUTRAL", "SKIPPED") else "failure"
+        state = c.get("state")  # legacy StatusContext
+        if state == "SUCCESS":
+            return "success"
+        if state in ("PENDING", "EXPECTED"):
+            return "pending"
         return "failure"
-    if any(s in ("PENDING", "QUEUED", "IN_PROGRESS", "EXPECTED") for s in states):
+
+    statuses = [one(c) for c in checks]
+    if any(s == "failure" for s in statuses):
+        return "failure"
+    if any(s == "pending" for s in statuses):
         return "pending"
     return "success"
 
