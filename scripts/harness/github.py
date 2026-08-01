@@ -30,10 +30,13 @@ def create_worktree(slug: str, branch: str) -> str:
 def remove_worktree(worktree_path: str, branch: str) -> None:
     # Close the task's tmux window first (kills any lingering shell/agent that is
     # cwd'd in the worktree), then remove the worktree, branch, and prune.
-    from .agent import SESSION
-    window = Path(worktree_path).name
-    subprocess.run(["tmux", "kill-window", "-t", f"{SESSION}:{window}"], capture_output=True)
-    subprocess.run(["git", "worktree", "remove", "--force", worktree_path])
+    # An empty path means no worktree was ever created — skip straight to the
+    # branch cleanup rather than letting tmux/git act on an empty target.
+    if worktree_path:
+        from .agent import SESSION
+        window = Path(worktree_path).name
+        subprocess.run(["tmux", "kill-window", "-t", f"{SESSION}:{window}"], capture_output=True)
+        subprocess.run(["git", "worktree", "remove", "--force", worktree_path])
     subprocess.run(["git", "branch", "-D", branch])
     subprocess.run(["git", "worktree", "prune"])
 

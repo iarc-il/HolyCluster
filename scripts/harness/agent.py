@@ -15,7 +15,12 @@ def _ensure_session() -> None:
 
 
 def _window_name(worktree_path: str) -> str:
-    return Path(worktree_path).name
+    # An empty name would make tmux targets like "agents:" resolve to the session's
+    # ACTIVE window, so a stray empty path could kill an unrelated task's agent.
+    name = Path(worktree_path).name
+    if not name:
+        raise ValueError(f"cannot derive a tmux window name from {worktree_path!r}")
+    return name
 
 
 def _status_file(worktree_path: str) -> Path:
@@ -26,6 +31,8 @@ def window_alive(worktree_path: str) -> bool:
     """True if this task's tmux window still exists. NOTE: the window lingers open
     (interactive shell via `exec bash`) AFTER opencode exits, so this alone is NOT
     a 'still working' signal — use is_running() for that."""
+    if not worktree_path:
+        return False
     r = subprocess.run(["tmux", "list-windows", "-t", SESSION, "-F", "#{window_name}"],
                        capture_output=True, text=True)
     return r.returncode == 0 and _window_name(worktree_path) in r.stdout.split()
