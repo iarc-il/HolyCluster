@@ -52,14 +52,18 @@ def _guard(rec, fn, *args) -> None:
 
 
 def _job_implement(rec: PRRecord) -> None:
+    # Idempotent throughout: create_worktree reattaches to an existing branch and
+    # ensure_committed_and_pushed/find_existing_pr tolerate a half-finished prior
+    # attempt, so a restarted implement never orphans an already-open PR.
     path = github.create_worktree(rec.slug, rec.branch)
     _set(rec.id, worktree_path=path, phase="implementing")
     agent.run(path, agent.IMPLEMENT_TMPL(rec.task))
-    if not github.commit_and_push(path, rec.branch, rec.task):
+    if not github.ensure_committed_and_pushed(path, rec.branch, rec.task):
         _set(rec.id, phase="blocked")
         notify.desktop("Harness: no changes", f"{rec.slug} produced no diff — blocked")
         return
-    pr = github.open_pr(path, rec.branch, rec.task, f"Automated PR for: {rec.task}")
+    pr = github.find_existing_pr(rec.branch) or github.open_pr(
+        path, rec.branch, rec.task, f"Automated PR for: {rec.task}")
     _set(rec.id, pr_number=pr, phase="ci")
 
 

@@ -20,10 +20,24 @@ def ci_summary(pr_number: int) -> str:
                           capture_output=True, text=True).stdout.strip()
 
 
+def _ref_exists(ref: str) -> bool:
+    return subprocess.run(["git", "rev-parse", "--verify", "--quiet", ref],
+                          capture_output=True).returncode == 0
+
+
 def create_worktree(slug: str, branch: str) -> str:
+    """Attach a worktree to `branch`, reusing it if it already exists. A restart
+    after the worktree was removed must not fail on `add -b` and orphan a branch
+    that may already be pushed with an open PR."""
     path = str(worktree_parent() / slug)
     _run(["git", "fetch", "origin", BASE_BRANCH])
-    _run(["git", "worktree", "add", "-b", branch, path, f"origin/{BASE_BRANCH}"])
+    subprocess.run(["git", "fetch", "origin", branch], capture_output=True)
+    if _ref_exists(f"refs/heads/{branch}"):
+        _run(["git", "worktree", "add", path, branch])
+    elif _ref_exists(f"refs/remotes/origin/{branch}"):
+        _run(["git", "worktree", "add", "-b", branch, path, f"origin/{branch}"])
+    else:
+        _run(["git", "worktree", "add", "-b", branch, path, f"origin/{BASE_BRANCH}"])
     return path
 
 
