@@ -69,7 +69,12 @@ def run(worktree_path: str, prompt: str) -> None:
                     "bash", "-lc", inner], check=True)
     notify.desktop("Harness: agent started", f"tmux attach -t {SESSION} (window: {window})")
     print(f"[harness] agent running — tmux attach -t {SESSION}, window '{window}'")
+    # Wait on the marker, but give up if the window disappears (human closed it,
+    # tmux server restarted): waiting forever would pin a pool worker for good and
+    # silently starve the harness of its MAX_CONCURRENT slots.
     while not status_file.exists():
+        if not window_alive(worktree_path):
+            raise RuntimeError(f"tmux window '{window}' closed before the agent finished")
         time.sleep(POLL_SECONDS)
     code = int(status_file.read_text().strip())
     if code != 0:
