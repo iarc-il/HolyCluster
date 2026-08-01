@@ -9,7 +9,7 @@ from typing import Optional
 
 PHASES = frozenset({
     "queued", "implementing", "ci", "ci_fixing",
-    "await_review", "addressing", "blocked", "done",
+    "await_review", "addressing", "blocked", "done", "closed",
 })
 
 

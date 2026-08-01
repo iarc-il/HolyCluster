@@ -169,15 +169,22 @@ def _latest_actionable_review(pr_number: int, last_id: Optional[int]) -> Optiona
 
 
 def fetch_facts(pr_number: int, last_handled_review_id: Optional[int]) -> GHFacts:
-    merged = _run(["gh", "pr", "view", str(pr_number), "--json", "state",
-                   "--jq", ".state"]) == "MERGED"
-    if merged:
+    state = _run(["gh", "pr", "view", str(pr_number), "--json", "state", "--jq", ".state"])
+    if state == "MERGED":
         return GHFacts(ci_status="none", new_review=None, merged=True)
+    # A PR closed without merging is a rejection: terminal, and its worktree and
+    # branch must be reclaimed instead of being polled forever.
+    if state == "CLOSED":
+        return GHFacts(ci_status="none", new_review=None, merged=False, closed=True)
     return GHFacts(
         ci_status=_ci_status(pr_number),
         new_review=_latest_actionable_review(pr_number, last_handled_review_id),
         merged=False,
     )
+
+
+def close_pr(pr_number: int) -> None:
+    subprocess.run(["gh", "pr", "close", str(pr_number)], capture_output=True)
 
 
 def rerequest_review(pr_number: int) -> None:

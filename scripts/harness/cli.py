@@ -90,6 +90,14 @@ def _cleanup(rec: PRRecord) -> None:
     notify.desktop("Harness: merged", f"{rec.slug} merged and cleaned up")
 
 
+def _abandon(rec: PRRecord) -> None:
+    """Terminal state for a PR closed without merging: reclaim the worktree and
+    branch, but keep the record distinguishable from a merged one."""
+    github.remove_worktree(rec.worktree_path, rec.branch)
+    _set(rec.id, phase="closed")
+    notify.desktop("Harness: PR closed", f"{rec.slug} closed unmerged — cleaned up")
+
+
 def _track_missing_checks(rec: PRRecord, facts) -> None:
     """Count consecutive polls that saw no CI checks, so decide() can tell a PR
     that will never have checks from one whose checks have not registered yet."""
@@ -159,6 +167,10 @@ def _resume_one(rec: PRRecord) -> None:
             print(f"[resume] {rec.slug}: PR merged -> cleanup")
             _cleanup(rec)
             return
+        if facts.closed:
+            print(f"[resume] {rec.slug}: PR closed unmerged -> abandon")
+            _abandon(rec)
+            return
         _track_missing_checks(rec, facts)
         if rec.phase == "queued":
             _job_implement(rec)
@@ -185,6 +197,8 @@ def _resume_one(rec: PRRecord) -> None:
                 notify.desktop("Harness: CI blocked", f"PR #{rec.pr_number} — {rec.slug} needs you")
             elif action == Action.CLEANUP:
                 _cleanup(rec)
+            elif action == Action.ABANDON:
+                _abandon(rec)
             else:
                 print(f"[resume] {rec.slug}: nothing to do")
     except Exception as e:  # noqa: BLE001 - same job-boundary catch-all as _guard
@@ -205,7 +219,8 @@ def resume(slugs: list[str] | None) -> None:
     try:
         recs = load_state(config.state_path())
         targets = [r for r in recs
-                   if (not slugs or r.slug in slugs or r.id in slugs) and r.phase != "done"]
+                   if (not slugs or r.slug in slugs or r.id in slugs)
+                   and r.phase not in ("done", "closed")]
         if not targets:
             print("resume: nothing to do")
             return
@@ -224,7 +239,7 @@ def _adopt_running(rec: PRRecord) -> None:
 
 
 def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
-    if rec.id in inflight or rec.phase == "done":
+    if rec.id in inflight or rec.phase in ("done", "closed"):
         return
     facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
              if rec.pr_number else GHFacts("none", None, False))
@@ -233,6 +248,9 @@ def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
     # This runs on every tick, so the first poll at startup reconciles too.
     if facts.merged:
         _cleanup(rec)
+        return
+    if facts.closed:
+        _abandon(rec)
         return
     _track_missing_checks(rec, facts)
     if rec.phase in ("implementing", "ci_fixing", "addressing"):
@@ -261,6 +279,8 @@ def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
         notify.desktop("Harness: CI blocked", f"PR #{rec.pr_number} — {rec.slug} needs you")
     elif action == Action.CLEANUP:
         _cleanup(rec)
+    elif action == Action.ABANDON:
+        _abandon(rec)
 
 
 def _lock_path():

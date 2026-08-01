@@ -14,6 +14,7 @@ class Action(Enum):
     ADDRESS_REVIEW = auto()
     BLOCK = auto()
     CLEANUP = auto()
+    ABANDON = auto()
 
 
 @dataclass
@@ -28,11 +29,14 @@ class GHFacts:
     ci_status: str  # "none" | "pending" | "success" | "failure"
     new_review: Optional[Review]
     merged: bool
+    closed: bool = False
 
 
 def decide(record: PRRecord, facts: GHFacts) -> Action:
     if facts.merged:
         return Action.CLEANUP
+    if facts.closed:
+        return Action.ABANDON
     if record.phase == "blocked":
         return Action.NONE
     if record.phase == "queued":
