@@ -1,4 +1,8 @@
-use std::{env, path::Path};
+use std::{
+    env,
+    path::Path,
+    process::Command,
+};
 
 const HAMLIB_VERSION: &str = "4.7.2";
 
@@ -31,6 +35,10 @@ fn main() {
             "cargo:rustc-link-search=native={}",
             required("HAMLIB_LIBUSB_LIB_DIR")
         );
+        println!(
+            "cargo:rustc-link-search=native={}",
+            target_library_directory("libwinpthread.a")
+        );
         println!("cargo:rustc-link-lib=static=usb-1.0");
         println!("cargo:rustc-link-lib=static=winpthread");
         for library in [
@@ -54,4 +62,20 @@ fn main() {
 
 fn required(name: &str) -> String {
     env::var(name).unwrap_or_else(|_| panic!("missing Hamlib source metadata {name}"))
+}
+
+fn target_library_directory(name: &str) -> String {
+    let output = Command::new("x86_64-w64-mingw32-gcc")
+        .arg(format!("-print-file-name={name}"))
+        .output()
+        .unwrap_or_else(|error| panic!("failed to locate {name}: {error}"));
+    assert!(output.status.success(), "failed to locate {name}");
+    let path = String::from_utf8(output.stdout)
+        .unwrap_or_else(|error| panic!("invalid target compiler output for {name}: {error}"));
+    let path = Path::new(path.trim());
+    assert!(path.is_file(), "target runtime archive is missing: {path:?}");
+    path.parent()
+        .unwrap_or_else(|| panic!("target runtime archive has no parent: {path:?}"))
+        .display()
+        .to_string()
 }

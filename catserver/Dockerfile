@@ -64,7 +64,9 @@ RUN set -ex \
     && chmod +x /usr/local/bin/dotnet /usr/local/bin/wix \
     && ln -sf /usr/local/bin/wix /usr/local/bin/wix.exe
 
-COPY scripts/build-mingw-libusb.sh /usr/local/bin/build-mingw-libusb
+COPY scripts/build-mingw-libusb.sh scripts/libusb-source-metadata.sh /usr/local/bin/
+
+RUN mv /usr/local/bin/build-mingw-libusb.sh /usr/local/bin/build-mingw-libusb
 
 RUN chmod +x /usr/local/bin/build-mingw-libusb \
     && /usr/local/bin/build-mingw-libusb
