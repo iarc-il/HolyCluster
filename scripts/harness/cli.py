@@ -81,6 +81,14 @@ def _job_address(rec: PRRecord, review) -> None:
     _set(rec.slug, phase="ci", ci_fix_attempts=0, last_handled_review_id=review.id)
 
 
+def _cleanup(rec: PRRecord) -> None:
+    """Bring a merged task to a terminal, valid state: close its tmux window,
+    remove the worktree + branch, mark done, notify."""
+    github.remove_worktree(rec.worktree_path, rec.branch)
+    _set(rec.slug, phase="done")
+    notify.desktop("Harness: merged", f"{rec.slug} merged and cleaned up")
+
+
 def _resume_stalled(rec: PRRecord) -> None:
     """Recover a job whose worker died mid-flight (e.g. a previous `watch`
     process was killed) without redoing work that already happened. Inspects
@@ -131,17 +139,22 @@ def _resume_stalled(rec: PRRecord) -> None:
 def _resume_one(rec: PRRecord) -> None:
     print(f"[resume] {rec.slug}: phase={rec.phase}")
     try:
+        facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
+                 if rec.pr_number else GHFacts("none", None, False))
+        # Ground truth first: a merge that happened while we were down wins over
+        # whatever local phase we left the task in.
+        if facts.merged:
+            print(f"[resume] {rec.slug}: PR merged -> cleanup")
+            _cleanup(rec)
+            return
         if rec.phase == "queued":
             _job_implement(rec)
         elif rec.phase in ("implementing", "ci_fixing", "addressing"):
             _resume_stalled(rec)
         else:
-            # done/blocked/ci/await_review: just re-run one lifecycle tick.
-            # decide() intentionally returns NONE for "blocked" and for
-            # already-"done" records, so this never auto-unblocks anything —
-            # it only nudges tasks that already have a legitimate next step.
-            facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
-                     if rec.pr_number else GHFacts("none", None, False))
+            # ci/await_review/blocked: one lifecycle tick. decide() returns NONE
+            # for "blocked", so this never auto-unblocks — it only nudges tasks
+            # that already have a legitimate next step.
             action = decide(rec, facts)
             print(f"[resume] {rec.slug}: decide -> {action.name}")
             if action == Action.IMPLEMENT:
@@ -158,9 +171,7 @@ def _resume_one(rec: PRRecord) -> None:
                 _set(rec.slug, phase="blocked")
                 notify.desktop("Harness: CI blocked", f"PR #{rec.pr_number} — {rec.slug} needs you")
             elif action == Action.CLEANUP:
-                github.remove_worktree(rec.worktree_path, rec.branch)
-                _set(rec.slug, phase="done")
-                notify.desktop("Harness: merged", f"{rec.slug} merged and cleaned up")
+                _cleanup(rec)
             else:
                 print(f"[resume] {rec.slug}: nothing to do")
     except Exception as e:  # noqa: BLE001 - same job-boundary catch-all as _guard
@@ -193,7 +204,15 @@ def _adopt_running(rec: PRRecord) -> None:
 
 
 def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
-    if rec.slug in inflight:
+    if rec.slug in inflight or rec.phase == "done":
+        return
+    facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
+             if rec.pr_number else GHFacts("none", None, False))
+    # Ground truth wins over local phase: a PR merged while the watcher was down
+    # must be cleaned up even if the task was left mid-'ci_fixing'/'addressing'.
+    # This runs on every tick, so the first poll at startup reconciles too.
+    if facts.merged:
+        _cleanup(rec)
         return
     if rec.phase in ("implementing", "ci_fixing", "addressing"):
         # A watch process died mid-job (this one didn't launch it — not in
@@ -203,8 +222,6 @@ def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
         job = _adopt_running if agent.is_running(rec.worktree_path) else _resume_stalled
         inflight[rec.slug] = pool.submit(_guard, rec.slug, job, rec)
         return
-    facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
-             if rec.pr_number else GHFacts("none", None, False))
     action = decide(rec, facts)
     # Concurrency is capped by the pool's max_workers; extra submissions queue as
     # Futures. `inflight` only prevents double-submitting the same slug.
@@ -222,9 +239,7 @@ def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
         _set(rec.slug, phase="blocked")
         notify.desktop("Harness: CI blocked", f"PR #{rec.pr_number} — {rec.slug} needs you")
     elif action == Action.CLEANUP:
-        github.remove_worktree(rec.worktree_path, rec.branch)
-        _set(rec.slug, phase="done")
-        notify.desktop("Harness: merged", f"{rec.slug} merged and cleaned up")
+        _cleanup(rec)
 
 
 def _acquire_watch_lock() -> bool:
