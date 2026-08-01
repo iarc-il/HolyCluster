@@ -20,9 +20,9 @@ def parse_lotw_user_activity(csv_data: str) -> dict[str, datetime]:
             continue
 
         try:
-            users[callsign.upper()] = datetime.strptime(
-                f"{upload_date} {upload_time}", "%Y-%m-%d %H:%M:%S"
-            ).replace(tzinfo=timezone.utc)
+            users[callsign.upper()] = datetime.strptime(f"{upload_date} {upload_time}", "%Y-%m-%d %H:%M:%S").replace(
+                tzinfo=timezone.utc
+            )
         except ValueError:
             continue
 
@@ -37,9 +37,7 @@ async def fetch_lotw_user_activity() -> dict[str, datetime]:
     return parse_lotw_user_activity(response.text)
 
 
-def get_lotw_status(
-    callsign: str, users: dict[str, datetime], now: datetime | None = None
-) -> str:
+def get_lotw_status(callsign: str, users: dict[str, datetime], now: datetime | None = None) -> str:
     last_upload = users.get(callsign.upper())
     if last_upload is None:
         return "non_user"
