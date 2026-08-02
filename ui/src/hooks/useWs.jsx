@@ -21,11 +21,7 @@ export function WsProvider({ children }) {
         }
     }, []);
 
-    const {
-        sendJsonMessage,
-        readyState,
-        lastJsonMessage,
-    } = useWebSocket(`${WS_BASE_URL}/ws`, {
+    const { sendJsonMessage, readyState, lastJsonMessage } = useWebSocket(`${WS_BASE_URL}/ws`, {
         reconnectAttempts: Number.POSITIVE_INFINITY,
         reconnectInterval: attemptNumber => Math.min(5000 * 2 ** (attemptNumber - 1), 30000),
         shouldReconnect: () => true,
