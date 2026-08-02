@@ -12,6 +12,9 @@ PHASES = frozenset({
     "await_review", "addressing", "blocked", "done", "closed",
 })
 
+# Phases the lifecycle never moves out of on its own.
+TERMINAL_PHASES = frozenset({"done", "closed"})
+
 
 @dataclass
 class PRRecord:

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import agent, config, github, notify
 from .lifecycle import Action, GHFacts, decide
-from .state import (PRRecord, load_state, new_id, save_state, slugify)
+from .state import (PRRecord, TERMINAL_PHASES, load_state, new_id, save_state, slugify)
 
 _lock = threading.Lock()
 
@@ -220,7 +220,7 @@ def resume(slugs: list[str] | None) -> None:
         recs = load_state(config.state_path())
         targets = [r for r in recs
                    if (not slugs or r.slug in slugs or r.id in slugs)
-                   and r.phase not in ("done", "closed")]
+                   and r.phase not in TERMINAL_PHASES]
         if not targets:
             print("resume: nothing to do")
             return
@@ -239,7 +239,7 @@ def _adopt_running(rec: PRRecord) -> None:
 
 
 def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
-    if rec.id in inflight or rec.phase in ("done", "closed"):
+    if rec.id in inflight or rec.phase in TERMINAL_PHASES:
         return
     facts = (github.fetch_facts(rec.pr_number, rec.last_handled_review_id)
              if rec.pr_number else GHFacts("none", None, False))
@@ -329,8 +329,12 @@ def watch() -> None:
             for key, fut in list(inflight.items()):
                 if fut.done():
                     inflight.pop(key)
-            summary = ", ".join(f"{r.slug}={r.phase}" for r in recs) or "(no tasks)"
-            print(f"[harness] poll: {summary}")
+            # Terminal records are kept in state.json as history but are never
+            # polled, so listing them every tick just buries the live tasks.
+            live = [r for r in recs if r.phase not in TERMINAL_PHASES]
+            summary = ", ".join(f"{r.slug}={r.phase}" for r in live) or "(no active tasks)"
+            finished = len(recs) - len(live)
+            print(f"[harness] poll: {summary}" + (f"  (+{finished} finished)" if finished else ""))
             for rec in recs:
                 try:
                     _process_record(rec, inflight, pool)
