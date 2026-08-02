@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+from . import review as review_api
 from .config import BASE_BRANCH, REVIEWER, repo_slug, worktree_parent
 from .lifecycle import GHFacts, Review
 
@@ -133,33 +134,23 @@ def _ci_status(pr_number: int) -> str:
     return "success"
 
 
-def _inline_comments(pr_number: int) -> str:
-    # Inline (line-level) review comments are not in `gh pr view --json reviews`;
-    # fetch them via the REST API. Fall back to "" (review summary only) on error.
-    try:
-        raw = _run(["gh", "api",
-                    f"repos/{repo_slug()}/pulls/{pr_number}/comments"])
-        return "\n".join(c["body"] for c in json.loads(raw)) if raw else ""
-    except subprocess.CalledProcessError:
-        return ""
-
-
 def _latest_actionable_review(pr_number: int, last_id: Optional[int]) -> Optional[Review]:
-    # Use the REST API, which returns a numeric review `id`. `gh pr view --json
-    # reviews` returns a GraphQL node-id STRING (e.g. "PRR_kwDO...") that int()
-    # cannot parse. Consistent with _inline_comments, which also uses REST.
+    # REST returns a numeric review `id`; `gh pr view --json reviews` returns a
+    # GraphQL node-id STRING that int() cannot parse. Inline comments are handled
+    # as threads by review.py, so only the summary body matters here — and GitHub
+    # writes a blank-bodied container review for every inline comment.
     raw = _run(["gh", "api", f"repos/{repo_slug()}/pulls/{pr_number}/reviews"])
     reviews = json.loads(raw) if raw else []
     actionable = [
         r for r in reviews
         if r.get("state") in ("CHANGES_REQUESTED", "COMMENTED")
+        and (r.get("body") or "").strip()
         and int(r["id"]) > (last_id or 0)
     ]
     if not actionable:
         return None
     r = max(actionable, key=lambda x: int(x["id"]))
-    text = ((r.get("body") or "") + "\n" + _inline_comments(pr_number)).strip()
-    return Review(id=int(r["id"]), state=r["state"], text=text)
+    return Review(id=int(r["id"]), state=r["state"], text=r["body"].strip())
 
 
 def fetch_facts(pr_number: int, last_handled_review_id: Optional[int]) -> GHFacts:
@@ -174,6 +165,7 @@ def fetch_facts(pr_number: int, last_handled_review_id: Optional[int]) -> GHFact
         ci_status=_ci_status(pr_number),
         new_review=_latest_actionable_review(pr_number, last_handled_review_id),
         merged=False,
+        review=review_api.fetch(pr_number),
     )
 
 
