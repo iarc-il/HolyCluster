@@ -2,7 +2,8 @@
 set -e
 
 TARGET=x86_64-pc-windows-gnu
-BUILD_DIR=target/$TARGET/release
+CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-target}
+BUILD_DIR=$CARGO_TARGET_DIR/$TARGET/release
 WIX_NAME=main
 DIALOG_NAME=CustomInstallDirDlg
 OUTPUT_PATH=$BUILD_DIR/HolyCluster.msi
