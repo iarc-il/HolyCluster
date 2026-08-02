@@ -1,0 +1,9 @@
+[package]
+name = "hamlib"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hamlib-sys = { path = "../hamlib-sys" }
+serde = { version = "1.0.219", features = ["derive"] }
+thiserror = "2.0.12"

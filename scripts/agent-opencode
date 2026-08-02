@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-
-set -euo pipefail
-
-[[ $# -eq 2 ]] || { printf 'Usage: %s <prompt-file> <opencode-path>\n' "${0##*/}" >&2; exit 2; }
-[[ -f $1 ]] || { printf 'Prompt file does not exist: %s\n' "$1" >&2; exit 1; }
-
-prompt=$(<"$1")
-exec "$2" --prompt="$prompt"

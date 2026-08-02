@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::{fmt, io};
 
 use serde::Serialize;
 
@@ -13,7 +13,7 @@ pub enum Mode {
     CW,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[repr(u8)]
 pub enum Slot {
     A = 1,
@@ -21,58 +21,81 @@ pub enum Slot {
     B = 2,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Status {
-    // value in hertz
     pub freq: u32,
     pub status: String,
     pub mode: String,
     pub current_rig: u8,
 }
 
-pub trait Radio: Send + Sync {
-    fn init(&mut self);
-    fn get_name(&self) -> &str;
+impl Status {
+    pub fn disconnected(current_rig: u8) -> Self {
+        Self {
+            freq: 0,
+            status: "disconnected".into(),
+            mode: "unknown".into(),
+            current_rig,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum RadioInitError {
+    Hamlib {
+        rig: u8,
+        error: String,
+    },
+    Io {
+        backend: &'static str,
+        kind: io::ErrorKind,
+    },
+}
+
+impl fmt::Display for RadioInitError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Hamlib { rig, error } => {
+                write!(formatter, "Hamlib rig {rig} initialization failed: {error}")
+            }
+            Self::Io { backend, kind } => {
+                write!(formatter, "{backend} initialization failed: {kind}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for RadioInitError {}
+
+pub trait Radio {
+    fn init(&mut self) -> Result<(), RadioInitError>;
     fn set_mode(&mut self, mode: Mode);
     fn set_rig(&mut self, rig: u8);
     fn set_frequency(&mut self, slot: Slot, freq: Freq);
     fn get_status(&mut self) -> Status;
-    fn is_available(&self) -> bool;
 }
 
-#[derive(Clone)]
-pub struct AnyRadio(Arc<RwLock<Box<dyn Radio + 'static>>>);
-unsafe impl Send for AnyRadio {}
-unsafe impl Sync for AnyRadio {}
+pub struct UnavailableRadio {
+    backend: &'static str,
+}
 
-impl AnyRadio {
-    pub fn new<R: Radio + 'static>(radio: R) -> Self {
-        AnyRadio(Arc::new(RwLock::new(Box::new(radio))))
+impl UnavailableRadio {
+    pub fn new(backend: &'static str) -> Self {
+        Self { backend }
     }
+}
 
-    pub fn write(&self) -> RwLockWriteGuard<'_, Box<dyn Radio>> {
-        match self.0.write() {
-            Ok(guard) => guard,
-            Err(error) => {
-                tracing::error!("Radio write lock was poisoned; recovering");
-                self.0.clear_poison();
-                error.into_inner()
-            }
-        }
+impl Radio for UnavailableRadio {
+    fn init(&mut self) -> Result<(), RadioInitError> {
+        Err(RadioInitError::Io {
+            backend: self.backend,
+            kind: io::ErrorKind::NotFound,
+        })
     }
-
-    pub fn read(&self) -> RwLockReadGuard<'_, Box<dyn Radio>> {
-        match self.0.read() {
-            Ok(guard) => guard,
-            Err(error) => {
-                tracing::error!("Radio read lock was poisoned; recovering");
-                self.0.clear_poison();
-                error.into_inner()
-            }
-        }
-    }
-
-    pub fn is_available(&self) -> bool {
-        self.read().is_available()
+    fn set_mode(&mut self, _: Mode) {}
+    fn set_rig(&mut self, _: u8) {}
+    fn set_frequency(&mut self, _: Slot, _: Freq) {}
+    fn get_status(&mut self) -> Status {
+        Status::disconnected(1)
     }
 }

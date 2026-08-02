@@ -1,0 +1,293 @@
+use std::{
+    collections::BTreeMap,
+    fmt,
+    fs::{self, File},
+    io::Write,
+    path::{Path, PathBuf},
+};
+
+use directories::ProjectDirs;
+use serde::{Deserialize, Serialize};
+
+const CONFIG_FILE: &str = "radio.json";
+const SCHEMA_VERSION: u8 = 1;
+type IoFailure = (PathBuf, std::io::Error);
+type RenameFailure = (PathBuf, PathBuf, std::io::Error);
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum RadioBackendKind {
+    Omnirig,
+    Rigctld,
+    Hamlib,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ActiveRadioBackend {
+    Dummy,
+    Configured(RadioBackendKind),
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+pub struct HamlibRigConfig {
+    pub model_id: String,
+    pub token_values: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+pub struct HamlibConfig {
+    pub rig1: HamlibRigConfig,
+    pub rig2: Option<HamlibRigConfig>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct RadioConfig {
+    pub backend: RadioBackendKind,
+    pub hamlib: Option<HamlibConfig>,
+}
+
+#[derive(Debug)]
+pub enum RadioConfigError {
+    ProjectDirectories,
+    CreateConfigDirectory(IoFailure),
+    Read(IoFailure),
+    Json(serde_json::Error),
+    Serialize(serde_json::Error),
+    UnsupportedVersion(u8),
+    UnknownBackend(String),
+    PlatformUnsupportedBackend(RadioBackendKind),
+    MissingHamlibConfiguration,
+    UnexpectedHamlibConfiguration,
+    InvalidModelId(String),
+    InvalidToken(String),
+    WriteTemporary(IoFailure),
+    Rename(RenameFailure),
+}
+
+impl fmt::Display for RadioConfigError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for RadioConfigError {}
+
+#[derive(Deserialize)]
+struct ConfigHeader {
+    version: u8,
+    backend: String,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "backend", rename_all = "snake_case")]
+enum PersistedRadioConfig {
+    Omnirig,
+    Rigctld,
+    Hamlib { hamlib: HamlibConfig },
+}
+
+#[derive(Serialize)]
+struct PersistedConfig<'a> {
+    version: u8,
+    #[serde(flatten)]
+    config: PersistedRadioConfigRef<'a>,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "backend", rename_all = "snake_case")]
+enum PersistedRadioConfigRef<'a> {
+    Omnirig,
+    Rigctld,
+    Hamlib { hamlib: &'a HamlibConfig },
+}
+
+impl RadioConfig {
+    pub fn platform_default() -> Self {
+        Self {
+            backend: RadioBackendKind::platform_default(),
+            hamlib: None,
+        }
+    }
+
+    pub fn config_path() -> Result<PathBuf, RadioConfigError> {
+        let project_dirs = ProjectDirs::from("org", "iarc", "holycluster")
+            .ok_or(RadioConfigError::ProjectDirectories)?;
+        Ok(project_dirs.config_dir().join(CONFIG_FILE))
+    }
+
+    pub fn load_from_path(path: &Path) -> Result<Self, RadioConfigError> {
+        let contents = match fs::read_to_string(path) {
+            Ok(contents) => contents,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self::platform_default());
+            }
+            Err(source) => {
+                return Err(RadioConfigError::Read((path.to_path_buf(), source)));
+            }
+        };
+        let header: ConfigHeader =
+            serde_json::from_str(&contents).map_err(RadioConfigError::Json)?;
+        if header.version != SCHEMA_VERSION {
+            return Err(RadioConfigError::UnsupportedVersion(header.version));
+        }
+        let persisted = match header.backend.as_str() {
+            "omnirig" | "rigctld" | "hamlib" => {
+                serde_json::from_str(&contents).map_err(RadioConfigError::Json)?
+            }
+            _ => return Err(RadioConfigError::UnknownBackend(header.backend)),
+        };
+        let config = Self::from_persisted(persisted);
+        config.validate()?;
+        Ok(config)
+    }
+
+    pub fn save(&self) -> Result<(), RadioConfigError> {
+        self.save_to_path(&Self::config_path()?)
+    }
+
+    pub fn save_to_path(&self, path: &Path) -> Result<(), RadioConfigError> {
+        self.save_to_path_with_rename(path, |from, to| fs::rename(from, to))
+    }
+
+    pub(crate) fn save_to_path_with_rename(
+        &self,
+        path: &Path,
+        rename: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+    ) -> Result<(), RadioConfigError> {
+        self.validate()?;
+        let parent = path.parent().ok_or(RadioConfigError::ProjectDirectories)?;
+        fs::create_dir_all(parent).map_err(|source| {
+            RadioConfigError::CreateConfigDirectory((parent.to_path_buf(), source))
+        })?;
+        let temporary_path = path.with_extension("json.tmp");
+        let serialized =
+            serde_json::to_vec_pretty(&self.persisted()?).map_err(RadioConfigError::Serialize)?;
+        let write_result = File::create(&temporary_path)
+            .and_then(|mut temporary| {
+                temporary.write_all(&serialized)?;
+                temporary.sync_all()
+            })
+            .map_err(|source| RadioConfigError::WriteTemporary((temporary_path.clone(), source)));
+        if let Err(error) = write_result {
+            let _ = fs::remove_file(&temporary_path);
+            return Err(error);
+        }
+        if let Err(source) = rename(&temporary_path, path) {
+            let _ = fs::remove_file(&temporary_path);
+            return Err(RadioConfigError::Rename((
+                temporary_path,
+                path.to_path_buf(),
+                source,
+            )));
+        }
+        Ok(())
+    }
+
+    pub fn effective_backend(&self, dummy: bool) -> ActiveRadioBackend {
+        if dummy {
+            ActiveRadioBackend::Dummy
+        } else {
+            ActiveRadioBackend::Configured(self.backend)
+        }
+    }
+
+    fn from_persisted(config: PersistedRadioConfig) -> Self {
+        match config {
+            PersistedRadioConfig::Omnirig => Self {
+                backend: RadioBackendKind::Omnirig,
+                hamlib: None,
+            },
+            PersistedRadioConfig::Rigctld => Self {
+                backend: RadioBackendKind::Rigctld,
+                hamlib: None,
+            },
+            PersistedRadioConfig::Hamlib { hamlib } => Self {
+                backend: RadioBackendKind::Hamlib,
+                hamlib: Some(hamlib),
+            },
+        }
+    }
+
+    fn persisted(&self) -> Result<PersistedConfig<'_>, RadioConfigError> {
+        let config = match (&self.backend, &self.hamlib) {
+            (RadioBackendKind::Omnirig, None) => PersistedRadioConfigRef::Omnirig,
+            (RadioBackendKind::Rigctld, None) => PersistedRadioConfigRef::Rigctld,
+            (RadioBackendKind::Hamlib, Some(hamlib)) => PersistedRadioConfigRef::Hamlib { hamlib },
+            (RadioBackendKind::Omnirig, Some(_)) | (RadioBackendKind::Rigctld, Some(_)) => {
+                return Err(RadioConfigError::UnexpectedHamlibConfiguration);
+            }
+            (RadioBackendKind::Hamlib, None) => {
+                return Err(RadioConfigError::MissingHamlibConfiguration);
+            }
+        };
+        Ok(PersistedConfig {
+            version: SCHEMA_VERSION,
+            config,
+        })
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
+        if !self.backend.is_supported_on_platform() {
+            return Err(RadioConfigError::PlatformUnsupportedBackend(self.backend));
+        }
+        match (&self.backend, &self.hamlib) {
+            (RadioBackendKind::Hamlib, Some(hamlib)) => hamlib.validate(),
+            (RadioBackendKind::Hamlib, None) => Err(RadioConfigError::MissingHamlibConfiguration),
+            (RadioBackendKind::Omnirig, None) | (RadioBackendKind::Rigctld, None) => Ok(()),
+            (RadioBackendKind::Omnirig, Some(_)) | (RadioBackendKind::Rigctld, Some(_)) => {
+                Err(RadioConfigError::UnexpectedHamlibConfiguration)
+            }
+        }
+    }
+}
+
+impl RadioBackendKind {
+    const fn platform_default() -> Self {
+        #[cfg(windows)]
+        {
+            Self::Omnirig
+        }
+        #[cfg(not(windows))]
+        {
+            Self::Rigctld
+        }
+    }
+
+    const fn is_supported_on_platform(self) -> bool {
+        match self {
+            Self::Hamlib => true,
+            Self::Omnirig => cfg!(windows),
+            Self::Rigctld => !cfg!(windows),
+        }
+    }
+}
+
+impl HamlibConfig {
+    fn validate(&self) -> Result<(), RadioConfigError> {
+        self.rig1.validate()?;
+        if let Some(rig2) = &self.rig2 {
+            rig2.validate()?;
+        }
+        Ok(())
+    }
+}
+
+impl HamlibRigConfig {
+    fn validate(&self) -> Result<(), RadioConfigError> {
+        match self.model_id.parse::<u32>() {
+            Ok(model_id) if model_id > 0 => {}
+            _ => return Err(RadioConfigError::InvalidModelId(self.model_id.clone())),
+        }
+        for token in self.token_values.keys() {
+            if !is_descriptor_token(token) {
+                return Err(RadioConfigError::InvalidToken(token.clone()));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn is_descriptor_token(token: &str) -> bool {
+    let mut characters = token.chars();
+    matches!(characters.next(), Some(character) if character.is_ascii_alphabetic())
+        && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
+}

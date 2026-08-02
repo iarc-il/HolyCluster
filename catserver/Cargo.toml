@@ -4,6 +4,10 @@ authors = ["HolyCluster dev team"]
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = ["crates/hamlib", "crates/hamlib-src", "crates/hamlib-sys"]
+resolver = "3"
+
 [profile.release]
 strip = true
 lto = true
@@ -15,6 +19,7 @@ argh = "0.1.13"
 axum = { version = "0.8.3", features = ["ws"] }
 directories = "6.0.0"
 futures-util = "0.3.31"
+hamlib = { path = "crates/hamlib" }
 hyper = { version = "1.6.0", features = ["client", "http1"] }
 hyper-tls = "0.6.0"
 hyper-util = { version = "0.1.11", features = ["client", "client-legacy", "http1", "tokio"] }

@@ -1,22 +1,21 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::fs::{File, OpenOptions};
-use tracing_panic::panic_hook;
-
 use anyhow::Result;
-use argh::FromArgs;
-use directories::ProjectDirs;
-use server::{Server, ServerConfig};
-use single_instance::SingleInstance;
-use tokio::sync::broadcast::{self, Sender};
 
+mod application;
+mod args;
 mod dummy;
 mod dummy_rotator;
 mod freq;
+mod hamlib_radio;
 #[cfg(windows)]
 mod omnirig;
 #[cfg(windows)]
 mod pstrotator;
+mod radio_actor;
+pub mod radio_config;
+mod radio_factory;
+pub mod radio_manager;
 mod reporting;
 mod rig;
 #[cfg(not(windows))]
@@ -25,300 +24,23 @@ mod rotator;
 #[cfg(not(windows))]
 mod rotctld;
 mod server;
+mod startup_radio;
+mod tracing_setup;
 mod tray_icon;
 mod utils;
 
-use dummy::DummyRadio;
-use dummy_rotator::DummyRotator;
-#[cfg(windows)]
-use omnirig::OmnirigRadio;
-use rig::AnyRadio;
-#[cfg(not(windows))]
-use rigctld::RigctldRadio;
-use rotator::AnyRotator;
-use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{EnvFilter, Layer, Registry, layer::SubscriberExt};
-use tray_icon::UserEvent;
-
-const BASE_LOCAL_PORT: u16 = 3000;
-const INSTANCE_NAME: &str = "HolyCluster";
-
-fn open_at_browser(port: u16) -> Result<()> {
-    let address = format!("http://127.0.0.1:{port}");
-    tracing::info!("Opening browser at: {address}");
-    open::that(address)?;
-    Ok(())
-}
-
-#[derive(FromArgs)]
-/// The Holy Cluster - debug flags
-#[argh(help_triggers("-h", "--help"))]
-struct Args {
-    /// use the development HolyCluster server
-    #[argh(switch)]
-    dev_server: bool,
-
-    /// run with dummy radio instead of real radio
-    #[argh(switch)]
-    dummy: bool,
-
-    /// run with dummy rotator instead of real rotator
-    #[argh(switch)]
-    dummy_rotator: bool,
-
-    /// search for local ui dist dir instead of using remote server
-    #[argh(switch)]
-    local_ui: bool,
-
-    /// port for local connection
-    #[argh(option)]
-    port: Option<u16>,
-
-    /// closes the running instance
-    #[argh(switch)]
-    close: bool,
-}
-
-#[cfg(windows)]
-fn get_radio(use_dummy: bool) -> AnyRadio {
-    if use_dummy {
-        AnyRadio::new(DummyRadio::new())
-    } else {
-        AnyRadio::new(OmnirigRadio::new())
-    }
-}
-
-#[cfg(not(windows))]
-fn get_radio(use_dummy: bool) -> AnyRadio {
-    if use_dummy {
-        AnyRadio::new(DummyRadio::new())
-    } else {
-        AnyRadio::new(RigctldRadio::new("localhost".into(), 4532))
-    }
-}
-
-fn get_rotator(use_dummy: bool) -> AnyRotator {
-    if use_dummy {
-        AnyRotator::new(DummyRotator::new())
-    } else {
-        #[cfg(windows)]
-        {
-            AnyRotator::new(crate::pstrotator::PstRotator::new())
-        }
-        #[cfg(not(windows))]
-        {
-            AnyRotator::new(crate::rotctld::RotctldRotator::new(
-                "localhost".into(),
-                4533,
-            ))
-        }
-    }
-}
-
-fn open_debug_log() -> Option<File> {
-    let Some(project_dirs) = ProjectDirs::from("org", "iarc", "holycluster") else {
-        eprintln!("Failed to locate HolyCluster cache directory");
-        return None;
-    };
-    let cache_dir = project_dirs.cache_dir();
-    if let Err(error) = std::fs::create_dir_all(cache_dir) {
-        eprintln!("Failed to create HolyCluster cache directory: {error}");
-        return None;
-    }
-
-    let log_path = cache_dir.join("debug.log");
-    match OpenOptions::new().append(true).create(true).open(&log_path) {
-        Ok(debug_file) => Some(debug_file),
-        Err(error) => {
-            eprintln!(
-                "Failed to open debug log at {}: {error}",
-                log_path.display()
-            );
-            None
-        }
-    }
-}
-
-fn log_file_filter() -> EnvFilter {
-    let filter = EnvFilter::builder()
-        .with_default_directive(LevelFilter::INFO.into())
-        .from_env_lossy();
-
-    match "catserver=debug".parse() {
-        Ok(directive) => filter.add_directive(directive),
-        Err(error) => {
-            eprintln!("Failed to add catserver debug log directive: {error}");
-            filter
-        }
-    }
-}
-
-fn configure_tracing() {
-    std::panic::set_hook(Box::new(panic_hook));
-
-    let console_layer = tracing_subscriber::fmt::layer()
-        .compact()
-        .with_ansi(!cfg!(windows))
-        .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
-            tracing::Level::INFO,
-        ));
-
-    let set_result = if let Some(debug_file) = open_debug_log() {
-        let subscriber = Registry::default().with(console_layer).with(
-            tracing_subscriber::fmt::layer()
-                .compact()
-                .with_writer(debug_file)
-                .with_filter(log_file_filter()),
-        );
-        tracing::subscriber::set_global_default(subscriber)
-    } else {
-        let subscriber = Registry::default().with(console_layer);
-        tracing::subscriber::set_global_default(subscriber)
-    };
-
-    if let Err(error) = set_result {
-        eprintln!("Failed to configure tracing subscriber: {error}");
-    }
-}
+#[cfg(test)]
+mod hamlib_radio_tests;
+#[cfg(test)]
+mod radio_actor_regression_tests;
+#[cfg(test)]
+mod radio_config_tests;
+#[cfg(test)]
+mod radio_manager_tests;
+#[cfg(test)]
+mod startup_radio_tests;
 
 fn main() -> Result<()> {
-    configure_tracing();
-
-    let args: Args = argh::from_env();
-    let instance = SingleInstance::new(INSTANCE_NAME)?;
-
-    tracing::info!("Version tag: {}", env!("VERSION"));
-
-    let local_port = args.port.unwrap_or(BASE_LOCAL_PORT);
-    let server_config = if args.dev_server {
-        tracing::info!("Using dev server");
-        ServerConfig {
-            dns: "holycluster-dev.iarc.org".into(),
-            is_using_ssl: true,
-            local_port,
-        }
-    } else {
-        tracing::info!("Using production server");
-        ServerConfig {
-            dns: "holycluster.iarc.org".into(),
-            is_using_ssl: true,
-            local_port,
-        }
-    };
-
-    let radio = get_radio(args.dummy);
-    let rotator = get_rotator(args.dummy_rotator);
-
-    if instance.is_single() {
-        if args.close {
-            tracing::warn!("No running instance, not closing");
-            return Ok(());
-        }
-        let (sender, _) = broadcast::channel::<UserEvent>(10);
-
-        let event_sender = sender.clone();
-        let use_local_ui = args.local_ui;
-        let thread = std::thread::Builder::new()
-            .name("singleton".into())
-            .spawn(move || {
-                if let Err(error) = run_singleton_instance(
-                    event_sender,
-                    radio,
-                    rotator,
-                    server_config,
-                    use_local_ui,
-                ) {
-                    tracing::error!(?error, "Singleton instance failed");
-                }
-            })?;
-
-        // Currently we don't care about tray icon for linux because it's only used for development.
-        // This can be enabled if we ever support linux for users.
-        if cfg!(windows) {
-            let receiver = sender.subscribe();
-            tray_icon::run_tray_icon(sender, receiver);
-        } else {
-            if let Err(error) = thread.join() {
-                let message = if let Some(message) = error.downcast_ref::<&str>() {
-                    *message
-                } else if let Some(message) = error.downcast_ref::<String>() {
-                    message.as_str()
-                } else {
-                    "unknown panic payload"
-                };
-                tracing::error!(message, "Singleton thread panicked");
-            }
-        }
-    } else if args.close {
-        let client = reqwest::blocking::Client::new();
-        let uri = format!("http://127.0.0.1:{BASE_LOCAL_PORT}/exit");
-        client.post(uri).send()?;
-    } else {
-        tracing::info!("Server is already running");
-        let client = reqwest::blocking::Client::new();
-        let uri = format!("http://127.0.0.1:{BASE_LOCAL_PORT}/open");
-        let _response = client.post(uri).send()?;
-    }
-    Ok(())
-}
-
-#[tokio::main]
-async fn run_singleton_instance(
-    sender: Sender<UserEvent>,
-    radio: AnyRadio,
-    rotator: AnyRotator,
-    server_config: ServerConfig,
-    use_local_ui: bool,
-) -> Result<()> {
-    tracing::info!("Initializing {} radio", radio.read().get_name());
-    radio.write().init();
-
-    if radio.is_available() {
-        tracing::info!("Radio initialized successfully");
-    } else {
-        tracing::error!("Radio initialization failed, OmniRig may not be installed. Exiting...");
-        open::that(server_config.build_uri("http", "/omnirig-error"))?;
-        sender.send(UserEvent::Quit)?;
-        return Ok(());
-    }
-
-    tracing::info!("Initializing {} rotator", rotator.read().get_name());
-    rotator.write().init();
-
-    if rotator.is_available() {
-        tracing::info!("Rotator initialized successfully");
-    } else {
-        tracing::warn!("Rotator initialization failed, continuing without rotator support");
-    }
-
-    let local_port = server_config.local_port;
-
-    let mut receiver = sender.subscribe();
-
-    let server = Server::build_server(sender, radio, rotator, server_config, use_local_ui).await?;
-    open_at_browser(local_port)?;
-
-    tokio::spawn(async move {
-        loop {
-            match receiver.recv().await {
-                Ok(UserEvent::Quit) => {
-                    break;
-                }
-                Ok(UserEvent::OpenBrowser) => {
-                    if let Err(error) = open_at_browser(local_port) {
-                        tracing::error!(?error, "Failed to open browser from user event");
-                    }
-                }
-                Err(error) => {
-                    tracing::error!(?error, "Failed to receive user event");
-                    break;
-                }
-            }
-        }
-    });
-
-    tracing::info!("Running webapp");
-    server.run_server().await?;
-
-    Ok(())
+    tracing_setup::configure();
+    application::run()
 }

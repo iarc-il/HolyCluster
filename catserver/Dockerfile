@@ -20,7 +20,28 @@ RUN set -ex \
     && set -o allexport && . /etc/os-release && set +o allexport \
     && dpkg --add-architecture i386 \
     && apt-get update -qq  \
-    && apt-get install --no-install-recommends ca-certificates curl xauth xvfb xz-utils p7zip-full unzip -qqy \
+    && apt-get install --no-install-recommends -qqy \
+        autoconf \
+        automake \
+        binutils-mingw-w64-x86-64 \
+        build-essential \
+        ca-certificates \
+        curl \
+        gcc-mingw-w64-x86-64-posix \
+        g++-mingw-w64-x86-64-posix \
+        libappindicator3-dev \
+        libgtk-3-dev \
+        libusb-1.0-0 \
+        libusb-1.0-0-dev \
+        libxdo-dev \
+        make \
+        mingw-w64-x86-64-dev \
+        p7zip-full \
+        pkg-config \
+        unzip \
+        xauth \
+        xvfb \
+        xz-utils \
     && curl -sSfLo /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key \
     && curl -sSfLo /etc/apt/sources.list.d/winehq.sources https://dl.winehq.org/wine-builds/debian/dists/$VERSION_CODENAME/winehq-$VERSION_CODENAME.sources \
     && WINE_PACKAGE_VERSION="$WINE_VERSION~$VERSION_CODENAME-1" \
@@ -33,18 +54,10 @@ RUN set -ex \
     && curl -sSfLo /usr/local/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks \
     && chmod +x /usr/local/bin/winetricks \
     && useradd -m wix \
-    && apt-get clean autoclean && apt-get autoremove --yes && rm -rf /var/lib/{apt,dpkg,cache,log}/ \
     && printf '#!/bin/sh\nexec wine dotnet $@' > /usr/local/bin/dotnet \
     && printf '#!/bin/sh\nexec wine wix.exe $@' > /usr/local/bin/wix \
     && chmod +x /usr/local/bin/dotnet /usr/local/bin/wix \
-    && ln -sf /usr/local/bin/wix /usr/local/bin/wix.exe \
-    # Needed for \
-    && apt-get install -y \
-       libgtk-3-dev \
-       libxdo-dev \
-       libappindicator3-dev \
-       binutils-mingw-w64-x86-64 \
-       gcc-mingw-w64-x86-64-win32
+    && ln -sf /usr/local/bin/wix /usr/local/bin/wix.exe
 
 USER wix
 WORKDIR /home/wix

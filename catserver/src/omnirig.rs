@@ -3,7 +3,7 @@ use winsafe::prelude::oleaut_IDispatch;
 use winsafe::{CLSIDFromProgID, CoInitializeEx, IDispatch, co};
 
 use crate::freq::Freq;
-use crate::rig::{Mode, Radio, Slot, Status};
+use crate::rig::{Mode, Radio, RadioInitError, Slot, Status};
 
 struct OmnirigInner {
     com_guard: CoUninitializeGuard,
@@ -18,9 +18,6 @@ pub struct OmnirigRadio {
     reconnect_counter: u8,
     omnirig_available: bool,
 }
-unsafe impl Send for OmnirigRadio {}
-unsafe impl Sync for OmnirigRadio {}
-
 impl OmnirigRadio {
     pub fn new() -> Self {
         Self {
@@ -77,13 +74,13 @@ impl OmnirigRadio {
         self.reconnect_counter = self.reconnect_counter.saturating_add(1);
         if self.reconnect_counter >= 5 {
             self.reconnect_counter = 0;
-            self.init();
+            let _ = self.init();
         }
     }
 }
 
 impl Radio for OmnirigRadio {
-    fn init(&mut self) {
+    fn init(&mut self) -> Result<(), RadioInitError> {
         let com_guard = if let Some(inner) = std::mem::take(&mut self.inner) {
             inner.com_guard
         } else {
@@ -92,7 +89,10 @@ impl Radio for OmnirigRadio {
                 Err(err) => {
                     tracing::error!("Failed to initialize COM: {err}");
                     self.omnirig_available = false;
-                    return;
+                    return Err(RadioInitError::Io {
+                        backend: "omnirig",
+                        kind: std::io::ErrorKind::Other,
+                    });
                 }
             }
         };
@@ -102,7 +102,10 @@ impl Radio for OmnirigRadio {
             Err(err) => {
                 tracing::error!("OmniRig is not installed or not registered: {err}");
                 self.omnirig_available = false;
-                return;
+                return Err(RadioInitError::Io {
+                    backend: "omnirig",
+                    kind: std::io::ErrorKind::Other,
+                });
             }
         };
 
@@ -115,17 +118,26 @@ impl Radio for OmnirigRadio {
             Err(err) => {
                 tracing::error!("Failed to create OmniRig instance: {err}");
                 self.omnirig_available = false;
-                return;
+                return Err(RadioInitError::Io {
+                    backend: "omnirig",
+                    kind: std::io::ErrorKind::Other,
+                });
             }
         };
 
         let Some(rig1) = Self::get_rig_dispatch(&omnirig, "Rig1") else {
             self.omnirig_available = false;
-            return;
+            return Err(RadioInitError::Io {
+                backend: "omnirig",
+                kind: std::io::ErrorKind::Other,
+            });
         };
         let Some(rig2) = Self::get_rig_dispatch(&omnirig, "Rig2") else {
             self.omnirig_available = false;
-            return;
+            return Err(RadioInitError::Io {
+                backend: "omnirig",
+                kind: std::io::ErrorKind::Other,
+            });
         };
 
         self.inner = Some(OmnirigInner {
@@ -135,10 +147,7 @@ impl Radio for OmnirigRadio {
             rig2,
         });
         self.omnirig_available = true;
-    }
-
-    fn get_name(&self) -> &str {
-        "omnirig"
+        Ok(())
     }
 
     fn set_mode(&mut self, mode: Mode) {
@@ -256,9 +265,5 @@ impl Radio for OmnirigRadio {
             mode: mode.into(),
             current_rig: self.current_rig,
         }
-    }
-
-    fn is_available(&self) -> bool {
-        self.omnirig_available
     }
 }

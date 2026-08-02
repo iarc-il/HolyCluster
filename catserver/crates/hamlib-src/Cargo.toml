@@ -1,0 +1,25 @@
+[package]
+name = "hamlib-src"
+version = "0.1.0"
+edition = "2024"
+links = "hamlib_src"
+build = "build.rs"
+
+[dependencies]
+bzip2 = "0.5.2"
+flate2 = "1.1.1"
+sha2 = "0.10.9"
+tar = "0.4.44"
+thiserror = "2.0.12"
+ureq = "2.12.1"
+
+[build-dependencies]
+bzip2 = "0.5.2"
+flate2 = "1.1.1"
+sha2 = "0.10.9"
+tar = "0.4.44"
+thiserror = "2.0.12"
+ureq = "2.12.1"
+
+[dev-dependencies]
+tempfile = "3.19.1"
