@@ -1,8 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Optional
 
 from .config import MAX_CI_FIX_ATTEMPTS, NO_CHECK_GRACE_POLLS
+from .review import ReviewState
 from .state import PRRecord
 
 
@@ -15,6 +16,7 @@ class Action(Enum):
     BLOCK = auto()
     CLEANUP = auto()
     ABANDON = auto()
+    REPORT_ADDRESSED = auto()
 
 
 @dataclass
@@ -30,6 +32,7 @@ class GHFacts:
     new_review: Optional[Review]
     merged: bool
     closed: bool = False
+    review: ReviewState = field(default_factory=ReviewState)
 
 
 def decide(record: PRRecord, facts: GHFacts) -> Action:
@@ -43,7 +46,7 @@ def decide(record: PRRecord, facts: GHFacts) -> Action:
         return Action.IMPLEMENT
     if record.pr_number is None:
         return Action.NONE
-    if facts.new_review is not None:
+    if facts.review.pending or facts.new_review is not None:
         return Action.ADDRESS_REVIEW
     if facts.ci_status == "failure":
         if record.ci_fix_attempts < MAX_CI_FIX_ATTEMPTS:
@@ -55,6 +58,13 @@ def decide(record: PRRecord, facts: GHFacts) -> Action:
     # that simply have not registered yet, instead of stalling in `ci` forever.
     ready = facts.ci_status == "success" or (
         facts.ci_status == "none" and record.no_check_polls >= NO_CHECK_GRACE_POLLS)
-    if ready and record.phase != "await_review":
+    if not ready:
+        return Action.NONE
+    # Unresolved threads that are no longer pending all carry an agent reply:
+    # the human's turn to resolve, push back, or merge.
+    if facts.review.unresolved > 0:
+        if record.phase != "review_addressed":
+            return Action.REPORT_ADDRESSED
+    elif record.phase != "await_review":
         return Action.REQUEST_REVIEW
     return Action.NONE

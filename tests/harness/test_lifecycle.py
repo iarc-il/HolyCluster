@@ -2,6 +2,7 @@ import unittest
 
 from scripts.harness.state import PRRecord
 from scripts.harness.lifecycle import Action, GHFacts, Review, decide
+from scripts.harness.review import ReviewState, Thread
 
 
 def rec(phase="ci", pr_number=10, attempts=0, last_review=None):
@@ -10,8 +11,12 @@ def rec(phase="ci", pr_number=10, attempts=0, last_review=None):
                     last_handled_review_id=last_review)
 
 
-def facts(ci="pending", review=None, merged=False):
-    return GHFacts(ci_status=ci, new_review=review, merged=merged)
+def facts(ci="pending", review=None, merged=False, pending=0, unresolved=0):
+    threads = [Thread(node_id=f"T{i}", comment_id=i, path="a.py", line=1,
+                      outdated=False, body="q") for i in range(pending)]
+    return GHFacts(ci_status=ci, new_review=review, merged=merged,
+                   review=ReviewState(pending=threads,
+                                      unresolved=max(unresolved, pending)))
 
 
 class TestLifecycle(unittest.TestCase):
@@ -45,6 +50,31 @@ class TestLifecycle(unittest.TestCase):
 
     def test_pending_ci_is_noop(self):
         self.assertEqual(decide(rec(phase="ci"), facts(ci="pending")), Action.NONE)
+
+
+class TestReviewThreads(unittest.TestCase):
+    def test_pending_thread_triggers_address(self):
+        self.assertEqual(decide(rec(), facts(ci="success", pending=1)),
+                         Action.ADDRESS_REVIEW)
+
+    def test_pending_thread_beats_failing_ci(self):
+        self.assertEqual(decide(rec(), facts(ci="failure", pending=1)),
+                         Action.ADDRESS_REVIEW)
+
+    def test_all_answered_reports_addressed(self):
+        self.assertEqual(decide(rec(), facts(ci="success", unresolved=2)),
+                         Action.REPORT_ADDRESSED)
+
+    def test_report_addressed_fires_only_once(self):
+        self.assertEqual(
+            decide(rec(phase="review_addressed"), facts(ci="success", unresolved=2)),
+            Action.NONE)
+
+    def test_no_unresolved_threads_requests_review(self):
+        self.assertEqual(decide(rec(), facts(ci="success")), Action.REQUEST_REVIEW)
+
+    def test_answered_threads_still_wait_for_ci(self):
+        self.assertEqual(decide(rec(), facts(ci="pending", unresolved=2)), Action.NONE)
 
 
 if __name__ == "__main__":
