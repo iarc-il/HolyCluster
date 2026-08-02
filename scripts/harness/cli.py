@@ -52,7 +52,7 @@ def _guard(rec, fn, *args) -> None:
     try:
         fn(*args)
     except Exception as e:  # noqa: BLE001 - deliberate catch-all at the job boundary
-        _set(rec.id, phase="blocked")
+        _set(rec.id, phase="blocked", blocked_reason=f"{type(e).__name__}: {e}"[:300])
         notify.desktop("Harness: task failed", f"{rec.slug}: {e}")
         print(f"[harness] {rec.slug} BLOCKED by exception: {e!r}")
 
@@ -65,7 +65,7 @@ def _job_implement(rec: PRRecord) -> None:
     _set(rec.id, worktree_path=path, phase="implementing")
     agent.run(path, agent.IMPLEMENT_TMPL(rec.task))
     if not github.ensure_committed_and_pushed(path, rec.branch, rec.task):
-        _set(rec.id, phase="blocked")
+        _set(rec.id, phase="blocked", blocked_reason="agent produced no diff")
         notify.desktop("Harness: no changes", f"{rec.slug} produced no diff — blocked")
         return
     pr = github.find_existing_pr(rec.branch) or github.open_pr(
@@ -135,7 +135,7 @@ def _resume_stalled(rec: PRRecord) -> None:
         if not dirty:
             agent.run(rec.worktree_path, agent.IMPLEMENT_TMPL(rec.task))
         if not github.ensure_committed_and_pushed(rec.worktree_path, rec.branch, rec.task):
-            _set(rec.id, phase="blocked")
+            _set(rec.id, phase="blocked", blocked_reason="agent produced no diff")
             notify.desktop("Harness: no changes", f"{rec.slug} produced no diff — blocked")
             return
         pr = github.find_existing_pr(rec.branch) or github.open_pr(
@@ -202,7 +202,8 @@ def _resume_one(rec: PRRecord) -> None:
                 _set(rec.id, phase="await_review")
                 notify.desktop("Harness: review ready", f"PR #{rec.pr_number} — {rec.slug}")
             elif action == Action.BLOCK:
-                _set(rec.id, phase="blocked")
+                _set(rec.id, phase="blocked",
+                     blocked_reason=f"CI still failing after {rec.ci_fix_attempts} fix attempt(s)")
                 notify.desktop("Harness: CI blocked", f"PR #{rec.pr_number} — {rec.slug} needs you")
             elif action == Action.CLEANUP:
                 _cleanup(rec)
@@ -211,7 +212,7 @@ def _resume_one(rec: PRRecord) -> None:
             else:
                 print(f"[resume] {rec.slug}: nothing to do")
     except Exception as e:  # noqa: BLE001 - same job-boundary catch-all as _guard
-        _set(rec.id, phase="blocked")
+        _set(rec.id, phase="blocked", blocked_reason=f"resume failed — {type(e).__name__}: {e}"[:300])
         notify.desktop("Harness: resume failed", f"{rec.slug}: {e}")
         print(f"[resume] {rec.slug}: FAILED — {e}")
 
@@ -284,7 +285,8 @@ def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
         _set(rec.id, phase="await_review")
         notify.desktop("Harness: review ready", f"PR #{rec.pr_number} — {rec.slug}")
     elif action == Action.BLOCK:
-        _set(rec.id, phase="blocked")
+        _set(rec.id, phase="blocked",
+             blocked_reason=f"CI still failing after {rec.ci_fix_attempts} fix attempt(s)")
         notify.desktop("Harness: CI blocked", f"PR #{rec.pr_number} — {rec.slug} needs you")
     elif action == Action.CLEANUP:
         _cleanup(rec)
@@ -344,7 +346,8 @@ def watch() -> None:
                 try:
                     _process_record(rec, inflight, pool)
                 except Exception as e:  # noqa: BLE001 - one PR's failure must not crash the poller
-                    _set(rec.id, phase="blocked")
+                    _set(rec.id, phase="blocked",
+                         blocked_reason=f"poll failed — {type(e).__name__}: {e}"[:300])
                     notify.desktop("Harness: watch error", f"{rec.slug}: {e}")
                     print(f"[harness] error on {rec.slug}: {e}")
             time.sleep(config.POLL_INTERVAL_SECONDS)
@@ -366,6 +369,8 @@ def status() -> None:
         pr = f"#{r.pr_number}" if r.pr_number else "-"
         extra = f" ci_fixes={r.ci_fix_attempts}" if r.ci_fix_attempts else ""
         print(f"{r.id}  {r.phase:<12} {pr:>6}  {r.slug:<{width}}{extra}")
+        if r.phase == "blocked" and r.blocked_reason:
+            print(f"{'':>10}  └─ {r.blocked_reason}")
 
 
 def _match(recs, keys):
@@ -391,6 +396,7 @@ def retry(keys: list[str]) -> None:
                 r.phase = "ci" if r.pr_number else "queued"
                 r.ci_fix_attempts = 0
                 r.no_check_polls = 0
+                r.blocked_reason = ""
                 print(f"retry: {r.slug} -> {r.phase}")
     _update(mutate)
 
