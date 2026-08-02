@@ -105,9 +105,23 @@ def FIX_CI_TMPL(logs: str) -> str:
     )
 
 
-def ADDRESS_TMPL(review_text: str) -> str:
-    return (
-        f"A human reviewer left the following feedback on this PR. Address every "
-        f"point by changing the code. Do NOT commit, push, or resolve threads.\n\n"
-        f"REVIEW FEEDBACK:\n{review_text}"
-    )
+def ADDRESS_TMPL(threads: list, replies_path: str, summary: str) -> str:
+    blocks = []
+    for t in threads:
+        stale = " (OUTDATED — the code may have moved since this was written)" if t.outdated else ""
+        blocks.append(f"--- thread {t.node_id} at {t.path}:{t.line}{stale}\n{t.body}")
+    parts = [
+        "A human reviewer left feedback on this PR. Address every point.",
+        "Change the code where a change is needed; some points are questions "
+        "that only need an answer.",
+        "Do NOT commit, push, or resolve threads.",
+        "",
+        f"When done, write your per-thread responses to {replies_path} as JSON:",
+        '[{"thread": "<thread id>", "reply": "<what you did or your answer>"}]',
+        "Use the exact thread ids shown below. The harness posts these as replies.",
+    ]
+    if summary:
+        parts += ["", f"REVIEW SUMMARY:\n{summary}"]
+    if blocks:
+        parts += ["", "THREADS:", *blocks]
+    return "\n".join(parts)
