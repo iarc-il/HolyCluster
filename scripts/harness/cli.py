@@ -101,11 +101,28 @@ def _job_fix_ci(rec: PRRecord) -> None:
     _set(rec.id, phase="ci")
 
 
-def _job_address(rec: PRRecord, review) -> None:
+def _job_address(rec: PRRecord, facts) -> None:
+    """Answering a question legitimately produces no diff, so an empty diff is
+    only a failure when the agent also wrote no replies — otherwise a do-nothing
+    run would stamp every thread 'addressed' and mislead the reviewer."""
     _set(rec.id, phase="addressing")
-    agent.run(rec.worktree_path, agent.ADDRESS_TMPL(review.text))
-    github.commit_and_push(rec.worktree_path, rec.branch, f"Address review on {rec.slug}")
-    _set(rec.id, phase="ci", ci_fix_attempts=0, last_handled_review_id=review.id)
+    pending = facts.review.pending
+    replies_path = _replies_path(rec.pr_number)
+    replies_path.parent.mkdir(parents=True, exist_ok=True)
+    replies_path.unlink(missing_ok=True)
+    summary = facts.new_review.text if facts.new_review else ""
+    agent.run(rec.worktree_path, agent.ADDRESS_TMPL(pending, str(replies_path), summary))
+    pushed = github.ensure_committed_and_pushed(
+        rec.worktree_path, rec.branch, f"Address review on {rec.slug}")
+    if not pushed and not replies_path.exists():
+        _set(rec.id, phase="blocked",
+             blocked_reason="address pass produced neither changes nor replies")
+        notify.desktop("Harness: address failed", f"{rec.slug} did nothing — blocked")
+        return
+    _post_replies(rec.pr_number, pending, replies_path, github.head_sha(rec.worktree_path))
+    _set(rec.id, phase="ci", ci_fix_attempts=0,
+         last_handled_review_id=(facts.new_review.id if facts.new_review
+                                 else rec.last_handled_review_id))
 
 
 def _cleanup(rec: PRRecord) -> None:
@@ -172,16 +189,14 @@ def _resume_stalled(rec: PRRecord) -> None:
         return
 
     if rec.phase == "addressing":
-        facts = github.fetch_facts(rec.pr_number, None) if rec.pr_number else None
-        review = facts.new_review if facts else None
-        if not dirty:
-            review_text = (review.text if review
-                          else "(review text unavailable — re-check the PR manually)")
-            agent.run(rec.worktree_path, agent.ADDRESS_TMPL(review_text))
+        facts = github.fetch_facts(rec.pr_number, rec.last_handled_review_id) if rec.pr_number else None
+        if not dirty and facts:
+            # Re-run the whole address pass: it is idempotent, and threads the
+            # previous attempt already answered no longer read as pending.
+            _job_address(rec, facts)
+            return
         github.ensure_committed_and_pushed(rec.worktree_path, rec.branch, f"Address review on {rec.slug}")
-        # Record the handled review so the next poll doesn't re-address it forever.
-        _set(rec.id, phase="ci", ci_fix_attempts=0,
-             last_handled_review_id=(review.id if review else rec.last_handled_review_id))
+        _set(rec.id, phase="ci", ci_fix_attempts=0)
         return
 
 
@@ -216,11 +231,15 @@ def _resume_one(rec: PRRecord) -> None:
             elif action == Action.FIX_CI:
                 _job_fix_ci(rec)
             elif action == Action.ADDRESS_REVIEW:
-                _job_address(rec, facts.new_review)
+                _job_address(rec, facts)
             elif action == Action.REQUEST_REVIEW:
                 github.rerequest_review(rec.pr_number)
                 _set(rec.id, phase="await_review")
                 notify.desktop("Harness: review ready", f"PR #{rec.pr_number} — {rec.slug}")
+            elif action == Action.REPORT_ADDRESSED:
+                _set(rec.id, phase="review_addressed")
+                notify.desktop("Harness: comments answered",
+                               f"PR #{rec.pr_number} — {rec.slug} awaits your resolution")
             elif action == Action.BLOCK:
                 _set(rec.id, phase="blocked",
                      blocked_reason=f"CI still failing after {rec.ci_fix_attempts} fix attempt(s)")
@@ -299,11 +318,15 @@ def _process_record(rec: PRRecord, inflight: dict, pool) -> None:
     elif action == Action.FIX_CI:
         inflight[rec.id] = pool.submit(_guard, rec, _job_fix_ci, rec)
     elif action == Action.ADDRESS_REVIEW:
-        inflight[rec.id] = pool.submit(_guard, rec, _job_address, rec, facts.new_review)
+        inflight[rec.id] = pool.submit(_guard, rec, _job_address, rec, facts)
     elif action == Action.REQUEST_REVIEW:
         github.rerequest_review(rec.pr_number)
         _set(rec.id, phase="await_review")
         notify.desktop("Harness: review ready", f"PR #{rec.pr_number} — {rec.slug}")
+    elif action == Action.REPORT_ADDRESSED:
+        _set(rec.id, phase="review_addressed")
+        notify.desktop("Harness: comments answered",
+                       f"PR #{rec.pr_number} — {rec.slug} awaits your resolution")
     elif action == Action.BLOCK:
         _set(rec.id, phase="blocked",
              blocked_reason=f"CI still failing after {rec.ci_fix_attempts} fix attempt(s)")
