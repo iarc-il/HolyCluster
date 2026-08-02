@@ -1,4 +1,5 @@
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 BASE_BRANCH = "dev"
@@ -35,3 +36,12 @@ def worktree_parent() -> Path:
 
 def state_path() -> Path:
     return main_repo_root() / ".harness" / "state.json"
+
+
+@lru_cache(maxsize=1)
+def repo_slug() -> str:
+    # Cached: this was previously re-shelled on every review lookup.
+    return subprocess.run(
+        ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()

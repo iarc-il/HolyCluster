@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from .config import BASE_BRANCH, REVIEWER, worktree_parent
+from .config import BASE_BRANCH, REVIEWER, repo_slug, worktree_parent
 from .lifecycle import GHFacts, Review
 
 
@@ -133,18 +133,12 @@ def _ci_status(pr_number: int) -> str:
     return "success"
 
 
-def _repo_slug() -> str:
-    # e.g. "iarc-il/HolyCluster" — avoids relying on gh's {owner}/{repo} templating
-    return _run(["gh", "repo", "view", "--json", "nameWithOwner",
-                 "--jq", ".nameWithOwner"])
-
-
 def _inline_comments(pr_number: int) -> str:
     # Inline (line-level) review comments are not in `gh pr view --json reviews`;
     # fetch them via the REST API. Fall back to "" (review summary only) on error.
     try:
         raw = _run(["gh", "api",
-                    f"repos/{_repo_slug()}/pulls/{pr_number}/comments"])
+                    f"repos/{repo_slug()}/pulls/{pr_number}/comments"])
         return "\n".join(c["body"] for c in json.loads(raw)) if raw else ""
     except subprocess.CalledProcessError:
         return ""
@@ -154,7 +148,7 @@ def _latest_actionable_review(pr_number: int, last_id: Optional[int]) -> Optiona
     # Use the REST API, which returns a numeric review `id`. `gh pr view --json
     # reviews` returns a GraphQL node-id STRING (e.g. "PRR_kwDO...") that int()
     # cannot parse. Consistent with _inline_comments, which also uses REST.
-    raw = _run(["gh", "api", f"repos/{_repo_slug()}/pulls/{pr_number}/reviews"])
+    raw = _run(["gh", "api", f"repos/{repo_slug()}/pulls/{pr_number}/reviews"])
     reviews = json.loads(raw) if raw else []
     actionable = [
         r for r in reviews
