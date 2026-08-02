@@ -1,11 +1,12 @@
 import argparse
+import json
 import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import agent, config, github, notify
+from . import agent, config, github, notify, review
 from .lifecycle import Action, GHFacts, decide
 from .state import (PRRecord, TERMINAL_PHASES, load_state, new_id, save_state, slugify)
 
@@ -38,6 +39,25 @@ def _set(rec_id, **fields):
                 for k, v in fields.items():
                     setattr(r, k, v)
     _update(mutate)
+
+
+def _replies_path(pr_number: int) -> Path:
+    return config.main_repo_root() / ".harness" / "replies" / f"{pr_number}.json"
+
+
+def _post_replies(pr_number: int, pending: list, replies_path: Path, sha: str) -> None:
+    """Every pending thread must end up carrying the marker, or the task loops:
+    pending -> address -> still pending. Threads the agent skipped get a default."""
+    authored = {}
+    if replies_path.exists():
+        try:
+            authored = {e["thread"]: e["reply"]
+                        for e in json.loads(replies_path.read_text())}
+        except (ValueError, TypeError, KeyError) as e:
+            print(f"[harness] unreadable replies file {replies_path}: {e}")
+    for t in pending:
+        review.reply(pr_number, t, authored.get(t.node_id) or f"Addressed in {sha}")
+    replies_path.unlink(missing_ok=True)
 
 
 def _drop(rec_id) -> None:

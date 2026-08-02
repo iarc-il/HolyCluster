@@ -74,6 +74,10 @@ def open_pr(worktree_path: str, branch: str, title: str, body: str) -> int:
     return int(num)
 
 
+def head_sha(worktree_path: str) -> str:
+    return _run(["git", "rev-parse", "--short", "HEAD"], cwd=worktree_path)
+
+
 def has_uncommitted_changes(worktree_path: str) -> bool:
     return bool(_run(["git", "status", "--porcelain"], cwd=worktree_path))
 
