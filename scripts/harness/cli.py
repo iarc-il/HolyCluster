@@ -40,6 +40,12 @@ def _set(rec_id, **fields):
     _update(mutate)
 
 
+def _drop(rec_id) -> None:
+    def mutate(recs):
+        recs[:] = [r for r in recs if r.id != rec_id]
+    _update(mutate)
+
+
 def _guard(rec, fn, *args) -> None:
     """Run a worker job; on ANY failure mark the record blocked + notify.
     This keeps one failing PR from silently killing a pool worker or the loop."""
@@ -83,18 +89,21 @@ def _job_address(rec: PRRecord, review) -> None:
 
 
 def _cleanup(rec: PRRecord) -> None:
-    """Bring a merged task to a terminal, valid state: close its tmux window,
-    remove the worktree + branch, mark done, notify."""
+    """Retire a merged task: close its tmux window, remove the worktree +
+    branch, drop the record, notify. The merged PR on GitHub is the durable
+    history, so keeping a local record would only grow state.json forever.
+    Dropping last also keeps this self-healing: if we die partway, the record
+    survives with its old phase and the next tick reruns the whole cleanup."""
     github.remove_worktree(rec.worktree_path, rec.branch)
-    _set(rec.id, phase="done")
+    _drop(rec.id)
     notify.desktop("Harness: merged", f"{rec.slug} merged and cleaned up")
 
 
 def _abandon(rec: PRRecord) -> None:
     """Terminal state for a PR closed without merging: reclaim the worktree and
-    branch, but keep the record distinguishable from a merged one."""
+    branch and drop the record. The closed PR itself records the rejection."""
     github.remove_worktree(rec.worktree_path, rec.branch)
-    _set(rec.id, phase="closed")
+    _drop(rec.id)
     notify.desktop("Harness: PR closed", f"{rec.slug} closed unmerged — cleaned up")
 
 
@@ -329,12 +338,8 @@ def watch() -> None:
             for key, fut in list(inflight.items()):
                 if fut.done():
                     inflight.pop(key)
-            # Terminal records are kept in state.json as history but are never
-            # polled, so listing them every tick just buries the live tasks.
-            live = [r for r in recs if r.phase not in TERMINAL_PHASES]
-            summary = ", ".join(f"{r.slug}={r.phase}" for r in live) or "(no active tasks)"
-            finished = len(recs) - len(live)
-            print(f"[harness] poll: {summary}" + (f"  (+{finished} finished)" if finished else ""))
+            summary = ", ".join(f"{r.slug}={r.phase}" for r in recs) or "(no tasks)"
+            print(f"[harness] poll: {summary}")
             for rec in recs:
                 try:
                     _process_record(rec, inflight, pool)
@@ -407,8 +412,7 @@ def cancel(keys: list[str], close_pr: bool) -> None:
                 print(f"cancel: closed PR #{rec.pr_number}")
             else:
                 print(f"cancel: PR #{rec.pr_number} left open (--close-pr to close it)")
-        _update(lambda rs, i=rec.id: rs.__setitem__(
-            slice(None), [r for r in rs if r.id != i]))
+        _drop(rec.id)
         print(f"cancelled: {rec.slug}")
 
 
@@ -422,6 +426,16 @@ def _migrate_legacy_state() -> None:
         canonical.parent.mkdir(parents=True, exist_ok=True)
         canonical.write_text(legacy.read_text())
         print(f"[harness] migrated legacy state {legacy} -> {canonical}")
+
+
+def _prune_terminal() -> None:
+    """Sweep records left in a terminal phase by an earlier build that marked
+    them done/closed instead of dropping them."""
+    recs = load_state(config.state_path())
+    keep = [r for r in recs if r.phase not in TERMINAL_PHASES]
+    if len(keep) != len(recs):
+        save_state(config.state_path(), keep)
+        print(f"[harness] pruned {len(recs) - len(keep)} finished task(s) from state")
 
 
 def _backfill_ids() -> None:
@@ -454,6 +468,7 @@ def main(argv=None) -> int:
     args = p.parse_args(argv)
     _migrate_legacy_state()
     _backfill_ids()
+    _prune_terminal()
     if args.cmd == "new":
         if args.file:
             tasks = [l.strip() for l in open(args.file) if l.strip()]
