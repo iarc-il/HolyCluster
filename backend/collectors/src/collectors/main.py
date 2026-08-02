@@ -289,7 +289,6 @@ async def run_collector():
         redis_client=valkey_client,
     )
     await qrz_manager.start()
-    await update_lotw_user_data()
 
     qrz_refresh_task = asyncio.create_task(qrz_manager.refresh_loop(), name="qrz_refresh_task")
     dxpedition_refresh_task = asyncio.create_task(
