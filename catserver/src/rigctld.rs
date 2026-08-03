@@ -145,3 +145,102 @@ impl Radio for RigctldRadio {
         status
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        io::{BufRead, BufReader, Write},
+        net::{TcpListener, TcpStream},
+        thread,
+    };
+
+    use super::RigctldRadio;
+    use crate::{
+        freq::Freq,
+        rig::{Mode, Radio, Slot},
+    };
+
+    fn command(reader: &mut BufReader<TcpStream>) -> String {
+        let mut value = String::new();
+        reader.read_line(&mut value).unwrap();
+        value.trim().into()
+    }
+
+    #[test]
+    fn sends_rigctld_commands_and_parses_status_over_loopback() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut commands = Vec::new();
+
+            commands.push(command(&mut reader));
+            writeln!(stream, "RPRT 0").unwrap();
+            commands.push(command(&mut reader));
+            writeln!(stream, "RPRT 0").unwrap();
+            commands.push(command(&mut reader));
+            writeln!(stream, "7074000").unwrap();
+            commands.push(command(&mut reader));
+            writeln!(stream, "PKTUSB 0").unwrap();
+
+            commands
+        });
+
+        let mut radio = RigctldRadio::new("127.0.0.1".into(), port);
+        radio.init().unwrap();
+        radio.set_rig(2);
+        radio.set_mode(Mode::Data);
+        radio.set_frequency(Slot::A, Freq::from_u32_hz(7_074_000));
+
+        assert_eq!(
+            radio.get_status(),
+            crate::rig::Status {
+                freq: 7_074_000,
+                status: "connected".into(),
+                mode: "DIGI".into(),
+                current_rig: 2,
+            }
+        );
+        assert_eq!(
+            server.join().unwrap(),
+            ["M PKTUSB 0", "F 7074000", "f", "m"]
+        );
+    }
+
+    #[test]
+    fn reconnects_to_loopback_rigctld_after_five_failed_commands() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream);
+            assert_eq!(command(&mut reader), "f");
+            drop(reader);
+
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            assert_eq!(command(&mut reader), "f");
+            writeln!(stream, "14074000").unwrap();
+            assert_eq!(command(&mut reader), "m");
+            writeln!(stream, "USB 0").unwrap();
+        });
+
+        let mut radio = RigctldRadio::new("127.0.0.1".into(), port);
+        radio.init().unwrap();
+        for _ in 0..5 {
+            assert_eq!(radio.get_status().status, "disconnected");
+        }
+
+        assert_eq!(
+            radio.get_status(),
+            crate::rig::Status {
+                freq: 14_074_000,
+                status: "connected".into(),
+                mode: "SSB".into(),
+                current_rig: 1,
+            }
+        );
+        server.join().unwrap();
+    }
+}
