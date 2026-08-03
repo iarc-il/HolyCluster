@@ -289,7 +289,8 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                             configuration={configuration}
                                             models={hamlib_models}
                                             descriptors={
-                                                hamlib_model_details[rig2_model_id] || hamlib_model_detail
+                                                hamlib_model_details[rig2_model_id] ||
+                                                hamlib_model_detail
                                             }
                                             error={
                                                 configuration_error?.field?.startsWith(
