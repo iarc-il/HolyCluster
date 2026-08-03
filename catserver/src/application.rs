@@ -114,8 +114,11 @@ async fn run_singleton(
 ) -> Result<()> {
     let snapshot = radio.snapshot();
     let selected = snapshot.selected.clone();
-    let factory =
-        radio_factory::factory(snapshot.config.clone(), selected.clone(), rigctld_endpoint);
+    let factory = radio_factory::factory_with_rigctld_endpoint(
+        snapshot.config.clone(),
+        selected.clone(),
+        rigctld_endpoint,
+    );
     radio
         .replace(snapshot.config, selected, move || factory())
         .await?;
