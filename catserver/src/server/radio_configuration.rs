@@ -3,6 +3,7 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    args::{DEFAULT_RIGCTLD_HOST, DEFAULT_RIGCTLD_PORT},
     radio_config::{HamlibConfig, HamlibRigConfig, RadioBackendKind, RadioConfig},
     radio_factory,
     radio_manager::RadioManager,
@@ -108,7 +109,11 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
                 };
             }
             let selected = configuration.effective_backend(false);
-            let factory = radio_factory::factory(configuration.clone(), selected.clone());
+            let factory = radio_factory::factory(
+                configuration.clone(),
+                selected.clone(),
+                (DEFAULT_RIGCTLD_HOST.into(), DEFAULT_RIGCTLD_PORT),
+            );
             match self
                 .radio
                 .replace_and_persist(configuration, selected, move || factory())
