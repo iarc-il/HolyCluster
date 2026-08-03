@@ -12,10 +12,22 @@ main() {
                 DEPLOY_HOST="$2"
                 ;;
             --local-msi-path)
-                LOCAL_MSI_PATH="$2"
+                LOCAL_ARTIFACT_PATH="$2"
                 ;;
             --remote-msi-dir)
-                REMOTE_MSI_DIR="$2"
+                REMOTE_ARTIFACT_DIR="$2"
+                ;;
+            --local-artifact-path)
+                LOCAL_ARTIFACT_PATH="$2"
+                ;;
+            --remote-artifact-dir)
+                REMOTE_ARTIFACT_DIR="$2"
+                ;;
+            --artifact-name)
+                ARTIFACT_NAME="$2"
+                ;;
+            --latest-file)
+                LATEST_FILE="$2"
                 ;;
             *)
                 echo Unknown arg: $1
@@ -28,12 +40,13 @@ main() {
 
     chown -R $(id -u):$(id -g) .
 
-    MSI_NAME=$(git describe --match 'catserver-v*').msi
+    ARTIFACT_NAME=${ARTIFACT_NAME:-$(git describe --match 'catserver-v*').msi}
+    LATEST_FILE=${LATEST_FILE:-latest}
 
-    echo Copying msi $MSI_NAME
-    scp $LOCAL_MSI_PATH $DEPLOY_USER@$DEPLOY_HOST:$REMOTE_MSI_DIR/$MSI_NAME
+    echo Copying artifact $ARTIFACT_NAME
+    scp "$LOCAL_ARTIFACT_PATH" "$DEPLOY_USER@$DEPLOY_HOST:$REMOTE_ARTIFACT_DIR/$ARTIFACT_NAME"
     echo Updating latest version
-    ssh $DEPLOY_USER@$DEPLOY_HOST "echo $MSI_NAME > $REMOTE_MSI_DIR/latest"
+    ssh "$DEPLOY_USER@$DEPLOY_HOST" "echo $ARTIFACT_NAME > $REMOTE_ARTIFACT_DIR/$LATEST_FILE"
 }
 
 main $@
