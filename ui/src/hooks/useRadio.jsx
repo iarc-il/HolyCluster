@@ -45,11 +45,12 @@ export function RadioProvider({ children }) {
     const [hamlib_models, set_hamlib_models] = useState([]);
     const [hamlib_models_error, set_hamlib_models_error] = useState(null);
     const [hamlib_model_detail, set_hamlib_model_detail] = useState(null);
+    const [hamlib_model_details, set_hamlib_model_details] = useState({});
     const [hamlib_model_error, set_hamlib_model_error] = useState(null);
     const [radio_configuration, set_radio_configuration_state] = useState(null);
     const [radio_configuration_result, set_radio_configuration_result] = useState(null);
     const [radio_retry_result, set_radio_retry_result] = useState(null);
-    const requested_model_id = useRef(null);
+    const requested_model_ids = useRef(new Set());
     const pending_configuration_action = useRef(null);
 
     const { settings } = useSettings();
@@ -86,8 +87,11 @@ export function RadioProvider({ children }) {
             set_hamlib_models_error(data.error || null);
         }
 
-        if (data.event === "hamlib_model" && data.model_id === requested_model_id.current) {
+        if (data.event === "hamlib_model" && requested_model_ids.current.has(data.model_id)) {
             set_hamlib_model_detail(data.descriptors || null);
+            if (data.descriptors != null) {
+                set_hamlib_model_details(current => ({ ...current, [data.model_id]: data.descriptors }));
+            }
             set_hamlib_model_error(data.error || null);
         }
 
@@ -171,7 +175,7 @@ export function RadioProvider({ children }) {
     }
 
     function describe_hamlib_model(model_id) {
-        requested_model_id.current = model_id;
+        requested_model_ids.current.add(model_id);
         set_hamlib_model_detail(null);
         set_hamlib_model_error(null);
         send_message_to_radio({ action: "DescribeHamlibModel", model_id });
@@ -216,6 +220,7 @@ export function RadioProvider({ children }) {
                 hamlib_models,
                 hamlib_models_error,
                 hamlib_model_detail,
+                hamlib_model_details,
                 hamlib_model_error,
                 radio_configuration,
                 radio_configuration_result,
