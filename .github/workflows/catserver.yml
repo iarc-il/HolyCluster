@@ -98,12 +98,7 @@ jobs:
 
       - name: Build Linux AppImage
         working-directory: ./catserver
-        run: |
-          apt-get update
-          apt-get install --yes imagemagick wget
-          wget -qO linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20240109-1/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-          sh ./build_appimage.sh
+        run: sh ./build_appimage.sh
 
       - name: Upload Linux AppImage
         uses: actions/upload-artifact@v4
