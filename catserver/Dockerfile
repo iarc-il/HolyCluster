@@ -31,6 +31,7 @@ RUN set -ex \
         g++-mingw-w64-x86-64-posix \
         libappindicator3-dev \
         libgtk-3-dev \
+        imagemagick \
         libusb-1.0-0 \
         libusb-1.0-0-dev \
         libxdo-dev \
@@ -52,7 +53,8 @@ RUN set -ex \
         "wine-stable-amd64=$WINE_PACKAGE_VERSION" \
         "wine-stable-i386:i386=$WINE_PACKAGE_VERSION" \
     && curl -sSfLo /usr/local/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks \
-    && chmod +x /usr/local/bin/winetricks \
+    && curl -sSfLo /usr/local/bin/linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20240109-1/linuxdeploy-x86_64.AppImage \
+    && chmod +x /usr/local/bin/winetricks /usr/local/bin/linuxdeploy-x86_64.AppImage \
     && useradd -m wix \
     && printf '#!/bin/sh\nexec wine dotnet $@' > /usr/local/bin/dotnet \
     && printf '#!/bin/sh\nexec wine wix.exe $@' > /usr/local/bin/wix \
