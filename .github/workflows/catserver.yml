@@ -94,7 +94,22 @@ jobs:
 
       - name: Build Linux release binary
         working-directory: ./catserver
-        run: cargo build --workspace --release
+        run: cargo build --workspace --target x86_64-unknown-linux-gnu --release
+
+      - name: Build Linux AppImage
+        working-directory: ./catserver
+        run: |
+          apt-get update
+          apt-get install --yes wget
+          wget -qO linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20240109-1/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          sh ./build_appimage.sh
+
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: HolyCluster-linux-x86_64
+          path: catserver/target/x86_64-unknown-linux-gnu/release/catserver-v*-linux-x86_64.AppImage
 
       - name: Run Clippy
         working-directory: ./catserver
