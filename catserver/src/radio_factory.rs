@@ -1,4 +1,5 @@
 use crate::{
+    args::{DEFAULT_RIGCTLD_HOST, DEFAULT_RIGCTLD_PORT},
     dummy::DummyRadio,
     hamlib_radio::HamlibRadio,
     radio_actor::RadioFactory,
@@ -11,7 +12,15 @@ use crate::omnirig::OmnirigRadio;
 #[cfg(not(windows))]
 use crate::rigctld::RigctldRadio;
 
-pub(crate) fn factory(
+pub(crate) fn factory(config: RadioConfig, selected: ActiveRadioBackend) -> RadioFactory {
+    factory_with_rigctld_endpoint(
+        config,
+        selected,
+        (DEFAULT_RIGCTLD_HOST.into(), DEFAULT_RIGCTLD_PORT),
+    )
+}
+
+pub(crate) fn factory_with_rigctld_endpoint(
     config: RadioConfig,
     selected: ActiveRadioBackend,
     rigctld_endpoint: (String, u16),
