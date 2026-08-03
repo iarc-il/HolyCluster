@@ -3,7 +3,7 @@ use single_instance::SingleInstance;
 use tokio::sync::broadcast::{self, Sender};
 
 use crate::{
-    args::{Args, BASE_LOCAL_PORT, server_config},
+    args::{Args, BASE_LOCAL_PORT, rigctld_endpoint, server_config},
     dummy_rotator::DummyRotator,
     radio_config::RadioConfig,
     radio_factory,
@@ -29,6 +29,7 @@ pub fn run() -> Result<()> {
             "Radio configuration is invalid; using the platform default for this session"
         );
     }
+    let rigctld_endpoint = rigctld_endpoint(&args);
     let radio = radio(radio_config.config, args.dummy)?;
     let rotator = rotator(args.dummy_rotator);
     if instance.is_single() {
@@ -43,7 +44,14 @@ pub fn run() -> Result<()> {
             .name("singleton".into())
             .spawn(move || {
                 if let Err(error) =
-                    run_singleton(event_sender, radio, rotator, server_config, use_local_ui)
+                    run_singleton(
+                        event_sender,
+                        radio,
+                        rotator,
+                        server_config,
+                        use_local_ui,
+                        rigctld_endpoint,
+                    )
                 {
                     tracing::error!(?error, "Singleton instance failed");
                 }
@@ -104,10 +112,15 @@ async fn run_singleton(
     rotator: AnyRotator,
     server_config: ServerConfig,
     use_local_ui: bool,
+    rigctld_endpoint: (String, u16),
 ) -> Result<()> {
     let snapshot = radio.snapshot();
     let selected = snapshot.selected.clone();
-    let factory = radio_factory::factory(snapshot.config.clone(), selected.clone());
+    let factory = radio_factory::factory(
+        snapshot.config.clone(),
+        selected.clone(),
+        rigctld_endpoint,
+    );
     radio
         .replace(snapshot.config, selected, move || factory())
         .await?;
