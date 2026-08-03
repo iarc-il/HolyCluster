@@ -33,6 +33,8 @@ fn build(
     selected: &ActiveRadioBackend,
     rigctld_endpoint: &(String, u16),
 ) -> Box<dyn Radio> {
+    #[cfg(windows)]
+    let _ = rigctld_endpoint;
     match selected {
         ActiveRadioBackend::Dummy => Box::new(DummyRadio::new()),
         ActiveRadioBackend::Configured(RadioBackendKind::Hamlib) => config
