@@ -5,7 +5,7 @@ TARGET=x86_64-unknown-linux-gnu
 CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-target}
 BUILD_DIR=$CARGO_TARGET_DIR/$TARGET/release
 APPDIR=$BUILD_DIR/AppDir
-LINUXDEPLOY=${LINUXDEPLOY:-linuxdeploy-x86_64.AppImage}
+LINUXDEPLOY=${LINUXDEPLOY:-./linuxdeploy-x86_64.AppImage}
 VERSION=$(git describe --match 'catserver-v*')
 OUTPUT=$BUILD_DIR/$VERSION-linux-x86_64.AppImage
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
