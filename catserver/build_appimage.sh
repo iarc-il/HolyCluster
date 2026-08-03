@@ -14,7 +14,7 @@ rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin"
 cp "$BUILD_DIR/catserver" "$APPDIR/usr/bin/HolyCluster"
 cp "$SCRIPT_DIR/appimage/HolyCluster.desktop" "$APPDIR/HolyCluster.desktop"
-cp "$SCRIPT_DIR/../ui/src/assets/icon.png" "$APPDIR/HolyCluster.png"
+convert "$SCRIPT_DIR/../ui/src/assets/icon.png" -resize '128x128!' "$APPDIR/HolyCluster.png"
 cat > "$APPDIR/AppRun" <<'EOF'
 #!/bin/sh
 exec "$(dirname "$0")/usr/bin/HolyCluster" "$@"
