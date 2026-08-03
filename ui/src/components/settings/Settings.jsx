@@ -69,7 +69,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const { colors, setTheme } = useColors();
     const { settings, set_settings } = useSettings();
     const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
-    const { is_radio_available } = use_radio();
+    const { get_radio_capabilities, is_radio_available, radio_status } = use_radio();
     const is_mobile_settings = useMediaQuery("only screen and (max-width : 768px)");
 
     useEffect(() => {
@@ -82,6 +82,12 @@ function Settings({ set_map_controls, set_radius_in_km }) {
         document.addEventListener(TOUR_SELECT_SETTINGS_TAB_EVENT, select_tab);
         return () => document.removeEventListener(TOUR_SELECT_SETTINGS_TAB_EVENT, select_tab);
     }, []);
+
+    useEffect(() => {
+        if (radio_status !== "unavailable" && is_radio_available()) {
+            get_radio_capabilities();
+        }
+    }, [radio_status]);
 
     function disable_settings_filters(current_filters, new_settings) {
         const updated_bands = { ...current_filters.bands };
