@@ -7,7 +7,10 @@ const radio = vi.hoisted(() => ({ current: null }));
 vi.mock("@/hooks/useRadio", () => ({ default: () => radio.current }));
 vi.mock("@/hooks/useColors", () => ({
     useColors: () => ({
-        theme: { input_background: "white", text: "black", disabled_text: "gray" },
+        colors: {
+            theme: { input_background: "white", text: "black", disabled_text: "gray" },
+            buttons: { utility: "black" },
+        },
     }),
 }));
 
@@ -95,7 +98,7 @@ describe("CAT control settings", () => {
 
         await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
 
-        expect(screen.getByRole("button", { name: "Apply radio hardware" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Apply radio hardware" }).disabled).toBe(true);
     });
 
     it("renders descriptor inputs and supports an optional second rig", async () => {
@@ -132,8 +135,8 @@ describe("CAT control settings", () => {
         };
         render_cat();
 
-        expect(screen.getByRole("alert")).toHaveTextContent("Invalid device");
-        expect(screen.getByLabelText("Device")).toHaveAttribute("aria-invalid", "true");
+        expect(screen.getByRole("alert").textContent).toContain("Invalid device");
+        expect(screen.getByLabelText("Device").getAttribute("aria-invalid")).toBe("true");
     });
 
     it("keeps logger integration available for legacy CAT servers", () => {
