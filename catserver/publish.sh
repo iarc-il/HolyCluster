@@ -11,12 +11,6 @@ main() {
             --deploy-host)
                 DEPLOY_HOST="$2"
                 ;;
-            --local-msi-path)
-                LOCAL_ARTIFACT_PATH="$2"
-                ;;
-            --remote-msi-dir)
-                REMOTE_ARTIFACT_DIR="$2"
-                ;;
             --local-artifact-path)
                 LOCAL_ARTIFACT_PATH="$2"
                 ;;
