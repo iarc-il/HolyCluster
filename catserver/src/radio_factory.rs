@@ -35,12 +35,10 @@ fn build(
         #[cfg(windows)]
         ActiveRadioBackend::Configured(RadioBackendKind::Omnirig) => Box::new(OmnirigRadio::new()),
         #[cfg(not(windows))]
-        ActiveRadioBackend::Configured(RadioBackendKind::Rigctld) => {
-            Box::new(RigctldRadio::new(
-                rigctld_endpoint.0.clone(),
-                rigctld_endpoint.1,
-            ))
-        }
+        ActiveRadioBackend::Configured(RadioBackendKind::Rigctld) => Box::new(RigctldRadio::new(
+            rigctld_endpoint.0.clone(),
+            rigctld_endpoint.1,
+        )),
         ActiveRadioBackend::Configured(backend) => Box::new(UnavailableRadio::new(match backend {
             RadioBackendKind::Omnirig => "omnirig",
             RadioBackendKind::Rigctld => "rigctld",
