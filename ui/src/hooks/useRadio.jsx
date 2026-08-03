@@ -129,7 +129,10 @@ export function RadioProvider({ children }) {
         if (data.event === "hamlib_model" && requested_model_ids.current.has(data.model_id)) {
             set_hamlib_model_detail(data.descriptors || null);
             if (data.descriptors != null) {
-                set_hamlib_model_details(current => ({ ...current, [data.model_id]: data.descriptors }));
+                set_hamlib_model_details(current => ({
+                    ...current,
+                    [data.model_id]: data.descriptors,
+                }));
             }
             set_hamlib_model_error(data.error || null);
         }

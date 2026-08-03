@@ -6,7 +6,9 @@ const radio = vi.hoisted(() => ({ current: null }));
 
 vi.mock("@/hooks/useRadio", () => ({ default: () => radio.current }));
 vi.mock("@/hooks/useColors", () => ({
-    useColors: () => ({ theme: { input_background: "white", text: "black", disabled_text: "gray" } }),
+    useColors: () => ({
+        theme: { input_background: "white", text: "black", disabled_text: "gray" },
+    }),
 }));
 
 import CatControl from "@/components/settings/CatControl.jsx";
@@ -26,7 +28,14 @@ const descriptors = [
         step: 1200,
     },
     { kind: "boolean", token: "rts", label: "RTS", tooltip: "", default: false },
-    { kind: "combo", token: "parity", label: "Parity", tooltip: "", default: "none", options: ["none", "even"] },
+    {
+        kind: "combo",
+        token: "parity",
+        label: "Parity",
+        tooltip: "",
+        default: "none",
+        options: ["none", "even"],
+    },
 ];
 
 function configuration(hamlib = null) {
@@ -51,10 +60,12 @@ describe("CAT control settings", () => {
             radio_configuration_result: null,
             radio_retry_result: null,
             radio_status: "connected",
-            hamlib_models: [{ id: "2", manufacturer: "Acme", model: "Rig", version: "", status: "stable" }],
+            hamlib_models: [
+                { id: "2", manufacturer: "Acme", model: "Rig", version: "", status: "stable" },
+            ],
             hamlib_models_error: null,
             hamlib_model_detail: descriptors,
-            hamlib_model_details: { "2": descriptors },
+            hamlib_model_details: { 2: descriptors },
             hamlib_model_error: null,
             get_radio_configuration: vi.fn(),
             list_hamlib_models: vi.fn(),
@@ -113,7 +124,11 @@ describe("CAT control settings", () => {
         });
         radio.current.radio_configuration_result = {
             ok: false,
-            error: { field: "hamlib.rig1.token_values", token: "device", message: "Invalid device" },
+            error: {
+                field: "hamlib.rig1.token_values",
+                token: "device",
+                message: "Invalid device",
+            },
         };
         render_cat();
 

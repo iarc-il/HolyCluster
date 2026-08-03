@@ -44,7 +44,11 @@ function DescriptorInput({ descriptor, value, on_change, error_token }) {
 
     if (descriptor.kind === "boolean") {
         return (
-            <label className="flex items-center gap-2" title={descriptor.tooltip} htmlFor={input_id}>
+            <label
+                className="flex items-center gap-2"
+                title={descriptor.tooltip}
+                htmlFor={input_id}
+            >
                 <input
                     id={input_id}
                     checked={value === "true"}
@@ -78,7 +82,11 @@ function DescriptorInput({ descriptor, value, on_change, error_token }) {
                     id={input_id}
                     aria-invalid={invalid}
                     className={input_class}
-                    type={descriptor.kind === "integer" || descriptor.kind === "numeric" ? "number" : "text"}
+                    type={
+                        descriptor.kind === "integer" || descriptor.kind === "numeric"
+                            ? "number"
+                            : "text"
+                    }
                     min={descriptor.minimum}
                     max={descriptor.maximum}
                     step={descriptor.step}
@@ -129,12 +137,18 @@ function RigSettings({ rig, configuration, models, descriptors, error, set_confi
                     key={descriptor.token}
                     descriptor={descriptor}
                     error_token={error?.token}
-                    value={rig_configuration.token_values[descriptor.token] ?? String(descriptor.default)}
+                    value={
+                        rig_configuration.token_values[descriptor.token] ??
+                        String(descriptor.default)
+                    }
                     on_change={value =>
                         set_configuration(current =>
                             update_rig(current, rig, current_rig => ({
                                 ...current_rig,
-                                token_values: { ...current_rig.token_values, [descriptor.token]: value },
+                                token_values: {
+                                    ...current_rig.token_values,
+                                    [descriptor.token]: value,
+                                },
                             })),
                         )
                     }
@@ -165,7 +179,8 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
     const [configuration, set_configuration] = useState(null);
 
     const configuration_capable = radio_capabilities?.radio_configuration === true;
-    const configuration_error = radio_configuration_result?.ok === false ? radio_configuration_result.error : null;
+    const configuration_error =
+        radio_configuration_result?.ok === false ? radio_configuration_result.error : null;
     const rig1_model_id = configuration?.hamlib?.rig1?.model_id;
     const rig2_model_id = configuration?.hamlib?.rig2?.model_id;
 
@@ -195,9 +210,7 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
         set_configuration(current => ({
             backend,
             hamlib:
-                backend === "hamlib"
-                    ? current?.hamlib || { rig1: empty_rig(), rig2: null }
-                    : null,
+                backend === "hamlib" ? current?.hamlib || { rig1: empty_rig(), rig2: null } : null,
         }));
     }
 
@@ -212,14 +225,19 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
         <>
             <div className="p-4" data-tour="settings-cat-control">
                 {configuration_capable && configuration != null ? (
-                    <section className="mb-6 flex flex-col gap-3" aria-label="Radio hardware settings">
+                    <section
+                        className="mb-6 flex flex-col gap-3"
+                        aria-label="Radio hardware settings"
+                    >
                         <h4 className="text-lg">Radio hardware</h4>
                         <label className="flex flex-col gap-1" htmlFor="radio-backend">
                             <span>Backend</span>
                             <Select
                                 id="radio-backend"
                                 value={configuration.backend}
-                                className={configuration_error?.field === "backend" ? "bg-red-200" : ""}
+                                className={
+                                    configuration_error?.field === "backend" ? "bg-red-200" : ""
+                                }
                                 onChange={event => select_backend(event.target.value)}
                             >
                                 {radio_capabilities.backends.map(backend => (
@@ -238,7 +256,9 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                     rig="rig1"
                                     configuration={configuration}
                                     models={hamlib_models}
-                                    descriptors={hamlib_model_details[rig1_model_id] || hamlib_model_detail}
+                                    descriptors={
+                                        hamlib_model_details[rig1_model_id] || hamlib_model_detail
+                                    }
                                     error={
                                         configuration_error?.field?.startsWith("hamlib.rig1")
                                             ? configuration_error
@@ -268,9 +288,13 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                             rig="rig2"
                                             configuration={configuration}
                                             models={hamlib_models}
-                                            descriptors={hamlib_model_details[rig2_model_id] || hamlib_model_detail}
+                                            descriptors={
+                                                hamlib_model_details[rig2_model_id] || hamlib_model_detail
+                                            }
                                             error={
-                                                configuration_error?.field?.startsWith("hamlib.rig2")
+                                                configuration_error?.field?.startsWith(
+                                                    "hamlib.rig2",
+                                                )
                                                     ? configuration_error
                                                     : null
                                             }
@@ -309,7 +333,10 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                         <button
                             type="button"
                             className="self-start"
-                            disabled={configuration.backend === "hamlib" && !configuration.hamlib.rig1.model_id}
+                            disabled={
+                                configuration.backend === "hamlib" &&
+                                !configuration.hamlib.rig1.model_id
+                            }
                             onClick={apply_configuration}
                         >
                             Apply radio hardware
