@@ -92,6 +92,10 @@ jobs:
         working-directory: ./catserver
         run: cargo test --workspace
 
+      - name: Build Linux release binary
+        working-directory: ./catserver
+        run: cargo build --workspace --release
+
       - name: Run Clippy
         working-directory: ./catserver
         run: cargo clippy --workspace --target $TARGET -- -D warnings
