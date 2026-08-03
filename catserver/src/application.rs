@@ -43,16 +43,14 @@ pub fn run() -> Result<()> {
         let thread = std::thread::Builder::new()
             .name("singleton".into())
             .spawn(move || {
-                if let Err(error) =
-                    run_singleton(
-                        event_sender,
-                        radio,
-                        rotator,
-                        server_config,
-                        use_local_ui,
-                        rigctld_endpoint,
-                    )
-                {
+                if let Err(error) = run_singleton(
+                    event_sender,
+                    radio,
+                    rotator,
+                    server_config,
+                    use_local_ui,
+                    rigctld_endpoint,
+                ) {
                     tracing::error!(?error, "Singleton instance failed");
                 }
             })?;
@@ -116,11 +114,8 @@ async fn run_singleton(
 ) -> Result<()> {
     let snapshot = radio.snapshot();
     let selected = snapshot.selected.clone();
-    let factory = radio_factory::factory(
-        snapshot.config.clone(),
-        selected.clone(),
-        rigctld_endpoint,
-    );
+    let factory =
+        radio_factory::factory(snapshot.config.clone(), selected.clone(), rigctld_endpoint);
     radio
         .replace(snapshot.config, selected, move || factory())
         .await?;
