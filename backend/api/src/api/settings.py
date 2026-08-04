@@ -15,7 +15,7 @@ class ApiSettings(PostgresSettings, ValkeySettings, QrzSettings, LogSettings, Ba
     )
 
     ui_dist_path: Path = Field(..., description="Path to UI distribution files")
-    catserver_msi_dir: Path = Field(..., description="Path to CATServer MSI directory")
+    catserver_msi_dir: Path = Field(..., description="Path to CATServer release directory")
 
     @computed_field
     @property
