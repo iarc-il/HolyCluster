@@ -134,6 +134,49 @@ const columns = [
     { title: "Comment", field: "comment", sorting: false },
 ];
 
+const lotw_status_details = {
+    frequent: {
+        label: "LoTW: active (last upload within 180 days)",
+        symbol: "✓",
+        className: "bg-emerald-700 text-white",
+    },
+    infrequent: {
+        label: "LoTW: user, last upload over 180 days ago",
+        symbol: "~",
+        className: "bg-amber-500 text-slate-950",
+    },
+    non_user: {
+        label: "LoTW: no user activity found",
+        symbol: "—",
+        className: "bg-slate-500 text-white",
+    },
+};
+
+export function get_lotw_status_details(status) {
+    return (
+        lotw_status_details[status] ?? {
+            label: "LoTW status unavailable",
+            symbol: "?",
+            className: "bg-slate-400 text-slate-950",
+        }
+    );
+}
+
+export function LoTWStatus({ status }) {
+    const { label, symbol, className } = get_lotw_status_details(status);
+
+    return (
+        <span
+            className={`inline-block rounded-full px-1 text-xs leading-4 whitespace-nowrap ${className}`}
+            role="img"
+            aria-label={label}
+            title={label}
+        >
+            LoTW {symbol}
+        </span>
+    );
+}
+
 const pota_columns = [
     { title: "Time", field: "time" },
     { title: "", field: "flag", sorting: false },
@@ -386,11 +429,14 @@ const Spot = forwardRef(function Spot(
                     }}
                     onMouseLeave={() => set_is_missing_hovered(false)}
                 >
-                    <span
-                        className={is_missing_alerted ? "inline-block rounded px-1" : ""}
-                        style={is_missing_alerted ? missing_alert_callsign_style : undefined}
-                    >
-                        <Callsign callsign={spot.dx_callsign} />
+                    <span className="inline-flex items-center gap-1">
+                        <span
+                            className={is_missing_alerted ? "inline-block rounded px-1" : ""}
+                            style={is_missing_alerted ? missing_alert_callsign_style : undefined}
+                        >
+                            <Callsign callsign={spot.dx_callsign} />
+                        </span>
+                        <LoTWStatus status={spot.dx_lotw_status} />
                     </span>
                     {is_dxpedition_alerted && (
                         <span className="ml-1" title="DXpedition">
