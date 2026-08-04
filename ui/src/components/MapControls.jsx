@@ -148,8 +148,14 @@ function MapControls({
     }
 
     function toggle_controls_panel() {
-        if (show_controls_panel) {
-        }
+        set_tooltip(tooltip =>
+            tooltip
+                ? {
+                      ...tooltip,
+                      content: show_controls_panel ? "Show map controls" : "Hide map controls",
+                  }
+                : null,
+        );
         set_show_controls_panel(!show_controls_panel);
     }
 
@@ -253,9 +259,45 @@ function MapControls({
     }
 
     function toggle_equator() {
+        set_tooltip(tooltip =>
+            tooltip ? { ...tooltip, content: equator_on ? "Show equator" : "Hide equator" } : null,
+        );
         set_map_controls(state => {
             state.show_equator = !state.show_equator;
         });
+    }
+
+    function toggle_projection() {
+        set_tooltip(tooltip =>
+            tooltip
+                ? { ...tooltip, content: map_controls.is_globe ? "Globe mode" : "Azimuthal mode" }
+                : null,
+        );
+        set_map_controls(state => (state.is_globe = !state.is_globe));
+    }
+
+    function toggle_fullscreen() {
+        set_tooltip(tooltip =>
+            tooltip
+                ? {
+                      ...tooltip,
+                      content: is_map_fullscreen ? "Enter fullscreen" : "Exit fullscreen",
+                  }
+                : null,
+        );
+        toggle_map_fullscreen();
+    }
+
+    function toggle_playback() {
+        set_tooltip(tooltip =>
+            tooltip
+                ? {
+                      ...tooltip,
+                      content: is_history_mode ? "Enter playback mode" : "Exit playback mode",
+                  }
+                : null,
+        );
+        toggle_history();
     }
 
     function toggle_voacap() {
@@ -392,7 +434,7 @@ function MapControls({
                     {!is_mobile && (
                         <button
                             type="button"
-                            onClick={toggle_map_fullscreen}
+                            onClick={toggle_fullscreen}
                             className="flex h-10 w-10 items-center justify-center rounded-lg"
                             style={control_button_style}
                             aria-label={is_map_fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
@@ -419,7 +461,7 @@ function MapControls({
                     {dev_mode && (
                         <button
                             type="button"
-                            onClick={toggle_history}
+                            onClick={toggle_playback}
                             className="flex h-10 w-10 items-center justify-center rounded-lg"
                             style={{
                                 ...control_button_style,
@@ -569,9 +611,7 @@ function MapControls({
                             </button>
                             <button
                                 type="button"
-                                onClick={() =>
-                                    set_map_controls(state => (state.is_globe = !state.is_globe))
-                                }
+                                onClick={toggle_projection}
                                 className="flex items-center justify-center relative"
                                 aria-label={
                                     map_controls.is_globe
