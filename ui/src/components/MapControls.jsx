@@ -3,8 +3,8 @@ import Night from "@/components/Night.jsx";
 import PropagationBar from "@/components/PropagationBar.jsx";
 import { TOUR_CLOSE_MAP_CONTROLS_EVENT } from "@/components/tour/tour_events.js";
 import Button from "@/components/ui/Button.jsx";
-import Popup from "@/components/ui/Popup.jsx";
 import Radio from "@/components/ui/Radio.jsx";
+import Tooltip from "@/components/ui/Tooltip.jsx";
 import { MAP_THEME_CONFIGS, map_theme_names, useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import use_radio from "@/hooks/useRadio";
@@ -58,9 +58,7 @@ function MapControls({
     const { radio_status } = use_radio();
     const { settings } = useSettings();
     const { filters, setFilters } = useFilters();
-    const mode_button_ref = useRef(null);
     const controls_panel_ref = useRef(null);
-    const [show_mode_popup, set_show_mode_popup] = useState(false);
     const [show_controls_panel, set_show_controls_panel] = useState(false);
 
     const zone_filters = filters.zone_filters ?? {};
@@ -145,12 +143,10 @@ function MapControls({
 
     function close_controls_panel() {
         set_show_controls_panel(false);
-        set_show_mode_popup(false);
     }
 
     function toggle_controls_panel() {
         if (show_controls_panel) {
-            set_show_mode_popup(false);
         }
         set_show_controls_panel(!show_controls_panel);
     }
@@ -337,126 +333,143 @@ function MapControls({
             >
                 <div className="flex items-center gap-2">
                     {is_mobile && (
-                        <GPSButton
-                            on_location={({ latitude, longitude, locator }) => {
-                                set_map_controls(state => {
-                                    state.location = {
-                                        displayed_locator: locator,
-                                        location: [longitude, latitude],
-                                    };
-                                });
-                            }}
-                            className="flex h-10 w-10 items-center justify-center rounded-lg disabled:opacity-60"
-                            style={control_button_style}
-                            aria_label="Center map on current GPS location"
-                            data_tour="map-gps"
-                        />
+                        <Tooltip content="Use current location">
+                            <GPSButton
+                                on_location={({ latitude, longitude, locator }) => {
+                                    set_map_controls(state => {
+                                        state.location = {
+                                            displayed_locator: locator,
+                                            location: [longitude, latitude],
+                                        };
+                                    });
+                                }}
+                                className="flex h-10 w-10 items-center justify-center rounded-lg disabled:opacity-60"
+                                style={control_button_style}
+                                aria_label="Center map on current GPS location"
+                                data_tour="map-gps"
+                                show_title={false}
+                            />
+                        </Tooltip>
                     )}
-                    <button
-                        type="button"
-                        onClick={reset_map}
-                        className="flex h-10 w-10 items-center justify-center rounded-lg"
-                        style={control_button_style}
-                        aria-label="Reset map"
-                        title="Reset map"
-                        data-tour="map-reset"
-                    >
-                        <svg
-                            height="24"
-                            width="24"
-                            viewBox="0 0 576 512"
-                            fill="currentColor"
-                            aria-hidden="true"
-                        >
-                            <path d="M575.8 255.5c0 18-15 32.1-32 32.1l-32 0 .7 160.2c0 2.7-.2 5.4-.5 8.1l0 16.2c0 22.1-17.9 40-40 40l-16 0c-1.1 0-2.2 0-3.3-.1c-1.4 .1-2.8 .1-4.2 .1L416 512l-24 0c-22.1 0-40-17.9-40-40l0-24 0-64c0-17.7-14.3-32-32-32l-64 0c-17.7 0-32 14.3-32 32l0 64 0 24c0 22.1-17.9 40-40 40l-24 0-31.9 0c-1.5 0-3-.1-4.5-.2c-1.2 .1-2.4 .2-3.6 .2l-16 0c-22.1 0-40-17.9-40-40l0-112c0-.9 0-1.9 .1-2.8l0-69.7-32 0c-18 0-32-14-32-32.1c0-9 3-17 10-24L266.4 8c7-7 15-8 22-8s15 2 21 7L564.8 231.5c8 7 12 15 11 24z" />
-                        </svg>
-                    </button>
-                    {!is_mobile && (
+                    <Tooltip content="Reset map">
                         <button
                             type="button"
-                            onClick={toggle_map_fullscreen}
+                            onClick={reset_map}
                             className="flex h-10 w-10 items-center justify-center rounded-lg"
                             style={control_button_style}
-                            aria-label={is_map_fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                            title={is_map_fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                            data-tour="map-fullscreen"
+                            aria-label="Reset map"
+                            data-tour="map-reset"
                         >
                             <svg
                                 height="24"
                                 width="24"
-                                viewBox="0 0 24 24"
+                                viewBox="0 0 576 512"
                                 fill="currentColor"
                                 aria-hidden="true"
                             >
-                                {is_map_fullscreen ? (
-                                    <path d="M5 16h3v3h2v-5H5v2zM8 5v3H5v2h5V5H8zM16 19v-3h3v-2h-5v5h2zM14 5v5h5V8h-3V5h-2z" />
-                                ) : (
-                                    <path d="M9 5H5v4H3V5a2 2 0 0 1 2-2h4zM15 3h4a2 2 0 0 1 2 2v4h-2V5h-4zM3 15h2v4h4v2H5a2 2 0 0 1-2-2zM19 15h2v4a2 2 0 0 1-2 2h-4v-2h4z" />
-                                )}
+                                <path d="M575.8 255.5c0 18-15 32.1-32 32.1l-32 0 .7 160.2c0 2.7-.2 5.4-.5 8.1l0 16.2c0 22.1-17.9 40-40 40l-16 0c-1.1 0-2.2 0-3.3-.1c-1.4 .1-2.8 .1-4.2 .1L416 512l-24 0c-22.1 0-40-17.9-40-40l0-24 0-64c0-17.7-14.3-32-32-32l-64 0c-17.7 0-32 14.3-32 32l0 64 0 24c0 22.1-17.9 40-40 40l-24 0-31.9 0c-1.5 0-3-.1-4.5-.2c-1.2 .1-2.4 .2-3.6 .2l-16 0c-22.1 0-40-17.9-40-40l0-112c0-.9 0-1.9 .1-2.8l0-69.7-32 0c-18 0-32-14-32-32.1c0-9 3-17 10-24L266.4 8c7-7 15-8 22-8s15 2 21 7L564.8 231.5c8 7 12 15 11 24z" />
                             </svg>
                         </button>
+                    </Tooltip>
+                    {!is_mobile && (
+                        <Tooltip
+                            content={is_map_fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                        >
+                            <button
+                                type="button"
+                                onClick={toggle_map_fullscreen}
+                                className="flex h-10 w-10 items-center justify-center rounded-lg"
+                                style={control_button_style}
+                                aria-label={
+                                    is_map_fullscreen ? "Exit fullscreen" : "Enter fullscreen"
+                                }
+                                data-tour="map-fullscreen"
+                            >
+                                <svg
+                                    height="24"
+                                    width="24"
+                                    viewBox="0 0 24 24"
+                                    fill="currentColor"
+                                    aria-hidden="true"
+                                >
+                                    {is_map_fullscreen ? (
+                                        <path d="M5 16h3v3h2v-5H5v2zM8 5v3H5v2h5V5H8zM16 19v-3h3v-2h-5v5h2zM14 5v5h5V8h-3V5h-2z" />
+                                    ) : (
+                                        <path d="M9 5H5v4H3V5a2 2 0 0 1 2-2h4zM15 3h4a2 2 0 0 1 2 2v4h-2V5h-4zM3 15h2v4h4v2H5a2 2 0 0 1-2-2zM19 15h2v4a2 2 0 0 1-2 2h-4v-2h4z" />
+                                    )}
+                                </svg>
+                            </button>
+                        </Tooltip>
                     )}
                     {dev_mode && (
+                        <Tooltip
+                            content={is_history_mode ? "Exit playback mode" : "Enter playback mode"}
+                        >
+                            <button
+                                type="button"
+                                onClick={toggle_history}
+                                className="flex h-10 w-10 items-center justify-center rounded-lg"
+                                style={{
+                                    ...control_button_style,
+                                    ...(is_history_mode
+                                        ? { color: colors.buttons.active ?? "#3b82f6" }
+                                        : {}),
+                                }}
+                                aria-label={
+                                    is_history_mode ? "Exit playback mode" : "Enter playback mode"
+                                }
+                                data-tour="map-history-toggle"
+                            >
+                                <svg
+                                    height="24"
+                                    width="24"
+                                    viewBox="0 0 16 16"
+                                    fill="currentColor"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M6.79 5.093A.5.5 0 0 0 6 5.5v5a.5.5 0 0 0 .79.407l3.5-2.5a.5.5 0 0 0 0-.814z" />
+                                    <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z" />
+                                </svg>
+                            </button>
+                        </Tooltip>
+                    )}
+                    <Tooltip
+                        content={show_controls_panel ? "Hide map controls" : "Show map controls"}
+                    >
                         <button
                             type="button"
-                            onClick={toggle_history}
+                            onClick={toggle_controls_panel}
                             className="flex h-10 w-10 items-center justify-center rounded-lg"
-                            style={{
-                                ...control_button_style,
-                                ...(is_history_mode
-                                    ? { color: colors.buttons.active ?? "#3b82f6" }
-                                    : {}),
-                            }}
+                            style={control_button_style}
                             aria-label={
-                                is_history_mode ? "Exit playback mode" : "Enter playback mode"
+                                show_controls_panel ? "Hide map controls" : "Show map controls"
                             }
-                            title={is_history_mode ? "Exit playback mode" : "Enter playback mode"}
-                            data-tour="map-history-toggle"
+                            aria-expanded={show_controls_panel}
+                            data-tour="map-controls-toggle"
                         >
                             <svg
-                                height="24"
                                 width="24"
-                                viewBox="0 0 16 16"
-                                fill="currentColor"
+                                height="24"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                                 aria-hidden="true"
                             >
-                                <path d="M6.79 5.093A.5.5 0 0 0 6 5.5v5a.5.5 0 0 0 .79.407l3.5-2.5a.5.5 0 0 0 0-.814z" />
-                                <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z" />
+                                <path d="M4 6h10" />
+                                <path d="M18 6h2" />
+                                <circle cx="16" cy="6" r="2" />
+                                <path d="M4 12h2" />
+                                <path d="M10 12h10" />
+                                <circle cx="8" cy="12" r="2" />
+                                <path d="M4 18h8" />
+                                <path d="M16 18h4" />
+                                <circle cx="14" cy="18" r="2" />
                             </svg>
                         </button>
-                    )}
-                    <button
-                        type="button"
-                        onClick={toggle_controls_panel}
-                        className="flex h-10 w-10 items-center justify-center rounded-lg"
-                        style={control_button_style}
-                        aria-label={show_controls_panel ? "Hide map controls" : "Show map controls"}
-                        aria-expanded={show_controls_panel}
-                        title={show_controls_panel ? "Hide map controls" : "Show map controls"}
-                        data-tour="map-controls-toggle"
-                    >
-                        <svg
-                            width="24"
-                            height="24"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                        >
-                            <path d="M4 6h10" />
-                            <path d="M18 6h2" />
-                            <circle cx="16" cy="6" r="2" />
-                            <path d="M4 12h2" />
-                            <path d="M10 12h10" />
-                            <circle cx="8" cy="12" r="2" />
-                            <path d="M4 18h8" />
-                            <path d="M16 18h4" />
-                            <circle cx="14" cy="18" r="2" />
-                        </svg>
-                    </button>
+                    </Tooltip>
                 </div>
                 {show_controls_panel && (
                     <div
@@ -470,141 +483,141 @@ function MapControls({
                     >
                         <div className="flex items-center gap-3">
                             {radio_status !== "unavailable" && can_undo_cat ? (
-                                <Button
-                                    color="utility"
-                                    className="p-1"
-                                    data-tour="map-cat-undo"
-                                    type="button"
-                                    aria-label="Undo CAT change"
-                                    title="Undo CAT change"
-                                    on_click={() => {
-                                        if (!can_undo_cat) return;
-                                        undo_cat();
-                                    }}
-                                >
-                                    <svg
-                                        fill="currentColor"
-                                        width="24"
-                                        height="24"
-                                        viewBox="0 0 512 512"
+                                <Tooltip content="Undo CAT change">
+                                    <Button
+                                        color="utility"
+                                        className="p-1"
+                                        data-tour="map-cat-undo"
+                                        type="button"
+                                        aria-label="Undo CAT change"
+                                        on_click={() => {
+                                            if (!can_undo_cat) return;
+                                            undo_cat();
+                                        }}
                                     >
-                                        <path d="M255.545 8c-66.269.119-126.438 26.233-170.86 68.685L48.971 40.971C33.851 25.851 8 36.559 8 57.941V192c0 13.255 10.745 24 24 24h134.059c21.382 0 32.09-25.851 16.971-40.971l-41.75-41.75c30.864-28.899 70.801-44.907 113.23-45.273 92.398-.798 170.283 73.977 169.484 169.442C423.236 348.009 349.816 424 256 424c-41.127 0-79.997-14.678-110.63-41.556-4.743-4.161-11.906-3.908-16.368.553L89.34 422.659c-4.872 4.872-4.631 12.815.482 17.433C133.798 479.813 192.074 504 256 504c136.966 0 247.999-111.033 248-247.998C504.001 119.193 392.354 7.755 255.545 8z" />
-                                    </svg>
-                                </Button>
+                                        <svg
+                                            fill="currentColor"
+                                            width="24"
+                                            height="24"
+                                            viewBox="0 0 512 512"
+                                        >
+                                            <path d="M255.545 8c-66.269.119-126.438 26.233-170.86 68.685L48.971 40.971C33.851 25.851 8 36.559 8 57.941V192c0 13.255 10.745 24 24 24h134.059c21.382 0 32.09-25.851 16.971-40.971l-41.75-41.75c30.864-28.899 70.801-44.907 113.23-45.273 92.398-.798 170.283 73.977 169.484 169.442C423.236 348.009 349.816 424 256 424c-41.127 0-79.997-14.678-110.63-41.556-4.743-4.161-11.906-3.908-16.368.553L89.34 422.659c-4.872 4.872-4.631 12.815.482 17.433C133.798 479.813 192.074 504 256 504c136.966 0 247.999-111.033 248-247.998C504.001 119.193 392.354 7.755 255.545 8z" />
+                                        </svg>
+                                    </Button>
+                                </Tooltip>
                             ) : (
                                 ""
                             )}
                             {radio_status !== "unavailable" ? (
-                                <span data-tour="map-radio-status" title="Spot source">
-                                    <Radio color={radio_status_to_color[radio_status]} size="40" />
-                                </span>
+                                <Tooltip content="Spot source">
+                                    <span data-tour="map-radio-status">
+                                        <Radio
+                                            color={radio_status_to_color[radio_status]}
+                                            size="40"
+                                        />
+                                    </span>
+                                </Tooltip>
                             ) : null}
-                            <button
-                                type="button"
-                                onClick={toggle_equator}
-                                className="flex h-10 w-10 items-center justify-center rounded-md"
-                                style={{
-                                    color: equator_on
-                                        ? colors.buttons.utility
-                                        : colors.buttons.disabled,
-                                }}
-                                aria-label={equator_on ? "Hide equator" : "Show equator"}
-                                aria-pressed={equator_on}
-                                title={equator_on ? "Hide equator" : "Show equator"}
-                                data-tour="map-equator-toggle"
-                                data-tour-state={equator_on ? "on" : "off"}
-                            >
-                                <svg
-                                    width="40"
-                                    height="40"
-                                    viewBox="0 0 40 40"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    aria-hidden="true"
+                            <Tooltip content={equator_on ? "Hide equator" : "Show equator"}>
+                                <button
+                                    type="button"
+                                    onClick={toggle_equator}
+                                    className="flex h-10 w-10 items-center justify-center rounded-md"
+                                    style={{
+                                        color: equator_on
+                                            ? colors.buttons.utility
+                                            : colors.buttons.disabled,
+                                    }}
+                                    aria-label={equator_on ? "Hide equator" : "Show equator"}
+                                    aria-pressed={equator_on}
+                                    data-tour="map-equator-toggle"
+                                    data-tour-state={equator_on ? "on" : "off"}
                                 >
-                                    <circle cx="20" cy="20" r="15.5" strokeWidth="2.2" />
-                                    <path
-                                        d="M20 4.5c-4.4 4.4-6.8 9.7-6.8 15.5S15.6 31.1 20 35.5"
-                                        strokeWidth="1.7"
-                                        opacity="0.65"
-                                    />
-                                    <path
-                                        d="M20 4.5c4.4 4.4 6.8 9.7 6.8 15.5S24.4 31.1 20 35.5"
-                                        strokeWidth="1.7"
-                                        opacity="0.65"
-                                    />
-                                    <path d="M7.5 14h25" strokeWidth="1.5" opacity="0.45" />
-                                    <path d="M7.5 26h25" strokeWidth="1.5" opacity="0.45" />
-                                    <path d="M4 20h32" strokeWidth="3.6" />
-                                </svg>
-                            </button>
-                            <button
-                                type="button"
-                                ref={mode_button_ref}
-                                onClick={() =>
-                                    set_map_controls(state => (state.is_globe = !state.is_globe))
-                                }
-                                onMouseEnter={() => set_show_mode_popup(true)}
-                                onMouseLeave={() => set_show_mode_popup(false)}
-                                className="flex items-center justify-center relative"
-                                aria-label={
-                                    map_controls.is_globe
-                                        ? "Switch to azimuthal projection"
-                                        : "Switch to globe projection"
-                                }
-                                aria-pressed={map_controls.is_globe}
-                                data-tour="map-projection-toggle"
-                                data-tour-state={map_controls.is_globe ? "globe" : "azimuthal"}
-                            >
-                                {map_controls.is_globe ? (
                                     <svg
-                                        height="32"
-                                        width="32"
-                                        viewBox="0 0 16 16"
+                                        width="40"
+                                        height="40"
+                                        viewBox="0 0 40 40"
                                         fill="none"
-                                        stroke={colors.buttons.utility}
-                                        strokeWidth="1.25"
+                                        stroke="currentColor"
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
+                                        aria-hidden="true"
                                     >
-                                        <circle cx="8" cy="8" r="7.1" />
-                                        <circle cx="8" cy="8" r="4.1" />
-                                        <path d="M8 1.2v13.6M1.2 8h13.6M3 3l10 10M13 3 3 13" />
+                                        <circle cx="20" cy="20" r="15.5" strokeWidth="2.2" />
+                                        <path
+                                            d="M20 4.5c-4.4 4.4-6.8 9.7-6.8 15.5S15.6 31.1 20 35.5"
+                                            strokeWidth="1.7"
+                                            opacity="0.65"
+                                        />
+                                        <path
+                                            d="M20 4.5c4.4 4.4 6.8 9.7 6.8 15.5S24.4 31.1 20 35.5"
+                                            strokeWidth="1.7"
+                                            opacity="0.65"
+                                        />
+                                        <path d="M7.5 14h25" strokeWidth="1.5" opacity="0.45" />
+                                        <path d="M7.5 26h25" strokeWidth="1.5" opacity="0.45" />
+                                        <path d="M4 20h32" strokeWidth="3.6" />
                                     </svg>
-                                ) : (
-                                    <svg
-                                        height="32"
-                                        width="32"
-                                        viewBox="0 0 16 16"
-                                        fill={colors.buttons.utility}
-                                    >
-                                        <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 7 7 0 0 1 .597-.933A7.03 7.03 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a7 7 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zM8.5 5v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7 7 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7 7 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a7 7 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7 7 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z" />
-                                    </svg>
-                                )}
-                            </button>
-                            {show_mode_popup && (
-                                <Popup anchor_ref={mode_button_ref}>
-                                    <div
-                                        className="py-1 px-2 rounded shadow-lg text-sm"
-                                        style={{
-                                            color: colors.theme.text,
-                                            background: colors.theme.background,
-                                        }}
-                                    >
-                                        {map_controls.is_globe ? "Azimuthal mode" : "Globe mode"}
-                                    </div>
-                                </Popup>
-                            )}
-                            <Night
-                                is_active={map_controls.night}
-                                size="40"
-                                data_tour="map-night-toggle"
-                                on_click={event =>
-                                    set_map_controls(state => (state.night = !state.night))
-                                }
-                            />
+                                </button>
+                            </Tooltip>
+                            <Tooltip
+                                content={map_controls.is_globe ? "Azimuthal mode" : "Globe mode"}
+                                className="text-sm"
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        set_map_controls(
+                                            state => (state.is_globe = !state.is_globe),
+                                        )
+                                    }
+                                    className="flex items-center justify-center relative"
+                                    aria-label={
+                                        map_controls.is_globe
+                                            ? "Switch to azimuthal projection"
+                                            : "Switch to globe projection"
+                                    }
+                                    aria-pressed={map_controls.is_globe}
+                                    data-tour="map-projection-toggle"
+                                    data-tour-state={map_controls.is_globe ? "globe" : "azimuthal"}
+                                >
+                                    {map_controls.is_globe ? (
+                                        <svg
+                                            height="32"
+                                            width="32"
+                                            viewBox="0 0 16 16"
+                                            fill="none"
+                                            stroke={colors.buttons.utility}
+                                            strokeWidth="1.25"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <circle cx="8" cy="8" r="7.1" />
+                                            <circle cx="8" cy="8" r="4.1" />
+                                            <path d="M8 1.2v13.6M1.2 8h13.6M3 3l10 10M13 3 3 13" />
+                                        </svg>
+                                    ) : (
+                                        <svg
+                                            height="32"
+                                            width="32"
+                                            viewBox="0 0 16 16"
+                                            fill={colors.buttons.utility}
+                                        >
+                                            <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 7 7 0 0 1 .597-.933A7.03 7.03 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a7 7 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zM8.5 5v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7 7 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7 7 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a7 7 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7 7 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z" />
+                                        </svg>
+                                    )}
+                                </button>
+                            </Tooltip>
+                            <Tooltip content="Toggle night mode">
+                                <Night
+                                    is_active={map_controls.night}
+                                    size="40"
+                                    data_tour="map-night-toggle"
+                                    on_click={event =>
+                                        set_map_controls(state => (state.night = !state.night))
+                                    }
+                                />
+                            </Tooltip>
                         </div>
                         <div
                             className="flex w-full items-center justify-end gap-2"
@@ -625,43 +638,43 @@ function MapControls({
                                 const label = MAP_THEME_LABELS[map_theme];
 
                                 return (
-                                    <button
-                                        type="button"
-                                        key={map_theme}
-                                        onClick={() =>
-                                            set_map_controls(state => {
-                                                state.map_theme = map_theme;
-                                            })
-                                        }
-                                        className="flex h-10 w-10 items-center justify-center rounded-full focus-visible:outline-none"
-                                        aria-label={`Use ${label.toLowerCase()} map theme`}
-                                        aria-pressed={is_active}
-                                        title={`${label} map theme`}
-                                    >
-                                        <span
-                                            className="block h-8 w-8 overflow-hidden rounded-full"
-                                            style={{
-                                                border: `2px solid ${colors.theme.text}66`,
-                                                boxShadow: is_active
-                                                    ? `0 0 0 2px ${colors.theme.background}, 0 0 0 4px ${colors.buttons.utility}`
-                                                    : "none",
-                                            }}
+                                    <Tooltip key={map_theme} content={`${label} map theme`}>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                set_map_controls(state => {
+                                                    state.map_theme = map_theme;
+                                                })
+                                            }
+                                            className="flex h-10 w-10 items-center justify-center rounded-full focus-visible:outline-none"
+                                            aria-label={`Use ${label.toLowerCase()} map theme`}
+                                            aria-pressed={is_active}
                                         >
-                                            <svg
-                                                className="block h-full w-full"
-                                                viewBox="0 0 32 32"
-                                                aria-hidden="true"
+                                            <span
+                                                className="block h-8 w-8 overflow-hidden rounded-full"
+                                                style={{
+                                                    border: `2px solid ${colors.theme.text}66`,
+                                                    boxShadow: is_active
+                                                        ? `0 0 0 2px ${colors.theme.background}, 0 0 0 4px ${colors.buttons.utility}`
+                                                        : "none",
+                                                }}
                                             >
-                                                {preview_colors.map((color, index) => (
-                                                    <path
-                                                        key={MAP_THEME_QUADRANTS[index]}
-                                                        d={MAP_THEME_QUADRANTS[index]}
-                                                        fill={color}
-                                                    />
-                                                ))}
-                                            </svg>
-                                        </span>
-                                    </button>
+                                                <svg
+                                                    className="block h-full w-full"
+                                                    viewBox="0 0 32 32"
+                                                    aria-hidden="true"
+                                                >
+                                                    {preview_colors.map((color, index) => (
+                                                        <path
+                                                            key={MAP_THEME_QUADRANTS[index]}
+                                                            d={MAP_THEME_QUADRANTS[index]}
+                                                            fill={color}
+                                                        />
+                                                    ))}
+                                                </svg>
+                                            </span>
+                                        </button>
+                                    </Tooltip>
                                 );
                             })}
                         </div>

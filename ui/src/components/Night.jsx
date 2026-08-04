@@ -1,4 +1,4 @@
-function Night({ is_active, size, on_click, data_tour = null }) {
+function Night({ is_active, size, on_click, data_tour = null, ...props }) {
     return (
         <button
             type="button"
@@ -7,9 +7,9 @@ function Night({ is_active, size, on_click, data_tour = null }) {
             style={{ lineHeight: 0 }}
             aria-label="Toggle night mode"
             aria-pressed={is_active}
-            title="Toggle night mode"
             data-tour={data_tour}
             data-tour-state={is_active ? "on" : "off"}
+            {...props}
         >
             <svg
                 height={size}

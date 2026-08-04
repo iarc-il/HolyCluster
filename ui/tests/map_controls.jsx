@@ -160,34 +160,38 @@ describe("MapControls GPS", () => {
         radio_status = "connected";
         const { container } = render_map_controls({ is_mobile: false, can_undo_cat: true });
 
-        expect(screen.getByRole("button", { name: "Reset map" }).getAttribute("title")).toBe(
-            "Reset map",
-        );
-        expect(screen.getByRole("button", { name: "Enter fullscreen" }).getAttribute("title")).toBe(
-            "Enter fullscreen",
-        );
-        expect(
-            screen.getByRole("button", { name: "Show map controls" }).getAttribute("title"),
-        ).toBe("Show map controls");
+        for (const [name, content] of [
+            ["Reset map", "Reset map"],
+            ["Enter fullscreen", "Enter fullscreen"],
+            ["Show map controls", "Show map controls"],
+        ]) {
+            await user.hover(screen.getByRole("button", { name }));
+            expect(screen.getByRole("tooltip").textContent).toBe(content);
+            await user.unhover(screen.getByRole("button", { name }));
+        }
 
         await user.click(screen.getByRole("button", { name: "Show map controls" }));
 
-        expect(screen.getByRole("button", { name: "Undo CAT change" }).getAttribute("title")).toBe(
-            "Undo CAT change",
-        );
-        expect(screen.getByRole("button", { name: "Show equator" }).getAttribute("title")).toBe(
-            "Show equator",
-        );
-        expect(
-            screen.getByRole("button", { name: "Toggle night mode" }).getAttribute("title"),
-        ).toBe("Toggle night mode");
-        expect(
-            container.querySelector("[data-tour='map-radio-status']")?.getAttribute("title"),
-        ).toBe("Spot source");
+        for (const [name, content] of [
+            ["Undo CAT change", "Undo CAT change"],
+            ["Show equator", "Show equator"],
+            ["Toggle night mode", "Toggle night mode"],
+            ["Use colorful map theme", "Colorful map theme"],
+        ]) {
+            await user.hover(screen.getByRole("button", { name }));
+            expect(screen.getByRole("tooltip").textContent).toBe(content);
+            await user.unhover(screen.getByRole("button", { name }));
+        }
+
+        const spot_source = container.querySelector("[data-tour='map-radio-status']");
+        await user.hover(spot_source);
+        expect(screen.getByRole("tooltip").textContent).toBe("Spot source");
+        await user.unhover(spot_source);
 
         await user.hover(screen.getByRole("button", { name: "Switch to globe projection" }));
 
-        expect(screen.getByText("Globe mode").classList.contains("text-sm")).toBe(true);
+        expect(screen.getByRole("tooltip").textContent).toBe("Globe mode");
+        expect(screen.getByRole("tooltip").classList.contains("text-sm")).toBe(true);
     });
 
     it("keeps the controls panel open when clicking the tour tooltip", async () => {
