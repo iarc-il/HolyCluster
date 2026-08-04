@@ -21,6 +21,20 @@ env:
   TARGET: x86_64-pc-windows-gnu
 
 jobs:
+  check-linux-tray:
+    name: Check Linux tray support
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Install Linux tray dependencies
+        run: sudo apt-get update && sudo apt-get install --yes libgtk-3-dev libappindicator3-dev
+      - name: Build Linux CAT server
+        working-directory: catserver
+        run: cargo build --workspace
+
   build-catserver:
     name: Build Catserver
     runs-on: ubuntu-latest
