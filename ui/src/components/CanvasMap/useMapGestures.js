@@ -335,6 +335,7 @@ export function useMapGestures({
 
         function on_pointer_down(event) {
             if (event.target.tagName !== "CANVAS") return;
+            if (event.pointerType === "mouse" && event.button !== 0) return;
             const pos = get_offset(event);
 
             if (event.pointerType !== "mouse" && !is_inside_map_circle(pos.x, pos.y)) return;
@@ -561,12 +562,27 @@ export function useMapGestures({
             }
         }
 
+        function on_context_menu(event) {
+            if (event.target.tagName !== "CANVAS") return;
+            const pos = get_offset(event);
+            const searched = get_data_from_shadow_canvas(pos.x, pos.y);
+            if (searched == null) return;
+
+            const [, spot_id] = searched;
+            const spot = render_state_ref.current.spots.find(candidate => candidate.id === spot_id);
+            if (spot == null) return;
+
+            event.preventDefault();
+            callbacks_ref.current.open_spot_context_menu(event.clientX, event.clientY, spot);
+        }
+
         container.addEventListener("pointerdown", on_pointer_down);
         container.addEventListener("pointermove", on_pointer_move);
         container.addEventListener("pointerup", on_pointer_up);
         container.addEventListener("pointerleave", on_pointer_leave);
         container.addEventListener("pointercancel", on_pointer_leave);
         container.addEventListener("dblclick", on_dblclick);
+        container.addEventListener("contextmenu", on_context_menu);
         container.addEventListener("touchstart", on_touch_start_capture, {
             capture: true,
             passive: false,
@@ -591,6 +607,7 @@ export function useMapGestures({
             container.removeEventListener("pointerleave", on_pointer_leave);
             container.removeEventListener("pointercancel", on_pointer_leave);
             container.removeEventListener("dblclick", on_dblclick);
+            container.removeEventListener("contextmenu", on_context_menu);
             container.removeEventListener("touchstart", on_touch_start_capture, true);
             container.removeEventListener("touchmove", on_touch_move_capture, true);
             container.removeEventListener("touchend", on_touch_end_capture, true);
