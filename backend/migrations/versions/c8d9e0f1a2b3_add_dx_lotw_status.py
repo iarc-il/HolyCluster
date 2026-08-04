@@ -1,7 +1,7 @@
 """add dx lotw status
 
 Revision ID: c8d9e0f1a2b3
-Revises: d7e8f9a0b1c2
+Revises: f489c957a156
 Create Date: 2026-08-01 00:00:00.000000
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "c8d9e0f1a2b3"
-down_revision: Union[str, Sequence[str], None] = "d7e8f9a0b1c2"
+down_revision: Union[str, Sequence[str], None] = "f489c957a156"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
