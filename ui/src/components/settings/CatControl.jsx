@@ -97,7 +97,10 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                 />
                                 <Modal
                                     title={
-                                        <h3 className="text-2xl" style={{ color: colors.theme.text }}>
+                                        <h3
+                                            className="text-2xl"
+                                            style={{ color: colors.theme.text }}
+                                        >
                                             AC Log Integration Guide
                                         </h3>
                                     }
@@ -108,8 +111,9 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                         callsign, frequency, and mode in N3FJP AC Log.
                                     </p>
                                     <p>
-                                        In AC Log, enable Settings &gt; Application Program Interface
-                                        &gt; TCP API Enabled and use the same TCP port below.
+                                        In AC Log, enable Settings &gt; Application Program
+                                        Interface &gt; TCP API Enabled and use the same TCP port
+                                        below.
                                     </p>
                                 </Modal>
                             </td>
