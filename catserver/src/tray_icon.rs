@@ -1,9 +1,10 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use tokio::sync::broadcast::{Receiver, Sender};
 use tray_icon::{
-    TrayIconBuilder,
+    TrayIcon, TrayIconBuilder,
     menu::{Menu, MenuEvent, MenuItem},
 };
+#[cfg(windows)]
 use winit::{application::ApplicationHandler, event_loop::ActiveEventLoop};
 
 #[cfg(windows)]
@@ -12,7 +13,20 @@ fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> 
     Ok(tray_icon.with_icon(Icon::from_resource(1, Some((32, 32)))?))
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> {
+    let icon_dir = ico::IconDir::read(std::io::Cursor::new(include_bytes!("../wix/icon.ico")))?;
+    let image = icon_dir
+        .entries()
+        .first()
+        .context("The bundled Windows icon contains no images")?
+        .decode()?;
+    let (width, height) = (image.width(), image.height());
+    let icon = tray_icon::Icon::from_rgba(image.rgba_data().to_vec(), width, height)?;
+    Ok(tray_icon.with_icon(icon))
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> {
     Ok(tray_icon)
 }
@@ -23,37 +37,24 @@ pub enum UserEvent {
     OpenBrowser,
 }
 
-pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver<UserEvent>) {
+fn create_tray_icon() -> Result<(TrayIcon, MenuItem, MenuItem)> {
     let open_menu_item = MenuItem::new("Open", true, None);
     let quit_menu_item = MenuItem::new("Quit", true, None);
     let tray_menu = Menu::new();
     let instance_title = "Holy Cluster";
     if let Err(error) = tray_menu.append_items(&[&open_menu_item, &quit_menu_item]) {
-        tracing::error!(?error, "Failed to build tray menu");
-        return;
+        return Err(error.into());
     }
     let tray_icon = TrayIconBuilder::new()
         .with_menu(Box::new(tray_menu))
         .with_tooltip(instance_title)
         .with_title(instance_title);
-    let tray_icon = match add_icon_to_tray_icon(tray_icon) {
-        Ok(tray_icon) => tray_icon,
-        Err(error) => {
-            tracing::error!(?error, "Failed to load tray icon");
-            return;
-        }
-    };
-    let _tray_icon = match tray_icon.build() {
-        Ok(tray_icon) => tray_icon,
-        Err(error) => {
-            tracing::error!(?error, "Failed to create tray icon");
-            return;
-        }
-    };
+    let tray_icon = add_icon_to_tray_icon(tray_icon)?.build()?;
+    Ok((tray_icon, open_menu_item, quit_menu_item))
+}
 
-    let quit_menu_id = quit_menu_item.id().clone();
-    let open_menu_id = open_menu_item.id().clone();
-
+#[cfg(windows)]
+pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver<UserEvent>) {
     let event_loop = match winit::event_loop::EventLoop::<UserEvent>::with_user_event().build() {
         Ok(event_loop) => event_loop,
         Err(error) => {
@@ -62,23 +63,6 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
         }
     };
     let proxy = event_loop.create_proxy();
-
-    MenuEvent::set_event_handler(Some({
-        let proxy = proxy.clone();
-        move |event: MenuEvent| {
-            let id = event.id();
-            if id == &open_menu_id {
-                let _ = tray_sender.send(UserEvent::OpenBrowser);
-            } else if id == &quit_menu_id {
-                if let Err(error) = tray_sender.send(UserEvent::Quit) {
-                    tracing::error!(?error, "Failed to send tray quit event");
-                }
-                if let Err(error) = proxy.send_event(UserEvent::Quit) {
-                    tracing::error!(?error, "Failed to notify tray event loop to quit");
-                }
-            }
-        }
-    }));
 
     let proxy_clone = proxy.clone();
     std::thread::spawn(move || {
@@ -90,9 +74,44 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
         }
     });
 
-    struct App {}
+    struct App {
+        tray_icon: Option<TrayIcon>,
+        tray_sender: Sender<UserEvent>,
+    }
     impl ApplicationHandler<UserEvent> for App {
         fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
+
+        fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: winit::event::StartCause) {
+            if cause != winit::event::StartCause::Init {
+                return;
+            }
+            let (tray_icon, open_menu_item, quit_menu_item) = match create_tray_icon() {
+                Ok(tray_icon) => tray_icon,
+                Err(error) => {
+                    tracing::error!(?error, "Failed to create tray icon");
+                    event_loop.exit();
+                    return;
+                }
+            };
+            let open_menu_id = open_menu_item.id().clone();
+            let quit_menu_id = quit_menu_item.id().clone();
+            let proxy = event_loop.create_proxy();
+            let tray_sender = self.tray_sender.clone();
+            MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
+                let id = event.id();
+                if id == &open_menu_id {
+                    let _ = tray_sender.send(UserEvent::OpenBrowser);
+                } else if id == &quit_menu_id {
+                    if let Err(error) = tray_sender.send(UserEvent::Quit) {
+                        tracing::error!(?error, "Failed to send tray quit event");
+                    }
+                    if let Err(error) = proxy.send_event(UserEvent::Quit) {
+                        tracing::error!(?error, "Failed to notify tray event loop to quit");
+                    }
+                }
+            }));
+            self.tray_icon = Some(tray_icon);
+        }
 
         fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
             if event == UserEvent::Quit {
@@ -109,8 +128,46 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
         }
     }
 
-    let mut app = App {};
+    let mut app = App {
+        tray_icon: None,
+        tray_sender,
+    };
     if let Err(error) = event_loop.run_app(&mut app) {
         tracing::error!(?error, "Tray event loop failed");
     }
+}
+
+#[cfg(target_os = "linux")]
+pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver<UserEvent>) {
+    if let Err(error) = gtk::init() {
+        tracing::error!(?error, "Failed to initialize GTK tray event loop");
+        return;
+    }
+    let (tray_icon, open_menu_item, quit_menu_item) = match create_tray_icon() {
+        Ok(tray_icon) => tray_icon,
+        Err(error) => {
+            tracing::error!(?error, "Failed to create tray icon");
+            return;
+        }
+    };
+    let open_menu_id = open_menu_item.id().clone();
+    let quit_menu_id = quit_menu_item.id().clone();
+    MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
+        let id = event.id();
+        if id == &open_menu_id {
+            let _ = tray_sender.send(UserEvent::OpenBrowser);
+        } else if id == &quit_menu_id && tray_sender.send(UserEvent::Quit).is_err() {
+            tracing::error!("Failed to send tray quit event");
+        }
+    }));
+    std::thread::spawn(move || {
+        while let Ok(event) = tray_receiver.blocking_recv() {
+            if event == UserEvent::Quit {
+                gtk::glib::MainContext::default().invoke(gtk::main_quit);
+                break;
+            }
+        }
+    });
+    let _tray_icon = tray_icon;
+    gtk::main();
 }

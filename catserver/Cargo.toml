@@ -39,6 +39,10 @@ tray-icon = { version = "0.20.1", default-features = false }
 winit = "0.30.10"
 winsafe = { version = "0.0.25", features = ["kernel", "ole", "oleaut"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18.2"
+ico = "0.4.0"
+
 [build-dependencies]
 winresource = "0.1.20"
 

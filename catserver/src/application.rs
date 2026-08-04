@@ -54,7 +54,7 @@ pub fn run() -> Result<()> {
                     tracing::error!(?error, "Singleton instance failed");
                 }
             })?;
-        if cfg!(windows) {
+        if cfg!(any(windows, target_os = "linux")) {
             tray_icon::run_tray_icon(sender.clone(), sender.subscribe());
         } else if let Err(error) = thread.join() {
             let message = error
