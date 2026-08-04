@@ -98,6 +98,7 @@ export default function SpotContextMenu({
                         }`}
                         role="button"
                         tabIndex={0}
+                        aria-disabled={disabled}
                         onKeyDown={event => {
                             if (disabled) return;
                             if (event.key === "Enter" || event.key === " ") {

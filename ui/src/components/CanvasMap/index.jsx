@@ -26,6 +26,7 @@ import {
     MAP_FILTER_ACTIONS,
     build_filter_menu_actions,
     build_map_context_filter,
+    build_spot_context_menu_actions,
 } from "./map_context_menu.js";
 import {
     build_missing_overlay_highlights,
@@ -71,6 +72,7 @@ function CanvasMap({
         number: null,
         entity: null,
         is_filterable_entity: false,
+        spot: null,
     });
 
     const animation_id_ref = useRef(null);
@@ -94,6 +96,11 @@ function CanvasMap({
         map_context_menu.type === "dxcc" ? get_dxcc_label(map_context_menu.entity) : null,
         map_menu_has_invalid_dxcc_entity,
         map_menu_has_invalid_dxcc_entity ? "Unmapped DXCC" : null,
+        get_filter_add_status,
+        add_filter_if_allowed,
+    );
+    const spot_menu_actions = build_spot_context_menu_actions(
+        map_context_menu.spot,
         get_filter_add_status,
         add_filter_if_allowed,
     );
@@ -249,6 +256,7 @@ function CanvasMap({
                     number,
                     entity: null,
                     is_filterable_entity: false,
+                    spot: null,
                 });
             },
             open_dxcc_context_menu: (x, y, entity) => {
@@ -261,6 +269,20 @@ function CanvasMap({
                     number: null,
                     entity,
                     is_filterable_entity: is_filterable_dxcc_entity(entity),
+                    spot: null,
+                });
+            },
+            open_spot_context_menu: (x, y, spot) => {
+                set_map_context_menu({
+                    visible: true,
+                    x,
+                    y,
+                    type: "spot",
+                    system: null,
+                    number: null,
+                    entity: null,
+                    is_filterable_entity: false,
+                    spot,
                 });
             },
         },
@@ -399,9 +421,11 @@ function CanvasMap({
                 <SpotContextMenu
                     x={map_context_menu.x}
                     y={map_context_menu.y}
-                    spot={null}
+                    spot={map_context_menu.spot}
                     on_close={() => set_map_context_menu(state => ({ ...state, visible: false }))}
-                    actions={map_menu_actions}
+                    actions={
+                        map_context_menu.type === "spot" ? spot_menu_actions : map_menu_actions
+                    }
                     data_tour="map-context-menu"
                 />
             )}
