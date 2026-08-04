@@ -1,11 +1,10 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect, useState } from "react";
 
-import Button from "@/components/ui/Button.jsx";
+import UpdateControls from "@/components/UpdateControls.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors.jsx";
-import use_radio from "@/hooks/useRadio.jsx";
 
 const RELEASES = [
     [
@@ -183,7 +182,6 @@ function Info({ size }) {
 
 function About() {
     const { colors } = useColors();
-    const { raw_local_version, raw_remote_version, new_version_available } = use_radio();
 
     const about = (
         <div className="p-2">
@@ -255,13 +253,7 @@ function About() {
                 </a>
             </p>
             Contact us at: <strong>holycluster@iarc.org</strong>
-            {raw_local_version != null ? (
-                <p>
-                    CAT Version: <code>{raw_local_version}</code>
-                </p>
-            ) : (
-                ""
-            )}
+            <UpdateControls />
         </div>
     );
 
@@ -283,23 +275,6 @@ function About() {
 
     const release_notes = (
         <div className="p-2">
-            {new_version_available && (
-                <div className="mb-4 p-4 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                    <div className="flex flex-col items-center space-y-2">
-                        <p className="text-lg font-semibold">New version available!</p>
-                        <p>Current version: {raw_local_version}</p>
-                        <p>Latest version: {raw_remote_version}</p>
-                        <Button
-                            className="px-4 py-2"
-                            on_click={() => {
-                                window.location.href = "/catserver/download";
-                            }}
-                        >
-                            Download Update
-                        </Button>
-                    </div>
-                </div>
-            )}
             {RELEASES.map(([date, changes]) => {
                 return (
                     <div className="pb-4" key={date}>

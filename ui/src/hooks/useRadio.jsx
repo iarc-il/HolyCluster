@@ -1,5 +1,5 @@
 import { compare_version } from "@/utils.js";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import raw_band_plans from "../../../shared/band_plans.json";
 import { useSettings } from "./useSettings";
 import { useWs, useWsMessage } from "./useWs";
@@ -28,45 +28,6 @@ function parse_version(raw_version) {
         Number.parseInt(patch, 10),
         commit ? Number.parseInt(commit, 10) : 0,
     ];
-}
-
-export function useCatserverVersion(raw_local_version) {
-    const [raw_remote_version, set_raw_remote_version] = useState(null);
-    const [new_version_available, set_new_version_available] = useState(false);
-    const [filename, set_filename] = useState("");
-
-    const local_version = parse_version(raw_local_version);
-    const remote_version = parse_version(raw_remote_version);
-
-    useEffect(() => {
-        if (raw_local_version == null) {
-            return;
-        }
-
-        fetch("/catserver/latest")
-            .then(data => data.text())
-            .then(data => {
-                set_filename(data);
-                const raw_remote_version = data.slice(0, data.lastIndexOf("."));
-                set_raw_remote_version(raw_remote_version);
-
-                if (compare_version(local_version, parse_version(raw_remote_version)) > 0) {
-                    set_new_version_available(true);
-                    console.log(
-                        `New version available - Remote: ${raw_remote_version}, Local: ${local_version}`,
-                    );
-                }
-            });
-    }, [raw_local_version]);
-
-    return {
-        local_version,
-        remote_version,
-        raw_local_version,
-        raw_remote_version,
-        new_version_available,
-        filename,
-    };
 }
 
 const RadioContext = createContext(null);
@@ -164,12 +125,12 @@ export function RadioProvider({ children }) {
         return radio_ready && radio_status !== "unavailable";
     }
 
-    const version_data = useCatserverVersion(raw_local_version);
+    const local_version = parse_version(raw_local_version);
 
     const tagged_api_version = [1, 1, 0, 0];
 
     function highlight_spot(spot, udp_port) {
-        if (spot && compare_version(version_data.local_version, tagged_api_version) > 0) {
+        if (spot && compare_version(local_version, tagged_api_version) > 0) {
             send_message_to_radio({
                 action: "HighlightSpot",
                 dx_callsign: spot.dx_callsign,
@@ -259,7 +220,7 @@ export function RadioProvider({ children }) {
                 radio_configuration,
                 radio_configuration_result,
                 radio_retry_result,
-                ...version_data,
+                local_version,
             }}
         >
             {children}

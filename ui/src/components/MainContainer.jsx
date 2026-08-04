@@ -5,6 +5,7 @@ import SidePanel from "@/components/SidePanel.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
+import { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
 import HistoryBar from "@/components/history/HistoryBar.jsx";
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
@@ -399,6 +400,7 @@ function MainContent({
 
     return (
         <div className="flex flex-col h-full" data-tour="app-shell">
+            <UpdateConsentDialog />
             <TopBar
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
