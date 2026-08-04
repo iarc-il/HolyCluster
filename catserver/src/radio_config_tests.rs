@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::radio_config::{
-    ActiveRadioBackend, HamlibRigConfig, RadioBackendKind, RadioConfig, RadioConfigError,
-    RadioRigConfig, RigctldConfig, DEFAULT_RIGCTLD_HOST, DEFAULT_RIGCTLD_PORT,
+    ActiveRadioBackend, DEFAULT_RIGCTLD_HOST, DEFAULT_RIGCTLD_PORT, HamlibRigConfig,
+    RadioBackendKind, RadioConfig, RadioConfigError, RadioRigConfig, RigctldConfig,
 };
 
 struct TestDir(PathBuf);
@@ -67,7 +67,10 @@ fn round_trips_independently_configured_rigs() {
 
     config.save_to_path(&directory.file()).unwrap();
 
-    assert_eq!(RadioConfig::load_from_path(&directory.file()).unwrap(), config);
+    assert_eq!(
+        RadioConfig::load_from_path(&directory.file()).unwrap(),
+        config
+    );
 }
 
 #[test]
@@ -79,26 +82,33 @@ fn migrates_legacy_global_backend_configuration() {
     )
     .unwrap();
 
-    assert_eq!(RadioConfig::load_from_path(&directory.file()).unwrap(), RadioConfig {
-        rig1: RadioRigConfig::hamlib(HamlibRigConfig {
-            model_id: "1".into(),
-            token_values: BTreeMap::new(),
-        }),
-        rig2: Some(RadioRigConfig::hamlib(HamlibRigConfig {
-            model_id: "2".into(),
-            token_values: BTreeMap::new(),
-        })),
-    });
+    assert_eq!(
+        RadioConfig::load_from_path(&directory.file()).unwrap(),
+        RadioConfig {
+            rig1: RadioRigConfig::hamlib(HamlibRigConfig {
+                model_id: "1".into(),
+                token_values: BTreeMap::new(),
+            }),
+            rig2: Some(RadioRigConfig::hamlib(HamlibRigConfig {
+                model_id: "2".into(),
+                token_values: BTreeMap::new(),
+            })),
+        }
+    );
 }
 
 #[test]
 fn defaults_rigctld_endpoint_when_omitted() {
-    let config: RadioRigConfig = serde_json::from_str(r#"{"backend":"rigctld","rigctld":{}}"#).unwrap();
+    let config: RadioRigConfig =
+        serde_json::from_str(r#"{"backend":"rigctld","rigctld":{}}"#).unwrap();
 
-    assert_eq!(config.rigctld, Some(RigctldConfig {
-        host: DEFAULT_RIGCTLD_HOST.into(),
-        port: DEFAULT_RIGCTLD_PORT,
-    }));
+    assert_eq!(
+        config.rigctld,
+        Some(RigctldConfig {
+            host: DEFAULT_RIGCTLD_HOST.into(),
+            port: DEFAULT_RIGCTLD_PORT,
+        })
+    );
 }
 
 #[cfg(not(windows))]
@@ -116,7 +126,10 @@ fn rejects_invalid_rigctld_endpoints() {
         rig2: None,
     };
 
-    assert!(matches!(config.validate(), Err(RadioConfigError::InvalidRigctldHost(_))));
+    assert!(matches!(
+        config.validate(),
+        Err(RadioConfigError::InvalidRigctldHost(_))
+    ));
 
     let config = RadioConfig {
         rig1: RadioRigConfig {
@@ -130,14 +143,21 @@ fn rejects_invalid_rigctld_endpoints() {
         rig2: None,
     };
 
-    assert!(matches!(config.validate(), Err(RadioConfigError::InvalidRigctldPort)));
+    assert!(matches!(
+        config.validate(),
+        Err(RadioConfigError::InvalidRigctldPort)
+    ));
 }
 
 #[test]
 fn rejects_unknown_schema_version_and_backend() {
     let directory = TestDir::new();
 
-    fs::write(directory.file(), r#"{"version":3,"rig1":{"backend":"rigctld"}}"#).unwrap();
+    fs::write(
+        directory.file(),
+        r#"{"version":3,"rig1":{"backend":"rigctld"}}"#,
+    )
+    .unwrap();
     assert!(matches!(
         RadioConfig::load_from_path(&directory.file()),
         Err(RadioConfigError::UnsupportedVersion(3))

@@ -62,7 +62,10 @@ fn backend(backend: ActiveRadioBackend, config: &RadioConfig, current_rig: u8) -
         ActiveRadioBackend::Dummy => "dummy",
         ActiveRadioBackend::Configured(_) => {
             let backend = match current_rig {
-                2 => config.rig2.as_ref().map_or(config.rig1.backend, |rig| rig.backend),
+                2 => config
+                    .rig2
+                    .as_ref()
+                    .map_or(config.rig1.backend, |rig| rig.backend),
                 _ => config.rig1.backend,
             };
             backend_name(backend)

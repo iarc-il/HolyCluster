@@ -139,9 +139,9 @@ impl RadioConfig {
         let header: ConfigHeader =
             serde_json::from_str(&contents).map_err(RadioConfigError::Json)?;
         let config = match header.version {
-            1 => Self::from_legacy(
-                serde_json::from_str(&contents).map_err(RadioConfigError::Json)?,
-            )?,
+            1 => {
+                Self::from_legacy(serde_json::from_str(&contents).map_err(RadioConfigError::Json)?)?
+            }
             SCHEMA_VERSION => serde_json::from_str(&contents).map_err(RadioConfigError::Json)?,
             version => return Err(RadioConfigError::UnsupportedVersion(version)),
         };
@@ -182,7 +182,11 @@ impl RadioConfig {
         }
         if let Err(source) = rename(&temporary_path, path) {
             let _ = fs::remove_file(&temporary_path);
-            return Err(RadioConfigError::Rename((temporary_path, path.to_path_buf(), source)));
+            return Err(RadioConfigError::Rename((
+                temporary_path,
+                path.to_path_buf(),
+                source,
+            )));
         }
         Ok(())
     }
