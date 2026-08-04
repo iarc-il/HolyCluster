@@ -28,8 +28,10 @@ function get_versions(version) {
         return { local: null, remote: null };
     }
     return {
-        local: version.local ?? version.current ?? version.installed ?? null,
-        remote: version.remote ?? version.latest ?? version.available ?? null,
+        local:
+            version.local ?? version.local_version ?? version.current ?? version.installed ?? null,
+        remote:
+            version.remote ?? version.remote_version ?? version.latest ?? version.available ?? null,
     };
 }
 
@@ -112,7 +114,11 @@ export function UpdateProvider({ children }) {
         try {
             const response = await fetch("/update/status");
             if (!response.ok) throw new Error(`Update status failed (${response.status})`);
-            set_update(normalize_update_status(await response.json()));
+            try {
+                set_update(normalize_update_status(await response.json()));
+            } catch {
+                set_update(current => ({ ...current, status: "malformed" }));
+            }
         } catch (error) {
             set_update(current => ({ ...current, status: "unavailable", error: error.message }));
         }
