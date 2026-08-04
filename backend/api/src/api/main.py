@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
 
-from . import propagation, submit_spot, voacap
+from . import propagation, releases, submit_spot, voacap
 from .settings import settings
 
 
@@ -1162,12 +1162,57 @@ async def spots_ws(websocket: fastapi.WebSocket):
         app.state.active_connections.discard(websocket)
 
 
-def get_latest_catserver_name():
-    latest_file_path = settings.catserver_msi_dir / "latest"
-    if not latest_file_path.exists():
-        raise HTTPException(status_code=404, detail="No latest version found")
+def get_release_manifest():
+    try:
+        return releases.load_release_manifest(settings.catserver_msi_dir)
+    except releases.ReleaseManifestError as e:
+        status_code = 404 if str(e) == "No releases found" else 503
+        raise HTTPException(status_code=status_code, detail=str(e)) from e
 
-    return latest_file_path.read_text().strip()
+
+def get_release_artifact(platform: str, architecture: str):
+    artifact = get_release_manifest().select(platform, architecture)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="Release not found")
+    return artifact
+
+
+def get_latest_catserver_name():
+    return get_release_artifact("windows", "x86_64").name
+
+
+def serve_release_artifact(artifact):
+    try:
+        path = releases.artifact_path(settings.catserver_msi_dir, artifact.name)
+        releases.verify_artifact(path, artifact)
+    except releases.ReleaseManifestError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    return FileResponse(
+        str(path),
+        filename=artifact.name.replace("catserver", "HolyCluster"),
+        media_type="application/octet-stream",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@app.get("/catserver/releases/latest")
+def latest_catserver_release():
+    return get_release_manifest().as_dict()
+
+
+@app.get("/catserver/releases/{platform}/{architecture}")
+def catserver_release(platform: str, architecture: str):
+    return get_release_artifact(platform, architecture).as_dict()
+
+
+@app.get("/catserver/artifacts/{name}")
+def download_catserver_artifact(name: str):
+    manifest = get_release_manifest()
+    artifact = next((artifact for artifact in manifest.artifacts if artifact.name == name), None)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    return serve_release_artifact(artifact)
 
 
 @app.get("/catserver/latest", response_class=PlainTextResponse)
@@ -1177,16 +1222,7 @@ def latest_catserver():
 
 @app.get("/catserver/download")
 def download_catserver():
-    filename = get_latest_catserver_name()
-    file_to_serve = settings.catserver_msi_dir / filename
-    if not file_to_serve.exists():
-        raise HTTPException(status_code=404, detail="File not found")
-
-    return FileResponse(
-        str(file_to_serve),
-        filename=filename.replace("catserver", "HolyCluster"),
-        media_type="application/octet-stream",
-    )
+    return serve_release_artifact(get_release_artifact("windows", "x86_64"))
 
 
 @app.get("/history")
