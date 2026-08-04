@@ -41,6 +41,7 @@ const TABLE_SORT_COLUMNS = new Set([
     "spotter_callsign",
     "mode",
 ]);
+const ACLOG_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 
 export const PROFILE_SECTION_DEFINITIONS = {
     settings: {
@@ -223,6 +224,11 @@ function sanitize_choice(value, fallback, valid_values) {
     return valid_values.has(value) ? value : fallback;
 }
 
+function sanitize_aclog_host(value, fallback) {
+    const host = to_limited_text(value, fallback, 64).toLowerCase();
+    return ACLOG_HOSTS.has(host) ? host : fallback;
+}
+
 function sanitize_missing_zone(value, min, max) {
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
@@ -356,6 +362,9 @@ export function create_default_settings() {
         show_state_abbreviations: true,
         highlight_enabled: true,
         highlight_port: 2237,
+        aclog_enabled: false,
+        aclog_host: "127.0.0.1",
+        aclog_port: 1100,
         alert_sound_enabled: false,
         disabled_bands: Object.fromEntries(bands.map(band => [band, false])),
         show_disabled_bands: false,
@@ -485,6 +494,13 @@ export function sanitize_settings(value, defaults = create_default_settings()) {
         ),
         highlight_enabled: to_boolean(source.highlight_enabled, defaults.highlight_enabled),
         highlight_port: to_number(source.highlight_port, defaults.highlight_port, {
+            min: 1024,
+            max: 65535,
+            integer: true,
+        }),
+        aclog_enabled: to_boolean(source.aclog_enabled, defaults.aclog_enabled),
+        aclog_host: sanitize_aclog_host(source.aclog_host, defaults.aclog_host),
+        aclog_port: to_number(source.aclog_port, defaults.aclog_port, {
             min: 1024,
             max: 65535,
             integer: true,

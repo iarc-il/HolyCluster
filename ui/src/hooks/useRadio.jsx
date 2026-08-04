@@ -181,6 +181,20 @@ export function RadioProvider({ children }) {
         }
     }
 
+    function notify_aclog(spot, host, port) {
+        if (spot && compare_version(version_data.local_version, tagged_api_version) > 0) {
+            send_message_to_radio({
+                action: "NotifyAcLog",
+                dx_callsign: spot.dx_callsign,
+                freq: Math.round(spot.freq * 1000),
+                band: String(spot.band),
+                mode: spot.mode,
+                host,
+                port,
+            });
+        }
+    }
+
     function set_rig(rig) {
         if (![1, 2].includes(rig)) {
             return;
@@ -238,6 +252,7 @@ export function RadioProvider({ children }) {
                 set_rig,
                 set_mode_and_freq,
                 highlight_spot,
+                notify_aclog,
                 get_radio_capabilities,
                 list_hamlib_models,
                 describe_hamlib_model,

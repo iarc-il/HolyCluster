@@ -39,6 +39,14 @@ enum ClientMessage {
         mode: String,
         udp_port: u16,
     },
+    NotifyAcLog {
+        dx_callsign: String,
+        freq: u64,
+        band: String,
+        mode: String,
+        host: String,
+        port: u16,
+    },
     GetCapabilities,
     ListHamlibModels,
     DescribeHamlibModel {
@@ -91,6 +99,27 @@ async fn process(
                     freq,
                     mode,
                     udp_port,
+                },
+                radio,
+            )
+            .await;
+        }
+        ClientMessage::NotifyAcLog {
+            dx_callsign,
+            freq,
+            band,
+            mode,
+            host,
+            port,
+        } => {
+            return control(
+                ControlMessage::NotifyAcLog {
+                    dx_callsign,
+                    freq,
+                    band,
+                    mode,
+                    host,
+                    port,
                 },
                 radio,
             )

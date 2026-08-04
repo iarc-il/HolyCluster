@@ -50,7 +50,7 @@ export const SpotDataProvider = ({
     const { pinned_spot } = useSpotInteraction();
     const { settings } = useSettings();
     const { callsign_filters } = useFilters();
-    const { highlight_spot, is_radio_available } = use_radio();
+    const { highlight_spot, notify_aclog, is_radio_available } = use_radio();
 
     // Play alert sound when new alerted spots arrive
     useEffect(() => {
@@ -81,6 +81,13 @@ export const SpotDataProvider = ({
             highlight_spot(
                 raw_spots.find(spot => spot.id === pinned_spot),
                 settings.highlight_port,
+            );
+        }
+        if (pinned_spot && settings.aclog_enabled && is_radio_available()) {
+            notify_aclog(
+                raw_spots.find(spot => spot.id === pinned_spot),
+                settings.aclog_host,
+                settings.aclog_port,
             );
         }
     }, [pinned_spot]);

@@ -28,7 +28,7 @@ reqwest = { version = "0.12.15", features = ["blocking"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 single-instance = "0.3.3"
-tokio = { version = "1.44.2", features = ["io-util", "rt", "rt-multi-thread"] }
+tokio = { version = "1.44.2", features = ["io-util", "net", "rt", "rt-multi-thread", "time"] }
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
 tower = { version = "0.5.2", features = ["util"] }
 tower-http = { version = "0.6.2", features = ["fs"] }
