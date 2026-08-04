@@ -32,6 +32,19 @@ vi.mock("@/hooks/useRadio.jsx", () => ({
     }),
 }));
 
+vi.mock("@/hooks/useUpdate.jsx", () => ({
+    useUpdate: () => ({
+        status: "current",
+        local_version: "1.0.0",
+        remote_version: "1.0.0",
+        error: null,
+        check: vi.fn(),
+        install: vi.fn(),
+        retry: vi.fn(),
+        defer: vi.fn(),
+    }),
+}));
+
 describe("About release notes", () => {
     beforeEach(() => {
         window.localStorage.clear();
