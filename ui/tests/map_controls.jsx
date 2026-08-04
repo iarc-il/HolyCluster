@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import MapControls from "@/components/MapControls.jsx";
 
+let radio_status = "unavailable";
+
 vi.mock("@/hooks/useColors", () => ({
     MAP_THEME_CONFIGS: {
         colorful: { palette: { a: "#ff0000", b: "#00ff00", c: "#0000ff", d: "#ffff00" } },
@@ -42,7 +44,7 @@ vi.mock("@/hooks/useFilters", () => ({
 
 vi.mock("@/hooks/useRadio", () => ({
     default: () => ({
-        radio_status: "unavailable",
+        radio_status,
     }),
 }));
 
@@ -69,7 +71,7 @@ function set_geolocation(getCurrentPosition) {
     });
 }
 
-function render_map_controls({ is_mobile }) {
+function render_map_controls({ is_mobile, can_undo_cat = false }) {
     const map_controls = {
         map_theme: "colorful",
         location: {
@@ -85,7 +87,7 @@ function render_map_controls({ is_mobile }) {
             set_map_controls={set_map_controls}
             set_radius_in_km={vi.fn()}
             auto_toggle_radius={false}
-            can_undo_cat={false}
+            can_undo_cat={can_undo_cat}
             undo_cat={vi.fn()}
             is_map_fullscreen={false}
             toggle_map_fullscreen={vi.fn()}
@@ -103,6 +105,7 @@ describe("MapControls GPS", () => {
         cleanup();
         vi.restoreAllMocks();
         set_geolocation(null);
+        radio_status = "unavailable";
     });
 
     it("centers the mobile map on the current GPS location", async () => {
@@ -150,6 +153,41 @@ describe("MapControls GPS", () => {
 
         await user.click(screen.getByRole("button", { name: "Use white map theme" }));
         expect(map_controls.map_theme).toBe("white");
+    });
+
+    it("provides tooltips for non-textual map controls", async () => {
+        const user = userEvent.setup();
+        radio_status = "connected";
+        const { container } = render_map_controls({ is_mobile: false, can_undo_cat: true });
+
+        expect(screen.getByRole("button", { name: "Reset map" }).getAttribute("title")).toBe(
+            "Reset map",
+        );
+        expect(screen.getByRole("button", { name: "Enter fullscreen" }).getAttribute("title")).toBe(
+            "Enter fullscreen",
+        );
+        expect(
+            screen.getByRole("button", { name: "Show map controls" }).getAttribute("title"),
+        ).toBe("Show map controls");
+
+        await user.click(screen.getByRole("button", { name: "Show map controls" }));
+
+        expect(screen.getByRole("button", { name: "Undo CAT change" }).getAttribute("title")).toBe(
+            "Undo CAT change",
+        );
+        expect(screen.getByRole("button", { name: "Show equator" }).getAttribute("title")).toBe(
+            "Show equator",
+        );
+        expect(
+            screen.getByRole("button", { name: "Toggle night mode" }).getAttribute("title"),
+        ).toBe("Toggle night mode");
+        expect(
+            container.querySelector("[data-tour='map-radio-status']")?.getAttribute("title"),
+        ).toBe("Spot source");
+
+        await user.hover(screen.getByRole("button", { name: "Switch to globe projection" }));
+
+        expect(screen.getByText("Globe mode").classList.contains("text-sm")).toBe(true);
     });
 
     it("keeps the controls panel open when clicking the tour tooltip", async () => {

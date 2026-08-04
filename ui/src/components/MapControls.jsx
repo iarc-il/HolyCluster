@@ -474,6 +474,9 @@ function MapControls({
                                     color="utility"
                                     className="p-1"
                                     data-tour="map-cat-undo"
+                                    type="button"
+                                    aria-label="Undo CAT change"
+                                    title="Undo CAT change"
                                     on_click={() => {
                                         if (!can_undo_cat) return;
                                         undo_cat();
@@ -492,7 +495,7 @@ function MapControls({
                                 ""
                             )}
                             {radio_status !== "unavailable" ? (
-                                <span data-tour="map-radio-status">
+                                <span data-tour="map-radio-status" title="Spot source">
                                     <Radio color={radio_status_to_color[radio_status]} size="40" />
                                 </span>
                             ) : null}
@@ -584,7 +587,7 @@ function MapControls({
                             {show_mode_popup && (
                                 <Popup anchor_ref={mode_button_ref}>
                                     <div
-                                        className="py-1 px-2 rounded shadow-lg text-xs"
+                                        className="py-1 px-2 rounded shadow-lg text-sm"
                                         style={{
                                             color: colors.theme.text,
                                             background: colors.theme.background,
