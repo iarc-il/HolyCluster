@@ -1,11 +1,16 @@
-use anyhow::{Context, Result};
+#[cfg(target_os = "linux")]
+use anyhow::Context;
+use anyhow::Result;
 use tokio::sync::broadcast::{Receiver, Sender};
 use tray_icon::{
     TrayIcon, TrayIconBuilder,
     menu::{Menu, MenuEvent, MenuItem},
 };
 #[cfg(windows)]
-use winit::{application::ApplicationHandler, event_loop::ActiveEventLoop};
+use winit::{
+    application::ApplicationHandler,
+    event_loop::{ActiveEventLoop, EventLoopProxy},
+};
 
 #[cfg(windows)]
 fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> {
@@ -77,6 +82,7 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
     struct App {
         tray_icon: Option<TrayIcon>,
         tray_sender: Sender<UserEvent>,
+        proxy: EventLoopProxy<UserEvent>,
     }
     impl ApplicationHandler<UserEvent> for App {
         fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
@@ -95,7 +101,7 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
             };
             let open_menu_id = open_menu_item.id().clone();
             let quit_menu_id = quit_menu_item.id().clone();
-            let proxy = event_loop.create_proxy();
+            let proxy = self.proxy.clone();
             let tray_sender = self.tray_sender.clone();
             MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
                 let id = event.id();
@@ -131,6 +137,7 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
     let mut app = App {
         tray_icon: None,
         tray_sender,
+        proxy,
     };
     if let Err(error) = event_loop.run_app(&mut app) {
         tracing::error!(?error, "Tray event loop failed");
