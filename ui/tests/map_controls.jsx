@@ -183,6 +183,12 @@ describe("MapControls GPS", () => {
             await user.unhover(screen.getByRole("button", { name }));
         }
 
+        const equator_button = screen.getByRole("button", { name: "Show equator" });
+        await user.hover(equator_button);
+        await user.click(equator_button);
+        expect(screen.getByRole("tooltip").textContent).toBe("Hide equator");
+        await user.unhover(equator_button);
+
         const spot_source = container.querySelector("[data-tour='map-radio-status']");
         await user.hover(spot_source);
         expect(screen.getByRole("tooltip").textContent).toBe("Spot source");
