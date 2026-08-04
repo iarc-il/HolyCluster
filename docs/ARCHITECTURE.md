@@ -531,7 +531,7 @@ flowchart LR
         B["Browser at<br/>http://127.0.0.1:3000"]
         CS["catserver (axum server :3000)"]
         R["Radio<br/>OmniRig (Windows COM)<br/>or rigctld :4532 (hamlib)"]
-        LOG["Logger (WSJT-X UDP)"]
+        LOG["Logger (WSJT-X UDP or AC Log TCP)"]
     end
     REMOTE["holycluster.iarc.org<br/>(or holycluster-dev with --dev-server)"]
 
@@ -540,7 +540,7 @@ flowchart LR
     B <-->|"/ws (one socket)"| CS
     CS <-->|"non-radio messages<br/>forwarded upstream"| REMOTE
     CS <-->|"type: radio messages<br/>handled locally"| R
-    CS -->|"HighlightSpot →<br/>WSJT-X status packet"| LOG
+    CS -->|"HighlightSpot → UDP status packet<br/>or NotifyAcLog → TCP commands"| LOG
 ```
 
 On launch, `main.rs` opens the default browser at `http://127.0.0.1:3000`. Every HTTP request is proxied to the remote site — except the `/ws` WebSocket, where catserver splits traffic: messages with `version==1 && type=="radio"` are handled locally against the rig; everything else is forwarded to the real backend. The UI therefore needs no special "local mode" — the same `radio` messages that the plain backend answers with `unavailable` suddenly start working.
@@ -560,6 +560,7 @@ A single-instance guard makes a second launch POST `/open` to the already-runnin
 | `freq.rs` | `Freq` newtype (hertz as `u32`) |
 | `tray_icon.rs` | Windows system-tray icon (Open / Quit) |
 | `reporting.rs` | WSJT-X-compatible UDP status packet for logger integration |
+| `server/radio_control.rs` | CAT commands plus local logger transports, including AC Log TCP |
 | `utils.rs` | axum ↔ tungstenite WS message conversion |
 
 Backend selection is compile-time by OS (`#[cfg(windows)]` → OmniRig, else rigctld), with `--dummy` as a runtime override. Both real backends auto-reinit after 5 consecutive failures. If OmniRig isn't installed, the app opens the site's `/omnirig-error` page and exits.
@@ -571,7 +572,7 @@ sequenceDiagram
     participant UI as Web UI (useRadio.jsx)
     participant CS as catserver /ws
     participant RIG as OmniRig / rigctld
-    participant LOG as Logger (UDP)
+    participant LOG as Logger (UDP or TCP)
 
     Note over UI,CS: user clicks a spot row
     UI->>CS: {version:1, type:"radio", action:"SetModeAndFreq", mode:"CW", freq: 14025.0}
@@ -581,6 +582,8 @@ sequenceDiagram
     CS->>RIG: switch to Rig 2
     UI->>CS: {action:"HighlightSpot", dx_callsign, freq, mode, udp_port}
     CS->>LOG: WSJT-X status UDP packet → 127.0.0.1:udp_port
+    UI->>CS: {action:"NotifyAcLog", dx_callsign, freq, band, mode, host, port}
+    CS->>LOG: AC Log TCP API commands → loopback host:port
 
     loop every 500ms (only on change)
         CS->>RIG: poll status/freq/mode

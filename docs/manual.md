@@ -24,7 +24,7 @@ Developed by Israeli amateur radio development team with support from the Israel
 
 - Modern web browser (Chrome, Firefox, Safari, Edge)
 - Internet connection
-- For CAT control: Windows with OmniRig
+- For CAT control: a compatible local radio backend (OmniRig on Windows or rigctld on other platforms)
 
 ---
 
@@ -197,10 +197,18 @@ at the top right corner of each filter section.
 
 #### Logger Integration
 
-Currently tested with Log4OM, should work with any software that integrates with WSJT-X.
+Log4OM uses a WSJT-X-compatible UDP status packet. AC Log uses N3FJP's local TCP API.
 
-- **Report Callsign**: Send clicked callsign to logging software
-- **UDP Port**: Port for WSJT-X UDP packet. The default port is the same as in WSJT-X and Log4OM.
+- **Enable Log4OM integration**: Send the clicked callsign to Log4OM or another WSJT-X-compatible logger.
+- **UDP Port**: Port for the WSJT-X UDP packet. The default is the same as in WSJT-X and Log4OM.
+- **Enable AC Log integration**: Prepare the clicked callsign, frequency, and mode in N3FJP AC Log.
+- **AC Log host and TCP port**: The local AC Log API endpoint. The default port is 1100. For security,
+  the CAT server supports loopback hosts only.
+
+To configure AC Log, open **Settings > Application Program Interface**, enable **TCP API Enabled**, and
+set its port to match HolyCluster. HolyCluster invokes AC Log's lookup and dupe-check workflow, but does
+not log a QSO automatically; review the prepared fields and press Enter in AC Log to save the contact.
+If AC Log is unavailable or its API is disabled, HolyCluster continues operating normally.
 
 > ** [PLACEHOLDER: CAT Control Settings]**
 > *Screenshot showing the CAT control settings tab with radio integration options*
@@ -231,11 +239,9 @@ enabling automatic frequency tuning and mode changes when you click on spots.
 
 Communication with the transceiver requires access to omnirig which cannot be done only with a website.
 This is why locally installed software is required. The installed CAT server acts as a bridge between the website,
-Omnirig and other facilities (Like sending clicked spots to loggers like Log4OM).
+the selected radio backend and other facilities (like sending clicked spots to Log4OM or AC Log).
 
-Currently only windows is supported because the CAT server uses omnirig.
-In the future we might release support for linux or mac that will interface rigctld.
-Direct integration of hamlib is not planned.
+On Windows the CAT server uses OmniRig. On other platforms it uses rigctld.
 
 ### Setting Up CAT Control
 

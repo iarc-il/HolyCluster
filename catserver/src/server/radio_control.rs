@@ -172,3 +172,36 @@ fn is_upper_sideband(freq: f32) -> bool {
         && !(3500.0..=4000.0).contains(&freq)
         && !(7000.0..=7300.0).contains(&freq)
 }
+
+#[cfg(test)]
+mod tests {
+    use tokio::{io::AsyncReadExt, net::TcpListener};
+
+    use super::send_aclog_spot;
+
+    #[tokio::test]
+    async fn sends_aclog_commands_to_a_tcp_listener() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let received = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut commands = Vec::new();
+            stream.read_to_end(&mut commands).await.unwrap();
+            commands
+        });
+
+        send_aclog_spot("N0<&>'\"", 14_074_000, "20", "FT8", "127.0.0.1", port)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            received.await.unwrap(),
+            b"<CMD><IGNORERIGPOLLS><VALUE>TRUE</VALUE></CMD>\r\n\
+<CMD><CHANGEBM><BAND>20</BAND><MODE>FT8</MODE></CMD>\r\n\
+<CMD><UPDATE><CONTROL>TXTENTRYFREQUENCY</CONTROL><VALUE>14.074000</VALUE></CMD>\r\n\
+<CMD><UPDATE><CONTROL>TXTENTRYCALL</CONTROL><VALUE>N0&lt;&amp;&gt;&apos;&quot;</VALUE></CMD>\r\n\
+<CMD><ACTION><VALUE>CALLTAB</VALUE></CMD>\r\n\
+<CMD><IGNORERIGPOLLS><VALUE>FALSE</VALUE></CMD>\r\n"
+        );
+    }
+}

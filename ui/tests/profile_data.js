@@ -83,6 +83,8 @@ describe("profile_data", () => {
                 main_view_mode: "unknown",
                 main_view_order: "unknown",
                 highlight_port: 80,
+                aclog_host: "example.com",
+                aclog_port: 80,
                 disabled_bands: { 20: "yes", 40: true },
                 disabled_modes: { FT8: true },
             },
@@ -163,6 +165,8 @@ describe("profile_data", () => {
         expect(data.settings.main_view_mode).toBe(defaults.settings.main_view_mode);
         expect(data.settings.main_view_order).toBe(defaults.settings.main_view_order);
         expect(data.settings.highlight_port).toBe(defaults.settings.highlight_port);
+        expect(data.settings.aclog_host).toBe(defaults.settings.aclog_host);
+        expect(data.settings.aclog_port).toBe(defaults.settings.aclog_port);
         expect(data.settings.disabled_bands[20]).toBe(defaults.settings.disabled_bands[20]);
         expect(data.settings.disabled_bands[40]).toBe(true);
         expect(data.settings.disabled_modes.FT8).toBe(true);
@@ -214,6 +218,20 @@ describe("profile_data", () => {
 
         expect(data.settings).not.toHaveProperty("map_theme");
         expect(data.map_controls.map_theme).toBe("colorful");
+    });
+
+    it("preserves valid AC Log settings", () => {
+        const data = sanitize_profile_data({
+            settings: {
+                aclog_enabled: true,
+                aclog_host: "::1",
+                aclog_port: 1200,
+            },
+        });
+
+        expect(data.settings.aclog_enabled).toBe(true);
+        expect(data.settings.aclog_host).toBe("::1");
+        expect(data.settings.aclog_port).toBe(1200);
     });
 
     it("migrates legacy local-storage values into profile data", () => {
