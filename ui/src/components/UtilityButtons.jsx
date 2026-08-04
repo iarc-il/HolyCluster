@@ -1,7 +1,6 @@
 import About from "@/components/About.jsx";
 import { useColors } from "@/hooks/useColors";
-import use_radio from "@/hooks/useRadio.jsx";
-import { useEffect, useState } from "react";
+import { useUpdate } from "@/hooks/useUpdate.jsx";
 
 function FeedbackButton({ size }) {
     const { colors } = useColors();
@@ -24,13 +23,13 @@ function FeedbackButton({ size }) {
     );
 }
 
-function CatserverDownload({ size, new_version_available }) {
+function CatserverDownload({ size, update_available }) {
     const { colors } = useColors();
 
     return (
         <div data-tour="cat-download-link">
             <a href="/addons" target="_blank" rel="noreferrer">
-                {new_version_available ? (
+                {update_available ? (
                     <span className="absolute right-16 flex w-5 -translate-y-1 translate-x-1 z-10">
                         <span className="relative inline-flex border border-gray-900 bg-orange-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
                             !
@@ -48,11 +47,14 @@ function CatserverDownload({ size, new_version_available }) {
 }
 
 function UtilityButtons() {
-    const { local_version, new_version_available } = use_radio();
+    const { status } = useUpdate();
 
     return (
         <div className="space-y-3" data-tour="utility-buttons">
-            <CatserverDownload size="36" new_version_available={new_version_available} />
+            <CatserverDownload
+                size="36"
+                update_available={status === "available" || status === "deferred"}
+            />
             <FeedbackButton size="36" />
             <About />
         </div>

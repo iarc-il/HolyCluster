@@ -1,8 +1,10 @@
 import Button from "@/components/ui/Button";
 import { useColors } from "@/hooks/useColors";
+import { useUpdate } from "@/hooks/useUpdate.jsx";
 
 function UnsupportedVersion() {
     const { colors } = useColors();
+    const { install } = useUpdate();
 
     return (
         <div
@@ -21,12 +23,7 @@ function UnsupportedVersion() {
                     The version of CAT Control you are using is no longer supported. Please upgrade
                     to the latest version.
                 </div>
-                <Button
-                    className="px-4 py-2"
-                    on_click={() => {
-                        window.location.href = "/catserver/download";
-                    }}
-                >
+                <Button className="px-4 py-2" on_click={install}>
                     Upgrade Now
                 </Button>
             </div>
