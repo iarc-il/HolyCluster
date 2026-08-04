@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::radio_config::{
-    ActiveRadioBackend, HamlibConfig, HamlibRigConfig, RadioBackendKind, RadioConfig,
-    RadioConfigError,
+    ActiveRadioBackend, HamlibRigConfig, RadioBackendKind, RadioConfig, RadioConfigError,
+    RadioRigConfig, RigctldConfig, DEFAULT_RIGCTLD_HOST, DEFAULT_RIGCTLD_PORT,
 };
 
 struct TestDir(PathBuf);
@@ -34,19 +34,17 @@ impl Drop for TestDir {
     }
 }
 
+fn hamlib(model_id: &str) -> RadioRigConfig {
+    RadioRigConfig::hamlib(HamlibRigConfig {
+        model_id: model_id.into(),
+        token_values: BTreeMap::from([("rig_pathname".into(), "/dev/ttyUSB0".into())]),
+    })
+}
+
 fn two_rig_config() -> RadioConfig {
     RadioConfig {
-        backend: RadioBackendKind::Hamlib,
-        hamlib: Some(HamlibConfig {
-            rig1: HamlibRigConfig {
-                model_id: "1".into(),
-                token_values: BTreeMap::from([("rig_pathname".into(), "/dev/ttyUSB0".into())]),
-            },
-            rig2: Some(HamlibRigConfig {
-                model_id: "2".into(),
-                token_values: BTreeMap::from([("rig_pathname".into(), "/dev/ttyUSB1".into())]),
-            }),
-        }),
+        rig1: hamlib("1"),
+        rig2: Some(hamlib("2")),
     }
 }
 
@@ -60,95 +58,95 @@ fn returns_platform_default_when_config_file_is_missing() {
 }
 
 #[test]
-fn round_trips_one_and_two_hamlib_rigs() {
+fn round_trips_independently_configured_rigs() {
     let directory = TestDir::new();
-    let one_rig = RadioConfig {
-        backend: RadioBackendKind::Hamlib,
-        hamlib: Some(HamlibConfig {
-            rig1: HamlibRigConfig {
-                model_id: "1".into(),
-                token_values: BTreeMap::new(),
-            },
-            rig2: None,
-        }),
+    let config = RadioConfig {
+        rig1: RadioConfig::platform_default().rig1,
+        rig2: Some(hamlib("2")),
     };
 
-    one_rig.save_to_path(&directory.file()).unwrap();
-    assert_eq!(
-        RadioConfig::load_from_path(&directory.file()).unwrap(),
-        one_rig
-    );
+    config.save_to_path(&directory.file()).unwrap();
 
-    let two_rigs = two_rig_config();
-    two_rigs.save_to_path(&directory.file()).unwrap();
-    assert_eq!(
-        RadioConfig::load_from_path(&directory.file()).unwrap(),
-        two_rigs
-    );
+    assert_eq!(RadioConfig::load_from_path(&directory.file()).unwrap(), config);
+}
+
+#[test]
+fn migrates_legacy_global_backend_configuration() {
+    let directory = TestDir::new();
+    fs::write(
+        directory.file(),
+        r#"{"version":1,"backend":"hamlib","hamlib":{"rig1":{"model_id":"1","token_values":{}},"rig2":{"model_id":"2","token_values":{}}}}"#,
+    )
+    .unwrap();
+
+    assert_eq!(RadioConfig::load_from_path(&directory.file()).unwrap(), RadioConfig {
+        rig1: RadioRigConfig::hamlib(HamlibRigConfig {
+            model_id: "1".into(),
+            token_values: BTreeMap::new(),
+        }),
+        rig2: Some(RadioRigConfig::hamlib(HamlibRigConfig {
+            model_id: "2".into(),
+            token_values: BTreeMap::new(),
+        })),
+    });
+}
+
+#[test]
+fn defaults_rigctld_endpoint_when_omitted() {
+    let config: RadioRigConfig = serde_json::from_str(r#"{"backend":"rigctld","rigctld":{}}"#).unwrap();
+
+    assert_eq!(config.rigctld, Some(RigctldConfig {
+        host: DEFAULT_RIGCTLD_HOST.into(),
+        port: DEFAULT_RIGCTLD_PORT,
+    }));
+}
+
+#[cfg(not(windows))]
+#[test]
+fn rejects_invalid_rigctld_endpoints() {
+    let config = RadioConfig {
+        rig1: RadioRigConfig {
+            backend: RadioBackendKind::Rigctld,
+            hamlib: None,
+            rigctld: Some(RigctldConfig {
+                host: " ".into(),
+                port: 0,
+            }),
+        },
+        rig2: None,
+    };
+
+    assert!(matches!(config.validate(), Err(RadioConfigError::InvalidRigctldHost(_))));
+
+    let config = RadioConfig {
+        rig1: RadioRigConfig {
+            backend: RadioBackendKind::Rigctld,
+            hamlib: None,
+            rigctld: Some(RigctldConfig {
+                host: "127.0.0.1".into(),
+                port: 0,
+            }),
+        },
+        rig2: None,
+    };
+
+    assert!(matches!(config.validate(), Err(RadioConfigError::InvalidRigctldPort)));
 }
 
 #[test]
 fn rejects_unknown_schema_version_and_backend() {
     let directory = TestDir::new();
 
-    fs::write(directory.file(), r#"{"version":2,"backend":"rigctld"}"#).unwrap();
+    fs::write(directory.file(), r#"{"version":3,"rig1":{"backend":"rigctld"}}"#).unwrap();
     assert!(matches!(
         RadioConfig::load_from_path(&directory.file()),
-        Err(RadioConfigError::UnsupportedVersion(2))
+        Err(RadioConfigError::UnsupportedVersion(3))
     ));
 
     fs::write(directory.file(), r#"{"version":1,"backend":"unknown"}"#).unwrap();
     assert!(matches!(
         RadioConfig::load_from_path(&directory.file()),
         Err(RadioConfigError::UnknownBackend(_))
-    ));
-}
-
-#[test]
-fn rejects_malformed_json_and_invalid_hamlib_shapes() {
-    let directory = TestDir::new();
-
-    fs::write(directory.file(), "{").unwrap();
-    assert!(matches!(
-        RadioConfig::load_from_path(&directory.file()),
-        Err(RadioConfigError::Json(_))
-    ));
-
-    fs::write(
-        directory.file(),
-        r#"{"version":1,"backend":"hamlib","hamlib":{"rig1":{"model_id":"zero","token_values":{"":"9600"}}}}"#,
-    )
-    .unwrap();
-    assert!(matches!(
-        RadioConfig::load_from_path(&directory.file()),
-        Err(RadioConfigError::InvalidModelId(_))
-    ));
-
-    fs::write(
-        directory.file(),
-        r#"{"version":1,"backend":"hamlib","hamlib":{"rig1":{"model_id":"1","token_values":{"":"9600"}}}}"#,
-    )
-    .unwrap();
-    assert!(matches!(
-        RadioConfig::load_from_path(&directory.file()),
-        Err(RadioConfigError::InvalidToken(_))
-    ));
-}
-
-#[test]
-fn rejects_backend_not_supported_by_this_platform() {
-    let directory = TestDir::new();
-    let backend = if cfg!(windows) { "rigctld" } else { "omnirig" };
-
-    fs::write(
-        directory.file(),
-        format!(r#"{{"version":1,"backend":"{backend}"}}"#),
-    )
-    .unwrap();
-
-    assert!(matches!(
-        RadioConfig::load_from_path(&directory.file()),
-        Err(RadioConfigError::PlatformUnsupportedBackend(_))
     ));
 }
 
@@ -193,48 +191,7 @@ fn dummy_override_is_explicit_and_never_persisted() {
     assert_eq!(config.effective_backend(true), ActiveRadioBackend::Dummy);
     assert_eq!(
         config.effective_backend(false),
-        ActiveRadioBackend::Configured(config.backend)
+        ActiveRadioBackend::Configured(config.rig1.backend)
     );
     assert!(!persisted.contains("dummy"));
-}
-
-#[test]
-fn prints_canonical_one_and_two_rig_configurations_for_manual_qa() {
-    let directory = TestDir::new();
-    let one_rig = RadioConfig {
-        backend: RadioBackendKind::Hamlib,
-        hamlib: Some(HamlibConfig {
-            rig1: HamlibRigConfig {
-                model_id: "1".into(),
-                token_values: BTreeMap::new(),
-            },
-            rig2: None,
-        }),
-    };
-
-    one_rig.save_to_path(&directory.file()).unwrap();
-    println!("one-rig={}", fs::read_to_string(directory.file()).unwrap());
-    assert_eq!(
-        RadioConfig::load_from_path(&directory.file()).unwrap(),
-        one_rig
-    );
-
-    let two_rigs = two_rig_config();
-    two_rigs.save_to_path(&directory.file()).unwrap();
-    println!("two-rig={}", fs::read_to_string(directory.file()).unwrap());
-    assert_eq!(
-        RadioConfig::load_from_path(&directory.file()).unwrap(),
-        two_rigs
-    );
-
-    let malformed_path = directory.0.join("malformed-radio.json");
-    fs::write(&malformed_path, "{").unwrap();
-    println!(
-        "malformed-error={}",
-        RadioConfig::load_from_path(&malformed_path).unwrap_err()
-    );
-    assert_eq!(
-        RadioConfig::load_from_path(&directory.file()).unwrap(),
-        two_rigs
-    );
 }

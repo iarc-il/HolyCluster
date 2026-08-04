@@ -3,12 +3,12 @@ use std::{collections::BTreeMap, sync::Arc};
 use super::{
     radio_actions::process_ws,
     radio_configuration::{
-        Capabilities, ConfigurationResult, FieldError, HamlibModel, ProductionRadioConfiguration,
-        RadioConfiguration, RadioConfigurationService,
+        Capabilities, ConfigurationInput, ConfigurationResult, FieldError, HamlibModel,
+        ProductionRadioConfiguration, RadioConfiguration, RadioConfigurationService,
     },
 };
 use crate::{
-    radio_config::{HamlibConfig, HamlibRigConfig, RadioBackendKind, RadioConfig},
+    radio_config::{HamlibRigConfig, RadioConfig, RadioRigConfig},
     radio_manager::RadioManager,
 };
 
@@ -82,18 +82,45 @@ async fn invalid_configuration_returns_a_field_error() {
     );
 }
 
+#[test]
+fn configuration_input_migrates_the_legacy_hamlib_shape() {
+    let input: ConfigurationInput = serde_json::from_str(
+        r#"{"backend":"hamlib","hamlib":{"rig1":{"model_id":"1","token_values":{}}}}"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        input.into_config().unwrap(),
+        RadioConfig {
+            rig1: RadioRigConfig::hamlib(HamlibRigConfig {
+                model_id: "1".into(),
+                token_values: BTreeMap::new(),
+            }),
+            rig2: None,
+        }
+    );
+}
+
+#[test]
+fn configuration_input_defaults_rigctld_endpoint_fields() {
+    let input: ConfigurationInput =
+        serde_json::from_str(r#"{"rig1":{"backend":"rigctld","rigctld":{}}}"#).unwrap();
+
+    let config = input.into_config().unwrap();
+    let rigctld = config.rig1.rigctld.unwrap();
+    assert_eq!(rigctld.host, "127.0.0.1");
+    assert_eq!(rigctld.port, 4532);
+}
+
 #[tokio::test]
 async fn production_configuration_rejects_unknown_descriptor_tokens() {
     let result = ProductionRadioConfiguration::new(radio())
         .set_configuration(RadioConfig {
-            backend: RadioBackendKind::Hamlib,
-            hamlib: Some(HamlibConfig {
-                rig1: HamlibRigConfig {
-                    model_id: "1".into(),
-                    token_values: BTreeMap::from([("unknown_token".into(), "value".into())]),
-                },
-                rig2: None,
+            rig1: RadioRigConfig::hamlib(HamlibRigConfig {
+                model_id: "1".into(),
+                token_values: BTreeMap::from([("unknown_token".into(), "value".into())]),
             }),
+            rig2: None,
         })
         .await;
     assert_eq!(

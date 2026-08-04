@@ -2,10 +2,7 @@ use anyhow::Result;
 use axum::extract::ws::Message;
 use serde::Deserialize;
 
-use crate::{
-    radio_config::{RadioBackendKind, RadioConfig},
-    radio_manager::RadioManager,
-};
+use crate::{radio_config::RadioConfig, radio_manager::RadioManager};
 
 use super::{
     radio::message,
@@ -142,10 +139,5 @@ async fn control(message: ControlMessage, radio: &RadioManager) -> Result<Option
     Ok(None)
 }
 fn configuration_data(configuration: RadioConfig) -> serde_json::Value {
-    let backend = match configuration.backend {
-        RadioBackendKind::Omnirig => "omnirig",
-        RadioBackendKind::Rigctld => "rigctld",
-        RadioBackendKind::Hamlib => "hamlib",
-    };
-    serde_json::json!({"backend": backend, "hamlib": configuration.hamlib})
+    serde_json::to_value(configuration).expect("radio configuration is serializable")
 }

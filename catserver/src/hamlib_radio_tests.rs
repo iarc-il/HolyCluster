@@ -3,26 +3,27 @@ use std::collections::BTreeMap;
 use crate::{
     freq::Freq,
     hamlib_radio::HamlibRadio,
-    radio_config::{HamlibConfig, HamlibRigConfig},
+    radio_config::HamlibRigConfig,
     rig::{Mode, Radio, Slot},
 };
 
-fn config(rig2: bool) -> HamlibConfig {
-    HamlibConfig {
-        rig1: HamlibRigConfig {
+fn config(rig2: bool) -> (HamlibRigConfig, Option<HamlibRigConfig>) {
+    (
+        HamlibRigConfig {
             model_id: hamlib::RigModelId::DUMMY.to_string(),
             token_values: BTreeMap::new(),
         },
-        rig2: rig2.then(|| HamlibRigConfig {
+        rig2.then(|| HamlibRigConfig {
             model_id: hamlib::RigModelId::DUMMY.to_string(),
             token_values: BTreeMap::new(),
         }),
-    }
+    )
 }
 
 #[test]
 fn dummy_rigs_select_vfos_and_map_modes() {
-    let mut radio = HamlibRadio::new(config(true));
+    let (rig1, rig2) = config(true);
+    let mut radio = HamlibRadio::new(rig1, rig2);
     radio.init().unwrap();
     radio.set_frequency(Slot::A, Freq::from_u32_hz(7_100_000));
     radio.set_mode(Mode::CW);
@@ -39,7 +40,8 @@ fn dummy_rigs_select_vfos_and_map_modes() {
 
 #[test]
 fn absent_second_rig_is_not_selected() {
-    let mut radio = HamlibRadio::new(config(false));
+    let (rig1, rig2) = config(false);
+    let mut radio = HamlibRadio::new(rig1, rig2);
     radio.init().unwrap();
     radio.set_rig(2);
     assert_eq!(radio.get_status().current_rig, 1);
@@ -47,9 +49,9 @@ fn absent_second_rig_is_not_selected() {
 
 #[test]
 fn invalid_second_rig_reports_its_slot_and_can_retry() {
-    let mut config = config(true);
-    config.rig2.as_mut().unwrap().model_id = "999999".into();
-    let mut radio = HamlibRadio::new(config);
+    let (rig1, mut rig2) = config(true);
+    rig2.as_mut().unwrap().model_id = "999999".into();
+    let mut radio = HamlibRadio::new(rig1, rig2);
     assert!(matches!(
         radio.init(),
         Err(crate::rig::RadioInitError::Hamlib { rig: 2, .. })

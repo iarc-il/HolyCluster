@@ -10,11 +10,14 @@ use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
 const CONFIG_FILE: &str = "radio.json";
-const SCHEMA_VERSION: u8 = 1;
+const SCHEMA_VERSION: u8 = 2;
+pub const DEFAULT_RIGCTLD_HOST: &str = "127.0.0.1";
+pub const DEFAULT_RIGCTLD_PORT: u16 = 4532;
 type IoFailure = (PathBuf, std::io::Error);
 type RenameFailure = (PathBuf, PathBuf, std::io::Error);
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum RadioBackendKind {
     Omnirig,
     Rigctld,
@@ -34,15 +37,27 @@ pub struct HamlibRigConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
-pub struct HamlibConfig {
-    pub rig1: HamlibRigConfig,
-    pub rig2: Option<HamlibRigConfig>,
+pub struct RigctldConfig {
+    #[serde(default = "default_rigctld_host")]
+    pub host: String,
+    #[serde(default = "default_rigctld_port")]
+    pub port: u16,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct RadioConfig {
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+pub struct RadioRigConfig {
     pub backend: RadioBackendKind,
-    pub hamlib: Option<HamlibConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hamlib: Option<HamlibRigConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rigctld: Option<RigctldConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+pub struct RadioConfig {
+    pub rig1: RadioRigConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rig2: Option<RadioRigConfig>,
 }
 
 #[derive(Debug)]
@@ -55,10 +70,12 @@ pub enum RadioConfigError {
     UnsupportedVersion(u8),
     UnknownBackend(String),
     PlatformUnsupportedBackend(RadioBackendKind),
-    MissingHamlibConfiguration,
-    UnexpectedHamlibConfiguration,
+    MissingBackendConfiguration(RadioBackendKind),
+    UnexpectedBackendConfiguration,
     InvalidModelId(String),
     InvalidToken(String),
+    InvalidRigctldHost(String),
+    InvalidRigctldPort,
     WriteTemporary(IoFailure),
     Rename(RenameFailure),
 }
@@ -74,37 +91,34 @@ impl std::error::Error for RadioConfigError {}
 #[derive(Deserialize)]
 struct ConfigHeader {
     version: u8,
-    backend: String,
 }
 
 #[derive(Deserialize)]
-#[serde(tag = "backend", rename_all = "snake_case")]
-enum PersistedRadioConfig {
-    Omnirig,
-    Rigctld,
-    Hamlib { hamlib: HamlibConfig },
+pub(crate) struct LegacyRadioConfig {
+    pub(crate) backend: String,
+    #[serde(default)]
+    pub(crate) hamlib: Option<LegacyHamlibConfig>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct LegacyHamlibConfig {
+    pub(crate) rig1: HamlibRigConfig,
+    #[serde(default)]
+    pub(crate) rig2: Option<HamlibRigConfig>,
 }
 
 #[derive(Serialize)]
 struct PersistedConfig<'a> {
     version: u8,
     #[serde(flatten)]
-    config: PersistedRadioConfigRef<'a>,
-}
-
-#[derive(Serialize)]
-#[serde(tag = "backend", rename_all = "snake_case")]
-enum PersistedRadioConfigRef<'a> {
-    Omnirig,
-    Rigctld,
-    Hamlib { hamlib: &'a HamlibConfig },
+    config: &'a RadioConfig,
 }
 
 impl RadioConfig {
     pub fn platform_default() -> Self {
         Self {
-            backend: RadioBackendKind::platform_default(),
-            hamlib: None,
+            rig1: RadioRigConfig::platform_default(),
+            rig2: None,
         }
     }
 
@@ -120,22 +134,17 @@ impl RadioConfig {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(Self::platform_default());
             }
-            Err(source) => {
-                return Err(RadioConfigError::Read((path.to_path_buf(), source)));
-            }
+            Err(source) => return Err(RadioConfigError::Read((path.to_path_buf(), source))),
         };
         let header: ConfigHeader =
             serde_json::from_str(&contents).map_err(RadioConfigError::Json)?;
-        if header.version != SCHEMA_VERSION {
-            return Err(RadioConfigError::UnsupportedVersion(header.version));
-        }
-        let persisted = match header.backend.as_str() {
-            "omnirig" | "rigctld" | "hamlib" => {
-                serde_json::from_str(&contents).map_err(RadioConfigError::Json)?
-            }
-            _ => return Err(RadioConfigError::UnknownBackend(header.backend)),
+        let config = match header.version {
+            1 => Self::from_legacy(
+                serde_json::from_str(&contents).map_err(RadioConfigError::Json)?,
+            )?,
+            SCHEMA_VERSION => serde_json::from_str(&contents).map_err(RadioConfigError::Json)?,
+            version => return Err(RadioConfigError::UnsupportedVersion(version)),
         };
-        let config = Self::from_persisted(persisted);
         config.validate()?;
         Ok(config)
     }
@@ -160,7 +169,7 @@ impl RadioConfig {
         })?;
         let temporary_path = path.with_extension("json.tmp");
         let serialized =
-            serde_json::to_vec_pretty(&self.persisted()?).map_err(RadioConfigError::Serialize)?;
+            serde_json::to_vec_pretty(&self.persisted()).map_err(RadioConfigError::Serialize)?;
         let write_result = File::create(&temporary_path)
             .and_then(|mut temporary| {
                 temporary.write_all(&serialized)?;
@@ -173,11 +182,7 @@ impl RadioConfig {
         }
         if let Err(source) = rename(&temporary_path, path) {
             let _ = fs::remove_file(&temporary_path);
-            return Err(RadioConfigError::Rename((
-                temporary_path,
-                path.to_path_buf(),
-                source,
-            )));
+            return Err(RadioConfigError::Rename((temporary_path, path.to_path_buf(), source)));
         }
         Ok(())
     }
@@ -186,57 +191,46 @@ impl RadioConfig {
         if dummy {
             ActiveRadioBackend::Dummy
         } else {
-            ActiveRadioBackend::Configured(self.backend)
+            ActiveRadioBackend::Configured(self.rig1.backend)
         }
     }
 
-    fn from_persisted(config: PersistedRadioConfig) -> Self {
-        match config {
-            PersistedRadioConfig::Omnirig => Self {
-                backend: RadioBackendKind::Omnirig,
-                hamlib: None,
-            },
-            PersistedRadioConfig::Rigctld => Self {
-                backend: RadioBackendKind::Rigctld,
-                hamlib: None,
-            },
-            PersistedRadioConfig::Hamlib { hamlib } => Self {
-                backend: RadioBackendKind::Hamlib,
-                hamlib: Some(hamlib),
-            },
-        }
-    }
-
-    fn persisted(&self) -> Result<PersistedConfig<'_>, RadioConfigError> {
-        let config = match (&self.backend, &self.hamlib) {
-            (RadioBackendKind::Omnirig, None) => PersistedRadioConfigRef::Omnirig,
-            (RadioBackendKind::Rigctld, None) => PersistedRadioConfigRef::Rigctld,
-            (RadioBackendKind::Hamlib, Some(hamlib)) => PersistedRadioConfigRef::Hamlib { hamlib },
-            (RadioBackendKind::Omnirig, Some(_)) | (RadioBackendKind::Rigctld, Some(_)) => {
-                return Err(RadioConfigError::UnexpectedHamlibConfiguration);
-            }
-            (RadioBackendKind::Hamlib, None) => {
-                return Err(RadioConfigError::MissingHamlibConfiguration);
-            }
+    pub(crate) fn from_legacy(config: LegacyRadioConfig) -> Result<Self, RadioConfigError> {
+        let backend = match config.backend.as_str() {
+            "omnirig" => RadioBackendKind::Omnirig,
+            "rigctld" => RadioBackendKind::Rigctld,
+            "hamlib" => RadioBackendKind::Hamlib,
+            _ => return Err(RadioConfigError::UnknownBackend(config.backend)),
         };
-        Ok(PersistedConfig {
+        let (rig1, rig2) = match backend {
+            RadioBackendKind::Hamlib => {
+                let hamlib = config
+                    .hamlib
+                    .ok_or(RadioConfigError::MissingBackendConfiguration(backend))?;
+                (
+                    RadioRigConfig::hamlib(hamlib.rig1),
+                    hamlib.rig2.map(RadioRigConfig::hamlib),
+                )
+            }
+            RadioBackendKind::Rigctld => (RadioRigConfig::rigctld_default(), None),
+            RadioBackendKind::Omnirig => (RadioRigConfig::omnirig(), None),
+        };
+        Ok(Self { rig1, rig2 })
+    }
+
+    fn persisted(&self) -> PersistedConfig<'_> {
+        PersistedConfig {
             version: SCHEMA_VERSION,
-            config,
-        })
+            config: self,
+        }
     }
 
     pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
-        if !self.backend.is_supported_on_platform() {
-            return Err(RadioConfigError::PlatformUnsupportedBackend(self.backend));
+        self.rig1.validate()?;
+        if let Some(rig2) = &self.rig2 {
+            rig2.validate()?;
         }
-        match (&self.backend, &self.hamlib) {
-            (RadioBackendKind::Hamlib, Some(hamlib)) => hamlib.validate(),
-            (RadioBackendKind::Hamlib, None) => Err(RadioConfigError::MissingHamlibConfiguration),
-            (RadioBackendKind::Omnirig, None) | (RadioBackendKind::Rigctld, None) => Ok(()),
-            (RadioBackendKind::Omnirig, Some(_)) | (RadioBackendKind::Rigctld, Some(_)) => {
-                Err(RadioConfigError::UnexpectedHamlibConfiguration)
-            }
-        }
+        Ok(())
     }
 }
 
@@ -261,11 +255,69 @@ impl RadioBackendKind {
     }
 }
 
-impl HamlibConfig {
+impl RadioRigConfig {
+    pub fn hamlib(hamlib: HamlibRigConfig) -> Self {
+        Self {
+            backend: RadioBackendKind::Hamlib,
+            hamlib: Some(hamlib),
+            rigctld: None,
+        }
+    }
+
+    pub fn rigctld_default() -> Self {
+        Self {
+            backend: RadioBackendKind::Rigctld,
+            hamlib: None,
+            rigctld: Some(RigctldConfig::default()),
+        }
+    }
+
+    pub fn omnirig() -> Self {
+        Self {
+            backend: RadioBackendKind::Omnirig,
+            hamlib: None,
+            rigctld: None,
+        }
+    }
+
+    fn platform_default() -> Self {
+        match RadioBackendKind::platform_default() {
+            RadioBackendKind::Omnirig => Self::omnirig(),
+            RadioBackendKind::Rigctld => Self::rigctld_default(),
+            RadioBackendKind::Hamlib => unreachable!(),
+        }
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
+        if !self.backend.is_supported_on_platform() {
+            return Err(RadioConfigError::PlatformUnsupportedBackend(self.backend));
+        }
+        match (&self.backend, &self.hamlib, &self.rigctld) {
+            (RadioBackendKind::Hamlib, Some(hamlib), None) => hamlib.validate(),
+            (RadioBackendKind::Rigctld, None, Some(rigctld)) => rigctld.validate(),
+            (RadioBackendKind::Omnirig, None, None) => Ok(()),
+            (backend, None, _) => Err(RadioConfigError::MissingBackendConfiguration(*backend)),
+            _ => Err(RadioConfigError::UnexpectedBackendConfiguration),
+        }
+    }
+}
+
+impl Default for RigctldConfig {
+    fn default() -> Self {
+        Self {
+            host: default_rigctld_host(),
+            port: default_rigctld_port(),
+        }
+    }
+}
+
+impl RigctldConfig {
     fn validate(&self) -> Result<(), RadioConfigError> {
-        self.rig1.validate()?;
-        if let Some(rig2) = &self.rig2 {
-            rig2.validate()?;
+        if self.host.trim().is_empty() || self.host.chars().any(char::is_whitespace) {
+            return Err(RadioConfigError::InvalidRigctldHost(self.host.clone()));
+        }
+        if self.port == 0 {
+            return Err(RadioConfigError::InvalidRigctldPort);
         }
         Ok(())
     }
@@ -290,4 +342,12 @@ fn is_descriptor_token(token: &str) -> bool {
     let mut characters = token.chars();
     matches!(characters.next(), Some(character) if character.is_ascii_alphabetic())
         && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+fn default_rigctld_host() -> String {
+    DEFAULT_RIGCTLD_HOST.into()
+}
+
+const fn default_rigctld_port() -> u16 {
+    DEFAULT_RIGCTLD_PORT
 }

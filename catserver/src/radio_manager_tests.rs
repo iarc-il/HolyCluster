@@ -7,7 +7,7 @@ use std::{
 use crate::{
     dummy::DummyRadio,
     radio_actor::Worker,
-    radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig},
+    radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig, RadioRigConfig},
     radio_manager::{ConnectionState, RadioManager},
     rig::{Mode, Radio, RadioInitError, Slot, Status},
 };
@@ -114,8 +114,12 @@ async fn failed_candidate_keeps_selected_backend_observable() {
 async fn invalid_candidate_preserves_active_radio() {
     let manager = manager().await;
     let invalid = RadioConfig {
-        backend: RadioBackendKind::Hamlib,
-        hamlib: None,
+        rig1: RadioRigConfig {
+            backend: RadioBackendKind::Hamlib,
+            hamlib: None,
+            rigctld: None,
+        },
+        rig2: None,
     };
     assert!(
         manager

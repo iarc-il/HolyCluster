@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     args::{DEFAULT_RIGCTLD_HOST, DEFAULT_RIGCTLD_PORT},
-    radio_config::{HamlibConfig, HamlibRigConfig, RadioBackendKind, RadioConfig},
+    radio_config::{
+        HamlibRigConfig, LegacyHamlibConfig, LegacyRadioConfig, RadioBackendKind, RadioConfig,
+        RadioRigConfig,
+    },
     radio_factory,
     radio_manager::RadioManager,
 };
@@ -66,7 +69,7 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
     fn capabilities(&self) -> Capabilities {
         Capabilities {
             radio_configuration: true,
-            backends: vec!["omnirig", "rigctld", "hamlib"],
+            backends: supported_backends(),
         }
     }
 
@@ -133,21 +136,24 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
 }
 
 fn validate_configuration(configuration: &RadioConfig) -> Result<(), FieldError> {
-    configuration.validate().map_err(|error| FieldError {
-        field: config_field(&error),
-        message: error.to_string(),
-        token: config_token(&error),
-    })?;
-    if let Some(hamlib) = &configuration.hamlib {
-        validate_hamlib(hamlib)?;
+    validate_rig_configuration("rig1", &configuration.rig1)?;
+    if let Some(rig2) = &configuration.rig2 {
+        validate_rig_configuration("rig2", rig2)?;
     }
     Ok(())
 }
 
-fn validate_hamlib(configuration: &HamlibConfig) -> Result<(), FieldError> {
-    validate_rig("hamlib.rig1", &configuration.rig1)?;
-    if let Some(rig2) = &configuration.rig2 {
-        validate_rig("hamlib.rig2", rig2)?;
+fn validate_rig_configuration(
+    field: &str,
+    configuration: &RadioRigConfig,
+) -> Result<(), FieldError> {
+    configuration.validate().map_err(|error| FieldError {
+        field: config_field(field, &error),
+        message: error.to_string(),
+        token: config_token(&error),
+    })?;
+    if let Some(hamlib) = &configuration.hamlib {
+        validate_rig(&format!("{field}.hamlib"), hamlib)?;
     }
     Ok(())
 }
@@ -199,16 +205,38 @@ pub(super) fn parse_backend(value: &str) -> Result<RadioBackendKind, FieldError>
 
 #[derive(Deserialize)]
 pub(super) struct ConfigurationInput {
-    pub(super) backend: String,
     #[serde(default)]
-    pub(super) hamlib: Option<crate::radio_config::HamlibConfig>,
+    pub(super) rig1: Option<RadioRigConfig>,
+    #[serde(default)]
+    pub(super) rig2: Option<RadioRigConfig>,
+    #[serde(default)]
+    pub(super) backend: Option<String>,
+    #[serde(default)]
+    pub(super) hamlib: Option<LegacyHamlibConfig>,
 }
 
 impl ConfigurationInput {
     pub(super) fn into_config(self) -> Result<RadioConfig, FieldError> {
-        Ok(RadioConfig {
-            backend: parse_backend(&self.backend)?,
+        if let Some(rig1) = self.rig1 {
+            return Ok(RadioConfig {
+                rig1,
+                rig2: self.rig2,
+            });
+        }
+        let backend = self.backend.ok_or_else(|| FieldError {
+            field: "rig1".into(),
+            message: "missing rig 1 configuration".into(),
+            token: None,
+        })?;
+        parse_backend(&backend)?;
+        RadioConfig::from_legacy(LegacyRadioConfig {
+            backend,
             hamlib: self.hamlib,
+        })
+        .map_err(|error| FieldError {
+            field: config_field("rig1", &error),
+            message: error.to_string(),
+            token: config_token(&error),
         })
     }
 }
@@ -245,19 +273,31 @@ fn manager_error(error: crate::radio_manager::RadioManagerError) -> FieldError {
     }
 }
 
-fn config_field(error: &crate::radio_config::RadioConfigError) -> String {
+fn config_field(field: &str, error: &crate::radio_config::RadioConfigError) -> String {
     use crate::radio_config::RadioConfigError::*;
     match error {
-        InvalidModelId(_) => "hamlib.rig1.model_id",
-        InvalidToken(_) => "hamlib.rig1.token_values",
-        _ => "backend",
+        InvalidModelId(_) => format!("{field}.hamlib.model_id"),
+        InvalidToken(_) => format!("{field}.hamlib.token_values"),
+        InvalidRigctldHost(_) => format!("{field}.rigctld.host"),
+        InvalidRigctldPort => format!("{field}.rigctld.port"),
+        _ => format!("{field}.backend"),
     }
-    .into()
 }
 
 fn config_token(error: &crate::radio_config::RadioConfigError) -> Option<String> {
     match error {
         crate::radio_config::RadioConfigError::InvalidToken(token) => Some(token.clone()),
         _ => None,
+    }
+}
+
+fn supported_backends() -> Vec<&'static str> {
+    #[cfg(windows)]
+    {
+        vec!["omnirig", "hamlib"]
+    }
+    #[cfg(not(windows))]
+    {
+        vec!["rigctld", "hamlib"]
     }
 }
