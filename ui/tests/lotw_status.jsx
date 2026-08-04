@@ -8,17 +8,22 @@ afterEach(cleanup);
 
 describe("LoTWStatus", () => {
     it.each([
-        ["frequent", "LoTW: active (last upload within 180 days)", "LoTW ✓"],
-        ["infrequent", "LoTW: user, last upload over 180 days ago", "LoTW ~"],
-        ["non_user", "LoTW: no user activity found", "LoTW —"],
-        [undefined, "LoTW status unavailable", "LoTW ?"],
-        ["unexpected", "LoTW status unavailable", "LoTW ?"],
+        ["frequent", "LoTW: active (last upload within 180 days)", "✓"],
+        ["infrequent", "LoTW: user, last upload over 180 days ago", "~"],
+        [undefined, "LoTW status unavailable", "?"],
+        ["unexpected", "LoTW status unavailable", "?"],
     ])("exposes %s status with text and tooltip", (status, label, text) => {
         render(<LoTWStatus status={status} />);
 
         const indicator = screen.getByRole("img", { name: label });
         expect(indicator.textContent).toBe(text);
         expect(indicator.getAttribute("title")).toBe(label);
+    });
+
+    it("does not render an indicator when no LoTW user activity is found", () => {
+        render(<LoTWStatus status="non_user" />);
+
+        expect(screen.queryByRole("img")).toBeNull();
     });
 });
 
