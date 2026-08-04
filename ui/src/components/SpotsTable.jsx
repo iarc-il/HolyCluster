@@ -163,16 +163,18 @@ export function get_lotw_status_details(status) {
 }
 
 export function LoTWStatus({ status }) {
+    if (status === "non_user") return null;
+
     const { label, symbol, className } = get_lotw_status_details(status);
 
     return (
         <span
-            className={`inline-block rounded-full px-1 text-xs leading-4 whitespace-nowrap ${className}`}
+            className={`inline-flex size-3 items-center justify-center rounded-full text-[9px] leading-none ${className}`}
             role="img"
             aria-label={label}
             title={label}
         >
-            LoTW {symbol}
+            {symbol}
         </span>
     );
 }
