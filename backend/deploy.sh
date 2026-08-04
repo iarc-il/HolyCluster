@@ -125,7 +125,7 @@ docker compose build --parallel $SERVICE_LIST
 
 if [ "$RUN_MIGRATIONS" = true ]; then
     echo "Running migrations..."
-    docker compose up migrate
+    docker compose up --abort-on-container-exit --exit-code-from migrate migrate
 fi
 
 echo "Starting: $SERVICE_LIST"
