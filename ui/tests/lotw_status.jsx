@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { LoTWStatus } from "@/components/SpotsTable.jsx";
@@ -12,12 +12,15 @@ describe("LoTWStatus", () => {
         ["infrequent", "LoTW: user, last upload over 180 days ago", "~"],
         [undefined, "LoTW status unavailable", "?"],
         ["unexpected", "LoTW status unavailable", "?"],
-    ])("exposes %s status with text and tooltip", (status, label, text) => {
+    ])("exposes %s status with an accessible label", (status, label, text) => {
         render(<LoTWStatus status={status} />);
 
         const indicator = screen.getByRole("img", { name: label });
         expect(indicator.textContent).toBe(text);
-        expect(indicator.getAttribute("title")).toBe(label);
+        expect(indicator.getAttribute("title")).toBeNull();
+
+        fireEvent.mouseEnter(indicator);
+        expect(screen.getByRole("tooltip").textContent).toBe(label);
     });
 
     it("does not render an indicator when no LoTW user activity is found", () => {

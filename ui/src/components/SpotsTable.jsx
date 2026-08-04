@@ -162,20 +162,38 @@ export function get_lotw_status_details(status) {
     );
 }
 
-export function LoTWStatus({ status }) {
+export function LoTWStatus({ status, tooltip_style }) {
+    const popup_anchor = useRef(null);
+    const [is_hovered, set_is_hovered] = useState(false);
+
     if (status === "non_user") return null;
 
     const { label, symbol, className } = get_lotw_status_details(status);
 
     return (
-        <span
-            className={`inline-flex size-3 items-center justify-center rounded-full text-[9px] leading-none ${className}`}
-            role="img"
-            aria-label={label}
-            title={label}
-        >
-            {symbol}
-        </span>
+        <>
+            <span
+                ref={popup_anchor}
+                className={`inline-flex size-3 items-center justify-center rounded-full text-[9px] leading-none ${className}`}
+                role="img"
+                aria-label={label}
+                onMouseEnter={() => set_is_hovered(true)}
+                onMouseLeave={() => set_is_hovered(false)}
+            >
+                {symbol}
+            </span>
+            {is_hovered && (
+                <Popup anchor_ref={popup_anchor} keep_in_view={true}>
+                    <div
+                        className="py-1 px-2 rounded shadow-lg text-xs whitespace-nowrap"
+                        role="tooltip"
+                        style={tooltip_style}
+                    >
+                        {label}
+                    </div>
+                </Popup>
+            )}
+        </>
     );
 }
 
@@ -438,7 +456,13 @@ const Spot = forwardRef(function Spot(
                         >
                             <Callsign callsign={spot.dx_callsign} />
                         </span>
-                        <LoTWStatus status={spot.dx_lotw_status} />
+                        <LoTWStatus
+                            status={spot.dx_lotw_status}
+                            tooltip_style={{
+                                color: colors.theme.text,
+                                background: colors.theme.background,
+                            }}
+                        />
                     </span>
                     {is_dxpedition_alerted && (
                         <span className="ml-1" title="DXpedition">
