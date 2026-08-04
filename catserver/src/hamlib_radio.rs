@@ -1,20 +1,20 @@
 use crate::{
     freq::Freq,
-    radio_config::{HamlibConfig, HamlibRigConfig},
+    radio_config::HamlibRigConfig,
     rig::{Mode, Radio, RadioInitError, Slot, Status},
 };
 
 pub(crate) struct HamlibRadio {
-    config: HamlibConfig,
+    config: [Option<HamlibRigConfig>; 2],
     rigs: [Option<hamlib::Rig<hamlib::Open>>; 2],
     current_rig: u8,
     failures: u8,
 }
 
 impl HamlibRadio {
-    pub(crate) fn new(config: HamlibConfig) -> Self {
+    pub(crate) fn new(rig1: HamlibRigConfig, rig2: Option<HamlibRigConfig>) -> Self {
         Self {
-            config,
+            config: [Some(rig1), rig2],
             rigs: [None, None],
             current_rig: 1,
             failures: 0,
@@ -39,10 +39,12 @@ impl HamlibRadio {
 impl Radio for HamlibRadio {
     fn init(&mut self) -> Result<(), RadioInitError> {
         self.rigs = [None, None];
-        let rig1 = open(&self.config.rig1).map_err(|error| init_error(1, error))?;
+        let rig1 = open(self.config[0].as_ref().expect("rig 1 configuration"))
+            .map_err(|error| init_error(1, error))?;
         let rig2 = self
             .config
-            .rig2
+            .get(1)
+            .expect("rig 2 configuration")
             .as_ref()
             .map(open)
             .transpose()
