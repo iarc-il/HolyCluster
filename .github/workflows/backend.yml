@@ -28,6 +28,8 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: holy_cluster
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d holy_cluster"
           --health-interval 10s
