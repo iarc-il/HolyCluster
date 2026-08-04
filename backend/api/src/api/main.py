@@ -1229,6 +1229,8 @@ async def spot_history(start_time: int, end_time: int):
 
 @app.get("/health")
 async def health():
+    async with async_session() as session:
+        await session.execute(select(HolySpot).limit(1))
     return {"status": "ok"}
 
 
