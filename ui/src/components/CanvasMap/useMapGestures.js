@@ -563,7 +563,6 @@ export function useMapGestures({
         }
 
         function on_context_menu(event) {
-            if (event.target.tagName !== "CANVAS") return;
             const pos = get_offset(event);
             const searched = get_data_from_shadow_canvas(pos.x, pos.y);
             if (searched == null) return;
