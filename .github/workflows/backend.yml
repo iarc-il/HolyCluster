@@ -21,6 +21,18 @@ jobs:
     name: Lint and Deploy Backend
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/backend-v')
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: holy_cluster
+        options: >-
+          --health-cmd "pg_isready -U postgres -d holy_cluster"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -42,6 +54,18 @@ jobs:
       - name: Run Ruff formatting check
         working-directory: backend
         run: uv run ruff format --check .
+
+      - name: Run database migrations
+        working-directory: backend
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB_NAME: holy_cluster
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_HOST_LOCAL: localhost
+          POSTGRES_PORT_LOCAL: 5432
+        run: uv run alembic upgrade head
 
       - name: Run tests
         working-directory: backend
