@@ -2,8 +2,8 @@ import Input from "@/components/ui/Input.jsx";
 import Select from "@/components/ui/Select.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import use_radio from "@/hooks/useRadio";
-import LoggerIntegrationHelp from "./LoggerIntegrationHelp.jsx";
 import { useEffect, useState } from "react";
+import LoggerIntegrationHelp from "./LoggerIntegrationHelp.jsx";
 
 const serial_labels = {
     rig_pathname: "Serial port",
