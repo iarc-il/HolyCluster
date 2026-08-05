@@ -40,6 +40,8 @@ mod radio_config_tests;
 mod radio_manager_tests;
 #[cfg(test)]
 mod startup_radio_tests;
+#[cfg(test)]
+mod updater_tests;
 
 fn main() -> Result<()> {
     tracing_setup::configure();
