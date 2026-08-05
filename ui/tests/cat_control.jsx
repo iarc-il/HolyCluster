@@ -29,6 +29,7 @@ const descriptors = [
         maximum: 115200,
         step: 1200,
     },
+    { kind: "text", token: "unsupported", label: "Unsupported", tooltip: "", default: "" },
 ];
 
 function configuration(
@@ -81,12 +82,13 @@ describe("CAT control settings", () => {
         await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
         await user.click(screen.getByLabelText("Enable Rig 2"));
         await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
-        await user.type(screen.getByRole("combobox", { name: "Model" }), "2");
+        await user.selectOptions(screen.getByLabelText("Model"), "2");
         expect(screen.getByLabelText("Serial port")).not.toBeNull();
+        expect(screen.queryByLabelText("Unsupported")).toBeNull();
         await user.selectOptions(screen.getByLabelText("Rig"), "rig1");
         expect(screen.getByLabelText("Host").value).toBe("rig-one");
         await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
-        expect(screen.getByRole("combobox", { name: "Model" }).value).toBe("2");
+        expect(screen.getByLabelText("Model").value).toBe("2");
     });
 
     it("serializes only active backend payloads", async () => {
