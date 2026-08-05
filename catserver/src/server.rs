@@ -76,10 +76,19 @@ impl Server {
             .route("/exit", post(exit_server_handler))
             .route("/open", post(open_tab_handler))
             .route("/api/update", get(update::status))
-            .route("/api/update/check", post(update::check))
+            .route(
+                "/api/update/check",
+                post(|axum::extract::State(state)| update::run(state, |updater| updater.check())),
+            )
             .route("/api/update/install", post(update::install))
-            .route("/api/update/defer", post(update::defer))
-            .route("/api/update/retry", post(update::retry));
+            .route(
+                "/api/update/defer",
+                post(|axum::extract::State(state)| update::run(state, |updater| updater.defer())),
+            )
+            .route(
+                "/api/update/retry",
+                post(|axum::extract::State(state)| update::run(state, |updater| updater.retry())),
+            );
         let app = if use_local_ui {
             app.fallback(any(local_ui))
         } else {
