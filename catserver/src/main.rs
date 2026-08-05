@@ -44,6 +44,6 @@ mod startup_radio_tests;
 mod updater_tests;
 
 fn main() -> Result<()> {
-    tracing_setup::configure();
+    let _sentry = tracing_setup::configure();
     application::run()
 }
