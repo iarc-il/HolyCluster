@@ -20,6 +20,7 @@ from shared.cty import ensure_cty_available
 from shared.db import GeoCache, HolySpot, PropagationMeasurement, SpotsWithIssues
 from shared.geo import GeoException, get_geo_details
 from shared.metrics import push_exception_event, set_timestamp, set_value
+from shared.telemetry import capture_exception, initialize_sentry
 from sqlalchemy import desc, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -28,6 +29,8 @@ from sqlmodel import select
 
 from . import propagation, submit_spot, voacap
 from .settings import settings
+
+initialize_sentry(settings, "api")
 
 
 def build_propagation_measurement_rows(history, collected_at):
@@ -86,10 +89,12 @@ async def propagation_data_collector(app):
             except Exception as e:
                 sleep = 10
                 logger.exception(f"Failed to persist propagation data: {str(e)}")
+                capture_exception(e)
                 await push_exception_event(app.state.valkey_client, "api", f"propagation persist: {e}")
         except Exception as e:
             sleep = 10
             logger.exception(f"Failed to fetch propagation data: {str(e)}")
+            capture_exception(e)
             await push_exception_event(app.state.valkey_client, "api", f"propagation: {e}")
         await asyncio.sleep(sleep)
 
@@ -163,6 +168,7 @@ async def spots_broadcast_task(app):
 
         except Exception as e:
             logger.exception(f"Error in spots broadcast task: {e}")
+            capture_exception(e)
             await push_exception_event(valkey_client, "api", f"broadcast: {e}")
 
 
