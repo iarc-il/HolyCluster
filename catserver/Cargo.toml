@@ -29,6 +29,7 @@ semver = "1.0.26"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 sha2 = "0.10.9"
+sentry = { version = "=0.42.0", default-features = false, features = ["backtrace", "contexts", "panic", "tracing", "transport"] }
 single-instance = "0.3.3"
 tokio = { version = "1.44.2", features = ["io-util", "rt", "rt-multi-thread"] }
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
