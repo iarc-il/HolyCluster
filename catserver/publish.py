@@ -5,16 +5,22 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 import tempfile
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend" / "shared" / "src"))
 
-VERSION_PATTERN = re.compile(r"^catserver-v\d+\.\d+\.\d+(?:-\d+-g[0-9a-f]+)?$")
-ARTIFACT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+from shared.release_manifest import (
+    ReleaseManifestError,
+    create_release_artifact,
+    validate_release_target,
+    validate_version,
+)
+
 REMOTE_DIRECTORY_PATTERN = re.compile(r"^/[A-Za-z0-9_./-]+$")
-ARTIFACT_SUFFIXES = {"linux": ".AppImage", "windows": ".msi"}
 REMOTE_PUBLISH_SCRIPT = """\
 set -euo pipefail
 
@@ -64,18 +70,8 @@ class Artifact:
     def size(self):
         return self.path.stat().st_size
 
-    def manifest_entry(self, version: str):
-        return {
-            "version": version,
-            "platform": self.platform,
-            "architecture": self.architecture,
-            "artifact": {
-                "location": f"/catserver/artifacts/{self.name}",
-                "name": self.name,
-                "sha256": self.sha256,
-                "size": self.size,
-            },
-        }
+    def release_artifact(self, version: str):
+        return create_release_artifact(version, self.platform, self.architecture, self.name, self.sha256, self.size)
 
 
 def parse_artifact(value: str):
@@ -84,12 +80,10 @@ def parse_artifact(value: str):
     except ValueError as e:
         raise argparse.ArgumentTypeError(f"Invalid artifact: {value}") from e
 
-    if platform not in ARTIFACT_SUFFIXES:
-        raise argparse.ArgumentTypeError(f"Invalid platform: {platform}")
-    if architecture != "x86_64":
-        raise argparse.ArgumentTypeError(f"Invalid architecture: {architecture}")
-    if not ARTIFACT_NAME_PATTERN.fullmatch(name) or not name.endswith(ARTIFACT_SUFFIXES[platform]):
-        raise argparse.ArgumentTypeError(f"Invalid artifact name: {name}")
+    try:
+        validate_release_target(platform, architecture, name)
+    except ReleaseManifestError as e:
+        raise argparse.ArgumentTypeError(str(e)) from e
 
     artifact_path = Path(path)
     if not artifact_path.is_file():
@@ -104,8 +98,10 @@ def parse_remote_directory(value: str):
 
 
 def parse_version(value: str):
-    if not VERSION_PATTERN.fullmatch(value):
-        raise argparse.ArgumentTypeError("Invalid version")
+    try:
+        validate_version(value)
+    except ReleaseManifestError as e:
+        raise argparse.ArgumentTypeError(str(e)) from e
     return value
 
 
@@ -128,7 +124,10 @@ def parse_arguments():
 
 
 def write_publish_files(directory: Path, version: str, artifacts: list[Artifact]):
-    manifest = {"schema_version": 1, "releases": [artifact.manifest_entry(version) for artifact in artifacts]}
+    manifest = {
+        "schema_version": 1,
+        "releases": [artifact.release_artifact(version).as_dict() for artifact in artifacts],
+    }
     (directory / "latest.json").write_text(json.dumps(manifest, separators=(",", ":")))
     for artifact in artifacts:
         (directory / f"{artifact.name}.sha256").write_text(f"{artifact.sha256}  {artifact.name}\n")
