@@ -12,6 +12,8 @@ SENSITIVE_KEY_PARTS = (
     "cookie",
     "credential",
     "locator",
+    "latitude",
+    "longitude",
     "password",
     "raw_spot",
     "radio",
@@ -53,7 +55,12 @@ def scrub_event(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any]:
     event.pop("contexts", None)
     event.pop("request", None)
     event.pop("user", None)
-    return scrub_value(event)
+    scrubbed = scrub_value(event)
+    for value in scrubbed.get("exception", {}).get("values", []):
+        value["value"] = REDACTED
+        for frame in value.get("stacktrace", {}).get("frames", []):
+            frame.pop("vars", None)
+    return scrubbed
 
 
 def initialize_sentry(settings: SentrySettings, service: str):
