@@ -6,6 +6,7 @@ mod radio_control;
 mod rotator;
 mod session;
 mod state;
+mod update;
 
 #[cfg(test)]
 mod radio_actions_tests;
@@ -20,7 +21,7 @@ use std::{
 use anyhow::{Context, Result};
 use axum::{
     Router,
-    routing::{any, post},
+    routing::{any, get, post},
 };
 use tokio::{
     net::TcpListener,
@@ -69,11 +70,16 @@ impl Server {
         use_local_ui: bool,
     ) -> Result<Self> {
         let ui_dir = use_local_ui.then(find_ui_dir).transpose()?;
-        let state = AppState::new(server_config, radio, rotator, sender.clone(), ui_dir);
+        let state = AppState::new(server_config, radio, rotator, sender.clone(), ui_dir)?;
         let app = Router::new()
             .route("/ws", any(ws_handler))
             .route("/exit", post(exit_server_handler))
-            .route("/open", post(open_tab_handler));
+            .route("/open", post(open_tab_handler))
+            .route("/api/update", get(update::status))
+            .route("/api/update/check", post(update::check))
+            .route("/api/update/install", post(update::install))
+            .route("/api/update/defer", post(update::defer))
+            .route("/api/update/retry", post(update::retry));
         let app = if use_local_ui {
             app.fallback(any(local_ui))
         } else {
@@ -81,7 +87,7 @@ impl Server {
         }
         .with_state(state.clone());
         let listener = TcpListener::bind(SocketAddrV4::new(
-            Ipv4Addr::UNSPECIFIED,
+            Ipv4Addr::LOCALHOST,
             state.server_config.local_port,
         ))
         .await?;

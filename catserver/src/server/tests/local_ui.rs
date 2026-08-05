@@ -54,7 +54,8 @@ async fn local_ui_only_serves_get_and_head_requests() {
         AnyRotator::new(DummyRotator::new()),
         sender,
         Some(ui_dir.path().to_owned()),
-    );
+    )
+    .unwrap();
     let catserver = spawn_app(Router::new().fallback(any(local_ui)).with_state(state)).await;
     assert_eq!(
         reqwest::get(format!("http://{}/asset.txt", catserver.address))

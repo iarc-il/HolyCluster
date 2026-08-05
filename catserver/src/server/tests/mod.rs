@@ -1,5 +1,6 @@
 mod local_ui;
 mod proxy;
+mod update;
 
 use std::{
     fs,
