@@ -1,10 +1,31 @@
 import path from "node:path";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { ctyDxccEntitiesPlugin } from "./scripts/cty_entities.js";
 
-export default defineConfig({
-    plugins: [ctyDxccEntitiesPlugin(), react()],
+const sentry_options = {
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    release: {
+        name: process.env.SENTRY_RELEASE,
+    },
+};
+
+const sentry_upload_enabled = Object.values({
+    authToken: sentry_options.authToken,
+    org: sentry_options.org,
+    project: sentry_options.project,
+    release: sentry_options.release.name,
+}).every(Boolean);
+
+export default defineConfig(({ mode }) => ({
+    plugins: [
+        ctyDxccEntitiesPlugin(),
+        react(),
+        ...(sentry_upload_enabled ? [sentryVitePlugin(sentry_options)] : []),
+    ],
     worker: {
         plugins: () => [ctyDxccEntitiesPlugin()],
     },
@@ -45,6 +66,7 @@ export default defineConfig({
         },
     },
     build: {
+        sourcemap: mode === "production" ? "hidden" : false,
         rollupOptions: {
             output: {
                 manualChunks: id => {
@@ -62,4 +84,4 @@ export default defineConfig({
             },
         },
     },
-});
+}));

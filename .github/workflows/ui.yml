@@ -47,10 +47,31 @@ jobs:
           cd ui
           npm test
 
+      - name: Set Sentry build metadata
+        run: |
+          echo "SENTRY_RELEASE=${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "VITE_SENTRY_RELEASE=${GITHUB_SHA}" >> "$GITHUB_ENV"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "VITE_SENTRY_ENVIRONMENT=production" >> "$GITHUB_ENV"
+          else
+            echo "VITE_SENTRY_ENVIRONMENT=development" >> "$GITHUB_ENV"
+          fi
+
       - name: Build React App
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          VITE_SENTRY_DSN: ${{ vars.SENTRY_DSN }}
         run: |
           cd ui
           npm run build
+
+      - name: Remove source maps before deployment
+        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          shopt -s globstar nullglob
+          rm -f ui/dist/**/*.map
 
       - name: Setup SSH
         if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
