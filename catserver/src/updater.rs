@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 const MAX_ARTIFACT_SIZE: u64 = 512 * 1024 * 1024;
-const PLATFORM_LINUX: &str = "linux-appimage";
-const PLATFORM_WINDOWS: &str = "windows-msi";
+pub(crate) const PLATFORM_LINUX: &str = "linux-appimage";
+pub(crate) const PLATFORM_WINDOWS: &str = "windows-msi";
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct ReleaseManifest {
@@ -91,7 +91,11 @@ impl UpdateService {
         )
     }
 
-    fn with_data_dir(manifest_url: Url, current_version: &str, data_dir: PathBuf) -> Result<Self> {
+    pub(crate) fn with_data_dir(
+        manifest_url: Url,
+        current_version: &str,
+        data_dir: PathBuf,
+    ) -> Result<Self> {
         Ok(Self {
             manifest_url,
             current_version: parse_running_version(current_version)?,
@@ -210,7 +214,7 @@ impl UpdateService {
         Ok(serde_json::from_reader(response)?)
     }
 
-    fn accept_manifest(&self, manifest: ReleaseManifest) -> Result<(Version, Artifact)> {
+    pub(crate) fn accept_manifest(&self, manifest: ReleaseManifest) -> Result<(Version, Artifact)> {
         let version = parse_version(&manifest.version)?;
         if version <= self.current_version {
             bail!("release version is not newer than the running catserver");
@@ -311,7 +315,7 @@ fn install_windows(plan: &InstallPlan) -> Result<()> {
     Ok(())
 }
 
-fn windows_installer_command(msi: &Path) -> Command {
+pub(crate) fn windows_installer_command(msi: &Path) -> Command {
     let mut command = Command::new("msiexec.exe");
     command.args(["/i"]).arg(msi).args(["/qn", "/norestart"]);
     command
@@ -334,7 +338,11 @@ fn download_artifact(artifact: &Artifact, destination: &Path) -> Result<()> {
     copy_verified(&mut response, file, artifact)
 }
 
-fn copy_verified(reader: &mut impl Read, mut file: impl Write, artifact: &Artifact) -> Result<()> {
+pub(crate) fn copy_verified(
+    reader: &mut impl Read,
+    mut file: impl Write,
+    artifact: &Artifact,
+) -> Result<()> {
     let mut hash = Sha256::new();
     let mut total = 0u64;
     let mut buffer = [0u8; 8192];
@@ -363,7 +371,7 @@ fn verify_file(path: &Path, artifact: &Artifact) -> Result<()> {
     copy_verified(&mut File::open(path)?, io::sink(), artifact)
 }
 
-fn validate_artifact(artifact: &Artifact, platform: &str) -> Result<()> {
+pub(crate) fn validate_artifact(artifact: &Artifact, platform: &str) -> Result<()> {
     if artifact.size == 0 || artifact.size > MAX_ARTIFACT_SIZE {
         bail!("artifact size is outside allowed bounds");
     }
@@ -400,7 +408,7 @@ fn secure_client() -> Client {
 fn parse_version(version: &str) -> Result<Version> {
     Version::parse(version.trim_start_matches("catserver-v")).map_err(Into::into)
 }
-fn parse_running_version(version: &str) -> Result<Version> {
+pub(crate) fn parse_running_version(version: &str) -> Result<Version> {
     let version = version.trim_start_matches("catserver-v");
     let version = version
         .rsplit_once("-g")
@@ -483,91 +491,5 @@ fn process_exists(pid: u32) -> bool {
         let result = GetExitCodeProcess(handle, &mut exit_code) != 0 && exit_code == STILL_ACTIVE;
         CloseHandle(handle);
         result
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Cursor;
-
-    fn artifact() -> Artifact {
-        Artifact {
-            url: "https://releases.example/HolyCluster.AppImage".into(),
-            name: "HolyCluster.AppImage".into(),
-            sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".into(),
-            size: 3,
-        }
-    }
-
-    #[test]
-    fn rejects_unsafe_artifacts() {
-        let mut value = artifact();
-        value.url = "http://releases.example/update".into();
-        assert!(validate_artifact(&value, PLATFORM_LINUX).is_err());
-        let mut value = artifact();
-        value.name = "HolyCluster.msi".into();
-        assert!(validate_artifact(&value, PLATFORM_LINUX).is_err());
-        let mut value = artifact();
-        value.name = "../update.AppImage".into();
-        assert!(validate_artifact(&value, PLATFORM_LINUX).is_err());
-    }
-
-    #[test]
-    fn verifies_bounded_downloads() {
-        copy_verified(&mut Cursor::new(b"abc"), io::sink(), &artifact()).unwrap();
-    }
-
-    #[test]
-    fn rejects_equal_and_downgrade_versions() {
-        let service = UpdateService::with_data_dir(
-            Url::parse("https://releases.example/manifest.json").unwrap(),
-            "1.2.0",
-            std::env::temp_dir(),
-        )
-        .unwrap();
-        let manifest = ReleaseManifest {
-            version: "1.2.0".into(),
-            artifacts: [(PLATFORM_LINUX.into(), artifact())].into(),
-        };
-        assert!(service.accept_manifest(manifest).is_err());
-    }
-
-    #[test]
-    fn compares_against_the_release_tag_not_git_describe_suffix() {
-        assert_eq!(
-            parse_running_version("catserver-v1.2.0-1340-g4a8f4fdf").unwrap(),
-            Version::parse("1.2.0").unwrap()
-        );
-    }
-
-    #[test]
-    fn persists_deferred_status() {
-        let data_dir = std::env::temp_dir().join(format!(
-            "catserver-update-state-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let service = UpdateService::with_data_dir(
-            Url::parse("https://releases.example/manifest.json").unwrap(),
-            "1.2.0",
-            data_dir.clone(),
-        )
-        .unwrap();
-        assert_eq!(service.defer().unwrap().state, UpdateState::Deferred);
-        assert_eq!(service.status().state, UpdateState::Deferred);
-        fs::remove_dir_all(data_dir).unwrap();
-    }
-
-    #[test]
-    fn builds_silent_msi_command_without_shell() {
-        let command = windows_installer_command(Path::new("C:/safe/update.msi"));
-        assert_eq!(command.get_program(), "msiexec.exe");
-        assert_eq!(
-            command.get_args().collect::<Vec<_>>(),
-            ["/i", "C:/safe/update.msi", "/qn", "/norestart"]
-        );
     }
 }

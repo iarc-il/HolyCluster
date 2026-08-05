@@ -9,15 +9,30 @@ pub(super) async fn status(State(state): State<AppState>) -> Json<UpdateStatus> 
 }
 
 pub(super) async fn check(State(state): State<AppState>) -> (StatusCode, Json<UpdateStatus>) {
-    run(state, |updater| updater.check()).await
+    let updater = state.updater.clone();
+    match tokio::task::spawn_blocking(move || updater.check()).await {
+        Ok(Ok(status)) => (StatusCode::OK, Json(status)),
+        Ok(Err(error)) => failed_status(&state.updater, error),
+        Err(error) => failed_status(&state.updater, error.into()),
+    }
 }
 
 pub(super) async fn defer(State(state): State<AppState>) -> (StatusCode, Json<UpdateStatus>) {
-    run(state, |updater| updater.defer()).await
+    let updater = state.updater.clone();
+    match tokio::task::spawn_blocking(move || updater.defer()).await {
+        Ok(Ok(status)) => (StatusCode::OK, Json(status)),
+        Ok(Err(error)) => failed_status(&state.updater, error),
+        Err(error) => failed_status(&state.updater, error.into()),
+    }
 }
 
 pub(super) async fn retry(State(state): State<AppState>) -> (StatusCode, Json<UpdateStatus>) {
-    run(state, |updater| updater.retry()).await
+    let updater = state.updater.clone();
+    match tokio::task::spawn_blocking(move || updater.retry()).await {
+        Ok(Ok(status)) => (StatusCode::OK, Json(status)),
+        Ok(Err(error)) => failed_status(&state.updater, error),
+        Err(error) => failed_status(&state.updater, error.into()),
+    }
 }
 
 pub(super) async fn install(State(state): State<AppState>) -> (StatusCode, Json<UpdateStatus>) {
@@ -33,25 +48,9 @@ pub(super) async fn install(State(state): State<AppState>) -> (StatusCode, Json<
             let _ = state.sender.send(crate::tray_icon::UserEvent::Quit);
             (StatusCode::ACCEPTED, Json(status))
         }
-        Ok(Err(error)) => failed(&state, error),
-        Err(error) => failed(&state, error.into()),
+        Ok(Err(error)) => failed_status(&state.updater, error),
+        Err(error) => failed_status(&state.updater, error.into()),
     }
-}
-
-async fn run(
-    state: AppState,
-    action: impl FnOnce(crate::updater::UpdateService) -> anyhow::Result<UpdateStatus> + Send + 'static,
-) -> (StatusCode, Json<UpdateStatus>) {
-    let updater = state.updater.clone();
-    match tokio::task::spawn_blocking(move || action(state.updater)).await {
-        Ok(Ok(status)) => (StatusCode::OK, Json(status)),
-        Ok(Err(error)) => failed_status(&updater, error),
-        Err(error) => failed_status(&updater, error.into()),
-    }
-}
-
-fn failed(state: &AppState, error: anyhow::Error) -> (StatusCode, Json<UpdateStatus>) {
-    failed_status(&state.updater, error)
 }
 
 fn failed_status(
