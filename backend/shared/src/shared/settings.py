@@ -88,6 +88,19 @@ class LogSettings(BaseSettings):
     log_dir: str = Field(default="/var/log/holy", description="Root directory for all log files")
 
 
+class SentrySettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    sentry_dsn: str | None = Field(default=None, description="Sentry DSN")
+    sentry_environment: str = Field(default="production", description="Sentry environment")
+    sentry_release: str | None = Field(default=None, description="Sentry release")
+
+
 class QrzSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
