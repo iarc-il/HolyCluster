@@ -11,6 +11,7 @@ from shared.db import HolySpot
 from shared.geo import GeoException, get_geo_details
 from shared.metrics import push_drop_event, push_exception_event, set_timestamp
 from shared.qrz import QrzSessionManager
+from shared.telemetry import capture_exception, initialize_sentry
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from collectors.db.valkey_config import get_valkey_client
@@ -199,6 +200,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     continue
                 except Exception as e:
                     logger.exception("Unexpected error enriching spot")
+                    capture_exception(e)
                     await push_exception_event(valkey_client, "collector", str(e))
                     continue
 
@@ -235,6 +237,7 @@ async def refresh_dxpedition_data(valkey_client):
         except Exception as e:
             sleep = 600
             logger.exception("Failed to refresh DXpedition data")
+            capture_exception(e)
             await push_exception_event(valkey_client, "collector", f"dxpedition refresh: {e}")
         await asyncio.sleep(sleep)
 
@@ -253,6 +256,7 @@ async def refresh_lotw_user_data(valkey_client):
             await update_lotw_user_data()
         except Exception as e:
             logger.exception("Failed to refresh LoTW user activity")
+            capture_exception(e)
             await push_exception_event(valkey_client, "collector", f"LoTW refresh: {e}")
             sleep = 600
         await asyncio.sleep(sleep)
@@ -326,6 +330,7 @@ def main():
         logger.remove()
         logger.add(sys.stdout, level="INFO", filter=lambda record: "task" not in record["extra"])
 
+    initialize_sentry(settings, "collector")
     asyncio.run(run_collector_with_monitor())
 
 

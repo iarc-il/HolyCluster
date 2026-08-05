@@ -5,6 +5,7 @@ import re
 
 from loguru import logger
 from shared.metrics import push_drop_event, push_exception_event, set_value
+from shared.telemetry import capture_exception
 
 from collectors.db.valkey_config import get_valkey_client
 from collectors.logging_setup import open_task_log_file
@@ -160,6 +161,7 @@ async def telnet_and_collect(
             task_logger.exception(f"Connection failed: {host}:{port}  {e}")
             logger.exception(f"Connection failed: {host}:{port}  {e}")
             await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
+            capture_exception(e)
             await push_exception_event(valkey_client, "collector", f"telnet {host}:{port}: {e}")
 
         except asyncio.CancelledError:

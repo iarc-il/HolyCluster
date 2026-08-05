@@ -6,6 +6,7 @@ from typing import Any
 import aiohttp
 from loguru import logger
 from shared.metrics import push_drop_event, push_exception_event, set_value
+from shared.telemetry import capture_exception
 
 STREAM_ARRIVALS = "stream-arrivals"
 USER_AGENT = "HolyCluster collector (https://holycluster.iarc.org/)"
@@ -106,5 +107,6 @@ async def run_json_spot_collector(
             except Exception as e:
                 logger.exception(f"{source_label} collector failed")
                 await set_value(valkey_client, connected_key, 0)
+                capture_exception(e)
                 await push_exception_event(valkey_client, "collector", f"{metric_name}: {e}")
                 await asyncio.sleep(min(poll_interval, 300))
