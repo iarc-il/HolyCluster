@@ -19,6 +19,16 @@ const serial_labels = {
     dtr: "Force Control DTR",
 };
 
+function serial_descriptors(descriptors) {
+    return descriptors
+        .filter(descriptor => Object.hasOwn(serial_labels, descriptor.token))
+        .sort(
+            (left, right) =>
+                Object.keys(serial_labels).indexOf(left.token) -
+                Object.keys(serial_labels).indexOf(right.token),
+        );
+}
+
 function empty_hamlib() {
     return { model_id: "", token_values: {} };
 }
@@ -239,9 +249,9 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                     <div className="grid gap-3 min-[720px]:grid-cols-2">
                         <label className="flex flex-col gap-1" htmlFor="radio-rig">
                             <span>Rig</span>
-                            <select
+                            <Select
                                 id="radio-rig"
-                                className="rounded-lg px-4 py-2"
+                                className="w-full"
                                 value={selected_rig}
                                 onChange={event => {
                                     set_selected_rig(event.target.value);
@@ -251,7 +261,7 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                             >
                                 <option value="rig1">Rig 1</option>
                                 <option value="rig2">Rig 2</option>
-                            </select>
+                            </Select>
                         </label>
                         <label className="flex flex-col gap-1" htmlFor="radio-backend">
                             <span>Backend</span>
@@ -350,40 +360,42 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                             ) : null}
                             <label className="flex flex-col gap-1" htmlFor="hamlib-model">
                                 <span>Model</span>
-                                <Input
+                                <Select
                                     id="hamlib-model"
-                                    list="hamlib-models"
-                                    type="search"
                                     className={
                                         selected_error?.field === `${selected_rig}.hamlib.model_id`
                                             ? "bg-red-200 w-full"
                                             : "w-full"
                                     }
                                     value={selected_configuration.hamlib.model_id}
-                                    onChange={event =>
+                                    onChange={event => {
+                                        const model_id = event.target.value;
                                         update_selected(rig => ({
                                             ...rig,
                                             hamlib: {
                                                 ...rig.hamlib,
-                                                model_id: event.target.value,
-                                                token_values: {},
+                                                model_id,
+                                                token_values:
+                                                    model_id === rig.hamlib.model_id
+                                                        ? rig.hamlib.token_values
+                                                        : {},
                                             },
-                                        }))
-                                    }
-                                />
-                                <datalist id="hamlib-models">
+                                        }));
+                                    }}
+                                >
+                                    <option value="">Select a model</option>
                                     {hamlib_models.map(model => (
                                         <option key={model.id} value={model.id}>
                                             {model.manufacturer} {model.model}
                                         </option>
                                     ))}
-                                </datalist>
+                                </Select>
                             </label>
                             <h5 className="border-t pt-3 font-semibold">Serial connection</h5>
                             <div className="grid gap-3 min-[720px]:grid-cols-2">
-                                {(
+                                {serial_descriptors(
                                     hamlib_model_details[selected_configuration.hamlib.model_id] ||
-                                    []
+                                        [],
                                 ).map(descriptor => (
                                     <DescriptorInput
                                         key={descriptor.token}
