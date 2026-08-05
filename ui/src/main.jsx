@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from "react-router";
 
 import MainContainer from "@/components/MainContainer.jsx";
 import OmniRigError from "@/components/OmniRigError.jsx";
+import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 import Addons from "@/components/addons/Addons";
 import { ColorsProvider } from "@/hooks/useColors";
 import { FiltersProvider } from "@/hooks/useFilters";
@@ -15,6 +16,9 @@ import { SpotInteractionProvider } from "@/hooks/useSpotInteraction";
 import { UpdateProvider } from "@/hooks/useUpdate";
 import { WsProvider } from "@/hooks/useWs";
 import "@/index.css";
+import { initializeSentry } from "@/sentry";
+
+initializeSentry();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
     <React.StrictMode>
@@ -25,32 +29,43 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                         <Route
                             path="/"
                             element={
-                                <ColorsProvider>
-                                    <FiltersProvider>
-                                        <SettingsProvider>
-                                            <UpdateProvider>
-                                                <RadioProvider>
-                                                    <RotatorProvider>
-                                                        <SpotInteractionProvider>
-                                                            <MainContainer />
-                                                        </SpotInteractionProvider>
-                                                    </RotatorProvider>
-                                                </RadioProvider>
-                                            </UpdateProvider>
-                                        </SettingsProvider>
-                                    </FiltersProvider>
-                                </ColorsProvider>
+                                <RouteErrorBoundary>
+                                    <ColorsProvider>
+                                        <FiltersProvider>
+                                            <SettingsProvider>
+                                                <UpdateProvider>
+                                                    <RadioProvider>
+                                                        <RotatorProvider>
+                                                            <SpotInteractionProvider>
+                                                                <MainContainer />
+                                                            </SpotInteractionProvider>
+                                                        </RotatorProvider>
+                                                    </RadioProvider>
+                                                </UpdateProvider>
+                                            </SettingsProvider>
+                                        </FiltersProvider>
+                                    </ColorsProvider>
+                                </RouteErrorBoundary>
                             }
                         />
                         <Route
                             path="/addons"
                             element={
-                                <SettingsProvider>
-                                    <Addons />
-                                </SettingsProvider>
+                                <RouteErrorBoundary>
+                                    <SettingsProvider>
+                                        <Addons />
+                                    </SettingsProvider>
+                                </RouteErrorBoundary>
                             }
                         />
-                        <Route path="/omnirig-error" element={<OmniRigError />} />
+                        <Route
+                            path="/omnirig-error"
+                            element={
+                                <RouteErrorBoundary>
+                                    <OmniRigError />
+                                </RouteErrorBoundary>
+                            }
+                        />
                     </Routes>
                 </ProfilesProvider>
             </WsProvider>
