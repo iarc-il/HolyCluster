@@ -27,6 +27,7 @@ mod server;
 mod startup_radio;
 mod tracing_setup;
 mod tray_icon;
+mod updater;
 mod utils;
 
 #[cfg(test)]

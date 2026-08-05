@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use argh::FromArgs;
 
 use crate::server::ServerConfig;
@@ -34,6 +36,9 @@ pub struct Args {
     /// closes the running instance
     #[argh(switch)]
     pub close: bool,
+    /// internal detached update helper plan
+    #[argh(option, hidden_help)]
+    pub apply_update: Option<PathBuf>,
 }
 
 pub fn server_config(args: &Args) -> ServerConfig {
