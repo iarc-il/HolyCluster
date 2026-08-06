@@ -11,6 +11,7 @@ from api.main import (
     catserver_release,
     download_catserver_artifact,
     download_catserver,
+    download_catserver_release,
     latest_catserver,
     latest_catserver_release,
 )
@@ -62,6 +63,13 @@ class ReleaseTest(unittest.TestCase):
         response = download_catserver()
         self.assertEqual(response.path, str(self.artifacts_dir / self.windows["artifact"]["name"]))
         self.assertEqual(response.headers["cache-control"], "public, max-age=31536000, immutable")
+
+    def test_platform_download_endpoint_uses_matching_artifact(self):
+        windows = download_catserver_release("windows", "x86_64")
+        linux = download_catserver_release("linux", "x86_64")
+
+        self.assertEqual(windows.path, str(self.artifacts_dir / self.windows["artifact"]["name"]))
+        self.assertEqual(linux.path, str(self.artifacts_dir / self.linux["artifact"]["name"]))
 
     def test_download_rejects_unknown_and_traversal_artifacts(self):
         for name in ("missing.msi", "../latest.json"):

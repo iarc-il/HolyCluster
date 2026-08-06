@@ -16,18 +16,6 @@ export default function Hero() {
                 <p className="text-xl md:text-2xl mb-8 max-w-3xl mx-auto">
                     We Handle the Radio Work So You Don’t Have To!{" "}
                 </p>
-                <div className="flex flex-col-reverse sm:flex-row justify-center gap-4">
-                    <a href="#download">
-                        <button className="px-5 py-3 text-xl hover:opacity-75 transition-opacity bg-addons-primary rounded-lg">
-                            Download Now
-                        </button>
-                    </a>
-                    <a href="#about">
-                        <button className="px-5 py-3 text-xl bg-white hover:opacity-75 transition-opacity text-addons-primary rounded-lg">
-                            Learn More
-                        </button>
-                    </a>
-                </div>
             </div>
         </section>
     );

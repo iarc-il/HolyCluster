@@ -46,11 +46,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                             path="/addons"
                             element={
                                 <SettingsProvider>
-                                    <UpdateProvider>
-                                        <RadioProvider>
-                                            <Addons />
-                                        </RadioProvider>
-                                    </UpdateProvider>
+                                    <Addons />
                                 </SettingsProvider>
                             }
                         />

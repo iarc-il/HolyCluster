@@ -1225,6 +1225,11 @@ def download_catserver():
     return serve_release_artifact(get_release_artifact("windows", "x86_64"))
 
 
+@app.get("/catserver/download/{platform}/{architecture}")
+def download_catserver_release(platform: str, architecture: str):
+    return serve_release_artifact(get_release_artifact(platform, architecture))
+
+
 @app.get("/history")
 async def spot_history(start_time: int, end_time: int):
     if end_time < start_time:
