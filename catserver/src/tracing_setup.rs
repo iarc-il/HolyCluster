@@ -123,3 +123,50 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
     event.environment = Some(Cow::Borrowed(SENTRY_ENVIRONMENT));
     Some(event)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use sentry::protocol::{Context, Request, User};
+
+    use super::{SENTRY_ENVIRONMENT, configure_sentry, scrub_breadcrumb, scrub_event};
+
+    #[test]
+    fn skips_sentry_without_a_dsn() {
+        assert!(configure_sentry(None).is_none());
+        assert!(configure_sentry(Some("")).is_none());
+        assert!(configure_sentry(Some("not-a-dsn")).is_none());
+    }
+
+    #[test]
+    fn scrubs_sensitive_event_data_and_enforces_metadata() {
+        let mut event = sentry::protocol::Event::default();
+        event.user = Some(User::default());
+        event.request = Some(Request::default());
+        event.server_name = Some("workstation".into());
+        event
+            .contexts
+            .insert("radio".into(), Context::Other(BTreeMap::new()));
+        event.extra.insert("token".into(), "secret".into());
+        event.tags.insert("callsign".into(), "N0CALL".into());
+        event.release = Some("untrusted".into());
+        event.environment = Some("untrusted".into());
+
+        let event = scrub_event(event).unwrap();
+
+        assert!(event.user.is_none());
+        assert!(event.request.is_none());
+        assert!(event.server_name.is_none());
+        assert!(event.contexts.is_empty());
+        assert!(event.extra.is_empty());
+        assert!(event.tags.is_empty());
+        assert_eq!(event.release.as_deref(), Some(env!("VERSION")));
+        assert_eq!(event.environment.as_deref(), Some(SENTRY_ENVIRONMENT));
+    }
+
+    #[test]
+    fn drops_breadcrumbs() {
+        assert!(scrub_breadcrumb(sentry::protocol::Breadcrumb::default()).is_none());
+    }
+}
