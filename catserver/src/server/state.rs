@@ -36,13 +36,13 @@ impl AppState {
         sender: Sender<UserEvent>,
         ui_dir: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
+        let manifest_url = reqwest::Url::parse(
+            &server_config.build_uri("http", "/catserver/releases/latest").to_string(),
+        )?;
         Ok(Self {
             server_config,
             radio_configuration: production(radio.clone()),
-            updater: UpdateService::new(
-                reqwest::Url::parse("https://holycluster.iarc.org/catserver/releases.json")?,
-                env!("VERSION"),
-            )?,
+            updater: UpdateService::new(manifest_url, env!("VERSION"))?,
             radio,
             rotator,
             http_client: Client::builder(TokioExecutor::new()).build(HttpsConnector::new()),
