@@ -7,6 +7,7 @@ on:
       - ".github/workflows/ui.yml"
     branches:
       - "dev"
+      - "int"
     tags:
       - "v*"
   pull_request:
@@ -15,12 +16,13 @@ on:
       - ".github/workflows/ui.yml"
     branches:
       - "dev"
+      - "int"
 
 jobs:
   build-and-deploy-ui:
     name: Build, Lint, and Deploy the UI
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -53,18 +55,24 @@ jobs:
           npm run build
 
       - name: Setup SSH
-        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+        if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/')
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST_DEV }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_INT }} >> ~/.ssh/known_hosts
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST_PROD }} >> ~/.ssh/known_hosts
 
       - name: Upload to Development Server
         if: github.ref == 'refs/heads/dev'
         run: |
           rsync -avz --delete ui/dist/ ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }}:${{ secrets.DEPLOY_PATH_DEV }}/
+
+      - name: Upload to Integration Server
+        if: github.ref == 'refs/heads/int'
+        run: |
+          rsync -avz --delete ui/dist/ ${{ secrets.DEPLOY_USER_INT }}@${{ secrets.DEPLOY_HOST_INT }}:${{ secrets.DEPLOY_PATH_INT }}/
 
       - name: Upload to Production Server
         if: startsWith(github.ref, 'refs/tags/')
