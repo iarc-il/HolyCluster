@@ -87,7 +87,7 @@ describe("SidePanel", () => {
         window.localStorage.clear();
     });
 
-    it("shows the Filters panel without opening a filter modal after an import", async () => {
+    it("keeps the Missing panel open without opening a filter modal after an import", async () => {
         const user = userEvent.setup();
         render_side_panel();
 
@@ -95,7 +95,7 @@ describe("SidePanel", () => {
         await user.click(screen.getByRole("button", { name: "Complete import" }));
 
         expect(screen.getByTestId("right-panel-state").textContent).toBe("open");
-        expect(screen.getByRole("button", { name: "Filters" }).getAttribute("aria-pressed")).toBe(
+        expect(screen.getByRole("button", { name: "Missing" }).getAttribute("aria-pressed")).toBe(
             "true",
         );
         expect(screen.queryByRole("dialog")).toBeNull();

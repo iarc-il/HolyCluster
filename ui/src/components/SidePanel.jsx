@@ -273,7 +273,6 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
 
     function handle_import_complete() {
         set_toggled_ui(state => ({ ...state, right_visible: true }));
-        set_active_view(0);
     }
 
     const content = [
