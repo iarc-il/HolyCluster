@@ -7,12 +7,17 @@ use crate::server::ServerConfig;
 pub const BASE_LOCAL_PORT: u16 = 3000;
 pub const DEFAULT_RIGCTLD_HOST: &str = "127.0.0.1";
 pub const DEFAULT_RIGCTLD_PORT: u16 = 4532;
+pub const PROD_SERVER: &str = "holycluster.iarc.org";
+pub const DEV_SERVER: &str = "holycluster-dev.iarc.org";
 
 #[derive(FromArgs)]
 /// The Holy Cluster - debug flags
 #[argh(help_triggers("-h", "--help"))]
 pub struct Args {
-    /// use the development HolyCluster server
+    /// hostname of the HolyCluster server to use, e.g. holycluster-int.iarc.org
+    #[argh(option)]
+    pub server: Option<String>,
+    /// use the development HolyCluster server (deprecated, use --server)
     #[argh(switch)]
     pub dev_server: bool,
     /// run with dummy radio instead of real radio
@@ -43,10 +48,12 @@ pub struct Args {
 
 pub fn server_config(args: &Args) -> ServerConfig {
     let local_port = args.port.unwrap_or(BASE_LOCAL_PORT);
-    let dns = if args.dev_server {
-        "holycluster-dev.iarc.org"
-    } else {
-        "holycluster.iarc.org"
+    // --server wins over the deprecated --dev-server switch, so an explicit
+    // host always beats a shortcut that still carries the old flag.
+    let dns = match args.server.as_deref() {
+        Some(server) => server,
+        None if args.dev_server => DEV_SERVER,
+        None => PROD_SERVER,
     };
     ServerConfig {
         dns: dns.into(),
@@ -62,4 +69,40 @@ pub fn rigctld_endpoint(args: &Args) -> (String, u16) {
             .unwrap_or_else(|| DEFAULT_RIGCTLD_HOST.into()),
         args.rigctld_port.unwrap_or(DEFAULT_RIGCTLD_PORT),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dns_for(args: &[&str]) -> String {
+        let args = Args::from_args(&["catserver"], args).expect("args should parse");
+        server_config(&args).dns
+    }
+
+    #[test]
+    fn defaults_to_the_production_server() {
+        assert_eq!(dns_for(&[]), PROD_SERVER);
+    }
+
+    #[test]
+    fn dev_server_switch_still_selects_the_dev_server() {
+        assert_eq!(dns_for(&["--dev-server"]), DEV_SERVER);
+    }
+
+    #[test]
+    fn server_option_selects_an_arbitrary_host() {
+        assert_eq!(
+            dns_for(&["--server", "holycluster-int.iarc.org"]),
+            "holycluster-int.iarc.org"
+        );
+    }
+
+    #[test]
+    fn server_option_overrides_the_dev_server_switch() {
+        assert_eq!(
+            dns_for(&["--dev-server", "--server", "holycluster-int.iarc.org"]),
+            "holycluster-int.iarc.org"
+        );
+    }
 }
