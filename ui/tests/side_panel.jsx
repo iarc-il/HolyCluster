@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { MemoryRouter } from "react-router";
@@ -77,10 +77,6 @@ function render_side_panel() {
     );
 }
 
-function expect_selected(dialog, data_tour) {
-    expect(dialog.querySelector(`[data-tour="${data_tour}"]`).className).toContain("bg-green-600");
-}
-
 describe("SidePanel", () => {
     beforeEach(() => {
         window.localStorage.clear();
@@ -91,26 +87,17 @@ describe("SidePanel", () => {
         window.localStorage.clear();
     });
 
-    it("opens a preselected missing DXCC alert filter after an import", async () => {
+    it("shows the Filters panel without opening a filter modal after an import", async () => {
         const user = userEvent.setup();
         render_side_panel();
 
         expect(screen.getByTestId("right-panel-state").textContent).toBe("closed");
         await user.click(screen.getByRole("button", { name: "Complete import" }));
 
-        const dialog = await screen.findByRole("dialog");
         expect(screen.getByTestId("right-panel-state").textContent).toBe("open");
         expect(screen.getByRole("button", { name: "Filters" }).getAttribute("aria-pressed")).toBe(
             "true",
         );
-        expect_selected(dialog, "filter-modal-action-alert");
-        expect_selected(dialog, "filter-modal-type-missing");
-        expect_selected(dialog, "filter-modal-missing-section-dxcc");
-
-        await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-        await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-        await user.click(screen.getByRole("button", { name: "Missing" }));
-        await user.click(screen.getByRole("button", { name: "Filters" }));
         expect(screen.queryByRole("dialog")).toBeNull();
     });
 });
