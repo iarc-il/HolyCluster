@@ -24,13 +24,6 @@ pub(super) async fn proxy(
             .path_and_query()
             .map_or("", |path| path.as_str()),
     );
-    let uri = match uri.parse() {
-        Ok(uri) => uri,
-        Err(error) => {
-            tracing::error!(?error, "Failed to build upstream URI");
-            return (StatusCode::BAD_REQUEST, Body::empty()).into_response();
-        }
-    };
     let is_upgrade = is_upgrade_request(&request);
     let downstream_upgrade = is_upgrade.then(|| hyper::upgrade::on(&mut request));
     *request.uri_mut() = uri;

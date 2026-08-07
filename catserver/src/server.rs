@@ -21,6 +21,7 @@ use std::{
 use anyhow::{Context, Result};
 use axum::{
     Router,
+    http::Uri,
     routing::{any, get, post},
 };
 use tokio::{
@@ -44,14 +45,13 @@ pub struct ServerConfig {
 }
 
 impl ServerConfig {
-    pub fn build_uri(&self, schema: &str, path_and_query: &str) -> String {
-        format!(
-            "{}{}://{}{}",
-            schema,
-            if self.is_using_ssl { "s" } else { "" },
-            self.dns,
-            path_and_query,
-        )
+    pub fn build_uri(&self, schema: &str, path_and_query: &str) -> Uri {
+        Uri::builder()
+            .scheme(format!("{schema}{}", if self.is_using_ssl { "s" } else { "" }).as_str())
+            .authority(self.dns.as_str())
+            .path_and_query(path_and_query)
+            .build()
+            .expect("valid URI from config")
     }
 }
 
