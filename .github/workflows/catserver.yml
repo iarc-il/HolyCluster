@@ -7,6 +7,7 @@ on:
       - ".github/workflows/catserver.yml"
     branches:
       - "dev"
+      - "int"
     tags:
       - "catserver-v*"
   pull_request:
@@ -15,6 +16,7 @@ on:
       - ".github/workflows/catserver.yml"
     branches:
       - "dev"
+      - "int"
 
 env:
   CARGO_TARGET_DIR: target
@@ -48,7 +50,7 @@ jobs:
           fetch-tags: true
 
       - name: Setup SSH
-        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+        if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/')
         run: |
           export HOME=/root
           mkdir -p $HOME/.ssh
@@ -56,6 +58,7 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > $HOME/.ssh/id_rsa
           chmod 600 $HOME/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST_DEV }}" >> $HOME/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_INT }}" >> $HOME/.ssh/known_hosts
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST_PROD }}" >> $HOME/.ssh/known_hosts
           chmod 644 $HOME/.ssh/known_hosts
 
@@ -143,16 +146,16 @@ jobs:
           done
 
       - name: Change build artifacts ownership
-        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+        if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/')
         working-directory: ./catserver
         run: chown -R wix:wix target
 
       - name: Build installer
-        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+        if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/')
         working-directory: ./catserver
         run: su wix -c "./build_msi.sh in-docker --default-shortcut-arguments '${DEFAULT_SHORTCUT_ARGUMENTS}'"
         env:
-          DEFAULT_SHORTCUT_ARGUMENTS: ${{ github.ref == 'refs/heads/dev' && '--dev-server' || '' }}
+          DEFAULT_SHORTCUT_ARGUMENTS: ${{ github.ref == 'refs/heads/dev' && '--dev-server' || github.ref == 'refs/heads/int' && '--server holycluster-int.iarc.org' || '' }}
 
       - name: Upload to Development Server
         if: github.ref == 'refs/heads/dev'
@@ -161,6 +164,18 @@ jobs:
           python3 catserver/publish.py \
             --deploy-user ${{ secrets.DEPLOY_USER_DEV }} \
             --deploy-host ${{ secrets.DEPLOY_HOST_DEV }} \
+            --remote-artifact-dir /opt/msi \
+            --version "$VERSION" \
+            --artifact "windows:x86_64:catserver/target/$TARGET/release/HolyCluster.msi:$VERSION-windows-x86_64.msi" \
+            --artifact "linux:x86_64:catserver/target/x86_64-unknown-linux-gnu/release/$VERSION-linux-x86_64.AppImage:$VERSION-linux-x86_64.AppImage"
+
+      - name: Upload to Integration Server
+        if: github.ref == 'refs/heads/int'
+        run: |
+          VERSION="$(git describe --match 'catserver-v*')"
+          python3 catserver/publish.py \
+            --deploy-user ${{ secrets.DEPLOY_USER_INT }} \
+            --deploy-host ${{ secrets.DEPLOY_HOST_INT }} \
             --remote-artifact-dir /opt/msi \
             --version "$VERSION" \
             --artifact "windows:x86_64:catserver/target/$TARGET/release/HolyCluster.msi:$VERSION-windows-x86_64.msi" \
