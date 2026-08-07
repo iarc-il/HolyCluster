@@ -1,4 +1,5 @@
 import csv
+import io
 import json
 import re
 import time
@@ -314,6 +315,34 @@ def _write_metadata(metadata_path: Path, response: httpx.Response, url: str) -> 
     metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
 
 
+def _validate_cty_content(content: bytes) -> None:
+    try:
+        rows = csv.reader(io.StringIO(content.decode("utf-8-sig")))
+        for row in rows:
+            if (
+                len(row) > CTY_ALIAS_FIELD_INDEX
+                and _parse_dxcc_code(row[CTY_DXCC_FIELD_INDEX]) is not None
+                and row[CTY_COUNTRY_FIELD_INDEX].strip()
+                and re.fullmatch(r"[A-Za-z]{2}", row[CTY_CONTINENT_FIELD_INDEX].strip())
+            ):
+                return
+    except (csv.Error, UnicodeDecodeError) as e:
+        raise ValueError("downloaded CTY file is not valid UTF-8 CSV") from e
+
+    raise ValueError("downloaded CTY file contains no CTY records")
+
+
+def _validate_cty_response(response: httpx.Response) -> None:
+    content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if content_type in {"text/html", "application/xhtml+xml"}:
+        raise ValueError(f"downloaded CTY file is HTML ({content_type})")
+    _validate_cty_content(response.content)
+
+
+def _validate_cty_cache(cache_path: Path) -> None:
+    _validate_cty_content(cache_path.read_bytes())
+
+
 async def _get_cty_file(
     url: str,
     headers: dict[str, str],
@@ -321,10 +350,10 @@ async def _get_cty_file(
     http_client: httpx.AsyncClient | None,
 ) -> httpx.Response:
     if http_client is not None:
-        return await http_client.get(url, headers=headers, timeout=timeout)
+        return await http_client.get(url, headers=headers, timeout=timeout, follow_redirects=True)
 
     async with httpx.AsyncClient(timeout=timeout) as client:
-        return await client.get(url, headers=headers)
+        return await client.get(url, headers=headers, follow_redirects=True)
 
 
 async def refresh_cty_cache(
@@ -338,6 +367,7 @@ async def refresh_cty_cache(
     try:
         response = await _get_cty_file(CTY_URL, headers, CTY_REFRESH_TIMEOUT, http_client)
         if response.status_code == 304 and cache_path.exists():
+            _validate_cty_cache(cache_path)
             logger.info(f"CTY cache is current: {cache_path}")
             return CtyCacheResult(
                 path=cache_path,
@@ -349,6 +379,7 @@ async def refresh_cty_cache(
         response.raise_for_status()
         if not response.content.strip():
             raise ValueError("downloaded CTY file is empty")
+        _validate_cty_response(response)
 
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = cache_path.with_name(f"{cache_path.name}.tmp")
@@ -365,13 +396,18 @@ async def refresh_cty_cache(
         )
     except Exception as e:
         if cache_path.exists():
-            logger.exception(f"Failed to refresh CTY cache from {CTY_URL}; using cached file {cache_path}")
-            return CtyCacheResult(
-                path=cache_path,
-                available=True,
-                downloaded=False,
-                message=f"using cached file after refresh failure: {e}",
-            )
+            try:
+                _validate_cty_cache(cache_path)
+            except (OSError, ValueError):
+                logger.exception(f"Failed to refresh CTY cache from {CTY_URL}; cached file is invalid: {cache_path}")
+            else:
+                logger.exception(f"Failed to refresh CTY cache from {CTY_URL}; using cached file {cache_path}")
+                return CtyCacheResult(
+                    path=cache_path,
+                    available=True,
+                    downloaded=False,
+                    message=f"using cached file after refresh failure: {e}",
+                )
 
         logger.exception(f"Failed to refresh CTY cache from {CTY_URL}; no cached file is available")
         return CtyCacheResult(
