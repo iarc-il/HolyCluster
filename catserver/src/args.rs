@@ -15,6 +15,9 @@ pub struct Args {
     /// use the development HolyCluster server
     #[argh(switch)]
     pub dev_server: bool,
+    /// backend host:port (overrides dev_server)
+    #[argh(option)]
+    pub backend: Option<String>,
     /// run with dummy radio instead of real radio
     #[argh(switch)]
     pub dummy: bool,
@@ -43,14 +46,17 @@ pub struct Args {
 
 pub fn server_config(args: &Args) -> ServerConfig {
     let local_port = args.port.unwrap_or(BASE_LOCAL_PORT);
-    let dns = if args.dev_server {
-        "holycluster-dev.iarc.org"
+    let (dns, is_using_ssl) = if let Some(backend) = &args.backend {
+        let is_local = backend.starts_with("127.0.0.1") || backend.starts_with("localhost");
+        (backend.clone(), !is_local)
+    } else if args.dev_server {
+        ("holycluster-dev.iarc.org".into(), true)
     } else {
-        "holycluster.iarc.org"
+        ("holycluster.iarc.org".into(), true)
     };
     ServerConfig {
-        dns: dns.into(),
-        is_using_ssl: true,
+        dns,
+        is_using_ssl,
         local_port,
     }
 }
