@@ -130,7 +130,10 @@ async fn open_tab_handler(
 }
 
 fn find_ui_dir() -> Result<PathBuf> {
-    let mut path = std::env::current_exe()?;
+    let mut path = std::env::var("APPIMAGE")
+        .map(PathBuf::from)
+        .or_else(|_| std::env::current_exe())?;
+
     loop {
         let ui_dir = path.join("ui/dist");
         if ui_dir.exists() {
