@@ -1,11 +1,14 @@
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{fs, io, io::Cursor, path::Path};
 
 use reqwest::Url;
 use semver::Version;
 
 use crate::updater::{
-    AppRelease, Artifact, PLATFORM_LINUX, ReleaseManifest, UpdateService, UpdateState, copy_verified,
-    parse_running_version, validate_artifact, windows_installer_command,
+    AppRelease, Artifact, PLATFORM_LINUX, ReleaseManifest, UpdateService, UpdateState,
+    copy_verified, make_executable, parse_running_version, validate_artifact,
+    windows_installer_command,
 };
 
 fn artifact() -> Artifact {
@@ -91,4 +94,23 @@ fn builds_silent_msi_command_without_shell() {
         command.get_args().collect::<Vec<_>>(),
         ["/i", "C:/safe/update.msi", "/qn", "/norestart"]
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn makes_staged_appimage_executable() {
+    let path = std::env::temp_dir().join(format!(
+        "catserver-update-permissions-{}",
+        std::process::id()
+    ));
+    fs::write(&path, b"appimage").unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o664)).unwrap();
+
+    make_executable(&path).unwrap();
+
+    assert_eq!(
+        fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+        0o755
+    );
+    fs::remove_file(path).unwrap();
 }

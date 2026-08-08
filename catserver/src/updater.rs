@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
     fs::{self, File},
     io::{self, Read, Write},
@@ -308,9 +310,11 @@ fn install_linux(plan: &InstallPlan) -> Result<()> {
         bail!("a previous update activation file exists; update manually");
     }
     fs::copy(&plan.staged_artifact, &activation)?;
-    if let Err(error) = verify_file(&activation, &plan.artifact) {
+    if let Err(error) =
+        make_executable(&activation).and_then(|()| verify_file(&activation, &plan.artifact))
+    {
         let _ = fs::remove_file(&activation);
-        return Err(error).context("staged AppImage failed activation verification");
+        return Err(error).context("cannot prepare staged AppImage for activation");
     }
     fs::rename(&plan.current_executable, &backup).context("cannot back up current AppImage")?;
     if let Err(error) = fs::rename(&activation, &plan.current_executable) {
@@ -322,6 +326,17 @@ fn install_linux(plan: &InstallPlan) -> Result<()> {
         let _ = fs::rename(&backup, &plan.current_executable);
         return Err(error).context("cannot relaunch updated AppImage; previous version restored");
     }
+    Ok(())
+}
+
+#[cfg(unix)]
+pub(crate) fn make_executable(path: &Path) -> Result<()> {
+    fs::set_permissions(path, fs::Permissions::from_mode(0o755))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+pub(crate) fn make_executable(_path: &Path) -> Result<()> {
     Ok(())
 }
 
