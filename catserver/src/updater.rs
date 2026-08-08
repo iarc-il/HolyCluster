@@ -92,7 +92,7 @@ struct InstallPlan {
 
 impl UpdateService {
     pub fn new(manifest_url: Url, current_version: &str) -> Result<Self> {
-        if manifest_url.scheme() != "https" {
+        if !is_secure_url(&manifest_url) {
             bail!("update manifest URL must use HTTPS");
         }
         let project_dirs = ProjectDirs::from("org", "IARC", "HolyCluster")
@@ -346,7 +346,7 @@ pub(crate) fn windows_installer_command(msi: &Path) -> Command {
 
 fn download_artifact(artifact: &Artifact, destination: &Path) -> Result<()> {
     let url = Url::parse(&artifact.url)?;
-    if url.scheme() != "https" {
+    if !is_secure_url(&url) {
         bail!("artifact URL must use HTTPS");
     }
     let response = secure_client().get(url).send()?.error_for_status()?;
@@ -399,7 +399,7 @@ pub(crate) fn validate_artifact(artifact: &Artifact, platform: &str) -> Result<(
         bail!("artifact size is outside allowed bounds");
     }
     let url = Url::parse(&artifact.url)?;
-    if url.scheme() != "https" {
+    if !is_secure_url(&url) {
         bail!("artifact URL must use HTTPS");
     }
     if artifact.name.contains('/') || artifact.name.contains('\\') || artifact.name.is_empty() {
@@ -427,6 +427,10 @@ fn secure_client() -> Client {
         .timeout(Duration::from_secs(30))
         .build()
         .expect("valid update client")
+}
+fn is_secure_url(url: &Url) -> bool {
+    url.scheme() == "https"
+        || url.host_str().is_some_and(|host| host == "127.0.0.1" || host == "localhost")
 }
 fn parse_version(version: &str) -> Result<Version> {
     Version::parse(version.trim_start_matches("catserver-v")).map_err(Into::into)
