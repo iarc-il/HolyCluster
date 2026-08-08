@@ -205,6 +205,7 @@ impl UpdateService {
         if status.state != UpdateState::Downloaded {
             bail!("an update must be downloaded before installation");
         }
+        close_inherited_descriptors_on_exec()?;
         let executable = std::env::current_exe()?;
         Command::new(executable)
             .arg("--apply-update")
@@ -337,6 +338,31 @@ pub(crate) fn make_executable(path: &Path) -> Result<()> {
 
 #[cfg(not(unix))]
 pub(crate) fn make_executable(_path: &Path) -> Result<()> {
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
+    for entry in fs::read_dir("/proc/self/fd")? {
+        let entry = entry?;
+        let fd = entry.file_name().to_string_lossy().parse::<libc::c_int>()?;
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+        if flags == -1 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::EBADF) {
+                continue;
+            }
+            return Err(error.into());
+        }
+        if unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } == -1 {
+            return Err(io::Error::last_os_error().into());
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
     Ok(())
 }
 

@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use std::os::fd::AsRawFd;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::{fs, io, io::Cursor, path::Path};
@@ -7,8 +9,8 @@ use semver::Version;
 
 use crate::updater::{
     AppRelease, Artifact, PLATFORM_LINUX, ReleaseManifest, UpdateService, UpdateState,
-    copy_verified, make_executable, parse_running_version, validate_artifact,
-    windows_installer_command,
+    close_inherited_descriptors_on_exec, copy_verified, make_executable, parse_running_version,
+    validate_artifact, windows_installer_command,
 };
 
 fn artifact() -> Artifact {
@@ -113,4 +115,15 @@ fn makes_staged_appimage_executable() {
         0o755
     );
     fs::remove_file(path).unwrap();
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn closes_inherited_descriptors_on_exec() {
+    let file = fs::File::open("/dev/null").unwrap();
+
+    close_inherited_descriptors_on_exec().unwrap();
+
+    let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFD) };
+    assert_ne!(flags & libc::FD_CLOEXEC, 0);
 }

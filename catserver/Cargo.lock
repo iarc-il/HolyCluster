@@ -402,6 +402,7 @@ dependencies = [
  "hyper-tls",
  "hyper-util",
  "ico",
+ "libc",
  "open",
  "reqwest",
  "semver",
