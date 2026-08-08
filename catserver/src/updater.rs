@@ -187,10 +187,19 @@ impl UpdateService {
             diagnostic: None,
         };
         self.write_status(&status)?;
+        let current_executable = update_target()?;
+        #[cfg(not(windows))]
+        {
+            let activation = current_executable.with_extension("AppImage.update");
+            if activation.exists() {
+                tracing::warn!(path = ?activation, "Removing stale AppImage activation");
+                fs::remove_file(&activation).context("cannot remove stale AppImage activation")?;
+            }
+        }
         fs::write(
             self.plan_path(),
             serde_json::to_vec(&InstallPlan {
-                current_executable: update_target()?,
+                current_executable,
                 staged_artifact: final_path,
                 artifact,
                 state_path: self.state_path(),
@@ -207,7 +216,7 @@ impl UpdateService {
         }
         close_inherited_descriptors_on_exec()?;
         let executable = std::env::current_exe()?;
-        Command::new(executable)
+        let helper = Command::new(executable)
             .arg("--apply-update")
             .arg(self.plan_path())
             .stdin(Stdio::null())
@@ -215,6 +224,7 @@ impl UpdateService {
             .stderr(Stdio::null())
             .spawn()
             .context("cannot start detached update helper")?;
+        tracing::info!(pid = helper.id(), "Detached update helper started");
         self.write_status(&UpdateStatus {
             state: UpdateState::Installing,
             available_version: status.available_version,
@@ -275,8 +285,17 @@ impl UpdateService {
 }
 
 pub fn run_helper(plan_path: &Path) -> Result<()> {
-    let plan: InstallPlan = serde_json::from_slice(&fs::read(plan_path)?)?;
+    tracing::info!(plan = ?plan_path, "Loading update plan");
+    let plan: InstallPlan =
+        serde_json::from_slice(&fs::read(plan_path)?).context("cannot load update plan")?;
+    tracing::info!(
+        parent_pid = plan.parent_pid,
+        current = ?plan.current_executable,
+        staged = ?plan.staged_artifact,
+        "Update helper started"
+    );
     wait_for_parent(plan.parent_pid);
+    tracing::info!("Parent catserver exited; applying update");
     let result = if cfg!(windows) {
         install_windows(&plan)
     } else {
@@ -294,7 +313,12 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
             diagnostic: Some(error.to_string()),
         },
     };
-    write_json(&plan.state_path, &status)?;
+    if let Err(error) = &result {
+        tracing::error!(?error, "Update helper failed");
+    } else {
+        tracing::info!("Update helper completed successfully");
+    }
+    write_json(&plan.state_path, &status).context("cannot persist update helper status")?;
     result
 }
 
@@ -325,6 +349,7 @@ fn install_linux(plan: &InstallPlan) -> Result<()> {
     if let Err(error) = Command::new(&plan.current_executable).spawn() {
         let _ = fs::rename(&plan.current_executable, &activation);
         let _ = fs::rename(&backup, &plan.current_executable);
+        let _ = fs::remove_file(&activation);
         return Err(error).context("cannot relaunch updated AppImage; previous version restored");
     }
     Ok(())
@@ -338,6 +363,19 @@ pub(crate) fn make_executable(path: &Path) -> Result<()> {
 
 #[cfg(not(unix))]
 pub(crate) fn make_executable(_path: &Path) -> Result<()> {
+    Ok(())
+}
+
+fn install_windows(plan: &InstallPlan) -> Result<()> {
+    if platform() != PLATFORM_WINDOWS {
+        bail!("Windows installer received on unsupported platform");
+    }
+    verify_file(&plan.staged_artifact, &plan.artifact)?;
+    let status = windows_installer_command(&plan.staged_artifact).status()?;
+    if !status.success() {
+        bail!("MSI installer exited with {status}; MSI rollback is not guaranteed");
+    }
+    Command::new(&plan.current_executable).spawn()?;
     Ok(())
 }
 
@@ -363,19 +401,6 @@ pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
-    Ok(())
-}
-
-fn install_windows(plan: &InstallPlan) -> Result<()> {
-    if platform() != PLATFORM_WINDOWS {
-        bail!("Windows installer received on unsupported platform");
-    }
-    verify_file(&plan.staged_artifact, &plan.artifact)?;
-    let status = windows_installer_command(&plan.staged_artifact).status()?;
-    if !status.success() {
-        bail!("MSI installer exited with {status}; MSI rollback is not guaranteed");
-    }
-    Command::new(&plan.current_executable).spawn()?;
     Ok(())
 }
 
@@ -471,7 +496,9 @@ fn secure_client() -> Client {
 }
 fn is_secure_url(url: &Url) -> bool {
     url.scheme() == "https"
-        || url.host_str().is_some_and(|host| host == "127.0.0.1" || host == "localhost")
+        || url
+            .host_str()
+            .is_some_and(|host| host == "127.0.0.1" || host == "localhost")
 }
 fn parse_version(version: &str) -> Result<Version> {
     Version::parse(version.trim_start_matches("catserver-v")).map_err(Into::into)

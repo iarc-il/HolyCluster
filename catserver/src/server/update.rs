@@ -30,7 +30,14 @@ pub(super) async fn install(State(state): State<AppState>) -> (StatusCode, Json<
     .await;
     match result {
         Ok(Ok(status)) => {
-            let _ = state.sender.send(crate::tray_icon::UserEvent::Quit);
+            match state.sender.send(crate::tray_icon::UserEvent::Quit) {
+                Ok(receivers) => {
+                    tracing::info!(receivers, "Catserver shutdown requested for update")
+                }
+                Err(error) => {
+                    tracing::error!(?error, "Could not request catserver shutdown for update")
+                }
+            }
             (StatusCode::ACCEPTED, Json(status))
         }
         Ok(Err(error)) => failed_status(&state.updater, error),
@@ -42,6 +49,7 @@ fn failed_status(
     updater: &crate::updater::UpdateService,
     error: anyhow::Error,
 ) -> (StatusCode, Json<UpdateStatus>) {
+    tracing::error!(?error, "Update request failed");
     let status = updater
         .record_failure(error.to_string())
         .unwrap_or(UpdateStatus {
