@@ -18,13 +18,26 @@ pub(crate) const PLATFORM_LINUX: &str = "linux-appimage";
 pub(crate) const PLATFORM_WINDOWS: &str = "windows-msi";
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReleaseManifest {
-    pub version: String,
-    pub artifacts: std::collections::BTreeMap<String, Artifact>,
+    #[allow(dead_code)]
+    pub schema_version: u32,
+    pub releases: Vec<AppRelease>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AppRelease {
+    pub version: String,
+    pub platform: String,
+    #[allow(dead_code)]
+    pub architecture: String,
+    pub artifact: Artifact,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Artifact {
+    #[serde(alias = "location")]
     pub url: String,
     pub name: String,
     pub sha256: String,
@@ -215,15 +228,25 @@ impl UpdateService {
     }
 
     pub(crate) fn accept_manifest(&self, manifest: ReleaseManifest) -> Result<(Version, Artifact)> {
-        let version = parse_version(&manifest.version)?;
+        fn map_platform(backend: &str) -> Option<&'static str> {
+            match backend {
+                "linux" => Some(PLATFORM_LINUX),
+                "windows" => Some(PLATFORM_WINDOWS),
+                _ => None,
+            }
+        }
+
+        let release = manifest
+            .releases
+            .iter()
+            .find(|r| map_platform(&r.platform) == Some(self.platform))
+            .context("release does not contain an artifact for this platform")?;
+        let version = parse_version(&release.version)?;
         if version <= self.current_version {
             bail!("release version is not newer than the running catserver");
         }
-        let artifact = manifest
-            .artifacts
-            .get(self.platform)
-            .cloned()
-            .context("release does not contain an artifact for this platform")?;
+        let mut artifact = release.artifact.clone();
+        artifact.url = self.manifest_url.join(&artifact.url)?.to_string();
         validate_artifact(&artifact, self.platform)?;
         Ok((version, artifact))
     }

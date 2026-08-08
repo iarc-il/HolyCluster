@@ -4,7 +4,7 @@ use reqwest::Url;
 use semver::Version;
 
 use crate::updater::{
-    Artifact, PLATFORM_LINUX, ReleaseManifest, UpdateService, UpdateState, copy_verified,
+    AppRelease, Artifact, PLATFORM_LINUX, ReleaseManifest, UpdateService, UpdateState, copy_verified,
     parse_running_version, validate_artifact, windows_installer_command,
 };
 
@@ -44,8 +44,13 @@ fn rejects_equal_and_downgrade_versions() {
     )
     .unwrap();
     let manifest = ReleaseManifest {
-        version: "1.2.0".into(),
-        artifacts: [(PLATFORM_LINUX.into(), artifact())].into(),
+        schema_version: 1,
+        releases: vec![AppRelease {
+            version: "1.2.0".into(),
+            platform: "linux".into(),
+            architecture: "x86_64".into(),
+            artifact: artifact(),
+        }],
     };
     assert!(service.accept_manifest(manifest).is_err());
 }
