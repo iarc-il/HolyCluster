@@ -1,6 +1,6 @@
 use axum::{Json, extract::State, http::StatusCode};
 
-use crate::updater::UpdateStatus;
+use crate::updater::{UpdateState, UpdateStatus};
 
 use super::state::AppState;
 
@@ -23,13 +23,15 @@ pub(super) async fn run(
 pub(super) async fn install(State(state): State<AppState>) -> (StatusCode, Json<UpdateStatus>) {
     let updater = state.updater.clone();
     let result = tokio::task::spawn_blocking(move || {
-        updater.download()?;
-        updater.start_install()?;
+        let status = updater.download()?;
+        if status.state == UpdateState::Downloaded {
+            updater.start_install()?;
+        }
         Ok::<_, anyhow::Error>(updater.status())
     })
     .await;
     match result {
-        Ok(Ok(status)) => {
+        Ok(Ok(status)) if status.state == UpdateState::Installing => {
             match state.sender.send(crate::tray_icon::UserEvent::Quit) {
                 Ok(receivers) => {
                     tracing::info!(receivers, "Catserver shutdown requested for update")
@@ -40,6 +42,7 @@ pub(super) async fn install(State(state): State<AppState>) -> (StatusCode, Json<
             }
             (StatusCode::ACCEPTED, Json(status))
         }
+        Ok(Ok(status)) => (StatusCode::OK, Json(status)),
         Ok(Err(error)) => failed_status(&state.updater, error),
         Err(error) => failed_status(&state.updater, error.into()),
     }

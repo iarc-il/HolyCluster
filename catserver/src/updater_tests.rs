@@ -57,7 +57,52 @@ fn rejects_equal_and_downgrade_versions() {
             artifact: artifact(),
         }],
     };
-    assert!(service.accept_manifest(manifest).is_err());
+    assert!(service.accept_manifest(manifest).unwrap().is_none());
+}
+
+#[test]
+fn reports_equal_release_as_current() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let body = serde_json::json!({
+        "schema_version": 1,
+        "releases": [{
+            "version": "1.2.0",
+            "platform": "linux",
+            "architecture": "x86_64",
+            "artifact": artifact()
+        }]
+    })
+    .to_string();
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = [0; 1024];
+        std::io::Read::read(&mut stream, &mut request).unwrap();
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        std::io::Write::write_all(&mut stream, response.as_bytes()).unwrap();
+    });
+    let data_dir =
+        std::env::temp_dir().join(format!("catserver-update-current-{}", std::process::id()));
+    let service = UpdateService::with_data_dir(
+        Url::parse(&format!("http://{address}/manifest.json")).unwrap(),
+        "1.2.0",
+        data_dir.clone(),
+    )
+    .unwrap();
+
+    let status = service.check().unwrap();
+
+    assert_eq!(status.state, UpdateState::Idle);
+    let persisted = service.status();
+    assert_eq!(persisted.state, UpdateState::Idle);
+    assert!(persisted.available_version.is_none());
+    assert!(persisted.diagnostic.is_none());
+    server.join().unwrap();
+    fs::remove_dir_all(data_dir).unwrap();
 }
 
 #[test]

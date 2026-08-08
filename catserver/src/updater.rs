@@ -152,12 +152,17 @@ impl UpdateService {
             .fetch_manifest()
             .and_then(|manifest| self.accept_manifest(manifest));
         match result {
-            Ok((version, _)) => {
+            Ok(Some((version, _))) => {
                 let status = UpdateStatus {
                     state: UpdateState::Available,
                     available_version: Some(version.to_string()),
                     diagnostic: None,
                 };
+                self.write_status(&status)?;
+                Ok(status)
+            }
+            Ok(None) => {
+                let status = UpdateStatus::default();
                 self.write_status(&status)?;
                 Ok(status)
             }
@@ -171,7 +176,11 @@ impl UpdateService {
 
     fn download_inner(&self) -> Result<UpdateStatus> {
         let manifest = self.fetch_manifest()?;
-        let (version, artifact) = self.accept_manifest(manifest)?;
+        let Some((version, artifact)) = self.accept_manifest(manifest)? else {
+            let status = UpdateStatus::default();
+            self.write_status(&status)?;
+            return Ok(status);
+        };
         fs::create_dir_all(self.staging_dir())?;
         let staged = self
             .staging_dir()
@@ -240,7 +249,10 @@ impl UpdateService {
         Ok(serde_json::from_reader(response)?)
     }
 
-    pub(crate) fn accept_manifest(&self, manifest: ReleaseManifest) -> Result<(Version, Artifact)> {
+    pub(crate) fn accept_manifest(
+        &self,
+        manifest: ReleaseManifest,
+    ) -> Result<Option<(Version, Artifact)>> {
         fn map_platform(backend: &str) -> Option<&'static str> {
             match backend {
                 "linux" => Some(PLATFORM_LINUX),
@@ -256,12 +268,12 @@ impl UpdateService {
             .context("release does not contain an artifact for this platform")?;
         let version = parse_version(&release.version)?;
         if version <= self.current_version {
-            bail!("release version is not newer than the running catserver");
+            return Ok(None);
         }
         let mut artifact = release.artifact.clone();
         artifact.url = self.manifest_url.join(&artifact.url)?.to_string();
         validate_artifact(&artifact, self.platform)?;
-        Ok((version, artifact))
+        Ok(Some((version, artifact)))
     }
 
     fn fail<T>(&self, error: anyhow::Error) -> Result<T> {
