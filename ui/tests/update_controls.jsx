@@ -48,23 +48,30 @@ describe("CAT Control updates", () => {
                 version: { local: "bad", remote: "bad" },
             }).status,
         ).toBe("malformed");
+        expect(
+            normalize_update_status({
+                state: "idle",
+                available_version: null,
+                diagnostic: null,
+            }).status,
+        ).toBe("current");
     });
 
     it("installs after accepting the update prompt", async () => {
         const fetch = vi
             .fn()
             .mockResolvedValueOnce(
-                response({ status: "available", version: { local: "1.0.0", remote: "1.1.0" } }),
+                response({ state: "available", available_version: "1.1.0", diagnostic: null }),
             )
             .mockResolvedValueOnce(
-                response({ status: "installing", version: { local: "1.0.0", remote: "1.1.0" } }),
+                response({ state: "installing", available_version: "1.1.0" }),
             );
         vi.stubGlobal("fetch", fetch);
 
         render_updates();
         await userEvent.click(await screen.findByRole("button", { name: "Update" }));
         await waitFor(() =>
-            expect(fetch).toHaveBeenLastCalledWith("/update/install", expect.any(Object)),
+            expect(fetch).toHaveBeenLastCalledWith("/api/update/install", expect.any(Object)),
         );
     });
 
@@ -72,7 +79,7 @@ describe("CAT Control updates", () => {
         const fetch = vi
             .fn()
             .mockResolvedValueOnce(
-                response({ status: "available", version: { local: "1.0.0", remote: "1.1.0" } }),
+                response({ state: "available", available_version: "1.1.0" }),
             )
             .mockResolvedValueOnce(
                 response({ status: "deferred", version: { local: "1.0.0", remote: "1.1.0" } }),
@@ -87,7 +94,7 @@ describe("CAT Control updates", () => {
         expect(await screen.findByText(/You chose to install it later/)).not.toBeNull();
         await userEvent.click(screen.getByRole("button", { name: "Install update" }));
         await waitFor(() =>
-            expect(fetch).toHaveBeenLastCalledWith("/update/install", expect.any(Object)),
+            expect(fetch).toHaveBeenLastCalledWith("/api/update/install", expect.any(Object)),
         );
     });
 
@@ -95,11 +102,11 @@ describe("CAT Control updates", () => {
         const fetch = vi
             .fn()
             .mockResolvedValueOnce(
-                response({ status: "current", version: { local: "1.0.0", remote: "1.0.0" } }),
+                response({ state: "idle" }),
             )
             .mockResolvedValueOnce(response({}, false))
             .mockResolvedValueOnce(
-                response({ status: "current", version: { local: "1.0.0", remote: "1.0.0" } }),
+                response({ state: "idle" }),
             );
         vi.stubGlobal("fetch", fetch);
 
@@ -109,7 +116,7 @@ describe("CAT Control updates", () => {
         expect(await screen.findByRole("button", { name: "Retry update" })).not.toBeNull();
         await userEvent.click(screen.getByRole("button", { name: "Retry update" }));
         await waitFor(() =>
-            expect(fetch).toHaveBeenLastCalledWith("/update/retry", expect.any(Object)),
+            expect(fetch).toHaveBeenLastCalledWith("/api/update/retry", expect.any(Object)),
         );
     });
 });
