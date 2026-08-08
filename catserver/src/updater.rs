@@ -113,7 +113,7 @@ impl UpdateService {
     ) -> Result<Self> {
         Ok(Self {
             manifest_url,
-            current_version: parse_running_version(current_version)?,
+            current_version: parse_version(current_version)?,
             platform: platform(),
             data_dir,
         })
@@ -506,29 +506,30 @@ fn secure_client() -> Client {
         .build()
         .expect("valid update client")
 }
+
 fn is_secure_url(url: &Url) -> bool {
     url.scheme() == "https"
         || url
             .host_str()
             .is_some_and(|host| host == "127.0.0.1" || host == "localhost")
 }
+
 fn parse_version(version: &str) -> Result<Version> {
-    Version::parse(version.trim_start_matches("catserver-v")).map_err(Into::into)
+    Version::parse(&normalize_version(version)).map_err(Into::into)
 }
-pub(crate) fn parse_running_version(version: &str) -> Result<Version> {
+
+fn normalize_version(version: &str) -> String {
     let version = version.trim_start_matches("catserver-v");
-    let version = version
-        .rsplit_once("-g")
-        .and_then(|(tag, hash)| {
-            (!hash.is_empty())
-                .then_some(tag)
-                .and_then(|tag| tag.rsplit_once('-'))
-                .filter(|(_, commits)| commits.bytes().all(|byte| byte.is_ascii_digit()))
-                .map(|(tag, _)| tag)
-        })
-        .unwrap_or(version);
-    Version::parse(version).map_err(Into::into)
+    if let Some((tag, hash)) = version.rsplit_once("-g")
+        && !hash.is_empty()
+        && let Some((tag, commits)) = tag.rsplit_once('-')
+        && commits.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return format!("{tag}-{commits}");
+    }
+    version.to_owned()
 }
+
 fn platform() -> &'static str {
     if cfg!(windows) {
         PLATFORM_WINDOWS
@@ -536,12 +537,14 @@ fn platform() -> &'static str {
         PLATFORM_LINUX
     }
 }
+
 fn is_appimage(path: &Path) -> bool {
     std::env::var_os("APPIMAGE").is_some_and(|value| Path::new(&value) == path)
         && path
             .extension()
             .is_some_and(|extension| extension == "AppImage")
 }
+
 fn update_target() -> Result<PathBuf> {
     if cfg!(windows) {
         return Ok(std::env::current_exe()?);
@@ -556,9 +559,11 @@ fn update_target() -> Result<PathBuf> {
             "automatic update is only supported for APPIMAGE-backed executables; update manually",
         )
 }
+
 fn read_status(path: &Path) -> Result<UpdateStatus> {
     Ok(serde_json::from_slice(&fs::read(path)?)?)
 }
+
 fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
     fs::create_dir_all(path.parent().context("state path has no parent")?)?;
     let temporary = path.with_extension("tmp");
@@ -570,15 +575,18 @@ fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
     fs::rename(temporary, path)?;
     Ok(())
 }
+
 fn wait_for_parent(parent_pid: u32) {
     while process_exists(parent_pid) {
         std::thread::sleep(Duration::from_millis(200));
     }
 }
+
 #[cfg(unix)]
 fn process_exists(pid: u32) -> bool {
     Path::new("/proc").join(pid.to_string()).exists()
 }
+
 #[cfg(windows)]
 fn process_exists(pid: u32) -> bool {
     #[link(name = "kernel32")]

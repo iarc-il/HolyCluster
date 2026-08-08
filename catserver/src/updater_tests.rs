@@ -5,12 +5,11 @@ use std::os::unix::fs::PermissionsExt;
 use std::{fs, io, io::Cursor, path::Path};
 
 use reqwest::Url;
-use semver::Version;
 
 use crate::updater::{
     AppRelease, Artifact, PLATFORM_LINUX, ReleaseManifest, UpdateService, UpdateState,
-    close_inherited_descriptors_on_exec, copy_verified, make_executable, parse_running_version,
-    validate_artifact, windows_installer_command,
+    close_inherited_descriptors_on_exec, copy_verified, make_executable, validate_artifact,
+    windows_installer_command,
 };
 
 fn artifact() -> Artifact {
@@ -106,10 +105,40 @@ fn reports_equal_release_as_current() {
 }
 
 #[test]
-fn compares_against_the_release_tag_not_git_describe_suffix() {
-    assert_eq!(
-        parse_running_version("catserver-v1.2.0-1340-g4a8f4fdf").unwrap(),
-        Version::parse("1.2.0").unwrap()
+fn compares_development_commit_numbers() {
+    let service = UpdateService::with_data_dir(
+        Url::parse("https://releases.example/manifest.json").unwrap(),
+        "catserver-v1.2.0-1340-g4a8f4fdf",
+        std::env::temp_dir(),
+    )
+    .unwrap();
+    let manifest = |version: &str| ReleaseManifest {
+        schema_version: 1,
+        releases: vec![AppRelease {
+            version: version.into(),
+            platform: "linux".into(),
+            architecture: "x86_64".into(),
+            artifact: artifact(),
+        }],
+    };
+
+    assert!(
+        service
+            .accept_manifest(manifest("catserver-v1.2.0-1341-gnewer"))
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        service
+            .accept_manifest(manifest("catserver-v1.2.0-1340-gsame"))
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        service
+            .accept_manifest(manifest("catserver-v1.2.0-1339-golder"))
+            .unwrap()
+            .is_none()
     );
 }
 
