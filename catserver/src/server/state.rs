@@ -37,7 +37,9 @@ impl AppState {
         ui_dir: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
         let manifest_url = reqwest::Url::parse(
-            &server_config.build_uri("http", "/catserver/releases/latest").to_string(),
+            &server_config
+                .build_uri("http", "/catserver/releases/latest")
+                .to_string(),
         )?;
         Ok(Self {
             server_config,

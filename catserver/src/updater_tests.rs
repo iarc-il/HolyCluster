@@ -6,10 +6,11 @@ use std::{fs, io, io::Cursor, path::Path};
 
 use reqwest::Url;
 
+#[cfg(not(windows))]
+use crate::updater::close_inherited_descriptors_on_exec;
 use crate::updater::{
     AppRelease, Artifact, PLATFORM_LINUX, ReleaseManifest, UpdateService, UpdateState,
-    close_inherited_descriptors_on_exec, copy_verified, make_executable, validate_artifact,
-    windows_installer_command,
+    copy_verified, make_executable, validate_artifact, windows_installer_command,
 };
 
 fn artifact() -> Artifact {

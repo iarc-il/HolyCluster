@@ -448,7 +448,7 @@ pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
     Ok(())
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(all(not(target_os = "linux"), not(windows)))]
 pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
     Ok(())
 }
