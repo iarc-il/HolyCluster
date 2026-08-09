@@ -95,25 +95,97 @@ pub struct s_rig {
 }
 #[repr(C)]
 #[repr(align(8))]
-pub struct s_rot { pub _bindgen_opaque_blob: [u64; 4096usize] }
+pub struct s_rot {
+    pub _bindgen_opaque_blob: [u64; 4096usize],
+}
 unsafe extern "C" {
     pub fn rig_init(rig_model: rig_model_t) -> *mut RIG;
 }
-unsafe extern "C" { pub fn rot_init(rot_model: rot_model_t) -> *mut ROT; }
-unsafe extern "C" { pub fn rot_open(rot: *mut ROT) -> ::std::os::raw::c_int; }
-unsafe extern "C" { pub fn rot_close(rot: *mut ROT) -> ::std::os::raw::c_int; }
-unsafe extern "C" { pub fn rot_cleanup(rot: *mut ROT) -> ::std::os::raw::c_int; }
-unsafe extern "C" { pub fn rot_set_position(rot: *mut ROT, azimuth: azimuth_t, elevation: elevation_t) -> ::std::os::raw::c_int; }
-unsafe extern "C" { pub fn rot_get_position(rot: *mut ROT, azimuth: *mut azimuth_t, elevation: *mut elevation_t) -> ::std::os::raw::c_int; }
-unsafe extern "C" { pub fn rot_confparam_lookup(rot: *mut ROT, name: *const ::std::os::raw::c_char) -> *const confparams; }
-unsafe extern "C" { pub fn rot_set_conf(rot: *mut ROT, token: hamlib_token_t, val: *const ::std::os::raw::c_char) -> ::std::os::raw::c_int; }
-unsafe extern "C" { pub fn rot_token_foreach(rot: *mut ROT, cfunc: ::std::option::Option<unsafe extern "C" fn(*const confparams, *mut ::std::os::raw::c_void) -> ::std::os::raw::c_int>, data: *mut ::std::os::raw::c_void) -> ::std::os::raw::c_int; }
-unsafe extern "C" { pub fn rot_list_foreach(cfunc: ::std::option::Option<unsafe extern "C" fn(*const rot_caps, *mut ::std::os::raw::c_void) -> ::std::os::raw::c_int>, data: *mut ::std::os::raw::c_void) -> ::std::os::raw::c_int; }
-#[repr(C)] pub struct rot_caps { pub _bindgen_opaque_blob: [u64; 512usize] }
-unsafe extern "C" { pub fn rot_load_all_backends() -> ::std::os::raw::c_int; }
-unsafe extern "C" { pub fn roterror(errnum: ::std::os::raw::c_int) -> *const ::std::os::raw::c_char; }
-#[repr(C)] pub struct hamlib_sys_rot_caps_metadata { pub rot_model: ::std::os::raw::c_int, pub model_name: *const ::std::os::raw::c_char, pub mfg_name: *const ::std::os::raw::c_char, pub version: *const ::std::os::raw::c_char, pub status: rig_status_e }
-unsafe extern "C" { pub fn hamlib_sys_rot_caps_metadata(caps: *const rot_caps) -> *const hamlib_sys_rot_caps_metadata; }
+unsafe extern "C" {
+    pub fn rot_init(rot_model: rot_model_t) -> *mut ROT;
+}
+unsafe extern "C" {
+    pub fn rot_open(rot: *mut ROT) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn rot_close(rot: *mut ROT) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn rot_cleanup(rot: *mut ROT) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn rot_set_position(
+        rot: *mut ROT,
+        azimuth: azimuth_t,
+        elevation: elevation_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn rot_get_position(
+        rot: *mut ROT,
+        azimuth: *mut azimuth_t,
+        elevation: *mut elevation_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn rot_confparam_lookup(
+        rot: *mut ROT,
+        name: *const ::std::os::raw::c_char,
+    ) -> *const confparams;
+}
+unsafe extern "C" {
+    pub fn rot_set_conf(
+        rot: *mut ROT,
+        token: hamlib_token_t,
+        val: *const ::std::os::raw::c_char,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn rot_token_foreach(
+        rot: *mut ROT,
+        cfunc: ::std::option::Option<
+            unsafe extern "C" fn(
+                *const confparams,
+                *mut ::std::os::raw::c_void,
+            ) -> ::std::os::raw::c_int,
+        >,
+        data: *mut ::std::os::raw::c_void,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn rot_list_foreach(
+        cfunc: ::std::option::Option<
+            unsafe extern "C" fn(
+                *const rot_caps,
+                *mut ::std::os::raw::c_void,
+            ) -> ::std::os::raw::c_int,
+        >,
+        data: *mut ::std::os::raw::c_void,
+    ) -> ::std::os::raw::c_int;
+}
+#[repr(C)]
+pub struct rot_caps {
+    pub _bindgen_opaque_blob: [u64; 512usize],
+}
+unsafe extern "C" {
+    pub fn rot_load_all_backends() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn roterror(errnum: ::std::os::raw::c_int) -> *const ::std::os::raw::c_char;
+}
+#[repr(C)]
+pub struct hamlib_sys_rot_caps_metadata {
+    pub rot_model: ::std::os::raw::c_int,
+    pub model_name: *const ::std::os::raw::c_char,
+    pub mfg_name: *const ::std::os::raw::c_char,
+    pub version: *const ::std::os::raw::c_char,
+    pub status: rig_status_e,
+}
+unsafe extern "C" {
+    pub fn hamlib_sys_rot_caps_metadata(
+        caps: *const rot_caps,
+    ) -> *const hamlib_sys_rot_caps_metadata;
+}
 unsafe extern "C" {
     pub fn rig_open(rig: *mut RIG) -> ::std::os::raw::c_int;
 }
