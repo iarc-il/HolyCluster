@@ -51,6 +51,10 @@ pub enum RigControlError {
 
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum HamlibError {
+    #[error("invalid rotator position")]
+    InvalidPosition,
+    #[error("invalid configuration")]
+    InvalidConfiguration,
     #[error("Hamlib {operation} failed with code {code}: {message}")]
     Call {
         operation: &'static str,

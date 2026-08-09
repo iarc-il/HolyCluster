@@ -1,5 +1,6 @@
 #include <hamlib/rig.h>
 #include <hamlib/riglist.h>
+#include <hamlib/rotator.h>
 
 enum {
     HAMLIB_SYS_RIG_MODEL_DUMMY = RIG_MODEL_DUMMY,
@@ -24,3 +25,14 @@ struct hamlib_sys_rig_caps_metadata {
 
 const struct hamlib_sys_rig_caps_metadata *hamlib_sys_rig_caps_metadata(
     const struct rig_caps *caps);
+
+struct hamlib_sys_rot_caps_metadata {
+    int rot_model;
+    const char *model_name;
+    const char *mfg_name;
+    const char *version;
+    enum rig_status_e status;
+};
+
+const struct hamlib_sys_rot_caps_metadata *hamlib_sys_rot_caps_metadata(
+    const struct rot_caps *caps);
