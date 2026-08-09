@@ -159,6 +159,8 @@ services:
       - "80:80"
       - "443:443"
       - "9999:9999"
+      # stub_status for the host's Netdata nginx collector; localhost only
+      - "127.0.0.1:8093:8093"
     volumes:
       - ./infra/certbot/conf:/etc/letsencrypt
       - ./infra/certbot/www:/var/www/certbot

@@ -116,6 +116,20 @@ http {
         }
     }
 
+    # ===============================
+    # 5. LOCAL ONLY — stub_status for Netdata
+    #    Published to 127.0.0.1:8093 on the host (docker-compose),
+    #    never on a public interface.
+    # ===============================
+    server {
+        listen 8093;
+
+        location /stub_status {
+            stub_status;
+            access_log off;
+        }
+    }
+
     # Alternate-domain server block(s), rendered per-env only when DOMAIN_ALT is set
     # (see Dockerfile.nginx CMD / docker-compose nginx command). Empty glob = no-op.
     include /etc/nginx/conf.d/*.conf;
