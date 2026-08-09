@@ -12,7 +12,7 @@ import { continents } from "@/data/filters_data.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 const continent_title = { dx: "DX", spotter: "DE" };
 
@@ -255,7 +255,6 @@ function ViewSelectorTabs({ active_view, set_active_view, colors, dev_mode }) {
 
 function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, set_active_view }) {
     const { colors, dev_mode } = useColors();
-    const [open_import_filter, set_open_import_filter] = useState(false);
 
     useEffect(() => {
         function select_tab(event) {
@@ -274,16 +273,10 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
 
     function handle_import_complete() {
         set_toggled_ui(state => ({ ...state, right_visible: true }));
-        set_active_view(0);
-        set_open_import_filter(true);
     }
 
     const content = [
-        <Filters
-            key="filters"
-            open_import_filter={open_import_filter}
-            on_import_filter_open={() => set_open_import_filter(false)}
-        />,
+        <Filters key="filters" />,
         <FrequencyBar
             key="frequency-bar"
             set_cat_to_spot={set_cat_to_spot}

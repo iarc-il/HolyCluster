@@ -1,6 +1,7 @@
 import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import SearchIcon from "@/components/ui/SearchIcon.jsx";
+import Toggle from "@/components/ui/Toggle.jsx";
 import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
 import {
     MISSING_SECTION_KEYS,
@@ -8,6 +9,7 @@ import {
 } from "@/data/missing_sections.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
+import { useFilters } from "@/hooks/useFilters";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { MISSING_ADIF_MAX_FILE_SIZE_BYTES, MISSING_IMPORT_PHASES } from "@/utils/missing_adif.js";
 import { import_missing_adif_in_worker } from "@/utils/missing_adif_worker_client.js";
@@ -224,7 +226,15 @@ function SectionStats({ worked_count, needed_count, total_count }) {
     );
 }
 
-function MissingSectionCard({ section, items, missing, colors, on_apply_section }) {
+function MissingSectionCard({
+    section,
+    items,
+    missing,
+    colors,
+    is_alert_filter_active,
+    on_toggle_alert_filter,
+    on_apply_section,
+}) {
     const worked_values = missing.worked[section]?.global ?? [];
     const { worked_count, needed_count, is_section_complete } = get_section_progress(
         items,
@@ -247,6 +257,7 @@ function MissingSectionCard({ section, items, missing, colors, on_apply_section 
                         total_count={items.length}
                     />
                 </div>
+                <Toggle value={is_alert_filter_active} on_click={on_toggle_alert_filter} />
             </div>
 
             {is_section_complete ? (
@@ -584,6 +595,7 @@ export default function MissingPanel({ on_import_complete = null }) {
         active_profile_data: { missing },
         update_active_profile_section,
     } = useProfiles();
+    const { callsign_filters, setCallsignFilters } = useFilters();
     const [import_error, set_import_error] = useState("");
     const [is_importing, set_is_importing] = useState(false);
     const [import_progress, set_import_progress] = useState(null);
@@ -604,6 +616,39 @@ export default function MissingPanel({ on_import_complete = null }) {
                 },
             },
         }));
+    }
+
+    function is_alert_filter_active(section) {
+        return callsign_filters.filters.some(
+            filter =>
+                filter.action === "alert" &&
+                filter.type === "missing" &&
+                filter.missing_section === section,
+        );
+    }
+
+    function toggle_alert_filter(section) {
+        setCallsignFilters(current => {
+            const is_active = current.filters.some(
+                filter =>
+                    filter.action === "alert" &&
+                    filter.type === "missing" &&
+                    filter.missing_section === section,
+            );
+            const filters = is_active
+                ? current.filters.filter(
+                      filter =>
+                          filter.action !== "alert" ||
+                          filter.type !== "missing" ||
+                          filter.missing_section !== section,
+                  )
+                : [
+                      ...current.filters,
+                      { action: "alert", type: "missing", missing_section: section },
+                  ];
+
+            return { ...current, filters };
+        });
     }
 
     async function handle_import_file(event) {
@@ -742,6 +787,8 @@ export default function MissingPanel({ on_import_complete = null }) {
                     items={section_items[section]}
                     missing={missing}
                     colors={colors}
+                    is_alert_filter_active={is_alert_filter_active(section)}
+                    on_toggle_alert_filter={() => toggle_alert_filter(section)}
                     on_apply_section={apply_section}
                 />
             ))}

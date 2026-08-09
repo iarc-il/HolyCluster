@@ -27,6 +27,7 @@ vi.mock("virtual:cty-dxcc-entities", () => ({
 
 import MissingPanel from "@/components/MissingPanel.jsx";
 import { ColorsProvider } from "@/hooks/useColors.jsx";
+import { FiltersProvider } from "@/hooks/useFilters.jsx";
 import { ProfilesProvider } from "@/hooks/useProfiles.jsx";
 import {
     PROFILE_STORE_KEY,
@@ -48,7 +49,9 @@ function render_missing_panel(profile_data = create_default_profile_data(), prop
         <MemoryRouter>
             <ProfilesProvider>
                 <ColorsProvider>
-                    <MissingPanel {...props} />
+                    <FiltersProvider>
+                        <MissingPanel {...props} />
+                    </FiltersProvider>
                 </ColorsProvider>
             </ProfilesProvider>
         </MemoryRouter>,
@@ -87,7 +90,45 @@ describe("MissingPanel", () => {
         const dxcc_section = section_by_heading("DXCC");
         expect_section_stats(dxcc_section, { worked: 0, needed: 4, total: 4 });
         expect(within(dxcc_section).getByRole("button", { name: "Edit" })).toBeTruthy();
-        expect(within(dxcc_section).queryByRole("switch")).toBeNull();
+        expect(within(dxcc_section).getByRole("switch", { checked: false })).toBeTruthy();
+    });
+
+    it("synchronizes section alert toggles with missing alert filters", async () => {
+        const user = userEvent.setup();
+        const profile_data = create_default_profile_data();
+        profile_data.callsign_filters.filters.push({
+            action: "alert",
+            type: "missing",
+            missing_section: "cq_zone",
+        });
+        render_missing_panel(profile_data);
+
+        const dxcc_toggle = within(section_by_heading("DXCC")).getByRole("switch");
+        const cq_toggle = within(section_by_heading("CQ")).getByRole("switch");
+        expect(dxcc_toggle.getAttribute("aria-checked")).toBe("false");
+        expect(cq_toggle.getAttribute("aria-checked")).toBe("true");
+
+        await user.click(dxcc_toggle);
+        await waitFor(() => {
+            expect(dxcc_toggle.getAttribute("aria-checked")).toBe("true");
+            const stored_profiles = JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY));
+            expect(stored_profiles.profiles[0].data.callsign_filters.filters).toEqual(
+                expect.arrayContaining([
+                    { action: "alert", type: "missing", missing_section: "dxcc" },
+                ]),
+            );
+        });
+
+        await user.click(cq_toggle);
+        await waitFor(() => {
+            expect(cq_toggle.getAttribute("aria-checked")).toBe("false");
+            const stored_profiles = JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY));
+            expect(stored_profiles.profiles[0].data.callsign_filters.filters).not.toEqual(
+                expect.arrayContaining([
+                    { action: "alert", type: "missing", missing_section: "cq_zone" },
+                ]),
+            );
+        });
     });
 
     it("opens a section edit modal", async () => {
