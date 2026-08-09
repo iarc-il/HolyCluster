@@ -5,6 +5,7 @@ mod descriptor;
 mod error;
 mod ffi;
 mod rig;
+mod rotator;
 mod types;
 
 #[cfg(test)]
@@ -15,6 +16,7 @@ pub use error::{
     RigControlError,
 };
 pub use rig::{Closed, Frequency, Mode, Open, PassbandWidth, Rig, Vfo};
+pub use rotator::{Position, Rotator, RotatorCatalog, RotatorClosed, RotatorModel, RotatorOpen};
 pub use types::{ConfigDescriptor, ConfigToken, ConfigValue, RigModel, RigModelId, RigModelStatus};
 
 #[derive(Clone, Debug)]
