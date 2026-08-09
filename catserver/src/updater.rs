@@ -4,7 +4,7 @@ use std::{
     fs::{self, File},
     io::{self, Read, Write},
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
     time::Duration,
 };
 
@@ -228,9 +228,6 @@ impl UpdateService {
         let helper = Command::new(executable)
             .arg("--apply-update")
             .arg(self.plan_path())
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
             .spawn()
             .context("cannot start detached update helper")?;
         tracing::info!(pid = helper.id(), "Detached update helper started");
