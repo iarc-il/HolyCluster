@@ -31,7 +31,12 @@ function get_versions(version) {
         local:
             version.local ?? version.local_version ?? version.current ?? version.installed ?? null,
         remote:
-            version.remote ?? version.remote_version ?? version.latest ?? version.available ?? version.available_version ?? null,
+            version.remote ??
+            version.remote_version ??
+            version.latest ??
+            version.available ??
+            version.available_version ??
+            null,
     };
 }
 
@@ -41,8 +46,18 @@ export function normalize_update_status(payload) {
     }
 
     const { local, remote } = get_versions(payload.version ?? payload);
-    const status = typeof payload.status === "string" ? payload.status : typeof payload.state === "string" ? payload.state : "malformed";
-    const error = typeof payload.error === "string" ? payload.error : typeof payload.diagnostic === "string" ? payload.diagnostic : null;
+    const status =
+        typeof payload.status === "string"
+            ? payload.status
+            : typeof payload.state === "string"
+              ? payload.state
+              : "malformed";
+    const error =
+        typeof payload.error === "string"
+            ? payload.error
+            : typeof payload.diagnostic === "string"
+              ? payload.diagnostic
+              : null;
     const direction = compare_update_versions(local, remote);
     const aliases = {
         unavailable: "unavailable",

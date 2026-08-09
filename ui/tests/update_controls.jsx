@@ -62,11 +62,16 @@ describe("CAT Control updates", () => {
     });
 
     it("handles an empty update response", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, text: async () => "" }));
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue({ ok: true, status: 200, text: async () => "" }),
+        );
 
         render_updates();
 
-        expect(await screen.findByText("CAT Control update information is unavailable.")).not.toBeNull();
+        expect(
+            await screen.findByText("CAT Control update information is unavailable."),
+        ).not.toBeNull();
     });
 
     it("installs after accepting the update prompt", async () => {
@@ -75,9 +80,7 @@ describe("CAT Control updates", () => {
             .mockResolvedValueOnce(
                 response({ state: "available", available_version: "1.1.0", diagnostic: null }),
             )
-            .mockResolvedValueOnce(
-                response({ state: "installing", available_version: "1.1.0" }),
-            );
+            .mockResolvedValueOnce(response({ state: "installing", available_version: "1.1.0" }));
         vi.stubGlobal("fetch", fetch);
 
         render_updates();
@@ -90,9 +93,7 @@ describe("CAT Control updates", () => {
     it("keeps a declined update visible and installable later", async () => {
         const fetch = vi
             .fn()
-            .mockResolvedValueOnce(
-                response({ state: "available", available_version: "1.1.0" }),
-            )
+            .mockResolvedValueOnce(response({ state: "available", available_version: "1.1.0" }))
             .mockResolvedValueOnce(
                 response({ status: "deferred", version: { local: "1.0.0", remote: "1.1.0" } }),
             )
@@ -113,13 +114,9 @@ describe("CAT Control updates", () => {
     it("offers retry after a failed update check", async () => {
         const fetch = vi
             .fn()
-            .mockResolvedValueOnce(
-                response({ state: "idle" }),
-            )
+            .mockResolvedValueOnce(response({ state: "idle" }))
             .mockResolvedValueOnce(response({}, false))
-            .mockResolvedValueOnce(
-                response({ state: "idle" }),
-            );
+            .mockResolvedValueOnce(response({ state: "idle" }));
         vi.stubGlobal("fetch", fetch);
 
         render_updates();
