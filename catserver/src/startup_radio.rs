@@ -1,12 +1,16 @@
 use std::path::Path;
 
-use crate::radio_config::{AppConfig, RadioConfig, RadioConfigError};
+#[cfg(test)]
+use crate::radio_config::RadioConfig;
+use crate::radio_config::{AppConfig, RadioConfigError};
 
+#[cfg(test)]
 pub struct StartupRadioConfig {
     pub config: RadioConfig,
     pub load_error: Option<RadioConfigError>,
 }
 
+#[cfg(test)]
 pub fn load(path: &Path) -> StartupRadioConfig {
     match RadioConfig::load_from_path(path) {
         Ok(config) => StartupRadioConfig {

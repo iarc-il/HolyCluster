@@ -5,7 +5,7 @@ use tokio::sync::broadcast::{self, Sender};
 use crate::{
     args::{Args, BASE_LOCAL_PORT, rigctld_endpoint, server_config},
     dummy_rotator::DummyRotator,
-    radio_config::{AppConfig, RadioConfig, RotatorConnection},
+    radio_config::{AppConfig, RadioConfig},
     radio_factory,
     radio_manager::RadioManager,
     rotator::AnyRotator,
@@ -104,7 +104,8 @@ fn rotator(config: &crate::radio_config::RotatorConfig, use_dummy: bool) -> AnyR
     }
     #[cfg(not(windows))]
     {
-        let RotatorConnection::Rotctld { host, port } = &config.connection else {
+        let crate::radio_config::RotatorConnection::Rotctld { host, port } = &config.connection
+        else {
             unreachable!()
         };
         AnyRotator::new(crate::rotctld::RotctldRotator::new(host.clone(), *port))
