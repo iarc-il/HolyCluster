@@ -5,7 +5,7 @@ use tokio::sync::broadcast::{self, Sender};
 use crate::{
     args::{Args, BASE_LOCAL_PORT, rigctld_endpoint, server_config},
     dummy_rotator::DummyRotator,
-    radio_config::RadioConfig,
+    radio_config::{AppConfig, RadioConfig, RotatorConnection},
     radio_factory,
     radio_manager::RadioManager,
     rotator::AnyRotator,
@@ -23,17 +23,17 @@ pub fn run(args: Args) -> Result<()> {
     let instance = SingleInstance::new(INSTANCE_NAME)?;
     tracing::info!("Version tag: {}", env!("VERSION"));
     let server_config = server_config(&args);
-    let path = RadioConfig::config_path()?;
-    let radio_config = startup_radio::load(&path);
-    if let Some(error) = radio_config.load_error {
+    let path = AppConfig::config_path()?;
+    let app_config = startup_radio::load_app(&path);
+    if let Some(error) = &app_config.load_error {
         tracing::error!(
             ?error,
             "Radio configuration is invalid; using the platform default for this session"
         );
     }
     let rigctld_endpoint = rigctld_endpoint(&args);
-    let radio = radio(radio_config.config, args.dummy)?;
-    let rotator = rotator(args.dummy_rotator);
+    let radio = radio(app_config.config.radio.clone(), args.dummy)?;
+    let rotator = rotator(&app_config.config.rotator, args.dummy_rotator);
     let is_single = instance.is_single();
     if is_single {
         if args.close {
@@ -89,8 +89,13 @@ fn radio(config: RadioConfig, use_dummy: bool) -> Result<RadioManager> {
     Ok(RadioManager::new(config, selected)?)
 }
 
-fn rotator(use_dummy: bool) -> AnyRotator {
-    if use_dummy {
+fn rotator(config: &crate::radio_config::RotatorConfig, use_dummy: bool) -> AnyRotator {
+    if use_dummy
+        || matches!(
+            config.backend,
+            crate::radio_config::RotatorBackendKind::Rotctl
+        )
+    {
         return AnyRotator::new(DummyRotator::new());
     }
     #[cfg(windows)]
@@ -99,10 +104,10 @@ fn rotator(use_dummy: bool) -> AnyRotator {
     }
     #[cfg(not(windows))]
     {
-        AnyRotator::new(crate::rotctld::RotctldRotator::new(
-            "localhost".into(),
-            4533,
-        ))
+        let RotatorConnection::Rotctld { host, port } = &config.connection else {
+            unreachable!()
+        };
+        AnyRotator::new(crate::rotctld::RotctldRotator::new(host.clone(), *port))
     }
 }
 
