@@ -90,6 +90,8 @@ struct InstallPlan {
     artifact: Artifact,
     state_path: PathBuf,
     parent_pid: u32,
+    #[serde(default)]
+    command_args: Vec<String>,
 }
 
 impl UpdateService {
@@ -213,6 +215,7 @@ impl UpdateService {
                 artifact,
                 state_path: self.state_path(),
                 parent_pid: std::process::id(),
+                command_args: std::env::args().skip(1).collect(),
             })?,
         )?;
         Ok(status)
@@ -355,7 +358,9 @@ fn install_linux(plan: &InstallPlan) -> Result<()> {
         let _ = fs::rename(&backup, &plan.current_executable);
         return Err(error).context("cannot activate updated AppImage; previous version restored");
     }
-    if let Err(error) = Command::new(&plan.current_executable).spawn() {
+    let mut command = Command::new(&plan.current_executable);
+    command.args(&plan.command_args);
+    if let Err(error) = command.spawn() {
         let _ = fs::rename(&plan.current_executable, &activation);
         let _ = fs::rename(&backup, &plan.current_executable);
         let _ = fs::remove_file(&activation);
@@ -384,7 +389,9 @@ fn install_windows(plan: &InstallPlan) -> Result<()> {
     if !status.success() {
         bail!("MSI installer exited with {status}; MSI rollback is not guaranteed");
     }
-    Command::new(&plan.current_executable).spawn()?;
+    let mut command = Command::new(&plan.current_executable);
+    command.args(&plan.command_args);
+    command.spawn()?;
     Ok(())
 }
 
