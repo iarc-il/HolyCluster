@@ -14,7 +14,11 @@ vi.mock("@/hooks/useColors", () => ({
 }));
 
 function response(payload, ok = true) {
-    return { ok, status: ok ? 200 : 500, json: async () => payload };
+    return {
+        ok,
+        status: ok ? 200 : 500,
+        text: async () => JSON.stringify(payload),
+    };
 }
 
 function render_updates() {
@@ -55,6 +59,14 @@ describe("CAT Control updates", () => {
                 diagnostic: null,
             }).status,
         ).toBe("current");
+    });
+
+    it("handles an empty update response", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, text: async () => "" }));
+
+        render_updates();
+
+        expect(await screen.findByText("CAT Control update information is unavailable.")).not.toBeNull();
     });
 
     it("installs after accepting the update prompt", async () => {

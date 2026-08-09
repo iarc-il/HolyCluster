@@ -33,7 +33,7 @@ function message_for(status, error) {
         newer_local: "Your installed CAT Control is newer than the available release.",
         unavailable: "CAT Control update service is unavailable.",
         malformed: "CAT Control update information is unavailable.",
-        deferred: "CAT Control update available. You chose to install it later.",
+        deferred: "CAT Control update available.",
         installing: "Installing CAT Control. The connection may close while it restarts.",
         unsupported: "Automatic updates are not supported on this platform.",
         failed: error ?? "CAT Control update failed.",

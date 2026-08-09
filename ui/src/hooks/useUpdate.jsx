@@ -92,6 +92,16 @@ export function normalize_update_status(payload) {
     };
 }
 
+async function read_update_payload(response) {
+    const body = await response.text();
+    if (!body.trim()) return null;
+    try {
+        return JSON.parse(body);
+    } catch {
+        throw new Error("Update response was not valid JSON");
+    }
+}
+
 async function request_update(path) {
     const response = await fetch(path, {
         method: "POST",
@@ -99,7 +109,7 @@ async function request_update(path) {
         body: "{}",
     });
     if (!response.ok) throw new Error(`Update request failed (${response.status})`);
-    return normalize_update_status(await response.json());
+    return normalize_update_status(await read_update_payload(response));
 }
 
 export function UpdateProvider({ children }) {
@@ -116,9 +126,9 @@ export function UpdateProvider({ children }) {
             const response = await fetch("/api/update");
             if (!response.ok) throw new Error(`Update status failed (${response.status})`);
             try {
-                set_update(normalize_update_status(await response.json()));
-            } catch {
-                set_update(current => ({ ...current, status: "malformed" }));
+                set_update(normalize_update_status(await read_update_payload(response)));
+            } catch (error) {
+                set_update(current => ({ ...current, status: "malformed", error: error.message }));
             }
         } catch (error) {
             set_update(current => ({ ...current, status: "unavailable", error: error.message }));
