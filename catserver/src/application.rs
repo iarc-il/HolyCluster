@@ -35,7 +35,8 @@ pub fn run() -> Result<()> {
     let rigctld_endpoint = rigctld_endpoint(&args);
     let radio = radio(radio_config.config, args.dummy)?;
     let rotator = rotator(args.dummy_rotator);
-    if instance.is_single() {
+    let is_single = instance.is_single();
+    if is_single {
         if args.close {
             tracing::warn!("No running instance, not closing");
             return Ok(());
@@ -59,7 +60,8 @@ pub fn run() -> Result<()> {
             })?;
         if cfg!(any(windows, target_os = "linux")) {
             tray_icon::run_tray_icon(sender.clone(), sender.subscribe());
-        } else if let Err(error) = thread.join() {
+        }
+        if let Err(error) = thread.join() {
             let message = error
                 .downcast_ref::<&str>()
                 .copied()
@@ -75,6 +77,10 @@ pub fn run() -> Result<()> {
         reqwest::blocking::Client::new()
             .post(format!("http://127.0.0.1:{BASE_LOCAL_PORT}/{path}"))
             .send()?;
+    }
+    drop(instance);
+    if is_single {
+        crate::updater::exec_pending_update()?;
     }
     Ok(())
 }

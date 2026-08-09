@@ -1,5 +1,7 @@
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+#[cfg(target_os = "linux")]
+use std::os::unix::process::CommandExt;
 use std::{
     fs::{self, File},
     io::{self, Read, Write},
@@ -226,14 +228,18 @@ impl UpdateService {
         if status.state != UpdateState::Downloaded {
             bail!("an update must be downloaded before installation");
         }
+        #[cfg(windows)]
+        {
+            let executable = std::env::current_exe()?;
+            let helper = Command::new(executable)
+                .arg("--apply-update")
+                .arg(self.plan_path())
+                .spawn()
+                .context("cannot start detached update helper")?;
+            tracing::info!(pid = helper.id(), "Detached update helper started");
+        }
+        #[cfg(not(windows))]
         close_inherited_descriptors_on_exec()?;
-        let executable = std::env::current_exe()?;
-        let helper = Command::new(executable)
-            .arg("--apply-update")
-            .arg(self.plan_path())
-            .spawn()
-            .context("cannot start detached update helper")?;
-        tracing::info!(pid = helper.id(), "Detached update helper started");
         self.write_status(&UpdateStatus {
             state: UpdateState::Installing,
             available_version: status.available_version,
@@ -306,6 +312,7 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
         staged = ?plan.staged_artifact,
         "Update helper started"
     );
+    #[cfg(windows)]
     wait_for_parent(plan.parent_pid);
     tracing::info!("Parent catserver exited; applying update");
     let result = if cfg!(windows) {
@@ -327,10 +334,26 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
     };
     if let Err(error) = &result {
         tracing::error!(?error, "Update helper failed");
-    } else {
-        tracing::info!("Update helper completed successfully");
     }
     write_json(&plan.state_path, &status).context("cannot persist update helper status")?;
+    #[cfg(target_os = "linux")]
+    if result.is_ok() {
+        if let Err(error) = exec_linux(&plan) {
+            tracing::error!(?error, "Updated AppImage handoff failed");
+            write_json(
+                &plan.state_path,
+                &UpdateStatus {
+                    state: UpdateState::Failed,
+                    available_version: None,
+                    diagnostic: Some(error.to_string()),
+                },
+            )?;
+            return Err(error);
+        }
+    }
+    if result.is_ok() {
+        tracing::info!("Update helper completed successfully");
+    }
     result
 }
 
@@ -358,15 +381,20 @@ fn install_linux(plan: &InstallPlan) -> Result<()> {
         let _ = fs::rename(&backup, &plan.current_executable);
         return Err(error).context("cannot activate updated AppImage; previous version restored");
     }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn exec_linux(plan: &InstallPlan) -> Result<()> {
     let mut command = Command::new(&plan.current_executable);
     command.args(&plan.command_args);
-    if let Err(error) = command.spawn() {
-        let _ = fs::rename(&plan.current_executable, &activation);
-        let _ = fs::rename(&backup, &plan.current_executable);
-        let _ = fs::remove_file(&activation);
-        return Err(error).context("cannot relaunch updated AppImage; previous version restored");
-    }
-    Ok(())
+    let error = command.exec();
+    let activation = plan.current_executable.with_extension("AppImage.update");
+    let backup = plan.current_executable.with_extension("AppImage.previous");
+    let _ = fs::rename(&plan.current_executable, &activation);
+    let _ = fs::rename(&backup, &plan.current_executable);
+    let _ = fs::remove_file(&activation);
+    Err(error).context("cannot exec updated AppImage; previous version restored")
 }
 
 #[cfg(unix)]
@@ -422,6 +450,29 @@ pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+pub fn exec_pending_update() -> Result<()> {
+    let project_dirs = ProjectDirs::from("org", "IARC", "HolyCluster")
+        .context("cannot determine update data directory")?;
+    let data_dir = project_dirs.data_local_dir().join("updates");
+    let state_path = data_dir.join("state.json");
+    if read_status(&state_path).unwrap_or_default().state != UpdateState::Installing {
+        return Ok(());
+    }
+    close_inherited_descriptors_on_exec()?;
+    let executable = std::env::current_exe()?;
+    let mut command = Command::new(executable);
+    command
+        .arg("--apply-update")
+        .arg(data_dir.join("install-plan.json"));
+    Err(command.exec().into())
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn exec_pending_update() -> Result<()> {
     Ok(())
 }
 
@@ -585,15 +636,11 @@ fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
     Ok(())
 }
 
+#[cfg(windows)]
 fn wait_for_parent(parent_pid: u32) {
     while process_exists(parent_pid) {
         std::thread::sleep(Duration::from_millis(200));
     }
-}
-
-#[cfg(unix)]
-fn process_exists(pid: u32) -> bool {
-    Path::new("/proc").join(pid.to_string()).exists()
 }
 
 #[cfg(windows)]
