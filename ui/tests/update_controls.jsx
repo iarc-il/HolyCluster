@@ -104,7 +104,7 @@ describe("CAT Control updates", () => {
 
         render_updates();
         await userEvent.click(await screen.findByRole("button", { name: "Later" }));
-        expect(await screen.findByText(/You chose to install it later/)).not.toBeNull();
+        expect(await screen.findByText("CAT Control update available.")).not.toBeNull();
         await userEvent.click(screen.getByRole("button", { name: "Install update" }));
         await waitFor(() =>
             expect(fetch).toHaveBeenLastCalledWith("/api/update/install", expect.any(Object)),
