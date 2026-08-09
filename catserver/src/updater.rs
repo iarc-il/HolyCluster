@@ -408,7 +408,12 @@ pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
             }
             return Err(error.into());
         }
-        if unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } == -1 {
+        let flags = if fd <= libc::STDERR_FILENO {
+            flags & !libc::FD_CLOEXEC
+        } else {
+            flags | libc::FD_CLOEXEC
+        };
+        if unsafe { libc::fcntl(fd, libc::F_SETFD, flags) } == -1 {
             return Err(io::Error::last_os_error().into());
         }
     }
