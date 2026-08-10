@@ -10,8 +10,6 @@ mod freq;
 mod hamlib_radio;
 #[cfg(windows)]
 mod omnirig;
-#[cfg(windows)]
-mod pstrotator;
 mod radio_actor;
 pub mod radio_config;
 mod radio_factory;
