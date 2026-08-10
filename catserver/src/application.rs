@@ -90,13 +90,14 @@ fn radio(config: RadioConfig, use_dummy: bool) -> Result<RadioManager> {
 }
 
 fn rotator(config: &crate::radio_config::RotatorConfig, use_dummy: bool) -> AnyRotator {
-    if use_dummy
-        || matches!(
-            config.backend,
-            crate::radio_config::RotatorBackendKind::Rotctl
-        )
-    {
+    if use_dummy {
         return AnyRotator::new(DummyRotator::new());
+    }
+    if matches!(
+        config.backend,
+        crate::radio_config::RotatorBackendKind::Rotctl
+    ) {
+        return AnyRotator::new(UnavailableRotator::new("rotctl"));
     }
     #[cfg(windows)]
     {
@@ -109,6 +110,38 @@ fn rotator(config: &crate::radio_config::RotatorConfig, use_dummy: bool) -> AnyR
             unreachable!()
         };
         AnyRotator::new(crate::rotctld::RotctldRotator::new(host.clone(), *port))
+    }
+}
+
+struct UnavailableRotator {
+    name: String,
+}
+
+impl UnavailableRotator {
+    fn new(name: &str) -> Self {
+        Self { name: name.into() }
+    }
+}
+
+impl crate::rotator::Rotator for UnavailableRotator {
+    fn init(&mut self) {}
+
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    fn set_azimuth(&mut self, _azimuth: f64) {}
+
+    fn get_status(&mut self) -> crate::rotator::RotatorStatus {
+        crate::rotator::RotatorStatus {
+            azimuth: 0.0,
+            status: "unavailable".into(),
+            name: self.name.clone(),
+        }
+    }
+
+    fn is_available(&self) -> bool {
+        false
     }
 }
 
