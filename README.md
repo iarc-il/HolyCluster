@@ -1,66 +1,87 @@
-# HolyCluster <img src="https://github.com/4Z1KD/HolyCluster/assets/24712835/9f4846ae-ac57-4169-9c6f-2c2b506707ab" height="40px">
+# HolyCluster
 
-### An ongoing effort to visualize the ham radio cluster
+HolyCluster is a live amateur radio DX cluster with modern interface and CAT integration. 
 
-## Prerequisites ⚙️
+## Features
 
-* A computer running Linux, macOS, or Windows
-* `git`
-* `python3`
-* `node`, `npm`
+- Live DX spots from several sources
+- Map, spot list, filters, and alerts
+- Band activity and propagation information
+- Optional local radio control through the CAT server
 
-## Installation 🛠
+## Use HolyCluster
 
-1. Clone the repository and enter its directory
-    ```bash
-    git clone https://github.com/4Z1KD/HolyCluster
-    cd HolyCluster
-    ```
-2. Create a virtual environment (https://docs.python.org/3/library/venv.html)
-    ```bash
-    python -m venv venv_HolyCluster
-    ```
-3. Activate the virtual environment
-    * Windows: `.\venv_HolyCluster\Scripts\activate.bat`
-    * Linux and macOS: `source venv_HolyCluster/bin/activate`
-4. Install the project (`-e` is for development mode)
-    ```bash
-    pip install -e '.[omnirig]'
-    ```
-    For linux systems, install without omnirig:
-    ```bash
-    pip install -e .
-    ```
-5. Build the frontend
-    ```bash
-    cd ui
-    npm install
-    npm run build
-    ```
+Open [holycluster.iarc.org](https://holycluster.iarc.org) in a modern web browser.
+No installation is needed for normal use.
 
-To deactivate the virtual environment, run `deactivate`.
+Send feedback or report a problem through the [feedback form](https://forms.gle/jak7KnvwCnBRN6QU7).
 
-## Usage 💾
+## Development
 
-For developing frontend related features:
-```bash
+The project has three parts: the web interface in `ui/`, the server in
+`backend/`, and the optional radio-control application in `catserver/`.
+
+### Web interface
+
+Requires Node.js and npm.
+
+```sh
 cd ui
+npm install
 npm run dev
 ```
 
-For development of CAT control related features, execute in the virtualenv:
-```bash
-python src/ClientSideServer.py
+The development server uses the shared development backend. Run the checks
+with:
+
+```sh
+npm run check
 ```
 
-For systems without `omnirig` installed, execute
-```bash
-DUMMY=1 python src/ClientSideServer.py
+### Backend
+
+Requires Python 3.13 or later, `uv`, and Docker Compose.
+
+```sh
+cd backend
+cp .env.example .env
 ```
 
-In the future, the application will be compiled into an executable 💾
+Set the required values in `.env`, including database credentials, the Telnet
+username, QRZ credentials, and paths to the built web interface and CAT server
+release files. Then start the stack:
 
-## Progress 📈
+```sh
+docker compose up
+```
 
-Since this project is a work in progress, you may experience poor performance, bugs, runtime issues, and maybe more.
-We are working on fixing these issues.
+Run backend tests with:
+
+```sh
+uv run pytest
+```
+
+### CAT server
+
+The CAT server is an optional local application.
+It acts as a proxy to HolyCluster and lets the web interface tune a connected radio.
+
+It requires Rust and Cargo for building. On Windows it supports OmniRig.
+On other systems, it connects to `rigctld` by default at `127.0.0.1:4532`.
+
+Run it with a dummy radio for development:
+
+```sh
+cd catserver
+cargo run -- --dummy
+```
+
+On Linux, the tray icon also needs GTK3 and AppIndicator packages:
+
+```sh
+sudo apt install libgtk-3-0 libappindicator3-1
+```
+
+## Contributing
+
+Bug reports, ideas, and pull requests are welcome. Use the feedback form for user feedback and problem reports.
