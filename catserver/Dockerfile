@@ -30,7 +30,9 @@ RUN set -ex \
         gcc-mingw-w64-x86-64-posix \
         g++-mingw-w64-x86-64-posix \
         libappindicator3-dev \
+        libappindicator3-1 \
         libgtk-3-dev \
+        libgtk-3-0 \
         imagemagick \
         libusb-1.0-0 \
         libusb-1.0-0-dev \
