@@ -337,19 +337,19 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
     }
     write_json(&plan.state_path, &status).context("cannot persist update helper status")?;
     #[cfg(target_os = "linux")]
-    if result.is_ok() {
-        if let Err(error) = exec_linux(&plan) {
-            tracing::error!(?error, "Updated AppImage handoff failed");
-            write_json(
-                &plan.state_path,
-                &UpdateStatus {
-                    state: UpdateState::Failed,
-                    available_version: None,
-                    diagnostic: Some(error.to_string()),
-                },
-            )?;
-            return Err(error);
-        }
+    if result.is_ok()
+        && let Err(error) = exec_linux(&plan)
+    {
+        tracing::error!(?error, "Updated AppImage handoff failed");
+        write_json(
+            &plan.state_path,
+            &UpdateStatus {
+                state: UpdateState::Failed,
+                available_version: None,
+                diagnostic: Some(error.to_string()),
+            },
+        )?;
+        return Err(error);
     }
     if result.is_ok() {
         tracing::info!("Update helper completed successfully");
