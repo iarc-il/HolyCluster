@@ -176,6 +176,9 @@ services:
       retries: 3
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - proxy
 
   certbot:
     container_name: certbot
@@ -210,3 +213,8 @@ services:
         - /var/run/docker.sock:/var/run/docker.sock
       environment:
         - TZ=Asia/Jerusalem
+
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-holycluster-proxy}
