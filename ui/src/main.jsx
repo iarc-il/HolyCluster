@@ -22,14 +22,14 @@ initializeSentry();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
     <React.StrictMode>
-        <BrowserRouter>
-            <WsProvider>
-                <ProfilesProvider>
-                    <Routes>
-                        <Route
-                            path="/"
-                            element={
-                                <RouteErrorBoundary>
+        <RouteErrorBoundary>
+            <BrowserRouter>
+                <WsProvider>
+                    <ProfilesProvider>
+                        <Routes>
+                            <Route
+                                path="/"
+                                element={
                                     <ColorsProvider>
                                         <FiltersProvider>
                                             <SettingsProvider>
@@ -45,30 +45,21 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                                             </SettingsProvider>
                                         </FiltersProvider>
                                     </ColorsProvider>
-                                </RouteErrorBoundary>
-                            }
-                        />
-                        <Route
-                            path="/addons"
-                            element={
-                                <RouteErrorBoundary>
+                                }
+                            />
+                            <Route
+                                path="/addons"
+                                element={
                                     <SettingsProvider>
                                         <Addons />
                                     </SettingsProvider>
-                                </RouteErrorBoundary>
-                            }
-                        />
-                        <Route
-                            path="/omnirig-error"
-                            element={
-                                <RouteErrorBoundary>
-                                    <OmniRigError />
-                                </RouteErrorBoundary>
-                            }
-                        />
-                    </Routes>
-                </ProfilesProvider>
-            </WsProvider>
-        </BrowserRouter>
+                                }
+                            />
+                            <Route path="/omnirig-error" element={<OmniRigError />} />
+                        </Routes>
+                    </ProfilesProvider>
+                </WsProvider>
+            </BrowserRouter>
+        </RouteErrorBoundary>
     </React.StrictMode>,
 );

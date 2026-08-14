@@ -4,13 +4,18 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { ctyDxccEntitiesPlugin } from "./scripts/cty_entities.js";
 
+const glitchtip_url = "https://holycluster-dev.iarc.org/errors/";
 const sentry_options = {
     authToken: process.env.SENTRY_AUTH_TOKEN,
+    errorHandler: error => {
+        throw error;
+    },
     org: process.env.SENTRY_ORG,
     project: process.env.SENTRY_PROJECT,
     release: {
         name: process.env.SENTRY_RELEASE,
     },
+    url: glitchtip_url,
 };
 
 const sentry_upload_enabled = Object.values({
@@ -18,6 +23,7 @@ const sentry_upload_enabled = Object.values({
     org: sentry_options.org,
     project: sentry_options.project,
     release: sentry_options.release.name,
+    sourceMaps: process.env.SENTRY_UPLOAD_SOURCE_MAPS === "true",
 }).every(Boolean);
 
 export default defineConfig(({ mode }) => ({
@@ -66,7 +72,10 @@ export default defineConfig(({ mode }) => ({
         },
     },
     build: {
-        sourcemap: mode === "production" ? "hidden" : false,
+        sourcemap:
+            mode === "production" && process.env.SENTRY_UPLOAD_SOURCE_MAPS === "true"
+                ? "hidden"
+                : false,
         rollupOptions: {
             output: {
                 manualChunks: id => {

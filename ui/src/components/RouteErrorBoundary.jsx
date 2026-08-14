@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/react";
 import React from "react";
 
 class RouteErrorBoundary extends React.Component {
-    state = { has_error: false };
+    state = { has_error: false, retry_key: 0 };
 
     static getDerivedStateFromError() {
         return { has_error: true };
@@ -13,7 +13,7 @@ class RouteErrorBoundary extends React.Component {
     }
 
     retry = () => {
-        this.setState({ has_error: false });
+        this.setState(state => ({ has_error: false, retry_key: state.retry_key + 1 }));
     };
 
     render() {
@@ -40,7 +40,7 @@ class RouteErrorBoundary extends React.Component {
             );
         }
 
-        return this.props.children;
+        return <React.Fragment key={this.state.retry_key}>{this.props.children}</React.Fragment>;
     }
 }
 
