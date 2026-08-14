@@ -16,8 +16,7 @@ use crate::{
 
 const INSTANCE_NAME: &str = "HolyCluster";
 
-pub fn run() -> Result<()> {
-    let args: Args = argh::from_env();
+pub fn run(args: Args) -> Result<()> {
     if let Some(plan) = args.apply_update.as_deref() {
         return crate::updater::run_helper(plan);
     }

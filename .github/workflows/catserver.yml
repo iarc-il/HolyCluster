@@ -19,6 +19,8 @@ on:
 env:
   CARGO_TARGET_DIR: target
   TARGET: x86_64-pc-windows-gnu
+  CATSERVER_SENTRY_ENVIRONMENT: ${{ github.ref == 'refs/heads/dev' && 'development' || github.ref_type == 'tag' && 'production' || 'development' }}
+  CATSERVER_SENTRY_DSN: ${{ github.ref == 'refs/heads/dev' && secrets.SENTRY_DSN_DEV || github.ref_type == 'tag' && secrets.SENTRY_DSN_PROD || '' }}
 
 jobs:
   check-linux-tray:

@@ -17,11 +17,10 @@ use tracing_subscriber::{
     EnvFilter, Layer, Registry, layer::SubscriberExt, util::SubscriberInitExt,
 };
 
-const SENTRY_ENVIRONMENT: &str = if cfg!(debug_assertions) {
-    "development"
-} else {
-    "production"
-};
+use crate::args::Args;
+
+const SENTRY_ENVIRONMENT: &str = env!("CATSERVER_SENTRY_ENVIRONMENT");
+const SENTRY_DSN: &str = env!("CATSERVER_SENTRY_DSN");
 
 fn open_debug_log() -> Option<File> {
     let project_dirs = ProjectDirs::from("org", "iarc", "holycluster")?;
@@ -47,7 +46,17 @@ fn log_file_filter() -> EnvFilter {
     }
 }
 
-pub fn configure() -> Option<ClientInitGuard> {
+pub fn reporting_enabled(args: &Args) -> bool {
+    if args.backend.is_some() {
+        return false;
+    }
+    matches!(
+        (SENTRY_ENVIRONMENT, args.dev_server),
+        ("development", true) | ("production", false)
+    )
+}
+
+pub fn configure(reporting_enabled: bool) -> Option<ClientInitGuard> {
     std::panic::set_hook(Box::new(panic_hook));
     let console_layer = tracing_subscriber::fmt::layer()
         .compact()
@@ -82,7 +91,7 @@ pub fn configure() -> Option<ClientInitGuard> {
     if let Err(error) = result {
         eprintln!("Failed to configure tracing subscriber: {error}");
     }
-    configure_sentry(std::env::var("SENTRY_DSN").ok().as_deref())
+    configure_sentry(reporting_enabled.then_some(SENTRY_DSN))
 }
 
 fn configure_sentry(dsn: Option<&str>) -> Option<ClientInitGuard> {
