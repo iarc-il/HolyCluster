@@ -98,7 +98,7 @@ class SentrySettings(BaseSettings):
     )
 
     sentry_dsn: str | None = Field(default=None, description="Sentry DSN")
-    sentry_environment: Literal["dev", "int", "prod"] = Field(description="Sentry environment")
+    sentry_environment: Literal["dev", "prod"] = Field(description="Sentry environment")
     sentry_release: str = Field(min_length=1, description="Sentry release")
 
 
