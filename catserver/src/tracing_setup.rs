@@ -132,7 +132,7 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
     event.contexts.clear();
     event.extra.clear();
     event.tags.clear();
-    event.message = None;
+    event.message = Some("Catserver error".to_owned());
     event.logentry = None;
     for exception in &mut event.exception {
         exception.value = None;
@@ -214,7 +214,7 @@ mod tests {
         assert!(event.contexts.is_empty());
         assert!(event.extra.is_empty());
         assert!(event.tags.is_empty());
-        assert!(event.message.is_none());
+        assert_eq!(event.message.as_deref(), Some("Catserver error"));
         assert!(event.logentry.is_none());
         assert!(
             event
