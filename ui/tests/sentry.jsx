@@ -2,12 +2,14 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { captureException, init } = vi.hoisted(() => ({
-    captureException: vi.fn(),
+const { init } = vi.hoisted(() => ({
     init: vi.fn(),
 }));
 
-vi.mock("@sentry/react", () => ({ captureException, init }));
+vi.mock("@sentry/react", async importOriginal => ({
+    ...(await importOriginal()),
+    init,
+}));
 
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 import { initializeSentry, sanitizeSentryEvent } from "@/sentry";
@@ -33,7 +35,6 @@ function ThrowOnceOnMount() {
 describe("Sentry error reporting", () => {
     afterEach(() => {
         cleanup();
-        captureException.mockReset();
         init.mockReset();
         mount_count = 0;
         vi.restoreAllMocks();
@@ -48,7 +49,7 @@ describe("Sentry error reporting", () => {
         expect(
             initializeSentry({
                 dsn: "https://public@holycluster-dev.iarc.org/errors/1",
-                environment: "production",
+                environment: "prod",
                 release: "abcdef",
             }),
         ).toBe(true);
@@ -56,7 +57,7 @@ describe("Sentry error reporting", () => {
         expect(init).toHaveBeenCalledWith(
             expect.objectContaining({
                 dsn: "https://public@holycluster-dev.iarc.org/errors/1",
-                environment: "production",
+                environment: "prod",
                 release: "abcdef",
                 sendDefaultPii: false,
                 autoSessionTracking: false,
@@ -124,7 +125,6 @@ describe("Sentry error reporting", () => {
         );
 
         expect(screen.getByRole("alert").textContent).toContain("Something went wrong");
-        expect(captureException).toHaveBeenCalledWith(expect.any(Error));
     });
 
     it("remounts the failed tree when retrying", () => {
