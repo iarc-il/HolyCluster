@@ -38,11 +38,11 @@ def test_initialize_sentry_sets_service_and_release_metadata(monkeypatch):
     monkeypatch.setattr("shared.telemetry.sentry_sdk.init", sentry_init)
 
     initialize_sentry(
-        SentrySettings(sentry_dsn="https://key@example.invalid/1", sentry_environment="int", sentry_release="v1"),
+        SentrySettings(sentry_dsn="https://key@example.invalid/1", sentry_environment="dev", sentry_release="v1"),
         "collector",
     )
 
-    assert captured["environment"] == "int"
+    assert captured["environment"] == "dev"
     assert captured["release"] == "v1"
     assert captured["initial_scope"] == {"tags": {"service": "collector"}}
 
