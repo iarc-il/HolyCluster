@@ -443,7 +443,7 @@ function FilterModal({
                                             filterOption={(option, text) =>
                                                 option.label
                                                     .toLowerCase()
-                                                    .startsWith(text.toLowerCase())
+                                                    .includes(text.toLowerCase())
                                             }
                                             value={{
                                                 value: temp_data.value,

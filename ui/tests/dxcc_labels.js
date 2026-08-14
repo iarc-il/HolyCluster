@@ -7,6 +7,7 @@ describe("normalize_dxcc_label", () => {
         expect(normalize_dxcc_label("Sov Mil Order of Malta")).toBe(
             "Sovereign Military Order of Malta",
         );
+        expect(normalize_dxcc_label("Asiatic Turkey")).toBe("Turkey");
         expect(normalize_dxcc_label("United States")).toBe("USA");
         expect(normalize_dxcc_label("Fed. Rep. of Germany")).toBe("Germany");
         expect(normalize_dxcc_label("Dem. Rep. of the Congo")).toBe(
