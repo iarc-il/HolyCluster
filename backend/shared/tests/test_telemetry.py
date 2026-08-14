@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from shared.settings import SentrySettings
 from shared import telemetry
 from shared.telemetry import REDACTED, capture_exception, initialize_sentry, scrub_event
@@ -16,6 +19,11 @@ def test_initialize_sentry_is_disabled_without_dsn(monkeypatch):
     assert initialize_sentry(SentrySettings(sentry_environment="dev", sentry_release="test"), "api") is None
     capture_exception(ValueError("not reported"))
     assert not called
+
+
+def test_sentry_metadata_is_required():
+    with pytest.raises(ValidationError):
+        SentrySettings()
 
 
 def test_initialize_sentry_sets_service_and_release_metadata(monkeypatch):
