@@ -107,6 +107,6 @@ async def run_json_spot_collector(
             except Exception as e:
                 logger.exception(f"{source_label} collector failed")
                 await set_value(valkey_client, connected_key, 0)
-                capture_exception(e)
+                capture_exception(e, operation=f"collector.poll.{metric_name}")
                 await push_exception_event(valkey_client, "collector", f"{metric_name}: {e}")
                 await asyncio.sleep(min(poll_interval, 300))

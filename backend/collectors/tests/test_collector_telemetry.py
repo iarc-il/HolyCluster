@@ -15,6 +15,8 @@ SETTINGS_ENV = {
     "QRZ_USER": "test",
     "QRZ_PASSWORD": "test",
     "QRZ_API_KEY": "test",
+    "SENTRY_ENVIRONMENT": "dev",
+    "SENTRY_RELEASE": "test",
     "VALKEY_HOST": "test",
     "VALKEY_PORT": "1",
     "VALKEY_HOST_LOCAL": "test",
@@ -35,7 +37,7 @@ class JsonCollectorTelemetryTest(IsolatedAsyncioTestCase):
             patch("collectors.db.valkey_config.get_valkey_client", return_value=valkey_client),
             patch("collectors.utils.fetch_json_list", side_effect=error),
             patch("collectors.utils.set_value", AsyncMock()) as set_value,
-            patch("collectors.utils.capture_exception", side_effect=captured.append),
+            patch("collectors.utils.capture_exception", side_effect=lambda error, **kwargs: captured.append(error)),
             patch("collectors.utils.push_exception_event", monitor_event),
             patch("collectors.utils.asyncio.sleep", side_effect=asyncio.CancelledError),
         ):

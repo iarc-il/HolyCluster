@@ -161,7 +161,7 @@ async def telnet_and_collect(
             task_logger.exception(f"Connection failed: {host}:{port}  {e}")
             logger.exception(f"Connection failed: {host}:{port}  {e}")
             await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
-            capture_exception(e)
+            capture_exception(e, operation="collector.telnet.reconnect")
             await push_exception_event(valkey_client, "collector", f"telnet {host}:{port}: {e}")
 
         except asyncio.CancelledError:
