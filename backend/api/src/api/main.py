@@ -89,12 +89,12 @@ async def propagation_data_collector(app):
             except Exception as e:
                 sleep = 10
                 logger.exception(f"Failed to persist propagation data: {str(e)}")
-                capture_exception(e)
+                capture_exception(e, operation="api.propagation.persist")
                 await push_exception_event(app.state.valkey_client, "api", f"propagation persist: {e}")
         except Exception as e:
             sleep = 10
             logger.exception(f"Failed to fetch propagation data: {str(e)}")
-            capture_exception(e)
+            capture_exception(e, operation="api.propagation.fetch")
             await push_exception_event(app.state.valkey_client, "api", f"propagation: {e}")
         await asyncio.sleep(sleep)
 
@@ -168,7 +168,7 @@ async def spots_broadcast_task(app):
 
         except Exception as e:
             logger.exception(f"Error in spots broadcast task: {e}")
-            capture_exception(e)
+            capture_exception(e, operation="api.broadcast")
             await push_exception_event(valkey_client, "api", f"broadcast: {e}")
 
 

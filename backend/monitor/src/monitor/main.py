@@ -56,7 +56,7 @@ async def run_monitor():
             all_alerts.extend(metric_alerts)
         except Exception as e:
             logger.exception("Metrics check failed")
-            capture_exception(e)
+            capture_exception(e, operation="monitor.metrics")
 
         try:
             ws_alert = await check_websocket(settings.ws_url, ws_state)
@@ -64,14 +64,14 @@ async def run_monitor():
                 all_alerts.append(ws_alert)
         except Exception as e:
             logger.exception("WebSocket check failed")
-            capture_exception(e)
+            capture_exception(e, operation="monitor.websocket")
 
         try:
             container_alerts = await check_containers(container_states)
             all_alerts.extend(container_alerts)
         except Exception as e:
             logger.exception("Container check failed")
-            capture_exception(e)
+            capture_exception(e, operation="monitor.containers")
 
         if all_alerts:
             logger.warning(f"{len(all_alerts)} alert(s) this cycle")
@@ -82,7 +82,7 @@ async def run_monitor():
                     await notifier.send_alerts(all_alerts)
                 except Exception as e:
                     logger.exception("Failed to send alert")
-                    capture_exception(e)
+                    capture_exception(e, operation="monitor.alerting")
         else:
             logger.info("All checks passed")
 

@@ -200,7 +200,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     continue
                 except Exception as e:
                     logger.exception("Unexpected error enriching spot")
-                    capture_exception(e)
+                    capture_exception(e, operation="collector.enrich")
                     await push_exception_event(valkey_client, "collector", str(e))
                     continue
 
@@ -237,7 +237,7 @@ async def refresh_dxpedition_data(valkey_client):
         except Exception as e:
             sleep = 600
             logger.exception("Failed to refresh DXpedition data")
-            capture_exception(e)
+            capture_exception(e, operation="collector.dxpedition_refresh")
             await push_exception_event(valkey_client, "collector", f"dxpedition refresh: {e}")
         await asyncio.sleep(sleep)
 
@@ -256,7 +256,7 @@ async def refresh_lotw_user_data(valkey_client):
             await update_lotw_user_data()
         except Exception as e:
             logger.exception("Failed to refresh LoTW user activity")
-            capture_exception(e)
+            capture_exception(e, operation="collector.lotw_refresh")
             await push_exception_event(valkey_client, "collector", f"LoTW refresh: {e}")
             sleep = 600
         await asyncio.sleep(sleep)

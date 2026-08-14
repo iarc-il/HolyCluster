@@ -280,7 +280,7 @@ async def handle_spot(data, valkey: redis.asyncio.Redis):
             response["phase"] = e.phase
         if should_alert_submit_failure(e):
             logger.exception(f"Failed to submit spot: {data}, Response: {response}")
-            capture_exception(e)
+            capture_exception(e, operation="api.submit_spot")
             await push_exception_event(valkey, "submit_spot", f"{e.__class__.__name__}: {e}, Spot: {data}")
         else:
             logger.warning(f"Spot submit failure not alerting monitor: {data}, Response: {response}")

@@ -10,13 +10,16 @@ class SubmitSpotTelemetryTest(IsolatedAsyncioTestCase):
         monitor_event = AsyncMock()
         captured = []
 
+        def capture_exception(error, **kwargs):
+            captured.append((error, kwargs))
+
         with (
             patch("api.submit_spot.submit_spot_with_retries", side_effect=error),
-            patch("api.submit_spot.capture_exception", side_effect=captured.append),
+            patch("api.submit_spot.capture_exception", side_effect=capture_exception),
             patch("api.submit_spot.push_exception_event", monitor_event),
         ):
             response = await submit_spot.handle_spot({"dx_callsign": "K1ABC", "frequency": 14074}, object())
 
         self.assertEqual(response["status"], "failure")
-        self.assertEqual(captured, [error])
+        self.assertEqual(captured, [(error, {"operation": "api.submit_spot"})])
         monitor_event.assert_awaited_once()

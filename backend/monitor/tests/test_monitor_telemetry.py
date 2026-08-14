@@ -21,6 +21,10 @@ class MonitorTelemetryTest(IsolatedAsyncioTestCase):
     async def test_monitor_check_failure_reports_without_valkey_event(self):
         error = RuntimeError("monitor check failed")
         captured = []
+
+        def capture_exception(error, **kwargs):
+            captured.append((error, kwargs))
+
         settings = SimpleNamespace(
             monitor_enabled=True,
             valkey_effective_host="test",
@@ -42,10 +46,10 @@ class MonitorTelemetryTest(IsolatedAsyncioTestCase):
             patch("monitor.main.check_metrics", AsyncMock(side_effect=error)),
             patch("monitor.main.check_websocket", AsyncMock(return_value=None)),
             patch("monitor.main.check_containers", AsyncMock(return_value=[])),
-            patch("monitor.main.capture_exception", side_effect=captured.append),
+            patch("monitor.main.capture_exception", side_effect=capture_exception),
             patch("monitor.main.asyncio.sleep", side_effect=asyncio.CancelledError),
         ):
             with self.assertRaises(asyncio.CancelledError):
                 await main.run_monitor()
 
-        self.assertEqual(captured, [error])
+        self.assertEqual(captured, [(error, {"operation": "monitor.metrics"})])
