@@ -47,13 +47,14 @@ fn log_file_filter() -> EnvFilter {
 }
 
 pub fn reporting_enabled(args: &Args) -> bool {
-    if args.backend.is_some() {
+    reporting_enabled_for(SENTRY_ENVIRONMENT, args.dev_server, args.backend.is_some())
+}
+
+fn reporting_enabled_for(environment: &str, dev_server: bool, custom_backend: bool) -> bool {
+    if custom_backend {
         return false;
     }
-    matches!(
-        (SENTRY_ENVIRONMENT, args.dev_server),
-        ("development", true) | ("production", false)
-    )
+    matches!((environment, dev_server), ("dev", true) | ("prod", false))
 }
 
 pub fn configure(reporting_enabled: bool) -> Option<ClientInitGuard> {
@@ -122,24 +123,62 @@ fn scrub_breadcrumb(_: Breadcrumb) -> Option<Breadcrumb> {
 }
 
 fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
+    if is_expected_radio_error(&event) {
+        return None;
+    }
     event.user = None;
     event.request = None;
     event.server_name = None;
     event.contexts.clear();
     event.extra.clear();
     event.tags.clear();
+    event.message = None;
+    event.logentry = None;
+    for exception in &mut event.exception {
+        exception.value = None;
+    }
     event.release = Some(Cow::Borrowed(env!("VERSION")));
     event.environment = Some(Cow::Borrowed(SENTRY_ENVIRONMENT));
     Some(event)
 }
 
+fn is_expected_radio_error(event: &Event<'_>) -> bool {
+    let message = event
+        .message
+        .as_deref()
+        .or_else(|| event.logentry.as_ref().map(|entry| entry.message.as_str()));
+    message.is_some_and(|message| {
+        [
+            "Failed to connect to rigctld",
+            "Failed to send command",
+            "Failed to read response",
+            "Failed to connect to rotctld",
+            "Failed to send rotctld command",
+            "Failed to read rotctld response",
+            "Radio configuration is invalid",
+            "Rotator initialization failed",
+        ]
+        .iter()
+        .any(|expected| message.starts_with(expected))
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::{
+        collections::BTreeMap,
+        sync::Arc,
+        time::{Duration, Instant},
+    };
 
-    use sentry::protocol::{Context, Request, User};
+    use sentry::{
+        Client, ClientOptions,
+        protocol::{Context, Event, Exception, Request, User},
+    };
 
-    use super::{SENTRY_ENVIRONMENT, configure_sentry, scrub_breadcrumb, scrub_event};
+    use super::{
+        SENTRY_ENVIRONMENT, configure_sentry, reporting_enabled_for, scrub_breadcrumb, scrub_event,
+    };
 
     #[test]
     fn skips_sentry_without_a_dsn() {
@@ -159,6 +198,11 @@ mod tests {
             .insert("radio".into(), Context::Other(BTreeMap::new()));
         event.extra.insert("token".into(), "secret".into());
         event.tags.insert("callsign".into(), "N0CALL".into());
+        event.message = Some("private radio failure".into());
+        event.exception.values.push(Exception {
+            value: Some("private exception".into()),
+            ..Default::default()
+        });
         event.release = Some("untrusted".into());
         event.environment = Some("untrusted".into());
 
@@ -170,6 +214,14 @@ mod tests {
         assert!(event.contexts.is_empty());
         assert!(event.extra.is_empty());
         assert!(event.tags.is_empty());
+        assert!(event.message.is_none());
+        assert!(event.logentry.is_none());
+        assert!(
+            event
+                .exception
+                .iter()
+                .all(|exception| exception.value.is_none())
+        );
         assert_eq!(event.release.as_deref(), Some(env!("VERSION")));
         assert_eq!(event.environment.as_deref(), Some(SENTRY_ENVIRONMENT));
     }
@@ -177,5 +229,45 @@ mod tests {
     #[test]
     fn drops_breadcrumbs() {
         assert!(scrub_breadcrumb(sentry::protocol::Breadcrumb::default()).is_none());
+    }
+
+    #[test]
+    fn enables_only_matching_deployments() {
+        assert!(reporting_enabled_for("dev", true, false));
+        assert!(reporting_enabled_for("prod", false, false));
+        assert!(!reporting_enabled_for("dev", false, false));
+        assert!(!reporting_enabled_for("prod", true, false));
+        assert!(!reporting_enabled_for("dev", true, true));
+    }
+
+    #[test]
+    fn drops_expected_radio_errors() {
+        let event = Event {
+            message: Some("Failed to connect to rigctld: refused".into()),
+            ..Default::default()
+        };
+
+        assert!(scrub_event(event).is_none());
+    }
+
+    #[test]
+    fn offline_transport_does_not_block_event_capture() {
+        let options = ClientOptions {
+            dsn: Some("http://public@127.0.0.1:1/1".parse().unwrap()),
+            default_integrations: false,
+            shutdown_timeout: Duration::ZERO,
+            ..Default::default()
+        };
+        let transport = Arc::new(sentry::transports::ReqwestHttpTransport::new(&options));
+        let client = Client::from(ClientOptions {
+            transport: Some(Arc::new(transport)),
+            ..options
+        });
+
+        let started = Instant::now();
+        client.capture_event(Event::default(), None);
+
+        assert!(started.elapsed() < Duration::from_millis(100));
+        client.close(Some(Duration::ZERO));
     }
 }
