@@ -3,6 +3,7 @@ const DXCC_ENTITY_ALIASES = {
     "Agalega & St. Brandon Is.": "Agalega and St. Brandon Islands",
     "Andaman & Nicobar Is.": "Andaman and Nicobar Islands",
     "Antigua & Barbuda": "Antigua and Barbuda",
+    "Asiatic Turkey": "Turkey",
     "Auckland & Campbell Is.": "Auckland & Campbell Islands",
     "Baker & Howland Is.": "Baker Howland Islands",
     "Baker & Howland Islands": "Baker Howland Islands",
