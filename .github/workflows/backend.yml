@@ -54,6 +54,8 @@ jobs:
         env:
           LOG_DIR: ${{ runner.temp }}/holy
           UI_DIST_PATH: ${{ runner.temp }}/ui
+          SENTRY_ENVIRONMENT: dev
+          SENTRY_RELEASE: test
         run: |
           cp .env.example .env
           mkdir -p "$UI_DIST_PATH/assets"

@@ -1,8 +1,8 @@
 from pydantic import Field
-from shared.settings import ValkeySettings
+from shared.settings import SentrySettings, ValkeySettings
 
 
-class MonitorSettings(ValkeySettings):
+class MonitorSettings(ValkeySettings, SentrySettings):
     monitor_enabled: bool = Field(default=True, description="Is the monitor enabled")
     instance_name: str = Field(description="Instance name prepended to every alert")
     check_interval: int = Field(default=60, description="Seconds between check cycles")

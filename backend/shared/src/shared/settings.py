@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -97,8 +98,8 @@ class SentrySettings(BaseSettings):
     )
 
     sentry_dsn: str | None = Field(default=None, description="Sentry DSN")
-    sentry_environment: str = Field(default="production", description="Sentry environment")
-    sentry_release: str | None = Field(default=None, description="Sentry release")
+    sentry_environment: Literal["dev", "int", "prod"] = Field(description="Sentry environment")
+    sentry_release: str = Field(min_length=1, description="Sentry release")
 
 
 class QrzSettings(BaseSettings):

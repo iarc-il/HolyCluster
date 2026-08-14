@@ -1,5 +1,6 @@
 import httpx
 from loguru import logger
+from shared.telemetry import capture_exception
 
 from monitor.state import Alert
 
@@ -30,5 +31,6 @@ class TelegramNotifier(AlertNotifier):
             )
             if resp.status_code != 200:
                 logger.error(f"Telegram API error: {resp.status_code} {resp.text}")
-        except Exception:
+        except Exception as e:
             logger.exception("Failed to send Telegram alert")
+            capture_exception(e)

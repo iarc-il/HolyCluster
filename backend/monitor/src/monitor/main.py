@@ -9,6 +9,7 @@ from monitor.checks.metrics import check_metrics
 from monitor.checks.spot_flow import check_websocket
 from monitor.settings import settings
 from monitor.state import Alert, CheckState
+from shared.telemetry import capture_exception, initialize_sentry
 
 
 async def run_monitor():
@@ -53,21 +54,24 @@ async def run_monitor():
                 telnet_states=telnet_states,
             )
             all_alerts.extend(metric_alerts)
-        except Exception:
+        except Exception as e:
             logger.exception("Metrics check failed")
+            capture_exception(e)
 
         try:
             ws_alert = await check_websocket(settings.ws_url, ws_state)
             if ws_alert:
                 all_alerts.append(ws_alert)
-        except Exception:
+        except Exception as e:
             logger.exception("WebSocket check failed")
+            capture_exception(e)
 
         try:
             container_alerts = await check_containers(container_states)
             all_alerts.extend(container_alerts)
-        except Exception:
+        except Exception as e:
             logger.exception("Container check failed")
+            capture_exception(e)
 
         if all_alerts:
             logger.warning(f"{len(all_alerts)} alert(s) this cycle")
@@ -76,8 +80,9 @@ async def run_monitor():
             for notifier in notifiers:
                 try:
                     await notifier.send_alerts(all_alerts)
-                except Exception:
+                except Exception as e:
                     logger.exception("Failed to send alert")
+                    capture_exception(e)
         else:
             logger.info("All checks passed")
 
@@ -85,6 +90,7 @@ async def run_monitor():
 
 
 def main():
+    initialize_sentry(settings, "monitor")
     asyncio.run(run_monitor())
 
 
