@@ -47,6 +47,10 @@ docker compose -p glitchtip logs --tail=100 glitchtip-web
 The web service has no published host port. It is reachable only through the
 shared Docker proxy network.
 
+`GLITCHTIP_DOMAIN` identifies the host, while `GLITCHTIP_URL` identifies the
+full public URL including `/errors`. The latter is required so generated DSNs
+and links include the deployment prefix.
+
 ## Bootstrap
 
 Open `https://holycluster-dev.iarc.org/errors/` and create the initial
