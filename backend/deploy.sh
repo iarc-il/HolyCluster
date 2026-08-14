@@ -32,6 +32,12 @@ if [ -z "$CHANGED_FILES" ]; then
     exit 0
 fi
 
+if grep -q '^SENTRY_RELEASE=' .env; then
+    sed -i "s/^SENTRY_RELEASE=.*/SENTRY_RELEASE=$CURRENT_HEAD/" .env
+else
+    printf '\nSENTRY_RELEASE=%s\n' "$CURRENT_HEAD" >> .env
+fi
+
 echo "Changed files:"
 echo "$CHANGED_FILES"
 echo ""
