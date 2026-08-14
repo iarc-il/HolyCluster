@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    volumes:
+      - pg-data:/var/lib/postgresql
+
+  valkey:
+    image: ${VALKEY_IMAGE}
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  glitchtip-web:
+    image: ${GLITCHTIP_IMAGE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      VALKEY_URL: redis://valkey:6379
+      SECRET_KEY: ${SECRET_KEY}
+      EMAIL_URL: ${EMAIL_URL}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL}
+      GLITCHTIP_DOMAIN: ${GLITCHTIP_DOMAIN}
+      BASE_PATH: ${BASE_PATH}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS}
+      SERVER_ROLE: all_in_one
+      ENABLE_ADMIN: ${ENABLE_ADMIN}
+      ENABLE_OPENAPI: ${ENABLE_OPENAPI}
+      ENABLE_USER_REGISTRATION: ${ENABLE_USER_REGISTRATION}
+      ENABLE_ORGANIZATION_CREATION: ${ENABLE_ORGANIZATION_CREATION}
+      GLITCHTIP_ENABLE_MCP: ${GLITCHTIP_ENABLE_MCP}
+      GLITCHTIP_ENABLE_DUCKDB: ${GLITCHTIP_ENABLE_DUCKDB}
+      GLITCHTIP_ENABLE_LOGS: ${GLITCHTIP_ENABLE_LOGS}
+      GLITCHTIP_ENABLE_UPTIME: ${GLITCHTIP_ENABLE_UPTIME}
+      GLITCHTIP_RETENTION_DAYS: ${GLITCHTIP_RETENTION_DAYS}
+      GLITCHTIP_FILE_RETENTION_DAYS: ${GLITCHTIP_FILE_RETENTION_DAYS}
+    restart: unless-stopped
+    networks:
+      - default
+      - proxy
+    volumes:
+      - uploads:/code/uploads
+
+volumes:
+  pg-data:
+  uploads:
+
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK}
