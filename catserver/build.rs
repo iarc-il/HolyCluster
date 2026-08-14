@@ -27,8 +27,8 @@ fn main() -> io::Result<()> {
     }
     println!("cargo:rustc-env=VERSION={version}");
     let sentry_environment =
-        env::var("CATSERVER_SENTRY_ENVIRONMENT").unwrap_or_else(|_| "development".into());
-    if !matches!(sentry_environment.as_str(), "development" | "production") {
+        env::var("CATSERVER_SENTRY_ENVIRONMENT").unwrap_or_else(|_| "dev".into());
+    if !matches!(sentry_environment.as_str(), "dev" | "prod") {
         panic!("Invalid Sentry environment: {sentry_environment}");
     }
     println!("cargo:rustc-env=CATSERVER_SENTRY_ENVIRONMENT={sentry_environment}");
