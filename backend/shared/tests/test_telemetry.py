@@ -21,9 +21,12 @@ def test_initialize_sentry_is_disabled_without_dsn(monkeypatch):
     assert not called
 
 
-def test_sentry_metadata_is_required():
+def test_sentry_metadata_is_required(monkeypatch):
+    monkeypatch.delenv("SENTRY_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("SENTRY_RELEASE", raising=False)
+
     with pytest.raises(ValidationError):
-        SentrySettings()
+        SentrySettings(_env_file=None)
 
 
 def test_initialize_sentry_sets_service_and_release_metadata(monkeypatch):
