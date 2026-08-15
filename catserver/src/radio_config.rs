@@ -209,7 +209,14 @@ impl RadioConfig {
             _ => return Err(RadioConfigError::UnknownBackend(config.backend)),
         };
         let (rig1, rig2) = match backend {
-            RadioBackendKind::Unconfigured => (RadioRigConfig::unconfigured(), None),
+            RadioBackendKind::Unconfigured => (
+                RadioRigConfig {
+                    backend: RadioBackendKind::Unconfigured,
+                    hamlib: None,
+                    rigctld: None,
+                },
+                None,
+            ),
             RadioBackendKind::Hamlib => {
                 let hamlib = config
                     .hamlib
