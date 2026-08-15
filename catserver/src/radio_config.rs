@@ -37,29 +37,10 @@ pub struct HamlibRigConfig {
     pub token_values: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, Serialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub struct RigctldConfig {
     pub host: String,
     pub port: u16,
-}
-
-#[derive(Deserialize)]
-struct SerializedRigctldConfig {
-    host: Option<String>,
-    port: Option<u16>,
-}
-
-impl<'de> Deserialize<'de> for RigctldConfig {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let config = SerializedRigctldConfig::deserialize(deserializer)?;
-        Ok(Self {
-            host: config.host.unwrap_or_else(|| DEFAULT_RIGCTLD_HOST.into()),
-            port: config.port.unwrap_or(DEFAULT_RIGCTLD_PORT),
-        })
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
