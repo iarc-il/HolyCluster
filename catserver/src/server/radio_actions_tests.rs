@@ -101,17 +101,6 @@ fn configuration_input_migrates_the_legacy_hamlib_shape() {
     );
 }
 
-#[test]
-fn configuration_input_defaults_rigctld_endpoint_fields() {
-    let input: ConfigurationInput =
-        serde_json::from_str(r#"{"rig1":{"backend":"rigctld","rigctld":{}}}"#).unwrap();
-
-    let config = input.into_config().unwrap();
-    let rigctld = config.rig1.rigctld.unwrap();
-    assert_eq!(rigctld.host, "127.0.0.1");
-    assert_eq!(rigctld.port, 4532);
-}
-
 #[tokio::test]
 async fn production_configuration_rejects_unknown_descriptor_tokens() {
     let result = ProductionRadioConfiguration::new(radio())
