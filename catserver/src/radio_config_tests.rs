@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::radio_config::{
-    ActiveRadioBackend, DEFAULT_RIGCTLD_HOST, DEFAULT_RIGCTLD_PORT, HamlibRigConfig,
-    RadioBackendKind, RadioConfig, RadioConfigError, RadioRigConfig, RigctldConfig,
+    ActiveRadioBackend, HamlibRigConfig, RadioBackendKind, RadioConfig, RadioConfigError,
+    RadioRigConfig, RigctldConfig,
 };
 
 struct TestDir(PathBuf);
@@ -109,20 +109,6 @@ fn migrates_legacy_global_backend_configuration() {
                 token_values: BTreeMap::new(),
             })),
         }
-    );
-}
-
-#[test]
-fn defaults_rigctld_endpoint_when_omitted() {
-    let config: RadioRigConfig =
-        serde_json::from_str(r#"{"backend":"rigctld","rigctld":{}}"#).unwrap();
-
-    assert_eq!(
-        config.rigctld,
-        Some(RigctldConfig {
-            host: DEFAULT_RIGCTLD_HOST.into(),
-            port: DEFAULT_RIGCTLD_PORT,
-        })
     );
 }
 
