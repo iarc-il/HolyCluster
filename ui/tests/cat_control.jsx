@@ -74,6 +74,14 @@ describe("CAT control settings", () => {
         expect(screen.getByRole("option", { name: "Rig 2" })).not.toBeNull();
     });
 
+    it("prompts first-run users to choose a backend", () => {
+        radio.current.radio_configuration = configuration({ backend: "unconfigured" });
+        render_cat();
+
+        expect(screen.getByLabelText("Backend").value).toBe("unconfigured");
+        expect(screen.getByRole("option", { name: "Choose a backend" }).disabled).toBe(true);
+    });
+
     it("preserves independent rig drafts while switching rigs and backends", async () => {
         const user = userEvent.setup();
         render_cat();

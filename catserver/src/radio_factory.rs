@@ -37,6 +37,7 @@ fn build(
 
 fn radio(config: &RadioRigConfig, rig: u8) -> FixedRigRadio {
     let radio: Box<dyn Radio> = match config.backend {
+        RadioBackendKind::Unconfigured => Box::new(UnavailableRadio::new("unconfigured")),
         RadioBackendKind::Hamlib => config
             .hamlib
             .clone()

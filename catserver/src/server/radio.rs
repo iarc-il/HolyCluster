@@ -78,6 +78,7 @@ fn backend_name(backend: RadioBackendKind) -> &'static str {
         RadioBackendKind::Omnirig => "omnirig",
         RadioBackendKind::Rigctld => "rigctld",
         RadioBackendKind::Hamlib => "hamlib",
+        RadioBackendKind::Unconfigured => "unconfigured",
     }
 }
 
