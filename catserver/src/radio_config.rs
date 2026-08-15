@@ -37,12 +37,29 @@ pub struct HamlibRigConfig {
     pub token_values: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Eq, PartialEq)]
 pub struct RigctldConfig {
-    #[serde(default = "default_rigctld_host")]
     pub host: String,
-    #[serde(default = "default_rigctld_port")]
     pub port: u16,
+}
+
+#[derive(Deserialize)]
+struct SerializedRigctldConfig {
+    host: Option<String>,
+    port: Option<u16>,
+}
+
+impl<'de> Deserialize<'de> for RigctldConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let config = SerializedRigctldConfig::deserialize(deserializer)?;
+        Ok(Self {
+            host: config.host.unwrap_or_else(|| DEFAULT_RIGCTLD_HOST.into()),
+            port: config.port.unwrap_or(DEFAULT_RIGCTLD_PORT),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
@@ -310,8 +327,8 @@ impl RadioRigConfig {
 impl Default for RigctldConfig {
     fn default() -> Self {
         Self {
-            host: default_rigctld_host(),
-            port: default_rigctld_port(),
+            host: DEFAULT_RIGCTLD_HOST.into(),
+            port: DEFAULT_RIGCTLD_PORT,
         }
     }
 }
@@ -347,12 +364,4 @@ fn is_descriptor_token(token: &str) -> bool {
     let mut characters = token.chars();
     matches!(characters.next(), Some(character) if character.is_ascii_alphabetic())
         && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
-}
-
-fn default_rigctld_host() -> String {
-    DEFAULT_RIGCTLD_HOST.into()
-}
-
-const fn default_rigctld_port() -> u16 {
-    DEFAULT_RIGCTLD_PORT
 }
