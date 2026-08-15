@@ -7,7 +7,7 @@ use std::{
 use crate::{
     dummy::DummyRadio,
     radio_actor::Worker,
-    radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig, RadioRigConfig},
+    radio_config::RadioConfig,
     radio_manager::{ConnectionState, RadioManager},
     rig::{Mode, Radio, RadioInitError, Slot, Status},
 };
@@ -107,31 +107,6 @@ async fn failed_candidate_keeps_selected_backend_observable() {
         .unwrap();
     assert_eq!(manager.snapshot().connection, ConnectionState::Disconnected);
     assert!(manager.snapshot().last_error.is_some());
-    manager.shutdown().await.unwrap();
-}
-
-#[tokio::test]
-async fn invalid_candidate_preserves_active_radio() {
-    let manager = manager().await;
-    let invalid = RadioConfig {
-        rig1: RadioRigConfig {
-            backend: RadioBackendKind::Hamlib,
-            hamlib: None,
-            rigctld: None,
-        },
-        rig2: None,
-    };
-    assert!(
-        manager
-            .replace(
-                invalid,
-                ActiveRadioBackend::Configured(RadioBackendKind::Hamlib),
-                || Box::new(FailingRadio)
-            )
-            .await
-            .is_err()
-    );
-    assert_eq!(manager.status().status, "connected");
     manager.shutdown().await.unwrap();
 }
 

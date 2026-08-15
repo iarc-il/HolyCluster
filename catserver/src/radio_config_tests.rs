@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::radio_config::{
-    ActiveRadioBackend, HamlibRigConfig, RadioBackendKind, RadioConfig, RadioConfigError,
-    RadioRigConfig, RigctldConfig,
+    ActiveRadioBackend, HamlibRigConfig, RadioConfig, RadioConfigError, RadioRigConfig,
+    RigctldConfig,
 };
 
 struct TestDir(PathBuf);
@@ -35,10 +35,12 @@ impl Drop for TestDir {
 }
 
 fn hamlib(model_id: &str) -> RadioRigConfig {
-    RadioRigConfig::hamlib(HamlibRigConfig {
-        model_id: model_id.into(),
-        token_values: BTreeMap::from([("rig_pathname".into(), "/dev/ttyUSB0".into())]),
-    })
+    RadioRigConfig::Hamlib {
+        hamlib: HamlibRigConfig {
+            model_id: model_id.into(),
+            token_values: BTreeMap::from([("rig_pathname".into(), "/dev/ttyUSB0".into())]),
+        },
+    }
 }
 
 fn two_rig_config() -> RadioConfig {
@@ -61,14 +63,7 @@ fn returns_platform_default_when_config_file_is_missing() {
 fn defaults_to_an_unconfigured_rig_without_connecting_to_rigctld() {
     let config = RadioConfig::platform_default();
 
-    assert_eq!(
-        config.rig1,
-        RadioRigConfig {
-            backend: RadioBackendKind::Unconfigured,
-            hamlib: None,
-            rigctld: None,
-        }
-    );
+    assert_eq!(config.rig1, RadioRigConfig::Unconfigured);
     assert!(config.rig2.is_none());
 }
 
@@ -89,40 +84,14 @@ fn round_trips_independently_configured_rigs() {
 }
 
 #[test]
-fn migrates_legacy_global_backend_configuration() {
-    let directory = TestDir::new();
-    fs::write(
-        directory.file(),
-        r#"{"version":1,"backend":"hamlib","hamlib":{"rig1":{"model_id":"1","token_values":{}},"rig2":{"model_id":"2","token_values":{}}}}"#,
-    )
-    .unwrap();
-
-    assert_eq!(
-        RadioConfig::load_from_path(&directory.file()).unwrap(),
-        RadioConfig {
-            rig1: RadioRigConfig::hamlib(HamlibRigConfig {
-                model_id: "1".into(),
-                token_values: BTreeMap::new(),
-            }),
-            rig2: Some(RadioRigConfig::hamlib(HamlibRigConfig {
-                model_id: "2".into(),
-                token_values: BTreeMap::new(),
-            })),
-        }
-    );
-}
-
 #[cfg(not(windows))]
-#[test]
 fn rejects_invalid_rigctld_endpoints() {
     let config = RadioConfig {
-        rig1: RadioRigConfig {
-            backend: RadioBackendKind::Rigctld,
-            hamlib: None,
-            rigctld: Some(RigctldConfig {
+        rig1: RadioRigConfig::Rigctld {
+            rigctld: RigctldConfig {
                 host: " ".into(),
                 port: 0,
-            }),
+            },
         },
         rig2: None,
     };
@@ -133,13 +102,11 @@ fn rejects_invalid_rigctld_endpoints() {
     ));
 
     let config = RadioConfig {
-        rig1: RadioRigConfig {
-            backend: RadioBackendKind::Rigctld,
-            hamlib: None,
-            rigctld: Some(RigctldConfig {
+        rig1: RadioRigConfig::Rigctld {
+            rigctld: RigctldConfig {
                 host: "127.0.0.1".into(),
                 port: 0,
-            }),
+            },
         },
         rig2: None,
     };
@@ -151,7 +118,7 @@ fn rejects_invalid_rigctld_endpoints() {
 }
 
 #[test]
-fn rejects_unknown_schema_version_and_backend() {
+fn rejects_unknown_schema_version() {
     let directory = TestDir::new();
 
     fs::write(
@@ -162,12 +129,6 @@ fn rejects_unknown_schema_version_and_backend() {
     assert!(matches!(
         RadioConfig::load_from_path(&directory.file()),
         Err(RadioConfigError::UnsupportedVersion(3))
-    ));
-
-    fs::write(directory.file(), r#"{"version":1,"backend":"unknown"}"#).unwrap();
-    assert!(matches!(
-        RadioConfig::load_from_path(&directory.file()),
-        Err(RadioConfigError::UnknownBackend(_))
     ));
 }
 
@@ -212,7 +173,7 @@ fn dummy_override_is_explicit_and_never_persisted() {
     assert_eq!(config.effective_backend(true), ActiveRadioBackend::Dummy);
     assert_eq!(
         config.effective_backend(false),
-        ActiveRadioBackend::Configured(config.rig1.backend)
+        ActiveRadioBackend::Configured(config.rig1.backend())
     );
     assert!(!persisted.contains("dummy"));
 }

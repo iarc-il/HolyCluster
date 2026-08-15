@@ -3,7 +3,7 @@ use crate::{
     freq::Freq,
     hamlib_radio::HamlibRadio,
     radio_actor::RadioFactory,
-    radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig, RadioRigConfig},
+    radio_config::{ActiveRadioBackend, RadioConfig, RadioRigConfig},
     rig::{Mode, Radio, RadioInitError, Slot, Status, UnavailableRadio},
 };
 
@@ -36,27 +36,19 @@ fn build(
 }
 
 fn radio(config: &RadioRigConfig) -> Box<dyn Radio> {
-    match config.backend {
-        RadioBackendKind::Unconfigured => Box::new(UnavailableRadio::new("unconfigured")),
-        RadioBackendKind::Hamlib => config
-            .hamlib
-            .clone()
-            .map(|hamlib| Box::new(HamlibRadio::new(hamlib, None)) as Box<dyn Radio>)
-            .unwrap_or_else(|| Box::new(UnavailableRadio::new("hamlib"))),
+    match config {
+        RadioRigConfig::Unconfigured => Box::new(UnavailableRadio::new("unconfigured")),
+        RadioRigConfig::Hamlib { hamlib } => Box::new(HamlibRadio::new(hamlib.clone(), None)),
         #[cfg(not(windows))]
-        RadioBackendKind::Rigctld => config
-            .rigctld
-            .as_ref()
-            .map(|rigctld| {
-                Box::new(RigctldRadio::new(rigctld.host.clone(), rigctld.port)) as Box<dyn Radio>
-            })
-            .unwrap_or_else(|| Box::new(UnavailableRadio::new("rigctld"))),
+        RadioRigConfig::Rigctld { rigctld } => {
+            Box::new(RigctldRadio::new(rigctld.host.clone(), rigctld.port))
+        }
         #[cfg(windows)]
-        RadioBackendKind::Omnirig => Box::new(OmnirigRadio::new()),
+        RadioRigConfig::Omnirig => Box::new(OmnirigRadio::new()),
         #[cfg(not(windows))]
-        RadioBackendKind::Omnirig => Box::new(UnavailableRadio::new("omnirig")),
+        RadioRigConfig::Omnirig => Box::new(UnavailableRadio::new("omnirig")),
         #[cfg(windows)]
-        RadioBackendKind::Rigctld => Box::new(UnavailableRadio::new("rigctld")),
+        RadioRigConfig::Rigctld { .. } => Box::new(UnavailableRadio::new("rigctld")),
     }
 }
 

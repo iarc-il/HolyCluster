@@ -3,7 +3,7 @@ use axum::extract::ws::Message;
 use serde::Serialize;
 
 use crate::{
-    radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig},
+    radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig, RadioRigConfig},
     radio_manager::{ConnectionState, RadioManager},
     rig::Status,
 };
@@ -65,8 +65,8 @@ fn backend(backend: ActiveRadioBackend, config: &RadioConfig, current_rig: u8) -
                 2 => config
                     .rig2
                     .as_ref()
-                    .map_or(config.rig1.backend, |rig| rig.backend),
-                _ => config.rig1.backend,
+                    .map_or(config.rig1.backend(), RadioRigConfig::backend),
+                _ => config.rig1.backend(),
             };
             backend_name(backend)
         }

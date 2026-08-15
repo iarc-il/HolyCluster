@@ -6,7 +6,7 @@ use crate::{radio_config::RadioConfig, radio_manager::RadioManager};
 
 use super::{
     radio::message,
-    radio_configuration::{ConfigurationInput, ConfigurationResult, RadioConfiguration},
+    radio_configuration::RadioConfiguration,
     radio_control::{ControlMessage, process_control},
 };
 
@@ -43,7 +43,7 @@ enum ClientMessage {
     },
     GetRadioConfiguration,
     SetRadioConfiguration {
-        configuration: Box<ConfigurationInput>,
+        configuration: Box<RadioConfig>,
     },
     RetryRadio,
 }
@@ -119,13 +119,7 @@ async fn process(
         ),
         ClientMessage::SetRadioConfiguration { configuration } => (
             "configuration_result",
-            serde_json::to_value(match (*configuration).into_config() {
-                Ok(value) => service.set_configuration(value).await,
-                Err(error) => ConfigurationResult {
-                    ok: false,
-                    error: Some(error),
-                },
-            })?,
+            serde_json::to_value(service.set_configuration(*configuration).await)?,
         ),
         ClientMessage::RetryRadio => {
             radio.retry().await?;

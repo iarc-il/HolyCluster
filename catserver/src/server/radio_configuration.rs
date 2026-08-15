@@ -1,13 +1,10 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::{
     args::{DEFAULT_RIGCTLD_HOST, DEFAULT_RIGCTLD_PORT},
-    radio_config::{
-        HamlibRigConfig, LegacyHamlibConfig, LegacyRadioConfig, RadioBackendKind, RadioConfig,
-        RadioRigConfig,
-    },
+    radio_config::{HamlibRigConfig, RadioConfig, RadioRigConfig},
     radio_factory,
     radio_manager::RadioManager,
 };
@@ -152,7 +149,7 @@ fn validate_rig_configuration(
         message: error.to_string(),
         token: config_token(&error),
     })?;
-    if let Some(hamlib) = &configuration.hamlib {
+    if let RadioRigConfig::Hamlib { hamlib } = configuration {
         validate_rig(&format!("{field}.hamlib"), hamlib)?;
     }
     Ok(())
@@ -188,58 +185,6 @@ fn validate_rig(field: &str, configuration: &HamlibRigConfig) -> Result<(), Fiel
 
 pub(super) fn production(radio: RadioManager) -> RadioConfiguration {
     Arc::new(ProductionRadioConfiguration { radio })
-}
-
-pub(super) fn parse_backend(value: &str) -> Result<RadioBackendKind, FieldError> {
-    match value {
-        "unconfigured" => Ok(RadioBackendKind::Unconfigured),
-        "omnirig" => Ok(RadioBackendKind::Omnirig),
-        "rigctld" => Ok(RadioBackendKind::Rigctld),
-        "hamlib" => Ok(RadioBackendKind::Hamlib),
-        _ => Err(FieldError {
-            field: "backend".into(),
-            message: format!("unknown backend: {value}"),
-            token: None,
-        }),
-    }
-}
-
-#[derive(Deserialize)]
-pub(super) struct ConfigurationInput {
-    #[serde(default)]
-    pub(super) rig1: Option<RadioRigConfig>,
-    #[serde(default)]
-    pub(super) rig2: Option<RadioRigConfig>,
-    #[serde(default)]
-    pub(super) backend: Option<String>,
-    #[serde(default)]
-    pub(super) hamlib: Option<LegacyHamlibConfig>,
-}
-
-impl ConfigurationInput {
-    pub(super) fn into_config(self) -> Result<RadioConfig, FieldError> {
-        if let Some(rig1) = self.rig1 {
-            return Ok(RadioConfig {
-                rig1,
-                rig2: self.rig2,
-            });
-        }
-        let backend = self.backend.ok_or_else(|| FieldError {
-            field: "rig1".into(),
-            message: "missing rig 1 configuration".into(),
-            token: None,
-        })?;
-        parse_backend(&backend)?;
-        RadioConfig::from_legacy(LegacyRadioConfig {
-            backend,
-            hamlib: self.hamlib,
-        })
-        .map_err(|error| FieldError {
-            field: config_field("rig1", &error),
-            message: error.to_string(),
-            token: config_token(&error),
-        })
-    }
 }
 
 fn invalid_model(model_id: &str) -> FieldError {

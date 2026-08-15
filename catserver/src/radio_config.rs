@@ -44,12 +44,12 @@ pub struct RigctldConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
-pub struct RadioRigConfig {
-    pub backend: RadioBackendKind,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hamlib: Option<HamlibRigConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rigctld: Option<RigctldConfig>,
+#[serde(tag = "backend", rename_all = "snake_case")]
+pub enum RadioRigConfig {
+    Unconfigured,
+    Omnirig,
+    Rigctld { rigctld: RigctldConfig },
+    Hamlib { hamlib: HamlibRigConfig },
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
@@ -67,10 +67,7 @@ pub enum RadioConfigError {
     Json(serde_json::Error),
     Serialize(serde_json::Error),
     UnsupportedVersion(u8),
-    UnknownBackend(String),
     PlatformUnsupportedBackend(RadioBackendKind),
-    MissingBackendConfiguration(RadioBackendKind),
-    UnexpectedBackendConfiguration,
     InvalidModelId(String),
     InvalidToken(String),
     InvalidRigctldHost(String),
@@ -90,20 +87,6 @@ impl std::error::Error for RadioConfigError {}
 #[derive(Deserialize)]
 struct ConfigHeader {
     version: u8,
-}
-
-#[derive(Deserialize)]
-pub(crate) struct LegacyRadioConfig {
-    pub(crate) backend: String,
-    #[serde(default)]
-    pub(crate) hamlib: Option<LegacyHamlibConfig>,
-}
-
-#[derive(Deserialize)]
-pub(crate) struct LegacyHamlibConfig {
-    pub(crate) rig1: HamlibRigConfig,
-    #[serde(default)]
-    pub(crate) rig2: Option<HamlibRigConfig>,
 }
 
 #[derive(Serialize)]
@@ -137,13 +120,10 @@ impl RadioConfig {
         };
         let header: ConfigHeader =
             serde_json::from_str(&contents).map_err(RadioConfigError::Json)?;
-        let config = match header.version {
-            1 => {
-                Self::from_legacy(serde_json::from_str(&contents).map_err(RadioConfigError::Json)?)?
-            }
-            SCHEMA_VERSION => serde_json::from_str(&contents).map_err(RadioConfigError::Json)?,
-            version => return Err(RadioConfigError::UnsupportedVersion(version)),
-        };
+        if header.version != SCHEMA_VERSION {
+            return Err(RadioConfigError::UnsupportedVersion(header.version));
+        }
+        let config: Self = serde_json::from_str(&contents).map_err(RadioConfigError::Json)?;
         config.validate()?;
         Ok(config)
     }
@@ -194,40 +174,8 @@ impl RadioConfig {
         if dummy {
             ActiveRadioBackend::Dummy
         } else {
-            ActiveRadioBackend::Configured(self.rig1.backend)
+            ActiveRadioBackend::Configured(self.rig1.backend())
         }
-    }
-
-    pub(crate) fn from_legacy(config: LegacyRadioConfig) -> Result<Self, RadioConfigError> {
-        let backend = match config.backend.as_str() {
-            "unconfigured" => RadioBackendKind::Unconfigured,
-            "omnirig" => RadioBackendKind::Omnirig,
-            "rigctld" => RadioBackendKind::Rigctld,
-            "hamlib" => RadioBackendKind::Hamlib,
-            _ => return Err(RadioConfigError::UnknownBackend(config.backend)),
-        };
-        let (rig1, rig2) = match backend {
-            RadioBackendKind::Unconfigured => (
-                RadioRigConfig {
-                    backend: RadioBackendKind::Unconfigured,
-                    hamlib: None,
-                    rigctld: None,
-                },
-                None,
-            ),
-            RadioBackendKind::Hamlib => {
-                let hamlib = config
-                    .hamlib
-                    .ok_or(RadioConfigError::MissingBackendConfiguration(backend))?;
-                (
-                    RadioRigConfig::hamlib(hamlib.rig1),
-                    hamlib.rig2.map(RadioRigConfig::hamlib),
-                )
-            }
-            RadioBackendKind::Rigctld => (RadioRigConfig::rigctld_default(), None),
-            RadioBackendKind::Omnirig => (RadioRigConfig::omnirig(), None),
-        };
-        Ok(Self { rig1, rig2 })
     }
 
     fn persisted(&self) -> PersistedConfig<'_> {
@@ -258,49 +206,28 @@ impl RadioBackendKind {
 }
 
 impl RadioRigConfig {
-    pub fn hamlib(hamlib: HamlibRigConfig) -> Self {
-        Self {
-            backend: RadioBackendKind::Hamlib,
-            hamlib: Some(hamlib),
-            rigctld: None,
-        }
-    }
-
-    pub fn rigctld_default() -> Self {
-        Self {
-            backend: RadioBackendKind::Rigctld,
-            hamlib: None,
-            rigctld: Some(RigctldConfig::default()),
-        }
-    }
-
-    pub fn omnirig() -> Self {
-        Self {
-            backend: RadioBackendKind::Omnirig,
-            hamlib: None,
-            rigctld: None,
-        }
-    }
-
     fn platform_default() -> Self {
-        Self {
-            backend: RadioBackendKind::Unconfigured,
-            hamlib: None,
-            rigctld: None,
+        Self::Unconfigured
+    }
+
+    pub const fn backend(&self) -> RadioBackendKind {
+        match self {
+            Self::Unconfigured => RadioBackendKind::Unconfigured,
+            Self::Omnirig => RadioBackendKind::Omnirig,
+            Self::Rigctld { .. } => RadioBackendKind::Rigctld,
+            Self::Hamlib { .. } => RadioBackendKind::Hamlib,
         }
     }
 
     pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
-        if !self.backend.is_supported_on_platform() {
-            return Err(RadioConfigError::PlatformUnsupportedBackend(self.backend));
+        let backend = self.backend();
+        if !backend.is_supported_on_platform() {
+            return Err(RadioConfigError::PlatformUnsupportedBackend(backend));
         }
-        match (&self.backend, &self.hamlib, &self.rigctld) {
-            (RadioBackendKind::Hamlib, Some(hamlib), None) => hamlib.validate(),
-            (RadioBackendKind::Rigctld, None, Some(rigctld)) => rigctld.validate(),
-            (RadioBackendKind::Omnirig, None, None) => Ok(()),
-            (RadioBackendKind::Unconfigured, None, None) => Ok(()),
-            (backend, None, _) => Err(RadioConfigError::MissingBackendConfiguration(*backend)),
-            _ => Err(RadioConfigError::UnexpectedBackendConfiguration),
+        match self {
+            Self::Hamlib { hamlib } => hamlib.validate(),
+            Self::Rigctld { rigctld } => rigctld.validate(),
+            Self::Omnirig | Self::Unconfigured => Ok(()),
         }
     }
 }

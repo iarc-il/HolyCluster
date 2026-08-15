@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use super::{
     radio_actions::process_ws,
     radio_configuration::{
-        Capabilities, ConfigurationInput, ConfigurationResult, FieldError, HamlibModel,
-        ProductionRadioConfiguration, RadioConfiguration, RadioConfigurationService,
+        Capabilities, ConfigurationResult, FieldError, HamlibModel, ProductionRadioConfiguration,
+        RadioConfiguration, RadioConfigurationService,
     },
 };
 use crate::{
@@ -72,32 +72,13 @@ async fn unified_actions_return_typed_data() {
     assert_eq!(unified["models"][0]["id"], "1");
 }
 #[tokio::test]
-async fn invalid_configuration_returns_a_field_error() {
+async fn accepts_enum_configuration() {
     let radio = radio();
     let service: RadioConfiguration = Arc::new(Service);
-    let response = process_ws(r#"{"version":1,"type":"radio","action":"SetRadioConfiguration","configuration":{"backend":"missing"}}"#.into(), &radio, &service).await.unwrap().unwrap().into_text().unwrap();
+    let response = process_ws(r#"{"version":1,"type":"radio","action":"SetRadioConfiguration","configuration":{"rig1":{"backend":"hamlib","hamlib":{"model_id":"1","token_values":{}}}}}"#.into(), &radio, &service).await.unwrap().unwrap().into_text().unwrap();
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&response).unwrap()["error"]["field"],
-        "backend"
-    );
-}
-
-#[test]
-fn configuration_input_migrates_the_legacy_hamlib_shape() {
-    let input: ConfigurationInput = serde_json::from_str(
-        r#"{"backend":"hamlib","hamlib":{"rig1":{"model_id":"1","token_values":{}}}}"#,
-    )
-    .unwrap();
-
-    assert_eq!(
-        input.into_config().unwrap(),
-        RadioConfig {
-            rig1: RadioRigConfig::hamlib(HamlibRigConfig {
-                model_id: "1".into(),
-                token_values: BTreeMap::new(),
-            }),
-            rig2: None,
-        }
+        serde_json::from_str::<serde_json::Value>(&response).unwrap()["ok"],
+        true
     );
 }
 
@@ -105,10 +86,12 @@ fn configuration_input_migrates_the_legacy_hamlib_shape() {
 async fn production_configuration_rejects_unknown_descriptor_tokens() {
     let result = ProductionRadioConfiguration::new(radio())
         .set_configuration(RadioConfig {
-            rig1: RadioRigConfig::hamlib(HamlibRigConfig {
-                model_id: "1".into(),
-                token_values: BTreeMap::from([("unknown_token".into(), "value".into())]),
-            }),
+            rig1: RadioRigConfig::Hamlib {
+                hamlib: HamlibRigConfig {
+                    model_id: "1".into(),
+                    token_values: BTreeMap::from([("unknown_token".into(), "value".into())]),
+                },
+            },
             rig2: None,
         })
         .await;
