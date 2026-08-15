@@ -192,6 +192,7 @@ pub(super) fn production(radio: RadioManager) -> RadioConfiguration {
 
 pub(super) fn parse_backend(value: &str) -> Result<RadioBackendKind, FieldError> {
     match value {
+        "unconfigured" => Ok(RadioBackendKind::Unconfigured),
         "omnirig" => Ok(RadioBackendKind::Omnirig),
         "rigctld" => Ok(RadioBackendKind::Rigctld),
         "hamlib" => Ok(RadioBackendKind::Hamlib),

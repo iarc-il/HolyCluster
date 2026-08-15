@@ -19,6 +19,7 @@ type RenameFailure = (PathBuf, PathBuf, std::io::Error);
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum RadioBackendKind {
+    Unconfigured,
     Omnirig,
     Rigctld,
     Hamlib,
@@ -201,12 +202,14 @@ impl RadioConfig {
 
     pub(crate) fn from_legacy(config: LegacyRadioConfig) -> Result<Self, RadioConfigError> {
         let backend = match config.backend.as_str() {
+            "unconfigured" => RadioBackendKind::Unconfigured,
             "omnirig" => RadioBackendKind::Omnirig,
             "rigctld" => RadioBackendKind::Rigctld,
             "hamlib" => RadioBackendKind::Hamlib,
             _ => return Err(RadioConfigError::UnknownBackend(config.backend)),
         };
         let (rig1, rig2) = match backend {
+            RadioBackendKind::Unconfigured => (RadioRigConfig::unconfigured(), None),
             RadioBackendKind::Hamlib => {
                 let hamlib = config
                     .hamlib
@@ -239,19 +242,9 @@ impl RadioConfig {
 }
 
 impl RadioBackendKind {
-    const fn platform_default() -> Self {
-        #[cfg(windows)]
-        {
-            Self::Omnirig
-        }
-        #[cfg(not(windows))]
-        {
-            Self::Rigctld
-        }
-    }
-
     const fn is_supported_on_platform(self) -> bool {
         match self {
+            Self::Unconfigured => true,
             Self::Hamlib => true,
             Self::Omnirig => cfg!(windows),
             Self::Rigctld => !cfg!(windows),
@@ -284,12 +277,16 @@ impl RadioRigConfig {
         }
     }
 
-    fn platform_default() -> Self {
-        match RadioBackendKind::platform_default() {
-            RadioBackendKind::Omnirig => Self::omnirig(),
-            RadioBackendKind::Rigctld => Self::rigctld_default(),
-            RadioBackendKind::Hamlib => unreachable!(),
+    pub fn unconfigured() -> Self {
+        Self {
+            backend: RadioBackendKind::Unconfigured,
+            hamlib: None,
+            rigctld: None,
         }
+    }
+
+    fn platform_default() -> Self {
+        Self::unconfigured()
     }
 
     pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
@@ -300,6 +297,7 @@ impl RadioRigConfig {
             (RadioBackendKind::Hamlib, Some(hamlib), None) => hamlib.validate(),
             (RadioBackendKind::Rigctld, None, Some(rigctld)) => rigctld.validate(),
             (RadioBackendKind::Omnirig, None, None) => Ok(()),
+            (RadioBackendKind::Unconfigured, None, None) => Ok(()),
             (backend, None, _) => Err(RadioConfigError::MissingBackendConfiguration(*backend)),
             _ => Err(RadioConfigError::UnexpectedBackendConfiguration),
         }

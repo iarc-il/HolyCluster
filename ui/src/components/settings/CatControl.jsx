@@ -216,6 +216,9 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
     }
 
     function validate_selected_rig() {
+        if (selected_configuration.backend === "unconfigured") {
+            return false;
+        }
         if (selected_configuration.backend === "hamlib") {
             return selected_configuration.hamlib.model_id.trim().length > 0;
         }
@@ -280,6 +283,9 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                     }))
                                 }
                             >
+                                <option value="unconfigured" disabled>
+                                    Choose a backend
+                                </option>
                                 {available_backends.map(backend => (
                                     <option key={backend} value={backend}>
                                         {backend}
