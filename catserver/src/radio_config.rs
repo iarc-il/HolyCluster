@@ -277,16 +277,12 @@ impl RadioRigConfig {
         }
     }
 
-    pub fn unconfigured() -> Self {
+    fn platform_default() -> Self {
         Self {
             backend: RadioBackendKind::Unconfigured,
             hamlib: None,
             rigctld: None,
         }
-    }
-
-    fn platform_default() -> Self {
-        Self::unconfigured()
     }
 
     pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
