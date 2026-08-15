@@ -61,7 +61,14 @@ fn returns_platform_default_when_config_file_is_missing() {
 fn defaults_to_an_unconfigured_rig_without_connecting_to_rigctld() {
     let config = RadioConfig::platform_default();
 
-    assert_eq!(config.rig1, RadioRigConfig::unconfigured());
+    assert_eq!(
+        config.rig1,
+        RadioRigConfig {
+            backend: RadioBackendKind::Unconfigured,
+            hamlib: None,
+            rigctld: None,
+        }
+    );
     assert!(config.rig2.is_none());
 }
 
