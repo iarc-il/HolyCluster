@@ -14,7 +14,6 @@ import { useSpotData } from "@/hooks/useSpotData";
 import { useMediaQuery } from "@uidotdev/usehooks";
 
 import Icon from "@/assets/icon.png";
-import ClusterStats from "@/components/ClusterStats.jsx";
 import OpenMenu from "@/components/OpenMenu.jsx";
 
 import use_radio from "@/hooks/useRadio";
@@ -194,7 +193,6 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                     )}
                 </div>
                 <Settings set_map_controls={set_map_controls} set_radius_in_km={set_radius_in_km} />
-                {dev_mode ? <ClusterStats /> : ""}
                 {dev_mode ? <ColorPicker /> : ""}
                 <div className="p-2 hidden max-2xl:block" data-tour="top-bar-right-menu">
                     <OpenMenu

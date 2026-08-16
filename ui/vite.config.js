@@ -52,7 +52,6 @@ export default defineConfig(({ mode }) => ({
             "/locator": "https://holycluster-dev.iarc.org",
             "/catserver": "https://holycluster-dev.iarc.org",
             "/dxpeditions": "https://holycluster-dev.iarc.org",
-            "/cluster_stats": "https://holycluster-dev.iarc.org",
             "/history": "https://holycluster-dev.iarc.org",
             "/spots_ws": {
                 target: "wss://holycluster-dev.iarc.org",
