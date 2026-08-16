@@ -186,24 +186,9 @@ function About() {
     const about = (
         <div className="p-2">
             <p>
-                The Holy Cluster is being developed by a group of Israeli amateur radio enthusiasts,
-                <br />
-                with the support of the Israeli Association of Radio Communication ({}
-                <a
-                    className="text-blue-500 underline"
-                    href="https://www.iarc.org/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    IARC
-                </a>
-                ).
-                <br />
-                <br />
-                We hope this platform will serve as a valuable tool for radio operators worldwide,
-                <br />
+                The Holy Cluster is developed by a group of Israeli amateur radio enthusiasts. We
+                hope this platform will serve as a valuable tool for radio operators worldwide,
                 fostering collaboration and enhancing the global radio communication experience.
-                <br />
             </p>
             <br />
             <p>
@@ -294,6 +279,31 @@ function About() {
         </div>
     );
 
+    const credits = (
+        <div className="max-h-[60vh] overflow-y-auto w-[38rem] p-6 flex flex-col items-center text-center gap-5">
+            <a
+                href="https://www.iarc.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Visit the Israeli Association of Radio Communication website"
+                className="rounded-lg p-4 bg-slate-800 hover:bg-slate-700 transition-colors"
+            >
+                <img
+                    src="https://www.iarc.org/wp-content/uploads/2024/05/White_logo.svg"
+                    alt="Israeli Association of Radio Communication logo"
+                    className="h-32 w-auto"
+                />
+            </a>
+            <div className="space-y-2">
+                <h2 className="text-2xl font-semibold">Supported by IARC</h2>
+                <p>
+                    Holy Cluster gratefully acknowledges the support of the Israeli Association of
+                    Radio Communication.
+                </p>
+            </div>
+        </div>
+    );
+
     return (
         <Modal
             button={<Info size="36" />}
@@ -325,6 +335,12 @@ function About() {
                                     {release_notes}
                                 </div>
                             ),
+                        },
+                        {
+                            label: <h1 className="text-xl">Credits</h1>,
+                            data_tour: "about-tab-credits",
+                            text_color: colors.theme.text,
+                            content: credits,
                         },
                     ]}
                     data_tour="about-tabs"
