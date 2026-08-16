@@ -33,6 +33,11 @@ pub(crate) fn copy(
     let label = string(param.label, "configuration descriptor", "label")?;
     let tooltip = string(param.tooltip, "configuration descriptor", "tooltip")?;
     let default = string(param.dflt, "configuration descriptor", "default")?;
+    let default = if token.as_str() == "rig_pathname" && default == "/dev/rig" {
+        String::new()
+    } else {
+        default
+    };
     from_parts(param, token, label, tooltip, default).map(Some)
 }
 

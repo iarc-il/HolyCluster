@@ -31,5 +31,8 @@ fn describes_dummy_frontend_pathname_as_owned_text_metadata() {
         .find(|descriptor| descriptor.token().as_str() == "rig_pathname")
         .expect("frontend pathname token exists");
 
-    assert!(matches!(pathname, ConfigDescriptor::Path { .. }));
+    assert!(matches!(
+        pathname,
+        ConfigDescriptor::Path { default, .. } if default.is_empty()
+    ));
 }
