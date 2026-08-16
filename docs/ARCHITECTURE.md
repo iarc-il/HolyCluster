@@ -194,16 +194,11 @@ flowchart LR
 
     PG[("PostgreSQL<br/>holy_spots2")]
     STREAM[("Valkey stream<br/>stream-api<br/>maxlen 10000")]
-    ARRIVALS[("Valkey stream<br/>stream-arrivals<br/>(source analytics)")]
 
     T1 --> Q
     P1 --> Q
     S1 --> Q
     W1 --> Q
-    P1 -.-> ARRIVALS
-    S1 -.-> ARRIVALS
-    W1 -.-> ARRIVALS
-    T1 -.-> ARRIVALS
 
     Q --> DEDUP --> ENRICH --> VALIDATE
     VALIDATE -->|"always"| PG
@@ -216,7 +211,7 @@ flowchart LR
 Source details:
 
 - **Telnet clusters** (`collectors/telnet/`): server list in `telnet_servers.csv` (DXUSA, WA9PIE-2, VE7CC, K7AR, AI9T, NC7J active). One task per server, exponential reconnect backoff (60 s → 24 h cap), regex line parsing, 60 s read timeout triggers a `help\n` keepalive. Login uses `USERNAME_FOR_TELNET_CLUSTERS`. Spotters `W3LPL` and `J9AQ` are hardcoded-banned (`client.py:132`).
-- **POTA / SOTA / WWFF** (`pota.py`, `sota.py`, `wwff.py`): JSON pollers sharing `utils.run_json_spot_collector`, which handles dedup, arrival recording, and error backoff (capped at 300 s).
+- **POTA / SOTA / WWFF** (`pota.py`, `sota.py`, `wwff.py`): JSON pollers sharing `utils.run_json_spot_collector`, which handles dedup and error backoff (capped at 300 s).
 
 There is **no RBN or DXHeat collector** — the telnet clusters are the live feed.
 
@@ -334,7 +329,6 @@ FastAPI app (`api/src/api/main.py`, ~1100 lines) with GZip middleware and OpenAP
 | GET | `/voacap?...` | VOACAP HF propagation grid (CPU-heavy, run in thread) |
 | GET | `/dxpeditions` | Active DXpeditions (from Valkey) |
 | GET | `/history?start_time&end_time` | Historical spots (max 24 h window) |
-| GET | `/cluster_stats?hours` | Source-overlap analytics from `stream-arrivals` |
 | GET | `/catserver/latest`, `/catserver/download` | Desktop app version + MSI download |
 | GET | `/health` | Liveness (used by compose healthcheck) |
 | GET | `/`, `/{path}` | SPA `index.html` catch-all |
