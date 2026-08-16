@@ -67,7 +67,6 @@ export default function useSpotWebSocket() {
 
     const started_ref = useRef(false);
     const last_spot_time_ref = useRef(0);
-    const next_spot_id_ref = useRef(0);
     const is_buffering_spots_ref = useRef(false);
     const buffered_spot_batches_ref = useRef([]);
 
@@ -90,7 +89,13 @@ export default function useSpotWebSocket() {
             }, 3000);
 
             set_spots(previous_spots => {
-                const merged_spots = trim_spots_to_last_hour(new_spots.concat(previous_spots));
+                // Drop any previously-known spot that the incoming batch also
+                // describes (same content-derived id) before merging — a spot
+                // can legitimately arrive twice (e.g. a reconnect catch-up
+                // racing the live broadcast for the same spot) and without
+                // this it would render as two rows.
+                const deduped_previous = previous_spots.filter(spot => !new_ids.has(spot.id));
+                const merged_spots = trim_spots_to_last_hour([...new_spots, ...deduped_previous]);
                 track_latest_spot_time(merged_spots);
 
                 return merged_spots;
@@ -145,7 +150,7 @@ export default function useSpotWebSocket() {
                 const mode = spot.mode === "DIGITAL" ? "DIGI" : spot.mode;
                 const normalized_spot = {
                     ...spot,
-                    id: next_spot_id_ref.current++,
+                    id: `${spot.time}|${spot.spotter_callsign}|${spot.dx_callsign}`,
                     mode,
                     band: normalize_band(spot.band),
                 };

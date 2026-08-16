@@ -1,6 +1,6 @@
 import { find_zone_label_number, get_active_overlay_systems } from "@/utils/zones.js";
 import { find_dxcc_label } from "./draw_map.js";
-import { color_to_spot } from "./hit_detection.js";
+import { color_to_spot_index } from "./hit_detection.js";
 import { profile_map } from "./map_profile.js";
 import { DPR } from "./render_helpers.js";
 
@@ -14,12 +14,13 @@ export function useMapHitTest(shadow_canvas_ref, projection_ref, render_state_re
                 "hit_test.getImageData",
                 () => ctx.getImageData(x * DPR, y * DPR, 1, 1).data,
             );
-            const result = color_to_spot(r, g, b);
+            const result = color_to_spot_index(r, g, b);
             if (result === null) return null;
-            const [type, spot_id] = result;
+            const [type, spot_index] = result;
             const { spots } = render_state_ref.current;
-            if (!spots.some(s => s.id === spot_id)) return null;
-            return [type, spot_id];
+            const spot = spots[spot_index];
+            if (!spot) return null;
+            return [type, spot.id];
         });
     }
 

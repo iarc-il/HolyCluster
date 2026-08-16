@@ -2,12 +2,17 @@ import { useWs } from "@/hooks/useWs";
 import { ensure_spots_loaded, get_spots, get_version, subscribe } from "@/utils/spot_cache_db.jsx";
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 
-const PREFETCH_WINDOWS = 3;
+// Matches the cache eviction cutoff in spot_cache_db.jsx — no point buffering
+// data that would just be evicted the moment it lands.
+const PREFETCH_RETENTION_MS = 5 * 86_400_000;
 const EMPTY_SNAPSHOT = { spots: [], is_complete: false };
 
 export default function useHistorySpots(startTime, endTime, window_size_ms, step_size_ms) {
     const { send, subscribe: subscribe_ws, wait_for_open } = useWs();
-    const prefetch_controllers = useRef(new Map());
+    const inflight = useRef(new Set());
+    const latest_request_ref = useRef(null);
+    const fetch_running_ref = useRef(false);
+    const chain_controller_ref = useRef(null);
 
     const start_ms = startTime ? startTime.getTime() : null;
     const end_ms = endTime ? endTime.getTime() : null;
@@ -27,52 +32,75 @@ export default function useHistorySpots(startTime, endTime, window_size_ms, step
         [send, subscribe_ws, wait_for_open],
     );
 
-    const prefetch = useCallback(
-        (s, e) => {
+    // Buffers one window at a time in a given direction — like a video
+    // player filling its buffer ahead of the playhead, each fetch only kicks
+    // off the next window once it lands, walking outward until it hits "now"
+    // (forward) or the retention cutoff (backward). No fixed window count:
+    // it keeps going, deduped against in-flight ranges, until the effect
+    // below aborts it (the range moved on) or it runs out of bound.
+    const prefetch_chain = useCallback(
+        (s, e, step_ms, direction, signal) => {
             const key = `${s}:${e}`;
-            if (prefetch_controllers.current.has(key)) return;
+            if (inflight.current.has(key)) return;
+            inflight.current.add(key);
 
-            const controller = new AbortController();
-            prefetch_controllers.current.set(key, controller);
-
-            ensure_loaded(s, e, controller.signal)
+            ensure_loaded(s, e, signal)
                 .catch(() => {})
-                .finally(() => {
-                    prefetch_controllers.current.delete(key);
+                .finally(() => inflight.current.delete(key))
+                .then(() => {
+                    if (signal.aborted) return;
+                    const next_s = s + step_ms * direction;
+                    const next_e = e + step_ms * direction;
+                    const now_ms = Date.now();
+                    if (direction > 0 && next_e > now_ms + 60_000) return;
+                    if (direction < 0 && next_s < now_ms - PREFETCH_RETENTION_MS) return;
+                    prefetch_chain(next_s, next_e, step_ms, direction, signal);
                 });
         },
         [ensure_loaded],
     );
 
+    // Only one history fetch is ever in flight at a time. A fast drag just
+    // keeps overwriting "the range we actually want" instead of firing a new
+    // WebSocket request per mousemove — when the in-flight one resolves, it
+    // immediately serves whatever is newest, skipping every intermediate
+    // position instead of piling up a burst of now-stale requests.
     useEffect(() => {
-        if (start_ms === null || end_ms === null) return;
+        if (start_ms === null || end_ms === null) {
+            latest_request_ref.current = null;
+            return;
+        }
 
-        const step_ms = step_size_ms || window_size_ms || end_ms - start_ms;
-        const controller = new AbortController();
+        latest_request_ref.current = {
+            start_ms,
+            end_ms,
+            step_ms: step_size_ms || window_size_ms || end_ms - start_ms,
+        };
 
-        ensure_loaded(start_ms, end_ms, controller.signal)
-            .then(() => {
-                const now_ms = Date.now();
-                for (let i = 1; i <= PREFETCH_WINDOWS; i++) {
-                    const next_start = start_ms + step_ms * i;
-                    const next_end = end_ms + step_ms * i;
-                    if (next_end <= now_ms + 60_000) {
-                        prefetch(next_start, next_end);
-                    }
+        if (fetch_running_ref.current) return;
+        fetch_running_ref.current = true;
 
-                    const prev_start = start_ms - step_ms * i;
-                    const prev_end = end_ms - step_ms * i;
-                    if (prev_start >= 0) {
-                        prefetch(prev_start, prev_end);
+        (async () => {
+            while (latest_request_ref.current) {
+                const { start_ms: s, end_ms: e, step_ms: step } = latest_request_ref.current;
+                latest_request_ref.current = null;
+
+                chain_controller_ref.current?.abort();
+                const controller = new AbortController();
+                chain_controller_ref.current = controller;
+
+                try {
+                    await ensure_loaded(s, e, controller.signal);
+                    prefetch_chain(s + step, e + step, step, 1, controller.signal);
+                    prefetch_chain(s - step, e - step, step, -1, controller.signal);
+                } catch (err) {
+                    if (err.name !== "AbortError") {
+                        console.error("Failed to fetch history spots:", err);
                     }
                 }
-            })
-            .catch(err => {
-                if (err.name === "AbortError") return;
-                console.error("Failed to fetch history spots:", err);
-            });
-
-        return () => controller.abort();
+            }
+            fetch_running_ref.current = false;
+        })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [start_ms, end_ms]);
 

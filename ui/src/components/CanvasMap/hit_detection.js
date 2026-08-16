@@ -4,22 +4,26 @@ import { build_geojson_line, make_visibility_check } from "./draw_spots.js";
 
 const TYPE_OFFSET = { dx: 0, arc: 1, spotter: 2 };
 
-function spot_to_color(spot_id, type) {
-    const combined = spot_id * 3 + TYPE_OFFSET[type] + 1;
+// Encodes the spot's position in the current spots array, not spot.id —
+// history spots carry a content-derived string id ("time|spotter|dx") that
+// can't round-trip through this color-packing arithmetic. The index is
+// translated back to the real spot.id in useMapHitTest.js.
+function spot_index_to_color(spot_index, type) {
+    const combined = spot_index * 3 + TYPE_OFFSET[type] + 1;
     const r = (combined >> 16) & 0xff;
     const g = (combined >> 8) & 0xff;
     const b = combined & 0xff;
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-export function color_to_spot(r, g, b) {
+export function color_to_spot_index(r, g, b) {
     const combined = (r << 16) | (g << 8) | b;
     if (combined === 0) return null;
     const index = combined - 1;
-    const spot_id = Math.floor(index / 3);
+    const spot_index = Math.floor(index / 3);
     const type_index = index % 3;
     const type = ["dx", "arc", "spotter"][type_index];
-    return [type, spot_id];
+    return [type, spot_index];
 }
 
 function draw_shadow_dx(context, spot, color, dx_x, dx_y, dx_size) {
@@ -53,11 +57,11 @@ function draw_shadow_dx(context, spot, color, dx_x, dx_y, dx_size) {
     context.stroke();
 }
 
-function draw_shadow_spot(context, spot, { path_generator, projection, is_visible }) {
+function draw_shadow_spot(context, spot, spot_index, { path_generator, projection, is_visible }) {
     const line = build_geojson_line(spot);
 
     context.beginPath();
-    context.strokeStyle = spot_to_color(spot.id, "arc");
+    context.strokeStyle = spot_index_to_color(spot_index, "arc");
     context.lineWidth = 8;
     path_generator(line);
     context.stroke();
@@ -65,7 +69,7 @@ function draw_shadow_spot(context, spot, { path_generator, projection, is_visibl
     if (is_visible(spot.dx_loc)) {
         const dx_size = 12;
         const [dx_x, dx_y] = projection(spot.dx_loc);
-        const dx_color = spot_to_color(spot.id, "dx");
+        const dx_color = spot_index_to_color(spot_index, "dx");
         draw_shadow_dx(context, spot, dx_color, dx_x, dx_y, dx_size);
     }
 
@@ -74,7 +78,7 @@ function draw_shadow_spot(context, spot, { path_generator, projection, is_visibl
         const spotter_radius = 7;
 
         context.beginPath();
-        context.fillStyle = spot_to_color(spot.id, "spotter");
+        context.fillStyle = spot_index_to_color(spot_index, "spotter");
         context.lineWidth = 2;
         context.arc(spotter_x, spotter_y, spotter_radius, 0, 2 * Math.PI);
         context.fill();
@@ -90,13 +94,13 @@ export function draw_shadow_map(shadow_context, spots, dims, projection, is_glob
     shadow_context.arc(dims.center_x, dims.center_y, dims.radius, 0, 2 * Math.PI);
     shadow_context.clip();
 
-    for (const spot of spots) {
-        draw_shadow_spot(shadow_context, spot, {
+    spots.forEach((spot, spot_index) => {
+        draw_shadow_spot(shadow_context, spot, spot_index, {
             path_generator: shadow_path_generator,
             projection,
             is_visible,
         });
-    }
+    });
 
     shadow_context.restore();
 }

@@ -35,7 +35,15 @@ export const SpotDataProvider = ({
     } = useHistorySpots(startTime, endTime, window_size_ms, step_size_ms);
 
     const is_history_mode = !!(startTime && endTime);
-    const raw_spots = is_history_mode ? history_raw_spots : ws_raw_spots;
+    // Hard guarantee, independent of whatever fed history_raw_spots: while in
+    // history mode the table may only ever show spots inside the selected
+    // window. Never fall through to live spots here, regardless of source.
+    const raw_spots = is_history_mode
+        ? history_raw_spots.filter(spot => {
+              const time_ms = spot.time * 1000;
+              return time_ms >= startTime.getTime() && time_ms <= endTime.getTime();
+          })
+        : ws_raw_spots;
     const new_spot_ids = is_history_mode ? new Set() : ws_new_spot_ids;
     const {
         spots,
