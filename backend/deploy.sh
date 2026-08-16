@@ -39,9 +39,34 @@ echo ""
 declare -A SERVICES
 SERVICES=()
 RUN_MIGRATIONS=false
+COMPOSE_FILE_CHANGED=false
 
 add_service() {
     SERVICES["$1"]=1
+}
+
+migrate_legacy_compose_containers() {
+    local project_name="${COMPOSE_PROJECT_NAME:-}"
+    if [ -z "$project_name" ] && [ -f .env ]; then
+        project_name=$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' .env | tail -n 1)
+    fi
+    project_name="${project_name:-$(basename "$PWD")}"
+
+    local legacy_project
+    local name
+    local legacy_names=(postgres valkey migrate collector api monitor nginx certbot nginx_ui)
+
+    for name in "${legacy_names[@]}"; do
+        if ! docker inspect "$name" >/dev/null 2>&1; then
+            continue
+        fi
+
+        legacy_project=$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$name" 2>/dev/null || true)
+        if [ -n "$legacy_project" ] && [ "$legacy_project" != "$project_name" ]; then
+            echo "Removing legacy Compose container $name from project $legacy_project..."
+            docker rm -f "$name"
+        fi
+    done
 }
 
 run_migrations() {
@@ -51,6 +76,7 @@ run_migrations() {
 while IFS= read -r file; do
     case "$file" in
         docker-compose.yml|deploy.sh)
+            COMPOSE_FILE_CHANGED=true
             add_service api
             add_service collector
             add_service migrate
@@ -114,6 +140,10 @@ fi
 
 echo "Services to rebuild: $SERVICE_LIST"
 
+if [ "$COMPOSE_FILE_CHANGED" = true ]; then
+    migrate_legacy_compose_containers
+fi
+
 # Stop monitor before rebuilding api or monitor to avoid health-check failures
 if [[ -v SERVICES[api] || -v SERVICES[monitor] ]]; then
     echo "Stopping monitor before rebuild..."
@@ -141,6 +171,10 @@ wait
 
 if [[ -v SERVICES[nginx] ]]; then
     docker compose up -d --no-deps nginx
+fi
+
+if [ "$COMPOSE_FILE_CHANGED" = true ]; then
+    docker compose up -d --no-deps certbot
 fi
 
 echo "Deploy complete."
