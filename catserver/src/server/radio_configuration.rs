@@ -7,6 +7,7 @@ use crate::{
     radio_config::{HamlibRigConfig, RadioConfig, RadioRigConfig},
     radio_factory,
     radio_manager::RadioManager,
+    rig::RadioInitError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -30,6 +31,8 @@ pub(super) struct FieldError {
     pub(super) message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) details: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -46,6 +49,7 @@ pub(super) trait RadioConfigurationService: Send + Sync {
     fn describe(&self, model_id: &str) -> Result<Vec<serde_json::Value>, FieldError>;
     fn configuration(&self, current: RadioConfig) -> RadioConfig;
     fn set_configuration(&self, configuration: RadioConfig) -> ConfigurationFuture<'_>;
+    fn test_connection(&self, config: RadioConfig) -> ConfigurationFuture<'_>;
 }
 
 pub(super) type RadioConfiguration = Arc<dyn RadioConfigurationService>;
@@ -141,6 +145,34 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
             }
         })
     }
+
+    fn test_connection(&self, config: RadioConfig) -> ConfigurationFuture<'_> {
+        Box::pin(async move {
+            if let Err(error) = validate_configuration(&config) {
+                return ConfigurationResult {
+                    ok: false,
+                    error: Some(error),
+                };
+            }
+            let selected = config.effective_backend(false);
+            let factory = radio_factory::factory(
+                config,
+                selected,
+                (DEFAULT_RIGCTLD_HOST.into(), DEFAULT_RIGCTLD_PORT),
+            );
+            let mut radio = factory();
+            match radio.init() {
+                Ok(()) => ConfigurationResult {
+                    ok: true,
+                    error: None,
+                },
+                Err(error) => ConfigurationResult {
+                    ok: false,
+                    error: Some(connection_error(error)),
+                },
+            }
+        })
+    }
 }
 
 fn validate_configuration(configuration: &RadioConfig) -> Result<(), FieldError> {
@@ -159,6 +191,7 @@ fn validate_rig_configuration(
         field: config_field(field, &error),
         message: error.to_string(),
         token: config_token(&error),
+        details: None,
     })?;
     if let RadioRigConfig::Hamlib { hamlib } = configuration {
         validate_rig(&format!("{field}.hamlib"), hamlib)?;
@@ -171,6 +204,7 @@ fn validate_rig(field: &str, configuration: &HamlibRigConfig) -> Result<(), Fiel
         field: format!("{field}.model_id"),
         message: format!("invalid Hamlib model: {}", configuration.model_id),
         token: None,
+        details: None,
     })?;
     let descriptors = hamlib::Catalog::load()
         .map_err(|error| model_error(field, error))?
@@ -184,11 +218,13 @@ fn validate_rig(field: &str, configuration: &HamlibRigConfig) -> Result<(), Fiel
                 field: format!("{field}.token_values"),
                 message: format!("unknown Hamlib configuration token: {token}"),
                 token: Some(token.clone()),
+                details: None,
             })?;
         descriptor.parse_value(value).map_err(|error| FieldError {
             field: format!("{field}.token_values"),
             message: error.to_string(),
             token: Some(token.clone()),
+            details: None,
         })?;
     }
     Ok(())
@@ -203,6 +239,7 @@ fn invalid_model(model_id: &str) -> FieldError {
         field: "model_id".into(),
         message: format!("invalid Hamlib model: {model_id}"),
         token: None,
+        details: None,
     }
 }
 
@@ -211,6 +248,20 @@ fn catalog_error(error: impl std::fmt::Display) -> FieldError {
         field: "model_id".into(),
         message: error.to_string(),
         token: None,
+        details: None,
+    }
+}
+
+fn connection_error(error: RadioInitError) -> FieldError {
+    let details = match &error {
+        RadioInitError::Hamlib { details, .. } => details.clone(),
+        RadioInitError::Io { .. } => None,
+    };
+    FieldError {
+        field: "connection".into(),
+        message: error.to_string(),
+        token: None,
+        details,
     }
 }
 
@@ -219,6 +270,7 @@ fn serial_ports_error(message: String) -> FieldError {
         field: "serial_ports".into(),
         message,
         token: None,
+        details: None,
     }
 }
 
@@ -227,6 +279,7 @@ fn model_error(field: &str, error: impl std::fmt::Display) -> FieldError {
         field: format!("{field}.model_id"),
         message: error.to_string(),
         token: None,
+        details: None,
     }
 }
 
@@ -235,6 +288,7 @@ fn manager_error(error: crate::radio_manager::RadioManagerError) -> FieldError {
         field: "backend".into(),
         message: error.to_string(),
         token: None,
+        details: None,
     }
 }
 

@@ -49,6 +49,17 @@ impl RadioConfigurationService for Service {
             }
         })
     }
+    fn test_connection(
+        &self,
+        _: RadioConfig,
+    ) -> super::radio_configuration::ConfigurationFuture<'_> {
+        Box::pin(async {
+            ConfigurationResult {
+                ok: true,
+                error: None,
+            }
+        })
+    }
 }
 fn radio() -> RadioManager {
     let config = RadioConfig::platform_default();
@@ -103,6 +114,26 @@ async fn accepts_enum_configuration() {
         serde_json::from_str::<serde_json::Value>(&response).unwrap()["ok"],
         true
     );
+}
+
+#[tokio::test]
+async fn tests_radio_connection() {
+    let radio = radio();
+    let service: RadioConfiguration = Arc::new(Service);
+    let response = process_ws(
+        r#"{"version":1,"type":"radio","action":"TestRadioConnection","config":{"rig1":{"backend":"unconfigured"}}}"#.into(),
+        &radio,
+        &service,
+    )
+    .await
+    .unwrap()
+    .unwrap()
+    .into_text()
+    .unwrap();
+    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(response["type"], "radio");
+    assert_eq!(response["event"], "radio_connection_result");
+    assert_eq!(response["ok"], true);
 }
 
 #[tokio::test]

@@ -59,6 +59,7 @@ pub enum HamlibError {
     Call {
         operation: &'static str,
         code: i32,
+        short_message: String,
         message: String,
     },
     #[error("Hamlib {operation} returned a null handle for model {model}")]
@@ -70,6 +71,15 @@ pub enum HamlibError {
     NullErrorText { operation: &'static str, code: i32 },
     #[error("Hamlib {operation} returned invalid UTF-8 error text for code {code}")]
     InvalidErrorText { operation: &'static str, code: i32 },
+}
+
+impl HamlibError {
+    pub fn short_message(&self) -> String {
+        match self {
+            Self::Call { short_message, .. } => short_message.clone(),
+            error => error.to_string(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Error, Eq, PartialEq)]

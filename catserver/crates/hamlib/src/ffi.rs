@@ -80,27 +80,32 @@ pub(crate) fn hamlib_result(operation: &'static str, result: i32) -> Result<(), 
     if result == 0 {
         return Ok(());
     }
-    // SAFETY: `rigerror` accepts Hamlib return codes and returns static storage or null.
-    let message = unsafe { sys::rigerror(result) };
-    if message.is_null() {
-        return Err(HamlibError::NullErrorText {
-            operation,
-            code: result,
-        });
-    }
-    // SAFETY: Hamlib's `rigerror` contract returns a NUL-terminated static string when non-null.
-    let message = unsafe { CStr::from_ptr(message) }
-        .to_str()
-        .map(str::to_owned)
-        .map_err(|_| HamlibError::InvalidErrorText {
-            operation,
-            code: result,
-        })?;
+    // SAFETY: Hamlib error functions accept return codes and return static NUL-terminated text.
+    let short_message = error_text(unsafe { sys::rigerror2(result) }, operation, result)?
+        .trim_end()
+        .to_owned();
+    let message = error_text(unsafe { sys::rigerror(result) }, operation, result)?;
     Err(HamlibError::Call {
         operation,
         code: result,
+        short_message,
         message,
     })
+}
+
+fn error_text(
+    pointer: *const std::os::raw::c_char,
+    operation: &'static str,
+    code: i32,
+) -> Result<String, HamlibError> {
+    if pointer.is_null() {
+        return Err(HamlibError::NullErrorText { operation, code });
+    }
+    // SAFETY: Hamlib returns a NUL-terminated static string when non-null.
+    unsafe { CStr::from_ptr(pointer) }
+        .to_str()
+        .map(str::to_owned)
+        .map_err(|_| HamlibError::InvalidErrorText { operation, code })
 }
 
 pub(crate) struct CallbackState<T> {

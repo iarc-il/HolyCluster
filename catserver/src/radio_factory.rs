@@ -76,9 +76,10 @@ impl Radio for CompositeRadio {
     fn init(&mut self) -> Result<(), RadioInitError> {
         for (index, rig) in self.rigs.iter_mut().flatten().enumerate() {
             rig.init().map_err(|error| match error {
-                RadioInitError::Hamlib { error, .. } => RadioInitError::Hamlib {
+                RadioInitError::Hamlib { error, details, .. } => RadioInitError::Hamlib {
                     rig: (index + 1) as u8,
                     error,
+                    details,
                 },
                 error => error,
             })?;

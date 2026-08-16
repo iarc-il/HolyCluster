@@ -45,6 +45,7 @@ pub enum RadioInitError {
     Hamlib {
         rig: u8,
         error: String,
+        details: Option<String>,
     },
     Io {
         backend: &'static str,
@@ -55,7 +56,7 @@ pub enum RadioInitError {
 impl fmt::Display for RadioInitError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Hamlib { rig, error } => {
+            Self::Hamlib { rig, error, .. } => {
                 write!(formatter, "Hamlib rig {rig} initialization failed: {error}")
             }
             Self::Io { backend, kind } => {

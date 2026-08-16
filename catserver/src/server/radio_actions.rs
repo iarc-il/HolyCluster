@@ -46,6 +46,9 @@ enum ClientMessage {
     SetRadioConfiguration {
         configuration: Box<RadioConfig>,
     },
+    TestRadioConnection {
+        config: Box<RadioConfig>,
+    },
     RetryRadio,
 }
 pub(super) fn is_message(message: &str) -> bool {
@@ -128,6 +131,10 @@ async fn process(
         ClientMessage::SetRadioConfiguration { configuration } => (
             "configuration_result",
             serde_json::to_value(service.set_configuration(*configuration).await)?,
+        ),
+        ClientMessage::TestRadioConnection { config } => (
+            "radio_connection_result",
+            serde_json::to_value(service.test_connection(*config).await)?,
         ),
         ClientMessage::RetryRadio => {
             radio.retry().await?;

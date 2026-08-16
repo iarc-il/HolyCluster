@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::{
     freq::Freq,
     radio_config::HamlibRigConfig,
@@ -106,33 +108,69 @@ impl Radio for HamlibRadio {
     }
 }
 
-fn open(config: &HamlibRigConfig) -> Result<hamlib::Rig<hamlib::Open>, String> {
+fn open(config: &HamlibRigConfig) -> Result<hamlib::Rig<hamlib::Open>, OpenError> {
     let model = config
         .model_id
         .parse()
-        .map_err(|_| "invalid model id".to_owned())?;
-    let catalog = hamlib::Catalog::load().map_err(|error| error.to_string())?;
+        .map_err(|_| OpenError::message("invalid model id"))?;
+    let catalog = hamlib::Catalog::load().map_err(OpenError::from_display)?;
     let descriptors = catalog
         .describe_model(hamlib::RigModelId::new(model))
-        .map_err(|error| error.to_string())?;
+        .map_err(OpenError::from_display)?;
     let mut rig =
-        hamlib::Rig::new(hamlib::RigModelId::new(model)).map_err(|error| error.to_string())?;
+        hamlib::Rig::new(hamlib::RigModelId::new(model)).map_err(OpenError::from_hamlib)?;
     for (token, value) in &config.token_values {
         let descriptor = descriptors
             .iter()
             .find(|descriptor| descriptor.token().as_str() == token)
-            .ok_or_else(|| format!("unknown configuration token: {token}"))?;
+            .ok_or_else(|| OpenError::message(format!("unknown config token: {token}")))?;
         let value = descriptor
             .parse_value(value)
-            .map_err(|error| error.to_string())?;
+            .map_err(OpenError::from_display)?;
         rig.configure(descriptor, &value)
-            .map_err(|error| error.to_string())?;
+            .map_err(OpenError::from_display)?;
     }
-    rig.open().map_err(|error| error.to_string())
+    rig.open().map_err(OpenError::from_hamlib)
 }
 
-fn init_error(rig: u8, error: String) -> RadioInitError {
-    RadioInitError::Hamlib { rig, error }
+fn init_error(rig: u8, error: OpenError) -> RadioInitError {
+    RadioInitError::Hamlib {
+        rig,
+        error: error.message,
+        details: error.details,
+    }
+}
+
+struct OpenError {
+    message: String,
+    details: Option<String>,
+}
+
+impl OpenError {
+    fn message(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            details: None,
+        }
+    }
+
+    fn from_display(error: impl fmt::Display) -> Self {
+        let details = error.to_string();
+        Self {
+            message: details.lines().next().unwrap_or_default().to_owned(),
+            details: details.contains('\n').then_some(details),
+        }
+    }
+
+    fn from_hamlib(error: hamlib::HamlibError) -> Self {
+        let message = error.short_message();
+        let details = error.to_string();
+        let has_details = details != message;
+        Self {
+            message,
+            details: has_details.then_some(details),
+        }
+    }
 }
 
 fn vfo(slot: Slot) -> hamlib::Vfo {
