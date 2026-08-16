@@ -12,7 +12,26 @@ export function create_interval_db(db_name, db_version, store_name) {
     let records_map = new Map();
     let hydrate_promise = null;
     let version = 0;
+    let write_queue = Promise.resolve();
     const listeners = new Set();
+
+    // Serializes the "read covered intervals -> commit merged replacement"
+    // critical section. Network fetches (slow) must NOT hold this lock —
+    // only callers already awaiting store.ready() would end up serialized
+    // behind them, killing prefetch parallelism. Without this, two
+    // concurrent callers with overlapping-but-different ranges (e.g. the
+    // forward and backward prefetch chains) can both read the same stale
+    // "nothing cached yet" snapshot, fetch overlapping data independently,
+    // and both commit — leaving two overlapping records behind, each
+    // holding the same spots, which a later read then returns twice.
+    function with_lock(fn) {
+        const run = write_queue.then(fn, fn);
+        write_queue = run.then(
+            () => {},
+            () => {},
+        );
+        return run;
+    }
 
     function notify() {
         version += 1;
@@ -75,6 +94,8 @@ export function create_interval_db(db_name, db_version, store_name) {
 
     // Background-only write: replaces covered_intervals with one merged
     // record, in IndexedDB and in the mirror, then notifies subscribers.
+    // Callers must hold the write lock — see with_lock above — since this
+    // blindly trusts covered_intervals to still be exactly what's stored.
     async function commit(covered_intervals, new_record) {
         const db = await open_db();
         const tx = db.transaction(store_name, "readwrite");
@@ -93,27 +114,30 @@ export function create_interval_db(db_name, db_version, store_name) {
 
     // Background-only write: trim_record(record, cutoff_ms) returns the
     // trimmed record, the same record reference if unchanged, or null to
-    // delete it entirely.
+    // delete it entirely. Takes the write lock itself since it iterates and
+    // mutates every record, and must not interleave with a commit().
     async function evict(cutoff_ms, trim_record) {
-        const db = await open_db();
-        const tx = db.transaction(store_name, "readwrite");
-        let changed = false;
+        return with_lock(async () => {
+            const db = await open_db();
+            const tx = db.transaction(store_name, "readwrite");
+            let changed = false;
 
-        for (const record of records_map.values()) {
-            const trimmed = trim_record(record, cutoff_ms);
-            if (trimmed === null) {
-                tx.store.delete(record.id);
-                records_map.delete(record.id);
-                changed = true;
-            } else if (trimmed !== record) {
-                tx.store.put(trimmed);
-                records_map.set(record.id, trimmed);
-                changed = true;
+            for (const record of records_map.values()) {
+                const trimmed = trim_record(record, cutoff_ms);
+                if (trimmed === null) {
+                    tx.store.delete(record.id);
+                    records_map.delete(record.id);
+                    changed = true;
+                } else if (trimmed !== record) {
+                    tx.store.put(trimmed);
+                    records_map.set(record.id, trimmed);
+                    changed = true;
+                }
             }
-        }
 
-        await tx.done;
-        if (changed) notify();
+            await tx.done;
+            if (changed) notify();
+        });
     }
 
     return {
@@ -124,6 +148,7 @@ export function create_interval_db(db_name, db_version, store_name) {
         get_overlapping_intervals,
         commit,
         evict,
+        with_lock,
     };
 }
 

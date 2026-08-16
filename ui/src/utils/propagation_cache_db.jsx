@@ -122,8 +122,8 @@ export async function ensure_propagation_loaded(
 
     const bucket_start_ms = snap_to_bucket_start(start_ms);
     const bucket_end_ms = Math.max(snap_to_bucket_end(end_ms), bucket_start_ms + BUCKET_MS);
-    const covered = store.get_overlapping_intervals(bucket_start_ms, bucket_end_ms);
-    const gaps = compute_gaps(bucket_start_ms, bucket_end_ms, covered);
+    const initial_covered = store.get_overlapping_intervals(bucket_start_ms, bucket_end_ms);
+    const gaps = compute_gaps(bucket_start_ms, bucket_end_ms, initial_covered);
     if (gaps.length === 0) return;
 
     const gap_results = await fetch_gaps(send, subscribe_ws, wait_for_open, gaps, signal);
@@ -133,21 +133,37 @@ export async function ensure_propagation_loaded(
         metrics: normalize_metrics(g.raw_metrics),
     }));
 
-    const merged_start = Math.min(
-        ...covered.map(r => r.start),
-        ...normalized_gaps.map(g => g.start),
-    );
-    const merged_end = Math.max(...covered.map(r => r.end), ...normalized_gaps.map(g => g.end));
+    // Re-read covered intervals now, inside the write lock — see the
+    // matching comment in spot_cache_db.jsx's ensure_spots_loaded for why
+    // reusing the pre-fetch snapshot here would leave overlapping records
+    // behind when a concurrent prefetch chain commits in the meantime.
+    await store.with_lock(async () => {
+        const covered = store.get_overlapping_intervals(bucket_start_ms, bucket_end_ms);
+        const merged_start = Math.min(
+            bucket_start_ms,
+            ...covered.map(r => r.start),
+            ...normalized_gaps.map(g => g.start),
+        );
+        const merged_end = Math.max(
+            bucket_end_ms,
+            ...covered.map(r => r.end),
+            ...normalized_gaps.map(g => g.end),
+        );
 
-    const merged_metrics = empty_metrics();
-    for (const metric of METRICS) {
-        merged_metrics[metric] = merge_metric_samples([
-            ...covered.map(r => r.metrics?.[metric] ?? []),
-            ...normalized_gaps.map(g => g.metrics[metric]),
-        ]);
-    }
+        const merged_metrics = empty_metrics();
+        for (const metric of METRICS) {
+            merged_metrics[metric] = merge_metric_samples([
+                ...covered.map(r => r.metrics?.[metric] ?? []),
+                ...normalized_gaps.map(g => g.metrics[metric]),
+            ]);
+        }
 
-    await store.commit(covered, { start: merged_start, end: merged_end, metrics: merged_metrics });
+        await store.commit(covered, {
+            start: merged_start,
+            end: merged_end,
+            metrics: merged_metrics,
+        });
+    });
 }
 
 export async function evict_old_records() {

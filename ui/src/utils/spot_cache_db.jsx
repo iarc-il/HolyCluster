@@ -45,9 +45,17 @@ export function normalize_spots(spots) {
 export function get_spots(start_ms, end_ms) {
     const covered = store.get_overlapping_intervals(start_ms, end_ms);
     const gaps = compute_gaps(start_ms, end_ms, covered);
-    const spots = covered
-        .flatMap(r => r.spots)
-        .filter(s => s.time * 1000 >= start_ms && s.time * 1000 <= end_ms);
+    // Overlapping records can (briefly, or if eviction/commit timing lines
+    // up unluckily) both hold the same spot — dedupe by id so a query
+    // spanning two such records never returns it twice.
+    const seen = new Set();
+    const spots = [];
+    for (const spot of covered.flatMap(r => r.spots)) {
+        if (spot.time * 1000 < start_ms || spot.time * 1000 > end_ms) continue;
+        if (seen.has(spot.id)) continue;
+        seen.add(spot.id);
+        spots.push(spot);
+    }
     return { spots, is_complete: gaps.length === 0 };
 }
 
@@ -77,8 +85,8 @@ export async function ensure_spots_loaded(
 ) {
     await store.ready();
 
-    const covered = store.get_overlapping_intervals(start_ms, end_ms);
-    const gaps = compute_gaps(start_ms, end_ms, covered);
+    const initial_covered = store.get_overlapping_intervals(start_ms, end_ms);
+    const gaps = compute_gaps(start_ms, end_ms, initial_covered);
     if (gaps.length === 0) return;
 
     const gap_results = await fetch_gaps(send, subscribe_ws, wait_for_open, gaps, signal);
@@ -88,25 +96,38 @@ export async function ensure_spots_loaded(
         spots: normalize_spots(g.raw_spots),
     }));
 
-    const merged_start = Math.min(
-        ...covered.map(r => r.start),
-        ...normalized_gaps.map(g => g.start),
-    );
-    const merged_end = Math.max(...covered.map(r => r.end), ...normalized_gaps.map(g => g.end));
+    // Re-read covered intervals now, inside the write lock, instead of
+    // reusing the snapshot from before the (slow) network fetch — a
+    // concurrent prefetch chain for an overlapping range may have committed
+    // in the meantime. Committing against a stale snapshot would leave two
+    // overlapping records behind, each holding the same spots.
+    await store.with_lock(async () => {
+        const covered = store.get_overlapping_intervals(start_ms, end_ms);
+        const merged_start = Math.min(
+            start_ms,
+            ...covered.map(r => r.start),
+            ...normalized_gaps.map(g => g.start),
+        );
+        const merged_end = Math.max(
+            end_ms,
+            ...covered.map(r => r.end),
+            ...normalized_gaps.map(g => g.end),
+        );
 
-    const seen = new Set();
-    const deduped = [];
-    for (const spot of [
-        ...covered.flatMap(r => r.spots),
-        ...normalized_gaps.flatMap(g => g.spots),
-    ]) {
-        if (!seen.has(spot.id)) {
-            seen.add(spot.id);
-            deduped.push(spot);
+        const seen = new Set();
+        const deduped = [];
+        for (const spot of [
+            ...covered.flatMap(r => r.spots),
+            ...normalized_gaps.flatMap(g => g.spots),
+        ]) {
+            if (!seen.has(spot.id)) {
+                seen.add(spot.id);
+                deduped.push(spot);
+            }
         }
-    }
 
-    await store.commit(covered, { start: merged_start, end: merged_end, spots: deduped });
+        await store.commit(covered, { start: merged_start, end: merged_end, spots: deduped });
+    });
 }
 
 export async function evict_old_records() {
