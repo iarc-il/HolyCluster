@@ -29,6 +29,9 @@ impl RadioConfigurationService for Service {
             status: "stable".into(),
         }])
     }
+    fn serial_ports(&self) -> Result<Vec<String>, FieldError> {
+        Ok(vec!["/dev/ttyUSB0".into()])
+    }
     fn describe(&self, _: &str) -> Result<Vec<serde_json::Value>, FieldError> {
         Ok(vec![serde_json::json!({"token": "path"})])
     }
@@ -70,6 +73,26 @@ async fn unified_actions_return_typed_data() {
     assert_eq!(unified["type"], "radio");
     assert_eq!(unified["event"], "hamlib_models");
     assert_eq!(unified["models"][0]["id"], "1");
+}
+
+#[tokio::test]
+async fn lists_serial_ports() {
+    let radio = radio();
+    let service: RadioConfiguration = Arc::new(Service);
+    let response = process_ws(
+        r#"{"version":1,"type":"radio","action":"ListSerialPorts"}"#.into(),
+        &radio,
+        &service,
+    )
+    .await
+    .unwrap()
+    .unwrap()
+    .into_text()
+    .unwrap();
+    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(response["type"], "radio");
+    assert_eq!(response["event"], "serial_ports");
+    assert_eq!(response["ports"][0], "/dev/ttyUSB0");
 }
 #[tokio::test]
 async fn accepts_enum_configuration() {

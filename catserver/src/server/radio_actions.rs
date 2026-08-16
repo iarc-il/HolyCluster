@@ -38,6 +38,7 @@ enum ClientMessage {
     },
     GetCapabilities,
     ListHamlibModels,
+    ListSerialPorts,
     DescribeHamlibModel {
         model_id: String,
     },
@@ -102,6 +103,13 @@ async fn process(
             service
                 .models()
                 .map(|models| serde_json::json!({"models": models}))
+                .unwrap_or_else(|error| serde_json::json!({"error": error})),
+        ),
+        ClientMessage::ListSerialPorts => (
+            "serial_ports",
+            service
+                .serial_ports()
+                .map(|ports| serde_json::json!({"ports": ports}))
                 .unwrap_or_else(|error| serde_json::json!({"error": error})),
         ),
         ClientMessage::DescribeHamlibModel { model_id } => (

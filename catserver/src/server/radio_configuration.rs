@@ -42,6 +42,7 @@ pub(super) struct ConfigurationResult {
 pub(super) trait RadioConfigurationService: Send + Sync {
     fn capabilities(&self) -> Capabilities;
     fn models(&self) -> Result<Vec<HamlibModel>, FieldError>;
+    fn serial_ports(&self) -> Result<Vec<String>, FieldError>;
     fn describe(&self, model_id: &str) -> Result<Vec<serde_json::Value>, FieldError>;
     fn configuration(&self, current: RadioConfig) -> RadioConfig;
     fn set_configuration(&self, configuration: RadioConfig) -> ConfigurationFuture<'_>;
@@ -83,6 +84,16 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
                 status: format!("{:?}", model.status()).to_lowercase(),
             })
             .collect())
+    }
+
+    fn serial_ports(&self) -> Result<Vec<String>, FieldError> {
+        let mut ports = serialport::available_ports()
+            .map_err(|error| serial_ports_error(error.to_string()))?
+            .into_iter()
+            .map(|port| port.port_name)
+            .collect::<Vec<_>>();
+        ports.sort_unstable();
+        Ok(ports)
     }
 
     fn describe(&self, model_id: &str) -> Result<Vec<serde_json::Value>, FieldError> {
@@ -199,6 +210,14 @@ fn catalog_error(error: impl std::fmt::Display) -> FieldError {
     FieldError {
         field: "model_id".into(),
         message: error.to_string(),
+        token: None,
+    }
+}
+
+fn serial_ports_error(message: String) -> FieldError {
+    FieldError {
+        field: "serial_ports".into(),
+        message,
         token: None,
     }
 }
