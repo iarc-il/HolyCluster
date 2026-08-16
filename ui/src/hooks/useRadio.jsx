@@ -54,6 +54,7 @@ export function RadioProvider({ children }) {
     const [radio_retry_result, set_radio_retry_result] = useState(null);
     const requested_model_ids = useRef(new Set());
     const pending_configuration_action = useRef(null);
+    const pending_config = useRef(null);
 
     const { settings } = useSettings();
 
@@ -110,12 +111,20 @@ export function RadioProvider({ children }) {
         }
 
         if (data.event === "configuration_result") {
-            if (pending_configuration_action.current === "retry") {
+            const action = pending_configuration_action.current;
+            if (action === "retry") {
                 set_radio_retry_result(data);
             } else {
                 set_radio_configuration_result(data);
+                if (action === "apply" && data.ok && pending_config.current != null) {
+                    set_radio_configuration_state({
+                        event: "configuration",
+                        ...pending_config.current,
+                    });
+                }
             }
             pending_configuration_action.current = null;
+            pending_config.current = null;
         }
 
         if (data.event === "retry") {
@@ -200,10 +209,11 @@ export function RadioProvider({ children }) {
         send_message_to_radio({ action: "GetRadioConfiguration" });
     }
 
-    function set_radio_configuration(configuration) {
+    function set_radio_configuration(config) {
         pending_configuration_action.current = "apply";
+        pending_config.current = config;
         set_radio_configuration_result(null);
-        send_message_to_radio({ action: "SetRadioConfiguration", configuration });
+        send_message_to_radio({ action: "SetRadioConfiguration", configuration: config });
     }
 
     function retry_radio() {

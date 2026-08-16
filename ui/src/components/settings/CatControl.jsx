@@ -20,6 +20,13 @@ const serial_labels = {
     dtr: "Force Control DTR",
 };
 
+const serial_option_values = {
+    serial_speed: ["1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200"],
+    baud: ["1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200"],
+    data_bits: ["5", "6", "7", "8"],
+    stop_bits: ["1", "2"],
+};
+
 function serial_descriptors(descriptors) {
     return descriptors
         .filter(descriptor => Object.hasOwn(serial_labels, descriptor.token))
@@ -130,6 +137,19 @@ function search_select_styles(colors, invalid = false) {
     };
 }
 
+function select_options(descriptor, value) {
+    const options = serial_option_values[descriptor.token] ?? descriptor.options;
+    if (options == null) {
+        return null;
+    }
+
+    const values = options.map(String);
+    if (value && !values.includes(value)) {
+        values.unshift(value);
+    }
+    return values;
+}
+
 function error_for_rig(error, rig) {
     return error?.field?.startsWith(`${rig}.`) ? error : null;
 }
@@ -139,6 +159,7 @@ function DescriptorInput({ descriptor, value, on_change, error_token, colors, se
     const invalid = error_token === descriptor.token;
     const label = serial_labels[descriptor.token] || descriptor.label;
     const input_class = invalid ? "bg-red-200" : "";
+    const options = select_options(descriptor, value);
 
     if (label === "Serial port") {
         const options = serial_port_options(serial_ports ?? [], value);
@@ -182,7 +203,7 @@ function DescriptorInput({ descriptor, value, on_change, error_token, colors, se
     return (
         <label className="flex flex-col gap-1" title={descriptor.tooltip} htmlFor={input_id}>
             <span>{label}</span>
-            {descriptor.kind === "combo" ? (
+            {options ? (
                 <Select
                     id={input_id}
                     aria-invalid={invalid}
@@ -190,7 +211,7 @@ function DescriptorInput({ descriptor, value, on_change, error_token, colors, se
                     value={value}
                     onChange={event => on_change(event.target.value)}
                 >
-                    {descriptor.options.map(option => (
+                    {options.map(option => (
                         <option key={option} value={option}>
                             {option}
                         </option>
@@ -217,7 +238,7 @@ function DescriptorInput({ descriptor, value, on_change, error_token, colors, se
     );
 }
 
-function CatControl({ temp_settings, set_temp_settings, colors }) {
+function CatControl({ temp_settings, set_temp_settings, colors, radio_config_apply_ref = null }) {
     const {
         radio_capabilities,
         radio_configuration,
@@ -314,13 +335,18 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                 ok: false,
                 message: "Fix the highlighted radio settings before saving.",
             });
-            return;
+            return false;
         }
         set_save_state({ ok: null, message: "Saving radio hardware..." });
         set_radio_configuration({
             rig1: serialized_rig(configuration.rig1),
             ...(configuration.rig2_enabled ? { rig2: serialized_rig(configuration.rig2) } : {}),
         });
+        return true;
+    }
+
+    if (radio_config_apply_ref != null) {
+        radio_config_apply_ref.current = configuration == null ? null : save_configuration;
     }
 
     return (
@@ -521,9 +547,6 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                             {save_state.message}
                         </p>
                     ) : null}
-                    <button type="button" className="self-start" onClick={save_configuration}>
-                        Save radio hardware
-                    </button>
                 </section>
             ) : null}
             <h4 className="mb-2 border-t pt-4 text-lg">Logger integration</h4>

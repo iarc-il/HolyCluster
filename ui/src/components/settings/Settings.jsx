@@ -1,5 +1,5 @@
 import Maidenhead from "maidenhead";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { TOUR_SELECT_SETTINGS_TAB_EVENT } from "@/components/tour/tour_events.js";
 import Modal from "@/components/ui/Modal.jsx";
@@ -66,6 +66,7 @@ const empty_temp_settings = {
 
 function Settings({ set_map_controls, set_radius_in_km }) {
     const [temp_settings, set_temp_settings] = useState(empty_temp_settings);
+    const radio_config_apply_ref = useRef(null);
     const { colors, setTheme } = useColors();
     const { settings, set_settings } = useSettings();
     const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
@@ -196,6 +197,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                     temp_settings={temp_settings}
                     set_temp_settings={set_temp_settings}
                     colors={colors}
+                    radio_config_apply_ref={radio_config_apply_ref}
                 />
             ),
         });
@@ -220,17 +222,26 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             data_tour="top-bar-settings"
             dialog_data_tour="settings-modal"
             on_open={() => {
+                radio_config_apply_ref.current = null;
                 set_temp_settings(settings);
             }}
             on_apply={() => {
-                if (is_settings_valid) {
-                    apply_settings(temp_settings);
-                    reset_temp_settings();
+                if (!is_settings_valid) {
+                    return false;
                 }
 
-                return is_settings_valid;
+                if (radio_config_apply_ref.current && !radio_config_apply_ref.current()) {
+                    return false;
+                }
+
+                apply_settings(temp_settings);
+                reset_temp_settings();
+                return true;
             }}
-            on_cancel={() => reset_temp_settings()}
+            on_cancel={() => {
+                radio_config_apply_ref.current = null;
+                reset_temp_settings();
+            }}
         >
             <div className="h-full w-[21rem] md:w-[42rem]">
                 <Tabs tabs={tabs} data_tour="settings-tabs" />

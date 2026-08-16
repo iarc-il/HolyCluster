@@ -77,8 +77,8 @@ describe("radio configuration", () => {
         emit({ event: "hamlib_model", model_id: "1", descriptors: [{ token: "stale" }] });
         expect(Consumer.radio.hamlib_model_detail).toBeNull();
         emit({ event: "hamlib_model", model_id: "2", descriptors: [{ token: "path" }] });
-        emit({ event: "configuration", backend: "hamlib", hamlib: { rig1: { model_id: "2" } } });
         emit({ event: "configuration_result", ok: true });
+        emit({ event: "configuration", backend: "hamlib", hamlib: { rig1: { model_id: "2" } } });
 
         act(() => Consumer.radio.retry_radio());
         expect(websocket.send).toHaveBeenNthCalledWith(6, "radio", { action: "RetryRadio" });
@@ -102,5 +102,18 @@ describe("radio configuration", () => {
             ok: true,
         });
         expect(Consumer.radio.radio_retry_result).toEqual({ event: "retry", ok: true });
+    });
+
+    it("updates the cached config after a successful apply", () => {
+        const radio = Consumer.radio;
+        const config = { backend: "hamlib" };
+
+        act(() => radio.set_radio_configuration(config));
+        emit({ event: "configuration_result", ok: true });
+
+        expect(Consumer.radio.radio_configuration).toEqual({
+            event: "configuration",
+            ...config,
+        });
     });
 });

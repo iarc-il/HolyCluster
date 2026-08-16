@@ -29,6 +29,34 @@ const descriptors = [
         maximum: 115200,
         step: 1200,
     },
+    {
+        kind: "integer",
+        token: "data_bits",
+        label: "Data bits",
+        tooltip: "",
+        default: 8,
+        minimum: 5,
+        maximum: 8,
+        step: 1,
+    },
+    {
+        kind: "integer",
+        token: "stop_bits",
+        label: "Stop bits",
+        tooltip: "",
+        default: 1,
+        minimum: 1,
+        maximum: 2,
+        step: 1,
+    },
+    {
+        kind: "combo",
+        token: "serial_handshake",
+        label: "Handshake",
+        tooltip: "",
+        default: "None",
+        options: ["None", "Hardware"],
+    },
     { kind: "text", token: "unsupported", label: "Unsupported", tooltip: "", default: "" },
 ];
 
@@ -39,12 +67,13 @@ function configuration(
     return { event: "configuration", rig1, ...(rig2 ? { rig2 } : {}) };
 }
 
-function render_cat() {
+function render_cat(radio_config_apply_ref = null) {
     return render(
         <CatControl
             temp_settings={{ highlight_enabled: true, highlight_port: 2237 }}
             set_temp_settings={vi.fn()}
             colors={colors}
+            radio_config_apply_ref={radio_config_apply_ref}
         />,
     );
 }
@@ -106,6 +135,10 @@ describe("CAT control settings", () => {
         expect(screen.getByRole("option", { name: "/dev/ttyACM0" })).not.toBeNull();
         expect(screen.queryByRole("option", { name: "/dev/ttyUSB0" })).toBeNull();
         await user.click(screen.getByRole("option", { name: "/dev/ttyACM0" }));
+        expect(screen.getByLabelText("Baud rate").tagName).toBe("SELECT");
+        expect(screen.getByLabelText("Data bits").tagName).toBe("SELECT");
+        expect(screen.getByLabelText("Stop bits").tagName).toBe("SELECT");
+        expect(screen.getByLabelText("Handshake").tagName).toBe("SELECT");
         expect(screen.queryByLabelText("Unsupported")).toBeNull();
         await user.selectOptions(screen.getByLabelText("Rig"), "rig1");
         expect(screen.getByLabelText("Host").value).toBe("rig-one");
@@ -113,10 +146,12 @@ describe("CAT control settings", () => {
         expect(screen.getByText("Acme Rig")).not.toBeNull();
     });
 
-    it("serializes only active backend payloads", async () => {
-        const user = userEvent.setup();
-        render_cat();
-        await user.click(screen.getByRole("button", { name: "Save radio hardware" }));
+    it("registers radio config for the settings modal Apply button", () => {
+        const radio_config_apply_ref = { current: null };
+        render_cat(radio_config_apply_ref);
+
+        expect(screen.queryByRole("button", { name: "Save radio hardware" })).toBeNull();
+        expect(radio_config_apply_ref.current()).toBe(true);
         expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
             rig1: { backend: "rigctld", rigctld: { host: "127.0.0.1", port: 4532 } },
         });
