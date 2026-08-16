@@ -68,12 +68,34 @@ pub(crate) fn unique_descriptors(
 pub(crate) fn load_backends() -> Result<(), HamlibError> {
     BACKENDS
         .get_or_init(|| {
+            configure_debug();
             // SAFETY: Hamlib's process-wide backend registry is initialized exactly once here.
             hamlib_result("rig_load_all_backends", unsafe {
                 sys::rig_load_all_backends()
             })
         })
         .clone()
+}
+
+fn configure_debug() {
+    // SAFETY: The callback has static lifetime and only reads Hamlib's message buffer.
+    unsafe {
+        sys::hamlib_sys_configure_debug(Some(hamlib_debug_callback));
+    }
+}
+
+unsafe extern "C" fn hamlib_debug_callback(level: std::os::raw::c_int, message: *const c_char) {
+    if message.is_null() {
+        return;
+    }
+    let Ok(message) = (unsafe { CStr::from_ptr(message) }).to_str() else {
+        return;
+    };
+    match level {
+        0..=2 => tracing::error!(target: "hamlib", "{message}"),
+        3 => tracing::warn!(target: "hamlib", "{message}"),
+        _ => tracing::debug!(target: "hamlib", "{message}"),
+    }
 }
 
 pub(crate) fn hamlib_result(operation: &'static str, result: i32) -> Result<(), HamlibError> {

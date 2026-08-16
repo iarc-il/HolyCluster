@@ -63,6 +63,7 @@ fn main() {
     }
     cc::Build::new()
         .file("src/caps_metadata.c")
+        .file("src/debug.c")
         .include(include_dir)
         .compile("hamlib_sys_caps_metadata");
 }

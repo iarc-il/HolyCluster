@@ -375,3 +375,13 @@ unsafe extern "C" {
         caps: *const rig_caps,
     ) -> *const hamlib_sys_rig_caps_metadata;
 }
+unsafe extern "C" {
+    pub fn hamlib_sys_configure_debug(
+        callback: ::std::option::Option<
+            unsafe extern "C" fn(
+                level: ::std::os::raw::c_int,
+                message: *const ::std::os::raw::c_char,
+            ),
+        >,
+    );
+}
