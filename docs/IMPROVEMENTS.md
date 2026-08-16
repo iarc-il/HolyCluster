@@ -133,7 +133,6 @@ The Valkey service has its persistence volume **commented out** (`backend/docker
 | geo cache | QRZ hammered with re-lookups; slower enrichment for up to 1 h |
 | dedup keys | brief duplicate-spot window across sources |
 | `stream-api` + consumer group | broadcast gap; clients rely on `catch_up` |
-| `stream-arrivals` | cluster-stats history truncated |
 | `dxpeditions:active` | `/dxpeditions` empty until the daily refresh |
 
 ```mermaid

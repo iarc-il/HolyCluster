@@ -3,7 +3,6 @@ import { TOUR_CHAPTERS } from "../src/components/tour/tour_chapters.jsx";
 
 const dev_only_selectors = [
     "top-bar-profile-selector",
-    "top-bar-cluster-stats",
     "map-history-toggle",
     "map-voacap-controls",
     "map-voacap-toggle",

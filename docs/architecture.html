@@ -216,10 +216,10 @@ flowchart LR
     VALIDATE -->|"if locator+band+mode present"| STREAM
     STREAM -->|"consumer group api-group"| APIB["api: spots_broadcast_task"]
     APIB -->|"WebSocket broadcast"| CLIENTS["All connected browsers"]
-</pre><div class="caption">All sources feed one queue; one consumer enriches and persists. Sources also record arrivals to the <code>stream-arrivals</code> analytics stream.</div></div>
+</pre><div class="caption">All sources feed one queue; one consumer enriches and persists.</div></div>
 <ul>
 <li><strong>Telnet clusters</strong> (<code>collectors/telnet/</code>): server list in <code>telnet_servers.csv</code>; one task per server, exponential reconnect backoff (60&nbsp;s → 24&nbsp;h), regex parsing, keepalive ping on 60&nbsp;s silence. Spotters <code>W3LPL</code> and <code>J9AQ</code> are hardcoded-banned.</li>
-<li><strong>POTA/SOTA/WWFF</strong>: JSON pollers sharing <code>run_json_spot_collector</code> (dedup, arrival recording, error backoff ≤ 300&nbsp;s).</li>
+<li><strong>POTA/SOTA/WWFF</strong>: JSON pollers sharing <code>run_json_spot_collector</code> (dedup, error backoff ≤ 300&nbsp;s).</li>
 <li>There is <strong>no RBN or DXHeat collector</strong> — telnet clusters are the live feed.</li>
 </ul>
 
@@ -309,7 +309,6 @@ erDiagram
 <tr><td>GET</td><td><code>/voacap?...</code></td><td>VOACAP HF propagation grid (CPU-heavy, threaded)</td></tr>
 <tr><td>GET</td><td><code>/dxpeditions</code></td><td>Active DXpeditions (from Valkey)</td></tr>
 <tr><td>GET</td><td><code>/history?start_time&amp;end_time</code></td><td>Historical spots (max 24 h window)</td></tr>
-<tr><td>GET</td><td><code>/cluster_stats?hours</code></td><td>Source-overlap analytics from <code>stream-arrivals</code></td></tr>
 <tr><td>GET</td><td><code>/catserver/latest</code> · <code>/catserver/download</code></td><td>Desktop app version + MSI download</td></tr>
 <tr><td>GET</td><td><code>/health</code> · <code>/</code> · <code>/{path}</code></td><td>Liveness · SPA catch-all</td></tr>
 <tr><td>WS</td><td><code>/ws</code></td><td><strong>Primary versioned protocol</strong> (below)</td></tr>

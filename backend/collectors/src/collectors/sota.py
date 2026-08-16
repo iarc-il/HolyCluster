@@ -101,7 +101,6 @@ async def run_sota_collector(output_queue: asyncio.Queue):
         output_queue,
         source_label="SOTA",
         metric_name="sota",
-        cluster=SOTA_CLUSTER,
         url=SOTA_SPOTS_URL,
         poll_interval=SOTA_POLL_INTERVAL,
         request_timeout=SOTA_REQUEST_TIMEOUT,

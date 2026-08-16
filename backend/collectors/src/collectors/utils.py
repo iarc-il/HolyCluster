@@ -7,7 +7,6 @@ import aiohttp
 from loguru import logger
 from shared.metrics import push_drop_event, push_exception_event, set_value
 
-STREAM_ARRIVALS = "stream-arrivals"
 USER_AGENT = "HolyCluster collector (https://holycluster.iarc.org/)"
 
 
@@ -31,22 +30,11 @@ async def fetch_json_list(session: aiohttp.ClientSession, url: str, source_label
     return data
 
 
-async def record_arrival(valkey_client, cluster: str, source_label: str, spot_key: str, added: bool):
-    try:
-        await valkey_client.xadd(
-            STREAM_ARRIVALS,
-            {"cluster": cluster, "spot_key": spot_key, "accepted": "1" if added else "0"},
-        )
-    except Exception:
-        logger.warning(f"Failed to write {source_label} arrival to stream-arrivals", exc_info=True)
-
-
 async def run_json_spot_collector(
     output_queue: asyncio.Queue,
     *,
     source_label: str,
     metric_name: str,
-    cluster: str,
     url: str,
     poll_interval: int,
     request_timeout: int,
@@ -87,13 +75,11 @@ async def run_json_spot_collector(
 
                     source_added = await valkey_client.set(source_spot_key, 1, ex=spot_expiration, nx=True)
                     if not source_added:
-                        await record_arrival(valkey_client, cluster, source_label, content_spot_key, False)
                         continue
 
                     content_added = await valkey_client.set(
                         content_spot_key, 1, ex=settings.valkey_spot_expiration, nx=True
                     )
-                    await record_arrival(valkey_client, cluster, source_label, content_spot_key, bool(content_added))
                     if content_added:
                         await output_queue.put(spot)
                         queued_count += 1

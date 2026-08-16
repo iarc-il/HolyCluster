@@ -83,7 +83,6 @@ async def run_wwff_collector(output_queue: asyncio.Queue):
         output_queue,
         source_label="WWFF",
         metric_name=WWFF_TYPE,
-        cluster=WWFF_CLUSTER,
         url=WWFF_SPOTS_URL,
         poll_interval=WWFF_POLL_INTERVAL,
         request_timeout=WWFF_REQUEST_TIMEOUT,

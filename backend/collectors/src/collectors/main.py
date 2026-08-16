@@ -2,7 +2,6 @@ import argparse
 import asyncio
 import sys
 import re
-import time
 from datetime import datetime, timezone
 
 from loguru import logger
@@ -22,7 +21,6 @@ from collectors.sota import run_sota_collector
 from collectors.telnet.runner import (
     run_concurrent_telnet_connections,
 )
-from collectors.utils import STREAM_ARRIVALS
 from collectors.wwff import run_wwff_collector
 
 import aiomonitor
@@ -235,20 +233,6 @@ async def refresh_dxpedition_data(valkey_client):
         await asyncio.sleep(sleep)
 
 
-STREAM_ARRIVALS_RETENTION_SECONDS = 7 * 86400
-
-
-async def trim_arrivals_stream(valkey_client):
-    while True:
-        min_id = int((time.time() - STREAM_ARRIVALS_RETENTION_SECONDS) * 1000)
-        try:
-            await valkey_client.xtrim(STREAM_ARRIVALS, minid=min_id)
-            logger.info(f"Trimmed stream-arrivals to minid={min_id}")
-        except Exception:
-            logger.warning("Failed to trim stream-arrivals", exc_info=True)
-        await asyncio.sleep(3600)
-
-
 async def run_collector():
     logger.info("Starting collector...")
 
@@ -271,14 +255,13 @@ async def run_collector():
     dxpedition_refresh_task = asyncio.create_task(
         refresh_dxpedition_data(valkey_client), name="dxpedition_refresh_task"
     )
-    trim_task = asyncio.create_task(trim_arrivals_stream(valkey_client), name="trim_arrivals_stream")
     processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
     collector_tasks = run_concurrent_telnet_connections(spots_queue)
     collector_tasks.append(asyncio.create_task(run_pota_collector(spots_queue), name="pota.app"))
     collector_tasks.append(asyncio.create_task(run_sota_collector(spots_queue), name="sota"))
     collector_tasks.append(asyncio.create_task(run_wwff_collector(spots_queue), name="spots.wwff.co"))
 
-    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task, trim_task]
+    tasks = [qrz_refresh_task, dxpedition_refresh_task, processor_task]
     tasks.extend(collector_tasks)
 
     try:
