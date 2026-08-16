@@ -2,7 +2,6 @@ name: ${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME to holycluster-backend-de
 
 services:
   postgres:
-    container_name: postgres
     build:
       context: infra/postgres
       dockerfile: Dockerfile.postgres
@@ -27,7 +26,6 @@ services:
       - "${POSTGRES_PORT}"
 
   valkey:
-    container_name: valkey
     build:
       context: infra/valkey
       dockerfile: Dockerfile.valkey
@@ -50,7 +48,6 @@ services:
     restart: always
 
   migrate:
-    container_name: migrate
     build:
       context: .
       dockerfile: docker/Dockerfile.migrate
@@ -61,7 +58,6 @@ services:
         condition: service_healthy
 
   collector:
-    container_name: collector
     build:
       context: .
       dockerfile: docker/Dockerfile.collector
@@ -83,7 +79,6 @@ services:
       - SYS_PTRACE
 
   api:
-    container_name: api
     build:
       context: .
       dockerfile: docker/Dockerfile.api
@@ -110,7 +105,6 @@ services:
       start_period: 5s
 
   monitor:
-    container_name: monitor
     build:
       context: .
       dockerfile: docker/Dockerfile.monitor
@@ -126,7 +120,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   nginx:
-    container_name: nginx
     build:
       context: infra/nginx
       dockerfile: Dockerfile.nginx
@@ -183,7 +176,6 @@ services:
       - proxy
 
   certbot:
-    container_name: certbot
     restart: unless-stopped
     # Renews BOTH the DOMAIN and DOMAIN_ALT certs via webroot http-01 (each cert's
     # renewal.conf records authenticator=webroot). The DOMAIN_ALT challenge reaches
@@ -199,7 +191,6 @@ services:
       /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
 
   nginx_ui:
-      container_name: nginx_ui
       profiles: ["dev"]
       stdin_open: true
       tty: true

@@ -37,7 +37,7 @@ echo "Removing temporary self-signed certificate..."
 rm infra/certbot/conf/live/${DOMAIN}/*.pem
 
 echo "Issuing Let's Encrypt certificate..."
-docker exec -it certbot certbot certonly --webroot \
+docker compose exec certbot certbot certonly --webroot \
   --webroot-path=/var/www/certbot \
   -d ${DOMAIN} \
   --email ${EMAIL} \

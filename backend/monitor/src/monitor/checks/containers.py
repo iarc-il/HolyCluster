@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 
 from loguru import logger
 
@@ -11,11 +12,13 @@ async def check_containers(
 ) -> list[Alert]:
     alerts = []
     try:
+        compose_project = os.getenv("COMPOSE_PROJECT_NAME")
+        docker_args = ["docker", "ps"]
+        if compose_project:
+            docker_args.extend(["--filter", f"label=com.docker.compose.project={compose_project}"])
+        docker_args.extend(["--format", "{{json .}}"])
         proc = await asyncio.create_subprocess_exec(
-            "docker",
-            "ps",
-            "--format",
-            "{{json .}}",
+            *docker_args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -33,7 +36,8 @@ async def check_containers(
             except json.JSONDecodeError:
                 continue
 
-            name = container.get("Names", "unknown")
+            labels = dict(label.split("=", 1) for label in container.get("Labels", "").split(",") if "=" in label)
+            name = labels.get("com.docker.compose.service", container.get("Names", "unknown"))
             state = container.get("State", "")
             status = container.get("Status", "")
 
