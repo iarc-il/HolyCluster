@@ -51,6 +51,7 @@ export function RadioProvider({ children }) {
     const [hamlib_model_error, set_hamlib_model_error] = useState(null);
     const [radio_configuration, set_radio_configuration_state] = useState(null);
     const [radio_configuration_result, set_radio_configuration_result] = useState(null);
+    const [radio_connection_result, set_radio_connection_result] = useState(null);
     const [radio_retry_result, set_radio_retry_result] = useState(null);
     const requested_model_ids = useRef(new Set());
     const pending_configuration_action = useRef(null);
@@ -125,6 +126,10 @@ export function RadioProvider({ children }) {
             }
             pending_configuration_action.current = null;
             pending_config.current = null;
+        }
+
+        if (data.event === "radio_connection_result") {
+            set_radio_connection_result(data);
         }
 
         if (data.event === "retry") {
@@ -216,6 +221,11 @@ export function RadioProvider({ children }) {
         send_message_to_radio({ action: "SetRadioConfiguration", configuration: config });
     }
 
+    function test_radio_connection(config) {
+        set_radio_connection_result(null);
+        send_message_to_radio({ action: "TestRadioConnection", config });
+    }
+
     function retry_radio() {
         pending_configuration_action.current = "retry";
         set_radio_retry_result(null);
@@ -234,6 +244,7 @@ export function RadioProvider({ children }) {
                 describe_hamlib_model,
                 get_radio_configuration,
                 set_radio_configuration,
+                test_radio_connection,
                 retry_radio,
                 is_radio_available,
                 radio_status,
@@ -252,6 +263,7 @@ export function RadioProvider({ children }) {
                 hamlib_model_error,
                 radio_configuration,
                 radio_configuration_result,
+                radio_connection_result,
                 radio_retry_result,
                 local_version,
             }}

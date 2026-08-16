@@ -8,7 +8,12 @@ vi.mock("@/hooks/useRadio", () => ({ default: () => radio.current }));
 vi.mock("@/hooks/useColors", () => ({
     useColors: () => ({
         colors: {
-            theme: { input_background: "white", text: "black", disabled_text: "gray" },
+            theme: {
+                input_background: "white",
+                text: "black",
+                disabled_text: "gray",
+                borders: "gray",
+            },
             buttons: { utility: "black" },
         },
     }),
@@ -84,6 +89,7 @@ describe("CAT control settings", () => {
             radio_capabilities: { radio_configuration: true, backends: ["rigctld", "hamlib"] },
             radio_configuration: configuration(),
             radio_configuration_result: null,
+            radio_connection_result: null,
             hamlib_models: [
                 { id: "2", manufacturer: "Acme", model: "Rig" },
                 { id: "3", manufacturer: "Other", model: "Radio" },
@@ -98,6 +104,7 @@ describe("CAT control settings", () => {
             list_serial_ports: vi.fn(),
             describe_hamlib_model: vi.fn(),
             set_radio_configuration: vi.fn(),
+            test_radio_connection: vi.fn(),
         };
     });
     afterEach(() => cleanup());
@@ -155,6 +162,48 @@ describe("CAT control settings", () => {
         expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
             rig1: { backend: "rigctld", rigctld: { host: "127.0.0.1", port: 4532 } },
         });
+    });
+
+    it("tests the current radio draft without applying it", async () => {
+        const user = userEvent.setup();
+        render_cat();
+
+        const button = screen.getByRole("button", { name: "Test connection" });
+        await user.click(button);
+
+        expect(button.className).toContain("text-xs");
+        expect(screen.getByRole("status").textContent).toContain("Testing radio connection...");
+        expect(radio.current.test_radio_connection).toHaveBeenCalledWith({
+            rig1: { backend: "rigctld", rigctld: { host: "127.0.0.1", port: 4532 } },
+        });
+        expect(radio.current.set_radio_configuration).not.toHaveBeenCalled();
+    });
+
+    it("shows a green success indicator for a connection test", () => {
+        radio.current.radio_connection_result = { ok: true };
+        render_cat();
+
+        const status = screen.getByRole("status");
+        expect(status.textContent).toContain("✓");
+        expect(status.className).toContain("text-green-600");
+    });
+
+    it("shows a red failure indicator for a connection test", () => {
+        radio.current.radio_connection_result = {
+            ok: false,
+            error: { message: "No radio", details: "Hamlib trace" },
+        };
+        render_cat();
+
+        const status = screen.getByRole("alert");
+        expect(status.textContent).toContain("✕ No radio");
+        expect(status.className).toContain("text-red-600");
+        const details = screen.getByText("Details").parentElement;
+        expect(details.open).toBe(false);
+        details.querySelector("summary").click();
+        expect(details.open).toBe(true);
+        expect(details.textContent).toContain("Hamlib trace");
+        expect(details.querySelector("code").style.backgroundColor).toBe("white");
     });
 
     it("shows a successful radio hardware save result", async () => {

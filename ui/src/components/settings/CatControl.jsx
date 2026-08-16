@@ -1,6 +1,8 @@
+import Button from "@/components/ui/Button.jsx";
 import Input from "@/components/ui/Input.jsx";
 import Select from "@/components/ui/Select.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
+import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useEffect, useState } from "react";
 import { default as SearchSelect } from "react-select";
@@ -238,11 +240,19 @@ function DescriptorInput({ descriptor, value, on_change, error_token, colors, se
     );
 }
 
-function CatControl({ temp_settings, set_temp_settings, colors, radio_config_apply_ref = null }) {
+function CatControl({
+    temp_settings,
+    set_temp_settings,
+    colors: fallback_colors,
+    radio_config_apply_ref = null,
+}) {
+    const { colors: theme_colors } = useColors();
+    const colors = theme_colors ?? fallback_colors;
     const {
         radio_capabilities,
         radio_configuration,
         radio_configuration_result,
+        radio_connection_result,
         hamlib_models,
         hamlib_models_error,
         serial_ports,
@@ -254,6 +264,7 @@ function CatControl({ temp_settings, set_temp_settings, colors, radio_config_app
         list_serial_ports,
         describe_hamlib_model,
         set_radio_configuration,
+        test_radio_connection,
     } = use_radio();
     const [configuration, set_configuration] = useState(null);
     const [selected_rig, set_selected_rig] = useState("rig1");
@@ -303,9 +314,25 @@ function CatControl({ temp_settings, set_temp_settings, colors, radio_config_app
         if (radio_configuration_result?.ok === true) {
             set_save_state({ ok: true, message: "Radio hardware saved." });
         } else if (server_error && error_for_rig(server_error, selected_rig)) {
-            set_save_state({ ok: false, message: server_error.message });
+            set_save_state({
+                ok: false,
+                message: server_error.message,
+                details: server_error.details,
+            });
         }
     }, [radio_configuration_result, selected_rig]);
+
+    useEffect(() => {
+        if (radio_connection_result?.ok === true) {
+            set_save_state({ ok: true, message: "Radio connection succeeded." });
+        } else if (radio_connection_result?.ok === false) {
+            set_save_state({
+                ok: false,
+                message: radio_connection_result.error?.message || "Radio connection failed.",
+                details: radio_connection_result.error?.details,
+            });
+        }
+    }, [radio_connection_result]);
 
     function update_selected(update) {
         set_save_state(null);
@@ -343,6 +370,22 @@ function CatControl({ temp_settings, set_temp_settings, colors, radio_config_app
             ...(configuration.rig2_enabled ? { rig2: serialized_rig(configuration.rig2) } : {}),
         });
         return true;
+    }
+
+    function test_connection() {
+        set_rigctld_port_touched(true);
+        if (!validate_selected_rig()) {
+            set_save_state({
+                ok: false,
+                message: "Fix the highlighted radio settings before testing.",
+            });
+            return;
+        }
+        set_save_state({ ok: null, message: "Testing radio connection..." });
+        test_radio_connection({
+            rig1: serialized_rig(configuration.rig1),
+            ...(configuration.rig2_enabled ? { rig2: serialized_rig(configuration.rig2) } : {}),
+        });
     }
 
     if (radio_config_apply_ref != null) {
@@ -541,12 +584,54 @@ function CatControl({ temp_settings, set_temp_settings, colors, radio_config_app
                         </div>
                     ) : null}
                     {selected_error ? <p role="alert">{selected_error.message}</p> : null}
-                    {save_state &&
-                    (!selected_error || save_state.message !== selected_error.message) ? (
-                        <p role={save_state.ok === false ? "alert" : "status"}>
-                            {save_state.message}
-                        </p>
-                    ) : null}
+                    <div className="flex flex-col items-start gap-1">
+                        <div className="flex items-center gap-3">
+                            <Button
+                                type="button"
+                                className="whitespace-nowrap px-2 py-1 text-xs"
+                                on_click={test_connection}
+                            >
+                                Test connection
+                            </Button>
+                            {save_state &&
+                            (!selected_error || save_state.message !== selected_error.message) ? (
+                                <p
+                                    className={
+                                        save_state.ok === true
+                                            ? "text-green-600"
+                                            : save_state.ok === false
+                                              ? "text-red-600"
+                                              : "text-gray-500"
+                                    }
+                                    role={save_state.ok === false ? "alert" : "status"}
+                                >
+                                    <span aria-hidden="true" className="mr-1 font-bold">
+                                        {save_state.ok === true
+                                            ? "✓"
+                                            : save_state.ok === false
+                                              ? "✕"
+                                              : "..."}
+                                    </span>{" "}
+                                    {save_state.message}
+                                </p>
+                            ) : null}
+                        </div>
+                        {save_state?.details ? (
+                            <details className="w-full text-sm">
+                                <summary className="cursor-pointer">Details</summary>
+                                <code
+                                    className="mt-1 block max-w-[36rem] overflow-x-auto whitespace-pre-wrap rounded p-2 text-left"
+                                    style={{
+                                        backgroundColor: colors.theme.input_background,
+                                        border: `1px solid ${colors.theme.borders}`,
+                                        color: colors.theme.text,
+                                    }}
+                                >
+                                    {save_state.details}
+                                </code>
+                            </details>
+                        ) : null}
+                    </div>
                 </section>
             ) : null}
             <h4 className="mb-2 border-t pt-4 text-lg">Logger integration</h4>

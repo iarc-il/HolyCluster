@@ -116,4 +116,21 @@ describe("radio configuration", () => {
             ...config,
         });
     });
+
+    it("sends a draft to the connection test action", () => {
+        const radio = Consumer.radio;
+        const config = { backend: "hamlib" };
+
+        act(() => radio.test_radio_connection(config));
+
+        expect(websocket.send).toHaveBeenCalledWith("radio", {
+            action: "TestRadioConnection",
+            config,
+        });
+        emit({ event: "radio_connection_result", ok: true });
+        expect(Consumer.radio.radio_connection_result).toEqual({
+            event: "radio_connection_result",
+            ok: true,
+        });
+    });
 });
