@@ -3,6 +3,7 @@ import Select from "@/components/ui/Select.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import use_radio from "@/hooks/useRadio";
 import { useEffect, useState } from "react";
+import { default as SearchSelect } from "react-select";
 import LoggerIntegrationHelp from "./LoggerIntegrationHelp.jsx";
 
 const serial_labels = {
@@ -78,6 +79,13 @@ function serialized_rig(rig) {
         };
     }
     return { backend: rig.backend };
+}
+
+function hamlib_model_options(models) {
+    return models.map(model => ({
+        value: model.id,
+        label: `${model.manufacturer} ${model.model}`,
+    }));
 }
 
 function error_for_rig(error, rig) {
@@ -171,6 +179,10 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
     const server_error =
         radio_configuration_result?.ok === false ? radio_configuration_result.error : null;
     const selected_error = error_for_rig(server_error, selected_rig);
+    const model_options = hamlib_model_options(hamlib_models);
+    const selected_model = model_options.find(
+        option => option.value === selected_configuration?.hamlib?.model_id,
+    );
     const rigctld_port_valid =
         Number.isInteger(Number(selected_configuration?.rigctld.port)) &&
         Number(selected_configuration?.rigctld.port) >= 1 &&
@@ -366,16 +378,20 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                             ) : null}
                             <label className="flex flex-col gap-1" htmlFor="hamlib-model">
                                 <span>Model</span>
-                                <Select
-                                    id="hamlib-model"
-                                    className={
-                                        selected_error?.field === `${selected_rig}.hamlib.model_id`
-                                            ? "bg-red-200 w-full"
-                                            : "w-full"
+                                <SearchSelect
+                                    inputId="hamlib-model"
+                                    aria-label="Model"
+                                    className="w-full"
+                                    filterOption={(option, text) =>
+                                        `${option.label} ${option.value}`
+                                            .toLowerCase()
+                                            .includes(text.toLowerCase())
                                     }
-                                    value={selected_configuration.hamlib.model_id}
-                                    onChange={event => {
-                                        const model_id = event.target.value;
+                                    value={selected_model ?? null}
+                                    placeholder="Select a model"
+                                    isClearable
+                                    onChange={option => {
+                                        const model_id = option?.value ?? "";
                                         update_selected(rig => ({
                                             ...rig,
                                             hamlib: {
@@ -388,14 +404,41 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                             },
                                         }));
                                     }}
-                                >
-                                    <option value="">Select a model</option>
-                                    {hamlib_models.map(model => (
-                                        <option key={model.id} value={model.id}>
-                                            {model.manufacturer} {model.model}
-                                        </option>
-                                    ))}
-                                </Select>
+                                    styles={{
+                                        control: base_style => ({
+                                            ...base_style,
+                                            backgroundColor: colors.theme.input_background,
+                                            borderColor:
+                                                selected_error?.field ===
+                                                `${selected_rig}.hamlib.model_id`
+                                                    ? "#fecaca"
+                                                    : colors.theme.borders,
+                                            color: colors.theme.text,
+                                            minHeight: "2.5rem",
+                                        }),
+                                        menu: base_style => ({
+                                            ...base_style,
+                                            backgroundColor: colors.theme.input_background,
+                                            borderColor: colors.theme.borders,
+                                        }),
+                                        option: (base_style, { isFocused }) => ({
+                                            ...base_style,
+                                            backgroundColor: isFocused
+                                                ? colors.theme.disabled_text
+                                                : colors.theme.input_background,
+                                            color: colors.theme.text,
+                                        }),
+                                        input: base_style => ({
+                                            ...base_style,
+                                            color: colors.theme.text,
+                                        }),
+                                        singleValue: base_style => ({
+                                            ...base_style,
+                                            color: colors.theme.text,
+                                        }),
+                                    }}
+                                    options={model_options}
+                                />
                             </label>
                             <h5 className="border-t pt-3 font-semibold">Serial connection</h5>
                             <div className="grid gap-3 min-[720px]:grid-cols-2">

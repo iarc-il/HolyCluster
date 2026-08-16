@@ -55,7 +55,10 @@ describe("CAT control settings", () => {
             radio_capabilities: { radio_configuration: true, backends: ["rigctld", "hamlib"] },
             radio_configuration: configuration(),
             radio_configuration_result: null,
-            hamlib_models: [{ id: "2", manufacturer: "Acme", model: "Rig" }],
+            hamlib_models: [
+                { id: "2", manufacturer: "Acme", model: "Rig" },
+                { id: "3", manufacturer: "Other", model: "Radio" },
+            ],
             hamlib_models_error: null,
             hamlib_model_details: { 2: descriptors },
             hamlib_model_error: null,
@@ -82,7 +85,7 @@ describe("CAT control settings", () => {
         expect(screen.getByRole("option", { name: "Choose a backend" }).disabled).toBe(true);
     });
 
-    it("preserves independent rig drafts while switching rigs and backends", async () => {
+    it("searches and selects Hamlib models while preserving independent rig drafts", async () => {
         const user = userEvent.setup();
         render_cat();
         await user.clear(screen.getByLabelText("Host"));
@@ -90,13 +93,17 @@ describe("CAT control settings", () => {
         await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
         await user.click(screen.getByLabelText("Enable Rig 2"));
         await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
-        await user.selectOptions(screen.getByLabelText("Model"), "2");
+        const model = screen.getByRole("combobox", { name: "Model" });
+        await user.type(model, "Acme");
+        expect(screen.getByRole("option", { name: "Acme Rig" })).not.toBeNull();
+        expect(screen.queryByRole("option", { name: "Other Radio" })).toBeNull();
+        await user.click(screen.getByRole("option", { name: "Acme Rig" }));
         expect(screen.getByLabelText("Serial port")).not.toBeNull();
         expect(screen.queryByLabelText("Unsupported")).toBeNull();
         await user.selectOptions(screen.getByLabelText("Rig"), "rig1");
         expect(screen.getByLabelText("Host").value).toBe("rig-one");
         await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
-        expect(screen.getByLabelText("Model").value).toBe("2");
+        expect(screen.getByText("Acme Rig")).not.toBeNull();
     });
 
     it("serializes only active backend payloads", async () => {
