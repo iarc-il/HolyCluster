@@ -76,7 +76,6 @@ async def run_pota_collector(output_queue: asyncio.Queue):
         output_queue,
         source_label="POTA",
         metric_name=POTA_TYPE,
-        cluster=POTA_CLUSTER,
         url=POTA_SPOTS_URL,
         poll_interval=POTA_POLL_INTERVAL,
         request_timeout=POTA_REQUEST_TIMEOUT,

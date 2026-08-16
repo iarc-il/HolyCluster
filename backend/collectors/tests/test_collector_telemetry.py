@@ -46,7 +46,6 @@ class JsonCollectorTelemetryTest(IsolatedAsyncioTestCase):
                     asyncio.Queue(),
                     source_label="test",
                     metric_name="test",
-                    cluster="test",
                     url="https://example.invalid/spots",
                     poll_interval=1,
                     request_timeout=1,
