@@ -84,7 +84,7 @@ def initialize_sentry(settings: SentrySettings, service: str):
     if not settings.sentry_dsn:
         return None
 
-    return sentry_sdk.init(
+    client = sentry_sdk.init(
         dsn=settings.sentry_dsn,
         environment=settings.sentry_environment,
         release=settings.sentry_release,
@@ -92,8 +92,9 @@ def initialize_sentry(settings: SentrySettings, service: str):
         include_local_variables=False,
         max_breadcrumbs=0,
         before_send=scrub_event,
-        initial_scope={"tags": {"service": service}},
     )
+    sentry_sdk.set_tag("service", service)
+    return client
 
 
 def capture_exception(error: BaseException, operation: str | None = None) -> None:

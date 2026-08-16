@@ -36,6 +36,10 @@ def test_initialize_sentry_sets_service_and_release_metadata(monkeypatch):
         captured.update(kwargs)
 
     monkeypatch.setattr("shared.telemetry.sentry_sdk.init", sentry_init)
+    monkeypatch.setattr(
+        "shared.telemetry.sentry_sdk.set_tag",
+        lambda key, value: captured.setdefault("tags", {}).update({key: value}),
+    )
 
     initialize_sentry(
         SentrySettings(sentry_dsn="https://key@example.invalid/1", sentry_environment="dev", sentry_release="v1"),
@@ -44,7 +48,7 @@ def test_initialize_sentry_sets_service_and_release_metadata(monkeypatch):
 
     assert captured["environment"] == "dev"
     assert captured["release"] == "v1"
-    assert captured["initial_scope"] == {"tags": {"service": "collector"}}
+    assert captured["tags"] == {"service": "collector"}
 
 
 def test_scrub_event_removes_sensitive_values_without_mutating_the_event():
