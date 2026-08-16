@@ -60,10 +60,13 @@ describe("CAT control settings", () => {
                 { id: "3", manufacturer: "Other", model: "Radio" },
             ],
             hamlib_models_error: null,
+            serial_ports: ["/dev/ttyACM0", "/dev/ttyUSB0"],
+            serial_ports_error: null,
             hamlib_model_details: { 2: descriptors },
             hamlib_model_error: null,
             get_radio_configuration: vi.fn(),
             list_hamlib_models: vi.fn(),
+            list_serial_ports: vi.fn(),
             describe_hamlib_model: vi.fn(),
             set_radio_configuration: vi.fn(),
         };
@@ -98,7 +101,11 @@ describe("CAT control settings", () => {
         expect(screen.getByRole("option", { name: "Acme Rig" })).not.toBeNull();
         expect(screen.queryByRole("option", { name: "Other Radio" })).toBeNull();
         await user.click(screen.getByRole("option", { name: "Acme Rig" }));
-        expect(screen.getByLabelText("Serial port")).not.toBeNull();
+        const serial_port = screen.getByRole("combobox", { name: "Serial port" });
+        await user.type(serial_port, "ttyACM");
+        expect(screen.getByRole("option", { name: "/dev/ttyACM0" })).not.toBeNull();
+        expect(screen.queryByRole("option", { name: "/dev/ttyUSB0" })).toBeNull();
+        await user.click(screen.getByRole("option", { name: "/dev/ttyACM0" }));
         expect(screen.queryByLabelText("Unsupported")).toBeNull();
         await user.selectOptions(screen.getByLabelText("Rig"), "rig1");
         expect(screen.getByLabelText("Host").value).toBe("rig-one");

@@ -88,15 +88,78 @@ function hamlib_model_options(models) {
     }));
 }
 
+function serial_port_options(ports, current_value) {
+    const options = ports.map(port => ({ value: port, label: port }));
+    if (current_value && !options.some(option => option.value === current_value)) {
+        options.unshift({ value: current_value, label: current_value });
+    }
+    return options;
+}
+
+function search_filter(option, text) {
+    return `${option.label} ${option.value}`.toLowerCase().includes(text.toLowerCase());
+}
+
+function search_select_styles(colors, invalid = false) {
+    return {
+        control: base_style => ({
+            ...base_style,
+            backgroundColor: colors.theme.input_background,
+            borderColor: invalid ? "#fecaca" : colors.theme.borders,
+            color: colors.theme.text,
+            minHeight: "2.5rem",
+        }),
+        menu: base_style => ({
+            ...base_style,
+            backgroundColor: colors.theme.input_background,
+            borderColor: colors.theme.borders,
+        }),
+        option: (base_style, { isFocused }) => ({
+            ...base_style,
+            backgroundColor: isFocused ? colors.theme.disabled_text : colors.theme.input_background,
+            color: colors.theme.text,
+        }),
+        input: base_style => ({
+            ...base_style,
+            color: colors.theme.text,
+        }),
+        singleValue: base_style => ({
+            ...base_style,
+            color: colors.theme.text,
+        }),
+    };
+}
+
 function error_for_rig(error, rig) {
     return error?.field?.startsWith(`${rig}.`) ? error : null;
 }
 
-function DescriptorInput({ descriptor, value, on_change, error_token }) {
+function DescriptorInput({ descriptor, value, on_change, error_token, colors, serial_ports }) {
     const input_id = `hamlib-${descriptor.token}`;
     const invalid = error_token === descriptor.token;
     const label = serial_labels[descriptor.token] || descriptor.label;
     const input_class = invalid ? "bg-red-200" : "";
+
+    if (label === "Serial port") {
+        const options = serial_port_options(serial_ports ?? [], value);
+        return (
+            <label className="flex flex-col gap-1" title={descriptor.tooltip} htmlFor={input_id}>
+                <span>{label}</span>
+                <SearchSelect
+                    inputId={input_id}
+                    aria-label={label}
+                    className="w-full"
+                    filterOption={search_filter}
+                    value={options.find(option => option.value === value) ?? null}
+                    placeholder="Select a serial port"
+                    isClearable
+                    onChange={option => on_change(option?.value ?? "")}
+                    styles={search_select_styles(colors, invalid)}
+                    options={options}
+                />
+            </label>
+        );
+    }
 
     if (descriptor.kind === "boolean") {
         return (
@@ -161,10 +224,13 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
         radio_configuration_result,
         hamlib_models,
         hamlib_models_error,
+        serial_ports,
+        serial_ports_error,
         hamlib_model_details,
         hamlib_model_error,
         get_radio_configuration,
         list_hamlib_models,
+        list_serial_ports,
         describe_hamlib_model,
         set_radio_configuration,
     } = use_radio();
@@ -195,6 +261,7 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
         if (configuration_capable) {
             get_radio_configuration();
             list_hamlib_models();
+            list_serial_ports();
         }
     }, [configuration_capable]);
 
@@ -376,17 +443,16 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                             {hamlib_models_error ? (
                                 <p role="alert">{hamlib_models_error.message}</p>
                             ) : null}
+                            {serial_ports_error ? (
+                                <p role="alert">{serial_ports_error.message}</p>
+                            ) : null}
                             <label className="flex flex-col gap-1" htmlFor="hamlib-model">
                                 <span>Model</span>
                                 <SearchSelect
                                     inputId="hamlib-model"
                                     aria-label="Model"
                                     className="w-full"
-                                    filterOption={(option, text) =>
-                                        `${option.label} ${option.value}`
-                                            .toLowerCase()
-                                            .includes(text.toLowerCase())
-                                    }
+                                    filterOption={search_filter}
                                     value={selected_model ?? null}
                                     placeholder="Select a model"
                                     isClearable
@@ -404,39 +470,10 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                             },
                                         }));
                                     }}
-                                    styles={{
-                                        control: base_style => ({
-                                            ...base_style,
-                                            backgroundColor: colors.theme.input_background,
-                                            borderColor:
-                                                selected_error?.field ===
-                                                `${selected_rig}.hamlib.model_id`
-                                                    ? "#fecaca"
-                                                    : colors.theme.borders,
-                                            color: colors.theme.text,
-                                            minHeight: "2.5rem",
-                                        }),
-                                        menu: base_style => ({
-                                            ...base_style,
-                                            backgroundColor: colors.theme.input_background,
-                                            borderColor: colors.theme.borders,
-                                        }),
-                                        option: (base_style, { isFocused }) => ({
-                                            ...base_style,
-                                            backgroundColor: isFocused
-                                                ? colors.theme.disabled_text
-                                                : colors.theme.input_background,
-                                            color: colors.theme.text,
-                                        }),
-                                        input: base_style => ({
-                                            ...base_style,
-                                            color: colors.theme.text,
-                                        }),
-                                        singleValue: base_style => ({
-                                            ...base_style,
-                                            color: colors.theme.text,
-                                        }),
-                                    }}
+                                    styles={search_select_styles(
+                                        colors,
+                                        selected_error?.field === `${selected_rig}.hamlib.model_id`,
+                                    )}
                                     options={model_options}
                                 />
                             </label>
@@ -450,6 +487,8 @@ function CatControl({ temp_settings, set_temp_settings, colors }) {
                                         key={descriptor.token}
                                         descriptor={descriptor}
                                         error_token={selected_error?.token}
+                                        colors={colors}
+                                        serial_ports={serial_ports}
                                         value={
                                             selected_configuration.hamlib.token_values[
                                                 descriptor.token

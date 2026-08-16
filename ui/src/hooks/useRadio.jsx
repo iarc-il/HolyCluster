@@ -44,6 +44,8 @@ export function RadioProvider({ children }) {
     const [radio_capabilities, set_radio_capabilities] = useState(null);
     const [hamlib_models, set_hamlib_models] = useState([]);
     const [hamlib_models_error, set_hamlib_models_error] = useState(null);
+    const [serial_ports, set_serial_ports] = useState([]);
+    const [serial_ports_error, set_serial_ports_error] = useState(null);
     const [hamlib_model_detail, set_hamlib_model_detail] = useState(null);
     const [hamlib_model_details, set_hamlib_model_details] = useState({});
     const [hamlib_model_error, set_hamlib_model_error] = useState(null);
@@ -85,6 +87,11 @@ export function RadioProvider({ children }) {
         if (data.event === "hamlib_models") {
             set_hamlib_models(data.models || []);
             set_hamlib_models_error(data.error || null);
+        }
+
+        if (data.event === "serial_ports") {
+            set_serial_ports(data.ports || []);
+            set_serial_ports_error(data.error || null);
         }
 
         if (data.event === "hamlib_model" && requested_model_ids.current.has(data.model_id)) {
@@ -177,6 +184,11 @@ export function RadioProvider({ children }) {
         send_message_to_radio({ action: "ListHamlibModels" });
     }
 
+    function list_serial_ports() {
+        set_serial_ports_error(null);
+        send_message_to_radio({ action: "ListSerialPorts" });
+    }
+
     function describe_hamlib_model(model_id) {
         requested_model_ids.current.add(model_id);
         set_hamlib_model_detail(null);
@@ -208,6 +220,7 @@ export function RadioProvider({ children }) {
                 highlight_spot,
                 get_radio_capabilities,
                 list_hamlib_models,
+                list_serial_ports,
                 describe_hamlib_model,
                 get_radio_configuration,
                 set_radio_configuration,
@@ -222,6 +235,8 @@ export function RadioProvider({ children }) {
                 radio_capabilities,
                 hamlib_models,
                 hamlib_models_error,
+                serial_ports,
+                serial_ports_error,
                 hamlib_model_detail,
                 hamlib_model_details,
                 hamlib_model_error,
