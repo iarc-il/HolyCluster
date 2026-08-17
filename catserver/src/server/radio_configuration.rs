@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::{
     args::{DEFAULT_RIGCTLD_HOST, DEFAULT_RIGCTLD_PORT},
-    radio_config::{HamlibRigConfig, RadioConfig, RadioRigConfig},
+    radio_config::{HamlibRigConfig, RadioConfig, RadioConfigError, RadioRigConfig},
     radio_factory,
     radio_manager::RadioManager,
     rig::RadioInitError,
@@ -38,8 +38,21 @@ pub(super) struct FieldError {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub(super) struct ConfigurationResult {
     pub(super) ok: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) error: Option<FieldError>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(super) errors: Vec<FieldError>,
+}
+
+impl ConfigurationResult {
+    fn success() -> Self {
+        Self {
+            ok: true,
+            errors: Vec::new(),
+        }
+    }
+
+    fn failure(errors: Vec<FieldError>) -> Self {
+        Self { ok: false, errors }
+    }
 }
 
 pub(super) trait RadioConfigurationService: Send + Sync {
@@ -117,11 +130,9 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
 
     fn set_configuration(&self, configuration: RadioConfig) -> ConfigurationFuture<'_> {
         Box::pin(async move {
-            if let Err(error) = validate_configuration(&configuration) {
-                return ConfigurationResult {
-                    ok: false,
-                    error: Some(error),
-                };
+            let errors = validate_configuration(&configuration);
+            if !errors.is_empty() {
+                return ConfigurationResult::failure(errors);
             }
             let selected = configuration.effective_backend(false);
             let factory = radio_factory::factory(
@@ -134,25 +145,17 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
                 .replace_and_persist(configuration, selected, move || factory())
                 .await
             {
-                Ok(()) => ConfigurationResult {
-                    ok: true,
-                    error: None,
-                },
-                Err(error) => ConfigurationResult {
-                    ok: false,
-                    error: Some(manager_error(error)),
-                },
+                Ok(()) => ConfigurationResult::success(),
+                Err(error) => ConfigurationResult::failure(vec![manager_error(error)]),
             }
         })
     }
 
     fn test_connection(&self, config: RadioConfig) -> ConfigurationFuture<'_> {
         Box::pin(async move {
-            if let Err(error) = validate_configuration(&config) {
-                return ConfigurationResult {
-                    ok: false,
-                    error: Some(error),
-                };
+            let errors = validate_configuration(&config);
+            if !errors.is_empty() {
+                return ConfigurationResult::failure(errors);
             }
             let selected = config.effective_backend(false);
             let factory = radio_factory::factory(
@@ -162,72 +165,102 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
             );
             let mut radio = factory();
             match radio.init() {
-                Ok(()) => ConfigurationResult {
-                    ok: true,
-                    error: None,
-                },
-                Err(error) => ConfigurationResult {
-                    ok: false,
-                    error: Some(connection_error(error)),
-                },
+                Ok(()) => ConfigurationResult::success(),
+                Err(error) => ConfigurationResult::failure(vec![connection_error(error)]),
             }
         })
     }
 }
 
-fn validate_configuration(configuration: &RadioConfig) -> Result<(), FieldError> {
-    validate_rig_configuration("rig1", &configuration.rig1)?;
+fn validate_configuration(configuration: &RadioConfig) -> Vec<FieldError> {
+    let mut errors = validate_rig_configuration("rig1", &configuration.rig1);
     if let Some(rig2) = &configuration.rig2 {
-        validate_rig_configuration("rig2", rig2)?;
+        errors.extend(validate_rig_configuration("rig2", rig2));
     }
-    Ok(())
+    errors
 }
 
-fn validate_rig_configuration(
-    field: &str,
-    configuration: &RadioRigConfig,
-) -> Result<(), FieldError> {
-    configuration.validate().map_err(|error| FieldError {
-        field: config_field(field, &error),
-        message: error.to_string(),
-        token: config_token(&error),
-        details: None,
-    })?;
-    if let RadioRigConfig::Hamlib { hamlib } = configuration {
-        validate_rig(&format!("{field}.hamlib"), hamlib)?;
+fn validate_rig_configuration(field: &str, configuration: &RadioRigConfig) -> Vec<FieldError> {
+    let backend = configuration.backend();
+    if !backend.is_supported_on_platform() {
+        return vec![config_error(
+            field,
+            RadioConfigError::PlatformUnsupportedBackend(backend),
+        )];
     }
-    Ok(())
+    match configuration {
+        RadioRigConfig::Rigctld { rigctld } => {
+            let mut errors = Vec::new();
+            if rigctld.host.trim().is_empty() || rigctld.host.chars().any(char::is_whitespace) {
+                errors.push(config_error(
+                    &format!("{field}.rigctld.host"),
+                    RadioConfigError::InvalidRigctldHost(rigctld.host.clone()),
+                ));
+            }
+            if rigctld.port == 0 {
+                errors.push(config_error(
+                    &format!("{field}.rigctld.port"),
+                    RadioConfigError::InvalidRigctldPort,
+                ));
+            }
+            errors
+        }
+        RadioRigConfig::Hamlib { hamlib } => validate_rig(&format!("{field}.hamlib"), hamlib),
+        RadioRigConfig::Unconfigured | RadioRigConfig::Omnirig => Vec::new(),
+    }
 }
 
-fn validate_rig(field: &str, configuration: &HamlibRigConfig) -> Result<(), FieldError> {
-    let model = configuration.model_id.parse().map_err(|_| FieldError {
-        field: format!("{field}.model_id"),
-        message: format!("invalid Hamlib model: {}", configuration.model_id),
-        token: None,
-        details: None,
-    })?;
-    let descriptors = hamlib::Catalog::load()
-        .map_err(|error| model_error(field, error))?
-        .describe_model(hamlib::RigModelId::new(model))
-        .map_err(|error| model_error(field, error))?;
+fn validate_rig(field: &str, configuration: &HamlibRigConfig) -> Vec<FieldError> {
+    let model = match configuration.model_id.parse::<u32>() {
+        Ok(model) if model > 0 => model,
+        _ => {
+            return vec![FieldError {
+                field: format!("{field}.model_id"),
+                message: format!("invalid Hamlib model: {}", configuration.model_id),
+                token: None,
+                details: None,
+            }];
+        }
+    };
+    let descriptors = match hamlib::Catalog::load()
+        .and_then(|catalog| catalog.describe_model(hamlib::RigModelId::new(model)))
+    {
+        Ok(descriptors) => descriptors,
+        Err(error) => return vec![model_error(field, error)],
+    };
+    let mut errors = Vec::new();
     for (token, value) in &configuration.token_values {
-        let descriptor = descriptors
+        let Some(descriptor) = descriptors
             .iter()
             .find(|descriptor| descriptor.token().as_str() == token)
-            .ok_or_else(|| FieldError {
+        else {
+            errors.push(FieldError {
                 field: format!("{field}.token_values"),
                 message: format!("unknown Hamlib configuration token: {token}"),
                 token: Some(token.clone()),
                 details: None,
-            })?;
-        descriptor.parse_value(value).map_err(|error| FieldError {
-            field: format!("{field}.token_values"),
-            message: error.to_string(),
-            token: Some(token.clone()),
-            details: None,
-        })?;
+            });
+            continue;
+        };
+        if let Err(error) = descriptor.parse_value(value) {
+            errors.push(FieldError {
+                field: format!("{field}.token_values"),
+                message: error.to_string(),
+                token: Some(token.clone()),
+                details: None,
+            });
+        }
     }
-    Ok(())
+    errors
+}
+
+fn config_error(field: &str, error: RadioConfigError) -> FieldError {
+    FieldError {
+        field: field.into(),
+        message: error.to_string(),
+        token: None,
+        details: None,
+    }
 }
 
 pub(super) fn production(radio: RadioManager) -> RadioConfiguration {
@@ -289,24 +322,6 @@ fn manager_error(error: crate::radio_manager::RadioManagerError) -> FieldError {
         message: error.to_string(),
         token: None,
         details: None,
-    }
-}
-
-fn config_field(field: &str, error: &crate::radio_config::RadioConfigError) -> String {
-    use crate::radio_config::RadioConfigError::*;
-    match error {
-        InvalidModelId(_) => format!("{field}.hamlib.model_id"),
-        InvalidToken(_) => format!("{field}.hamlib.token_values"),
-        InvalidRigctldHost(_) => format!("{field}.rigctld.host"),
-        InvalidRigctldPort => format!("{field}.rigctld.port"),
-        _ => format!("{field}.backend"),
-    }
-}
-
-fn config_token(error: &crate::radio_config::RadioConfigError) -> Option<String> {
-    match error {
-        crate::radio_config::RadioConfigError::InvalidToken(token) => Some(token.clone()),
-        _ => None,
     }
 }
 

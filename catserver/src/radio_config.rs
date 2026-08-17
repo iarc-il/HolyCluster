@@ -195,7 +195,7 @@ impl RadioConfig {
 }
 
 impl RadioBackendKind {
-    const fn is_supported_on_platform(self) -> bool {
+    pub(crate) const fn is_supported_on_platform(self) -> bool {
         match self {
             Self::Unconfigured => true,
             Self::Hamlib => true,

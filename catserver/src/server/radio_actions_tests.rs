@@ -45,7 +45,7 @@ impl RadioConfigurationService for Service {
         Box::pin(async {
             ConfigurationResult {
                 ok: true,
-                error: None,
+                errors: Vec::new(),
             }
         })
     }
@@ -56,7 +56,7 @@ impl RadioConfigurationService for Service {
         Box::pin(async {
             ConfigurationResult {
                 ok: true,
-                error: None,
+                errors: Vec::new(),
             }
         })
     }
@@ -149,8 +149,50 @@ async fn production_configuration_rejects_unknown_descriptor_tokens() {
             rig2: None,
         })
         .await;
-    assert_eq!(
-        result.error.expect("field error").token,
-        Some("unknown_token".into())
-    );
+    assert_eq!(result.errors[0].token, Some("unknown_token".into()));
+}
+
+#[tokio::test]
+async fn production_configuration_returns_all_validation_errors() {
+    let result = ProductionRadioConfiguration::new(radio())
+        .set_configuration(RadioConfig {
+            rig1: RadioRigConfig::Hamlib {
+                hamlib: HamlibRigConfig {
+                    model_id: "1".into(),
+                    token_values: BTreeMap::from([("unknown_one".into(), "value".into())]),
+                },
+            },
+            rig2: Some(RadioRigConfig::Hamlib {
+                hamlib: HamlibRigConfig {
+                    model_id: "1".into(),
+                    token_values: BTreeMap::from([("unknown_two".into(), "value".into())]),
+                },
+            }),
+        })
+        .await;
+    assert_eq!(result.errors.len(), 2);
+    assert_eq!(result.errors[0].token, Some("unknown_one".into()));
+    assert_eq!(result.errors[1].token, Some("unknown_two".into()));
+}
+
+#[cfg(not(windows))]
+#[tokio::test]
+async fn production_configuration_returns_all_rigctld_errors() {
+    let result = ProductionRadioConfiguration::new(radio())
+        .set_configuration(RadioConfig {
+            rig1: RadioRigConfig::Rigctld {
+                rigctld: crate::radio_config::RigctldConfig {
+                    host: " ".into(),
+                    port: 0,
+                },
+            },
+            rig2: None,
+        })
+        .await;
+    let fields: Vec<_> = result
+        .errors
+        .iter()
+        .map(|error| error.field.as_str())
+        .collect();
+    assert_eq!(fields, ["rig1.rigctld.host", "rig1.rigctld.port"]);
 }
