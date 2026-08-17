@@ -55,7 +55,6 @@ export function RadioProvider({ children }) {
     const [radio_retry_result, set_radio_retry_result] = useState(null);
     const requested_model_ids = useRef(new Set());
     const pending_configuration_action = useRef(null);
-    const pending_config = useRef(null);
 
     const { settings } = useSettings();
 
@@ -113,19 +112,19 @@ export function RadioProvider({ children }) {
 
         if (data.event === "configuration_result") {
             const action = pending_configuration_action.current;
-            if (action === "retry") {
+            if (action?.type === "retry") {
                 set_radio_retry_result(data);
             } else {
                 set_radio_configuration_result(data);
-                if (action === "apply" && data.ok && pending_config.current != null) {
+                if (action?.type === "apply" && data.ok) {
                     set_radio_configuration_state({
                         event: "configuration",
-                        ...pending_config.current,
+                        ...action.config,
                     });
                 }
             }
+            action?.resolve?.(data);
             pending_configuration_action.current = null;
-            pending_config.current = null;
         }
 
         if (data.event === "radio_connection_result") {
@@ -211,23 +210,28 @@ export function RadioProvider({ children }) {
     }
 
     function get_radio_configuration() {
+        set_radio_configuration_result(null);
+        set_radio_connection_result(null);
         send_message_to_radio({ action: "GetRadioConfiguration" });
     }
 
     function set_radio_configuration(config) {
-        pending_configuration_action.current = "apply";
-        pending_config.current = config;
-        set_radio_configuration_result(null);
-        send_message_to_radio({ action: "SetRadioConfiguration", configuration: config });
+        return new Promise(resolve => {
+            pending_configuration_action.current = { type: "apply", config, resolve };
+            set_radio_configuration_result(null);
+            set_radio_connection_result(null);
+            send_message_to_radio({ action: "SetRadioConfiguration", configuration: config });
+        });
     }
 
     function test_radio_connection(config) {
         set_radio_connection_result(null);
+        set_radio_configuration_result(null);
         send_message_to_radio({ action: "TestRadioConnection", config });
     }
 
     function retry_radio() {
-        pending_configuration_action.current = "retry";
+        pending_configuration_action.current = { type: "retry" };
         set_radio_retry_result(null);
         send_message_to_radio({ action: "RetryRadio" });
     }

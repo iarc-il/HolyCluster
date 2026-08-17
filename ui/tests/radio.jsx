@@ -46,7 +46,7 @@ describe("radio configuration", () => {
 
     afterEach(() => cleanup());
 
-    it("tracks unified configuration responses and sends configuration actions", () => {
+    it("tracks unified configuration responses and sends configuration actions", async () => {
         const radio = Consumer.radio;
 
         act(() => {
@@ -77,12 +77,16 @@ describe("radio configuration", () => {
         emit({ event: "hamlib_model", model_id: "1", descriptors: [{ token: "stale" }] });
         expect(Consumer.radio.hamlib_model_detail).toBeNull();
         emit({ event: "hamlib_model", model_id: "2", descriptors: [{ token: "path" }] });
-        emit({ event: "configuration_result", ok: true });
+        await act(async () => {
+            emit({ event: "configuration_result", ok: true });
+        });
         emit({ event: "configuration", backend: "hamlib", hamlib: { rig1: { model_id: "2" } } });
 
         act(() => Consumer.radio.retry_radio());
         expect(websocket.send).toHaveBeenNthCalledWith(6, "radio", { action: "RetryRadio" });
-        emit({ event: "configuration_result", ok: true });
+        await act(async () => {
+            emit({ event: "configuration_result", ok: true });
+        });
         emit({ event: "retry", ok: true });
 
         expect(Consumer.radio.radio_capabilities).toEqual({
@@ -108,7 +112,9 @@ describe("radio configuration", () => {
         const radio = Consumer.radio;
         const config = { backend: "hamlib" };
 
-        act(() => radio.set_radio_configuration(config));
+        act(() => {
+            void radio.set_radio_configuration(config);
+        });
         emit({ event: "configuration_result", ok: true });
 
         expect(Consumer.radio.radio_configuration).toEqual({
@@ -117,11 +123,13 @@ describe("radio configuration", () => {
         });
     });
 
-    it("sends a draft to the connection test action", () => {
+    it("sends a draft to the connection test action", async () => {
         const radio = Consumer.radio;
         const config = { backend: "hamlib" };
 
-        act(() => radio.test_radio_connection(config));
+        await act(async () => {
+            radio.test_radio_connection(config);
+        });
 
         expect(websocket.send).toHaveBeenCalledWith("radio", {
             action: "TestRadioConnection",

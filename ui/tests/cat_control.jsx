@@ -103,7 +103,7 @@ describe("CAT control settings", () => {
             list_hamlib_models: vi.fn(),
             list_serial_ports: vi.fn(),
             describe_hamlib_model: vi.fn(),
-            set_radio_configuration: vi.fn(),
+            set_radio_configuration: vi.fn(() => Promise.resolve({ ok: true, errors: [] })),
             test_radio_connection: vi.fn(),
         };
     });
@@ -153,12 +153,12 @@ describe("CAT control settings", () => {
         expect(screen.getByText("Acme Rig")).not.toBeNull();
     });
 
-    it("registers radio config for the settings modal Apply button", () => {
+    it("registers radio config for the settings modal Apply button", async () => {
         const radio_config_apply_ref = { current: null };
         render_cat(radio_config_apply_ref);
 
         expect(screen.queryByRole("button", { name: "Save radio hardware" })).toBeNull();
-        expect(radio_config_apply_ref.current()).toBe(true);
+        await expect(radio_config_apply_ref.current()).resolves.toBe(true);
         expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
             rig1: { backend: "rigctld", rigctld: { host: "127.0.0.1", port: 4532 } },
         });
@@ -191,11 +191,11 @@ describe("CAT control settings", () => {
     it("shows a red failure indicator for a connection test", () => {
         radio.current.radio_connection_result = {
             ok: false,
-            error: { message: "No radio", details: "Hamlib trace" },
+            errors: [{ field: "connection", message: "No radio", details: "Hamlib trace" }],
         };
         render_cat();
 
-        const status = screen.getByRole("alert");
+        const status = screen.getAllByRole("alert").find(element => element.tagName === "P");
         expect(status.textContent).toContain("✕ No radio");
         expect(status.className).toContain("text-red-600");
         const details = screen.getByText("Details").parentElement;
@@ -212,20 +212,22 @@ describe("CAT control settings", () => {
         expect((await screen.findByRole("status")).textContent).toContain("Radio hardware saved.");
     });
 
-    it("validates rigctld ports on blur and scopes server errors to the selected rig", async () => {
+    it("shows all server errors and highlights the selected rig", async () => {
         const user = userEvent.setup();
         radio.current.radio_configuration_result = {
             ok: false,
-            error: { field: "rig2.rigctld.port", message: "Invalid Rig 2 port" },
+            errors: [
+                { field: "rig1.rigctld.host", message: "Invalid Rig 1 host" },
+                { field: "rig2.rigctld.port", message: "Invalid Rig 2 port" },
+            ],
         };
         render_cat();
-        expect(screen.queryByText("Invalid Rig 2 port")).toBeNull();
-        await user.clear(screen.getByLabelText("Port"));
-        await user.tab();
-        expect(screen.getByLabelText("Port").getAttribute("aria-invalid")).toBeNull();
-        expect(screen.getByLabelText("Port").className).toContain("bg-red-200");
+        const errors = screen.getAllByRole("alert")[0];
+        expect(errors.textContent).toContain("Invalid Rig 1 host");
+        expect(errors.textContent).toContain("Invalid Rig 2 port");
         await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
-        expect(screen.getByRole("alert").textContent).toContain("Invalid Rig 2 port");
+        expect(screen.getByLabelText("Port").className).toContain("bg-red-200");
+        expect(errors.textContent).toContain("Invalid Rig 2 port");
     });
 
     it("keeps logger integration available for legacy CAT servers", () => {

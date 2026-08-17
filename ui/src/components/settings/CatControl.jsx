@@ -152,13 +152,22 @@ function select_options(descriptor, value) {
     return values;
 }
 
-function error_for_rig(error, rig) {
-    return error?.field?.startsWith(`${rig}.`) ? error : null;
+function errors_for_rig(errors, rig) {
+    return errors.filter(error => error.field?.startsWith(`${rig}.`));
 }
 
-function DescriptorInput({ descriptor, value, on_change, error_token, colors, serial_ports }) {
+function error_matches(errors, field, token = null) {
+    return errors.some(error => error.field === field || (token != null && error.token === token));
+}
+
+function error_text(error) {
+    const field = error.token == null ? error.field : `${error.field} (${error.token})`;
+    return `${field}: ${error.message}`;
+}
+
+function DescriptorInput({ descriptor, value, on_change, error_tokens, colors, serial_ports }) {
     const input_id = `hamlib-${descriptor.token}`;
-    const invalid = error_token === descriptor.token;
+    const invalid = error_tokens.includes(descriptor.token);
     const label = serial_labels[descriptor.token] || descriptor.label;
     const input_class = invalid ? "bg-red-200" : "";
     const options = select_options(descriptor, value);
@@ -270,22 +279,22 @@ function CatControl({
     const [selected_rig, set_selected_rig] = useState("rig1");
     const [save_state, set_save_state] = useState(null);
     const [logger_port_touched, set_logger_port_touched] = useState(false);
-    const [rigctld_port_touched, set_rigctld_port_touched] = useState(false);
     const configuration_capable = radio_capabilities?.radio_configuration === true;
     const available_backends = radio_capabilities?.backends || [];
     const selected_configuration = configuration?.[selected_rig];
-    const server_error =
-        radio_configuration_result?.ok === false ? radio_configuration_result.error : null;
-    const selected_error = error_for_rig(server_error, selected_rig);
+    const server_errors =
+        radio_configuration_result?.ok === false ? radio_configuration_result.errors || [] : [];
+    const radio_errors =
+        radio_connection_result != null
+            ? radio_connection_result.ok === false
+                ? radio_connection_result.errors || []
+                : []
+            : server_errors || [];
+    const selected_errors = errors_for_rig(radio_errors, selected_rig);
     const model_options = hamlib_model_options(hamlib_models);
     const selected_model = model_options.find(
         option => option.value === selected_configuration?.hamlib?.model_id,
     );
-    const rigctld_port_valid =
-        Number.isInteger(Number(selected_configuration?.rigctld.port)) &&
-        Number(selected_configuration?.rigctld.port) >= 1 &&
-        Number(selected_configuration?.rigctld.port) <= 65535;
-    const rigctld_host_valid = selected_configuration?.rigctld.host.trim().length > 0;
     const logger_port_valid =
         temp_settings.highlight_port >= 1024 && temp_settings.highlight_port <= 65535;
 
@@ -313,23 +322,36 @@ function CatControl({
     useEffect(() => {
         if (radio_configuration_result?.ok === true) {
             set_save_state({ ok: true, message: "Radio hardware saved." });
-        } else if (server_error && error_for_rig(server_error, selected_rig)) {
+        } else if (server_errors.length > 0) {
             set_save_state({
                 ok: false,
-                message: server_error.message,
-                details: server_error.details,
+                message: "Fix the highlighted radio settings before applying.",
             });
         }
-    }, [radio_configuration_result, selected_rig]);
+        if (radio_configuration_result?.ok === false && server_errors.length > 0) {
+            const first_error = server_errors[0];
+            set_selected_rig(first_error.field?.startsWith("rig2.") ? "rig2" : "rig1");
+        }
+    }, [radio_configuration_result]);
 
     useEffect(() => {
         if (radio_connection_result?.ok === true) {
             set_save_state({ ok: true, message: "Radio connection succeeded." });
         } else if (radio_connection_result?.ok === false) {
+            const errors = radio_connection_result.errors || [];
+            const connection_error = errors.find(error => error.field === "connection");
             set_save_state({
                 ok: false,
-                message: radio_connection_result.error?.message || "Radio connection failed.",
-                details: radio_connection_result.error?.details,
+                message:
+                    connection_error?.message ||
+                    (errors.length > 0
+                        ? "Fix the highlighted radio settings."
+                        : "Radio connection failed."),
+                details:
+                    errors
+                        .map(error => error.details)
+                        .filter(Boolean)
+                        .join("\n\n") || undefined,
             });
         }
     }, [radio_connection_result]);
@@ -342,45 +364,16 @@ function CatControl({
         }));
     }
 
-    function validate_selected_rig() {
-        if (selected_configuration.backend === "unconfigured") {
-            return false;
-        }
-        if (selected_configuration.backend === "hamlib") {
-            return selected_configuration.hamlib.model_id.trim().length > 0;
-        }
-        return (
-            selected_configuration.backend !== "rigctld" ||
-            (rigctld_host_valid && rigctld_port_valid)
-        );
-    }
-
-    function save_configuration() {
-        set_rigctld_port_touched(true);
-        if (!validate_selected_rig()) {
-            set_save_state({
-                ok: false,
-                message: "Fix the highlighted radio settings before saving.",
-            });
-            return false;
-        }
+    async function save_configuration() {
         set_save_state({ ok: null, message: "Saving radio hardware..." });
-        set_radio_configuration({
+        const result = await set_radio_configuration({
             rig1: serialized_rig(configuration.rig1),
             ...(configuration.rig2_enabled ? { rig2: serialized_rig(configuration.rig2) } : {}),
         });
-        return true;
+        return result.ok;
     }
 
     function test_connection() {
-        set_rigctld_port_touched(true);
-        if (!validate_selected_rig()) {
-            set_save_state({
-                ok: false,
-                message: "Fix the highlighted radio settings before testing.",
-            });
-            return;
-        }
         set_save_state({ ok: null, message: "Testing radio connection..." });
         test_radio_connection({
             rig1: serialized_rig(configuration.rig1),
@@ -406,7 +399,6 @@ function CatControl({
                                 value={selected_rig}
                                 onChange={event => {
                                     set_selected_rig(event.target.value);
-                                    set_rigctld_port_touched(false);
                                     set_save_state(null);
                                 }}
                             >
@@ -420,7 +412,7 @@ function CatControl({
                                 id="radio-backend"
                                 value={selected_configuration.backend}
                                 className={
-                                    selected_error?.field === `${selected_rig}.backend`
+                                    error_matches(radio_errors, `${selected_rig}.backend`)
                                         ? "bg-red-200"
                                         : ""
                                 }
@@ -465,8 +457,7 @@ function CatControl({
                                 <Input
                                     id="rigctld-host"
                                     className={
-                                        !rigctld_host_valid ||
-                                        selected_error?.field === `${selected_rig}.rigctld.host`
+                                        error_matches(radio_errors, `${selected_rig}.rigctld.host`)
                                             ? "bg-red-200 w-full"
                                             : "w-full"
                                     }
@@ -484,10 +475,7 @@ function CatControl({
                                 <Input
                                     id="rigctld-port"
                                     className={
-                                        rigctld_port_touched &&
-                                        (!rigctld_port_valid ||
-                                            selected_error?.field ===
-                                                `${selected_rig}.rigctld.port`)
+                                        error_matches(radio_errors, `${selected_rig}.rigctld.port`)
                                             ? "bg-red-200"
                                             : ""
                                     }
@@ -502,7 +490,6 @@ function CatControl({
                                             rigctld: { ...rig.rigctld, port: event.target.value },
                                         }))
                                     }
-                                    onBlur={() => set_rigctld_port_touched(true)}
                                 />
                             </label>
                         </div>
@@ -541,7 +528,10 @@ function CatControl({
                                     }}
                                     styles={search_select_styles(
                                         colors,
-                                        selected_error?.field === `${selected_rig}.hamlib.model_id`,
+                                        error_matches(
+                                            radio_errors,
+                                            `${selected_rig}.hamlib.model_id`,
+                                        ),
                                     )}
                                     options={model_options}
                                 />
@@ -555,7 +545,9 @@ function CatControl({
                                     <DescriptorInput
                                         key={descriptor.token}
                                         descriptor={descriptor}
-                                        error_token={selected_error?.token}
+                                        error_tokens={selected_errors
+                                            .map(error => error.token)
+                                            .filter(Boolean)}
                                         colors={colors}
                                         serial_ports={serial_ports}
                                         value={
@@ -583,7 +575,15 @@ function CatControl({
                             ) : null}
                         </div>
                     ) : null}
-                    {selected_error ? <p role="alert">{selected_error.message}</p> : null}
+                    {radio_errors.length > 0 ? (
+                        <ul className="space-y-1 text-red-600" role="alert">
+                            {radio_errors.map((error, index) => (
+                                <li key={`${error.field}-${error.token || index}`}>
+                                    {error_text(error)}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : null}
                     <div className="flex flex-col items-start gap-1">
                         <div className="flex items-center gap-3">
                             <Button
@@ -593,8 +593,7 @@ function CatControl({
                             >
                                 Test connection
                             </Button>
-                            {save_state &&
-                            (!selected_error || save_state.message !== selected_error.message) ? (
+                            {save_state ? (
                                 <p
                                     className={
                                         save_state.ok === true

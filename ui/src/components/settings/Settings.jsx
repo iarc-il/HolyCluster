@@ -225,13 +225,16 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 radio_config_apply_ref.current = null;
                 set_temp_settings(settings);
             }}
-            on_apply={() => {
+            on_apply={async () => {
                 if (!is_settings_valid) {
                     return false;
                 }
 
-                if (radio_config_apply_ref.current && !radio_config_apply_ref.current()) {
-                    return false;
+                if (radio_config_apply_ref.current) {
+                    const radio_applied = await radio_config_apply_ref.current();
+                    if (!radio_applied) {
+                        return false;
+                    }
                 }
 
                 apply_settings(temp_settings);
