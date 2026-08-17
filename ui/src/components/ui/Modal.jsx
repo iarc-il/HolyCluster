@@ -24,15 +24,28 @@ function Modal({
     children,
 }) {
     const [show_modal, set_show_modal] = useState(false);
+    const [applying, set_applying] = useState(false);
     const { colors } = useColors();
     const trigger_ref = useRef(null);
     const modal_ref = useRef(null);
     const previously_focused_ref = useRef(null);
 
-    function close() {
+    const close = useCallback(() => {
         set_show_modal(false);
         previously_focused_ref.current?.focus();
-    }
+    }, []);
+
+    const apply = useCallback(async () => {
+        if (on_apply == null || apply_disabled || applying) return;
+        set_applying(true);
+        try {
+            if (await on_apply()) {
+                close();
+            }
+        } finally {
+            set_applying(false);
+        }
+    }, [apply_disabled, applying, close, on_apply]);
 
     const on_keydown = useCallback(
         event => {
@@ -44,13 +57,13 @@ function Modal({
                 }
                 close();
             } else if (event.key === "Enter") {
-                if (on_apply && !apply_disabled) {
+                if (on_apply && !apply_disabled && !applying) {
                     event.preventDefault();
-                    set_show_modal(!on_apply());
+                    void apply();
                 }
             }
         },
-        [show_modal, on_apply, apply_disabled, on_cancel],
+        [applying, apply, apply_disabled, on_apply, on_cancel, show_modal],
     );
 
     useEffect(() => {
@@ -195,10 +208,10 @@ function Modal({
                                             <Button
                                                 color="blue"
                                                 data-tour="modal-apply-button"
-                                                disabled={apply_disabled}
-                                                on_click={() => set_show_modal(!on_apply())}
+                                                disabled={apply_disabled || applying}
+                                                on_click={apply}
                                             >
-                                                {apply_text}
+                                                {applying ? "Applying..." : apply_text}
                                             </Button>
                                         ) : null}
                                     </div>
