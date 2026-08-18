@@ -91,6 +91,7 @@ describe("CAT control settings", () => {
             radio_configuration_result: null,
             radio_connection_result: null,
             hamlib_models: [
+                { id: "1", manufacturer: "Hamlib", model: "Dummy" },
                 { id: "2", manufacturer: "Acme", model: "Rig" },
                 { id: "3", manufacturer: "Other", model: "Radio" },
             ],
@@ -179,6 +180,37 @@ describe("CAT control settings", () => {
         expect(radio.current.set_radio_configuration).not.toHaveBeenCalled();
     });
 
+    it("materializes valid serial defaults for a Hamlib model", async () => {
+        const user = userEvent.setup();
+        const radio_config_apply_ref = { current: null };
+        render_cat(radio_config_apply_ref);
+
+        await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
+        await user.click(screen.getByLabelText("Enable Rig 2"));
+        await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
+        await user.click(screen.getByRole("combobox", { name: "Model" }));
+        await user.click(screen.getByRole("option", { name: "Acme Rig" }));
+        expect(screen.getByText("/dev/ttyUSB0")).not.toBeNull();
+        await radio_config_apply_ref.current();
+
+        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
+            rig1: { backend: "rigctld", rigctld: { host: "127.0.0.1", port: 4532 } },
+            rig2: {
+                backend: "hamlib",
+                hamlib: {
+                    model_id: "2",
+                    token_values: {
+                        rig_pathname: "/dev/ttyUSB0",
+                        baud: "9600",
+                        data_bits: "8",
+                        stop_bits: "1",
+                        serial_handshake: "None",
+                    },
+                },
+            },
+        });
+    });
+
     it("shows a green success indicator for a connection test", () => {
         radio.current.radio_connection_result = { ok: true };
         render_cat();
@@ -191,6 +223,7 @@ describe("CAT control settings", () => {
     it("shows a red failure indicator for a connection test", () => {
         radio.current.radio_connection_result = {
             ok: false,
+            failure: "connection",
             errors: [{ field: "connection", message: "No radio", details: "Hamlib trace" }],
         };
         render_cat();
@@ -198,6 +231,7 @@ describe("CAT control settings", () => {
         const status = screen.getAllByRole("alert").find(element => element.tagName === "P");
         expect(status.textContent).toContain("✕ No radio");
         expect(status.className).toContain("text-red-600");
+        expect(screen.queryByRole("list")).toBeNull();
         const details = screen.getByText("Details").parentElement;
         expect(details.open).toBe(false);
         details.querySelector("summary").click();
@@ -216,6 +250,7 @@ describe("CAT control settings", () => {
         const user = userEvent.setup();
         radio.current.radio_configuration_result = {
             ok: false,
+            failure: "invalid_config",
             errors: [
                 { field: "rig1.rigctld.host", message: "Invalid Rig 1 host" },
                 { field: "rig2.rigctld.port", message: "Invalid Rig 2 port" },
@@ -225,6 +260,9 @@ describe("CAT control settings", () => {
         const errors = screen.getAllByRole("alert")[0];
         expect(errors.textContent).toContain("Invalid Rig 1 host");
         expect(errors.textContent).toContain("Invalid Rig 2 port");
+        expect(
+            screen.queryByText("Fix the highlighted radio settings before applying."),
+        ).toBeNull();
         await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
         expect(screen.getByLabelText("Port").className).toContain("bg-red-200");
         expect(errors.textContent).toContain("Invalid Rig 2 port");

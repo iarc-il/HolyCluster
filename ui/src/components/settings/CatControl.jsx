@@ -29,6 +29,75 @@ const serial_option_values = {
     stop_bits: ["1", "2"],
 };
 
+const DEFAULT_HAMLIB_MODEL_ID = "1";
+const DEFAULT_UNIX_SERIAL_PORT = "/dev/ttyUSB0";
+const DEFAULT_WINDOWS_SERIAL_PORT = "COM1";
+const DEFAULT_BAUD_RATE = "9600";
+const DEFAULT_RIGCTLD_PORT = "4532";
+
+function default_serial_port(ports) {
+    const port_names = ports ?? [];
+    const is_windows = typeof navigator !== "undefined" && navigator.platform.startsWith("Win");
+    const preferred = is_windows
+        ? port_names.find(port => port.toUpperCase() === DEFAULT_WINDOWS_SERIAL_PORT)
+        : port_names.find(port => /(?:^|\/)ttyUSB[^/]*$/i.test(port));
+    return (
+        preferred ||
+        port_names[0] ||
+        (is_windows ? DEFAULT_WINDOWS_SERIAL_PORT : DEFAULT_UNIX_SERIAL_PORT)
+    );
+}
+
+function default_descriptor_value(descriptor, serial_ports) {
+    if (["rig_pathname", "pathname", "device"].includes(descriptor.token)) {
+        return default_serial_port(serial_ports);
+    }
+    if (["serial_speed", "baud"].includes(descriptor.token)) {
+        return DEFAULT_BAUD_RATE;
+    }
+    if (descriptor.token === "data_bits") return "8";
+    if (descriptor.token === "stop_bits") return "1";
+    return String(descriptor.default ?? "");
+}
+
+function normalize_numeric_value(value, descriptor, serial_ports) {
+    const minimum = Number(descriptor.minimum);
+    const maximum = Number(descriptor.maximum);
+    const step = Number(descriptor.step);
+    const fallback = Number(default_descriptor_value(descriptor, serial_ports));
+    let number = Number(value);
+    if (!Number.isFinite(number)) {
+        number = Number.isFinite(fallback) ? fallback : minimum;
+    }
+    if (Number.isFinite(minimum)) number = Math.max(number, minimum);
+    if (Number.isFinite(maximum)) number = Math.min(number, maximum);
+    if (Number.isFinite(step) && step > 0) {
+        const origin = Number.isFinite(minimum) ? minimum : 0;
+        number = origin + Math.round((number - origin) / step) * step;
+    }
+    if (descriptor.kind === "integer") number = Math.round(number);
+    return String(number);
+}
+
+function normalized_descriptor_value(descriptor, value, serial_ports) {
+    const default_value = default_descriptor_value(descriptor, serial_ports);
+    if (descriptor.kind === "integer" || descriptor.kind === "numeric") {
+        return normalize_numeric_value(value ?? default_value, descriptor, serial_ports);
+    }
+    if (descriptor.kind === "combo") {
+        const options = descriptor.options.map(String);
+        return options.includes(String(value)) ? String(value) : default_value;
+    }
+    if (["rig_pathname", "pathname", "device"].includes(descriptor.token)) {
+        return value && value !== "/dev/rig" ? String(value) : default_value;
+    }
+    return value == null || value === "" ? default_value : String(value);
+}
+
+function descriptor_value(descriptor, value, serial_ports) {
+    return normalized_descriptor_value(descriptor, value, serial_ports);
+}
+
 function serial_descriptors(descriptors) {
     return descriptors
         .filter(descriptor => Object.hasOwn(serial_labels, descriptor.token))
@@ -40,27 +109,32 @@ function serial_descriptors(descriptors) {
 }
 
 function empty_hamlib() {
-    return { model_id: "", token_values: {} };
+    return { model_id: DEFAULT_HAMLIB_MODEL_ID, token_values: {} };
 }
 
 function empty_rig() {
     return {
         backend: "rigctld",
         hamlib: empty_hamlib(),
-        rigctld: { host: "127.0.0.1", port: "4532" },
+        rigctld: { host: "127.0.0.1", port: DEFAULT_RIGCTLD_PORT },
     };
 }
 
 function normalize_rig(rig) {
     const fallback = empty_rig();
+    const hamlib = { ...fallback.hamlib, ...rig?.hamlib };
+    if (!hamlib.model_id) {
+        hamlib.model_id = DEFAULT_HAMLIB_MODEL_ID;
+    }
     return {
         ...fallback,
         ...rig,
-        hamlib: { ...fallback.hamlib, ...rig?.hamlib },
+        hamlib,
         rigctld: {
             ...fallback.rigctld,
             ...rig?.rigctld,
-            port: String(rig?.rigctld?.port ?? fallback.rigctld.port),
+            host: rig?.rigctld?.host?.trim() || fallback.rigctld.host,
+            port: String(rig?.rigctld?.port || fallback.rigctld.port),
         },
     };
 }
@@ -77,14 +151,38 @@ function normalize_configuration(configuration) {
     };
 }
 
-function serialized_rig(rig) {
+function materialized_hamlib(rig, descriptors, serial_ports) {
+    const token_values = { ...rig.hamlib.token_values };
+    for (const descriptor of descriptors.filter(descriptor =>
+        Object.hasOwn(serial_labels, descriptor.token),
+    )) {
+        token_values[descriptor.token] = normalized_descriptor_value(
+            descriptor,
+            token_values[descriptor.token],
+            serial_ports,
+        );
+    }
+    return { ...rig.hamlib, token_values };
+}
+
+function serialized_rig(rig, descriptors = [], serial_ports = []) {
     if (rig.backend === "hamlib") {
-        return { backend: "hamlib", hamlib: rig.hamlib };
+        return {
+            backend: "hamlib",
+            hamlib: materialized_hamlib(rig, descriptors, serial_ports),
+        };
     }
     if (rig.backend === "rigctld") {
+        const port = normalize_numeric_value(rig.rigctld.port, {
+            kind: "integer",
+            minimum: 1,
+            maximum: 65535,
+            step: 1,
+            default: DEFAULT_RIGCTLD_PORT,
+        });
         return {
             backend: "rigctld",
-            rigctld: { ...rig.rigctld, port: Number.parseInt(rig.rigctld.port, 10) },
+            rigctld: { ...rig.rigctld, port: Number.parseInt(port, 10) },
         };
     }
     return { backend: rig.backend };
@@ -184,7 +282,6 @@ function DescriptorInput({ descriptor, value, on_change, error_tokens, colors, s
                     filterOption={search_filter}
                     value={options.find(option => option.value === value) ?? null}
                     placeholder="Select a serial port"
-                    isClearable
                     onChange={option => on_change(option?.value ?? "")}
                     styles={search_select_styles(colors, invalid)}
                     options={options}
@@ -243,6 +340,14 @@ function DescriptorInput({ descriptor, value, on_change, error_tokens, colors, s
                     step={descriptor.step}
                     value={value}
                     onChange={event => on_change(event.target.value)}
+                    onBlur={
+                        descriptor.kind === "integer" || descriptor.kind === "numeric"
+                            ? () =>
+                                  on_change(
+                                      normalize_numeric_value(value, descriptor, serial_ports),
+                                  )
+                            : undefined
+                    }
                 />
             )}
         </label>
@@ -283,13 +388,13 @@ function CatControl({
     const available_backends = radio_capabilities?.backends || [];
     const selected_configuration = configuration?.[selected_rig];
     const server_errors =
-        radio_configuration_result?.ok === false ? radio_configuration_result.errors || [] : [];
+        radio_configuration_result?.failure === "invalid_config"
+            ? radio_configuration_result.errors || []
+            : [];
+    const radio_result = radio_connection_result ?? radio_configuration_result;
     const radio_errors =
-        radio_connection_result != null
-            ? radio_connection_result.ok === false
-                ? radio_connection_result.errors || []
-                : []
-            : server_errors || [];
+        radio_result?.failure === "invalid_config" ? radio_result.errors || [] : [];
+    const has_field_errors = radio_result?.failure === "invalid_config" && radio_errors.length > 0;
     const selected_errors = errors_for_rig(radio_errors, selected_rig);
     const model_options = hamlib_model_options(hamlib_models);
     const selected_model = model_options.find(
@@ -322,10 +427,23 @@ function CatControl({
     useEffect(() => {
         if (radio_configuration_result?.ok === true) {
             set_save_state({ ok: true, message: "Radio hardware saved." });
-        } else if (server_errors.length > 0) {
+        } else if (radio_configuration_result?.failure === "invalid_config") {
             set_save_state({
                 ok: false,
                 message: "Fix the highlighted radio settings before applying.",
+            });
+        } else if (radio_configuration_result?.failure === "connection") {
+            const connection_error = radio_configuration_result.errors?.find(
+                error => error.field === "connection" || error.field === "backend",
+            );
+            set_save_state({
+                ok: false,
+                message: connection_error?.message || "Radio connection failed.",
+                details:
+                    radio_configuration_result.errors
+                        ?.map(error => error.details)
+                        .filter(Boolean)
+                        .join("\n\n") || undefined,
             });
         }
         if (radio_configuration_result?.ok === false && server_errors.length > 0) {
@@ -337,7 +455,7 @@ function CatControl({
     useEffect(() => {
         if (radio_connection_result?.ok === true) {
             set_save_state({ ok: true, message: "Radio connection succeeded." });
-        } else if (radio_connection_result?.ok === false) {
+        } else if (radio_connection_result?.failure === "connection") {
             const errors = radio_connection_result.errors || [];
             const connection_error = errors.find(error => error.field === "connection");
             set_save_state({
@@ -364,21 +482,28 @@ function CatControl({
         }));
     }
 
+    function serialized_configuration() {
+        const serialize = rig =>
+            serialized_rig(
+                rig,
+                rig.backend === "hamlib" ? hamlib_model_details[rig.hamlib.model_id] || [] : [],
+                serial_ports,
+            );
+        return {
+            rig1: serialize(configuration.rig1),
+            ...(configuration.rig2_enabled ? { rig2: serialize(configuration.rig2) } : {}),
+        };
+    }
+
     async function save_configuration() {
         set_save_state({ ok: null, message: "Saving radio hardware..." });
-        const result = await set_radio_configuration({
-            rig1: serialized_rig(configuration.rig1),
-            ...(configuration.rig2_enabled ? { rig2: serialized_rig(configuration.rig2) } : {}),
-        });
+        const result = await set_radio_configuration(serialized_configuration());
         return result.ok;
     }
 
     function test_connection() {
         set_save_state({ ok: null, message: "Testing radio connection..." });
-        test_radio_connection({
-            rig1: serialized_rig(configuration.rig1),
-            ...(configuration.rig2_enabled ? { rig2: serialized_rig(configuration.rig2) } : {}),
-        });
+        test_radio_connection(serialized_configuration());
     }
 
     if (radio_config_apply_ref != null) {
@@ -465,7 +590,19 @@ function CatControl({
                                     onChange={event =>
                                         update_selected(rig => ({
                                             ...rig,
-                                            rigctld: { ...rig.rigctld, host: event.target.value },
+                                            rigctld: {
+                                                ...rig.rigctld,
+                                                host: event.target.value.replace(/\s/g, ""),
+                                            },
+                                        }))
+                                    }
+                                    onBlur={() =>
+                                        update_selected(rig => ({
+                                            ...rig,
+                                            rigctld: {
+                                                ...rig.rigctld,
+                                                host: rig.rigctld.host || "127.0.0.1",
+                                            },
                                         }))
                                     }
                                 />
@@ -490,6 +627,21 @@ function CatControl({
                                             rigctld: { ...rig.rigctld, port: event.target.value },
                                         }))
                                     }
+                                    onBlur={() =>
+                                        update_selected(rig => ({
+                                            ...rig,
+                                            rigctld: {
+                                                ...rig.rigctld,
+                                                port: normalize_numeric_value(rig.rigctld.port, {
+                                                    kind: "integer",
+                                                    minimum: 1,
+                                                    maximum: 65535,
+                                                    step: 1,
+                                                    default: DEFAULT_RIGCTLD_PORT,
+                                                }),
+                                            },
+                                        }))
+                                    }
                                 />
                             </label>
                         </div>
@@ -511,9 +663,8 @@ function CatControl({
                                     filterOption={search_filter}
                                     value={selected_model ?? null}
                                     placeholder="Select a model"
-                                    isClearable
                                     onChange={option => {
-                                        const model_id = option?.value ?? "";
+                                        const model_id = option.value;
                                         update_selected(rig => ({
                                             ...rig,
                                             hamlib: {
@@ -550,11 +701,13 @@ function CatControl({
                                             .filter(Boolean)}
                                         colors={colors}
                                         serial_ports={serial_ports}
-                                        value={
+                                        value={descriptor_value(
+                                            descriptor,
                                             selected_configuration.hamlib.token_values[
                                                 descriptor.token
-                                            ] ?? String(descriptor.default)
-                                        }
+                                            ],
+                                            serial_ports,
+                                        )}
                                         on_change={value =>
                                             update_selected(rig => ({
                                                 ...rig,
@@ -575,7 +728,7 @@ function CatControl({
                             ) : null}
                         </div>
                     ) : null}
-                    {radio_errors.length > 0 ? (
+                    {has_field_errors ? (
                         <ul className="space-y-1 text-red-600" role="alert">
                             {radio_errors.map((error, index) => (
                                 <li key={`${error.field}-${error.token || index}`}>
@@ -593,7 +746,7 @@ function CatControl({
                             >
                                 Test connection
                             </Button>
-                            {save_state ? (
+                            {save_state && !has_field_errors ? (
                                 <p
                                     className={
                                         save_state.ok === true
