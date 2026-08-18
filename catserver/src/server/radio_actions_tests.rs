@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use super::{
     radio_actions::process_ws,
     radio_configuration::{
-        Capabilities, ConfigurationResult, FieldError, HamlibModel, ProductionRadioConfiguration,
-        RadioConfiguration, RadioConfigurationService,
+        Capabilities, ConfigurationFailure, ConfigurationResult, FieldError, HamlibModel,
+        ProductionRadioConfiguration, RadioConfiguration, RadioConfigurationService,
     },
 };
 use crate::{
@@ -45,6 +45,7 @@ impl RadioConfigurationService for Service {
         Box::pin(async {
             ConfigurationResult {
                 ok: true,
+                failure: None,
                 errors: Vec::new(),
             }
         })
@@ -56,6 +57,7 @@ impl RadioConfigurationService for Service {
         Box::pin(async {
             ConfigurationResult {
                 ok: true,
+                failure: None,
                 errors: Vec::new(),
             }
         })
@@ -171,6 +173,7 @@ async fn production_configuration_returns_all_validation_errors() {
         })
         .await;
     assert_eq!(result.errors.len(), 2);
+    assert_eq!(result.failure, Some(ConfigurationFailure::InvalidConfig));
     assert_eq!(result.errors[0].token, Some("unknown_one".into()));
     assert_eq!(result.errors[1].token, Some("unknown_two".into()));
 }
@@ -195,4 +198,5 @@ async fn production_configuration_returns_all_rigctld_errors() {
         .map(|error| error.field.as_str())
         .collect();
     assert_eq!(fields, ["rig1.rigctld.host", "rig1.rigctld.port"]);
+    assert_eq!(result.failure, Some(ConfigurationFailure::InvalidConfig));
 }

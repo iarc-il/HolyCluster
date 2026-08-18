@@ -6,7 +6,7 @@ use crate::{
     args::{DEFAULT_RIGCTLD_HOST, DEFAULT_RIGCTLD_PORT},
     radio_config::{HamlibRigConfig, RadioConfig, RadioConfigError, RadioRigConfig},
     radio_factory,
-    radio_manager::RadioManager,
+    radio_manager::{RadioManager, RadioManagerError},
     rig::RadioInitError,
 };
 
@@ -38,20 +38,34 @@ pub(super) struct FieldError {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub(super) struct ConfigurationResult {
     pub(super) ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) failure: Option<ConfigurationFailure>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(super) errors: Vec<FieldError>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum ConfigurationFailure {
+    InvalidConfig,
+    Connection,
 }
 
 impl ConfigurationResult {
     fn success() -> Self {
         Self {
             ok: true,
+            failure: None,
             errors: Vec::new(),
         }
     }
 
-    fn failure(errors: Vec<FieldError>) -> Self {
-        Self { ok: false, errors }
+    fn failure(failure: ConfigurationFailure, errors: Vec<FieldError>) -> Self {
+        Self {
+            ok: false,
+            failure: Some(failure),
+            errors,
+        }
     }
 }
 
@@ -132,7 +146,7 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
         Box::pin(async move {
             let errors = validate_configuration(&configuration);
             if !errors.is_empty() {
-                return ConfigurationResult::failure(errors);
+                return ConfigurationResult::failure(ConfigurationFailure::InvalidConfig, errors);
             }
             let selected = configuration.effective_backend(false);
             let factory = radio_factory::factory(
@@ -146,7 +160,15 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
                 .await
             {
                 Ok(()) => ConfigurationResult::success(),
-                Err(error) => ConfigurationResult::failure(vec![manager_error(error)]),
+                Err(error) => {
+                    let failure = match &error {
+                        RadioManagerError::InvalidConfig(_) => ConfigurationFailure::InvalidConfig,
+                        RadioManagerError::WorkerStopped | RadioManagerError::WorkerStart(_) => {
+                            ConfigurationFailure::Connection
+                        }
+                    };
+                    ConfigurationResult::failure(failure, vec![manager_error(error)])
+                }
             }
         })
     }
@@ -155,7 +177,7 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
         Box::pin(async move {
             let errors = validate_configuration(&config);
             if !errors.is_empty() {
-                return ConfigurationResult::failure(errors);
+                return ConfigurationResult::failure(ConfigurationFailure::InvalidConfig, errors);
             }
             let selected = config.effective_backend(false);
             let factory = radio_factory::factory(
@@ -166,7 +188,10 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
             let mut radio = factory();
             match radio.init() {
                 Ok(()) => ConfigurationResult::success(),
-                Err(error) => ConfigurationResult::failure(vec![connection_error(error)]),
+                Err(error) => ConfigurationResult::failure(
+                    ConfigurationFailure::Connection,
+                    vec![connection_error(error)],
+                ),
             }
         })
     }
