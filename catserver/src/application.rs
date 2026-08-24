@@ -5,7 +5,7 @@ use tokio::sync::broadcast::{self, Sender};
 use crate::{
     args::{Args, BASE_LOCAL_PORT, rigctld_endpoint, server_config},
     dummy_rotator::DummyRotator,
-    radio_config::{AppConfig, RadioConfig},
+    radio_config::{ActiveRotatorBackend, AppConfig, RadioConfig, RotatorConfig},
     radio_factory,
     radio_manager::RadioManager,
     rotator::AnyRotator,
@@ -33,7 +33,7 @@ pub fn run(args: Args) -> Result<()> {
     }
     let rigctld_endpoint = rigctld_endpoint(&args);
     let radio = radio(app_config.config.radio.clone(), args.dummy)?;
-    let rotator = rotator(&app_config.config.rotator, args.dummy_rotator);
+    let rotator = rotator(&app_config.config, args.dummy_rotator)?;
     let is_single = instance.is_single();
     if is_single {
         if args.close {
@@ -89,59 +89,27 @@ fn radio(config: RadioConfig, use_dummy: bool) -> Result<RadioManager> {
     Ok(RadioManager::new(config, selected)?)
 }
 
-fn rotator(config: &crate::radio_config::RotatorConfig, use_dummy: bool) -> AnyRotator {
-    if use_dummy {
-        return AnyRotator::new(DummyRotator::new());
-    }
-    if matches!(
-        config.backend,
-        crate::radio_config::RotatorBackendKind::Rotctl
-    ) {
-        return AnyRotator::new(UnavailableRotator::new("rotctl"));
-    }
-    #[cfg(windows)]
-    {
-        AnyRotator::new(crate::pstrotator::PstRotator::new())
-    }
-    #[cfg(not(windows))]
-    {
-        let crate::radio_config::RotatorConnection::Rotctld { host, port } = &config.connection
-        else {
-            unreachable!()
-        };
-        AnyRotator::new(crate::rotctld::RotctldRotator::new(host.clone(), *port))
-    }
-}
-
-struct UnavailableRotator {
-    name: String,
-}
-
-impl UnavailableRotator {
-    fn new(name: &str) -> Self {
-        Self { name: name.into() }
-    }
-}
-
-impl crate::rotator::Rotator for UnavailableRotator {
-    fn init(&mut self) {}
-
-    fn get_name(&self) -> &str {
-        &self.name
-    }
-
-    fn set_azimuth(&mut self, _azimuth: f64) {}
-
-    fn get_status(&mut self) -> crate::rotator::RotatorStatus {
-        crate::rotator::RotatorStatus {
-            azimuth: 0.0,
-            status: "unavailable".into(),
-            name: self.name.clone(),
+fn rotator(config: &AppConfig, use_dummy: bool) -> Result<AnyRotator> {
+    match config.effective_rotator(use_dummy) {
+        ActiveRotatorBackend::Dummy => Ok(AnyRotator::new(DummyRotator::new())),
+        ActiveRotatorBackend::Configured(RotatorConfig::Rotctl { .. }) => Err(anyhow::Error::msg(
+            "rotctl rotator support is not implemented",
+        )),
+        ActiveRotatorBackend::Configured(RotatorConfig::Rotctld { host, port }) => {
+            #[cfg(windows)]
+            {
+                let _ = (host, port);
+                Err(anyhow::Error::msg(
+                    "rotctld rotator is unavailable on Windows",
+                ))
+            }
+            #[cfg(not(windows))]
+            {
+                Ok(AnyRotator::new(crate::rotctld::RotctldRotator::new(
+                    host, port,
+                )))
+            }
         }
-    }
-
-    fn is_available(&self) -> bool {
-        false
     }
 }
 
