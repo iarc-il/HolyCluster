@@ -21,6 +21,30 @@ fn lists_owned_dummy_model_in_deterministic_order() {
 }
 
 #[test]
+fn describes_every_registered_model_without_catalog_errors() {
+    let catalog = Catalog::load().expect("Hamlib catalog loads");
+    let failures: Vec<String> = catalog
+        .models()
+        .iter()
+        .filter_map(|model| {
+            catalog.describe_model(model.id()).err().map(|error| {
+                format!(
+                    "{} {} (model {}): {error}",
+                    model.manufacturer(),
+                    model.model(),
+                    model.id()
+                )
+            })
+        })
+        .collect();
+    assert!(
+        failures.is_empty(),
+        "models with unusable configuration metadata:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[test]
 fn describes_dummy_frontend_pathname_as_owned_text_metadata() {
     let catalog = Catalog::load().expect("Hamlib catalog loads");
     let descriptors = catalog
