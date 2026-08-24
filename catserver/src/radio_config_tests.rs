@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::radio_config::{
-    ActiveRadioBackend, HamlibRigConfig, RadioConfig, RadioConfigError, RadioRigConfig,
-    RigctldConfig,
+    ActiveRadioBackend, ActiveRotatorBackend, AppConfig, HamlibRigConfig, RadioConfig,
+    RadioConfigError, RadioRigConfig, RigctldConfig, RotatorConfig,
 };
 
 struct TestDir(PathBuf);
@@ -24,7 +24,7 @@ impl TestDir {
     }
 
     fn file(&self) -> PathBuf {
-        self.0.join("radio.json")
+        self.0.join("config.json")
     }
 }
 
@@ -123,11 +123,11 @@ fn rejects_unknown_schema_version() {
 
     fs::write(
         directory.file(),
-        r#"{"version":3,"rig1":{"backend":"rigctld"}}"#,
+        r#"{"version":3,"radio":{"rig1":{"backend":"unconfigured"}},"rotator":{"backend":"rotctld","host":"localhost","port":4533}}"#,
     )
     .unwrap();
     assert!(matches!(
-        RadioConfig::load_from_path(&directory.file()),
+        AppConfig::load_from_path(&directory.file()),
         Err(RadioConfigError::UnsupportedVersion(3))
     ));
 }
@@ -176,4 +176,29 @@ fn dummy_override_is_explicit_and_never_persisted() {
         ActiveRadioBackend::Configured(config.rig1.backend())
     );
     assert!(!persisted.contains("dummy"));
+}
+
+#[test]
+fn round_trips_rotctld_and_keeps_dummy_rotator_runtime_only() {
+    let directory = TestDir::new();
+    let config = AppConfig {
+        radio: RadioConfig::platform_default(),
+        rotator: RotatorConfig::Rotctld {
+            host: "127.0.0.1".into(),
+            port: 4533,
+        },
+    };
+
+    config.save_to_path(&directory.file()).unwrap();
+
+    assert_eq!(
+        AppConfig::load_from_path(&directory.file()).unwrap(),
+        config
+    );
+    assert_eq!(config.effective_rotator(true), ActiveRotatorBackend::Dummy);
+    assert!(
+        !fs::read_to_string(directory.file())
+            .unwrap()
+            .contains("dummy")
+    );
 }

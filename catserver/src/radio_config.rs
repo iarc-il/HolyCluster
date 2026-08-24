@@ -9,8 +9,8 @@ use std::{
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
-const CONFIG_FILE: &str = "radio.json";
-const SCHEMA_VERSION: u8 = 2;
+const CONFIG_FILE: &str = "config.json";
+const SCHEMA_VERSION: u8 = 1;
 pub const DEFAULT_RIGCTLD_HOST: &str = "127.0.0.1";
 pub const DEFAULT_RIGCTLD_PORT: u16 = 4532;
 type IoFailure = (PathBuf, std::io::Error);
@@ -59,6 +59,31 @@ pub struct RadioConfig {
     pub rig2: Option<RadioRigConfig>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(tag = "backend", rename_all = "snake_case")]
+pub enum RotatorConfig {
+    Rotctld {
+        host: String,
+        port: u16,
+    },
+    Rotctl {
+        model_id: String,
+        token_values: BTreeMap<String, String>,
+    },
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ActiveRotatorBackend {
+    Dummy,
+    Configured(RotatorConfig),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct AppConfig {
+    pub radio: RadioConfig,
+    pub rotator: RotatorConfig,
+}
+
 #[derive(Debug)]
 pub enum RadioConfigError {
     ProjectDirectories,
@@ -74,6 +99,8 @@ pub enum RadioConfigError {
     InvalidRigctldPort,
     WriteTemporary(IoFailure),
     Rename(RenameFailure),
+    InvalidRotatorHost,
+    InvalidRotatorPort,
 }
 
 impl fmt::Display for RadioConfigError {
@@ -84,16 +111,11 @@ impl fmt::Display for RadioConfigError {
 
 impl std::error::Error for RadioConfigError {}
 
-#[derive(Deserialize)]
-struct ConfigHeader {
+#[derive(Deserialize, Serialize)]
+struct PersistedAppConfig {
     version: u8,
-}
-
-#[derive(Serialize)]
-struct PersistedConfig<'a> {
-    version: u8,
-    #[serde(flatten)]
-    config: &'a RadioConfig,
+    radio: RadioConfig,
+    rotator: RotatorConfig,
 }
 
 impl RadioConfig {
@@ -111,6 +133,91 @@ impl RadioConfig {
     }
 
     pub fn load_from_path(path: &Path) -> Result<Self, RadioConfigError> {
+        AppConfig::load_from_path(path).map(|config| config.radio)
+    }
+
+    pub fn save(&self) -> Result<(), RadioConfigError> {
+        self.save_to_path(&Self::config_path()?)
+    }
+
+    pub fn save_to_path(&self, path: &Path) -> Result<(), RadioConfigError> {
+        let mut config = AppConfig::load_from_path(path)?;
+        config.radio = self.clone();
+        config.save_to_path(path)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn save_to_path_with_rename(
+        &self,
+        path: &Path,
+        rename: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+    ) -> Result<(), RadioConfigError> {
+        let mut config = AppConfig::load_from_path(path)?;
+        config.radio = self.clone();
+        config.save_to_path_with_rename(path, rename)
+    }
+
+    pub fn effective_backend(&self, dummy: bool) -> ActiveRadioBackend {
+        if dummy {
+            ActiveRadioBackend::Dummy
+        } else {
+            ActiveRadioBackend::Configured(self.rig1.backend())
+        }
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
+        self.rig1.validate()?;
+        if let Some(rig2) = &self.rig2 {
+            rig2.validate()?;
+        }
+        Ok(())
+    }
+}
+
+impl RotatorConfig {
+    pub fn platform_default() -> Self {
+        Self::Rotctld {
+            host: "localhost".into(),
+            port: 4533,
+        }
+    }
+
+    fn validate(&self) -> Result<(), RadioConfigError> {
+        match self {
+            Self::Rotctld { host, port } => {
+                if host.trim().is_empty() {
+                    return Err(RadioConfigError::InvalidRotatorHost);
+                }
+                if *port == 0 {
+                    return Err(RadioConfigError::InvalidRotatorPort);
+                }
+            }
+            Self::Rotctl {
+                model_id,
+                token_values,
+            } => HamlibRigConfig {
+                model_id: model_id.clone(),
+                token_values: token_values.clone(),
+            }
+            .validate()?,
+        }
+        Ok(())
+    }
+}
+
+impl AppConfig {
+    pub fn platform_default() -> Self {
+        Self {
+            radio: RadioConfig::platform_default(),
+            rotator: RotatorConfig::platform_default(),
+        }
+    }
+
+    pub fn config_path() -> Result<PathBuf, RadioConfigError> {
+        RadioConfig::config_path()
+    }
+
+    pub fn load_from_path(path: &Path) -> Result<Self, RadioConfigError> {
         let contents = match fs::read_to_string(path) {
             Ok(contents) => contents,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -118,18 +225,17 @@ impl RadioConfig {
             }
             Err(source) => return Err(RadioConfigError::Read((path.to_path_buf(), source))),
         };
-        let header: ConfigHeader =
+        let persisted: PersistedAppConfig =
             serde_json::from_str(&contents).map_err(RadioConfigError::Json)?;
-        if header.version != SCHEMA_VERSION {
-            return Err(RadioConfigError::UnsupportedVersion(header.version));
+        if persisted.version != SCHEMA_VERSION {
+            return Err(RadioConfigError::UnsupportedVersion(persisted.version));
         }
-        let config: Self = serde_json::from_str(&contents).map_err(RadioConfigError::Json)?;
+        let config = Self {
+            radio: persisted.radio,
+            rotator: persisted.rotator,
+        };
         config.validate()?;
         Ok(config)
-    }
-
-    pub fn save(&self) -> Result<(), RadioConfigError> {
-        self.save_to_path(&Self::config_path()?)
     }
 
     pub fn save_to_path(&self, path: &Path) -> Result<(), RadioConfigError> {
@@ -142,56 +248,61 @@ impl RadioConfig {
         rename: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
     ) -> Result<(), RadioConfigError> {
         self.validate()?;
-        let parent = path.parent().ok_or(RadioConfigError::ProjectDirectories)?;
-        fs::create_dir_all(parent).map_err(|source| {
-            RadioConfigError::CreateConfigDirectory((parent.to_path_buf(), source))
-        })?;
-        let temporary_path = path.with_extension("json.tmp");
-        let serialized =
-            serde_json::to_vec_pretty(&self.persisted()).map_err(RadioConfigError::Serialize)?;
-        let write_result = File::create(&temporary_path)
-            .and_then(|mut temporary| {
-                temporary.write_all(&serialized)?;
-                temporary.sync_all()
-            })
-            .map_err(|source| RadioConfigError::WriteTemporary((temporary_path.clone(), source)));
-        if let Err(error) = write_result {
-            let _ = fs::remove_file(&temporary_path);
-            return Err(error);
-        }
-        if let Err(source) = rename(&temporary_path, path) {
-            let _ = fs::remove_file(&temporary_path);
-            return Err(RadioConfigError::Rename((
-                temporary_path,
-                path.to_path_buf(),
-                source,
-            )));
-        }
-        Ok(())
+        atomic_write(
+            path,
+            &PersistedAppConfig {
+                version: SCHEMA_VERSION,
+                radio: self.radio.clone(),
+                rotator: self.rotator.clone(),
+            },
+            rename,
+        )
     }
 
-    pub fn effective_backend(&self, dummy: bool) -> ActiveRadioBackend {
+    pub fn effective_rotator(&self, dummy: bool) -> ActiveRotatorBackend {
         if dummy {
-            ActiveRadioBackend::Dummy
+            ActiveRotatorBackend::Dummy
         } else {
-            ActiveRadioBackend::Configured(self.rig1.backend())
+            ActiveRotatorBackend::Configured(self.rotator.clone())
         }
     }
 
-    fn persisted(&self) -> PersistedConfig<'_> {
-        PersistedConfig {
-            version: SCHEMA_VERSION,
-            config: self,
-        }
+    fn validate(&self) -> Result<(), RadioConfigError> {
+        self.radio.validate()?;
+        self.rotator.validate()
     }
+}
 
-    pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
-        self.rig1.validate()?;
-        if let Some(rig2) = &self.rig2 {
-            rig2.validate()?;
-        }
-        Ok(())
+fn atomic_write<T: Serialize>(
+    path: &Path,
+    value: &T,
+    rename: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+) -> Result<(), RadioConfigError> {
+    let parent = path.parent().ok_or(RadioConfigError::ProjectDirectories)?;
+    fs::create_dir_all(parent).map_err(|source| {
+        RadioConfigError::CreateConfigDirectory((parent.to_path_buf(), source))
+    })?;
+    let temporary_path = path.with_extension("json.tmp");
+    let serialized = serde_json::to_vec_pretty(value).map_err(RadioConfigError::Serialize)?;
+    let write_result = File::create(&temporary_path)
+        .and_then(|mut file| {
+            file.write_all(&serialized)?;
+            file.sync_all()
+        })
+        .map_err(|source| RadioConfigError::WriteTemporary((temporary_path.clone(), source)));
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&temporary_path);
+        return Err(error);
     }
+    if let Err(source) = rename(&temporary_path, path) {
+        let _ = fs::remove_file(&temporary_path);
+        return Err(RadioConfigError::Rename((
+            temporary_path,
+            path.to_path_buf(),
+            source,
+        )));
+    }
+    Ok(())
 }
 
 impl RadioBackendKind {
