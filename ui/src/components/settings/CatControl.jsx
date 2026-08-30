@@ -34,6 +34,8 @@ const DEFAULT_UNIX_SERIAL_PORT = "/dev/ttyUSB0";
 const DEFAULT_WINDOWS_SERIAL_PORT = "COM1";
 const DEFAULT_BAUD_RATE = "9600";
 const DEFAULT_RIGCTLD_PORT = "4532";
+const DEFAULT_HAMLIB_NETWORK_HOST = "127.0.0.1";
+const DEFAULT_HAMLIB_NETWORK_PORT = "4532";
 
 function default_serial_port(ports) {
     const port_names = ports ?? [];
@@ -48,8 +50,11 @@ function default_serial_port(ports) {
     );
 }
 
-function default_descriptor_value(descriptor, serial_ports) {
+function default_descriptor_value(descriptor, serial_ports, port_type = "serial") {
     if (["rig_pathname", "pathname", "device"].includes(descriptor.token)) {
+        if (port_type === "network" || port_type === "udp_network") {
+            return `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_HAMLIB_NETWORK_PORT}`;
+        }
         return default_serial_port(serial_ports);
     }
     if (["serial_speed", "baud"].includes(descriptor.token)) {
@@ -60,11 +65,11 @@ function default_descriptor_value(descriptor, serial_ports) {
     return String(descriptor.default ?? "");
 }
 
-function normalize_numeric_value(value, descriptor, serial_ports) {
+function normalize_numeric_value(value, descriptor, serial_ports, port_type = "serial") {
     const minimum = Number(descriptor.minimum);
     const maximum = Number(descriptor.maximum);
     const step = Number(descriptor.step);
-    const fallback = Number(default_descriptor_value(descriptor, serial_ports));
+    const fallback = Number(default_descriptor_value(descriptor, serial_ports, port_type));
     let number = Number(value);
     if (!Number.isFinite(number)) {
         number = Number.isFinite(fallback) ? fallback : minimum;
@@ -79,10 +84,10 @@ function normalize_numeric_value(value, descriptor, serial_ports) {
     return String(number);
 }
 
-function normalized_descriptor_value(descriptor, value, serial_ports) {
-    const default_value = default_descriptor_value(descriptor, serial_ports);
+function normalized_descriptor_value(descriptor, value, serial_ports, port_type = "serial") {
+    const default_value = default_descriptor_value(descriptor, serial_ports, port_type);
     if (descriptor.kind === "integer" || descriptor.kind === "numeric") {
-        return normalize_numeric_value(value ?? default_value, descriptor, serial_ports);
+        return normalize_numeric_value(value ?? default_value, descriptor, serial_ports, port_type);
     }
     if (descriptor.kind === "combo") {
         const options = descriptor.options.map(String);
@@ -94,8 +99,21 @@ function normalized_descriptor_value(descriptor, value, serial_ports) {
     return value == null || value === "" ? default_value : String(value);
 }
 
-function descriptor_value(descriptor, value, serial_ports) {
-    return normalized_descriptor_value(descriptor, value, serial_ports);
+function descriptor_value(descriptor, value, serial_ports, port_type) {
+    return normalized_descriptor_value(descriptor, value, serial_ports, port_type);
+}
+
+function network_endpoint(value) {
+    const endpoint = String(value || `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_HAMLIB_NETWORK_PORT}`);
+    const separator = endpoint.lastIndexOf(":");
+    if (separator <= 0) {
+        return { host: endpoint, port: DEFAULT_HAMLIB_NETWORK_PORT };
+    }
+    return { host: endpoint.slice(0, separator), port: endpoint.slice(separator + 1) };
+}
+
+function network_pathname(host, port) {
+    return `${host || DEFAULT_HAMLIB_NETWORK_HOST}:${port || DEFAULT_HAMLIB_NETWORK_PORT}`;
 }
 
 function serial_descriptors(descriptors) {
@@ -151,7 +169,7 @@ function normalize_configuration(configuration) {
     };
 }
 
-function materialized_hamlib(rig, descriptors, serial_ports) {
+function materialized_hamlib(rig, descriptors, serial_ports, port_type) {
     const token_values = { ...rig.hamlib.token_values };
     for (const descriptor of descriptors.filter(descriptor =>
         Object.hasOwn(serial_labels, descriptor.token),
@@ -160,16 +178,17 @@ function materialized_hamlib(rig, descriptors, serial_ports) {
             descriptor,
             token_values[descriptor.token],
             serial_ports,
+            port_type,
         );
     }
     return { ...rig.hamlib, token_values };
 }
 
-function serialized_rig(rig, descriptors = [], serial_ports = []) {
+function serialized_rig(rig, descriptors = [], serial_ports = [], port_type = "serial") {
     if (rig.backend === "hamlib") {
         return {
             backend: "hamlib",
-            hamlib: materialized_hamlib(rig, descriptors, serial_ports),
+            hamlib: materialized_hamlib(rig, descriptors, serial_ports, port_type),
         };
     }
     if (rig.backend === "rigctld") {
@@ -488,6 +507,9 @@ function CatControl({
                 rig,
                 rig.backend === "hamlib" ? hamlib_model_details[rig.hamlib.model_id] || [] : [],
                 serial_ports,
+                rig.backend === "hamlib"
+                    ? hamlib_models.find(model => model.id === rig.hamlib.model_id)?.port_type
+                    : undefined,
             );
         return {
             rig1: serialize(configuration.rig1),
@@ -687,12 +709,82 @@ function CatControl({
                                     options={model_options}
                                 />
                             </label>
-                            <h5 className="border-t pt-3 font-semibold">Serial connection</h5>
-                            <div className="grid gap-3 min-[720px]:grid-cols-2">
-                                {serial_descriptors(
-                                    hamlib_model_details[selected_configuration.hamlib.model_id] ||
-                                        [],
-                                ).map(descriptor => (
+                            <h5 className="border-t pt-3 font-semibold">
+                                {selected_model?.port_type === "network" ||
+                                selected_model?.port_type === "udp_network"
+                                    ? "Network connection"
+                                    : "Serial connection"}
+                            </h5>
+                            {selected_model?.port_type === "network" ||
+                            selected_model?.port_type === "udp_network" ? (
+                                <div className="grid gap-3 min-[720px]:grid-cols-2">
+                                    <label className="flex flex-col gap-1" htmlFor="hamlib-host">
+                                        <span>Host</span>
+                                        <Input
+                                            id="hamlib-host"
+                                            value={network_endpoint(
+                                                selected_configuration.hamlib.token_values
+                                                    .rig_pathname,
+                                            ).host}
+                                            onChange={event =>
+                                                update_selected(rig => ({
+                                                    ...rig,
+                                                    hamlib: {
+                                                        ...rig.hamlib,
+                                                        token_values: {
+                                                            ...rig.hamlib.token_values,
+                                                            rig_pathname: network_pathname(
+                                                                event.target.value,
+                                                                network_endpoint(
+                                                                    rig.hamlib.token_values
+                                                                        .rig_pathname,
+                                                                ).port,
+                                                            ),
+                                                        },
+                                                    },
+                                                }))
+                                            }
+                                        />
+                                    </label>
+                                    <label className="flex flex-col gap-1" htmlFor="hamlib-port">
+                                        <span>Port</span>
+                                        <Input
+                                            id="hamlib-port"
+                                            type="number"
+                                            min="1"
+                                            max="65535"
+                                            step="1"
+                                            value={network_endpoint(
+                                                selected_configuration.hamlib.token_values
+                                                    .rig_pathname,
+                                            ).port}
+                                            onChange={event =>
+                                                update_selected(rig => ({
+                                                    ...rig,
+                                                    hamlib: {
+                                                        ...rig.hamlib,
+                                                        token_values: {
+                                                            ...rig.hamlib.token_values,
+                                                            rig_pathname: network_pathname(
+                                                                network_endpoint(
+                                                                    rig.hamlib.token_values
+                                                                        .rig_pathname,
+                                                                ).host,
+                                                                event.target.value,
+                                                            ),
+                                                        },
+                                                    },
+                                                }))
+                                            }
+                                        />
+                                    </label>
+                                </div>
+                            ) : selected_model?.port_type === "serial" ? (
+                                <div className="grid gap-3 min-[720px]:grid-cols-2">
+                                    {serial_descriptors(
+                                        hamlib_model_details[selected_configuration.hamlib.model_id] ||
+                                            [],
+                                    ).map(descriptor => (
                                     <DescriptorInput
                                         key={descriptor.token}
                                         descriptor={descriptor}
@@ -707,6 +799,7 @@ function CatControl({
                                                 descriptor.token
                                             ],
                                             serial_ports,
+                                            selected_model.port_type,
                                         )}
                                         on_change={value =>
                                             update_selected(rig => ({
@@ -721,8 +814,9 @@ function CatControl({
                                             }))
                                         }
                                     />
-                                ))}
-                            </div>
+                                    ))}
+                                </div>
+                            ) : null}
                             {hamlib_model_error ? (
                                 <p role="alert">{hamlib_model_error.message}</p>
                             ) : null}
