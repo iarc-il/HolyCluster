@@ -94,7 +94,7 @@ describe("CAT control settings", () => {
             radio_configuration_result: null,
             radio_connection_result: null,
             hamlib_models: [
-                { id: "1", manufacturer: "Hamlib", model: "Dummy" },
+                { id: "1", manufacturer: "Hamlib", model: "Dummy", port_type: "none" },
                 { id: "2", manufacturer: "Acme", model: "Rig" },
                 { id: "3", manufacturer: "Other", model: "Radio" },
                 { id: "4", manufacturer: "Hamlib", model: "NET rigctl", port_type: "network" },
@@ -242,6 +242,23 @@ describe("CAT control settings", () => {
                     model_id: "4",
                     token_values: { rig_pathname: "radio.example:4533" },
                 },
+            },
+        });
+    });
+
+    it("does not add a serial pathname to a no-port Hamlib model", async () => {
+        const user = userEvent.setup();
+        const radio_config_apply_ref = { current: null };
+        render_cat(radio_config_apply_ref);
+
+        await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
+        expect(screen.queryByLabelText("Serial port")).toBeNull();
+        await radio_config_apply_ref.current();
+
+        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
+            rig1: {
+                backend: "hamlib",
+                hamlib: { model_id: "1", token_values: {} },
             },
         });
     });
