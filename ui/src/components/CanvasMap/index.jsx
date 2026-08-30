@@ -21,7 +21,7 @@ import {
     get_station_location,
 } from "@/utils.js";
 import MapOverlay from "./MapOverlay.jsx";
-import { Dimensions } from "./dimensions.js";
+import { create_dimensions } from "./dimensions.js";
 import {
     MAP_FILTER_ACTIONS,
     build_filter_menu_actions,
@@ -122,7 +122,7 @@ function CanvasMap({
     const inner_padding = is_sm_device && !effective_map_controls.is_globe ? 45 : 5;
 
     const dims = useMemo(
-        () => (width && height ? new Dimensions(width, height, inner_padding) : null),
+        () => create_dimensions(width, height, inner_padding),
         [width, height, inner_padding],
     );
 

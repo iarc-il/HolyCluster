@@ -12,3 +12,11 @@ export class Dimensions {
         this.scale = Math.max(Math.min(height / 900, 1.1), 0.5);
     }
 }
+
+export function create_dimensions(width, height, inner_padding) {
+    if (!width || !height || width <= inner_padding * 2 || height <= inner_padding * 2) {
+        return null;
+    }
+
+    return new Dimensions(width, height, inner_padding);
+}
