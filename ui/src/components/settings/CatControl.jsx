@@ -419,6 +419,7 @@ function CatControl({
     const selected_model = model_options.find(
         option => option.value === selected_configuration?.hamlib?.model_id,
     );
+    const selected_port_type = selected_model?.port_type || "serial";
     const logger_port_valid =
         temp_settings.highlight_port >= 1024 && temp_settings.highlight_port <= 65535;
 
@@ -710,13 +711,13 @@ function CatControl({
                                 />
                             </label>
                             <h5 className="border-t pt-3 font-semibold">
-                                {selected_model?.port_type === "network" ||
-                                selected_model?.port_type === "udp_network"
+                                {selected_port_type === "network" ||
+                                selected_port_type === "udp_network"
                                     ? "Network connection"
                                     : "Serial connection"}
                             </h5>
-                            {selected_model?.port_type === "network" ||
-                            selected_model?.port_type === "udp_network" ? (
+                            {selected_port_type === "network" ||
+                            selected_port_type === "udp_network" ? (
                                 <div className="grid gap-3 min-[720px]:grid-cols-2">
                                     <label className="flex flex-col gap-1" htmlFor="hamlib-host">
                                         <span>Host</span>
@@ -779,7 +780,7 @@ function CatControl({
                                         />
                                     </label>
                                 </div>
-                            ) : selected_model?.port_type === "serial" ? (
+                            ) : selected_port_type === "serial" ? (
                                 <div className="grid gap-3 min-[720px]:grid-cols-2">
                                     {serial_descriptors(
                                         hamlib_model_details[selected_configuration.hamlib.model_id] ||
