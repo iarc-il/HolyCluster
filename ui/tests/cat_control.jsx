@@ -64,6 +64,9 @@ const descriptors = [
     },
     { kind: "text", token: "unsupported", label: "Unsupported", tooltip: "", default: "" },
 ];
+const network_descriptors = [
+    { kind: "text", token: "rig_pathname", label: "Pathname", tooltip: "", default: "" },
+];
 
 function configuration(
     rig1 = { backend: "rigctld", rigctld: { host: "127.0.0.1", port: 4532 } },
@@ -94,11 +97,12 @@ describe("CAT control settings", () => {
                 { id: "1", manufacturer: "Hamlib", model: "Dummy" },
                 { id: "2", manufacturer: "Acme", model: "Rig" },
                 { id: "3", manufacturer: "Other", model: "Radio" },
+                { id: "4", manufacturer: "Hamlib", model: "NET rigctl", port_type: "network" },
             ],
             hamlib_models_error: null,
             serial_ports: ["/dev/ttyACM0", "/dev/ttyUSB0"],
             serial_ports_error: null,
-            hamlib_model_details: { 2: descriptors },
+            hamlib_model_details: { 2: descriptors, 4: network_descriptors },
             hamlib_model_error: null,
             get_radio_configuration: vi.fn(),
             list_hamlib_models: vi.fn(),
@@ -206,6 +210,37 @@ describe("CAT control settings", () => {
                         stop_bits: "1",
                         serial_handshake: "None",
                     },
+                },
+            },
+        });
+    });
+
+    it("renders and serializes network fields for a network Hamlib model", async () => {
+        const user = userEvent.setup();
+        const radio_config_apply_ref = { current: null };
+        render_cat(radio_config_apply_ref);
+
+        await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
+        await user.click(screen.getByRole("combobox", { name: "Model" }));
+        await user.click(screen.getByRole("option", { name: "Hamlib NET rigctl" }));
+
+        expect(screen.getByRole("heading", { name: "Network connection" })).not.toBeNull();
+        expect(screen.getByLabelText("Host").value).toBe("127.0.0.1");
+        expect(screen.getByLabelText("Port").value).toBe("4532");
+        expect(screen.queryByLabelText("Serial port")).toBeNull();
+
+        await user.clear(screen.getByLabelText("Host"));
+        await user.type(screen.getByLabelText("Host"), "radio.example");
+        await user.clear(screen.getByLabelText("Port"));
+        await user.type(screen.getByLabelText("Port"), "4533");
+        await radio_config_apply_ref.current();
+
+        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
+            rig1: {
+                backend: "hamlib",
+                hamlib: {
+                    model_id: "4",
+                    token_values: { rig_pathname: "radio.example:4533" },
                 },
             },
         });
