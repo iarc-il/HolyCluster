@@ -39,6 +39,16 @@ fn dummy_rigs_select_vfos_and_map_modes() {
 }
 
 #[test]
+fn dummy_ignores_a_persisted_serial_path() {
+    let (mut rig1, rig2) = config(false);
+    rig1.token_values
+        .insert("rig_pathname".into(), "/dev/ttyS0".into());
+    let mut radio = HamlibRadio::new(rig1, rig2);
+    radio.init().unwrap();
+    assert_eq!(radio.get_status().current_rig, 1);
+}
+
+#[test]
 fn absent_second_rig_is_not_selected() {
     let (rig1, rig2) = config(false);
     let mut radio = HamlibRadio::new(rig1, rig2);
