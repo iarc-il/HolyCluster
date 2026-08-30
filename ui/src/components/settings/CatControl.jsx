@@ -173,8 +173,18 @@ function normalize_configuration(configuration) {
 
 function materialized_hamlib(rig, descriptors, serial_ports, port_type) {
     const token_values = { ...rig.hamlib.token_values };
-    for (const descriptor of descriptors.filter(descriptor =>
-        Object.hasOwn(serial_labels, descriptor.token),
+    if (port_type === "none" || port_type === "usb") {
+        for (const token of ["rig_pathname", "pathname", "device"]) {
+            delete token_values[token];
+        }
+    }
+    for (const descriptor of descriptors.filter(
+        descriptor =>
+            Object.hasOwn(serial_labels, descriptor.token) &&
+            !(
+                (port_type === "none" || port_type === "usb") &&
+                ["rig_pathname", "pathname", "device"].includes(descriptor.token)
+            ),
     )) {
         token_values[descriptor.token] = normalized_descriptor_value(
             descriptor,
