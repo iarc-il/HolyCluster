@@ -76,3 +76,21 @@ fn rejects_invalid_numeric_combo_and_text_values() {
         Err(ConfigValueError::EmbeddedNul { .. })
     ));
 }
+
+#[test]
+fn accepts_in_range_numeric_values_without_a_step() {
+    let numeric = ConfigDescriptor::Numeric {
+        token: token(),
+        label: "L".into(),
+        tooltip: "T".into(),
+        default: 0.0,
+        minimum: 0.0,
+        maximum: 1.0,
+        step: 0.0,
+    };
+    assert_eq!(numeric.parse_value("0.37"), Ok(ConfigValue::Numeric(0.37)));
+    assert!(matches!(
+        numeric.parse_value("1.01"),
+        Err(ConfigValueError::OutOfRange { .. })
+    ));
+}

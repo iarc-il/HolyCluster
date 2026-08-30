@@ -113,19 +113,33 @@ fn rejects_null_and_invalid_utf8_metadata() {
 }
 
 #[test]
-fn rejects_non_finite_inverted_and_zero_step_ranges() {
+fn rejects_non_finite_inverted_and_negative_step_ranges() {
     for parameter in [
         numeric(f32::NAN, 1.0, 1.0),
         numeric(0.0, f32::INFINITY, 1.0),
         numeric(0.0, 1.0, f32::NEG_INFINITY),
         numeric(2.0, 1.0, 1.0),
-        numeric(0.0, 1.0, 0.0),
+        numeric(0.0, 1.0, -1.0),
     ] {
         assert!(matches!(
             descriptor::from_parts(&parameter, token(), "L".into(), "T".into(), "0".into()),
             Err(CatalogError::MalformedDescriptor { .. })
         ));
     }
+}
+
+#[test]
+fn accepts_numeric_range_without_a_step() {
+    assert!(matches!(
+        descriptor::from_parts(
+            &numeric(0.0, 1.0, 0.0),
+            token(),
+            "L".into(),
+            "T".into(),
+            "0".into(),
+        ),
+        Ok(ConfigDescriptor::Numeric { step, .. }) if step == 0.0
+    ));
 }
 
 #[test]

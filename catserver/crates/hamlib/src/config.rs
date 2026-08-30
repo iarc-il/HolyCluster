@@ -139,7 +139,7 @@ fn numeric(
     step: f64,
     token: &str,
 ) -> Result<(), ConfigValueError> {
-    if !minimum.is_finite() || !maximum.is_finite() || !step.is_finite() || step <= 0.0 {
+    if !minimum.is_finite() || !maximum.is_finite() || !step.is_finite() || step < 0.0 {
         return Err(ConfigValueError::InvalidStep {
             token: token.to_owned(),
         });
@@ -149,11 +149,13 @@ fn numeric(
             token: token.to_owned(),
         });
     }
-    let steps = (value - minimum) / step;
-    if (steps - steps.round()).abs() > f64::EPSILON * steps.abs().max(1.0) * 8.0 {
-        return Err(ConfigValueError::InvalidStep {
-            token: token.to_owned(),
-        });
+    if step > 0.0 {
+        let steps = (value - minimum) / step;
+        if (steps - steps.round()).abs() > f64::EPSILON * steps.abs().max(1.0) * 8.0 {
+            return Err(ConfigValueError::InvalidStep {
+                token: token.to_owned(),
+            });
+        }
     }
     Ok(())
 }

@@ -211,7 +211,7 @@ fn validate_range(
         || !maximum.is_finite()
         || !step.is_finite()
         || minimum > maximum
-        || step <= 0.0
+        || step < 0.0
     {
         return Err(malformed(token, "invalid numeric range"));
     }
