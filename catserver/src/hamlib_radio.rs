@@ -114,12 +114,22 @@ fn open(config: &HamlibRigConfig) -> Result<hamlib::Rig<hamlib::Open>, OpenError
         .parse()
         .map_err(|_| OpenError::message("invalid model id"))?;
     let catalog = hamlib::Catalog::load().map_err(OpenError::from_display)?;
+    let port_type = catalog
+        .model(hamlib::RigModelId::new(model))
+        .map(|model| model.port_type());
     let descriptors = catalog
         .describe_model(hamlib::RigModelId::new(model))
         .map_err(OpenError::from_display)?;
     let mut rig =
         hamlib::Rig::new(hamlib::RigModelId::new(model)).map_err(OpenError::from_hamlib)?;
     for (token, value) in &config.token_values {
+        if matches!(
+            port_type,
+            Some(hamlib::RigPortType::None | hamlib::RigPortType::Usb)
+        ) && matches!(token.as_str(), "rig_pathname" | "pathname" | "device")
+        {
+            continue;
+        }
         let descriptor = descriptors
             .iter()
             .find(|descriptor| descriptor.token().as_str() == token)
