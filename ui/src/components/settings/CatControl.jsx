@@ -104,7 +104,9 @@ function descriptor_value(descriptor, value, serial_ports, port_type) {
 }
 
 function network_endpoint(value) {
-    const endpoint = String(value || `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_HAMLIB_NETWORK_PORT}`);
+    const endpoint = String(
+        value || `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_HAMLIB_NETWORK_PORT}`,
+    );
     const separator = endpoint.lastIndexOf(":");
     if (separator <= 0) {
         return { host: endpoint, port: DEFAULT_HAMLIB_NETWORK_PORT };
@@ -723,10 +725,12 @@ function CatControl({
                                         <span>Host</span>
                                         <Input
                                             id="hamlib-host"
-                                            value={network_endpoint(
-                                                selected_configuration.hamlib.token_values
-                                                    .rig_pathname,
-                                            ).host}
+                                            value={
+                                                network_endpoint(
+                                                    selected_configuration.hamlib.token_values
+                                                        .rig_pathname,
+                                                ).host
+                                            }
                                             onChange={event =>
                                                 update_selected(rig => ({
                                                     ...rig,
@@ -755,10 +759,12 @@ function CatControl({
                                             min="1"
                                             max="65535"
                                             step="1"
-                                            value={network_endpoint(
-                                                selected_configuration.hamlib.token_values
-                                                    .rig_pathname,
-                                            ).port}
+                                            value={
+                                                network_endpoint(
+                                                    selected_configuration.hamlib.token_values
+                                                        .rig_pathname,
+                                                ).port
+                                            }
                                             onChange={event =>
                                                 update_selected(rig => ({
                                                     ...rig,
@@ -783,38 +789,39 @@ function CatControl({
                             ) : selected_port_type === "serial" ? (
                                 <div className="grid gap-3 min-[720px]:grid-cols-2">
                                     {serial_descriptors(
-                                        hamlib_model_details[selected_configuration.hamlib.model_id] ||
-                                            [],
+                                        hamlib_model_details[
+                                            selected_configuration.hamlib.model_id
+                                        ] || [],
                                     ).map(descriptor => (
-                                    <DescriptorInput
-                                        key={descriptor.token}
-                                        descriptor={descriptor}
-                                        error_tokens={selected_errors
-                                            .map(error => error.token)
-                                            .filter(Boolean)}
-                                        colors={colors}
-                                        serial_ports={serial_ports}
-                                        value={descriptor_value(
-                                            descriptor,
-                                            selected_configuration.hamlib.token_values[
-                                                descriptor.token
-                                            ],
-                                            serial_ports,
-                                            selected_model.port_type,
-                                        )}
-                                        on_change={value =>
-                                            update_selected(rig => ({
-                                                ...rig,
-                                                hamlib: {
-                                                    ...rig.hamlib,
-                                                    token_values: {
-                                                        ...rig.hamlib.token_values,
-                                                        [descriptor.token]: value,
+                                        <DescriptorInput
+                                            key={descriptor.token}
+                                            descriptor={descriptor}
+                                            error_tokens={selected_errors
+                                                .map(error => error.token)
+                                                .filter(Boolean)}
+                                            colors={colors}
+                                            serial_ports={serial_ports}
+                                            value={descriptor_value(
+                                                descriptor,
+                                                selected_configuration.hamlib.token_values[
+                                                    descriptor.token
+                                                ],
+                                                serial_ports,
+                                                selected_model.port_type,
+                                            )}
+                                            on_change={value =>
+                                                update_selected(rig => ({
+                                                    ...rig,
+                                                    hamlib: {
+                                                        ...rig.hamlib,
+                                                        token_values: {
+                                                            ...rig.hamlib.token_values,
+                                                            [descriptor.token]: value,
+                                                        },
                                                     },
-                                                },
-                                            }))
-                                        }
-                                    />
+                                                }))
+                                            }
+                                        />
                                     ))}
                                 </div>
                             ) : null}
