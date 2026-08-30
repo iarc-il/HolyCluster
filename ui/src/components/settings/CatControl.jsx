@@ -108,14 +108,14 @@ function network_endpoint(value) {
         value || `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_HAMLIB_NETWORK_PORT}`,
     );
     const separator = endpoint.lastIndexOf(":");
-    if (separator <= 0) {
+    if (separator < 0) {
         return { host: endpoint, port: DEFAULT_HAMLIB_NETWORK_PORT };
     }
     return { host: endpoint.slice(0, separator), port: endpoint.slice(separator + 1) };
 }
 
 function network_pathname(host, port) {
-    return `${host || DEFAULT_HAMLIB_NETWORK_HOST}:${port || DEFAULT_HAMLIB_NETWORK_PORT}`;
+    return `${host}:${port}`;
 }
 
 function serial_descriptors(descriptors) {
@@ -213,6 +213,7 @@ function hamlib_model_options(models) {
     return models.map(model => ({
         value: model.id,
         label: `${model.manufacturer} ${model.model}`,
+        port_type: model.port_type,
     }));
 }
 
