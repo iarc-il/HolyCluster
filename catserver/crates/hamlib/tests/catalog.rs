@@ -1,4 +1,4 @@
-use hamlib::{Catalog, ConfigDescriptor, RigModelId};
+use hamlib::{Catalog, ConfigDescriptor, RigModelId, RigPortType};
 
 #[test]
 fn lists_owned_dummy_model_in_deterministic_order() {
@@ -41,6 +41,25 @@ fn describes_every_registered_model_without_catalog_errors() {
         failures.is_empty(),
         "models with unusable configuration metadata:\n{}",
         failures.join("\n")
+    );
+}
+
+#[test]
+fn exposes_model_port_types() {
+    let catalog = Catalog::load().expect("Hamlib catalog loads");
+    let net_rigctl = catalog
+        .models()
+        .iter()
+        .find(|model| model.model() == "NET rigctl")
+        .expect("NET rigctl model is registered");
+
+    assert_eq!(net_rigctl.port_type(), RigPortType::Network);
+    assert_eq!(
+        catalog
+            .model(RigModelId::DUMMY)
+            .expect("the real dummy model is registered")
+            .port_type(),
+        RigPortType::None
     );
 }
 
