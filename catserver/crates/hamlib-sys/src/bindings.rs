@@ -40,6 +40,21 @@ pub const rig_status_e_RIG_STATUS_BETA: rig_status_e = 2;
 pub const rig_status_e_RIG_STATUS_STABLE: rig_status_e = 3;
 pub const rig_status_e_RIG_STATUS_BUGGY: rig_status_e = 4;
 pub type rig_status_e = ::std::os::raw::c_uint;
+pub const rig_port_e_RIG_PORT_NONE: rig_port_e = 0;
+pub const rig_port_e_RIG_PORT_SERIAL: rig_port_e = 1;
+pub const rig_port_e_RIG_PORT_NETWORK: rig_port_e = 2;
+pub const rig_port_e_RIG_PORT_DEVICE: rig_port_e = 3;
+pub const rig_port_e_RIG_PORT_PACKET: rig_port_e = 4;
+pub const rig_port_e_RIG_PORT_DTMF: rig_port_e = 5;
+pub const rig_port_e_RIG_PORT_ULTRA: rig_port_e = 6;
+pub const rig_port_e_RIG_PORT_RPC: rig_port_e = 7;
+pub const rig_port_e_RIG_PORT_PARALLEL: rig_port_e = 8;
+pub const rig_port_e_RIG_PORT_USB: rig_port_e = 9;
+pub const rig_port_e_RIG_PORT_UDP_NETWORK: rig_port_e = 10;
+pub const rig_port_e_RIG_PORT_CM108: rig_port_e = 11;
+pub const rig_port_e_RIG_PORT_GPIO: rig_port_e = 12;
+pub const rig_port_e_RIG_PORT_GPION: rig_port_e = 13;
+pub type rig_port_e = ::std::os::raw::c_uint;
 pub type freq_t = f64;
 pub type shortfreq_t = ::std::os::raw::c_long;
 pub type vfo_t = ::std::os::raw::c_uint;
@@ -369,6 +384,10 @@ pub struct hamlib_sys_rig_caps_metadata {
     pub version: *const ::std::os::raw::c_char,
     pub copyright: *const ::std::os::raw::c_char,
     pub status: rig_status_e,
+    pub rig_type: ::std::os::raw::c_int,
+    pub ptt_type: ::std::os::raw::c_uint,
+    pub dcd_type: ::std::os::raw::c_uint,
+    pub port_type: rig_port_e,
 }
 unsafe extern "C" {
     pub fn hamlib_sys_rig_caps_metadata(

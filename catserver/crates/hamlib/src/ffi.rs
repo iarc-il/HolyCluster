@@ -10,7 +10,9 @@ use std::{
 
 use hamlib_sys as sys;
 
-use crate::{CatalogError, ConfigDescriptor, HamlibError, RigModel, RigModelId, RigModelStatus};
+use crate::{
+    CatalogError, ConfigDescriptor, HamlibError, RigModel, RigModelId, RigModelStatus, RigPortType,
+};
 
 static BACKENDS: OnceLock<Result<(), HamlibError>> = OnceLock::new();
 
@@ -229,12 +231,30 @@ fn copy_model(caps: *const sys::rig_caps) -> Result<RigModel, CatalogError> {
         sys::rig_status_e_RIG_STATUS_BUGGY => RigModelStatus::Buggy,
         status => return Err(CatalogError::InvalidStatus { model: id, status }),
     };
+    let port_type = match metadata.port_type {
+        sys::rig_port_e_RIG_PORT_NONE => RigPortType::None,
+        sys::rig_port_e_RIG_PORT_SERIAL => RigPortType::Serial,
+        sys::rig_port_e_RIG_PORT_NETWORK => RigPortType::Network,
+        sys::rig_port_e_RIG_PORT_DEVICE => RigPortType::Device,
+        sys::rig_port_e_RIG_PORT_PACKET => RigPortType::Packet,
+        sys::rig_port_e_RIG_PORT_DTMF => RigPortType::Dtmf,
+        sys::rig_port_e_RIG_PORT_ULTRA => RigPortType::Ultra,
+        sys::rig_port_e_RIG_PORT_RPC => RigPortType::Rpc,
+        sys::rig_port_e_RIG_PORT_PARALLEL => RigPortType::Parallel,
+        sys::rig_port_e_RIG_PORT_USB => RigPortType::Usb,
+        sys::rig_port_e_RIG_PORT_UDP_NETWORK => RigPortType::UdpNetwork,
+        sys::rig_port_e_RIG_PORT_CM108 => RigPortType::Cm108,
+        sys::rig_port_e_RIG_PORT_GPIO => RigPortType::Gpio,
+        sys::rig_port_e_RIG_PORT_GPION => RigPortType::Gpion,
+        _ => return Err(CatalogError::InvalidPortType { model: id }),
+    };
     Ok(RigModel {
         id,
         manufacturer: string(metadata.mfg_name, "manufacturer")?,
         model: string(metadata.model_name, "name")?,
         version: string(metadata.version, "version")?,
         status,
+        port_type,
     })
 }
 

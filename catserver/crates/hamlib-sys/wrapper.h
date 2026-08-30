@@ -21,6 +21,10 @@ struct hamlib_sys_rig_caps_metadata {
     const char *version;
     const char *copyright;
     enum rig_status_e status;
+    int rig_type;
+    ptt_type_t ptt_type;
+    dcd_type_t dcd_type;
+    rig_port_t port_type;
 };
 
 const struct hamlib_sys_rig_caps_metadata *hamlib_sys_rig_caps_metadata(

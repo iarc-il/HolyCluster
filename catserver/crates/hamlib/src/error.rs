@@ -98,6 +98,8 @@ pub enum CatalogError {
     },
     #[error("Hamlib returned invalid status {status} for model {model}")]
     InvalidStatus { model: RigModelId, status: u32 },
+    #[error("Hamlib returned invalid port type for model {model}")]
+    InvalidPortType { model: RigModelId },
     #[error("Hamlib callback panicked while enumerating {operation}")]
     CallbackPanic { operation: &'static str },
     #[error("Hamlib returned malformed {reason} for token {token}")]

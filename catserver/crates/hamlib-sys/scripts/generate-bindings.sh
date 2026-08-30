@@ -13,7 +13,7 @@ test "$(sha256sum "$include_dir/hamlib/rig.h" | cut -d' ' -f1)" = a2cfaedc3d92a6
 test "$(sha256sum "$include_dir/hamlib/riglist.h" | cut -d' ' -f1)" = 08be8cf49b5c2f8ab5f2a328ec18269a4115db68b1361c497b8a97983bde00d1
 "$bindgen_bin" "$crate_dir/wrapper.h" --output "$output" \
   --allowlist-type 's_rig|RIG|rig_caps|hamlib_sys_rig_caps_metadata|confparams|rig_errcode_e|rig_conf_e|rig_status_e' \
-  --allowlist-type 'rig_model_t|freq_t|shortfreq_t|pbwidth_t|vfo_t|rmode_t|hamlib_token_t|rig_ptr_t' \
+  --allowlist-type 'rig_model_t|freq_t|shortfreq_t|pbwidth_t|vfo_t|rmode_t|hamlib_token_t|rig_ptr_t|ptt_type_t|dcd_type_t|rig_port_t' \
   --allowlist-function 'hamlib_sys_rig_caps_metadata|rig(_(init|open|close|cleanup|set_conf|get_conf2|token_lookup|confparam_lookup|token_foreach|ext_(lookup|lookup_tok|token_lookup|func_foreach|level_foreach|parm_foreach)|set_freq|get_freq|set_mode|get_mode|set_vfo|get_vfo|load_all_backends|load_backend|check_backend|list_foreach|list_foreach_model|get_caps)|error2?)' \
   --allowlist-var '^RIG_MODEL_(NONE|DUMMY)$' \
   --allowlist-var '^RIG_VFO_(NONE|A|B|CURR)$' \

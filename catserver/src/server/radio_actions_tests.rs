@@ -27,6 +27,7 @@ impl RadioConfigurationService for Service {
             model: "Dummy".into(),
             version: "1".into(),
             status: "stable".into(),
+            port_type: hamlib::RigPortType::None,
         }])
     }
     fn serial_ports(&self) -> Result<Vec<String>, FieldError> {

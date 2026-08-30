@@ -23,6 +23,7 @@ pub(super) struct HamlibModel {
     pub(super) model: String,
     pub(super) version: String,
     pub(super) status: String,
+    pub(super) port_type: hamlib::RigPortType,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -113,6 +114,7 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
                 model: model.model().into(),
                 version: model.version().into(),
                 status: format!("{:?}", model.status()).to_lowercase(),
+                port_type: model.port_type(),
             })
             .collect())
     }

@@ -33,6 +33,7 @@ pub struct RigModel {
     pub(crate) model: String,
     pub(crate) version: String,
     pub(crate) status: RigModelStatus,
+    pub(crate) port_type: RigPortType,
 }
 
 impl RigModel {
@@ -55,6 +56,29 @@ impl RigModel {
     pub const fn status(&self) -> RigModelStatus {
         self.status
     }
+
+    pub const fn port_type(&self) -> RigPortType {
+        self.port_type
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RigPortType {
+    None,
+    Serial,
+    Network,
+    Device,
+    Packet,
+    Dtmf,
+    Ultra,
+    Rpc,
+    Parallel,
+    Usb,
+    UdpNetwork,
+    Cm108,
+    Gpio,
+    Gpion,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]

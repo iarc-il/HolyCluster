@@ -17,7 +17,9 @@ pub use error::{
 };
 pub use rig::{Closed, Frequency, Mode, Open, PassbandWidth, Rig, Vfo};
 pub use rotator::{Position, Rotator, RotatorCatalog, RotatorClosed, RotatorModel, RotatorOpen};
-pub use types::{ConfigDescriptor, ConfigToken, ConfigValue, RigModel, RigModelId, RigModelStatus};
+pub use types::{
+    ConfigDescriptor, ConfigToken, ConfigValue, RigModel, RigModelId, RigModelStatus, RigPortType,
+};
 
 #[derive(Clone, Debug)]
 pub struct Catalog {
