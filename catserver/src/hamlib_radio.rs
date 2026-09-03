@@ -88,21 +88,25 @@ impl Radio for HamlibRadio {
 
     fn get_status(&mut self) -> Status {
         let current_rig = self.current_rig;
-        let Some(rig) = self.rig() else {
-            return Status::disconnected(current_rig);
+        let status = if let Some(rig) = self.rig() {
+            match (
+                rig.frequency(hamlib::Vfo::Current),
+                rig.mode(hamlib::Vfo::Current),
+            ) {
+                (Ok(frequency), Ok((mode, _))) => Status {
+                    freq: frequency.hertz() as u32,
+                    status: "connected".into(),
+                    mode: status_mode(mode).into(),
+                    current_rig,
+                },
+                _ => Status::disconnected(current_rig),
+            }
+        } else {
+            Status::disconnected(current_rig)
         };
-        let status = match (
-            rig.frequency(hamlib::Vfo::Current),
-            rig.mode(hamlib::Vfo::Current),
-        ) {
-            (Ok(frequency), Ok((mode, _))) => Status {
-                freq: frequency.hertz() as u32,
-                status: "connected".into(),
-                mode: status_mode(mode).into(),
-                current_rig,
-            },
-            _ => Status::disconnected(current_rig),
-        };
+        if status.status == "disconnected" {
+            self.rigs = [None, None];
+        }
         self.result(status.status == "connected");
         status
     }
