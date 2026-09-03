@@ -515,7 +515,7 @@ function CatControl({
         }));
     }
 
-    function serialized_configuration() {
+    function serialized_configuration(rig_name = null) {
         const serialize = rig =>
             serialized_rig(
                 rig,
@@ -525,6 +525,9 @@ function CatControl({
                     ? hamlib_models.find(model => model.id === rig.hamlib.model_id)?.port_type
                     : undefined,
             );
+        if (rig_name != null) {
+            return { rig1: serialize(configuration[rig_name]) };
+        }
         return {
             rig1: serialize(configuration.rig1),
             ...(configuration.rig2_enabled ? { rig2: serialize(configuration.rig2) } : {}),
@@ -539,7 +542,7 @@ function CatControl({
 
     function test_connection() {
         set_save_state({ ok: null, message: "Testing radio connection..." });
-        test_radio_connection(serialized_configuration());
+        test_radio_connection(serialized_configuration(selected_rig));
     }
 
     if (radio_config_apply_ref != null) {

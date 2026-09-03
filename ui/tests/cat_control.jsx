@@ -184,6 +184,27 @@ describe("CAT control settings", () => {
         expect(radio.current.set_radio_configuration).not.toHaveBeenCalled();
     });
 
+    it("tests only the selected rig when another rig is configured", async () => {
+        const user = userEvent.setup();
+        radio.current.radio_configuration = configuration(
+            { backend: "hamlib", hamlib: { model_id: "1", token_values: {} } },
+            {
+                backend: "hamlib",
+                hamlib: {
+                    model_id: "3",
+                    token_values: { rig_pathname: "/dev/ttyS0" },
+                },
+            },
+        );
+        render_cat();
+
+        await user.click(screen.getByRole("button", { name: "Test connection" }));
+
+        expect(radio.current.test_radio_connection).toHaveBeenCalledWith({
+            rig1: { backend: "hamlib", hamlib: { model_id: "1", token_values: {} } },
+        });
+    });
+
     it("materializes valid serial defaults for a Hamlib model", async () => {
         const user = userEvent.setup();
         const radio_config_apply_ref = { current: null };
