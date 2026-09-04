@@ -22,23 +22,13 @@ env:
   CATSERVER_SENTRY_ENVIRONMENT: ${{ github.ref == 'refs/heads/dev' && 'dev' || github.ref_type == 'tag' && 'prod' || 'dev' }}
   CATSERVER_SENTRY_DSN: ${{ vars.CATSERVER_SENTRY_DSN }}
 
-jobs:
-  check-linux-tray:
-    name: Check Linux tray support
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-      - name: Install Linux tray dependencies
-        run: sudo apt-get update && sudo apt-get install --yes libgtk-3-dev libappindicator3-dev libudev-dev libusb-1.0-0-dev
-      - name: Build Linux CAT server
-        working-directory: catserver
-        run: cargo build --workspace
+concurrency:
+  group: catserver-${{ github.ref }}
+  cancel-in-progress: true
 
-  build-catserver:
-    name: Build Catserver
+jobs:
+  test-catserver:
+    name: Test Catserver
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/iarc-il/catserver-ci:latest
@@ -52,18 +42,6 @@ jobs:
       - name: Install Linux build dependencies
         run: apt-get update && apt-get install --yes libudev-dev
 
-      - name: Setup SSH
-        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
-        run: |
-          export HOME=/root
-          mkdir -p $HOME/.ssh
-          chmod 700 $HOME/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > $HOME/.ssh/id_rsa
-          chmod 600 $HOME/.ssh/id_rsa
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_DEV }}" >> $HOME/.ssh/known_hosts
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_PROD }}" >> $HOME/.ssh/known_hosts
-          chmod 644 $HOME/.ssh/known_hosts
-
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
@@ -73,6 +51,16 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ env.TARGET }}-
+
+      - name: Cache test build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            catserver/target/debug
+            catserver/target/${{ env.TARGET }}/debug
+          key: ${{ runner.os }}-catserver-test-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-catserver-test-
 
       - name: Cache Hamlib source and build artifacts
         uses: actions/cache@v4
@@ -91,32 +79,112 @@ jobs:
         working-directory: catserver
         run: cargo fmt --check
 
-      - name: Verify Hamlib build toolchain
-        run: |
-          autoconf --version
-          automake --version
-          make --version
-          pkg-config --version
-          gcc --version
-          x86_64-w64-mingw32-gcc --version
-          x86_64-w64-mingw32-g++ --version
-          x86_64-w64-mingw32-ar --version
-          x86_64-w64-mingw32-dlltool --version
-          x86_64-w64-mingw32-objdump --version
-          x86_64-w64-mingw32-ranlib --version
-          x86_64-w64-mingw32-strip --version
-          x86_64-w64-mingw32-windres --version
-
       - name: Run host workspace tests
-        working-directory: ./catserver
+        working-directory: catserver
         run: cargo test --workspace
 
+      - name: Test release publisher
+        run: python3 catserver/test_publish.py
+
+  lint-catserver:
+    name: Lint Catserver
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/iarc-il/catserver-ci:latest
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.TARGET }}-
+
+      - name: Cache lint build artifacts
+        uses: actions/cache@v4
+        with:
+          path: catserver/target/${{ env.TARGET }}/debug
+          key: ${{ runner.os }}-catserver-lint-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-catserver-lint-
+
+      - name: Cache Hamlib source and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            catserver/${{ env.CARGO_TARGET_DIR }}/hamlib-src
+            catserver/${{ env.CARGO_TARGET_DIR }}/**/build/hamlib-src-*/out
+          key: ${{ runner.os }}-hamlib-static-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/Dockerfile', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
+
+      - name: Fix git errors
+        run: |
+          git config --system --add safe.directory "$GITHUB_WORKSPACE"
+          git fetch --tags --force
+
+      - name: Run Clippy
+        working-directory: catserver
+        run: cargo clippy --workspace --target $TARGET -- -D warnings
+
+  build-linux:
+    name: Build Linux Catserver
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/iarc-il/catserver-ci:latest
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install Linux build dependencies
+        run: apt-get update && apt-get install --yes libudev-dev
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.TARGET }}-
+
+      - name: Cache Linux release build artifacts
+        uses: actions/cache@v4
+        with:
+          path: catserver/target/x86_64-unknown-linux-gnu/release
+          key: ${{ runner.os }}-catserver-linux-release-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-catserver-linux-release-
+
+      - name: Cache Hamlib source and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            catserver/${{ env.CARGO_TARGET_DIR }}/hamlib-src
+            catserver/${{ env.CARGO_TARGET_DIR }}/**/build/hamlib-src-*/out
+          key: ${{ runner.os }}-hamlib-static-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/Dockerfile', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
+
+      - name: Fix git errors
+        run: |
+          git config --system --add safe.directory "$GITHUB_WORKSPACE"
+          git fetch --tags --force
+
       - name: Build Linux release binary
-        working-directory: ./catserver
+        working-directory: catserver
         run: cargo build --workspace --target x86_64-unknown-linux-gnu --release
 
       - name: Build Linux AppImage
-        working-directory: ./catserver
+        working-directory: catserver
         run: sh ./build_appimage.sh
 
       - name: Upload Linux AppImage
@@ -125,19 +193,55 @@ jobs:
           name: HolyCluster-linux-x86_64
           path: catserver/target/x86_64-unknown-linux-gnu/release/catserver-v*-linux-x86_64.AppImage
 
-      - name: Test release publisher
-        run: python3 catserver/test_publish.py
+  build-windows:
+    name: Build Windows Catserver
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/iarc-il/catserver-ci:latest
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
-      - name: Run Clippy
-        working-directory: ./catserver
-        run: cargo clippy --workspace --target $TARGET -- -D warnings
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.TARGET }}-
+
+      - name: Cache Windows release build artifacts
+        uses: actions/cache@v4
+        with:
+          path: catserver/target/${{ env.TARGET }}/release
+          key: ${{ runner.os }}-catserver-windows-release-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-catserver-windows-release-
+
+      - name: Cache Hamlib source and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            catserver/${{ env.CARGO_TARGET_DIR }}/hamlib-src
+            catserver/${{ env.CARGO_TARGET_DIR }}/**/build/hamlib-src-*/out
+          key: ${{ runner.os }}-hamlib-static-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/Dockerfile', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
+
+      - name: Fix git errors
+        run: |
+          git config --system --add safe.directory "$GITHUB_WORKSPACE"
+          git fetch --tags --force
 
       - name: Build static catserver
-        working-directory: ./catserver
+        working-directory: catserver
         run: cargo build --workspace --target $TARGET --release
 
       - name: Reject non-system DLL imports
-        working-directory: ./catserver
+        working-directory: catserver
         run: |
           imports=$(x86_64-w64-mingw32-objdump -p target/$TARGET/release/catserver.exe | awk '/DLL Name:/ { print tolower($3) }')
           for dll in $imports; do
@@ -149,15 +253,55 @@ jobs:
 
       - name: Change build artifacts ownership
         if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
-        working-directory: ./catserver
+        working-directory: catserver
         run: chown -R wix:wix target
 
       - name: Build installer
         if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
-        working-directory: ./catserver
+        working-directory: catserver
         run: su wix -c "./build_msi.sh in-docker --default-shortcut-arguments '${DEFAULT_SHORTCUT_ARGUMENTS}'"
         env:
           DEFAULT_SHORTCUT_ARGUMENTS: ${{ github.ref == 'refs/heads/dev' && '--dev-server' || '' }}
+
+      - name: Upload Windows MSI
+        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: HolyCluster-windows-x86_64
+          path: catserver/target/${{ env.TARGET }}/release/HolyCluster.msi
+
+  publish-catserver:
+    name: Publish Catserver
+    if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+    needs: [test-catserver, lint-catserver, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Download Linux AppImage
+        uses: actions/download-artifact@v4
+        with:
+          name: HolyCluster-linux-x86_64
+          path: catserver/target/x86_64-unknown-linux-gnu/release
+
+      - name: Download Windows MSI
+        uses: actions/download-artifact@v4
+        with:
+          name: HolyCluster-windows-x86_64
+          path: catserver/target/${{ env.TARGET }}/release
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_DEV }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_PROD }}" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       - name: Upload to Development Server
         if: github.ref == 'refs/heads/dev'
