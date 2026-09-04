@@ -24,6 +24,8 @@ env:
   # Development builds favor CI speed; production tags keep maximum optimization.
   CARGO_PROFILE_RELEASE_LTO: ${{ github.ref_type == 'tag' && 'true' || 'false' }}
   CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ github.ref_type == 'tag' && '1' || '16' }}
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: sccache
 
 concurrency:
   group: catserver-${{ github.ref }}
@@ -41,6 +43,9 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.11
 
       - name: Install Linux build dependencies
         run: apt-get update && apt-get install --yes libudev-dev
@@ -101,6 +106,9 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
@@ -147,6 +155,9 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.11
 
       - name: Install Linux build dependencies
         run: apt-get update && apt-get install --yes libudev-dev
@@ -207,6 +218,9 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.11
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
