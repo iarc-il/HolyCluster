@@ -60,16 +60,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-${{ env.TARGET }}-
 
-      - name: Cache test build artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            catserver/target/debug
-            catserver/target/${{ env.TARGET }}/debug
-          key: ${{ runner.os }}-catserver-test-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
-          restore-keys: |
-            ${{ runner.os }}-catserver-test-
-
       - name: Cache Hamlib source and build artifacts
         uses: actions/cache@v4
         with:
@@ -119,14 +109,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-${{ env.TARGET }}-
 
-      - name: Cache lint build artifacts
-        uses: actions/cache@v4
-        with:
-          path: catserver/target/${{ env.TARGET }}/debug
-          key: ${{ runner.os }}-catserver-lint-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
-          restore-keys: |
-            ${{ runner.os }}-catserver-lint-
-
       - name: Cache Hamlib source and build artifacts
         uses: actions/cache@v4
         with:
@@ -171,14 +153,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ env.TARGET }}-
-
-      - name: Cache Linux release build artifacts
-        uses: actions/cache@v4
-        with:
-          path: catserver/target/x86_64-unknown-linux-gnu/release
-          key: ${{ runner.os }}-catserver-linux-release-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
-          restore-keys: |
-            ${{ runner.os }}-catserver-linux-release-
 
       - name: Cache Hamlib source and build artifacts
         uses: actions/cache@v4
@@ -231,14 +205,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ env.TARGET }}-
-
-      - name: Cache Windows release build artifacts
-        uses: actions/cache@v4
-        with:
-          path: catserver/target/${{ env.TARGET }}/release
-          key: ${{ runner.os }}-catserver-windows-release-${{ hashFiles('catserver/Cargo.lock', 'catserver/Cargo.toml', 'catserver/.cargo/config.toml', 'catserver/build.rs', 'catserver/crates/hamlib-src/**') }}
-          restore-keys: |
-            ${{ runner.os }}-catserver-windows-release-
 
       - name: Cache Hamlib source and build artifacts
         uses: actions/cache@v4
