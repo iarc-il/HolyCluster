@@ -57,17 +57,27 @@ impl CompositeRadio {
 
 impl Radio for CompositeRadio {
     fn init(&mut self) -> Result<(), RadioInitError> {
-        for (index, rig) in self.rigs.iter_mut().flatten().enumerate() {
-            rig.init().map_err(|error| match error {
-                RadioInitError::Hamlib { error, details, .. } => RadioInitError::Hamlib {
-                    rig: (index + 1) as u8,
-                    error,
-                    details,
-                },
-                error => error,
-            })?;
+        // Initialize every configured rig while preserving the first error for reporting.
+        let mut first_error = None;
+        for (index, rig) in self.rigs.iter_mut().enumerate() {
+            let Some(rig) = rig else {
+                continue;
+            };
+            if let Err(error) = rig.init() {
+                let error = match error {
+                    RadioInitError::Hamlib { error, details, .. } => RadioInitError::Hamlib {
+                        rig: (index + 1) as u8,
+                        error,
+                        details,
+                    },
+                    error => error,
+                };
+                if first_error.is_none() {
+                    first_error = Some(error);
+                }
+            }
         }
-        Ok(())
+        first_error.map_or(Ok(()), Err)
     }
 
     fn set_mode(&mut self, mode: Mode) {
@@ -102,11 +112,16 @@ impl Radio for CompositeRadio {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
+    use std::{
+        collections::BTreeMap,
+        sync::{Arc, Mutex},
+    };
 
-    use super::CompositeRadio;
+    use super::{CompositeRadio, factory};
     use crate::{
         freq::Freq,
+        radio_config::{HamlibRigConfig, RadioConfig, RadioRigConfig},
+        radio_manager::{ConnectionState, RadioManager},
         rig::{Mode, Radio, RadioInitError, Slot, Status},
     };
 
@@ -132,6 +147,58 @@ mod tests {
         fn get_status(&mut self) -> Status {
             Status::disconnected(0)
         }
+    }
+
+    #[tokio::test]
+    async fn initializes_and_operates_rig2_when_rig1_is_unavailable() {
+        let config = RadioConfig {
+            rig1: RadioRigConfig::Unconfigured,
+            rig2: Some(RadioRigConfig::Hamlib {
+                hamlib: HamlibRigConfig {
+                    model_id: hamlib::RigModelId::DUMMY.to_string(),
+                    token_values: BTreeMap::new(),
+                },
+            }),
+        };
+        let selected = config.effective_backend(false);
+        let manager = RadioManager::new(config.clone(), selected.clone()).unwrap();
+        let radio_factory = factory(config.clone(), selected.clone());
+
+        manager
+            .replace(config, selected, move || radio_factory())
+            .await
+            .unwrap();
+
+        let snapshot = manager.snapshot();
+        assert_eq!(snapshot.connection, ConnectionState::Disconnected);
+        assert_eq!(snapshot.last_status, Status::disconnected(1));
+        assert_eq!(
+            snapshot.last_error,
+            Some(RadioInitError::Io {
+                backend: "unconfigured",
+                kind: std::io::ErrorKind::NotFound,
+            })
+        );
+
+        manager.set_rig(2).await.unwrap();
+        let snapshot = manager.snapshot();
+        assert_eq!(snapshot.connection, ConnectionState::Connected);
+        assert_eq!(snapshot.last_error, None);
+        assert_eq!(snapshot.last_status.current_rig, 2);
+
+        manager
+            .set_mode_and_frequency(Mode::CW, Freq::from_u32_hz(7_100_000))
+            .await
+            .unwrap();
+        assert_eq!(
+            (
+                manager.status().current_rig,
+                manager.status().freq,
+                manager.status().mode.as_str()
+            ),
+            (2, 7_100_000, "CW")
+        );
+        manager.shutdown().await.unwrap();
     }
 
     #[test]
