@@ -249,7 +249,7 @@ jobs:
           imports=$(x86_64-w64-mingw32-objdump -p target/$TARGET/release/catserver.exe | awk '/DLL Name:/ { print tolower($3) }')
           for dll in $imports; do
             case "$dll" in
-              advapi32.dll|bcrypt.dll|bcryptprimitives.dll|cfgmgr32.dll|combase.dll|comctl32.dll|comdlg32.dll|crypt32.dll|dwmapi.dll|gdi32.dll|hid.dll|imm32.dll|iphlpapi.dll|kernel32.dll|kernelbase.dll|mpr.dll|msvcrt.dll|ncrypt.dll|ntdll.dll|ole32.dll|oleaut32.dll|propsys.dll|rpcrt4.dll|secur32.dll|setupapi.dll|shell32.dll|shlwapi.dll|user32.dll|uxtheme.dll|uuid.dll|version.dll|winhttp.dll|winmm.dll|winspool.drv|winusb.dll|ws2_32.dll|wtsapi32.dll|api-ms-win-*.dll|ext-ms-win-*.dll) ;;
+              advapi32.dll|bcrypt.dll|bcryptprimitives.dll|cfgmgr32.dll|combase.dll|comctl32.dll|comdlg32.dll|crypt32.dll|dwmapi.dll|gdi32.dll|hid.dll|imm32.dll|iphlpapi.dll|kernel32.dll|kernelbase.dll|mpr.dll|msvcrt.dll|ncrypt.dll|ntdll.dll|ole32.dll|oleaut32.dll|propsys.dll|rpcrt4.dll|secur32.dll|setupapi.dll|shell32.dll|shlwapi.dll|user32.dll|uxtheme.dll|userenv.dll|uuid.dll|version.dll|winhttp.dll|winmm.dll|winspool.drv|winusb.dll|ws2_32.dll|wtsapi32.dll|api-ms-win-*.dll|ext-ms-win-*.dll) ;;
               *) echo "non-system DLL import: $dll" >&2; exit 1 ;;
             esac
           done
