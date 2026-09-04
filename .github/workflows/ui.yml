@@ -51,24 +51,19 @@ jobs:
 
       - name: Set Sentry build metadata
         env:
-          SENTRY_DSN_DEV: ${{ vars.SENTRY_DSN }}
-          SENTRY_DSN_PROD: ${{ vars.SENTRY_DSN_PROD }}
-          SENTRY_PROJECT_DEV: ${{ vars.SENTRY_PROJECT }}
-          SENTRY_PROJECT_PROD: ${{ vars.SENTRY_PROJECT_PROD }}
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
           echo "SENTRY_RELEASE=${GITHUB_SHA}" >> "$GITHUB_ENV"
           echo "VITE_SENTRY_RELEASE=${GITHUB_SHA}" >> "$GITHUB_ENV"
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             echo "VITE_SENTRY_ENVIRONMENT=prod" >> "$GITHUB_ENV"
-            echo "SENTRY_PROJECT=$SENTRY_PROJECT_PROD" >> "$GITHUB_ENV"
-            echo "VITE_SENTRY_DSN=$SENTRY_DSN_PROD" >> "$GITHUB_ENV"
-            echo "SENTRY_UPLOAD_SOURCE_MAPS=true" >> "$GITHUB_ENV"
           else
             echo "VITE_SENTRY_ENVIRONMENT=dev" >> "$GITHUB_ENV"
-            echo "SENTRY_PROJECT=$SENTRY_PROJECT_DEV" >> "$GITHUB_ENV"
-            echo "VITE_SENTRY_DSN=$SENTRY_DSN_DEV" >> "$GITHUB_ENV"
-            echo "SENTRY_UPLOAD_SOURCE_MAPS=true" >> "$GITHUB_ENV"
           fi
+          echo "SENTRY_PROJECT=$SENTRY_PROJECT" >> "$GITHUB_ENV"
+          echo "VITE_SENTRY_DSN=$SENTRY_DSN" >> "$GITHUB_ENV"
+          echo "SENTRY_UPLOAD_SOURCE_MAPS=true" >> "$GITHUB_ENV"
 
       - name: Build React App
         env:
