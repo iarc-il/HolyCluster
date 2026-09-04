@@ -21,6 +21,9 @@ env:
   TARGET: x86_64-pc-windows-gnu
   CATSERVER_SENTRY_ENVIRONMENT: ${{ github.ref == 'refs/heads/dev' && 'dev' || github.ref_type == 'tag' && 'prod' || 'dev' }}
   CATSERVER_SENTRY_DSN: ${{ vars.CATSERVER_SENTRY_DSN }}
+  # Development builds favor CI speed; production tags keep maximum optimization.
+  CARGO_PROFILE_RELEASE_LTO: ${{ github.ref_type == 'tag' && 'true' || 'thin' }}
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ github.ref_type == 'tag' && '1' || '16' }}
 
 concurrency:
   group: catserver-${{ github.ref }}
