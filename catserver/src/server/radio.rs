@@ -76,7 +76,6 @@ fn backend(backend: ActiveRadioBackend, config: &RadioConfig, current_rig: u8) -
 fn backend_name(backend: RadioBackendKind) -> &'static str {
     match backend {
         RadioBackendKind::Omnirig => "omnirig",
-        RadioBackendKind::Rigctld => "rigctld",
         RadioBackendKind::Hamlib => "hamlib",
         RadioBackendKind::Unconfigured => "unconfigured",
     }

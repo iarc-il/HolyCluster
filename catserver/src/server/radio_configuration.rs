@@ -3,7 +3,6 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use serde::Serialize;
 
 use crate::{
-    args::{DEFAULT_RIGCTLD_HOST, DEFAULT_RIGCTLD_PORT},
     radio_config::{HamlibRigConfig, RadioConfig, RadioConfigError, RadioRigConfig},
     radio_factory,
     radio_manager::{RadioManager, RadioManagerError},
@@ -151,11 +150,7 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
                 return ConfigurationResult::failure(ConfigurationFailure::InvalidConfig, errors);
             }
             let selected = configuration.effective_backend(false);
-            let factory = radio_factory::factory(
-                configuration.clone(),
-                selected.clone(),
-                (DEFAULT_RIGCTLD_HOST.into(), DEFAULT_RIGCTLD_PORT),
-            );
+            let factory = radio_factory::factory(configuration.clone(), selected.clone());
             match self
                 .radio
                 .replace_and_persist(configuration, selected, move || factory())
@@ -182,11 +177,7 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
                 return ConfigurationResult::failure(ConfigurationFailure::InvalidConfig, errors);
             }
             let selected = config.effective_backend(false);
-            let factory = radio_factory::factory(
-                config,
-                selected,
-                (DEFAULT_RIGCTLD_HOST.into(), DEFAULT_RIGCTLD_PORT),
-            );
+            let factory = radio_factory::factory(config, selected);
             let mut radio = factory();
             match radio.init() {
                 Ok(()) => ConfigurationResult::success(),
@@ -216,22 +207,6 @@ fn validate_rig_configuration(field: &str, configuration: &RadioRigConfig) -> Ve
         )];
     }
     match configuration {
-        RadioRigConfig::Rigctld { rigctld } => {
-            let mut errors = Vec::new();
-            if rigctld.host.trim().is_empty() || rigctld.host.chars().any(char::is_whitespace) {
-                errors.push(config_error(
-                    &format!("{field}.rigctld.host"),
-                    RadioConfigError::InvalidRigctldHost(rigctld.host.clone()),
-                ));
-            }
-            if rigctld.port == 0 {
-                errors.push(config_error(
-                    &format!("{field}.rigctld.port"),
-                    RadioConfigError::InvalidRigctldPort,
-                ));
-            }
-            errors
-        }
         RadioRigConfig::Hamlib { hamlib } => validate_rig(&format!("{field}.hamlib"), hamlib),
         RadioRigConfig::Unconfigured | RadioRigConfig::Omnirig => Vec::new(),
     }
@@ -359,6 +334,6 @@ fn supported_backends() -> Vec<&'static str> {
     }
     #[cfg(not(windows))]
     {
-        vec!["rigctld", "hamlib"]
+        vec!["hamlib"]
     }
 }

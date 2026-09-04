@@ -69,7 +69,10 @@ const network_descriptors = [
 ];
 
 function configuration(
-    rig1 = { backend: "rigctld", rigctld: { host: "127.0.0.1", port: 4532 } },
+    rig1 = {
+        backend: "hamlib",
+        hamlib: { model_id: "4", token_values: { rig_pathname: "127.0.0.1:4532" } },
+    },
     rig2 = undefined,
 ) {
     return { event: "configuration", rig1, ...(rig2 ? { rig2 } : {}) };
@@ -89,7 +92,7 @@ function render_cat(radio_config_apply_ref = null) {
 describe("CAT control settings", () => {
     beforeEach(() => {
         radio.current = {
-            radio_capabilities: { radio_configuration: true, backends: ["rigctld", "hamlib"] },
+            radio_capabilities: { radio_configuration: true, backends: ["hamlib"] },
             radio_configuration: configuration(),
             radio_configuration_result: null,
             radio_connection_result: null,
@@ -165,7 +168,13 @@ describe("CAT control settings", () => {
         expect(screen.queryByRole("button", { name: "Save radio hardware" })).toBeNull();
         await expect(radio_config_apply_ref.current()).resolves.toBe(true);
         expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
-            rig1: { backend: "rigctld", rigctld: { host: "127.0.0.1", port: 4532 } },
+            rig1: {
+                backend: "hamlib",
+                hamlib: {
+                    model_id: "4",
+                    token_values: { rig_pathname: "127.0.0.1:4532" },
+                },
+            },
         });
     });
 
@@ -179,7 +188,13 @@ describe("CAT control settings", () => {
         expect(button.className).toContain("text-xs");
         expect(screen.getByRole("status").textContent).toContain("Testing radio connection...");
         expect(radio.current.test_radio_connection).toHaveBeenCalledWith({
-            rig1: { backend: "rigctld", rigctld: { host: "127.0.0.1", port: 4532 } },
+            rig1: {
+                backend: "hamlib",
+                hamlib: {
+                    model_id: "4",
+                    token_values: { rig_pathname: "127.0.0.1:4532" },
+                },
+            },
         });
         expect(radio.current.set_radio_configuration).not.toHaveBeenCalled();
     });
@@ -219,7 +234,13 @@ describe("CAT control settings", () => {
         await radio_config_apply_ref.current();
 
         expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
-            rig1: { backend: "rigctld", rigctld: { host: "127.0.0.1", port: 4532 } },
+            rig1: {
+                backend: "hamlib",
+                hamlib: {
+                    model_id: "4",
+                    token_values: { rig_pathname: "127.0.0.1:4532" },
+                },
+            },
             rig2: {
                 backend: "hamlib",
                 hamlib: {
@@ -273,6 +294,8 @@ describe("CAT control settings", () => {
         render_cat(radio_config_apply_ref);
 
         await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
+        await user.click(screen.getByRole("combobox", { name: "Model" }));
+        await user.click(screen.getByRole("option", { name: "Hamlib Dummy" }));
         expect(screen.queryByLabelText("Serial port")).toBeNull();
         await radio_config_apply_ref.current();
 
@@ -325,20 +348,19 @@ describe("CAT control settings", () => {
             ok: false,
             failure: "invalid_config",
             errors: [
-                { field: "rig1.rigctld.host", message: "Invalid Rig 1 host" },
-                { field: "rig2.rigctld.port", message: "Invalid Rig 2 port" },
+                { field: "rig1.hamlib.model_id", message: "Invalid Rig 1 model" },
+                { field: "rig2.hamlib.model_id", message: "Invalid Rig 2 model" },
             ],
         };
         render_cat();
         const errors = screen.getAllByRole("alert")[0];
-        expect(errors.textContent).toContain("Invalid Rig 1 host");
-        expect(errors.textContent).toContain("Invalid Rig 2 port");
+        expect(errors.textContent).toContain("Invalid Rig 1 model");
+        expect(errors.textContent).toContain("Invalid Rig 2 model");
         expect(
             screen.queryByText("Fix the highlighted radio settings before applying."),
         ).toBeNull();
         await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
-        expect(screen.getByLabelText("Port").className).toContain("bg-red-200");
-        expect(errors.textContent).toContain("Invalid Rig 2 port");
+        expect(errors.textContent).toContain("Invalid Rig 2 model");
     });
 
     it("keeps logger integration available for legacy CAT servers", () => {

@@ -9,23 +9,12 @@ use crate::{
 
 #[cfg(windows)]
 use crate::omnirig::OmnirigRadio;
-#[cfg(not(windows))]
-use crate::rigctld::RigctldRadio;
 
-pub(crate) fn factory(
-    config: RadioConfig,
-    selected: ActiveRadioBackend,
-    rigctld_endpoint: (String, u16),
-) -> RadioFactory {
-    std::sync::Arc::new(move || build(&config, &selected, &rigctld_endpoint))
+pub(crate) fn factory(config: RadioConfig, selected: ActiveRadioBackend) -> RadioFactory {
+    std::sync::Arc::new(move || build(&config, &selected))
 }
 
-fn build(
-    config: &RadioConfig,
-    selected: &ActiveRadioBackend,
-    rigctld_endpoint: &(String, u16),
-) -> Box<dyn Radio> {
-    let _ = rigctld_endpoint;
+fn build(config: &RadioConfig, selected: &ActiveRadioBackend) -> Box<dyn Radio> {
     match selected {
         ActiveRadioBackend::Dummy => Box::new(DummyRadio::new()),
         ActiveRadioBackend::Configured(_) => Box::new(CompositeRadio::new(
@@ -39,16 +28,10 @@ fn radio(config: &RadioRigConfig) -> Box<dyn Radio> {
     match config {
         RadioRigConfig::Unconfigured => Box::new(UnavailableRadio::new("unconfigured")),
         RadioRigConfig::Hamlib { hamlib } => Box::new(HamlibRadio::new(hamlib.clone(), None)),
-        #[cfg(not(windows))]
-        RadioRigConfig::Rigctld { rigctld } => {
-            Box::new(RigctldRadio::new(rigctld.host.clone(), rigctld.port))
-        }
         #[cfg(windows)]
         RadioRigConfig::Omnirig => Box::new(OmnirigRadio::new()),
         #[cfg(not(windows))]
         RadioRigConfig::Omnirig => Box::new(UnavailableRadio::new("omnirig")),
-        #[cfg(windows)]
-        RadioRigConfig::Rigctld { .. } => Box::new(UnavailableRadio::new("rigctld")),
     }
 }
 

@@ -5,8 +5,6 @@ use argh::FromArgs;
 use crate::server::ServerConfig;
 
 pub const BASE_LOCAL_PORT: u16 = 3000;
-pub const DEFAULT_RIGCTLD_HOST: &str = "127.0.0.1";
-pub const DEFAULT_RIGCTLD_PORT: u16 = 4532;
 
 #[derive(FromArgs)]
 /// The Holy Cluster - debug flags
@@ -30,12 +28,6 @@ pub struct Args {
     /// port for local connection
     #[argh(option)]
     pub port: Option<u16>,
-    /// rigctld host
-    #[argh(option)]
-    pub rigctld_host: Option<String>,
-    /// rigctld port
-    #[argh(option)]
-    pub rigctld_port: Option<u16>,
     /// closes the running instance
     #[argh(switch)]
     pub close: bool,
@@ -59,13 +51,4 @@ pub fn server_config(args: &Args) -> ServerConfig {
         is_using_ssl,
         local_port,
     }
-}
-
-pub fn rigctld_endpoint(args: &Args) -> (String, u16) {
-    (
-        args.rigctld_host
-            .clone()
-            .unwrap_or_else(|| DEFAULT_RIGCTLD_HOST.into()),
-        args.rigctld_port.unwrap_or(DEFAULT_RIGCTLD_PORT),
-    )
 }

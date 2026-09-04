@@ -149,9 +149,6 @@ fn is_expected_radio_error(event: &Event<'_>) -> bool {
         .or_else(|| event.logentry.as_ref().map(|entry| entry.message.as_str()));
     message.is_some_and(|message| {
         [
-            "Failed to connect to rigctld",
-            "Failed to send command",
-            "Failed to read response",
             "Failed to connect to rotctld",
             "Failed to send rotctld command",
             "Failed to read rotctld response",
@@ -241,9 +238,9 @@ mod tests {
     }
 
     #[test]
-    fn drops_expected_radio_errors() {
+    fn drops_expected_rotator_errors() {
         let event = Event {
-            message: Some("Failed to connect to rigctld: refused".into()),
+            message: Some("Failed to connect to rotctld: refused".into()),
             ..Default::default()
         };
 

@@ -18,8 +18,6 @@ mod radio_factory;
 pub mod radio_manager;
 mod reporting;
 mod rig;
-#[cfg(not(windows))]
-mod rigctld;
 mod rotator;
 #[cfg(not(windows))]
 mod rotctld;

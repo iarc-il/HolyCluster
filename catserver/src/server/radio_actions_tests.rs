@@ -178,26 +178,3 @@ async fn production_configuration_returns_all_validation_errors() {
     assert_eq!(result.errors[0].token, Some("unknown_one".into()));
     assert_eq!(result.errors[1].token, Some("unknown_two".into()));
 }
-
-#[cfg(not(windows))]
-#[tokio::test]
-async fn production_configuration_returns_all_rigctld_errors() {
-    let result = ProductionRadioConfiguration::new(radio())
-        .set_configuration(RadioConfig {
-            rig1: RadioRigConfig::Rigctld {
-                rigctld: crate::radio_config::RigctldConfig {
-                    host: " ".into(),
-                    port: 0,
-                },
-            },
-            rig2: None,
-        })
-        .await;
-    let fields: Vec<_> = result
-        .errors
-        .iter()
-        .map(|error| error.field.as_str())
-        .collect();
-    assert_eq!(fields, ["rig1.rigctld.host", "rig1.rigctld.port"]);
-    assert_eq!(result.failure, Some(ConfigurationFailure::InvalidConfig));
-}

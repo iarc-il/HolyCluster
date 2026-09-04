@@ -11,8 +11,6 @@ use serde::{Deserialize, Serialize};
 
 const CONFIG_FILE: &str = "radio.json";
 const SCHEMA_VERSION: u8 = 2;
-pub const DEFAULT_RIGCTLD_HOST: &str = "127.0.0.1";
-pub const DEFAULT_RIGCTLD_PORT: u16 = 4532;
 type IoFailure = (PathBuf, std::io::Error);
 type RenameFailure = (PathBuf, PathBuf, std::io::Error);
 
@@ -21,7 +19,6 @@ type RenameFailure = (PathBuf, PathBuf, std::io::Error);
 pub enum RadioBackendKind {
     Unconfigured,
     Omnirig,
-    Rigctld,
     Hamlib,
 }
 
@@ -38,17 +35,10 @@ pub struct HamlibRigConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
-pub struct RigctldConfig {
-    pub host: String,
-    pub port: u16,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(tag = "backend", rename_all = "snake_case")]
 pub enum RadioRigConfig {
     Unconfigured,
     Omnirig,
-    Rigctld { rigctld: RigctldConfig },
     Hamlib { hamlib: HamlibRigConfig },
 }
 
@@ -70,8 +60,6 @@ pub enum RadioConfigError {
     PlatformUnsupportedBackend(RadioBackendKind),
     InvalidModelId(String),
     InvalidToken(String),
-    InvalidRigctldHost(String),
-    InvalidRigctldPort,
     WriteTemporary(IoFailure),
     Rename(RenameFailure),
 }
@@ -200,7 +188,6 @@ impl RadioBackendKind {
             Self::Unconfigured => true,
             Self::Hamlib => true,
             Self::Omnirig => cfg!(windows),
-            Self::Rigctld => !cfg!(windows),
         }
     }
 }
@@ -214,7 +201,6 @@ impl RadioRigConfig {
         match self {
             Self::Unconfigured => RadioBackendKind::Unconfigured,
             Self::Omnirig => RadioBackendKind::Omnirig,
-            Self::Rigctld { .. } => RadioBackendKind::Rigctld,
             Self::Hamlib { .. } => RadioBackendKind::Hamlib,
         }
     }
@@ -226,30 +212,8 @@ impl RadioRigConfig {
         }
         match self {
             Self::Hamlib { hamlib } => hamlib.validate(),
-            Self::Rigctld { rigctld } => rigctld.validate(),
             Self::Omnirig | Self::Unconfigured => Ok(()),
         }
-    }
-}
-
-impl Default for RigctldConfig {
-    fn default() -> Self {
-        Self {
-            host: DEFAULT_RIGCTLD_HOST.into(),
-            port: DEFAULT_RIGCTLD_PORT,
-        }
-    }
-}
-
-impl RigctldConfig {
-    fn validate(&self) -> Result<(), RadioConfigError> {
-        if self.host.trim().is_empty() || self.host.chars().any(char::is_whitespace) {
-            return Err(RadioConfigError::InvalidRigctldHost(self.host.clone()));
-        }
-        if self.port == 0 {
-            return Err(RadioConfigError::InvalidRigctldPort);
-        }
-        Ok(())
     }
 }
 

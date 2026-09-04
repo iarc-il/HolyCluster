@@ -233,9 +233,8 @@ Communication with the transceiver requires access to omnirig which cannot be do
 This is why locally installed software is required. The installed CAT server acts as a bridge between the website,
 Omnirig and other facilities (Like sending clicked spots to loggers like Log4OM).
 
-Currently only windows is supported because the CAT server uses omnirig.
-In the future we might release support for linux or mac that will interface rigctld.
-Direct integration of hamlib is not planned.
+The CAT server supports OmniRig on Windows and Hamlib on all supported systems.
+For network-connected radios, configure Hamlib's `NET rigctl` model.
 
 ### Setting Up CAT Control
 

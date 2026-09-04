@@ -7,7 +7,6 @@ use std::{
 
 use crate::radio_config::{
     ActiveRadioBackend, HamlibRigConfig, RadioConfig, RadioConfigError, RadioRigConfig,
-    RigctldConfig,
 };
 
 struct TestDir(PathBuf);
@@ -60,7 +59,7 @@ fn returns_platform_default_when_config_file_is_missing() {
 }
 
 #[test]
-fn defaults_to_an_unconfigured_rig_without_connecting_to_rigctld() {
+fn defaults_to_an_unconfigured_rig_without_connecting_to_hardware() {
     let config = RadioConfig::platform_default();
 
     assert_eq!(config.rig1, RadioRigConfig::Unconfigured);
@@ -84,46 +83,12 @@ fn round_trips_independently_configured_rigs() {
 }
 
 #[test]
-#[cfg(not(windows))]
-fn rejects_invalid_rigctld_endpoints() {
-    let config = RadioConfig {
-        rig1: RadioRigConfig::Rigctld {
-            rigctld: RigctldConfig {
-                host: " ".into(),
-                port: 0,
-            },
-        },
-        rig2: None,
-    };
-
-    assert!(matches!(
-        config.validate(),
-        Err(RadioConfigError::InvalidRigctldHost(_))
-    ));
-
-    let config = RadioConfig {
-        rig1: RadioRigConfig::Rigctld {
-            rigctld: RigctldConfig {
-                host: "127.0.0.1".into(),
-                port: 0,
-            },
-        },
-        rig2: None,
-    };
-
-    assert!(matches!(
-        config.validate(),
-        Err(RadioConfigError::InvalidRigctldPort)
-    ));
-}
-
-#[test]
 fn rejects_unknown_schema_version() {
     let directory = TestDir::new();
 
     fs::write(
         directory.file(),
-        r#"{"version":3,"rig1":{"backend":"rigctld"}}"#,
+        r#"{"version":3,"rig1":{"backend":"unconfigured"}}"#,
     )
     .unwrap();
     assert!(matches!(

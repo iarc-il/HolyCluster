@@ -101,10 +101,9 @@ The CAT server is an optional local application. It runs on
 connected radio.
 
 It requires Rust and Cargo for building. On Windows it supports OmniRig.
-On other systems, it connects to `rigctld` by default at `127.0.0.1:4532`.
-The radio settings in the web interface can also select a Hamlib radio. The
-selected backend and its settings are saved in the user's HolyCluster
-configuration directory.
+Hamlib is also available on all supported systems, including the `NET rigctl`
+model for network-connected radios. The selected backend and its settings are
+saved in the user's HolyCluster configuration directory.
 
 Both the Linux and Windows versions are built on Linux. No other operating
 system has been tested as a CAT server development machine.
@@ -116,10 +115,9 @@ cd catserver
 cargo run
 ```
 
-Use `--port` to choose a different local port. Use `--rigctld-host` and
-`--rigctld-port` to change the `rigctld` connection. `--backend` selects a
-different HolyCluster server, `--dev-server` uses the shared development
-server, and `--local-ui` serves a local `ui/dist` build.
+Use `--port` to choose a different local port. `--backend` selects a different
+HolyCluster server, `--dev-server` uses the shared development server, and
+`--local-ui` serves a local `ui/dist` build.
 
 Run it with a dummy radio for development:
 

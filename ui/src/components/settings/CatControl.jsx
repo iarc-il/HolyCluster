@@ -33,7 +33,6 @@ const DEFAULT_HAMLIB_MODEL_ID = "1";
 const DEFAULT_UNIX_SERIAL_PORT = "/dev/ttyUSB0";
 const DEFAULT_WINDOWS_SERIAL_PORT = "COM1";
 const DEFAULT_BAUD_RATE = "9600";
-const DEFAULT_RIGCTLD_PORT = "4532";
 const DEFAULT_HAMLIB_NETWORK_HOST = "127.0.0.1";
 const DEFAULT_HAMLIB_NETWORK_PORT = "4532";
 
@@ -134,9 +133,8 @@ function empty_hamlib() {
 
 function empty_rig() {
     return {
-        backend: "rigctld",
+        backend: "unconfigured",
         hamlib: empty_hamlib(),
-        rigctld: { host: "127.0.0.1", port: DEFAULT_RIGCTLD_PORT },
     };
 }
 
@@ -149,13 +147,10 @@ function normalize_rig(rig) {
     return {
         ...fallback,
         ...rig,
+        backend: ["unconfigured", "omnirig", "hamlib"].includes(rig?.backend)
+            ? rig.backend
+            : fallback.backend,
         hamlib,
-        rigctld: {
-            ...fallback.rigctld,
-            ...rig?.rigctld,
-            host: rig?.rigctld?.host?.trim() || fallback.rigctld.host,
-            port: String(rig?.rigctld?.port || fallback.rigctld.port),
-        },
     };
 }
 
@@ -201,19 +196,6 @@ function serialized_rig(rig, descriptors = [], serial_ports = [], port_type = "s
         return {
             backend: "hamlib",
             hamlib: materialized_hamlib(rig, descriptors, serial_ports, port_type),
-        };
-    }
-    if (rig.backend === "rigctld") {
-        const port = normalize_numeric_value(rig.rigctld.port, {
-            kind: "integer",
-            minimum: 1,
-            maximum: 65535,
-            step: 1,
-            default: DEFAULT_RIGCTLD_PORT,
-        });
-        return {
-            backend: "rigctld",
-            rigctld: { ...rig.rigctld, port: Number.parseInt(port, 10) },
         };
     }
     return { backend: rig.backend };
@@ -613,77 +595,6 @@ function CatControl({
                             />
                             Enable Rig 2
                         </label>
-                    ) : null}
-                    {selected_configuration.backend === "rigctld" ? (
-                        <div className="grid gap-3 min-[720px]:grid-cols-2">
-                            <label className="flex flex-col gap-1" htmlFor="rigctld-host">
-                                <span>Host</span>
-                                <Input
-                                    id="rigctld-host"
-                                    className={
-                                        error_matches(radio_errors, `${selected_rig}.rigctld.host`)
-                                            ? "bg-red-200 w-full"
-                                            : "w-full"
-                                    }
-                                    value={selected_configuration.rigctld.host}
-                                    onChange={event =>
-                                        update_selected(rig => ({
-                                            ...rig,
-                                            rigctld: {
-                                                ...rig.rigctld,
-                                                host: event.target.value.replace(/\s/g, ""),
-                                            },
-                                        }))
-                                    }
-                                    onBlur={() =>
-                                        update_selected(rig => ({
-                                            ...rig,
-                                            rigctld: {
-                                                ...rig.rigctld,
-                                                host: rig.rigctld.host || "127.0.0.1",
-                                            },
-                                        }))
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-1" htmlFor="rigctld-port">
-                                <span>Port</span>
-                                <Input
-                                    id="rigctld-port"
-                                    className={
-                                        error_matches(radio_errors, `${selected_rig}.rigctld.port`)
-                                            ? "bg-red-200"
-                                            : ""
-                                    }
-                                    type="number"
-                                    min="1"
-                                    max="65535"
-                                    step="1"
-                                    value={selected_configuration.rigctld.port}
-                                    onChange={event =>
-                                        update_selected(rig => ({
-                                            ...rig,
-                                            rigctld: { ...rig.rigctld, port: event.target.value },
-                                        }))
-                                    }
-                                    onBlur={() =>
-                                        update_selected(rig => ({
-                                            ...rig,
-                                            rigctld: {
-                                                ...rig.rigctld,
-                                                port: normalize_numeric_value(rig.rigctld.port, {
-                                                    kind: "integer",
-                                                    minimum: 1,
-                                                    maximum: 65535,
-                                                    step: 1,
-                                                    default: DEFAULT_RIGCTLD_PORT,
-                                                }),
-                                            },
-                                        }))
-                                    }
-                                />
-                            </label>
-                        </div>
                     ) : null}
                     {selected_configuration.backend === "hamlib" ? (
                         <div className="flex flex-col gap-3">
