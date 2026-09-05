@@ -40,6 +40,11 @@ pub enum Mode {
     Usb,
     Lsb,
     Fm,
+    PktUsb,
+    PktLsb,
+    Rtty,
+    RttyR,
+    Unknown(sys::rmode_t),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -150,7 +155,7 @@ impl Rig<Open> {
         ffi::hamlib_result("rig_get_mode", unsafe {
             sys::rig_get_mode(self.handle.as_ptr(), vfo.raw(), &mut mode, &mut width)
         })?;
-        Ok((Mode::from_raw(mode)?, PassbandWidth::new(width)))
+        Ok((Mode::from_raw(mode), PassbandWidth::new(width)))
     }
 
     pub fn set_mode(
@@ -247,17 +252,79 @@ impl Mode {
             Self::Usb => sys::HAMLIB_SYS_RIG_MODE_USB.into(),
             Self::Lsb => sys::HAMLIB_SYS_RIG_MODE_LSB.into(),
             Self::Fm => sys::HAMLIB_SYS_RIG_MODE_FM.into(),
+            Self::PktUsb => sys::HAMLIB_SYS_RIG_MODE_PKTUSB.into(),
+            Self::PktLsb => sys::HAMLIB_SYS_RIG_MODE_PKTLSB.into(),
+            Self::Rtty => sys::HAMLIB_SYS_RIG_MODE_RTTY.into(),
+            Self::RttyR => sys::HAMLIB_SYS_RIG_MODE_RTTYR.into(),
+            Self::Unknown(value) => value,
         }
     }
 
-    fn from_raw(value: sys::rmode_t) -> Result<Self, RigControlError> {
+    fn from_raw(value: sys::rmode_t) -> Self {
         match value {
-            value if value == sys::HAMLIB_SYS_RIG_MODE_AM.into() => Ok(Self::Am),
-            value if value == sys::HAMLIB_SYS_RIG_MODE_CW.into() => Ok(Self::Cw),
-            value if value == sys::HAMLIB_SYS_RIG_MODE_USB.into() => Ok(Self::Usb),
-            value if value == sys::HAMLIB_SYS_RIG_MODE_LSB.into() => Ok(Self::Lsb),
-            value if value == sys::HAMLIB_SYS_RIG_MODE_FM.into() => Ok(Self::Fm),
-            value => Err(RigControlError::UnknownMode(value)),
+            value if value == sys::HAMLIB_SYS_RIG_MODE_AM.into() => Self::Am,
+            value if value == sys::HAMLIB_SYS_RIG_MODE_CW.into() => Self::Cw,
+            value if value == sys::HAMLIB_SYS_RIG_MODE_USB.into() => Self::Usb,
+            value if value == sys::HAMLIB_SYS_RIG_MODE_LSB.into() => Self::Lsb,
+            value if value == sys::HAMLIB_SYS_RIG_MODE_FM.into() => Self::Fm,
+            value if value == sys::HAMLIB_SYS_RIG_MODE_PKTUSB.into() => Self::PktUsb,
+            value if value == sys::HAMLIB_SYS_RIG_MODE_PKTLSB.into() => Self::PktLsb,
+            value if value == sys::HAMLIB_SYS_RIG_MODE_RTTY.into() => Self::Rtty,
+            value if value == sys::HAMLIB_SYS_RIG_MODE_RTTYR.into() => Self::RttyR,
+            value => Self::Unknown(value),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generic_digital_and_rtty_modes_convert_to_and_from_raw_values() {
+        for (mode, raw, expected) in [
+            (
+                Mode::PktUsb,
+                sys::HAMLIB_SYS_RIG_MODE_PKTUSB.into(),
+                1_u64 << 11,
+            ),
+            (
+                Mode::PktLsb,
+                sys::HAMLIB_SYS_RIG_MODE_PKTLSB.into(),
+                1_u64 << 10,
+            ),
+            (Mode::Rtty, sys::HAMLIB_SYS_RIG_MODE_RTTY.into(), 1_u64 << 4),
+            (
+                Mode::RttyR,
+                sys::HAMLIB_SYS_RIG_MODE_RTTYR.into(),
+                1_u64 << 8,
+            ),
+        ] {
+            assert_eq!(raw, expected);
+            assert_eq!(mode.raw(), raw);
+            assert_eq!(Mode::from_raw(raw), mode);
+        }
+    }
+
+    #[test]
+    fn unknown_mode_preserves_raw_value() {
+        let raw = 1_u64 << 63;
+        assert_eq!(Mode::from_raw(raw), Mode::Unknown(raw));
+        assert_eq!(Mode::Unknown(raw).raw(), raw);
+    }
+
+    #[test]
+    fn mode_propagates_hamlib_error_from_unopened_fixture() {
+        let closed = Rig::new(RigModelId::DUMMY).expect("dummy handle initializes");
+        let mut open: Rig<Open> = closed.into_state(true);
+        let error = open.mode(Vfo::A).expect_err("unopened fixture must fail");
+        assert!(matches!(
+            error,
+            RigControlError::Hamlib(HamlibError::Call {
+                operation: "rig_get_mode",
+                code: -1,
+                ..
+            })
+        ));
     }
 }

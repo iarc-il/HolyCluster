@@ -205,8 +205,11 @@ fn hamlib_mode(mode: Mode) -> hamlib::Mode {
 fn status_mode(mode: hamlib::Mode) -> &'static str {
     match mode {
         hamlib::Mode::Usb | hamlib::Mode::Lsb => "SSB",
+        hamlib::Mode::PktUsb | hamlib::Mode::PktLsb => "DIGI",
+        hamlib::Mode::Rtty | hamlib::Mode::RttyR => "RTTY",
         hamlib::Mode::Cw => "CW",
         hamlib::Mode::Am => "AM",
         hamlib::Mode::Fm => "FM",
+        hamlib::Mode::Unknown(_) => "UNKNOWN",
     }
 }
