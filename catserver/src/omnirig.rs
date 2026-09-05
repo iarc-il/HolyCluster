@@ -156,6 +156,10 @@ impl Radio for OmnirigRadio {
             Mode::USB => 0x02000000,
             Mode::CW => 0x00800000,
             Mode::Data => 0x08000000,
+            Mode::Rtty => {
+                tracing::error!("OmniRig does not support RTTY mode");
+                return;
+            }
         };
 
         let Some(rig) = self.current_rig() else {

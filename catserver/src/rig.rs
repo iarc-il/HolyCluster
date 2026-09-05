@@ -10,6 +10,7 @@ pub enum Mode {
     USB,
     LSB,
     Data,
+    Rtty,
     CW,
 }
 

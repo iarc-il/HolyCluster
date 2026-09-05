@@ -196,7 +196,9 @@ fn vfo(slot: Slot) -> hamlib::Vfo {
 
 fn hamlib_mode(mode: Mode) -> hamlib::Mode {
     match mode {
-        Mode::USB | Mode::Data => hamlib::Mode::Usb,
+        Mode::USB => hamlib::Mode::Usb,
+        Mode::Data => hamlib::Mode::PktUsb,
+        Mode::Rtty => hamlib::Mode::Rtty,
         Mode::LSB => hamlib::Mode::Lsb,
         Mode::CW => hamlib::Mode::Cw,
     }
