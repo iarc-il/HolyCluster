@@ -1,37 +1,10 @@
 import path from "node:path";
-import { sentryVitePlugin } from "@sentry/vite-plugin";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { ctyDxccEntitiesPlugin } from "./scripts/cty_entities.js";
 
-const glitchtip_url = "https://holycluster-dev.iarc.org/errors/";
-const sentry_options = {
-    authToken: process.env.SENTRY_AUTH_TOKEN,
-    errorHandler: error => {
-        throw error;
-    },
-    org: process.env.SENTRY_ORG,
-    project: process.env.SENTRY_PROJECT,
-    release: {
-        name: process.env.SENTRY_RELEASE,
-    },
-    url: glitchtip_url,
-};
-
-const sentry_upload_enabled = Object.values({
-    authToken: sentry_options.authToken,
-    org: sentry_options.org,
-    project: sentry_options.project,
-    release: sentry_options.release.name,
-    sourceMaps: process.env.SENTRY_UPLOAD_SOURCE_MAPS === "true",
-}).every(Boolean);
-
 export default defineConfig(({ mode }) => ({
-    plugins: [
-        ctyDxccEntitiesPlugin(),
-        react(),
-        ...(sentry_upload_enabled ? [sentryVitePlugin(sentry_options)] : []),
-    ],
+    plugins: [ctyDxccEntitiesPlugin(), react()],
     worker: {
         plugins: () => [ctyDxccEntitiesPlugin()],
     },
@@ -73,7 +46,7 @@ export default defineConfig(({ mode }) => ({
     },
     build: {
         sourcemap:
-            mode === "production" && process.env.SENTRY_UPLOAD_SOURCE_MAPS === "true"
+            mode === "production" && process.env.GLITCHTIP_UPLOAD_SOURCE_MAPS === "true"
                 ? "hidden"
                 : false,
         rollupOptions: {

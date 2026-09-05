@@ -63,15 +63,37 @@ jobs:
           fi
           echo "SENTRY_PROJECT=$SENTRY_PROJECT" >> "$GITHUB_ENV"
           echo "VITE_SENTRY_DSN=$SENTRY_DSN" >> "$GITHUB_ENV"
-          echo "SENTRY_UPLOAD_SOURCE_MAPS=true" >> "$GITHUB_ENV"
+          if [[ "$GITHUB_REF" == "refs/heads/dev" || "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "GLITCHTIP_UPLOAD_SOURCE_MAPS=true" >> "$GITHUB_ENV"
+          else
+            echo "GLITCHTIP_UPLOAD_SOURCE_MAPS=false" >> "$GITHUB_ENV"
+          fi
 
       - name: Build React App
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
         run: |
           cd ui
           npm run build
+
+      - name: Install GlitchTip CLI
+        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          curl --fail --location --silent --show-error \
+            'https://gitlab.com/glitchtip/glitchtip-cli/-/jobs/artifacts/v1.0.0/raw/artifacts/glitchtip-cli-linux-x86_64?job=build-linux-x86_64' \
+            --output "$RUNNER_TEMP/glitchtip-cli"
+          echo "de1c035aa61931a6265d7b29b1614781dfee925466142a907508cb097082dfef  $RUNNER_TEMP/glitchtip-cli" | sha256sum --check --status
+          chmod 755 "$RUNNER_TEMP/glitchtip-cli"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Upload source maps
+        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_URL: https://holycluster-dev.iarc.org/errors
+        run: |
+          glitchtip-cli releases new "$SENTRY_RELEASE" --finalize
+          glitchtip-cli sourcemaps inject ui/dist
+          glitchtip-cli sourcemaps upload --release "$SENTRY_RELEASE" --validate ui/dist
 
       - name: Remove source maps before deployment
         if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
