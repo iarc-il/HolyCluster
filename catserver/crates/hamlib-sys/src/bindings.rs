@@ -374,6 +374,10 @@ pub const HAMLIB_SYS_RIG_MODE_CW: _bindgen_ty_17 = 2;
 pub const HAMLIB_SYS_RIG_MODE_USB: _bindgen_ty_17 = 4;
 pub const HAMLIB_SYS_RIG_MODE_LSB: _bindgen_ty_17 = 8;
 pub const HAMLIB_SYS_RIG_MODE_FM: _bindgen_ty_17 = 32;
+pub const HAMLIB_SYS_RIG_MODE_PKTUSB: _bindgen_ty_17 = 2048;
+pub const HAMLIB_SYS_RIG_MODE_PKTLSB: _bindgen_ty_17 = 1024;
+pub const HAMLIB_SYS_RIG_MODE_RTTY: _bindgen_ty_17 = 16;
+pub const HAMLIB_SYS_RIG_MODE_RTTYR: _bindgen_ty_17 = 256;
 pub type _bindgen_ty_17 = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

@@ -17,6 +17,6 @@ test "$(sha256sum "$include_dir/hamlib/riglist.h" | cut -d' ' -f1)" = 08be8cf49b
   --allowlist-function 'hamlib_sys_rig_caps_metadata|rig(_(init|open|close|cleanup|set_conf|get_conf2|token_lookup|confparam_lookup|token_foreach|ext_(lookup|lookup_tok|token_lookup|func_foreach|level_foreach|parm_foreach)|set_freq|get_freq|set_mode|get_mode|set_vfo|get_vfo|load_all_backends|load_backend|check_backend|list_foreach|list_foreach_model|get_caps)|error2?)' \
   --allowlist-var '^RIG_MODEL_(NONE|DUMMY)$' \
   --allowlist-var '^RIG_VFO_(NONE|A|B|CURR)$' \
-  --allowlist-var '^RIG_MODE_(NONE|AM|CW|USB|LSB|FM)$' \
-  --allowlist-var '^HAMLIB_SYS_RIG_(MODEL_DUMMY|VFO_(A|B|CURR)|MODE_(AM|CW|USB|LSB|FM))$' \
+  --allowlist-var '^RIG_MODE_(NONE|AM|CW|USB|LSB|FM|PKTUSB|PKTLSB|RTTY|RTTYR)$' \
+  --allowlist-var '^HAMLIB_SYS_RIG_(MODEL_DUMMY|VFO_(A|B|CURR)|MODE_(AM|CW|USB|LSB|FM|PKTUSB|PKTLSB|RTTY|RTTYR))$' \
   --opaque-type 's_rig|rig_caps' --no-layout-tests --no-doc-comments --no-recursive-allowlist -- -I"$include_dir"
