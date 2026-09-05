@@ -45,7 +45,7 @@ fn dummy_rigs_select_vfos_and_map_modes() {
     radio.set_mode(Mode::Data);
     assert_eq!(radio.get_status().current_rig, 2);
     assert_eq!(radio.get_status().freq, 14_200_000);
-    assert_eq!(radio.get_status().mode, "SSB");
+    assert_eq!(radio.get_status().mode, "DIGI");
 }
 
 #[test]
@@ -90,6 +90,10 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
             current_rig: 1,
         }
     );
+    radio.set_mode(Mode::Data);
+    assert_eq!(radio.get_status().mode, "DIGI");
+    radio.set_mode(Mode::Rtty);
+    assert_eq!(radio.get_status().mode, "RTTY");
     let commands = server.commands();
     assert!(
         commands.iter().any(|command| command == "V VFOB"),
@@ -104,6 +108,18 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
     assert!(
         commands.iter().any(|command| command.starts_with("M CW ")),
         "NET rigctl did not receive the requested mode: {commands:?}"
+    );
+    assert!(
+        commands
+            .iter()
+            .any(|command| command.starts_with("M PKTUSB ")),
+        "NET rigctl did not receive the requested packet mode: {commands:?}"
+    );
+    assert!(
+        commands
+            .iter()
+            .any(|command| command.starts_with("M RTTY ")),
+        "NET rigctl did not receive the requested RTTY mode: {commands:?}"
     );
 
     // Close the active socket, matching the transport failure observed when a
