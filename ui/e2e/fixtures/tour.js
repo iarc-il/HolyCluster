@@ -190,12 +190,19 @@ export async function expect_tour_step(page, id, target) {
 }
 
 export async function next_tour_step(page) {
-    await page
+    const next_button = page.locator(".react-joyride__tooltip").getByRole("button", {
+        name: /^Next/,
+    });
+    await expect(next_button).toBeVisible();
+    await next_button.click();
+}
+
+export async function back_tour_step(page) {
+    const back_button = page
         .locator(".react-joyride__tooltip")
-        .getByRole("button", {
-            name: /^Next/,
-        })
-        .click();
+        .getByRole("button", { name: "Back", exact: true });
+    await expect(back_button).toBeVisible();
+    await back_button.click();
 }
 
 export async function finish_tour(page) {
