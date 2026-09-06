@@ -7,6 +7,7 @@
         "dev": "vite",
         "build": "vite build",
         "test": "vitest run",
+        "test:e2e": "playwright test",
         "fmt": "biome check --write .",
         "check": "biome check . && vitest run"
     },
@@ -33,6 +34,7 @@
     },
     "devDependencies": {
         "@biomejs/biome": "1.9.4",
+        "@playwright/test": "^1.63.0",
         "@testing-library/react": "^16.3.2",
         "@testing-library/user-event": "^14.6.1",
         "@types/react": "^18.3.3",

@@ -1,0 +1,87 @@
+import {
+    expect,
+    expect_tour_step,
+    finish_tour,
+    next_tour_step,
+    start_tour,
+    test,
+    tour_target,
+} from "../fixtures/tour.js";
+
+test.describe("Quick Start on mobile", () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test("completes the mobile workflow", async ({ page }) => {
+        await page.goto("/");
+        await start_tour(page, "Quick Start");
+
+        await expect_tour_step(page, "quick_start_welcome", tour_target("top-bar"));
+        await next_tour_step(page);
+        await expect_tour_step(page, "quick_start_spot_window", tour_target("top-bar-time-limit"));
+        await next_tour_step(page);
+        await expect_tour_step(
+            page,
+            "quick_start_submit_spots",
+            tour_target("top-bar-submit-spot"),
+        );
+        await next_tour_step(page);
+        await expect_tour_step(
+            page,
+            "quick_start_open_filter_rail",
+            tour_target("top-bar-left-menu"),
+        );
+        await page.locator(tour_target("top-bar-left-menu")).locator("button").click();
+        await expect(page.locator(tour_target("left-column"))).toBeVisible();
+        await expect_tour_step(
+            page,
+            "quick_start_band_and_mode_filters",
+            tour_target("left-column"),
+        );
+        await next_tour_step(page);
+        await expect_tour_step(
+            page,
+            "quick_start_map_and_table_tabs",
+            tour_target("mobile-main-tabs"),
+        );
+
+        await finish_tour(page);
+    });
+});
+
+test.describe("Quick Start on reduced desktop", () => {
+    test.use({ viewport: { width: 1280, height: 900 } });
+
+    test("completes the reduced desktop workflow", async ({ page }) => {
+        await page.goto("/");
+        await start_tour(page, "Quick Start");
+
+        await expect_tour_step(page, "quick_start_welcome", tour_target("top-bar"));
+        await next_tour_step(page);
+        await expect_tour_step(page, "quick_start_spot_window", tour_target("top-bar-time-limit"));
+        await next_tour_step(page);
+        await expect_tour_step(
+            page,
+            "quick_start_submit_spots",
+            tour_target("top-bar-submit-spot"),
+        );
+        await next_tour_step(page);
+        await expect_tour_step(
+            page,
+            "quick_start_open_filter_rail",
+            tour_target("top-bar-left-menu"),
+        );
+        await expect(page.locator(tour_target("left-column"))).toBeVisible();
+        await next_tour_step(page);
+        await expect_tour_step(
+            page,
+            "quick_start_band_and_mode_filters",
+            tour_target("left-column"),
+        );
+        await next_tour_step(page);
+        await expect_tour_step(page, "quick_start_find_activity", tour_target("map-panel"));
+        await next_tour_step(page);
+        await expect_tour_step(page, "quick_start_inspect_a_spot", tour_target("table-panel"));
+
+        await finish_tour(page);
+    });
+});

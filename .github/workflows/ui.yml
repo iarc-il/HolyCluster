@@ -49,6 +49,16 @@ jobs:
           cd ui
           npm test
 
+      - name: Install Playwright browser
+        run: |
+          cd ui
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright end-to-end tests
+        run: |
+          cd ui
+          npm run test:e2e
+
       - name: Set Sentry build metadata
         env:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
