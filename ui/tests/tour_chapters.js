@@ -41,6 +41,31 @@ describe("tour chapters", () => {
         }
     });
 
+    it("gives every active step a unique stable ID", () => {
+        for (const chapter of Object.values(TOUR_CHAPTERS)) {
+            const ids = chapter.steps.map(step => step.id);
+
+            expect(ids.every(Boolean), chapter.id).toBe(true);
+            expect(new Set(ids).size, chapter.id).toBe(ids.length);
+        }
+    });
+
+    it("keeps Quick Start step IDs stable", () => {
+        const ids = TOUR_CHAPTERS.quick_start.steps.map(step => step.id);
+
+        expect(ids).toEqual([
+            "quick_start_welcome",
+            "quick_start_spot_window",
+            "quick_start_submit_spots",
+            "quick_start_open_filter_rail",
+            "quick_start_band_and_mode_filters",
+            "quick_start_map_and_table_tabs",
+            "quick_start_find_activity",
+            "quick_start_inspect_a_spot",
+        ]);
+        expect(new Set(ids).size).toBe(ids.length);
+    });
+
     it("sets the Quick Start duration and outcome", () => {
         const quick_start = TOUR_CHAPTERS.quick_start;
         const welcome = quick_start.steps[0];

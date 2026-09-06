@@ -33,6 +33,7 @@ export const TOUR_CHAPTERS = {
         description: "Learn the core workflow in about 2 minutes.",
         steps: [
             {
+                id: "quick_start_welcome",
                 target: "[data-tour='top-bar']",
                 title: "Welcome",
                 content:
@@ -41,6 +42,7 @@ export const TOUR_CHAPTERS = {
                 skipBeacon: true,
             },
             {
+                id: "quick_start_spot_window",
                 target: "[data-tour='top-bar-time-limit']",
                 title: "Spot Window",
                 content:
@@ -48,6 +50,7 @@ export const TOUR_CHAPTERS = {
                 placement: "bottom",
             },
             {
+                id: "quick_start_submit_spots",
                 target: "[data-tour='top-bar-submit-spot']",
                 title: "Submit Spots",
                 content:
@@ -55,6 +58,7 @@ export const TOUR_CHAPTERS = {
                 placement: "bottom",
             },
             {
+                id: "quick_start_open_filter_rail",
                 target: "[data-tour='top-bar-left-menu']",
                 title: "Open The Filter Rail",
                 content:
@@ -66,6 +70,7 @@ export const TOUR_CHAPTERS = {
                 showWhenAlreadySatisfied: true,
             },
             {
+                id: "quick_start_band_and_mode_filters",
                 target: "[data-tour='left-column']",
                 title: "Band And Mode Filters",
                 content:
@@ -76,6 +81,7 @@ export const TOUR_CHAPTERS = {
                 mobileWidth: 320,
             },
             {
+                id: "quick_start_map_and_table_tabs",
                 target: "[data-tour='mobile-main-tabs']",
                 title: "Map And Table Tabs",
                 content:
@@ -85,6 +91,7 @@ export const TOUR_CHAPTERS = {
                 placement: "bottom",
             },
             {
+                id: "quick_start_find_activity",
                 target: "[data-tour='map-panel']",
                 title: "Find Activity",
                 content:
@@ -95,6 +102,7 @@ export const TOUR_CHAPTERS = {
                 spotlightPadding: 0,
             },
             {
+                id: "quick_start_inspect_a_spot",
                 target: "[data-tour='table-panel']",
                 title: "Inspect A Spot",
                 content:
@@ -111,6 +119,7 @@ export const TOUR_CHAPTERS = {
         description: "Learn the map controls, overlays, and propagation indicators.",
         steps: [
             {
+                id: "map_show_the_map",
                 target: "[data-tour='mobile-main-tab-map']",
                 title: "Show The Map",
                 content: "Tap the Map tab if the map is not currently visible.",
@@ -123,6 +132,7 @@ export const TOUR_CHAPTERS = {
                 skipBeacon: true,
             },
             {
+                id: "map_view",
                 target: "[data-tour='map-panel']",
                 title: "Map View",
                 content:
@@ -134,6 +144,7 @@ export const TOUR_CHAPTERS = {
                 spotlightPadding: 0,
             },
             {
+                id: "map_controls",
                 target: "[data-tour='map-controls']",
                 title: "Map Controls",
                 content:
@@ -141,6 +152,7 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
             },
             {
+                id: "map_gps_location",
                 target: "[data-tour='map-gps']",
                 title: "GPS Location",
                 content: "Use this button to center the map on your current GPS location.",
@@ -148,12 +160,14 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
             },
             {
+                id: "map_reset",
                 target: "[data-tour='map-reset']",
                 title: "Reset Map",
                 content: "Use this to return the map to your configured home view.",
                 placement: "left",
             },
             {
+                id: "map_fullscreen",
                 target: "[data-tour='map-fullscreen']",
                 title: "Fullscreen Map",
                 content: "This expands the map for a larger operating view.",
@@ -162,6 +176,7 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
             },
             {
+                id: "map_open_controls",
                 target: "[data-tour='map-controls-toggle']",
                 title: "Open Map Controls",
                 content: "Click this controls button to open the map display panel.",
@@ -170,6 +185,7 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
             },
             {
+                id: "map_display_panel",
                 target: "[data-tour='map-controls-panel']",
                 title: "Display Panel",
                 content:
@@ -177,6 +193,7 @@ export const TOUR_CHAPTERS = {
                 placement: "left",
             },
             {
+                id: "map_try_night_overlay",
                 target: "[data-tour='map-night-toggle']",
                 title: "Try Night Overlay",
                 content: "Click this button to toggle the day/night terminator overlay.",
@@ -188,6 +205,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "map_try_projection",
                 target: "[data-tour='map-projection-toggle']",
                 title: "Try Projection",
                 content: "Click this button to switch between globe and azimuthal projections.",
@@ -199,6 +217,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "map_try_equator",
                 target: "[data-tour='map-equator-toggle']",
                 title: "Try Equator",
                 content: "Click this button to toggle the equator overlay.",
@@ -210,6 +229,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "map_themes",
                 target: "[data-tour='map-theme-buttons']",
                 title: "Map Themes",
                 content: "Choose a different Colorful, Earth, or White palette for the map.",
@@ -221,6 +241,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "map_zone_overlay",
                 target: "[data-tour='map-overlays']",
                 title: "Zone overlay",
                 content:
@@ -233,6 +254,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "map_regional_overlay",
                 target: "[data-tour='map-region-overlays']",
                 title: "Regional Overlay",
                 content: "Press any button to select or clear a regional overlay.",
@@ -244,6 +266,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "map_propagation",
                 target: "[data-tour='propagation-bars']",
                 title: "Propagation",
                 content: "These indicators summarize current A, K, and solar flux conditions.",
@@ -259,6 +282,7 @@ export const TOUR_CHAPTERS = {
         description: "Learn the live spots table, search, sorting, and spot row fields.",
         steps: [
             {
+                id: "spots_table_show_the_table",
                 target: "[data-tour='mobile-main-tab-table']",
                 title: "Show The Table",
                 content: "Tap the Table tab if the spots table is not currently visible.",
@@ -271,6 +295,7 @@ export const TOUR_CHAPTERS = {
                 skipBeacon: true,
             },
             {
+                id: "spots_table_view",
                 target: "[data-tour='table-panel']",
                 title: "Table View",
                 content: "The table is the detailed sortable view of live spots.",
@@ -280,6 +305,7 @@ export const TOUR_CHAPTERS = {
                 skipBeacon: true,
             },
             {
+                id: "spots_table_callsign_search_desktop",
                 target: "[data-tour='table-search']",
                 title: "Callsign Search",
                 content:
@@ -289,6 +315,7 @@ export const TOUR_CHAPTERS = {
                 placement: "bottom",
             },
             {
+                id: "spots_table_callsign_search_mobile",
                 target: "[data-tour='table-search-mobile']",
                 title: "Callsign Search",
                 content:
@@ -298,6 +325,7 @@ export const TOUR_CHAPTERS = {
                 placement: "top",
             },
             {
+                id: "spots_table_single_spot_mode_desktop",
                 target: "[data-tour='table-search-single-spot-toggle']",
                 title: "Single Spot Mode",
                 content:
@@ -312,6 +340,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "spots_table_single_spot_mode_mobile",
                 target: "[data-tour='table-search-mobile-single-spot-toggle']",
                 title: "Single Spot Mode",
                 content:
@@ -326,6 +355,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "spots_table_columns_and_sorting",
                 target: "[data-tour='table-header-dx_callsign']",
                 title: "Columns And Sorting",
                 content: "Click the DX column header to change the table order.",
@@ -337,6 +367,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "spots_table_spot_row",
                 target: "[data-tour='spot-row']",
                 title: "Spot Row",
                 content: "Click this row to pin the spot on the map.",
@@ -353,6 +384,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "spots_table_right_click_callsign",
                 target: "[data-tour='spot-row-dx-callsign']",
                 title: "Right-Click A Callsign",
                 content:
@@ -367,6 +399,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='table-context-menu'][data-tour-state='callsign']",
             },
             {
+                id: "spots_table_callsign_actions",
                 target: "[data-tour='table-context-menu']",
                 title: "Callsign Actions",
                 content:
@@ -377,6 +410,7 @@ export const TOUR_CHAPTERS = {
                 waitForGone: "[data-tour='table-context-menu']",
             },
             {
+                id: "spots_table_right_click_flag",
                 target: "[data-tour='spot-row-flag']",
                 title: "Right-Click A Flag",
                 content: "Right-click this flag or entity cell to open entity filter actions.",
@@ -390,6 +424,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='table-context-menu'][data-tour-state='flag']",
             },
             {
+                id: "spots_table_entity_actions",
                 target: "[data-tour='table-context-menu']",
                 title: "Entity Actions",
                 content:
@@ -400,6 +435,7 @@ export const TOUR_CHAPTERS = {
                 waitForGone: "[data-tour='table-context-menu']",
             },
             {
+                id: "spots_table_frequency",
                 target: "[data-tour='spot-row-frequency']",
                 title: "Frequency",
                 content: "Click the frequency to send mode and frequency to the connected radio.",
@@ -411,6 +447,7 @@ export const TOUR_CHAPTERS = {
                 skipScroll: true,
             },
             {
+                id: "spots_table_band",
                 target: "[data-tour='spot-row-band']",
                 title: "Band",
                 content: "The band column helps you scan activity by band at a glance.",
@@ -422,6 +459,7 @@ export const TOUR_CHAPTERS = {
                 skipScroll: true,
             },
             {
+                id: "spots_table_mode",
                 target: "[data-tour='spot-row-mode']",
                 title: "Mode",
                 content: "The mode column shows how the spot was classified.",
@@ -433,6 +471,7 @@ export const TOUR_CHAPTERS = {
                 skipScroll: true,
             },
             {
+                id: "spots_table_comment",
                 target: "[data-tour='spot-row-comment']",
                 title: "Comment",
                 content: "On wide screens, comments provide extra spot details and references.",
@@ -451,6 +490,7 @@ export const TOUR_CHAPTERS = {
         description: "Learn the band, mode, and advanced filter controls.",
         steps: [
             {
+                id: "filters_open_filter_rail",
                 target: "[data-tour='top-bar-left-menu']",
                 title: "Open The Filter Rail",
                 content: "Click this menu button if the band and mode filter rail is hidden.",
@@ -462,6 +502,7 @@ export const TOUR_CHAPTERS = {
                 skipBeacon: true,
             },
             {
+                id: "filters_quick_filters",
                 target: "[data-tour='left-column']",
                 title: "Quick Filters",
                 content:
@@ -471,6 +512,7 @@ export const TOUR_CHAPTERS = {
                 skipBeacon: true,
             },
             {
+                id: "filters_band_filters",
                 target: "[data-tour='band-filter-20']",
                 title: "Band Filters",
                 content: "Click the 20m band button to toggle that band in the live spot stream.",
@@ -483,6 +525,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "filters_open_band_options",
                 target: "[data-tour='filter-options-trigger-bands-20']",
                 title: "Open Band Options",
                 content: "Hover over the 20m band button to open its ONLY and ALL shortcuts.",
@@ -493,6 +536,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='filter-options-popup'][data-tour-state='bands-20']",
             },
             {
+                id: "filters_only_and_all",
                 target: "[data-tour='filter-options-popup']",
                 title: "ONLY And ALL",
                 content:
@@ -505,6 +549,7 @@ export const TOUR_CHAPTERS = {
                 placement: "auto",
             },
             {
+                id: "filters_mode_filters",
                 target: "[data-tour='mode-filter-SSB']",
                 title: "Mode Filters",
                 content: "Click SSB to toggle that mode in the table and map.",
@@ -516,6 +561,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "filters_radio_band_filter",
                 target: "[data-tour='radio-band-filter-group']",
                 title: "Radio Band Filter",
                 content: "When a radio is available, this can follow the current radio band.",
@@ -524,6 +570,7 @@ export const TOUR_CHAPTERS = {
                 placement: "right",
             },
             {
+                id: "filters_open_side_panel",
                 target: "[data-tour='top-bar-right-menu']",
                 title: "Open The Side Panel",
                 content: "Click this menu button if the advanced filter panel is hidden.",
@@ -533,6 +580,7 @@ export const TOUR_CHAPTERS = {
                 placement: "bottom",
             },
             {
+                id: "filters_filters_tab",
                 target: "[data-tour='side-panel-tab-filters']",
                 title: "Filters Tab",
                 content:
@@ -546,6 +594,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "filters_advanced_filters",
                 target: "[data-tour='filters-panel']",
                 title: "Advanced Filters",
                 content:
@@ -554,24 +603,28 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
+                id: "filters_alert_filters",
                 target: "[data-tour='filter-section-alert']",
                 title: "Alert Filters",
                 content: "Alert filters keep matching spots visible and visually highlighted.",
                 placement: "bottom",
             },
             {
+                id: "filters_show_only_filters",
                 target: "[data-tour='filter-section-show_only']",
                 title: "Show-Only Filters",
                 content: "Show-only filters limit the interface to matching spots.",
                 placement: "bottom",
             },
             {
+                id: "filters_hide_filters",
                 target: "[data-tour='filter-section-hide']",
                 title: "Hide Filters",
                 content: "Hide filters remove matching spots from the table and map.",
                 placement: "bottom",
             },
             {
+                id: "filters_create_a_filter",
                 target: "[data-tour='add-filter-button-alert']",
                 title: "Create A Filter",
                 content: "Click Add to open the filter editor for a new alert filter.",
@@ -580,6 +633,7 @@ export const TOUR_CHAPTERS = {
                 placement: "auto",
             },
             {
+                id: "filters_filter_editor",
                 target: "[data-tour='filter-modal-content']",
                 title: "Filter Editor",
                 content:
@@ -588,6 +642,7 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
+                id: "filters_filter_action",
                 target: "[data-tour='filter-modal-action-alert']",
                 title: "Filter Action",
                 content:
@@ -595,6 +650,7 @@ export const TOUR_CHAPTERS = {
                 placement: "auto",
             },
             {
+                id: "filters_filter_type",
                 target: "[data-tour='filter-modal-type-prefix']",
                 title: "Filter Type",
                 content:
@@ -602,6 +658,7 @@ export const TOUR_CHAPTERS = {
                 placement: "auto",
             },
             {
+                id: "filters_dx_or_spotter",
                 target: "[data-tour='filter-modal-spot-role-dx']",
                 title: "DX Or Spotter",
                 content:
@@ -609,12 +666,14 @@ export const TOUR_CHAPTERS = {
                 placement: "auto",
             },
             {
+                id: "filters_type_a_value",
                 target: "[data-tour='filter-modal-text-value']",
                 title: "Type A Value",
                 content: "Focus this input and type a callsign prefix or any valid filter value.",
                 placement: "bottom",
             },
             {
+                id: "filters_add_a_filter",
                 target: "[data-tour='modal-apply-button']",
                 title: "Add A Filter",
                 content:
@@ -628,6 +687,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "filters_drag_the_new_filter",
                 target: "[data-tour='filter-line-alert']",
                 title: "Drag The New Filter",
                 content:
@@ -641,6 +701,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "filters_filter_moved",
                 target: "[data-tour='filter-section-show_only']",
                 title: "Filter Moved",
                 content:
@@ -656,6 +717,7 @@ export const TOUR_CHAPTERS = {
         description: "Tour the side panel tools and tabs.",
         steps: [
             {
+                id: "side_panel_open_side_panel",
                 target: "[data-tour='top-bar-right-menu']",
                 title: "Open The Side Panel",
                 content: "Click this menu button if the side panel is hidden.",
@@ -666,6 +728,7 @@ export const TOUR_CHAPTERS = {
                 skipBeacon: true,
             },
             {
+                id: "side_panel_overview",
                 target: "[data-tour='side-panel']",
                 title: "Side Panel",
                 content:
@@ -675,12 +738,14 @@ export const TOUR_CHAPTERS = {
                 skipBeacon: true,
             },
             {
+                id: "side_panel_tabs",
                 target: "[data-tour='side-panel-tabs']",
                 title: "Panel Tabs",
                 content: "Use these tabs to switch between the side panel tools.",
                 placement: "auto",
             },
             {
+                id: "side_panel_filters_tab",
                 target: "[data-tour='side-panel-tab-filters']",
                 title: "Filters View",
                 content: "Click the Filters tab to show the advanced filter builder.",
@@ -693,6 +758,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "side_panel_filters_view",
                 target: "[data-tour='side-panel-view-filters']",
                 title: "Filters View",
                 content: "This view contains advanced alert, show-only, and hide filter sections.",
@@ -700,6 +766,7 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
+                id: "side_panel_band_bar_tab",
                 target: "[data-tour='side-panel-tab-band-bar']",
                 title: "Band Bar View",
                 content: "Click the Band Bar tab to inspect activity by band.",
@@ -712,6 +779,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "side_panel_band_activity",
                 target: "[data-tour='band-bar-panel']",
                 title: "Band Activity",
                 content:
@@ -720,6 +788,7 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
+                id: "side_panel_band_selector",
                 target: "[data-tour='band-bar-selector']",
                 title: "Band Selector",
                 content: "Choose which band the activity chart should show.",
@@ -727,6 +796,7 @@ export const TOUR_CHAPTERS = {
                 placement: "auto",
             },
             {
+                id: "side_panel_activity_chart",
                 target: "[data-tour='band-bar-chart']",
                 title: "Activity Chart",
                 content: "The chart helps you quickly compare activity within the selected band.",
@@ -735,6 +805,7 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
+                id: "side_panel_heatmap_tab",
                 target: "[data-tour='side-panel-tab-heatmap']",
                 title: "Heatmap View",
                 content: "Click the Heatmap tab to inspect activity density by region.",
@@ -747,6 +818,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "side_panel_heatmap",
                 target: "[data-tour='heatmap-panel']",
                 title: "Heatmap",
                 content: "The heatmap highlights where current activity is concentrated.",
@@ -754,12 +826,14 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
+                id: "side_panel_heatmap_region",
                 target: "[data-tour='heatmap-continent-selector']",
                 title: "Heatmap Region",
                 content: "Change the selected continent to focus the heatmap.",
                 placement: "auto",
             },
             {
+                id: "side_panel_dxpeditions_tab",
                 target: "[data-tour='side-panel-tab-dxpeditions']",
                 title: "DXpeditions View",
                 content: "Click the DXpeditions tab to show tracked expedition activity.",
@@ -772,6 +846,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "side_panel_dxpeditions",
                 target: "[data-tour='dxpeditions-panel']",
                 title: "DXpeditions",
                 content: "This panel tracks active DXpeditions and their related spots.",
@@ -779,6 +854,7 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
+                id: "side_panel_dxpedition_summary",
                 target: "[data-tour='dxpeditions-summary']",
                 title: "DXpedition Summary",
                 content: "The summary shows the current expedition activity at a glance.",
@@ -789,6 +865,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "side_panel_dxpedition_filters",
                 target: "[data-tour='dxpeditions-filter']",
                 title: "DXpedition Filters",
                 content: "Use these controls to narrow which DXpeditions are shown.",
@@ -799,6 +876,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "side_panel_dxpedition_sorting",
                 target: "[data-tour='dxpeditions-sort']",
                 title: "DXpedition Sorting",
                 content: "Sort DXpeditions by the view that is most useful while operating.",
@@ -809,6 +887,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "side_panel_missing_tab",
                 target: "[data-tour='side-panel-tab-missing']",
                 title: "Missing",
                 content: "Click the Missing tab to see what you have worked and still need.",
@@ -821,6 +900,7 @@ export const TOUR_CHAPTERS = {
                 },
             },
             {
+                id: "side_panel_missing",
                 target: "[data-tour='missing-panel']",
                 title: "Missing",
                 content:
@@ -829,6 +909,7 @@ export const TOUR_CHAPTERS = {
                 mobilePlacement: "center",
             },
             {
+                id: "side_panel_adif_import",
                 target: "[data-tour='missing-adif-import']",
                 title: "ADIF Import",
                 content: "Import ADIF logs here so Missing can track your progress.",
