@@ -47,6 +47,7 @@ export const TOUR_CHAPTERS = {
                 title: "Spot Window",
                 content:
                     "Start by choosing how far back to look, so the live spot list covers your operating window.",
+                hideOverlay: true,
                 placement: "bottom",
             },
             {
@@ -55,6 +56,7 @@ export const TOUR_CHAPTERS = {
                 title: "Submit Spots",
                 content:
                     "When you have activity worth sharing, use this button to submit a spot to the cluster.",
+                hideOverlay: true,
                 placement: "bottom",
             },
             {
@@ -75,6 +77,7 @@ export const TOUR_CHAPTERS = {
                 title: "Band And Mode Filters",
                 content:
                     "Use the one-click band and mode filters to keep only the spots relevant to your station.",
+                hideOverlay: true,
                 optional: true,
                 placement: "right",
                 mobilePlacement: "auto",
@@ -86,6 +89,7 @@ export const TOUR_CHAPTERS = {
                 title: "Map And Table Tabs",
                 content:
                     "On narrow screens, use Map to find activity and Table to inspect it, then choose a spot and act on it.",
+                hideOverlay: true,
                 mobileOnly: true,
                 optional: true,
                 placement: "bottom",
@@ -108,6 +112,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "Use the sortable table to inspect callsigns, frequencies, modes, and spot details, then choose a spot and act on it.",
                 desktopOnly: true,
+                hideOverlay: true,
                 optional: true,
                 placement: "left",
             },
