@@ -76,7 +76,7 @@ function MainContent({
         committed_end: spots_committed_end,
     } = useSpotData();
     const { set_pinned_spot } = useSpotInteraction();
-    const is_history_mode = dev_mode && !!(history_start && history_end);
+    const is_history_mode = !!(history_start && history_end);
 
     // Bar position and the map's night overlay should never visibly move ahead
     // of the spots actually drawn on the map. While dragging, track the raw
@@ -298,8 +298,6 @@ function MainContent({
     const is_md_device = useMediaQuery("only screen and (max-width : 768px)");
 
     function toggle_history() {
-        if (!dev_mode) return;
-
         if (is_history_mode) {
             set_history_start(null);
             set_history_end(null);
@@ -469,14 +467,6 @@ function MainContainer() {
     const [history_start, set_history_start] = useState(null);
     const [history_end, set_history_end] = useState(null);
     const [is_dragging, set_is_dragging] = useState(false);
-    const effective_history_start = dev_mode ? history_start : null;
-    const effective_history_end = dev_mode ? history_end : null;
-    // Every drag-induced change hits the fetch hooks immediately (no
-    // debounce) — the underlying interval cache only ever fetches the small
-    // gap between what's already cached and the new range, so this stays
-    // cheap even while dragging.
-    const fetch_history_start = effective_history_start;
-    const fetch_history_end = effective_history_end;
 
     function set_window_size_ms(value_or_setter) {
         update_active_profile_section("history", history => ({
@@ -489,15 +479,6 @@ function MainContainer() {
     }
 
     useEffect(() => {
-        if (!dev_mode) {
-            set_history_start(null);
-            set_history_end(null);
-        }
-    }, [dev_mode]);
-
-    useEffect(() => {
-        if (!dev_mode) return;
-
         const evict_all = () => {
             open_db_and_evict_spots();
             open_db_and_evict_propagation();
@@ -514,23 +495,27 @@ function MainContainer() {
                 : clearTimeout(handle);
             clearInterval(timer);
         };
-    }, [dev_mode]);
+    }, []);
 
+    // Every drag-induced change hits the fetch hooks immediately (no
+    // debounce) — the underlying interval cache only ever fetches the small
+    // gap between what's already cached and the new range, so this stays
+    // cheap even while dragging.
     return (
         <RestDataProvider
-            propagation_range_start={fetch_history_start}
-            propagation_range_end={fetch_history_end}
-            propagation_time={fetch_history_end}
+            propagation_range_start={history_start}
+            propagation_range_end={history_end}
+            propagation_time={history_end}
         >
             <SpotDataProvider
-                startTime={fetch_history_start}
-                endTime={fetch_history_end}
+                startTime={history_start}
+                endTime={history_end}
                 window_size_ms={window_size_ms}
                 step_size_ms={step_size_ms}
             >
                 <MainContent
-                    history_start={effective_history_start}
-                    history_end={effective_history_end}
+                    history_start={history_start}
+                    history_end={history_end}
                     set_history_start={set_history_start}
                     set_history_end={set_history_end}
                     window_size_ms={window_size_ms}
