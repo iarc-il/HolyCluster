@@ -179,9 +179,12 @@ function MainContent({
                     });
                 }
             }
-            set_radius_in_km(Math.ceil((max_radius + AUTO_RADIUS_PADDING_KM) / 1000) * 1000);
+            const target_radius = Math.ceil((max_radius + AUTO_RADIUS_PADDING_KM) / 1000) * 1000;
+            if (radius_in_km !== target_radius) {
+                set_radius_in_km(target_radius);
+            }
         }
-    }, [max_radius, auto_radius]);
+    }, [max_radius, auto_radius, radius_in_km]);
 
     const { set_mode_and_freq, radio_freq, rig, radio_mode } = use_radio();
     const { set_azimuth, is_rotator_available } = useRotator();
