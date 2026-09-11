@@ -116,15 +116,22 @@ export const tour_spot = tour_spots[0];
 
 export const test = base.extend({
     tour_spots: [tour_spots, { option: true }],
-    page: async ({ page, tour_spots }, use) => {
-        await page.addInitScript(() => {
+    auto_start_tour: [false, { option: true }],
+    page: async ({ page, tour_spots, auto_start_tour }, use) => {
+        const browser_errors = [];
+        page.on("pageerror", error => browser_errors.push(`pageerror: ${error.message}`));
+        page.on("console", message => {
+            if (message.type() === "error") browser_errors.push(`console: ${message.text()}`);
+        });
+
+        await page.addInitScript(auto_start => {
             localStorage.clear();
             sessionStorage.clear();
-            localStorage.setItem("first_launch", "false");
+            localStorage.setItem("first_launch", JSON.stringify(auto_start));
             localStorage.setItem("active_view", "0");
             localStorage.setItem("mobile_tab", JSON.stringify("map"));
             localStorage.removeItem("tour_completed_chapters");
-        });
+        }, auto_start_tour);
 
         await page.route("**/propagation", route =>
             route.fulfill({
@@ -156,6 +163,7 @@ export const test = base.extend({
         });
 
         await use(page);
+        expect(browser_errors, "browser console/runtime errors").toEqual([]);
     },
 });
 
@@ -182,11 +190,43 @@ export async function start_tour(page, chapter_title) {
     await panel.getByRole("button", { name: "Start tour", exact: true }).click();
 }
 
+async function expect_in_viewport(locator, viewport, description) {
+    const box = await locator.boundingBox();
+    expect(box, `${description} has no bounding box`).not.toBeNull();
+    expect(box.x, `${description} left`).toBeGreaterThanOrEqual(0);
+    expect(box.y, `${description} top`).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `${description} right`).toBeLessThanOrEqual(viewport.width);
+    expect(box.y + box.height, `${description} bottom`).toBeLessThanOrEqual(viewport.height);
+}
+
+async function expect_intersects_viewport(locator, viewport, description) {
+    const box = await locator.boundingBox();
+    expect(box, `${description} has no bounding box`).not.toBeNull();
+    expect(box.x + box.width, `${description} right edge`).toBeGreaterThan(0);
+    expect(box.y + box.height, `${description} bottom edge`).toBeGreaterThan(0);
+    expect(box.x, `${description} left edge`).toBeLessThan(viewport.width);
+    expect(box.y, `${description} top edge`).toBeLessThan(viewport.height);
+}
+
 export async function expect_tour_step(page, id, target) {
+    const viewport = page.viewportSize();
+    expect(viewport).not.toBeNull();
+
     const tooltip = page.locator(".react-joyride__tooltip");
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveAttribute("data-joyride-id", id);
-    await expect(page.locator(target).first()).toBeVisible();
+    await expect_in_viewport(tooltip, viewport, `${id} tooltip`);
+
+    const target_locator = page.locator(target).first();
+    await expect(target_locator).toBeVisible();
+    await expect_intersects_viewport(target_locator, viewport, `${id} target`);
+
+    const buttons = tooltip.locator("button");
+    for (const button of await buttons.all()) {
+        if (await button.isVisible()) {
+            await expect_in_viewport(button, viewport, `${id} button`);
+        }
+    }
 }
 
 export async function next_tour_step(page) {
@@ -203,6 +243,16 @@ export async function back_tour_step(page) {
         .getByRole("button", { name: "Back", exact: true });
     await expect(back_button).toBeVisible();
     await back_button.click();
+}
+
+export async function close_tour(page) {
+    await page.locator(".react-joyride__tooltip").locator("[data-testid='button-close']").click();
+    await expect(page.locator(".react-joyride__tooltip")).toBeHidden();
+}
+
+export async function skip_tour(page) {
+    await page.locator(".react-joyride__tooltip").locator("[data-testid='button-skip']").click();
+    await expect(page.locator(".react-joyride__tooltip")).toBeHidden();
 }
 
 export async function finish_tour(page) {
