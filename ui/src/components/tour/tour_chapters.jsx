@@ -4,13 +4,6 @@ export const TOUR_COMPLETED_CHAPTERS_KEY = "tour_completed_chapters";
 export const DEFAULT_TOUR_CHAPTER_ID = "quick_start";
 
 const action_buttons = ["back", "close"];
-const keep_tooltip_in_viewport = {
-    name: "keep_tooltip_in_viewport",
-    fn: ({ x, y, rects }) => ({
-        x: Math.max(10, Math.min(x, window.innerWidth - rects.floating.width - 10)),
-        y,
-    }),
-};
 const scroll_target_to_center = selector => () => {
     if (window.innerWidth <= 768) {
         document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
@@ -79,9 +72,8 @@ export const TOUR_CHAPTERS = {
                     "Use the one-click band and mode filters to keep only the spots relevant to your station.",
                 hideOverlay: true,
                 optional: true,
-                placement: "right",
-                mobilePlacement: "auto",
-                mobileWidth: 320,
+                placement: "auto",
+                mobileWidth: 280,
             },
             {
                 id: "quick_start_map_and_table_tabs",
@@ -92,7 +84,9 @@ export const TOUR_CHAPTERS = {
                 hideOverlay: true,
                 mobileOnly: true,
                 optional: true,
-                placement: "bottom",
+                // The tabs sit directly below the fixed top bar; centering keeps Joyride from
+                // flipping the tooltip above the viewport and leaves the tabs clickable.
+                placement: "center",
             },
             {
                 id: "quick_start_find_activity",
@@ -513,6 +507,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "The left rail contains fast band and mode filters for the live spot stream.",
                 placement: "right",
+                // The mobile rail fills the available width, so a side tooltip would overflow.
                 mobilePlacement: "center",
                 skipBeacon: true,
             },
@@ -539,6 +534,8 @@ export const TOUR_CHAPTERS = {
                 placement: "auto",
                 mobileHideOverlay: true,
                 waitFor: "[data-tour='filter-options-popup'][data-tour-state='bands-20']",
+                showWhenAlreadySatisfied: true,
+                holdWhenAlreadySatisfied: true,
             },
             {
                 id: "filters_only_and_all",
@@ -605,6 +602,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "Advanced filters can alert, show only matching spots, or hide matching spots.",
                 placement: "left",
+                // This is a full-height scrolling panel on mobile; center keeps the tooltip usable.
                 mobilePlacement: "center",
             },
             {
@@ -644,6 +642,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "The editor combines an action, a match type, and the required values for that type.",
                 placement: "left",
+                // The modal is nearly viewport-wide on mobile, leaving no safe side placement.
                 mobilePlacement: "center",
             },
             {
@@ -698,7 +697,11 @@ export const TOUR_CHAPTERS = {
                 content:
                     "Drag the new alert filter into the Show-Only section to change what it does.",
                 buttons: action_buttons,
-                placement: "auto",
+                placement: "left",
+                // On narrow screens the side rail is too narrow for the tooltip and drop target
+                // to share a side; keep the tooltip opposite the draggable row.
+                mobilePlacement: "right",
+                mobileWidth: 200,
                 mobileHideOverlay: true,
                 waitForChange: {
                     selector: "[data-tour='filter-section-show_only']",
@@ -712,6 +715,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "The same filter now lives in Show-Only. Dragging between sections changes the filter action without rebuilding it.",
                 placement: "left",
+                // The mobile filter panel is narrow and scrollable; center avoids clipping the result.
                 mobilePlacement: "center",
             },
         ],
@@ -739,6 +743,7 @@ export const TOUR_CHAPTERS = {
                 content:
                     "The side panel groups deeper tools that do not fit in the main map/table view.",
                 placement: "left",
+                // Side-panel overview/content targets fill a narrow scrolling panel on mobile.
                 mobilePlacement: "center",
                 skipBeacon: true,
             },
@@ -863,33 +868,21 @@ export const TOUR_CHAPTERS = {
                 target: "[data-tour='dxpeditions-summary']",
                 title: "DXpedition Summary",
                 content: "The summary shows the current expedition activity at a glance.",
-                placement: "left",
-                mobilePlacement: "bottom-end",
-                mobileFloatingOptions: {
-                    middleware: [keep_tooltip_in_viewport],
-                },
+                placement: "auto",
             },
             {
                 id: "side_panel_dxpedition_filters",
                 target: "[data-tour='dxpeditions-filter']",
                 title: "DXpedition Filters",
                 content: "Use these controls to narrow which DXpeditions are shown.",
-                placement: "left",
-                mobilePlacement: "bottom-end",
-                mobileFloatingOptions: {
-                    middleware: [keep_tooltip_in_viewport],
-                },
+                placement: "auto",
             },
             {
                 id: "side_panel_dxpedition_sorting",
                 target: "[data-tour='dxpeditions-sort']",
                 title: "DXpedition Sorting",
                 content: "Sort DXpeditions by the view that is most useful while operating.",
-                placement: "left",
-                mobilePlacement: "bottom-end",
-                mobileFloatingOptions: {
-                    middleware: [keep_tooltip_in_viewport],
-                },
+                placement: "auto",
             },
             {
                 id: "side_panel_missing_tab",
@@ -918,11 +911,9 @@ export const TOUR_CHAPTERS = {
                 target: "[data-tour='missing-adif-import']",
                 title: "ADIF Import",
                 content: "Import ADIF logs here so Missing can track your progress.",
-                placement: "left",
-                mobilePlacement: "bottom-end",
-                mobileFloatingOptions: {
-                    middleware: [keep_tooltip_in_viewport],
-                },
+                // The import card spans the side panel at every breakpoint; centering keeps
+                // the tooltip in view without covering the card's action buttons.
+                placement: "center",
             },
         ],
     },

@@ -127,6 +127,7 @@ function WebsiteTour() {
     const backward_wait_ref = useRef({ key: null, reset_value: null, saw_unsatisfied: false });
     const pending_backward_side_effect_ref = useRef(null);
     const has_temporary_profile_ref = useRef(false);
+    const finishing_tour_ref = useRef(false);
     const stop_temporary_profile_ref = useRef(stop_temporary_profile);
 
     useEffect(() => {
@@ -173,6 +174,8 @@ function WebsiteTour() {
 
     const finish_tour = useCallback(
         status => {
+            if (finishing_tour_ref.current) return;
+            finishing_tour_ref.current = true;
             if (tour_state.current_chapter_id && status) {
                 mark_chapter_done(tour_state.current_chapter_id, status);
             }
@@ -235,11 +238,6 @@ function WebsiteTour() {
                     ? step.mobileScrollOffset
                     : step.scrollOffset;
             const width = is_mobile && step.mobileWidth != null ? step.mobileWidth : step.width;
-            const floating_options =
-                is_mobile && step.mobileFloatingOptions != null
-                    ? step.mobileFloatingOptions
-                    : step.floatingOptions;
-
             if (index === first_available_step_index) {
                 buttons = (buttons ?? default_tour_buttons).filter(button => button !== "back");
             }
@@ -258,8 +256,7 @@ function WebsiteTour() {
                 placement === step.placement &&
                 hideOverlay === step.hideOverlay &&
                 scrollOffset === step.scrollOffset &&
-                width === step.width &&
-                floating_options === step.floatingOptions
+                width === step.width
             ) {
                 return step;
             }
@@ -270,9 +267,6 @@ function WebsiteTour() {
             }
             if (width !== step.width) {
                 next_step.width = width;
-            }
-            if (floating_options !== step.floatingOptions) {
-                next_step.floatingOptions = floating_options;
             }
             return next_step;
         });
@@ -293,7 +287,6 @@ function WebsiteTour() {
                 should_skip_step,
                 steps,
             });
-
             if (transition.type === "finish") {
                 finish_tour(STATUS.FINISHED);
                 return;
@@ -345,14 +338,31 @@ function WebsiteTour() {
                 dispatch_tour_side_effect(transition.side_effect);
             }
 
-            set_tour_state(state => {
-                if (!state.is_running) return state;
+            const set_next_step = () => {
+                set_tour_state(state => {
+                    if (!state.is_running) return state;
 
-                return {
-                    ...state,
-                    step_index: next_step_index,
-                };
-            });
+                    return {
+                        ...state,
+                        step_index: next_step_index,
+                    };
+                });
+            };
+
+            // Tab restoration changes the target tree in another component. Let
+            // that component commit its new tab before Joyride measures the
+            // previous target for the restored step.
+            if (
+                direction < 0 &&
+                [TOUR_SELECT_SIDE_PANEL_TAB_EVENT, TOUR_SELECT_SETTINGS_TAB_EVENT].includes(
+                    transition.side_effect?.event,
+                )
+            ) {
+                setTimeout(set_next_step, 0);
+                return;
+            }
+
+            set_next_step();
         },
         [finish_tour, setCallsignFilters, should_skip_step, steps, tour_state.current_chapter_id],
     );
@@ -383,6 +393,7 @@ function WebsiteTour() {
                 document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
             }
 
+            finishing_tour_ref.current = false;
             start_temporary_profile();
             has_temporary_profile_ref.current = true;
             set_tour_state({
@@ -521,6 +532,18 @@ function WebsiteTour() {
 
         const try_advance = () => {
             if (has_advanced) return;
+
+            if (
+                !current_step.waitForChange &&
+                current_step.holdWhenAlreadySatisfied &&
+                backward_wait_ref.current.key !== wait_key &&
+                step_wait_is_satisfied(current_step)
+            ) {
+                set_already_satisfied_wait_key(current =>
+                    current === wait_key ? current : wait_key,
+                );
+                return;
+            }
 
             if (current_step.waitForChange) {
                 const current_change_value = get_wait_for_change_value(current_step.waitForChange);

@@ -271,13 +271,14 @@ describe("tour chapters", () => {
         }
     });
 
-    it("keeps the mobile band and mode filter spotlight target-aware", () => {
+    it("uses one safe placement for the band and mode filter spotlight", () => {
         const step = TOUR_CHAPTERS.quick_start.steps.find(
             candidate => candidate.title === "Band And Mode Filters",
         );
 
-        expect(step?.mobilePlacement).toBe("auto");
-        expect(step?.mobileWidth).toBe(320);
+        expect(step?.placement).toBe("auto");
+        expect(step?.mobilePlacement).toBeUndefined();
+        expect(step?.mobileWidth).toBe(280);
     });
 
     it("uses shared auto placement for responsive compact targets", () => {
@@ -301,7 +302,6 @@ describe("tour chapters", () => {
             ["filters", "Filter Type", "[data-tour='filter-modal-type-prefix']"],
             ["filters", "DX Or Spotter", "[data-tour='filter-modal-spot-role-dx']"],
             ["filters", "Add A Filter", "[data-tour='modal-apply-button']"],
-            ["filters", "Drag The New Filter", "[data-tour='filter-line-alert']"],
             ["side_panel", "Panel Tabs", "[data-tour='side-panel-tabs']"],
             ["side_panel", "Filters View", "[data-tour='side-panel-tab-filters']"],
             ["side_panel", "Band Bar View", "[data-tour='side-panel-tab-band-bar']"],
@@ -321,6 +321,16 @@ describe("tour chapters", () => {
             expect.soft(step?.placement, label).toBe("auto");
             expect.soft(step?.mobilePlacement, label).toBeUndefined();
         }
+    });
+
+    it("places the mobile drag step away from the tooltip target", () => {
+        const step = TOUR_CHAPTERS.filters.steps.find(
+            candidate => candidate.target === "[data-tour='filter-line-alert']",
+        );
+
+        expect(step?.placement).toBe("left");
+        expect(step?.mobilePlacement).toBe("right");
+        expect(step?.mobileWidth).toBe(200);
     });
 
     it("places advanced filter section steps below their targets", () => {
@@ -432,7 +442,7 @@ describe("tour chapters", () => {
         );
 
         expect(tabs_step?.target).toBe("[data-tour='mobile-main-tabs']");
-        expect(tabs_step?.placement).toBe("bottom");
+        expect(tabs_step?.placement).toBe("center");
         expect(tabs_step?.mobileHideOverlay).not.toBe(true);
     });
 
@@ -525,40 +535,21 @@ describe("tour chapters", () => {
         }
     });
 
-    it("highlights the DXpedition summary on mobile", () => {
-        const step = TOUR_CHAPTERS.side_panel.steps.find(
-            candidate => candidate.title === "DXpedition Summary",
-        );
+    it("uses shared auto placement for compact side-panel controls", () => {
+        for (const title of ["DXpedition Summary", "DXpedition Filters", "DXpedition Sorting"]) {
+            const step = TOUR_CHAPTERS.side_panel.steps.find(
+                candidate => candidate.title === title,
+            );
+            expect(step, title).toBeDefined();
+            expect(step?.placement, title).toBe("auto");
+            expect(step?.mobilePlacement, title).toBeUndefined();
+        }
 
-        expect(step?.mobilePlacement).toBe("bottom-end");
-        expect(step?.mobileFloatingOptions?.middleware).toHaveLength(1);
-    });
-
-    it("highlights the DXpedition filters on mobile", () => {
-        const step = TOUR_CHAPTERS.side_panel.steps.find(
-            candidate => candidate.title === "DXpedition Filters",
-        );
-
-        expect(step?.mobilePlacement).toBe("bottom-end");
-        expect(step?.mobileFloatingOptions?.middleware).toHaveLength(1);
-    });
-
-    it("highlights the DXpedition sorting controls on mobile", () => {
-        const step = TOUR_CHAPTERS.side_panel.steps.find(
-            candidate => candidate.title === "DXpedition Sorting",
-        );
-
-        expect(step?.mobilePlacement).toBe("bottom-end");
-        expect(step?.mobileFloatingOptions?.middleware).toHaveLength(1);
-    });
-
-    it("highlights ADIF import on mobile", () => {
-        const step = TOUR_CHAPTERS.side_panel.steps.find(
+        const adif_step = TOUR_CHAPTERS.side_panel.steps.find(
             candidate => candidate.title === "ADIF Import",
         );
-
-        expect(step?.mobilePlacement).toBe("bottom-end");
-        expect(step?.mobileFloatingOptions?.middleware).toHaveLength(1);
+        expect(adif_step?.placement).toBe("center");
+        expect(adif_step?.mobilePlacement).toBeUndefined();
     });
 
     it("asks users to open the band ONLY/ALL popup", () => {
