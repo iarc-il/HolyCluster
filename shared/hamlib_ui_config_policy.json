@@ -7,6 +7,7 @@
         "udp_network": "network"
     },
     "pathname_tokens": ["rig_pathname", "pathname", "device"],
+    "network_pathname_token": "rig_pathname",
     "serial_labels": {
         "rig_pathname": "Serial port",
         "pathname": "Serial port",

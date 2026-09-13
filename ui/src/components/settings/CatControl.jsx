@@ -9,8 +9,13 @@ import { useEffect, useState } from "react";
 import { default as SearchSelect } from "react-select";
 import LoggerIntegrationHelp from "./LoggerIntegrationHelp.jsx";
 
-const { connection_kind_by_port_type, pathname_tokens, serial_labels, serial_option_values } =
-    hamlib_config_policy;
+const {
+    connection_kind_by_port_type,
+    network_pathname_token,
+    pathname_tokens,
+    serial_labels,
+    serial_option_values,
+} = hamlib_config_policy;
 
 const DEFAULT_HAMLIB_MODEL_ID = "1";
 const DEFAULT_UNIX_SERIAL_PORT = "/dev/ttyUSB0";
@@ -634,8 +639,9 @@ function CatControl({
                                             id="hamlib-host"
                                             value={
                                                 network_endpoint(
-                                                    selected_configuration.hamlib.token_values
-                                                        .rig_pathname,
+                                                    selected_configuration.hamlib.token_values[
+                                                        network_pathname_token
+                                                    ],
                                                 ).host
                                             }
                                             onChange={event =>
@@ -645,13 +651,15 @@ function CatControl({
                                                         ...rig.hamlib,
                                                         token_values: {
                                                             ...rig.hamlib.token_values,
-                                                            rig_pathname: network_pathname(
-                                                                event.target.value,
-                                                                network_endpoint(
-                                                                    rig.hamlib.token_values
-                                                                        .rig_pathname,
-                                                                ).port,
-                                                            ),
+                                                            [network_pathname_token]:
+                                                                network_pathname(
+                                                                    event.target.value,
+                                                                    network_endpoint(
+                                                                        rig.hamlib.token_values[
+                                                                            network_pathname_token
+                                                                        ],
+                                                                    ).port,
+                                                                ),
                                                         },
                                                     },
                                                 }))
@@ -668,8 +676,9 @@ function CatControl({
                                             step="1"
                                             value={
                                                 network_endpoint(
-                                                    selected_configuration.hamlib.token_values
-                                                        .rig_pathname,
+                                                    selected_configuration.hamlib.token_values[
+                                                        network_pathname_token
+                                                    ],
                                                 ).port
                                             }
                                             onChange={event =>
@@ -679,13 +688,15 @@ function CatControl({
                                                         ...rig.hamlib,
                                                         token_values: {
                                                             ...rig.hamlib.token_values,
-                                                            rig_pathname: network_pathname(
-                                                                network_endpoint(
-                                                                    rig.hamlib.token_values
-                                                                        .rig_pathname,
-                                                                ).host,
-                                                                event.target.value,
-                                                            ),
+                                                            [network_pathname_token]:
+                                                                network_pathname(
+                                                                    network_endpoint(
+                                                                        rig.hamlib.token_values[
+                                                                            network_pathname_token
+                                                                        ],
+                                                                    ).host,
+                                                                    event.target.value,
+                                                                ),
                                                         },
                                                     },
                                                 }))
