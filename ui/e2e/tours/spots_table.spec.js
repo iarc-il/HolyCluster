@@ -128,6 +128,34 @@ test.describe("Spots Table tour", () => {
         await complete_context_menu_steps(page, { mobile: true });
     });
 
+    test("keeps Joyride Back usable above an open context menu on mobile", async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto("/");
+        await start_tour(page, "Spots Table");
+        await reach_spot_row(page, { mobile: true });
+
+        await expect_tour_step(
+            page,
+            "spots_table_right_click_callsign",
+            tour_target("spot-row-dx-callsign"),
+        );
+        await page.locator(tour_target("spot-row-dx-callsign")).click({ button: "right" });
+        await expect_tour_step(
+            page,
+            "spots_table_callsign_actions",
+            tour_target("table-context-menu"),
+        );
+        await expect(page.locator(tour_target("table-context-menu"))).toBeVisible();
+
+        await back_tour_step(page);
+        await expect_tour_step(
+            page,
+            "spots_table_right_click_callsign",
+            tour_target("spot-row-dx-callsign"),
+        );
+        await expect(page.locator(tour_target("table-context-menu"))).toBeHidden();
+    });
+
     test("restores pinned rows and context menus when navigating Back", async ({ page }) => {
         await page.setViewportSize({ width: 1800, height: 1000 });
         await page.goto("/");
