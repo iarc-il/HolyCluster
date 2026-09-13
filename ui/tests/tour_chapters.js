@@ -410,11 +410,20 @@ describe("tour chapters", () => {
         expect(close_step?.placement).toBe("auto");
     }); */
 
-    it("disables the mobile overlay for touch-sensitive tour steps", () => {
+    it("keeps the overlay hidden for interactions that leave the spotlight", () => {
+        const step = TOUR_CHAPTERS.filters.steps.find(
+            candidate => candidate.target === "[data-tour='filter-line-alert']",
+        );
+
+        expect(step).toBeDefined();
+        expect(step?.hideOverlay).toBe(true);
+        expect(step?.mobileHideOverlay).toBeUndefined();
+    });
+
+    it("keeps the spotlight enabled for target-contained mobile interactions", () => {
         const touch_sensitive_targets = [
             ["filters", "[data-tour='filter-options-trigger-bands-20']"],
             ["filters", "[data-tour='modal-apply-button']"],
-            ["filters", "[data-tour='filter-line-alert']"],
         ];
 
         for (const [chapter_id, target] of touch_sensitive_targets) {
@@ -422,7 +431,8 @@ describe("tour chapters", () => {
                 candidate => candidate.target === target,
             );
             expect(step, `${chapter_id}: ${target}`).toBeDefined();
-            expect(step?.mobileHideOverlay, `${chapter_id}: ${target}`).toBe(true);
+            expect(step?.hideOverlay, `${chapter_id}: ${target}`).not.toBe(true);
+            expect(step?.mobileHideOverlay, `${chapter_id}: ${target}`).not.toBe(true);
         }
     });
 

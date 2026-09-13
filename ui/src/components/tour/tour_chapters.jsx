@@ -406,6 +406,8 @@ export const TOUR_CHAPTERS = {
                 requires: "has_spots",
                 buttons: action_buttons,
                 placement: "auto",
+                // The user must click outside this portal menu or press Escape to close it.
+                hideOverlay: true,
                 waitForGone: "[data-tour='table-context-menu']",
             },
             {
@@ -431,6 +433,8 @@ export const TOUR_CHAPTERS = {
                 requires: "has_spots",
                 buttons: action_buttons,
                 placement: "auto",
+                // The user must click outside this portal menu or press Escape to close it.
+                hideOverlay: true,
                 waitForGone: "[data-tour='table-context-menu']",
             },
             {
@@ -532,7 +536,6 @@ export const TOUR_CHAPTERS = {
                 requires: "manual_band_filter_available",
                 buttons: action_buttons,
                 placement: "auto",
-                mobileHideOverlay: true,
                 waitFor: "[data-tour='filter-options-popup'][data-tour-state='bands-20']",
                 showWhenAlreadySatisfied: true,
                 holdWhenAlreadySatisfied: true,
@@ -684,7 +687,6 @@ export const TOUR_CHAPTERS = {
                     "Enter any valid value, leave the action as Alert, then click Apply to create the filter.",
                 buttons: action_buttons,
                 placement: "auto",
-                mobileHideOverlay: true,
                 waitForChange: {
                     selector: "[data-tour='filter-section-alert']",
                     attribute: "data-tour-state",
@@ -702,7 +704,7 @@ export const TOUR_CHAPTERS = {
                 // to share a side; keep the tooltip opposite the draggable row.
                 mobilePlacement: "right",
                 mobileWidth: 200,
-                mobileHideOverlay: true,
+                hideOverlay: true,
                 waitForChange: {
                     selector: "[data-tour='filter-section-show_only']",
                     attribute: "data-tour-state",

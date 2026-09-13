@@ -228,11 +228,11 @@ function WebsiteTour() {
             let buttons = step.buttons;
             const placement =
                 is_mobile && step.mobilePlacement ? step.mobilePlacement : step.placement;
+            // Waiting for a state change does not determine whether the target should be
+            // highlighted. Keep the spotlight on by default and opt out for interactions that
+            // need to reach outside the target (for example drag/drop or click-away steps).
             const hideOverlay =
-                is_mobile && step.mobileHideOverlay
-                    ? true
-                    : (step.hideOverlay ??
-                      Boolean(step.waitFor || step.waitForGone || step.waitForChange));
+                is_mobile && step.mobileHideOverlay ? true : (step.hideOverlay ?? false);
             const scrollOffset =
                 is_mobile && step.mobileScrollOffset != null
                     ? step.mobileScrollOffset

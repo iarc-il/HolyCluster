@@ -114,6 +114,15 @@ export const tour_spots = [
 
 export const tour_spot = tour_spots[0];
 
+// These interactions intentionally need the page outside the spotlight: drag/drop and
+// dismissing a portal menu by clicking away. All other steps without a primary button
+// must visibly spotlight their interaction target.
+const no_spotlight_interaction_steps = new Set([
+    "filters_drag_the_new_filter",
+    "spots_table_callsign_actions",
+    "spots_table_entity_actions",
+]);
+
 export const test = base.extend({
     tour_spots: [tour_spots, { option: true }],
     auto_start_tour: [false, { option: true }],
@@ -208,6 +217,21 @@ async function expect_intersects_viewport(locator, viewport, description) {
     expect(box.y, `${description} top edge`).toBeLessThan(viewport.height);
 }
 
+async function expect_spotlight(page, expected, description) {
+    await expect
+        .poll(
+            () =>
+                page.locator("[data-testid='spotlight'] path").evaluateAll(paths =>
+                    paths.some(path => {
+                        const style = getComputedStyle(path);
+                        return style.stroke !== "none" && style.strokeWidth !== "0px";
+                    }),
+                ),
+            { message: `${description} spotlight state` },
+        )
+        .toBe(expected);
+}
+
 export async function expect_tour_step(page, id, target) {
     const viewport = page.viewportSize();
     expect(viewport).not.toBeNull();
@@ -215,6 +239,13 @@ export async function expect_tour_step(page, id, target) {
     const tooltip = page.locator(".react-joyride__tooltip");
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveAttribute("data-joyride-id", id);
+
+    const requires_interaction =
+        (await tooltip.locator("[data-testid='button-primary']").count()) === 0;
+    if (requires_interaction) {
+        await expect_spotlight(page, !no_spotlight_interaction_steps.has(id), id);
+    }
+
     await expect_in_viewport(tooltip, viewport, `${id} tooltip`);
 
     const target_locator = page.locator(target).first();
