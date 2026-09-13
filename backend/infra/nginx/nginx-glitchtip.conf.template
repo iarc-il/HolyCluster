@@ -9,7 +9,11 @@ server {
     ssl_certificate /etc/letsencrypt/live/${GLITCHTIP_DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${GLITCHTIP_DOMAIN}/privkey.pem;
 
-    location / {
+    location = /api/0 {
+        return 308 /api/0/;
+    }
+
+    location /api/0/ {
         resolver              127.0.0.11 valid=30s ipv6=off;
         set                   $glitchtip_upstream glitchtip-web:8000;
         client_max_body_size 40M;
@@ -19,5 +23,9 @@ server {
         proxy_set_header      X-Forwarded-Proto   $scheme;
         proxy_http_version    1.1;
         proxy_pass            http://$glitchtip_upstream;
+    }
+
+    location / {
+        return 302 https://${DOMAIN}/errors/;
     }
 }
