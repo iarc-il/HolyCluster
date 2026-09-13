@@ -15,7 +15,7 @@ http {
     # ===============================
     server {
         listen 80;
-        server_name ${DOMAIN} ${DOMAIN_ALT};
+        server_name ${DOMAIN} ${DOMAIN_ALT} ${GLITCHTIP_DOMAIN};
 
         # ACME challenge location for Certbot
         location /.well-known/acme-challenge/ {

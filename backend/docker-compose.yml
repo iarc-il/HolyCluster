@@ -135,15 +135,17 @@ services:
       - -c
       - |
         (
-          last=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem /etc/letsencrypt/live/$${DOMAIN_ALT}/fullchain.pem 2>/dev/null)
+          last=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem /etc/letsencrypt/live/$${DOMAIN_ALT}/fullchain.pem /etc/letsencrypt/live/$${GLITCHTIP_DOMAIN}/fullchain.pem 2>/dev/null)
           while :; do
             sleep 6h & wait $${!}
-            cur=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem /etc/letsencrypt/live/$${DOMAIN_ALT}/fullchain.pem 2>/dev/null)
+            cur=$$(stat -c %Y /etc/letsencrypt/live/$${DOMAIN}/fullchain.pem /etc/letsencrypt/live/$${DOMAIN_ALT}/fullchain.pem /etc/letsencrypt/live/$${GLITCHTIP_DOMAIN}/fullchain.pem 2>/dev/null)
             [ "$$cur" != "$$last" ] && { nginx -s reload; last=$$cur; }
           done
         ) &
-        envsubst '$${DOMAIN} $${DOMAIN_ALT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+        envsubst '$${DOMAIN} $${DOMAIN_ALT} $${GLITCHTIP_DOMAIN}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
         [ -n "$${DOMAIN_ALT}" ] && envsubst '$${DOMAIN_ALT}' < /etc/nginx/nginx-alt.conf.template > /etc/nginx/conf.d/alt.conf
+        rm -f /etc/nginx/conf.d/glitchtip.conf
+        [ -n "$${GLITCHTIP_DOMAIN}" ] && envsubst '$${DOMAIN} $${GLITCHTIP_DOMAIN}' < /etc/nginx/nginx-glitchtip.conf.template > /etc/nginx/conf.d/glitchtip.conf
         nginx -g 'daemon off;'
     restart: unless-stopped
     ulimits:
@@ -177,8 +179,8 @@ services:
 
   certbot:
     restart: unless-stopped
-    # Renews BOTH the DOMAIN and DOMAIN_ALT certs via webroot http-01 (each cert's
-    # renewal.conf records authenticator=webroot). The DOMAIN_ALT challenge reaches
+    # Renews all issued certs via webroot http-01 (each renewal.conf records
+    # authenticator=webroot). The DOMAIN_ALT challenge reaches
     # the box through the Cloudflare proxy (zone has Always-Use-HTTPS off), so no
     # Cloudflare credential is needed on this server. The nginx reload-watch loop
     # picks up renewed certs.
