@@ -10,7 +10,7 @@ struct UiConfigPolicy {
     serial_labels: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum UiConfigSupport {
     FullyConfigurable,
@@ -18,14 +18,27 @@ enum UiConfigSupport {
     UnsupportedPortFlow,
 }
 
-#[derive(Serialize)]
-struct ModelUiConfigReport {
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+struct ModelIdentity {
     id: String,
     manufacturer: String,
     model: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ModelUiConfigReport {
+    model: ModelIdentity,
     port_type: String,
     support: UiConfigSupport,
     unsupported_tokens: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
+struct ModelUiConfigGroup {
+    port_type: String,
+    support: UiConfigSupport,
+    unsupported_tokens: Vec<String>,
+    models: Vec<ModelIdentity>,
 }
 
 fn policy() -> UiConfigPolicy {
@@ -79,6 +92,71 @@ fn port_type_name(port_type: hamlib::RigPortType) -> String {
         .to_owned()
 }
 
+fn catalog_report() -> Vec<ModelUiConfigReport> {
+    let policy = policy();
+    let catalog = hamlib::Catalog::load().expect("Hamlib catalog loads");
+    let mut report: Vec<ModelUiConfigReport> = catalog
+        .models()
+        .iter()
+        .map(|model| {
+            let port_type = port_type_name(model.port_type());
+            let tokens = catalog
+                .describe_model(model.id())
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "{} {} (model {}) has no UI config metadata: {error}",
+                        model.manufacturer(),
+                        model.model(),
+                        model.id()
+                    )
+                })
+                .into_iter()
+                .map(|descriptor| descriptor.token().as_str().to_owned());
+            let (support, unsupported_tokens) = support_for(&policy, &port_type, tokens);
+            ModelUiConfigReport {
+                model: ModelIdentity {
+                    id: model.id().to_string(),
+                    manufacturer: model.manufacturer().into(),
+                    model: model.model().into(),
+                },
+                port_type,
+                support,
+                unsupported_tokens,
+            }
+        })
+        .collect();
+    report.sort_by(|left, right| {
+        (&left.model.manufacturer, &left.model.model, &left.model.id).cmp(&(
+            &right.model.manufacturer,
+            &right.model.model,
+            &right.model.id,
+        ))
+    });
+    report
+}
+
+fn grouped_catalog_report() -> Vec<ModelUiConfigGroup> {
+    let mut groups: BTreeMap<(UiConfigSupport, String, Vec<String>), Vec<ModelIdentity>> =
+        BTreeMap::new();
+    for report in catalog_report() {
+        groups
+            .entry((report.support, report.port_type, report.unsupported_tokens))
+            .or_default()
+            .push(report.model);
+    }
+    groups
+        .into_iter()
+        .map(
+            |((support, port_type, unsupported_tokens), models)| ModelUiConfigGroup {
+                port_type,
+                support,
+                unsupported_tokens,
+                models,
+            },
+        )
+        .collect()
+}
+
 #[test]
 fn classifies_ui_config_support_from_the_shared_policy() {
     let policy = policy();
@@ -111,46 +189,11 @@ fn classifies_ui_config_support_from_the_shared_policy() {
 }
 
 #[test]
-fn reports_every_hamlib_model_ui_config_support() {
-    let policy = policy();
-    let catalog = hamlib::Catalog::load().expect("Hamlib catalog loads");
-    let mut report: Vec<ModelUiConfigReport> = catalog
-        .models()
-        .iter()
-        .map(|model| {
-            let port_type = port_type_name(model.port_type());
-            let tokens = catalog
-                .describe_model(model.id())
-                .unwrap_or_else(|error| {
-                    panic!(
-                        "{} {} (model {}) has no UI config metadata: {error}",
-                        model.manufacturer(),
-                        model.model(),
-                        model.id()
-                    )
-                })
-                .into_iter()
-                .map(|descriptor| descriptor.token().as_str().to_owned());
-            let (support, unsupported_tokens) = support_for(&policy, &port_type, tokens);
-            ModelUiConfigReport {
-                id: model.id().to_string(),
-                manufacturer: model.manufacturer().into(),
-                model: model.model().into(),
-                port_type,
-                support,
-                unsupported_tokens,
-            }
-        })
-        .collect();
-    report.sort_by(|left, right| {
-        (&left.manufacturer, &left.model, &left.id).cmp(&(
-            &right.manufacturer,
-            &right.model,
-            &right.id,
-        ))
-    });
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&report).expect("UI config report serializes")
-    );
+fn matches_the_hamlib_ui_config_report() {
+    let expected: Vec<ModelUiConfigGroup> = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/hamlib_ui_config_report.json"
+    )))
+    .expect("Hamlib UI config report is valid JSON");
+    assert_eq!(grouped_catalog_report(), expected);
 }
