@@ -31,6 +31,8 @@ mod utils;
 #[cfg(test)]
 mod hamlib_radio_tests;
 #[cfg(test)]
+mod hamlib_ui_config_tests;
+#[cfg(test)]
 mod radio_actor_regression_tests;
 #[cfg(test)]
 mod radio_config_tests;
