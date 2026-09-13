@@ -232,6 +232,14 @@ async function expect_spotlight(page, expected, description) {
         .toBe(expected);
 }
 
+async function target_is_interactive(locator) {
+    return locator.evaluate(element =>
+        element.matches(
+            "button, input, select, textarea, a[href], [role='button'], [tabindex]:not([tabindex='-1'])",
+        ),
+    );
+}
+
 export async function expect_tour_step(page, id, target) {
     const viewport = page.viewportSize();
     expect(viewport).not.toBeNull();
@@ -240,17 +248,18 @@ export async function expect_tour_step(page, id, target) {
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveAttribute("data-joyride-id", id);
 
+    const target_locator = page.locator(target).first();
+    await expect(target_locator).toBeVisible();
+    await expect_intersects_viewport(target_locator, viewport, `${id} target`);
+
     const requires_interaction =
         (await tooltip.locator("[data-testid='button-primary']").count()) === 0;
-    if (requires_interaction) {
+    const target_is_a_control = await target_is_interactive(target_locator);
+    if (requires_interaction || target_is_a_control) {
         await expect_spotlight(page, !no_spotlight_interaction_steps.has(id), id);
     }
 
     await expect_in_viewport(tooltip, viewport, `${id} tooltip`);
-
-    const target_locator = page.locator(target).first();
-    await expect(target_locator).toBeVisible();
-    await expect_intersects_viewport(target_locator, viewport, `${id} target`);
 
     const buttons = tooltip.locator("button");
     for (const button of await buttons.all()) {

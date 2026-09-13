@@ -40,7 +40,6 @@ export const TOUR_CHAPTERS = {
                 title: "Spot Window",
                 content:
                     "Start by choosing how far back to look, so the live spot list covers your operating window.",
-                hideOverlay: true,
                 placement: "bottom",
             },
             {
@@ -49,6 +48,8 @@ export const TOUR_CHAPTERS = {
                 title: "Submit Spots",
                 content:
                     "When you have activity worth sharing, use this button to submit a spot to the cluster.",
+                // Opening the modal leaves the tour on this step; the overlay would block its
+                // Cancel/Submit controls after the trigger is activated.
                 hideOverlay: true,
                 placement: "bottom",
             },
