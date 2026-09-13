@@ -4,30 +4,13 @@ import Select from "@/components/ui/Select.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
+import hamlib_config_policy from "@shared/hamlib_ui_config_policy.json";
 import { useEffect, useState } from "react";
 import { default as SearchSelect } from "react-select";
 import LoggerIntegrationHelp from "./LoggerIntegrationHelp.jsx";
 
-const serial_labels = {
-    rig_pathname: "Serial port",
-    pathname: "Serial port",
-    device: "Serial port",
-    serial_speed: "Baud rate",
-    baud: "Baud rate",
-    data_bits: "Data bits",
-    stop_bits: "Stop bits",
-    parity: "Parity",
-    serial_handshake: "Handshake",
-    rts: "Force Control RTS",
-    dtr: "Force Control DTR",
-};
-
-const serial_option_values = {
-    serial_speed: ["1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200"],
-    baud: ["1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200"],
-    data_bits: ["5", "6", "7", "8"],
-    stop_bits: ["1", "2"],
-};
+const { connection_kind_by_port_type, pathname_tokens, serial_labels, serial_option_values } =
+    hamlib_config_policy;
 
 const DEFAULT_HAMLIB_MODEL_ID = "1";
 const DEFAULT_UNIX_SERIAL_PORT = "/dev/ttyUSB0";
@@ -50,8 +33,8 @@ function default_serial_port(ports) {
 }
 
 function default_descriptor_value(descriptor, serial_ports, port_type = "serial") {
-    if (["rig_pathname", "pathname", "device"].includes(descriptor.token)) {
-        if (port_type === "network" || port_type === "udp_network") {
+    if (pathname_tokens.includes(descriptor.token)) {
+        if (connection_kind_by_port_type[port_type] === "network") {
             return `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_HAMLIB_NETWORK_PORT}`;
         }
         return default_serial_port(serial_ports);
@@ -92,7 +75,7 @@ function normalized_descriptor_value(descriptor, value, serial_ports, port_type 
         const options = descriptor.options.map(String);
         return options.includes(String(value)) ? String(value) : default_value;
     }
-    if (["rig_pathname", "pathname", "device"].includes(descriptor.token)) {
+    if (pathname_tokens.includes(descriptor.token)) {
         return value && value !== "/dev/rig" ? String(value) : default_value;
     }
     return value == null || value === "" ? default_value : String(value);
@@ -168,8 +151,8 @@ function normalize_configuration(configuration) {
 
 function materialized_hamlib(rig, descriptors, serial_ports, port_type) {
     const token_values = { ...rig.hamlib.token_values };
-    if (port_type === "none" || port_type === "usb") {
-        for (const token of ["rig_pathname", "pathname", "device"]) {
+    if (connection_kind_by_port_type[port_type] === "none") {
+        for (const token of pathname_tokens) {
             delete token_values[token];
         }
     }
@@ -177,8 +160,8 @@ function materialized_hamlib(rig, descriptors, serial_ports, port_type) {
         descriptor =>
             Object.hasOwn(serial_labels, descriptor.token) &&
             !(
-                (port_type === "none" || port_type === "usb") &&
-                ["rig_pathname", "pathname", "device"].includes(descriptor.token)
+                connection_kind_by_port_type[port_type] === "none" &&
+                pathname_tokens.includes(descriptor.token)
             ),
     )) {
         token_values[descriptor.token] = normalized_descriptor_value(
@@ -415,6 +398,7 @@ function CatControl({
         option => option.value === selected_configuration?.hamlib?.model_id,
     );
     const selected_port_type = selected_model?.port_type || "serial";
+    const selected_connection_kind = connection_kind_by_port_type[selected_port_type];
     const logger_port_valid =
         temp_settings.highlight_port >= 1024 && temp_settings.highlight_port <= 65535;
 
@@ -638,13 +622,11 @@ function CatControl({
                                 />
                             </label>
                             <h5 className="border-t pt-3 font-semibold">
-                                {selected_port_type === "network" ||
-                                selected_port_type === "udp_network"
+                                {selected_connection_kind === "network"
                                     ? "Network connection"
                                     : "Serial connection"}
                             </h5>
-                            {selected_port_type === "network" ||
-                            selected_port_type === "udp_network" ? (
+                            {selected_connection_kind === "network" ? (
                                 <div className="grid gap-3 min-[720px]:grid-cols-2">
                                     <label className="flex flex-col gap-1" htmlFor="hamlib-host">
                                         <span>Host</span>
@@ -711,7 +693,7 @@ function CatControl({
                                         />
                                     </label>
                                 </div>
-                            ) : selected_port_type === "serial" ? (
+                            ) : selected_connection_kind === "serial" ? (
                                 <div className="grid gap-3 min-[720px]:grid-cols-2">
                                     {serial_descriptors(
                                         hamlib_model_details[

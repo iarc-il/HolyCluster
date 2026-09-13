@@ -1,0 +1,29 @@
+{
+    "connection_kind_by_port_type": {
+        "none": "none",
+        "usb": "none",
+        "serial": "serial",
+        "network": "network",
+        "udp_network": "network"
+    },
+    "pathname_tokens": ["rig_pathname", "pathname", "device"],
+    "serial_labels": {
+        "rig_pathname": "Serial port",
+        "pathname": "Serial port",
+        "device": "Serial port",
+        "serial_speed": "Baud rate",
+        "baud": "Baud rate",
+        "data_bits": "Data bits",
+        "stop_bits": "Stop bits",
+        "parity": "Parity",
+        "serial_handshake": "Handshake",
+        "rts": "Force Control RTS",
+        "dtr": "Force Control DTR"
+    },
+    "serial_option_values": {
+        "serial_speed": ["1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200"],
+        "baud": ["1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200"],
+        "data_bits": ["5", "6", "7", "8"],
+        "stop_bits": ["1", "2"]
+    }
+}
