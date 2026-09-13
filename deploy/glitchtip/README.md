@@ -1,15 +1,15 @@
 # GlitchTip Deployment
 
 This is the independent GlitchTip Compose stack for the HolyCluster
-development server. It serves the GlitchTip application under
-`/errors/` through the existing HolyCluster nginx container.
+development server. It serves the GlitchTip application at
+`https://errors.iarc.org` through the existing HolyCluster nginx container.
 
 ## Prerequisites
 
 - Docker Compose
 - The external Docker network `holycluster-proxy`
 - nginx connected to `holycluster-proxy`
-- The nginx `/errors/` proxy route
+- The nginx `errors.iarc.org` proxy host
 
 The network and nginx changes are intentionally separate from this stack. Do
 not start this Compose project until nginx is connected to the proxy network.
@@ -47,17 +47,16 @@ docker compose -p glitchtip logs --tail=100 glitchtip-web
 The web service has no published host port. It is reachable only through the
 shared Docker proxy network.
 
-`GLITCHTIP_DOMAIN` identifies the host, while `GLITCHTIP_URL` identifies the
-full public URL including `/errors`. The latter is required so generated DSNs
-and links include the deployment prefix.
+Set `GLITCHTIP_DOMAIN` and `GLITCHTIP_URL` to `https://errors.iarc.org`.
+Leave `BASE_PATH` empty so generated DSNs and links use the root URL.
 
 ## Bootstrap
 
-Open `https://holycluster-dev.iarc.org/errors/` and create the initial
+Open `https://errors.iarc.org/` and create the initial
 administrator account. Disable user registration after the account and team
 are created.
 
-Create the six HolyCluster projects and record their generated DSNs separately.
+Create the three HolyCluster projects and record their generated DSNs separately.
 
 ## Upgrades
 
