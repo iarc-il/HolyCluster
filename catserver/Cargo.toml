@@ -49,7 +49,8 @@ gtk = "0.18.2"
 ico = "0.4.0"
 
 [build-dependencies]
-winresource = "0.1.20"
+semver = "1.0.26"
+winresource = { version = "0.1.31", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1.44.2", features = ["macros"] }

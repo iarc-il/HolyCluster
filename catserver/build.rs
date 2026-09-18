@@ -1,6 +1,6 @@
 use {
     std::{env, fs, io, path::PathBuf, process::Command},
-    winresource::WindowsResource,
+    winresource::{VersionInfo, WindowsResource},
 };
 
 fn main() -> io::Result<()> {
@@ -13,10 +13,7 @@ fn main() -> io::Result<()> {
 
     if env::var_os("CARGO_CFG_WINDOWS").is_some() {
         println!("cargo:rerun-if-changed=wix/icon.ico");
-        let resource = write_windows_resource(&version)?;
-        WindowsResource::new()
-            .set_resource_file(resource.to_str().unwrap())
-            .compile()?;
+        compile_windows_resource(&version)?;
     }
 
     let sentry_environment =
@@ -95,58 +92,34 @@ fn validate_version(version: &str) {
     }
 }
 
-fn write_windows_resource(version: &str) -> io::Result<PathBuf> {
+fn compile_windows_resource(version: &str) -> io::Result<()> {
     let release = version
         .strip_prefix("catserver-v")
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid release version"))?;
     let mut release_parts = release.split('-');
-    let base = release_parts.next().unwrap();
+    let base = semver::Version::parse(release_parts.next().unwrap())
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
     let commit_count = release_parts
         .next()
-        .map(str::parse::<u16>)
+        .map(str::parse::<u64>)
         .transpose()
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?
         .unwrap_or(0);
-    let numbers = base
-        .split('.')
-        .map(str::parse::<u16>)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-    let [major, minor, patch] = numbers.as_slice() else {
+    if [base.major, base.minor, base.patch, commit_count]
+        .into_iter()
+        .any(|part| part > u16::MAX.into())
+    {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "release version must contain three numbers",
+            "release version exceeds Windows version fields",
         ));
-    };
-    let contents = format!(
-        r#"#pragma code_page(65001)
-1 VERSIONINFO
-FILETYPE 0x1
-FILESUBTYPE 0x0
-FILEFLAGSMASK 0x3f
-FILEFLAGS 0x0
-FILEOS 0x40004
-FILEVERSION {major}, {minor}, {patch}, {commit_count}
-PRODUCTVERSION {major}, {minor}, {patch}, {commit_count}
-{{
-BLOCK "StringFileInfo"
-{{
-BLOCK "000004b0"
-{{
-VALUE "FileDescription", "catserver"
-VALUE "FileVersion", "{release}"
-VALUE "ProductName", "catserver"
-VALUE "ProductVersion", "{release}"
-}}
-}}
-BLOCK "VarFileInfo" {{
-VALUE "Translation", 0x0, 0x04b0
-}}
-}}
-1 ICON "wix/icon.ico"
-"#
-    );
-    let path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("resource.rc");
-    fs::write(&path, contents)?;
-    Ok(path)
+    }
+    let numeric_version = base.major << 48 | base.minor << 32 | base.patch << 16 | commit_count;
+    WindowsResource::new()
+        .set_icon("wix/icon.ico")
+        .set("FileVersion", release)
+        .set("ProductVersion", release)
+        .set_version_info(VersionInfo::FILEVERSION, numeric_version)
+        .set_version_info(VersionInfo::PRODUCTVERSION, numeric_version)
+        .compile()
 }
