@@ -7,12 +7,13 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 
+import asyncpg
 import fastapi
 import httpx
 import redis.asyncio
 from fastapi import HTTPException, Query, websockets
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from shared.cty import ensure_cty_available
@@ -22,6 +23,7 @@ from shared.metrics import push_exception_event, set_timestamp, set_value
 from shared.telemetry import capture_exception, initialize_sentry
 from sqlalchemy import desc, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
@@ -1206,8 +1208,12 @@ async def spot_history(start_time: int, end_time: int):
 
 @app.get("/health")
 async def health():
-    async with async_session() as session:
-        await session.execute(select(HolySpot).limit(1))
+    try:
+        async with async_session() as session:
+            await session.execute(select(HolySpot).limit(1))
+    except (SQLAlchemyError, asyncpg.PostgresError, OSError, TimeoutError) as exc:
+        logger.warning("Database health check failed: {}", exc)
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "database": "unavailable"})
     return {"status": "ok"}
 
 
