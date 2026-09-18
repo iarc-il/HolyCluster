@@ -6,27 +6,14 @@ use {
 fn main() -> io::Result<()> {
     println!("cargo:rerun-if-changed=sentry_dsn.txt");
     println!("cargo:rerun-if-env-changed=CATSERVER_SENTRY_ENVIRONMENT");
+    println!("cargo:rerun-if-env-changed=CATSERVER_VERSION");
 
-    let output = Command::new("git")
-        .args(["describe", "--match", "catserver-v*"])
-        .output()
-        .unwrap();
-    if output.stdout.is_empty() {
-        panic!(
-            "No matching git version tag found:\n{}",
-            String::from_utf8(output.stderr).unwrap()
-        );
-    }
-    let version = String::from_utf8(output.stdout).unwrap();
-    let version = version.trim();
-    if !version.starts_with("catserver-v") {
-        panic!("Invalid catserver release: {version}");
-    }
+    let version = release_version();
     println!("cargo:rustc-env=VERSION={version}");
 
     if env::var_os("CARGO_CFG_WINDOWS").is_some() {
         println!("cargo:rerun-if-changed=wix/icon.ico");
-        let resource = write_windows_resource(version)?;
+        let resource = write_windows_resource(&version)?;
         WindowsResource::new()
             .set_resource_file(resource.to_str().unwrap())
             .compile()?;
@@ -50,6 +37,62 @@ fn main() -> io::Result<()> {
     println!("cargo:rustc-env=CATSERVER_SENTRY_DSN={sentry_dsn}");
 
     Ok(())
+}
+
+fn release_version() -> String {
+    if let Ok(version) = env::var("CATSERVER_VERSION") {
+        validate_version(&version);
+        return version;
+    }
+    for path in ["HEAD", "packed-refs", "refs/tags"] {
+        let output = Command::new("git")
+            .args(["rev-parse", "--git-path", path])
+            .output()
+            .unwrap();
+        if output.status.success() {
+            println!(
+                "cargo:rerun-if-changed={}",
+                String::from_utf8(output.stdout).unwrap().trim()
+            );
+        }
+    }
+    let symbolic_ref = Command::new("git")
+        .args(["symbolic-ref", "-q", "HEAD"])
+        .output()
+        .unwrap();
+    if symbolic_ref.status.success() {
+        let reference = String::from_utf8(symbolic_ref.stdout).unwrap();
+        let output = Command::new("git")
+            .args(["rev-parse", "--git-path", reference.trim()])
+            .output()
+            .unwrap();
+        if output.status.success() {
+            println!(
+                "cargo:rerun-if-changed={}",
+                String::from_utf8(output.stdout).unwrap().trim()
+            );
+        }
+    }
+    let output = Command::new("git")
+        .args(["describe", "--match", "catserver-v*"])
+        .output()
+        .unwrap();
+    if !output.status.success() || output.stdout.is_empty() {
+        panic!(
+            "No matching git version tag found:\n{}",
+            String::from_utf8(output.stderr).unwrap()
+        );
+    }
+    let version = String::from_utf8(output.stdout).unwrap();
+    let version = version.trim().to_owned();
+    validate_version(&version);
+    version
+}
+
+fn validate_version(version: &str) {
+    if !version.starts_with("catserver-v") {
+        panic!("Invalid catserver release: {version}");
+    }
 }
 
 fn write_windows_resource(version: &str) -> io::Result<PathBuf> {

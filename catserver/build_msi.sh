@@ -12,7 +12,7 @@ OUTPUT_PATH=$BUILD_DIR/HolyCluster.msi
 DEFAULT_SHORTCUT_ARGUMENTS=${DEFAULT_SHORTCUT_ARGUMENTS:-}
 CI_IMAGE=${CATSERVER_CI_IMAGE:-ghcr.io/iarc-il/catserver-ci@sha256:16f279ff2e1619aff977936903f33ed6ebcef15e98a741a1744a3b18e2baa5f3}
 
-GIT_TAG=$(git describe --match 'catserver-v*')
+GIT_TAG=${CATSERVER_VERSION:-$(git describe --match 'catserver-v*')}
 if [[ $GIT_TAG =~ ^catserver-v([0-9]+)\.([0-9]+)\.[0-9]+(-[0-9]+-g[0-9a-f]+)?$ ]]; then
     MAJOR_VERSION=${BASH_REMATCH[1]}
     MINOR_VERSION=${BASH_REMATCH[2]}
@@ -104,6 +104,9 @@ main() {
         repository=$(git rev-parse --show-toplevel)
         if [[ -v SOURCE_DATE_EPOCH ]]; then
             docker_environment+=(-e "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH")
+        fi
+        if [[ -v CATSERVER_VERSION ]]; then
+            docker_environment+=(-e "CATSERVER_VERSION=$CATSERVER_VERSION")
         fi
         docker run \
             --mount "type=bind,src=$repository,dst=/work" \

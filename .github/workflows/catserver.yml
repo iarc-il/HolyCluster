@@ -222,8 +222,10 @@ jobs:
           git config --system --add safe.directory "$GITHUB_WORKSPACE"
           git fetch --tags --force
 
-      - name: Set reproducible build timestamp
-        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct HEAD)" >> "$GITHUB_ENV"
+      - name: Set reproducible build metadata
+        run: |
+          echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct HEAD)" >> "$GITHUB_ENV"
+          echo "CATSERVER_VERSION=$(git describe --match 'catserver-v*')" >> "$GITHUB_ENV"
 
       - name: Build static catserver
         working-directory: catserver
