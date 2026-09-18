@@ -229,7 +229,7 @@ jobs:
 
       - name: Build static catserver
         working-directory: catserver
-        run: cargo build --workspace --target $TARGET --release --locked
+        run: ./build_windows.sh
 
       - name: Reject non-system DLL imports
         working-directory: catserver
@@ -246,12 +246,11 @@ jobs:
         working-directory: catserver
         run: chown -R wix:wix target
 
-      - name: Build reproducible installer
+      - name: Build installer and verify deterministic packaging
         working-directory: catserver
         run: |
           su wix -c "./build_msi.sh in-docker --default-shortcut-arguments '${DEFAULT_SHORTCUT_ARGUMENTS}'"
           cp "target/$TARGET/release/HolyCluster.msi" /tmp/HolyCluster.first.msi
-          sleep 2
           su wix -c "./build_msi.sh in-docker --default-shortcut-arguments '${DEFAULT_SHORTCUT_ARGUMENTS}'"
           cmp /tmp/HolyCluster.first.msi "target/$TARGET/release/HolyCluster.msi"
           sha256sum "target/$TARGET/release/HolyCluster.msi"
