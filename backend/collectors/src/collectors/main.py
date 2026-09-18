@@ -168,7 +168,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
     logger.info("Spot processor started")
 
     valkey_client = get_valkey_client()
-    engine = create_async_engine(settings.db_url, pool_recycle=3600)
+    engine = create_async_engine(settings.db_url, pool_pre_ping=True, pool_recycle=3600)
 
     try:
         while True:

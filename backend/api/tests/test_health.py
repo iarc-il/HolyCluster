@@ -1,5 +1,7 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
+
+from sqlalchemy.exc import SQLAlchemyError
 
 from api.main import health
 
@@ -25,3 +27,12 @@ class HealthTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await health(), {"status": "ok"})
 
         self.assertIn("holy_spots2", str(session.statement))
+
+    async def test_health_returns_service_unavailable_when_database_is_down(self):
+        session = FakeSession()
+        session.execute = AsyncMock(side_effect=SQLAlchemyError("database unavailable"))
+        with patch("api.main.async_session", new=lambda: session):
+            response = await health()
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.body, b'{"status":"unhealthy","database":"unavailable"}')
