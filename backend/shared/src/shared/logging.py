@@ -14,7 +14,7 @@ class LogFilePolicy:
 
 
 DEFAULT_LOG_FILE_POLICY = LogFilePolicy()
-_ROTATED_LOG_PATTERN = re.compile(r"\.\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.log(?:\.[^.]+)?$")
+_ROTATED_LOG_PATTERN = re.compile(r"\.\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:_\d+)?(?:\.[^.]+)*$")
 _COMPRESSED_SUFFIXES = (".bz2", ".gz", ".lzma", ".xz", ".zip", ".tar.gz")
 
 

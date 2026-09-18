@@ -5,6 +5,8 @@ import sys
 
 from loguru import logger
 
+from shared.logging import prune_rotated_logs
+
 from ..logging_setup import open_log_file
 from ..settings import settings
 from .client import telnet_and_collect
@@ -39,7 +41,7 @@ def run_concurrent_telnet_connections(output_queue: asyncio.Queue):
     logger.debug(f"{script_dir=}")
     logger.debug(f"{csv_path=}")
 
-    global_log_filename = "all_clusters"
+    global_log_filename = "all_clusters.log"
     log_dir = os.path.join(settings.log_dir, "collectors")
     logger.debug(f"{global_log_filename=}")
     logger.debug(f"{log_dir=}")
@@ -50,9 +52,13 @@ def run_concurrent_telnet_connections(output_queue: asyncio.Queue):
     logger.debug(f"{telnet_log_dir=}")
     logger.debug(f"{global_log_file=}")
 
-    open_log_file(log_filename_prefix=global_log_file)
-
     servers = get_telnet_clusters_list(csv_path)
+    active_log_paths = [global_log_file]
+    active_log_paths.extend(
+        os.path.join(telnet_log_dir, server["hostname"], "cluster.log") for server in servers if server.get("hostname")
+    )
+    prune_rotated_logs(telnet_log_dir, max_bytes=settings.log_max_bytes, active_paths=active_log_paths)
+    open_log_file(log_filename_prefix=global_log_file)
     tasks = []
     for server in servers:
         host = server.get("hostname")

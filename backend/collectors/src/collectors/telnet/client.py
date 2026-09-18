@@ -77,7 +77,7 @@ async def telnet_and_collect(
     INITIAL_BACKOFF = 60
     MAX_BACKOFF = 86400  # 1 day
 
-    log_filename_prefix = os.path.join(telnet_log_dir, host)
+    log_filename_prefix = os.path.join(telnet_log_dir, "cluster")
     task_logger = open_task_log_file(log_filename_prefix=log_filename_prefix)
 
     task_logger.info(f"Start of telnet_and_collect for {host}")

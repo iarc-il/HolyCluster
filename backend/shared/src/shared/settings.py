@@ -87,6 +87,7 @@ class LogSettings(BaseSettings):
     )
 
     log_dir: str = Field(default="/var/log/holy", description="Root directory for all log files")
+    log_max_bytes: int = Field(default=512 * 1024 * 1024, description="Maximum size of each service's log tree")
 
 
 class SentrySettings(BaseSettings):

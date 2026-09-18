@@ -1,10 +1,12 @@
 import asyncio
 import re
+from pathlib import Path
 
 import redis.asyncio
 from loguru import logger
 
 from api.settings import settings
+from shared.logging import add_bounded_file_sink, prune_rotated_logs
 from shared.metrics import push_exception_event
 from shared.telemetry import capture_exception
 
@@ -18,7 +20,9 @@ SUBMIT_MAX_ATTEMPTS = 5
 INITIAL_RETRY_BACKOFF_SECONDS = 0.5
 MAX_RETRY_BACKOFF_SECONDS = 4
 
-logger.add(settings.spots_log_path, level="DEBUG")
+spots_log_path = Path(settings.spots_log_path)
+prune_rotated_logs(spots_log_path.parent, max_bytes=settings.log_max_bytes, active_paths=[spots_log_path])
+add_bounded_file_sink(spots_log_path, level="INFO")
 
 
 class UserInputError(Exception):
