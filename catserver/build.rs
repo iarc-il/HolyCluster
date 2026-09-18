@@ -1,10 +1,10 @@
 use {
-    std::{env, io, process::Command},
+    std::{env, fs, io, path::PathBuf, process::Command},
     winresource::WindowsResource,
 };
 
 fn main() -> io::Result<()> {
-    println!("cargo:rerun-if-env-changed=CATSERVER_SENTRY_DSN");
+    println!("cargo:rerun-if-changed=sentry_dsn.txt");
     println!("cargo:rerun-if-env-changed=CATSERVER_SENTRY_ENVIRONMENT");
     if env::var_os("CARGO_CFG_WINDOWS").is_some() {
         WindowsResource::new().set_icon("wix/icon.ico").compile()?;
@@ -32,10 +32,16 @@ fn main() -> io::Result<()> {
         panic!("Invalid Sentry environment: {sentry_environment}");
     }
     println!("cargo:rustc-env=CATSERVER_SENTRY_ENVIRONMENT={sentry_environment}");
-    println!(
-        "cargo:rustc-env=CATSERVER_SENTRY_DSN={}",
-        env::var("CATSERVER_SENTRY_DSN").unwrap_or_default()
-    );
+    let sentry_dsn_path =
+        PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("sentry_dsn.txt");
+    let sentry_dsn = fs::read_to_string(sentry_dsn_path)?.trim().to_owned();
+    if sentry_dsn.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "sentry_dsn.txt is empty",
+        ));
+    }
+    println!("cargo:rustc-env=CATSERVER_SENTRY_DSN={sentry_dsn}");
 
     Ok(())
 }
