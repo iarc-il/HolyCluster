@@ -3,7 +3,7 @@ from pydantic import ValidationError
 
 from shared.settings import SentrySettings
 from shared import telemetry
-from shared.telemetry import REDACTED, capture_exception, initialize_sentry, scrub_event
+from shared.telemetry import capture_exception, initialize_sentry
 
 
 def test_initialize_sentry_is_disabled_without_dsn(monkeypatch):
@@ -49,41 +49,7 @@ def test_initialize_sentry_sets_service_and_release_metadata(monkeypatch):
     assert captured["environment"] == "dev"
     assert captured["release"] == "v1"
     assert captured["tags"] == {"service": "collector"}
-
-
-def test_scrub_event_removes_sensitive_values_without_mutating_the_event():
-    event = {
-        "request": {"data": "raw spot", "query_string": "callsign=K1ABC"},
-        "breadcrumbs": [{"message": "radio configuration"}],
-        "contexts": {"radio": {"frequency": "14074"}},
-        "extra": {
-            "raw_spot": {"dx_callsign": "K1ABC"},
-            "nested": [{"message": "Failed for K1ABC at FN31"}],
-            "url": "https://user:password@example.invalid/K1ABC?token=secret",
-        },
-        "logentry": {"message": "Failed for K1ABC at FN31"},
-        "exception": {
-            "values": [
-                {"value": "K1ABC at FN31", "stacktrace": {"frames": [{"vars": {"locator": "FN31"}}]}},
-                {"value": "Caused by K2XYZ"},
-            ]
-        },
-    }
-
-    scrubbed = scrub_event(event, {})
-
-    assert event["request"]["query_string"] == "callsign=K1ABC"
-    assert event["exception"]["values"][0]["stacktrace"]["frames"][0]["vars"] == {"locator": "FN31"}
-    assert "request" not in scrubbed
-    assert "breadcrumbs" not in scrubbed
-    assert "contexts" not in scrubbed
-    assert scrubbed["extra"]["raw_spot"] == REDACTED
-    assert scrubbed["extra"]["nested"][0]["message"] == f"Failed for {REDACTED} at {REDACTED}"
-    assert scrubbed["extra"]["url"] == f"https://example.invalid/{REDACTED}"
-    assert scrubbed["logentry"]["message"] == f"Failed for {REDACTED} at {REDACTED}"
-    assert scrubbed["exception"]["values"][0]["value"] == REDACTED
-    assert scrubbed["exception"]["values"][1]["value"] == REDACTED
-    assert "vars" not in scrubbed["exception"]["values"][0]["stacktrace"]["frames"][0]
+    assert "before_send" not in captured
 
 
 def test_capture_exception_rate_limits_transient_operations(monkeypatch):
