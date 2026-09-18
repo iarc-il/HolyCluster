@@ -23,6 +23,10 @@ env:
   # Development builds favor CI speed; production tags keep maximum optimization.
   CARGO_PROFILE_RELEASE_LTO: ${{ github.ref_type == 'tag' && 'true' || 'false' }}
   CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ github.ref_type == 'tag' && '1' || '16' }}
+  CARGO_INCREMENTAL: "0"
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  ZERO_AR_DATE: "1"
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: sccache
 
@@ -35,7 +39,7 @@ jobs:
     name: Test Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci:latest
+      image: ghcr.io/iarc-il/catserver-ci@sha256:16f279ff2e1619aff977936903f33ed6ebcef15e98a741a1744a3b18e2baa5f3
       options: --user root
     steps:
       - uses: actions/checkout@v4
@@ -87,7 +91,7 @@ jobs:
     name: Lint Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci:latest
+      image: ghcr.io/iarc-il/catserver-ci@sha256:16f279ff2e1619aff977936903f33ed6ebcef15e98a741a1744a3b18e2baa5f3
       options: --user root
     steps:
       - uses: actions/checkout@v4
@@ -129,7 +133,7 @@ jobs:
     name: Build Linux Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci:latest
+      image: ghcr.io/iarc-il/catserver-ci@sha256:16f279ff2e1619aff977936903f33ed6ebcef15e98a741a1744a3b18e2baa5f3
       options: --user root
     steps:
       - uses: actions/checkout@v4
@@ -184,7 +188,7 @@ jobs:
     name: Build Windows Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci:latest
+      image: ghcr.io/iarc-il/catserver-ci@sha256:16f279ff2e1619aff977936903f33ed6ebcef15e98a741a1744a3b18e2baa5f3
       options: --user root
     steps:
       - uses: actions/checkout@v4
@@ -218,9 +222,12 @@ jobs:
           git config --system --add safe.directory "$GITHUB_WORKSPACE"
           git fetch --tags --force
 
+      - name: Set reproducible build timestamp
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct HEAD)" >> "$GITHUB_ENV"
+
       - name: Build static catserver
         working-directory: catserver
-        run: cargo build --workspace --target $TARGET --release
+        run: cargo build --workspace --target $TARGET --release --locked
 
       - name: Reject non-system DLL imports
         working-directory: catserver
@@ -234,14 +241,18 @@ jobs:
           done
 
       - name: Change build artifacts ownership
-        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
         working-directory: catserver
         run: chown -R wix:wix target
 
-      - name: Build installer
-        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+      - name: Build reproducible installer
         working-directory: catserver
-        run: su wix -c "./build_msi.sh in-docker --default-shortcut-arguments '${DEFAULT_SHORTCUT_ARGUMENTS}'"
+        run: |
+          su wix -c "./build_msi.sh in-docker --default-shortcut-arguments '${DEFAULT_SHORTCUT_ARGUMENTS}'"
+          cp "target/$TARGET/release/HolyCluster.msi" /tmp/HolyCluster.first.msi
+          sleep 2
+          su wix -c "./build_msi.sh in-docker --default-shortcut-arguments '${DEFAULT_SHORTCUT_ARGUMENTS}'"
+          cmp /tmp/HolyCluster.first.msi "target/$TARGET/release/HolyCluster.msi"
+          sha256sum "target/$TARGET/release/HolyCluster.msi"
         env:
           DEFAULT_SHORTCUT_ARGUMENTS: ${{ github.ref == 'refs/heads/dev' && '--dev-server' || '' }}
 
