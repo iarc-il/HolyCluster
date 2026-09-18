@@ -34,7 +34,7 @@ class PropagationMeasurement(SQLModel, table=True):
 
 class HolySpot(SQLModel, table=True):
     __tablename__ = "holy_spots2"
-    __table_args__ = (UniqueConstraint("timestamp", "spotter_callsign", "dx_callsign", name="uc_holy_spots2"),)
+    __table_args__ = (UniqueConstraint("time", "spotter_callsign", "dx_callsign", name="uc_holy_spots2"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     cluster: str
