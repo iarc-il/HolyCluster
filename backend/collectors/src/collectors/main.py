@@ -11,6 +11,7 @@ from shared.geo import GeoException, get_geo_details
 from shared.metrics import push_drop_event, push_exception_event, set_timestamp
 from shared.qrz import QrzSessionManager
 from shared.telemetry import capture_exception, initialize_sentry
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from collectors.db.valkey_config import get_valkey_client
@@ -155,8 +156,11 @@ async def add_spot_to_postgres(engine, spot: dict):
         is_dxpedition=spot["is_dxpedition"],
     )
 
+    statement = postgres_insert(HolySpot).values(record.model_dump(exclude={"id"}))
+    statement = statement.on_conflict_do_nothing(constraint="uc_holy_spots2")
+
     async with AsyncSession(engine) as session:
-        session.add(record)
+        await session.execute(statement)
         await session.commit()
 
 
