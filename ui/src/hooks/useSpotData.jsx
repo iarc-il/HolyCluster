@@ -47,7 +47,6 @@ export const SpotDataProvider = ({
     const new_spot_ids = is_history_mode ? new Set() : ws_new_spot_ids;
     const {
         spots,
-        spots_with_alerts,
         filter_missing_flags,
         set_filter_missing_flags,
         spots_per_band_count,
@@ -68,7 +67,7 @@ export const SpotDataProvider = ({
             settings.alert_sound_enabled &&
             callsign_filters.is_alert_filters_active
         ) {
-            const alerted_count = spots_with_alerts.filter(
+            const alerted_count = spots.filter(
                 spot => new_spot_ids.has(spot.id) && spot.is_alerted,
             ).length;
 
@@ -78,7 +77,7 @@ export const SpotDataProvider = ({
         }
     }, [
         new_spot_ids,
-        spots_with_alerts,
+        spots,
         settings.alert_sound_enabled,
         callsign_filters.is_alert_filters_active,
     ]);
