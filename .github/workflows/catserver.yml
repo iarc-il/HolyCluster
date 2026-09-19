@@ -164,9 +164,14 @@ jobs:
           git config --system --add safe.directory "$GITHUB_WORKSPACE"
           git fetch --tags --force
 
+      - name: Set reproducible build metadata
+        run: |
+          echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct HEAD)" >> "$GITHUB_ENV"
+          echo "CATSERVER_VERSION=$(git describe --match 'catserver-v*')" >> "$GITHUB_ENV"
+
       - name: Build Linux release binary
         working-directory: catserver
-        run: cargo build --workspace --target x86_64-unknown-linux-gnu --release
+        run: cargo build --workspace --target x86_64-unknown-linux-gnu --release --locked
 
       - name: Build Linux AppImage
         working-directory: catserver
