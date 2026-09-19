@@ -710,11 +710,21 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
     try:
         while True:
             try:
-                message = await websocket.receive_json()
+                raw_message = await websocket.receive_text()
             except websockets.WebSocketDisconnect:
                 break
 
-            if "version" in message:
+            try:
+                message = json.loads(raw_message)
+            except json.JSONDecodeError:
+                await send_ws_json(
+                    websocket,
+                    send_lock,
+                    build_ws_error(WsErrorType.MALFORMED_MESSAGE, "WebSocket message must be valid JSON"),
+                )
+                continue
+
+            if isinstance(message, dict) and "version" in message:
                 await dispatch_ws_message(websocket, send_lock, missing_jobs, message)
                 continue
 
