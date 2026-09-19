@@ -15,18 +15,15 @@ export default function Download() {
     const alternate_format = alternate_platform === "linux" ? "AppImage" : "MSI";
 
     useEffect(() => {
-        Promise.all(
-            ["linux", "windows"].map(async target => {
-                const response = await fetch(`/catserver/releases/${target}/x86_64`);
-                if (!response.ok) return null;
-
+        fetch("/catserver/releases/windows/x86_64")
+            .then(async response => {
+                if (!response.ok) return {};
                 const location = (await response.json())?.artifact?.location;
                 return typeof location === "string" && location.startsWith("/catserver/artifacts/")
-                    ? [target, location]
-                    : null;
-            }),
-        )
-            .then(results => set_downloads(Object.fromEntries(results.filter(Boolean))))
+                    ? { windows: location }
+                    : {};
+            })
+            .then(set_downloads)
             .catch(() => set_downloads({}));
     }, []);
 
@@ -43,7 +40,11 @@ export default function Download() {
                                 Add CAT control to Holy Cluster by installing the companion server
                                 on your computer.
                             </p>
-                            {downloads[current_platform] ? (
+                            {current_platform === "linux" ? (
+                                <span className="mt-6 inline-flex rounded-lg bg-gray-400 px-8 py-4 text-xl font-semibold text-white">
+                                    Linux download: Upcoming!
+                                </span>
+                            ) : downloads[current_platform] ? (
                                 <a
                                     className="mt-6 inline-flex rounded-lg bg-addons-primary px-8 py-4 text-xl font-semibold text-white shadow-lg transition-opacity hover:opacity-75"
                                     href={downloads[current_platform]}
@@ -58,16 +59,22 @@ export default function Download() {
                             <p className="mt-2 text-sm text-gray-600">
                                 {current_format} for 64-bit systems
                             </p>
-                            {downloads[alternate_platform] && (
+                            {alternate_platform === "linux" ? (
                                 <p className="mt-6 text-sm text-gray-600">
-                                    Need the {alternate_name} version?{" "}
-                                    <a
-                                        className="font-medium text-addons-primary underline underline-offset-2 hover:opacity-75"
-                                        href={downloads[alternate_platform]}
-                                    >
-                                        Download the {alternate_format}
-                                    </a>
+                                    Linux version: Upcoming!
                                 </p>
+                            ) : (
+                                downloads[alternate_platform] && (
+                                    <p className="mt-6 text-sm text-gray-600">
+                                        Need the {alternate_name} version?{" "}
+                                        <a
+                                            className="font-medium text-addons-primary underline underline-offset-2 hover:opacity-75"
+                                            href={downloads[alternate_platform]}
+                                        >
+                                            Download the {alternate_format}
+                                        </a>
+                                    </p>
+                                )
                             )}
                         </div>
                     </Card>
