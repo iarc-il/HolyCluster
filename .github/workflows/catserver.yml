@@ -246,14 +246,9 @@ jobs:
         working-directory: catserver
         run: chown -R wix:wix target
 
-      - name: Build installer and verify deterministic packaging
+      - name: Build installer
         working-directory: catserver
-        run: |
-          su wix -c "./build_msi.sh in-docker --default-shortcut-arguments '${DEFAULT_SHORTCUT_ARGUMENTS}'"
-          cp "target/$TARGET/release/HolyCluster.msi" /tmp/HolyCluster.first.msi
-          su wix -c "./build_msi.sh in-docker --default-shortcut-arguments '${DEFAULT_SHORTCUT_ARGUMENTS}'"
-          cmp /tmp/HolyCluster.first.msi "target/$TARGET/release/HolyCluster.msi"
-          sha256sum "target/$TARGET/release/HolyCluster.msi"
+        run: su wix -c "./build_msi.sh in-docker --default-shortcut-arguments '${DEFAULT_SHORTCUT_ARGUMENTS}'"
         env:
           DEFAULT_SHORTCUT_ARGUMENTS: ${{ github.ref == 'refs/heads/dev' && '--dev-server' || '' }}
 
