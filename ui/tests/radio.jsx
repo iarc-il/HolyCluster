@@ -141,7 +141,7 @@ describe("radio configuration", () => {
                 </RadioProvider>,
             );
         });
-        emit({ event: "status", status: "unavailable" });
+        emit({ event: "status", status: "disconnected" });
         expect(Consumer.radio.radio_capabilities).toBeNull();
         emit({ event: "capabilities", radio_configuration: true, backends: ["hamlib"] });
         expect(Consumer.radio.radio_capabilities).toBeNull();

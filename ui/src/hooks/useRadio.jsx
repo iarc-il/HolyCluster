@@ -88,7 +88,7 @@ export function RadioProvider({ children }) {
                 data.catserver_version != null &&
                 cat_identity_ref.current != null &&
                 data.catserver_version !== cat_identity_ref.current;
-            const is_connected = data.status !== "unavailable";
+            const is_connected = data.status === "connected";
 
             radio_connected_ref.current = is_connected;
             if (!is_connected || identity_changed) {
@@ -174,7 +174,7 @@ export function RadioProvider({ children }) {
     }
 
     function is_radio_available() {
-        return radio_ready && radio_status !== "unavailable";
+        return radio_ready && radio_status === "connected";
     }
 
     const local_version = parse_version(raw_local_version);
