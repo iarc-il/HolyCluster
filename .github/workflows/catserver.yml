@@ -39,7 +39,7 @@ jobs:
     name: Test Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci@sha256:16f279ff2e1619aff977936903f33ed6ebcef15e98a741a1744a3b18e2baa5f3
+      image: ghcr.io/iarc-il/catserver-ci@sha256:a87e8d84177c7ed991f38107ca64d7080bfda21386e99db6bafd82051fb331ef
       options: --user root
     steps:
       - uses: actions/checkout@v4
@@ -49,9 +49,6 @@ jobs:
 
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.11
-
-      - name: Install Linux build dependencies
-        run: apt-get update && apt-get install --yes libudev-dev
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -91,7 +88,7 @@ jobs:
     name: Lint Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci@sha256:16f279ff2e1619aff977936903f33ed6ebcef15e98a741a1744a3b18e2baa5f3
+      image: ghcr.io/iarc-il/catserver-ci@sha256:a87e8d84177c7ed991f38107ca64d7080bfda21386e99db6bafd82051fb331ef
       options: --user root
     steps:
       - uses: actions/checkout@v4
@@ -133,7 +130,7 @@ jobs:
     name: Build Linux Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci@sha256:16f279ff2e1619aff977936903f33ed6ebcef15e98a741a1744a3b18e2baa5f3
+      image: ghcr.io/iarc-il/catserver-ci@sha256:a87e8d84177c7ed991f38107ca64d7080bfda21386e99db6bafd82051fb331ef
       options: --user root
     steps:
       - uses: actions/checkout@v4
@@ -143,9 +140,6 @@ jobs:
 
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.11
-
-      - name: Install Linux build dependencies
-        run: apt-get update && apt-get install --yes libudev-dev
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -188,7 +182,7 @@ jobs:
     name: Build Windows Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci@sha256:16f279ff2e1619aff977936903f33ed6ebcef15e98a741a1744a3b18e2baa5f3
+      image: ghcr.io/iarc-il/catserver-ci@sha256:a87e8d84177c7ed991f38107ca64d7080bfda21386e99db6bafd82051fb331ef
       options: --user root
     steps:
       - uses: actions/checkout@v4
