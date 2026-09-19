@@ -112,7 +112,7 @@ test("plays back historical spots and propagation over the canonical WebSocket",
             }
 
             const value = is_next_range ? 71 : 17;
-            const timestamp = request.end_time - 900;
+            const timestamp = request.start_time + 1;
             websocket.send(
                 JSON.stringify({
                     version: 1,
