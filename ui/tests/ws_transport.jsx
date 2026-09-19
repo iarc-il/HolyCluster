@@ -49,7 +49,7 @@ describe("WebSocket transport", () => {
         const connection = websocket_mock.connection;
 
         expect(websocket_mock.useWebSocket.mock.calls[0][0]).toMatch(/\/ws$/);
-        expect(websocket_mock.useWebSocket).toHaveBeenCalledTimes(1);
+        expect(websocket_mock.useWebSocket.mock.calls[0][2]).toBe(true);
         connection.readyState = websocket_mock.ReadyState.OPEN;
         rerender(
             <WsProvider>
