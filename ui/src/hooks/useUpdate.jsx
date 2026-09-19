@@ -1,6 +1,14 @@
 import use_radio from "@/hooks/useRadio";
 import { NATIVE_UPDATER_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 
 const UpdateContext = createContext(null);
 
@@ -130,9 +138,11 @@ async function request_update(path) {
 }
 
 export function UpdateProvider({ children }) {
-    const { is_radio_available, local_version } = use_radio();
-    const enabled =
-        is_radio_available() && supports_cat_feature(local_version, NATIVE_UPDATER_MIN_VERSION);
+    const { local_version } = use_radio();
+    const enabled = supports_cat_feature(local_version, NATIVE_UPDATER_MIN_VERSION);
+    const enabled_ref = useRef(enabled);
+    const request_generation_ref = useRef(0);
+    enabled_ref.current = enabled;
     const [update, set_update] = useState({
         status: "loading",
         local_version: null,
@@ -143,22 +153,31 @@ export function UpdateProvider({ children }) {
     const refresh = useCallback(async () => {
         if (!enabled) return;
 
+        const generation = ++request_generation_ref.current;
         set_update(current => ({ ...current, status: "loading", error: null }));
         try {
             const response = await fetch("/api/update");
             if (!response.ok) throw new Error(`Update status failed (${response.status})`);
-            try {
-                set_update(normalize_update_status(await read_update_payload(response)));
-            } catch (error) {
-                set_update(current => ({ ...current, status: "malformed", error: error.message }));
+            const next = normalize_update_status(await read_update_payload(response));
+            if (enabled_ref.current && generation === request_generation_ref.current) {
+                set_update(next);
             }
         } catch (error) {
-            set_update(current => ({ ...current, status: "unavailable", error: error.message }));
+            if (!enabled_ref.current || generation !== request_generation_ref.current) return;
+            set_update(current => ({
+                ...current,
+                status:
+                    error.message === "Update response was not valid JSON"
+                        ? "malformed"
+                        : "unavailable",
+                error: error.message,
+            }));
         }
     }, [enabled]);
 
     useEffect(() => {
         if (!enabled) {
+            request_generation_ref.current += 1;
             set_update({
                 status: "loading",
                 local_version: null,
@@ -175,17 +194,23 @@ export function UpdateProvider({ children }) {
         async path => {
             if (!enabled) return null;
 
+            const generation = ++request_generation_ref.current;
+            const is_install = path.endsWith("/install");
             set_update(current => ({
                 ...current,
-                status: path === "/update/install" ? "installing" : "checking",
+                status: is_install ? "installing" : "checking",
                 error: null,
             }));
             try {
                 const next = await request_update(path);
-                set_update(next);
+                if (enabled_ref.current && generation === request_generation_ref.current) {
+                    set_update(next);
+                }
                 return next;
             } catch (error) {
-                if (path === "/update/install") {
+                if (!enabled_ref.current || generation !== request_generation_ref.current)
+                    return null;
+                if (is_install) {
                     set_update(current => ({ ...current, status: "installing", error: null }));
                     return null;
                 }

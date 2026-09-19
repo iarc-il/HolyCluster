@@ -47,13 +47,13 @@ function CatserverDownload({ size, update_available }) {
 }
 
 function UtilityButtons() {
-    const { status } = useUpdate();
+    const { enabled, status } = useUpdate();
 
     return (
         <div className="space-y-3" data-tour="utility-buttons">
             <CatserverDownload
                 size="36"
-                update_available={status === "available" || status === "deferred"}
+                update_available={enabled && (status === "available" || status === "deferred")}
             />
             <FeedbackButton size="36" />
             <About />
