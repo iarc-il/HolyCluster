@@ -1,6 +1,12 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const cat = vi.hoisted(() => ({ current: null }));
+
+vi.mock("@/hooks/useRadio", () => ({
+    default: () => cat.current,
+}));
 
 import UpdateControls, { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
 import {
@@ -8,6 +14,7 @@ import {
     compare_update_versions,
     normalize_update_status,
 } from "@/hooks/useUpdate.jsx";
+import { NATIVE_UPDATER_MIN_VERSION } from "@/utils/cat_features.js";
 
 vi.mock("@/hooks/useColors", () => ({
     useColors: () => ({ colors: { theme: { text: "#fff", modals: "#111", borders: "#333" } } }),
@@ -35,7 +42,30 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
+beforeEach(() => {
+    cat.current = {
+        local_version: [...NATIVE_UPDATER_MIN_VERSION],
+        is_radio_available: () => true,
+    };
+});
+
 describe("CAT Control updates", () => {
+    it("does not poll or render native controls without a CAT connection", async () => {
+        const fetch = vi.fn();
+        vi.stubGlobal("fetch", fetch);
+        cat.current = {
+            local_version: null,
+            is_radio_available: () => false,
+        };
+
+        render_updates();
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        expect(fetch).not.toHaveBeenCalled();
+        expect(screen.queryByRole("heading", { name: "CAT Control updates" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
+    });
+
     it("only treats a newer remote version as an update", () => {
         expect(compare_update_versions("1.2.0", "1.3.0")).toBeGreaterThan(0);
         expect(compare_update_versions("1.3.0", "1.3.0")).toBe(0);

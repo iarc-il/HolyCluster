@@ -3,8 +3,8 @@ import Modal from "@/components/ui/Modal.jsx";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
 
 export function UpdateConsentDialog() {
-    const { status, remote_version, defer, install } = useUpdate();
-    const is_available = status === "available";
+    const { enabled, status, remote_version, defer, install } = useUpdate();
+    const is_available = enabled && status === "available";
 
     return (
         <Modal
@@ -42,7 +42,10 @@ function message_for(status, error) {
 }
 
 export default function UpdateControls() {
-    const { status, local_version, remote_version, error, check, install, retry } = useUpdate();
+    const { enabled, status, local_version, remote_version, error, check, install, retry } =
+        useUpdate();
+    if (!enabled) return null;
+
     const message = message_for(status, error);
     const can_install = status === "available" || status === "deferred";
 

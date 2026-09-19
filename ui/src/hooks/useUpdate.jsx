@@ -1,3 +1,5 @@
+import use_radio from "@/hooks/useRadio";
+import { NATIVE_UPDATER_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 const UpdateContext = createContext(null);
@@ -128,6 +130,9 @@ async function request_update(path) {
 }
 
 export function UpdateProvider({ children }) {
+    const { is_radio_available, local_version } = use_radio();
+    const enabled =
+        is_radio_available() && supports_cat_feature(local_version, NATIVE_UPDATER_MIN_VERSION);
     const [update, set_update] = useState({
         status: "loading",
         local_version: null,
@@ -136,6 +141,8 @@ export function UpdateProvider({ children }) {
     });
 
     const refresh = useCallback(async () => {
+        if (!enabled) return;
+
         set_update(current => ({ ...current, status: "loading", error: null }));
         try {
             const response = await fetch("/api/update");
@@ -148,42 +155,58 @@ export function UpdateProvider({ children }) {
         } catch (error) {
             set_update(current => ({ ...current, status: "unavailable", error: error.message }));
         }
-    }, []);
+    }, [enabled]);
 
     useEffect(() => {
-        refresh();
-    }, [refresh]);
+        if (!enabled) {
+            set_update({
+                status: "loading",
+                local_version: null,
+                remote_version: null,
+                error: null,
+            });
+            return;
+        }
 
-    const action = useCallback(async path => {
-        set_update(current => ({
-            ...current,
-            status: path === "/update/install" ? "installing" : "checking",
-            error: null,
-        }));
-        try {
-            const next = await request_update(path);
-            set_update(next);
-            return next;
-        } catch (error) {
-            if (path === "/update/install") {
-                set_update(current => ({ ...current, status: "installing", error: null }));
+        refresh();
+    }, [enabled, refresh]);
+
+    const action = useCallback(
+        async path => {
+            if (!enabled) return null;
+
+            set_update(current => ({
+                ...current,
+                status: path === "/update/install" ? "installing" : "checking",
+                error: null,
+            }));
+            try {
+                const next = await request_update(path);
+                set_update(next);
+                return next;
+            } catch (error) {
+                if (path === "/update/install") {
+                    set_update(current => ({ ...current, status: "installing", error: null }));
+                    return null;
+                }
+                set_update(current => ({ ...current, status: "failed", error: error.message }));
                 return null;
             }
-            set_update(current => ({ ...current, status: "failed", error: error.message }));
-            return null;
-        }
-    }, []);
+        },
+        [enabled],
+    );
 
     const value = useMemo(
         () => ({
             ...update,
+            enabled,
             refresh,
             check: () => action("/api/update/check"),
             install: () => action("/api/update/install"),
             defer: () => action("/api/update/defer"),
             retry: () => action("/api/update/retry"),
         }),
-        [update, refresh, action],
+        [update, enabled, refresh, action],
     );
 
     return <UpdateContext.Provider value={value}>{children}</UpdateContext.Provider>;

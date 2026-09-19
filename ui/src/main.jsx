@@ -33,15 +33,15 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                                     <ColorsProvider>
                                         <FiltersProvider>
                                             <SettingsProvider>
-                                                <UpdateProvider>
-                                                    <RadioProvider>
+                                                <RadioProvider>
+                                                    <UpdateProvider>
                                                         <RotatorProvider>
                                                             <SpotInteractionProvider>
                                                                 <MainContainer />
                                                             </SpotInteractionProvider>
                                                         </RotatorProvider>
-                                                    </RadioProvider>
-                                                </UpdateProvider>
+                                                    </UpdateProvider>
+                                                </RadioProvider>
                                             </SettingsProvider>
                                         </FiltersProvider>
                                     </ColorsProvider>
