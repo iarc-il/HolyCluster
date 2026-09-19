@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from warnings import deprecated
 
 import asyncpg
 import fastapi
@@ -658,7 +659,49 @@ async def radio(websocket: fastapi.WebSocket):
     await websocket.close()
 
 
+async def dispatch_ws_message(websocket, send_lock, missing_jobs, message):
+    error = validate_ws_protocol_message(message)
+    if error is not None:
+        await send_ws_json(websocket, send_lock, error)
+        return
+
+    if message.get("type") == WsMessageType.SPOTS.value:
+        await send_ws_spots(websocket, message)
+        return
+
+    if message.get("type") == WsMessageType.SUBMIT.value:
+        await send_ws_submit(websocket, message)
+        return
+
+    if message.get("type") == WsMessageType.RADIO.value:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(WsMessageType.RADIO, event=WsRadioEvent.STATUS.value, status="unavailable"),
+        )
+        return
+
+    if message.get("type") == WsMessageType.MISSING.value:
+        await send_ws_missing(websocket, send_lock, missing_jobs, message)
+        return
+
+    if message.get("type") == WsMessageType.HISTORY.value:
+        await send_ws_history(websocket, send_lock, message)
+        return
+
+    await send_ws_json(
+        websocket,
+        send_lock,
+        build_ws_error(
+            WsErrorType.NOT_IMPLEMENTED,
+            "WebSocket protocol v1 routing is not implemented yet",
+            received_type=message.get("type"),
+        ),
+    )
+
+
 @app.websocket("/submit_spot")
+@deprecated("CAT <=1.2 compatibility; remove when the minimum supported CAT version exceeds 1.2", category=None)
 async def submit_spot_one_spot(websocket: fastapi.WebSocket):
     await websocket.accept()
     missing_jobs = {}
@@ -671,18 +714,15 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
             except websockets.WebSocketDisconnect:
                 break
 
-            if message.get("version") == WS_PROTOCOL_VERSION and message.get("type") == WsMessageType.MISSING.value:
-                error = validate_ws_protocol_message(message)
-                if error is not None:
-                    await send_ws_json(websocket, send_lock, error)
-                    continue
-                await send_ws_missing(websocket, send_lock, missing_jobs, message)
+            if "version" in message:
+                await dispatch_ws_message(websocket, send_lock, missing_jobs, message)
                 continue
 
             response = await submit_spot.handle_spot(message, app.state.valkey_client)
             await send_ws_json(websocket, send_lock, response)
     finally:
         await cancel_missing_jobs(missing_jobs)
+        app.state.active_ws_spot_connections.discard(websocket)
 
 
 @app.websocket("/ws")
@@ -701,45 +741,14 @@ async def ws(websocket: fastapi.WebSocket):
             try:
                 message = json.loads(raw_message)
             except json.JSONDecodeError:
-                await websocket.send_json(
-                    build_ws_error(WsErrorType.MALFORMED_MESSAGE, "WebSocket message must be valid JSON")
+                await send_ws_json(
+                    websocket,
+                    send_lock,
+                    build_ws_error(WsErrorType.MALFORMED_MESSAGE, "WebSocket message must be valid JSON"),
                 )
                 continue
 
-            error = validate_ws_protocol_message(message)
-            if error is not None:
-                await websocket.send_json(error)
-                continue
-
-            if message.get("type") == WsMessageType.SPOTS.value:
-                await send_ws_spots(websocket, message)
-                continue
-
-            if message.get("type") == WsMessageType.SUBMIT.value:
-                await send_ws_submit(websocket, message)
-                continue
-
-            if message.get("type") == WsMessageType.RADIO.value:
-                await websocket.send_json(
-                    build_ws_message(WsMessageType.RADIO, event=WsRadioEvent.STATUS.value, status="unavailable")
-                )
-                continue
-
-            if message.get("type") == WsMessageType.MISSING.value:
-                await send_ws_missing(websocket, send_lock, missing_jobs, message)
-                continue
-
-            if message.get("type") == WsMessageType.HISTORY.value:
-                await send_ws_history(websocket, send_lock, message)
-                continue
-
-            await websocket.send_json(
-                build_ws_error(
-                    WsErrorType.NOT_IMPLEMENTED,
-                    "WebSocket protocol v1 routing is not implemented yet",
-                    received_type=message.get("type"),
-                )
-            )
+            await dispatch_ws_message(websocket, send_lock, missing_jobs, message)
     finally:
         await cancel_missing_jobs(missing_jobs)
         app.state.active_ws_spot_connections.discard(websocket)
