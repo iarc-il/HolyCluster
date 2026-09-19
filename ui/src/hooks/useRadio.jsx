@@ -1,8 +1,9 @@
 import { compare_version } from "@/utils.js";
-import { createContext, useContext, useRef, useState } from "react";
+import { RTTY_TUNING_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import raw_band_plans from "../../../shared/band_plans.json";
 import { useSettings } from "./useSettings";
-import { useWs, useWsMessage } from "./useWs";
+import { ReadyState, useWs, useWsMessage } from "./useWs";
 
 const band_plans = Object.fromEntries(
     Object.entries(raw_band_plans).map(([band, info]) => [
@@ -39,7 +40,7 @@ export function RadioProvider({ children }) {
     const [rig, set_rig_inner] = useState(1);
     const [radio_band, set_radio_band] = useState(-1);
     const [raw_local_version, set_raw_local_version] = useState(null);
-    const { send } = useWs();
+    const { send, readyState } = useWs();
     const [radio_ready, set_radio_ready] = useState(false);
     const [radio_capabilities, set_radio_capabilities] = useState(null);
     const [hamlib_models, set_hamlib_models] = useState([]);
@@ -55,8 +56,21 @@ export function RadioProvider({ children }) {
     const [radio_retry_result, set_radio_retry_result] = useState(null);
     const requested_model_ids = useRef(new Set());
     const pending_configuration_action = useRef(null);
+    const cat_identity_ref = useRef(null);
+    const radio_connected_ref = useRef(false);
 
     const { settings } = useSettings();
+
+    useEffect(() => {
+        if (readyState !== ReadyState.CONNECTING && readyState !== ReadyState.CLOSED) return;
+
+        radio_connected_ref.current = false;
+        cat_identity_ref.current = null;
+        set_radio_ready(false);
+        set_radio_status("unavailable");
+        set_raw_local_version(null);
+        set_radio_capabilities(null);
+    }, [readyState]);
 
     function get_band_from_freq(freq) {
         for (const band of Object.keys(band_plans)) {
@@ -70,7 +84,18 @@ export function RadioProvider({ children }) {
 
     useWsMessage("radio", data => {
         if (data.event === "status") {
+            const identity_changed =
+                data.catserver_version != null &&
+                cat_identity_ref.current != null &&
+                data.catserver_version !== cat_identity_ref.current;
+            const is_connected = data.status !== "unavailable";
+
+            radio_connected_ref.current = is_connected;
+            if (!is_connected || identity_changed) {
+                set_radio_capabilities(null);
+            }
             if (data.catserver_version) {
+                cat_identity_ref.current = data.catserver_version;
                 set_raw_local_version(data.catserver_version);
             }
             set_radio_status(data.status);
@@ -81,7 +106,7 @@ export function RadioProvider({ children }) {
             set_radio_ready(true);
         }
 
-        if (data.event === "capabilities") {
+        if (data.event === "capabilities" && radio_connected_ref.current) {
             set_radio_capabilities(data);
         }
 
@@ -181,6 +206,10 @@ export function RadioProvider({ children }) {
     }
 
     function set_mode_and_freq(mode, freq) {
+        if (mode === "RTTY" && !supports_cat_feature(local_version, RTTY_TUNING_MIN_VERSION)) {
+            return;
+        }
+
         send_message_to_radio({
             action: "SetModeAndFreq",
             mode,

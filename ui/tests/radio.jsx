@@ -2,6 +2,8 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const websocket = vi.hoisted(() => ({
+    ReadyState: { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 },
+    ready_state: 1,
     handlers: new Map(),
     send: vi.fn(),
     subscribe: vi.fn((type, handler) => {
@@ -15,18 +17,22 @@ vi.mock("@/hooks/useSettings", () => ({
 }));
 
 vi.mock("@/hooks/useWs", () => ({
-    useWs: () => ({ send: websocket.send }),
+    ReadyState: websocket.ReadyState,
+    useWs: () => ({ send: websocket.send, readyState: websocket.ready_state }),
     useWsMessage: (type, handler) => {
         websocket.subscribe(type, handler);
     },
 }));
 
 import useRadio, { RadioProvider } from "@/hooks/useRadio";
+import { RTTY_TUNING_MIN_VERSION } from "@/utils/cat_features.js";
 
 function Consumer() {
     Consumer.radio = useRadio();
     return null;
 }
+
+let rerender_radio;
 
 function emit(message) {
     act(() => websocket.handlers.get("radio")(message));
@@ -34,14 +40,15 @@ function emit(message) {
 
 describe("radio configuration", () => {
     beforeEach(() => {
+        websocket.ready_state = websocket.ReadyState.OPEN;
         websocket.handlers.clear();
         websocket.send.mockClear();
         Consumer.radio = null;
-        render(
+        rerender_radio = render(
             <RadioProvider>
                 <Consumer />
             </RadioProvider>,
-        );
+        ).rerender;
     });
 
     afterEach(() => cleanup());
@@ -72,6 +79,7 @@ describe("radio configuration", () => {
             action: "SetRadioConfiguration",
             configuration: { backend: "hamlib" },
         });
+        emit({ event: "status", status: "connected" });
         emit({ event: "capabilities", radio_configuration: true, backends: ["hamlib"] });
         emit({ event: "hamlib_models", models: [{ id: "2", model: "Dummy" }] });
         emit({ event: "hamlib_model", model_id: "1", descriptors: [{ token: "stale" }] });
@@ -106,6 +114,58 @@ describe("radio configuration", () => {
             ok: true,
         });
         expect(Consumer.radio.radio_retry_result).toEqual({ event: "retry", ok: true });
+    });
+
+    it("clears capabilities until a fresh response after reconnect or CAT change", () => {
+        const supported_version = `catserver-v${RTTY_TUNING_MIN_VERSION.slice(0, 3).join(".")}`;
+
+        emit({ event: "status", status: "connected", catserver_version: supported_version });
+        emit({ event: "capabilities", radio_configuration: true, backends: ["hamlib"] });
+        expect(Consumer.radio.radio_capabilities?.radio_configuration).toBe(true);
+
+        websocket.ready_state = websocket.ReadyState.CLOSED;
+        act(() => {
+            rerender_radio(
+                <RadioProvider>
+                    <Consumer />
+                </RadioProvider>,
+            );
+        });
+        expect(Consumer.radio.radio_capabilities).toBeNull();
+
+        websocket.ready_state = websocket.ReadyState.OPEN;
+        act(() => {
+            rerender_radio(
+                <RadioProvider>
+                    <Consumer />
+                </RadioProvider>,
+            );
+        });
+        emit({ event: "status", status: "unavailable" });
+        expect(Consumer.radio.radio_capabilities).toBeNull();
+        emit({ event: "capabilities", radio_configuration: true, backends: ["hamlib"] });
+        expect(Consumer.radio.radio_capabilities).toBeNull();
+
+        emit({ event: "status", status: "connected", catserver_version: supported_version });
+        expect(Consumer.radio.radio_capabilities).toBeNull();
+        emit({ event: "capabilities", radio_configuration: true, backends: ["hamlib"] });
+        expect(Consumer.radio.radio_capabilities?.radio_configuration).toBe(true);
+
+        emit({ event: "status", status: "connected", catserver_version: "catserver-v9.0.0" });
+        expect(Consumer.radio.radio_capabilities).toBeNull();
+    });
+
+    it("sends RTTY tuning for a CAT version that supports it", () => {
+        const supported_version = `catserver-v${RTTY_TUNING_MIN_VERSION.slice(0, 3).join(".")}`;
+        emit({ event: "status", status: "connected", catserver_version: supported_version });
+
+        act(() => Consumer.radio.set_mode_and_freq("RTTY", 14.1));
+
+        expect(websocket.send).toHaveBeenLastCalledWith("radio", {
+            action: "SetModeAndFreq",
+            mode: "RTTY",
+            freq: 14.1,
+        });
     });
 
     it("updates the cached config after a successful apply", () => {
