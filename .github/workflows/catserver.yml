@@ -39,7 +39,7 @@ jobs:
     name: Test Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci@sha256:a87e8d84177c7ed991f38107ca64d7080bfda21386e99db6bafd82051fb331ef
+      image: ghcr.io/iarc-il/catserver-ci@sha256:4ce4424867da6695955f291277c04ac0155e8d006a1323cbf922ab4c29506117
       options: --user root
     steps:
       - uses: actions/checkout@v4
@@ -88,7 +88,7 @@ jobs:
     name: Lint Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci@sha256:a87e8d84177c7ed991f38107ca64d7080bfda21386e99db6bafd82051fb331ef
+      image: ghcr.io/iarc-il/catserver-ci@sha256:4ce4424867da6695955f291277c04ac0155e8d006a1323cbf922ab4c29506117
       options: --user root
     steps:
       - uses: actions/checkout@v4
@@ -130,7 +130,7 @@ jobs:
     name: Build Linux Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci@sha256:a87e8d84177c7ed991f38107ca64d7080bfda21386e99db6bafd82051fb331ef
+      image: ghcr.io/iarc-il/catserver-ci@sha256:4ce4424867da6695955f291277c04ac0155e8d006a1323cbf922ab4c29506117
       options: --user root
     steps:
       - uses: actions/checkout@v4
@@ -187,7 +187,7 @@ jobs:
     name: Build Windows Catserver
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/iarc-il/catserver-ci@sha256:a87e8d84177c7ed991f38107ca64d7080bfda21386e99db6bafd82051fb331ef
+      image: ghcr.io/iarc-il/catserver-ci@sha256:4ce4424867da6695955f291277c04ac0155e8d006a1323cbf922ab4c29506117
       options: --user root
     steps:
       - uses: actions/checkout@v4

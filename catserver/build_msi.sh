@@ -10,7 +10,7 @@ BUILD_DIR=$CARGO_TARGET_DIR/$TARGET/release
 WIX_NAME=main
 OUTPUT_PATH=$BUILD_DIR/HolyCluster.msi
 DEFAULT_SHORTCUT_ARGUMENTS=${DEFAULT_SHORTCUT_ARGUMENTS:-}
-CI_IMAGE=${CATSERVER_CI_IMAGE:-ghcr.io/iarc-il/catserver-ci@sha256:a87e8d84177c7ed991f38107ca64d7080bfda21386e99db6bafd82051fb331ef}
+CI_IMAGE=${CATSERVER_CI_IMAGE:-ghcr.io/iarc-il/catserver-ci@sha256:4ce4424867da6695955f291277c04ac0155e8d006a1323cbf922ab4c29506117}
 
 GIT_TAG=${CATSERVER_VERSION:-$(git describe --match 'catserver-v*')}
 if [[ $GIT_TAG =~ ^catserver-v([0-9]+)\.([0-9]+)\.[0-9]+(-[0-9]+-g[0-9a-f]+)?$ ]]; then
