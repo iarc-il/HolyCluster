@@ -18,7 +18,7 @@ vi.mock("@/hooks/useSettings", () => ({
 
 vi.mock("@/hooks/useWs", () => ({
     ReadyState: websocket.ReadyState,
-    useWs: () => ({ send: websocket.send, readyState: websocket.ready_state }),
+    useWs: () => ({ send: websocket.send, radioReadyState: websocket.ready_state }),
     useWsMessage: (type, handler) => {
         websocket.subscribe(type, handler);
     },
@@ -79,7 +79,11 @@ describe("radio configuration", () => {
             action: "SetRadioConfiguration",
             configuration: { backend: "hamlib" },
         });
-        emit({ event: "status", status: "connected" });
+        emit({
+            event: "status",
+            status: "connected",
+            catserver_version: `catserver-v${RTTY_TUNING_MIN_VERSION.slice(0, 3).join(".")}`,
+        });
         emit({ event: "capabilities", radio_configuration: true, backends: ["hamlib"] });
         emit({ event: "hamlib_models", models: [{ id: "2", model: "Dummy" }] });
         emit({ event: "hamlib_model", model_id: "1", descriptors: [{ token: "stale" }] });
@@ -141,13 +145,30 @@ describe("radio configuration", () => {
                 </RadioProvider>,
             );
         });
-        emit({ event: "status", status: "disconnected" });
-        expect(Consumer.radio.radio_capabilities).toBeNull();
+        emit({ event: "status", status: "connected", catserver_version: supported_version });
         emit({ event: "capabilities", radio_configuration: true, backends: ["hamlib"] });
+        emit({ event: "status", status: "disconnected" });
+        expect(Consumer.radio.radio_capabilities?.radio_configuration).toBe(true);
+
+        websocket.ready_state = websocket.ReadyState.CLOSED;
+        act(() => {
+            rerender_radio(
+                <RadioProvider>
+                    <Consumer />
+                </RadioProvider>,
+            );
+        });
         expect(Consumer.radio.radio_capabilities).toBeNull();
 
+        websocket.ready_state = websocket.ReadyState.OPEN;
+        act(() => {
+            rerender_radio(
+                <RadioProvider>
+                    <Consumer />
+                </RadioProvider>,
+            );
+        });
         emit({ event: "status", status: "connected", catserver_version: supported_version });
-        expect(Consumer.radio.radio_capabilities).toBeNull();
         emit({ event: "capabilities", radio_configuration: true, backends: ["hamlib"] });
         expect(Consumer.radio.radio_capabilities?.radio_configuration).toBe(true);
 

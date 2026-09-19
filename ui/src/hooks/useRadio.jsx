@@ -40,7 +40,7 @@ export function RadioProvider({ children }) {
     const [rig, set_rig_inner] = useState(1);
     const [radio_band, set_radio_band] = useState(-1);
     const [raw_local_version, set_raw_local_version] = useState(null);
-    const { send, readyState } = useWs();
+    const { send, radioReadyState } = useWs();
     const [radio_ready, set_radio_ready] = useState(false);
     const [radio_capabilities, set_radio_capabilities] = useState(null);
     const [hamlib_models, set_hamlib_models] = useState([]);
@@ -57,20 +57,21 @@ export function RadioProvider({ children }) {
     const requested_model_ids = useRef(new Set());
     const pending_configuration_action = useRef(null);
     const cat_identity_ref = useRef(null);
-    const radio_connected_ref = useRef(false);
+    const cat_connected_ref = useRef(false);
 
     const { settings } = useSettings();
 
     useEffect(() => {
-        if (readyState !== ReadyState.CONNECTING && readyState !== ReadyState.CLOSED) return;
+        if (radioReadyState !== ReadyState.CONNECTING && radioReadyState !== ReadyState.CLOSED)
+            return;
 
-        radio_connected_ref.current = false;
+        cat_connected_ref.current = false;
         cat_identity_ref.current = null;
         set_radio_ready(false);
         set_radio_status("unavailable");
         set_raw_local_version(null);
         set_radio_capabilities(null);
-    }, [readyState]);
+    }, [radioReadyState]);
 
     function get_band_from_freq(freq) {
         for (const band of Object.keys(band_plans)) {
@@ -88,15 +89,15 @@ export function RadioProvider({ children }) {
                 data.catserver_version != null &&
                 cat_identity_ref.current != null &&
                 data.catserver_version !== cat_identity_ref.current;
-            const is_connected = data.status === "connected";
-
-            radio_connected_ref.current = is_connected;
-            if (!is_connected || identity_changed) {
+            if (identity_changed || data.status === "unavailable") {
                 set_radio_capabilities(null);
             }
             if (data.catserver_version) {
+                cat_connected_ref.current = true;
                 cat_identity_ref.current = data.catserver_version;
                 set_raw_local_version(data.catserver_version);
+            } else if (data.status === "unavailable") {
+                cat_connected_ref.current = false;
             }
             set_radio_status(data.status);
             set_radio_freq(data.freq || 0);
@@ -106,7 +107,7 @@ export function RadioProvider({ children }) {
             set_radio_ready(true);
         }
 
-        if (data.event === "capabilities" && radio_connected_ref.current) {
+        if (data.event === "capabilities" && cat_connected_ref.current) {
             set_radio_capabilities(data);
         }
 
@@ -174,7 +175,7 @@ export function RadioProvider({ children }) {
     }
 
     function is_radio_available() {
-        return radio_ready && radio_status === "connected";
+        return radio_ready && radio_status !== "unavailable";
     }
 
     const local_version = parse_version(raw_local_version);
