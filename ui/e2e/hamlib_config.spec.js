@@ -35,6 +35,7 @@ const radio_status = {
     freq: 14_074_000,
     mode: "DIGI",
     current_rig: 1,
+    catserver_version: "catserver-v1.3.0",
 };
 
 const radio_config = {
