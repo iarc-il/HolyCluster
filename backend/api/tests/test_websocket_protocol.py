@@ -31,6 +31,36 @@ class FakeSession:
         return FakeExecuteResult(self.spots)
 
 
+class FakeHistoryScalarResult:
+    def __init__(self, samples):
+        self.samples = samples
+
+    def all(self):
+        return self.samples
+
+
+class FakeHistoryExecuteResult:
+    def __init__(self, samples):
+        self.samples = samples
+
+    def scalars(self):
+        return FakeHistoryScalarResult(self.samples)
+
+
+class FakeHistorySession:
+    def __init__(self, samples):
+        self.samples = samples
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def execute(self, _statement):
+        return FakeHistoryExecuteResult(self.samples)
+
+
 class FakeWebSocket:
     def __init__(self):
         self.messages = []
@@ -157,6 +187,104 @@ class WebSocketProtocolTest(unittest.TestCase):
                     "error_type": "MissingField",
                     "message": "Missing last_time",
                     "field": "last_time",
+                },
+            )
+
+    def test_ws_returns_history_spots_response(self):
+        spots = [{"dx_callsign": "K3ABC"}]
+        session = FakeHistorySession(spots)
+
+        with (
+            patch("api.main.async_session", new=lambda: session),
+            patch("api.main.cleanup_spots", new=lambda raw_spots: list(raw_spots)),
+            self.client.websocket_connect("/ws") as websocket,
+        ):
+            websocket.send_json(
+                {
+                    "version": 1,
+                    "type": "history",
+                    "event": "spots",
+                    "start_time": 100,
+                    "end_time": 200,
+                }
+            )
+
+            self.assertEqual(
+                websocket.receive_json(),
+                {
+                    "version": 1,
+                    "type": "history",
+                    "event": "spots",
+                    "start_time": 100,
+                    "end_time": 200,
+                    "spots": {"spots": spots},
+                },
+            )
+
+    def test_ws_returns_history_propagation_response(self):
+        history = {
+            "start_time": 1800,
+            "end_time": 3600,
+            "metrics": {
+                "a_index": [{"timestamp": 2000, "value": 7.0}],
+                "k_index": [{"timestamp": 2000, "value": 2.0}],
+                "sfi": [{"timestamp": 2000, "value": 111.0}],
+            },
+        }
+        get_history = AsyncMock(return_value=history)
+
+        with (
+            patch("api.main.get_propagation_history_data", new=get_history),
+            self.client.websocket_connect("/ws") as websocket,
+        ):
+            websocket.send_json(
+                {
+                    "version": 1,
+                    "type": "history",
+                    "event": "propagation",
+                    "start_time": 1800,
+                    "end_time": 3600,
+                }
+            )
+
+            self.assertEqual(
+                websocket.receive_json(),
+                {
+                    "version": 1,
+                    "type": "history",
+                    "event": "propagation",
+                    "start_time": 1800,
+                    "end_time": 3600,
+                    "metrics": {
+                        "a_index": [{"timestamp": 2700, "value": 7.0}],
+                        "k_index": [{"timestamp": 2700, "value": 2.0}],
+                        "sfi": [{"timestamp": 2700, "value": 111.0}],
+                    },
+                },
+            )
+
+        get_history.assert_awaited_once_with(1800, 3600)
+
+    def test_ws_rejects_history_ranges_over_24_hours(self):
+        with self.client.websocket_connect("/ws") as websocket:
+            websocket.send_json(
+                {
+                    "version": 1,
+                    "type": "history",
+                    "event": "spots",
+                    "start_time": 100,
+                    "end_time": 86501,
+                }
+            )
+
+            self.assertEqual(
+                websocket.receive_json(),
+                {
+                    "version": 1,
+                    "type": "error",
+                    "error_type": "MalformedMessage",
+                    "message": "time range cannot exceed 24 hours",
+                    "field": "end_time",
                 },
             )
 
