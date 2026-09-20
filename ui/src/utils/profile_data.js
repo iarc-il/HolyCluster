@@ -98,7 +98,6 @@ export const LEGACY_PROFILE_STORAGE_KEYS = {
     frequency_bar_band: "freq_bar_selected_freq",
     dxpeditions_sort: "dxpeditions_sort",
     dxpeditions_filter: "dxpeditions_filter",
-    requested_rig: "requested_rig",
 };
 
 function is_plain_object(value) {
@@ -336,73 +335,6 @@ function get_browser_local_storage() {
     }
 
     return window.localStorage;
-}
-
-function valid_legacy_rig(value) {
-    const rig = Number(value);
-    return Number.isInteger(rig) && (rig === 1 || rig === 2) ? rig : null;
-}
-
-export function read_omnirig_migration_candidate(
-    storage = get_browser_local_storage(),
-    raw_profile_store = read_storage_value(storage, PROFILE_STORE_KEY),
-) {
-    const legacy_rig = valid_legacy_rig(
-        read_storage_value(storage, LEGACY_PROFILE_STORAGE_KEYS.requested_rig),
-    );
-    if (legacy_rig == null || !is_plain_object(raw_profile_store)) {
-        return legacy_rig;
-    }
-    if (raw_profile_store.active_profile_name === "Tour") {
-        return legacy_rig;
-    }
-    const active_profile = Array.isArray(raw_profile_store.profiles)
-        ? raw_profile_store.profiles.find(
-              profile => profile?.name === raw_profile_store.active_profile_name,
-          )
-        : null;
-    const raw_radio = active_profile?.data?.radio;
-    if (!is_plain_object(raw_radio) || !Object.hasOwn(raw_radio, "requested_rig")) {
-        return legacy_rig;
-    }
-    return valid_legacy_rig(raw_radio.requested_rig) ?? legacy_rig;
-}
-
-export function preserve_omnirig_migration_evidence(profile_store, raw_profile_store) {
-    if (!Array.isArray(profile_store?.profiles) || !Array.isArray(raw_profile_store?.profiles)) {
-        return profile_store;
-    }
-    const raw_profiles = new Map(
-        raw_profile_store.profiles.map(profile => [profile?.name, profile]),
-    );
-    return {
-        ...profile_store,
-        profiles: profile_store.profiles.map(profile => {
-            const raw_radio = raw_profiles.get(profile.name)?.data?.radio;
-            if (!is_plain_object(raw_radio) || !Object.hasOwn(raw_radio, "requested_rig")) {
-                return profile;
-            }
-            return {
-                ...profile,
-                data: {
-                    ...profile.data,
-                    radio: { requested_rig: raw_radio.requested_rig },
-                },
-            };
-        }),
-    };
-}
-
-export function remove_omnirig_migration_evidence(profile_store) {
-    if (!Array.isArray(profile_store?.profiles)) return profile_store;
-    return {
-        ...profile_store,
-        profiles: profile_store.profiles.map(profile => {
-            if (!is_plain_object(profile?.data?.radio)) return profile;
-            const { radio: _radio, ...data } = profile.data;
-            return { ...profile, data };
-        }),
-    };
 }
 
 export function create_default_settings() {

@@ -111,32 +111,6 @@ describe("radio configuration", () => {
         expect(Consumer.radio.radio_configuration_support).toBe("update_required");
     });
 
-    it("keeps migration acknowledgements separate from configuration results", async () => {
-        render_radio();
-        let migration_result;
-        await act(async () => {
-            void Consumer.radio
-                .migrate_omnirig_selection(2)
-                .then(result => (migration_result = result));
-        });
-        expect(websocket.send).toHaveBeenCalledWith("radio", {
-            action: "MigrateOmniRigSelection",
-            rig: 2,
-        });
-
-        emit({ event: "configuration_result", ok: true });
-        expect(migration_result).toBeUndefined();
-        await act(async () => {
-            emit({
-                event: "omnirig_selection_migration_result",
-                ok: true,
-                migrated: true,
-                effective_model_id: "omnirig:2",
-            });
-        });
-        expect(migration_result.effective_model_id).toBe("omnirig:2");
-    });
-
     it("continues tuning without active-rig state", () => {
         render_radio();
         const supported_version = `catserver-v${RTTY_TUNING_MIN_VERSION.slice(0, 3).join(".")}`;

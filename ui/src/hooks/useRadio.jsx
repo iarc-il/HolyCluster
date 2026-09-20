@@ -53,11 +53,8 @@ export function RadioProvider({ children }) {
     const [radio_configuration_result, set_radio_configuration_result] = useState(null);
     const [radio_connection_result, set_radio_connection_result] = useState(null);
     const [radio_retry_result, set_radio_retry_result] = useState(null);
-    const [omnirig_selection_migration_result, set_omnirig_selection_migration_result] =
-        useState(null);
     const requested_model_ids = useRef(new Set());
     const pending_configuration_action = useRef(null);
-    const pending_migration_action = useRef(null);
     const cat_identity_ref = useRef(null);
     const cat_connected_ref = useRef(false);
 
@@ -165,12 +162,6 @@ export function RadioProvider({ children }) {
             set_radio_connection_result(data);
         }
 
-        if (data.event === "omnirig_selection_migration_result") {
-            set_omnirig_selection_migration_result(data);
-            pending_migration_action.current?.resolve(data);
-            pending_migration_action.current = null;
-        }
-
         if (data.event === "retry") {
             set_radio_retry_result(data);
         }
@@ -269,14 +260,6 @@ export function RadioProvider({ children }) {
         send_message_to_radio({ action: "RetryRadio" });
     }
 
-    function migrate_omnirig_selection(rig) {
-        return new Promise(resolve => {
-            pending_migration_action.current = { rig, resolve };
-            set_omnirig_selection_migration_result(null);
-            send_message_to_radio({ action: "MigrateOmniRigSelection", rig });
-        });
-    }
-
     const radio_configuration_support =
         transport === "probing"
             ? "probing"
@@ -300,7 +283,6 @@ export function RadioProvider({ children }) {
                 set_radio_configuration,
                 test_radio_connection,
                 retry_radio,
-                migrate_omnirig_selection,
                 is_radio_available,
                 radio_status,
                 radio_freq,
@@ -320,7 +302,6 @@ export function RadioProvider({ children }) {
                 radio_configuration_result,
                 radio_connection_result,
                 radio_retry_result,
-                omnirig_selection_migration_result,
                 local_version,
             }}
         >

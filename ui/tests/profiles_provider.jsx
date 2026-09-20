@@ -147,18 +147,6 @@ function TemporaryProfileHarness() {
     );
 }
 
-function MigrationHarness() {
-    const { omnirig_migration_candidate, clear_omnirig_migration_evidence } = useProfiles();
-    return (
-        <div>
-            <span data-testid="migration-candidate">{omnirig_migration_candidate ?? "none"}</span>
-            <button type="button" onClick={clear_omnirig_migration_evidence}>
-                Clear migration
-            </button>
-        </div>
-    );
-}
-
 function SharedFiltersHarness() {
     const { filters, setFilters, setProfileFilters, save_shared_filters, is_shared_filter_state } =
         useFilters();
@@ -218,60 +206,6 @@ describe("profile provider integration", () => {
     afterEach(() => {
         cleanup();
         window.localStorage.clear();
-    });
-
-    it("preserves raw OmniRig migration evidence until acknowledgement", async () => {
-        const user = userEvent.setup();
-        const data = create_profile_data();
-        window.localStorage.setItem("requested_rig", JSON.stringify(1));
-        write_profile_store({
-            profiles: [
-                {
-                    name: "Default",
-                    data: { ...data, radio: { requested_rig: 2 } },
-                },
-            ],
-        });
-
-        render_with_router(
-            <ProfilesProvider>
-                <MigrationHarness />
-            </ProfilesProvider>,
-        );
-
-        expect(screen.getByTestId("migration-candidate").textContent).toBe("2");
-        await waitFor(() => {
-            const stored = JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY));
-            expect(stored.profiles[0].data.radio.requested_rig).toBe(2);
-        });
-
-        await user.click(screen.getByText("Clear migration"));
-        await waitFor(() =>
-            expect(screen.getByTestId("migration-candidate").textContent).toBe("none"),
-        );
-        expect(window.localStorage.getItem("requested_rig")).toBeNull();
-        expect(
-            JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY)).profiles[0].data,
-        ).not.toHaveProperty("radio");
-    });
-
-    it("does not treat a profile rig as migration evidence without the legacy key", () => {
-        write_profile_store({
-            profiles: [
-                {
-                    name: "Default",
-                    data: { ...create_profile_data(), radio: { requested_rig: 2 } },
-                },
-            ],
-        });
-
-        render_with_router(
-            <ProfilesProvider>
-                <MigrationHarness />
-            </ProfilesProvider>,
-        );
-
-        expect(screen.getByTestId("migration-candidate").textContent).toBe("none");
     });
 
     it("keeps profile updates isolated when creating and switching profiles", async () => {

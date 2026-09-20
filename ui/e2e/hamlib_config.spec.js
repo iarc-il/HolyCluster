@@ -70,7 +70,6 @@ test("renders unified radio model connection flows in CAT Control", async ({ pag
                             event: "capabilities",
                             radio_configuration: true,
                             radio_configuration_api: 2,
-                            omnirig_selection_migration_available: false,
                         }),
                     );
                     break;
