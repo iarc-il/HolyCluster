@@ -268,14 +268,14 @@ mod tests {
         rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status},
     };
 
-    struct HealthRadio {
+    struct ControllableRadio {
         rig: u8,
         healthy: Arc<AtomicBool>,
         initializations: Arc<AtomicUsize>,
         modes: Arc<Mutex<Vec<u8>>>,
     }
 
-    impl Radio for HealthRadio {
+    impl Radio for ControllableRadio {
         fn init(&mut self) -> Result<(), RadioInitError> {
             self.initializations.fetch_add(1, Ordering::SeqCst);
             if self.healthy.load(Ordering::SeqCst) {
@@ -315,14 +315,14 @@ mod tests {
         }
     }
 
-    fn health_factory(
+    fn controllable_factory(
         rig: u8,
         healthy: Arc<AtomicBool>,
         initializations: Arc<AtomicUsize>,
         modes: Arc<Mutex<Vec<u8>>>,
     ) -> super::RadioFactory {
         Arc::new(move || {
-            Box::new(HealthRadio {
+            Box::new(ControllableRadio {
                 rig,
                 healthy: Arc::clone(&healthy),
                 initializations: Arc::clone(&initializations),
@@ -424,13 +424,13 @@ mod tests {
         let rig2_initializations = Arc::new(AtomicUsize::new(0));
         let modes = Arc::new(Mutex::new(Vec::new()));
         let mut radio = CompositeRadio::new(
-            health_factory(
+            controllable_factory(
                 1,
                 rig1_health,
                 Arc::clone(&rig1_initializations),
                 Arc::clone(&modes),
             ),
-            Some(health_factory(
+            Some(controllable_factory(
                 2,
                 Arc::clone(&rig2_health),
                 Arc::clone(&rig2_initializations),
@@ -455,13 +455,13 @@ mod tests {
         let rig2_health = Arc::new(AtomicBool::new(true));
         let modes = Arc::new(Mutex::new(Vec::new()));
         let mut radio = CompositeRadio::new(
-            health_factory(
+            controllable_factory(
                 1,
                 Arc::new(AtomicBool::new(true)),
                 Arc::clone(&rig1_initializations),
                 Arc::clone(&modes),
             ),
-            Some(health_factory(
+            Some(controllable_factory(
                 2,
                 Arc::clone(&rig2_health),
                 Arc::clone(&rig2_initializations),
