@@ -52,11 +52,13 @@ function Modal({
             if (!show_modal) return;
 
             if (event.key === "Escape") {
+                event.stopPropagation();
                 if (on_cancel != null) {
                     on_cancel();
                 }
                 close();
             } else if (event.key === "Enter") {
+                event.stopPropagation();
                 if (on_apply && !apply_disabled && !applying) {
                     event.preventDefault();
                     void apply();
@@ -82,12 +84,8 @@ function Modal({
     useEffect(() => {
         if (show_modal) {
             previously_focused_ref.current = document.activeElement;
-            document.addEventListener("keydown", on_keydown);
-            return () => {
-                document.removeEventListener("keydown", on_keydown);
-            };
         }
-    }, [show_modal, on_keydown]);
+    }, [show_modal]);
 
     useEffect(() => {
         if (!show_modal) return;
@@ -150,6 +148,7 @@ function Modal({
                     <div
                         ref={modal_ref}
                         role="dialog"
+                        onKeyDown={on_keydown}
                         aria-modal={true}
                         data-tour={dialog_data_tour}
                         className="flex pt-24 fixed inset-0 z-[60] outline-none focus:outline-none overflow-y-auto"

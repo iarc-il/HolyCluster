@@ -13,6 +13,34 @@ vi.mock("@/hooks/useColors", () => ({
 import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 
+describe("Modal keyboard handling", () => {
+    it("closes only the topmost nested modal on Escape", async () => {
+        const user = userEvent.setup();
+
+        render(
+            <Modal button={<Button>Open parent</Button>} on_cancel={() => {}}>
+                <Modal
+                    button={<Button>Open child</Button>}
+                    title={<h2>Child</h2>}
+                    on_cancel={() => {}}
+                >
+                    <button data-autofocus>Child action</button>
+                </Modal>
+            </Modal>,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Open parent" }));
+        await user.click(screen.getByRole("button", { name: "Open child" }));
+        expect(screen.getAllByRole("dialog")).toHaveLength(2);
+
+        await user.keyboard("{Escape}");
+        expect(screen.getAllByRole("dialog")).toHaveLength(1);
+
+        await user.keyboard("{Escape}");
+        expect(screen.queryByRole("dialog")).toBeNull();
+    });
+});
+
 describe("Modal Apply", () => {
     it("keeps the modal open when an async Apply fails", async () => {
         const user = userEvent.setup();
