@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fmt,
     fs::{self, File},
     io::Write,
@@ -11,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::hamlib_device_config::{HamlibDeviceConfig, HamlibDeviceConfigError};
 
 const CONFIG_FILE: &str = "radio.json";
-const SCHEMA_VERSION: u8 = 2;
+const SCHEMA_VERSION: u8 = 3;
 type IoFailure = (PathBuf, std::io::Error);
 type RenameFailure = (PathBuf, PathBuf, std::io::Error);
 
@@ -32,18 +33,26 @@ pub enum ActiveRadioBackend {
 pub type HamlibRigConfig = HamlibDeviceConfig;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
-#[serde(tag = "backend", rename_all = "snake_case")]
-pub enum RadioRigConfig {
-    Unconfigured,
-    Omnirig,
-    Hamlib { hamlib: HamlibRigConfig },
+pub struct RadioRigConfig {
+    pub model_id: String,
+    pub token_values: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub struct RadioConfig {
-    pub rig1: RadioRigConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rig2: Option<RadioRigConfig>,
+    pub rig: Option<RadioRigConfig>,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum OmniRigSlot {
+    Rig1,
+    Rig2,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum ResolvedRadioModel {
+    Hamlib(hamlib::RigModelId),
+    Omnirig(OmniRigSlot),
 }
 
 #[derive(Debug)]
@@ -55,6 +64,7 @@ pub enum RadioConfigError {
     Serialize(serde_json::Error),
     UnsupportedVersion(u8),
     PlatformUnsupportedBackend(RadioBackendKind),
+    PlatformUnsupportedModel(String),
     InvalidModelId(String),
     InvalidToken(String),
     WriteTemporary(IoFailure),
@@ -81,12 +91,27 @@ struct PersistedConfig<'a> {
     config: &'a RadioConfig,
 }
 
+pub fn resolve_model_id(model_id: &str) -> Result<ResolvedRadioModel, RadioConfigError> {
+    let Some((prefix, id)) = model_id.split_once(':') else {
+        return Err(RadioConfigError::InvalidModelId(model_id.into()));
+    };
+    match prefix {
+        "hamlib" => match id.parse::<u32>() {
+            Ok(id) if id > 0 => Ok(ResolvedRadioModel::Hamlib(hamlib::RigModelId::new(id))),
+            _ => Err(RadioConfigError::InvalidModelId(model_id.into())),
+        },
+        "omnirig" => match id {
+            "1" => Ok(ResolvedRadioModel::Omnirig(OmniRigSlot::Rig1)),
+            "2" => Ok(ResolvedRadioModel::Omnirig(OmniRigSlot::Rig2)),
+            _ => Err(RadioConfigError::InvalidModelId(model_id.into())),
+        },
+        _ => Err(RadioConfigError::InvalidModelId(model_id.into())),
+    }
+}
+
 impl RadioConfig {
     pub fn platform_default() -> Self {
-        Self {
-            rig1: RadioRigConfig::platform_default(),
-            rig2: None,
-        }
+        Self { rig: None }
     }
 
     pub fn config_path() -> Result<PathBuf, RadioConfigError> {
@@ -105,6 +130,9 @@ impl RadioConfig {
         };
         let header: ConfigHeader =
             serde_json::from_str(&contents).map_err(RadioConfigError::Json)?;
+        if matches!(header.version, 1 | 2) {
+            return Ok(Self::platform_default());
+        }
         if header.version != SCHEMA_VERSION {
             return Err(RadioConfigError::UnsupportedVersion(header.version));
         }
@@ -159,8 +187,14 @@ impl RadioConfig {
         if dummy {
             ActiveRadioBackend::Dummy
         } else {
-            ActiveRadioBackend::Configured(self.rig1.backend())
+            ActiveRadioBackend::Configured(self.backend())
         }
+    }
+
+    pub(crate) fn backend(&self) -> RadioBackendKind {
+        self.rig
+            .as_ref()
+            .map_or(RadioBackendKind::Unconfigured, RadioRigConfig::backend)
     }
 
     fn persisted(&self) -> PersistedConfig<'_> {
@@ -171,9 +205,8 @@ impl RadioConfig {
     }
 
     pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
-        self.rig1.validate()?;
-        if let Some(rig2) = &self.rig2 {
-            rig2.validate()?;
+        if let Some(rig) = &self.rig {
+            rig.validate()?;
         }
         Ok(())
     }
@@ -190,28 +223,44 @@ impl RadioBackendKind {
 }
 
 impl RadioRigConfig {
-    fn platform_default() -> Self {
-        Self::Unconfigured
-    }
-
-    pub const fn backend(&self) -> RadioBackendKind {
-        match self {
-            Self::Unconfigured => RadioBackendKind::Unconfigured,
-            Self::Omnirig => RadioBackendKind::Omnirig,
-            Self::Hamlib { .. } => RadioBackendKind::Hamlib,
+    pub fn backend(&self) -> RadioBackendKind {
+        match resolve_model_id(&self.model_id) {
+            Ok(ResolvedRadioModel::Hamlib(_)) => RadioBackendKind::Hamlib,
+            Ok(ResolvedRadioModel::Omnirig(_)) => RadioBackendKind::Omnirig,
+            Err(_) => RadioBackendKind::Unconfigured,
         }
     }
 
     pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
-        let backend = self.backend();
-        if !backend.is_supported_on_platform() {
-            return Err(RadioConfigError::PlatformUnsupportedBackend(backend));
+        let resolved = resolve_model_id(&self.model_id)?;
+        if matches!(resolved, ResolvedRadioModel::Omnirig(_)) && !cfg!(windows) {
+            return Err(RadioConfigError::PlatformUnsupportedModel(
+                self.model_id.clone(),
+            ));
         }
-        match self {
-            Self::Hamlib { hamlib } => Ok(hamlib.validate()?),
-            Self::Omnirig | Self::Unconfigured => Ok(()),
+        for token in self.token_values.keys() {
+            if !is_descriptor_token(token) {
+                return Err(RadioConfigError::InvalidToken(token.clone()));
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn hamlib_config(&self) -> Option<HamlibRigConfig> {
+        match resolve_model_id(&self.model_id).ok()? {
+            ResolvedRadioModel::Hamlib(model_id) => Some(HamlibRigConfig {
+                model_id: model_id.to_string(),
+                token_values: self.token_values.clone(),
+            }),
+            ResolvedRadioModel::Omnirig(_) => None,
         }
     }
+}
+
+fn is_descriptor_token(token: &str) -> bool {
+    let mut characters = token.chars();
+    matches!(characters.next(), Some(character) if character.is_ascii_alphabetic())
+        && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
 }
 
 impl From<HamlibDeviceConfigError> for RadioConfigError {

@@ -8,7 +8,7 @@ use super::{
     },
 };
 use crate::{
-    radio_config::{HamlibRigConfig, RadioConfig, RadioRigConfig},
+    radio_config::{RadioConfig, RadioRigConfig},
     radio_manager::RadioManager,
 };
 
@@ -113,7 +113,7 @@ async fn lists_serial_ports() {
 async fn accepts_enum_configuration() {
     let radio = radio();
     let service: RadioConfiguration = Arc::new(Service);
-    let response = process_ws(r#"{"version":1,"type":"radio","action":"SetRadioConfiguration","configuration":{"rig1":{"backend":"hamlib","hamlib":{"model_id":"1","token_values":{}}}}}"#.into(), &radio, &service).await.unwrap().unwrap().into_text().unwrap();
+    let response = process_ws(r#"{"version":1,"type":"radio","action":"SetRadioConfiguration","configuration":{"rig":{"model_id":"hamlib:1","token_values":{}}}}"#.into(), &radio, &service).await.unwrap().unwrap().into_text().unwrap();
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(&response).unwrap()["ok"],
         true
@@ -125,7 +125,8 @@ async fn tests_radio_connection() {
     let radio = radio();
     let service: RadioConfiguration = Arc::new(Service);
     let response = process_ws(
-        r#"{"version":1,"type":"radio","action":"TestRadioConnection","config":{"rig1":{"backend":"unconfigured"}}}"#.into(),
+        r#"{"version":1,"type":"radio","action":"TestRadioConnection","config":{"rig":null}}"#
+            .into(),
         &radio,
         &service,
     )
@@ -144,38 +145,26 @@ async fn tests_radio_connection() {
 async fn production_configuration_rejects_unknown_descriptor_tokens() {
     let result = ProductionRadioConfiguration::new(radio())
         .set_configuration(RadioConfig {
-            rig1: RadioRigConfig::Hamlib {
-                hamlib: HamlibRigConfig {
-                    model_id: "1".into(),
-                    token_values: BTreeMap::from([("unknown_token".into(), "value".into())]),
-                },
-            },
-            rig2: None,
+            rig: Some(RadioRigConfig {
+                model_id: "hamlib:1".into(),
+                token_values: BTreeMap::from([("unknown_token".into(), "value".into())]),
+            }),
         })
         .await;
     assert_eq!(result.errors[0].token, Some("unknown_token".into()));
 }
 
 #[tokio::test]
-async fn production_configuration_returns_all_validation_errors() {
+async fn production_configuration_reports_validation_errors() {
     let result = ProductionRadioConfiguration::new(radio())
         .set_configuration(RadioConfig {
-            rig1: RadioRigConfig::Hamlib {
-                hamlib: HamlibRigConfig {
-                    model_id: "1".into(),
-                    token_values: BTreeMap::from([("unknown_one".into(), "value".into())]),
-                },
-            },
-            rig2: Some(RadioRigConfig::Hamlib {
-                hamlib: HamlibRigConfig {
-                    model_id: "1".into(),
-                    token_values: BTreeMap::from([("unknown_two".into(), "value".into())]),
-                },
+            rig: Some(RadioRigConfig {
+                model_id: "hamlib:1".into(),
+                token_values: BTreeMap::from([("unknown_one".into(), "value".into())]),
             }),
         })
         .await;
-    assert_eq!(result.errors.len(), 2);
+    assert_eq!(result.errors.len(), 1);
     assert_eq!(result.failure, Some(ConfigurationFailure::InvalidConfig));
     assert_eq!(result.errors[0].token, Some("unknown_one".into()));
-    assert_eq!(result.errors[1].token, Some("unknown_two".into()));
 }

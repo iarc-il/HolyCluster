@@ -3,7 +3,7 @@ use axum::extract::ws::Message;
 use serde::Serialize;
 
 use crate::{
-    radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig, RadioRigConfig},
+    radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig},
     radio_manager::{ConnectionState, RadioManager},
     rig::Status,
 };
@@ -57,19 +57,10 @@ fn status_data(data: &Status, radio: &RadioManager) -> serde_json::Value {
     serde_json::json!({"freq": data.freq, "status": data.status, "mode": data.mode, "current_rig": data.current_rig, "backend": backend(snapshot.selected, &snapshot.config, data.current_rig), "connection": connection(snapshot.connection), "error": snapshot.last_error.map(|error| error.to_string()), "features": ["radio_configuration"]})
 }
 
-fn backend(backend: ActiveRadioBackend, config: &RadioConfig, current_rig: u8) -> &'static str {
+fn backend(backend: ActiveRadioBackend, config: &RadioConfig, _current_rig: u8) -> &'static str {
     match backend {
         ActiveRadioBackend::Dummy => "dummy",
-        ActiveRadioBackend::Configured(_) => {
-            let backend = match current_rig {
-                2 => config
-                    .rig2
-                    .as_ref()
-                    .map_or(config.rig1.backend(), RadioRigConfig::backend),
-                _ => config.rig1.backend(),
-            };
-            backend_name(backend)
-        }
+        ActiveRadioBackend::Configured(_) => backend_name(config.backend()),
     }
 }
 

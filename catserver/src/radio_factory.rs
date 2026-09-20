@@ -8,7 +8,7 @@ use crate::{
     freq::Freq,
     hamlib_radio::HamlibRadio,
     radio_actor::RadioFactory,
-    radio_config::{ActiveRadioBackend, RadioConfig, RadioRigConfig},
+    radio_config::{ActiveRadioBackend, RadioConfig, RadioRigConfig, ResolvedRadioModel},
     rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status, UnavailableRadio},
 };
 
@@ -23,25 +23,37 @@ fn build(config: &RadioConfig, selected: &ActiveRadioBackend) -> Box<dyn Radio> 
     match selected {
         ActiveRadioBackend::Dummy => Box::new(DummyRadio::new()),
         ActiveRadioBackend::Configured(_) => Box::new(CompositeRadio::new(
-            child_factory(&config.rig1),
-            config.rig2.as_ref().map(child_factory),
+            child_factory(config.rig.as_ref()),
+            None,
         )),
     }
 }
 
-fn child_factory(config: &RadioRigConfig) -> RadioFactory {
-    let config = config.clone();
-    Arc::new(move || radio(&config))
+fn child_factory(config: Option<&RadioRigConfig>) -> RadioFactory {
+    let config = config.cloned();
+    Arc::new(move || radio(config.as_ref()))
 }
 
-fn radio(config: &RadioRigConfig) -> Box<dyn Radio> {
-    match config {
-        RadioRigConfig::Unconfigured => Box::new(UnavailableRadio::new("unconfigured")),
-        RadioRigConfig::Hamlib { hamlib } => Box::new(HamlibRadio::new(hamlib.clone(), None)),
-        #[cfg(windows)]
-        RadioRigConfig::Omnirig => Box::new(OmnirigRadio::new()),
-        #[cfg(not(windows))]
-        RadioRigConfig::Omnirig => Box::new(UnavailableRadio::new("omnirig")),
+fn radio(config: Option<&RadioRigConfig>) -> Box<dyn Radio> {
+    let Some(config) = config else {
+        return Box::new(UnavailableRadio::new("unconfigured"));
+    };
+    match crate::radio_config::resolve_model_id(&config.model_id) {
+        Ok(ResolvedRadioModel::Hamlib(_)) => match config.hamlib_config() {
+            Some(hamlib) => Box::new(HamlibRadio::new(hamlib, None)),
+            None => Box::new(UnavailableRadio::new("hamlib")),
+        },
+        Ok(ResolvedRadioModel::Omnirig(_)) => {
+            #[cfg(windows)]
+            {
+                Box::new(OmnirigRadio::new())
+            }
+            #[cfg(not(windows))]
+            {
+                Box::new(UnavailableRadio::new("omnirig"))
+            }
+        }
+        Err(_) => Box::new(UnavailableRadio::new("unconfigured")),
     }
 }
 
@@ -267,7 +279,7 @@ mod tests {
     use super::{CompositeRadio, factory};
     use crate::{
         freq::Freq,
-        radio_config::{HamlibRigConfig, RadioConfig, RadioRigConfig},
+        radio_config::{RadioConfig, RadioRigConfig},
         radio_manager::{ConnectionState, RadioManager},
         rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status},
     };
@@ -369,14 +381,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn initializes_and_operates_rig2_when_rig1_is_unavailable() {
+    async fn initializes_and_operates_configured_single_hamlib_rig() {
         let config = RadioConfig {
-            rig1: RadioRigConfig::Unconfigured,
-            rig2: Some(RadioRigConfig::Hamlib {
-                hamlib: HamlibRigConfig {
-                    model_id: hamlib::RigModelId::DUMMY.to_string(),
-                    token_values: BTreeMap::new(),
-                },
+            rig: Some(RadioRigConfig {
+                model_id: "hamlib:1".into(),
+                token_values: BTreeMap::new(),
             }),
         };
         let selected = config.effective_backend(false);
@@ -389,21 +398,9 @@ mod tests {
             .unwrap();
 
         let snapshot = manager.snapshot();
-        assert_eq!(snapshot.connection, ConnectionState::Disconnected);
-        assert_eq!(snapshot.last_status, Status::disconnected(1));
-        assert_eq!(
-            snapshot.last_error,
-            Some(RadioInitError::Io {
-                backend: "unconfigured",
-                kind: std::io::ErrorKind::NotFound,
-            })
-        );
-
-        manager.set_rig(2).await.unwrap();
-        let snapshot = manager.snapshot();
         assert_eq!(snapshot.connection, ConnectionState::Connected);
         assert_eq!(snapshot.last_error, None);
-        assert_eq!(snapshot.last_status.current_rig, 2);
+        assert_eq!(snapshot.last_status.current_rig, 1);
 
         manager
             .set_mode_and_frequency(Mode::CW, Freq::from_u32_hz(7_100_000))
@@ -415,7 +412,7 @@ mod tests {
                 manager.status().freq,
                 manager.status().mode.as_str()
             ),
-            (2, 7_100_000, "CW")
+            (1, 7_100_000, "CW")
         );
         manager.shutdown().await.unwrap();
     }

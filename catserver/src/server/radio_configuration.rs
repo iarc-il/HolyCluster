@@ -3,7 +3,10 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use serde::Serialize;
 
 use crate::{
-    radio_config::{HamlibRigConfig, RadioConfig, RadioConfigError, RadioRigConfig},
+    radio_config::{
+        HamlibRigConfig, RadioConfig, RadioConfigError, RadioRigConfig, ResolvedRadioModel,
+        resolve_model_id,
+    },
     radio_factory,
     radio_manager::{RadioManager, RadioManagerError},
     rig::RadioInitError,
@@ -197,24 +200,24 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
 }
 
 fn validate_configuration(configuration: &RadioConfig) -> Vec<FieldError> {
-    let mut errors = validate_rig_configuration("rig1", &configuration.rig1);
-    if let Some(rig2) = &configuration.rig2 {
-        errors.extend(validate_rig_configuration("rig2", rig2));
-    }
-    errors
+    configuration
+        .rig
+        .as_ref()
+        .map_or_else(Vec::new, |rig| validate_rig_configuration("rig", rig))
 }
 
 fn validate_rig_configuration(field: &str, configuration: &RadioRigConfig) -> Vec<FieldError> {
-    let backend = configuration.backend();
-    if !backend.is_supported_on_platform() {
-        return vec![config_error(
-            field,
-            RadioConfigError::PlatformUnsupportedBackend(backend),
-        )];
+    match configuration.validate() {
+        Ok(()) => {}
+        Err(error) => return vec![config_error(field, error)],
     }
-    match configuration {
-        RadioRigConfig::Hamlib { hamlib } => validate_rig(&format!("{field}.hamlib"), hamlib),
-        RadioRigConfig::Unconfigured | RadioRigConfig::Omnirig => Vec::new(),
+    match resolve_model_id(&configuration.model_id) {
+        Ok(ResolvedRadioModel::Hamlib(_)) => match configuration.hamlib_config() {
+            Some(hamlib) => validate_rig(field, &hamlib),
+            None => vec![invalid_model(&configuration.model_id)],
+        },
+        Ok(ResolvedRadioModel::Omnirig(_)) => Vec::new(),
+        Err(error) => vec![config_error(field, error)],
     }
 }
 
