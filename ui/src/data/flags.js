@@ -16,6 +16,7 @@ const dxcc_to_country_flag = {
     "Austral Islands": "French Polynesia",
     "Aves Island": "Venezuela",
     "Baker Howland Islands": "United States Minor Outlying Islands",
+    "Cabo Verde": "Cape Verde",
     "Chagos Islands": "British Indian Ocean Territory",
     "Chesterfield Islands": "New Caledonia",
     "Clipperton Island": "France",
