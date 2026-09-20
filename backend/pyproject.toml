@@ -6,7 +6,6 @@ dependencies = [
     "alembic>=1.18.4",
     "api",
     "collectors",
-    "monitor",
     "uvicorn[standard]>=0.38.0",
 ]
 
@@ -21,14 +20,12 @@ dev = [
 [tool.uv.sources]
 api = { workspace = true }
 collectors = { workspace = true }
-monitor = { workspace = true }
 shared = { workspace = true }
 
 [tool.uv.workspace]
 members = [
     "api",
     "collectors",
-    "monitor",
     "shared",
 ]
 

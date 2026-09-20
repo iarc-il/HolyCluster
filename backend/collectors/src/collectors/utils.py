@@ -1,11 +1,9 @@
 import asyncio
-import json
 from collections.abc import Callable
 from typing import Any
 
 import aiohttp
 from loguru import logger
-from shared.metrics import push_drop_event, push_exception_event, set_value
 from shared.telemetry import capture_exception
 
 USER_AGENT = "HolyCluster collector (https://holycluster.iarc.org/)"
@@ -51,14 +49,10 @@ async def run_json_spot_collector(
     valkey_client = get_valkey_client()
     timeout = aiohttp.ClientTimeout(total=request_timeout)
     headers = {"User-Agent": USER_AGENT}
-    connected_key = f"collector:{metric_name}:connected"
-
     async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
         while True:
             try:
                 raw_spots = await fetch_json_list(session, url, source_label)
-                await set_value(valkey_client, connected_key, 1)
-
                 queued_count = 0
                 for raw_spot in sorted(raw_spots, key=sort_key):
                     try:
@@ -67,11 +61,6 @@ async def run_json_spot_collector(
                         content_spot_key = build_spot_key(spot)
                     except (KeyError, ValueError) as e:
                         logger.info(f"Dropping {source_label} spot due to parse error: {e}: {raw_spot}")
-                        await push_drop_event(
-                            valkey_client,
-                            f"{metric_name}_parse_error",
-                            json.dumps(raw_spot, default=str),
-                        )
                         continue
 
                     source_added = await valkey_client.set(source_spot_key, 1, ex=spot_expiration, nx=True)
@@ -92,7 +81,5 @@ async def run_json_spot_collector(
                 break
             except Exception as e:
                 logger.exception(f"{source_label} collector failed")
-                await set_value(valkey_client, connected_key, 0)
                 capture_exception(e, operation=f"collector.poll.{metric_name}")
-                await push_exception_event(valkey_client, "collector", f"{metric_name}: {e}")
                 await asyncio.sleep(min(poll_interval, 300))

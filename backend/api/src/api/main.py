@@ -20,7 +20,6 @@ from loguru import logger
 from shared.cty import ensure_cty_available
 from shared.db import GeoCache, HolySpot, PropagationMeasurement, SpotsWithIssues
 from shared.geo import GeoException, get_geo_details
-from shared.metrics import push_exception_event, set_timestamp, set_value
 from shared.telemetry import capture_exception, initialize_sentry
 from sqlalchemy import desc, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -92,12 +91,10 @@ async def propagation_data_collector(app):
                 sleep = 10
                 logger.exception(f"Failed to persist propagation data: {str(e)}")
                 capture_exception(e, operation="api.propagation.persist")
-                await push_exception_event(app.state.valkey_client, "api", f"propagation persist: {e}")
         except Exception as e:
             sleep = 10
             logger.exception(f"Failed to fetch propagation data: {str(e)}")
             capture_exception(e, operation="api.propagation.fetch")
-            await push_exception_event(app.state.valkey_client, "api", f"propagation: {e}")
         await asyncio.sleep(sleep)
 
 
@@ -140,8 +137,6 @@ async def spots_broadcast_task(app):
         pass
 
     while True:
-        await set_timestamp(valkey_client, "api:heartbeat")
-
         response = await valkey_client.xreadgroup(
             CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: ">"}, count=10, block=60000
         )
@@ -161,17 +156,9 @@ async def spots_broadcast_task(app):
 
                 await broadcast_spots(app, spots)
 
-                await set_timestamp(valkey_client, "api:last_broadcast_time")
-                await set_value(
-                    valkey_client,
-                    "api:ws_clients",
-                    len(app.state.active_connections) + len(app.state.active_ws_spot_connections),
-                )
-
         except Exception as e:
             logger.exception(f"Error in spots broadcast task: {e}")
             capture_exception(e, operation="api.broadcast")
-            await push_exception_event(valkey_client, "api", f"broadcast: {e}")
 
 
 @asynccontextmanager
@@ -728,7 +715,7 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
                 await dispatch_ws_message(websocket, send_lock, missing_jobs, message)
                 continue
 
-            response = await submit_spot.handle_spot(message, app.state.valkey_client)
+            response = await submit_spot.handle_spot(message)
             await send_ws_json(websocket, send_lock, response)
     finally:
         await cancel_missing_jobs(missing_jobs)
@@ -765,7 +752,7 @@ async def ws(websocket: fastapi.WebSocket):
 
 
 async def send_ws_submit(websocket: fastapi.WebSocket, message: dict):
-    response = await submit_spot.handle_spot(message, app.state.valkey_client)
+    response = await submit_spot.handle_spot(message)
     if "type" in response:
         response = {**response, "error_type": response["type"]}
         del response["type"]

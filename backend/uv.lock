@@ -7,7 +7,6 @@ members = [
     "api",
     "backend",
     "collectors",
-    "monitor",
     "shared",
 ]
 
@@ -271,7 +270,6 @@ dependencies = [
     { name = "alembic" },
     { name = "api" },
     { name = "collectors" },
-    { name = "monitor" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -288,7 +286,6 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.18.4" },
     { name = "api", editable = "api" },
     { name = "collectors", editable = "collectors" },
-    { name = "monitor", editable = "monitor" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.38.0" },
 ]
 
@@ -776,29 +773,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c7/74/97e72a36efd4ae2bccb3463284300f8953f199b5ffbc04cbbb0ec78f74b1/matplotlib_inline-0.2.1.tar.gz", hash = "sha256:e1ee949c340d771fc39e241ea75683deb94762c8fa5f2927ec57c83c4dffa9fe", size = 8110, upload-time = "2025-10-23T09:00:22.126Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/af/33/ee4519fa02ed11a94aef9559552f3b17bb863f2ecfe1a35dc7f548cde231/matplotlib_inline-0.2.1-py3-none-any.whl", hash = "sha256:d56ce5156ba6085e00a9d54fead6ed29a9c47e215cd1bba2e976ef39f5710a76", size = 9516, upload-time = "2025-10-23T09:00:20.675Z" },
-]
-
-[[package]]
-name = "monitor"
-version = "0.1.0"
-source = { editable = "monitor" }
-dependencies = [
-    { name = "httpx" },
-    { name = "loguru" },
-    { name = "pydantic-settings" },
-    { name = "redis" },
-    { name = "shared" },
-    { name = "websockets" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "loguru", specifier = ">=0.7.3" },
-    { name = "pydantic-settings", specifier = ">=2.7.1" },
-    { name = "redis", specifier = ">=7.1.0" },
-    { name = "shared", editable = "shared" },
-    { name = "websockets", specifier = ">=14.0" },
 ]
 
 [[package]]

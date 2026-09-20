@@ -8,7 +8,6 @@ from loguru import logger
 from shared.cty import ensure_cty_available
 from shared.db import HolySpot
 from shared.geo import GeoException, get_geo_details
-from shared.metrics import push_drop_event, push_exception_event, set_timestamp
 from shared.qrz import QrzSessionManager
 from shared.telemetry import capture_exception, initialize_sentry
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
@@ -173,7 +172,6 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
     try:
         while True:
             spot = await input_queue.get()
-            await set_timestamp(valkey_client, "collector:heartbeat")
             try:
                 try:
                     enriched_spot = await enrich_spot(
@@ -189,21 +187,11 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     logger.info(f"Dropping spot due to {e}: {spot}")
                     continue
                 except GeoException as e:
-                    if e.notify_monitor:
-                        logger.exception("Dropping spot due to geo exception")
-                        await push_drop_event(
-                            valkey_client, f"geo_exception ({e.callsign_type}, {e.data_type})", e.callsign
-                        )
-                    else:
-                        logger.info(
-                            f"Dropping spot due to non-notifiable geo exception "
-                            f"({e.callsign_type}, {e.data_type}): {e.callsign}"
-                        )
+                    logger.info(f"Dropping spot due to geo exception ({e.callsign_type}, {e.data_type}): {e.callsign}")
                     continue
                 except Exception as e:
                     logger.exception("Unexpected error enriching spot")
                     capture_exception(e, operation="collector.enrich")
-                    await push_exception_event(valkey_client, "collector", str(e))
                     continue
 
                 logger.debug(f"Enriched: {enriched_spot.get('dx_callsign')} on {enriched_spot.get('frequency')}")
@@ -215,7 +203,6 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     continue
 
                 await add_spot_to_postgres(engine, enriched_spot)
-                await set_timestamp(valkey_client, "collector:last_spot_time")
 
                 if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
                     await valkey_client.xadd(STREAM_API, enriched_spot, "*", maxlen=10000)
@@ -240,7 +227,6 @@ async def refresh_dxpedition_data(valkey_client):
             sleep = 600
             logger.exception("Failed to refresh DXpedition data")
             capture_exception(e, operation="collector.dxpedition_refresh")
-            await push_exception_event(valkey_client, "collector", f"dxpedition refresh: {e}")
         await asyncio.sleep(sleep)
 
 
@@ -259,7 +245,6 @@ async def refresh_lotw_user_data(valkey_client):
         except Exception as e:
             logger.exception("Failed to refresh LoTW user activity")
             capture_exception(e, operation="collector.lotw_refresh")
-            await push_exception_event(valkey_client, "collector", f"LoTW refresh: {e}")
             sleep = 600
         await asyncio.sleep(sleep)
 

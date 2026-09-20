@@ -60,7 +60,6 @@ while IFS= read -r file; do
             add_service api
             add_service collector
             add_service migrate
-            add_service monitor
             add_service nginx
             add_service postgres
             add_service valkey
@@ -70,14 +69,12 @@ while IFS= read -r file; do
             add_service api
             add_service collector
             add_service migrate
-            add_service monitor
             run_migrations
             ;;
         pyproject.toml|uv.lock)
             add_service api
             add_service collector
             add_service migrate
-            add_service monitor
             run_migrations
             ;;
         alembic.ini|migrations/*|docker/Dockerfile.migrate)
@@ -91,9 +88,6 @@ while IFS= read -r file; do
         collectors/*|docker/Dockerfile.collector)
             add_service collector
             run_migrations
-            ;;
-        monitor/*|docker/Dockerfile.monitor)
-            add_service monitor
             ;;
         infra/nginx/*)
             add_service nginx
@@ -119,12 +113,6 @@ if [ -z "$SERVICE_LIST" ]; then
 fi
 
 echo "Services to rebuild: $SERVICE_LIST"
-
-# Stop monitor before rebuilding api or monitor to avoid health-check failures
-if [[ -v SERVICES[api] || -v SERVICES[monitor] ]]; then
-    echo "Stopping monitor before rebuild..."
-    docker compose stop monitor
-fi
 
 echo "Building: $SERVICE_LIST"
 docker compose build --parallel $SERVICE_LIST

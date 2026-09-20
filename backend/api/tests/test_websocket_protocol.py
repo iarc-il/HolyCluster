@@ -334,7 +334,7 @@ class WebSocketProtocolTest(unittest.TestCase):
                 },
             )
 
-        handle_spot.assert_awaited_once_with(message, valkey)
+        handle_spot.assert_awaited_once_with(message)
 
     def test_ws_returns_submit_failure_response(self):
         app.state.valkey_client = object()

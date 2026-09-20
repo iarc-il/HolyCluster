@@ -9,11 +9,10 @@ from shared.qrz import get_locator_from_qrz
 
 
 class GeoException(Exception):
-    def __init__(self, callsign: str, callsign_type: str, data_type: str, notify_monitor: bool = True):
+    def __init__(self, callsign: str, callsign_type: str, data_type: str):
         self.callsign = callsign
         self.callsign_type = callsign_type
         self.data_type = data_type
-        self.notify_monitor = notify_monitor
 
 
 class GeoData(BaseModel):
@@ -102,7 +101,6 @@ def resolve_dxcc_entity(
         callsign,
         callsign_type,
         "dxcc_code",
-        notify_monitor=False,
     )
 
 
@@ -166,7 +164,6 @@ async def get_geo_details(
                 callsign,
                 callsign_type,
                 "locator",
-                notify_monitor=cty_country is not None,
             )
 
     if cty_country is None:
