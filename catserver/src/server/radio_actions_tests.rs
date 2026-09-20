@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use super::{
     radio_actions::process_ws,
     radio_configuration::{
-        Capabilities, ConfigurationFailure, ConfigurationResult, FieldError, HamlibModel,
-        ProductionRadioConfiguration, RadioConfiguration, RadioConfigurationService,
+        Capabilities, ConfigurationFailure, ConfigurationResult, FieldError,
+        ProductionRadioConfiguration, RadioConfiguration, RadioConfigurationService, RadioModel,
     },
 };
 use crate::{
@@ -17,18 +17,18 @@ impl RadioConfigurationService for Service {
     fn capabilities(&self) -> Capabilities {
         Capabilities {
             radio_configuration: true,
+            radio_configuration_api: 2,
             rotator_configuration: true,
-            backends: vec!["hamlib"],
         }
     }
-    fn models(&self) -> Result<Vec<HamlibModel>, FieldError> {
-        Ok(vec![HamlibModel {
-            id: "1".into(),
+    fn models(&self) -> Result<Vec<RadioModel>, FieldError> {
+        Ok(vec![RadioModel {
+            id: "hamlib:1".into(),
             manufacturer: "Hamlib".into(),
             model: "Dummy".into(),
             version: "1".into(),
             status: "stable".into(),
-            port_type: hamlib::RigPortType::None,
+            connection_kind: "none",
         }])
     }
     fn serial_ports(&self) -> Result<Vec<String>, FieldError> {
@@ -71,11 +71,11 @@ fn radio() -> RadioManager {
 }
 
 #[tokio::test]
-async fn unified_actions_return_typed_data() {
+async fn list_radio_models_returns_typed_data() {
     let radio = radio();
     let service: RadioConfiguration = Arc::new(Service);
     let unified = process_ws(
-        r#"{"version":1,"type":"radio","action":"ListHamlibModels"}"#.into(),
+        r#"{"version":1,"type":"radio","action":"ListRadioModels"}"#.into(),
         &radio,
         &service,
     )
@@ -86,8 +86,77 @@ async fn unified_actions_return_typed_data() {
     .unwrap();
     let unified: serde_json::Value = serde_json::from_str(&unified).unwrap();
     assert_eq!(unified["type"], "radio");
-    assert_eq!(unified["event"], "hamlib_models");
-    assert_eq!(unified["models"][0]["id"], "1");
+    assert_eq!(unified["event"], "radio_models");
+    assert_eq!(unified["models"][0]["id"], "hamlib:1");
+    assert_eq!(unified["models"][0]["connection_kind"], "none");
+}
+
+#[tokio::test]
+async fn describes_radio_model_with_typed_event() {
+    let radio = radio();
+    let service: RadioConfiguration = Arc::new(Service);
+    let response = process_ws(
+        r#"{"version":1,"type":"radio","action":"DescribeRadioModel","model_id":"hamlib:1"}"#
+            .into(),
+        &radio,
+        &service,
+    )
+    .await
+    .unwrap()
+    .unwrap()
+    .into_text()
+    .unwrap();
+    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(response["type"], "radio");
+    assert_eq!(response["event"], "radio_model");
+    assert_eq!(response["model_id"], "hamlib:1");
+    assert_eq!(response["descriptors"][0]["token"], "path");
+}
+
+#[tokio::test]
+async fn old_hamlib_model_actions_are_not_accepted() {
+    let radio = radio();
+    let service: RadioConfiguration = Arc::new(Service);
+    assert!(
+        process_ws(
+            r#"{"version":1,"type":"radio","action":"ListHamlibModels"}"#.into(),
+            &radio,
+            &service,
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+    assert!(
+        process_ws(
+            r#"{"version":1,"type":"radio","action":"DescribeHamlibModel","model_id":"1"}"#.into(),
+            &radio,
+            &service,
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+}
+
+#[tokio::test]
+async fn capabilities_advertise_radio_configuration_api_v2_without_backends() {
+    let radio = radio();
+    let service: RadioConfiguration = Arc::new(Service);
+    let response = process_ws(
+        r#"{"version":1,"type":"radio","action":"GetCapabilities"}"#.into(),
+        &radio,
+        &service,
+    )
+    .await
+    .unwrap()
+    .unwrap()
+    .into_text()
+    .unwrap();
+    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(response["event"], "capabilities");
+    assert_eq!(response["radio_configuration_api"], 2);
+    assert!(response.get("backends").is_none());
 }
 
 #[tokio::test]
@@ -109,6 +178,67 @@ async fn lists_serial_ports() {
     assert_eq!(response["event"], "serial_ports");
     assert_eq!(response["ports"][0], "/dev/ttyUSB0");
 }
+
+#[tokio::test]
+async fn production_catalog_uses_opaque_model_ids_and_generic_connection_kinds() {
+    let models = ProductionRadioConfiguration::new(radio()).models().unwrap();
+    let dummy = models
+        .iter()
+        .find(|model| model.id == "hamlib:1")
+        .expect("Hamlib dummy model is present");
+    assert_eq!(dummy.connection_kind, "none");
+    assert!(
+        models
+            .iter()
+            .all(|model| matches!(model.connection_kind, "serial" | "network" | "none"))
+    );
+    #[cfg(not(windows))]
+    assert!(models.iter().all(|model| !model.id.starts_with("omnirig:")));
+    #[cfg(windows)]
+    {
+        assert!(models.iter().any(|model| model.id == "omnirig:1"
+            && model.model == "OmniRig Rig 1"
+            && model.connection_kind == "none"));
+        assert!(models.iter().any(|model| model.id == "omnirig:2"
+            && model.model == "OmniRig Rig 2"
+            && model.connection_kind == "none"));
+    }
+}
+
+#[tokio::test]
+async fn production_describes_hamlib_models_with_opaque_ids() {
+    let descriptors = ProductionRadioConfiguration::new(radio())
+        .describe("hamlib:1")
+        .unwrap();
+    assert!(!descriptors.is_empty());
+    assert!(
+        ProductionRadioConfiguration::new(radio())
+            .describe("1")
+            .is_err()
+    );
+}
+
+#[cfg(windows)]
+#[tokio::test]
+async fn production_describes_omnirig_models_without_descriptors() {
+    assert_eq!(
+        ProductionRadioConfiguration::new(radio())
+            .describe("omnirig:1")
+            .unwrap(),
+        Vec::<serde_json::Value>::new()
+    );
+}
+
+#[cfg(not(windows))]
+#[tokio::test]
+async fn production_rejects_omnirig_descriptions_on_non_windows() {
+    assert!(
+        ProductionRadioConfiguration::new(radio())
+            .describe("omnirig:1")
+            .is_err()
+    );
+}
+
 #[tokio::test]
 async fn accepts_enum_configuration() {
     let radio = radio();

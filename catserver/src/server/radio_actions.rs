@@ -37,9 +37,9 @@ enum ClientMessage {
         udp_port: u16,
     },
     GetCapabilities,
-    ListHamlibModels,
+    ListRadioModels,
     ListSerialPorts,
-    DescribeHamlibModel {
+    DescribeRadioModel {
         model_id: String,
     },
     GetRadioConfiguration,
@@ -101,8 +101,8 @@ async fn process(
             "capabilities",
             serde_json::to_value(service.capabilities())?,
         ),
-        ClientMessage::ListHamlibModels => (
-            "hamlib_models",
+        ClientMessage::ListRadioModels => (
+            "radio_models",
             service
                 .models()
                 .map(|models| serde_json::json!({"models": models}))
@@ -115,8 +115,8 @@ async fn process(
                 .map(|ports| serde_json::json!({"ports": ports}))
                 .unwrap_or_else(|error| serde_json::json!({"error": error})),
         ),
-        ClientMessage::DescribeHamlibModel { model_id } => (
-            "hamlib_model",
+        ClientMessage::DescribeRadioModel { model_id } => (
+            "radio_model",
             match service.describe(&model_id) {
                 Ok(descriptors) => {
                     serde_json::json!({"model_id": model_id, "descriptors": descriptors})

@@ -15,8 +15,8 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub(super) struct Capabilities {
     pub(super) radio_configuration: bool,
+    pub(super) radio_configuration_api: u8,
     pub(super) rotator_configuration: bool,
-    pub(super) backends: Vec<&'static str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -27,6 +27,16 @@ pub(super) struct HamlibModel {
     pub(super) version: String,
     pub(super) status: String,
     pub(super) port_type: hamlib::RigPortType,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub(super) struct RadioModel {
+    pub(super) id: String,
+    pub(super) manufacturer: String,
+    pub(super) model: String,
+    pub(super) version: String,
+    pub(super) status: String,
+    pub(super) connection_kind: &'static str,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -75,7 +85,7 @@ impl ConfigurationResult {
 
 pub(super) trait RadioConfigurationService: Send + Sync {
     fn capabilities(&self) -> Capabilities;
-    fn models(&self) -> Result<Vec<HamlibModel>, FieldError>;
+    fn models(&self) -> Result<Vec<RadioModel>, FieldError>;
     fn serial_ports(&self) -> Result<Vec<String>, FieldError>;
     fn describe(&self, model_id: &str) -> Result<Vec<serde_json::Value>, FieldError>;
     fn configuration(&self, current: RadioConfig) -> RadioConfig;
@@ -102,25 +112,27 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
     fn capabilities(&self) -> Capabilities {
         Capabilities {
             radio_configuration: true,
+            radio_configuration_api: 2,
             rotator_configuration: true,
-            backends: supported_backends(),
         }
     }
 
-    fn models(&self) -> Result<Vec<HamlibModel>, FieldError> {
+    fn models(&self) -> Result<Vec<RadioModel>, FieldError> {
         let catalog = hamlib::Catalog::load().map_err(catalog_error)?;
-        Ok(catalog
+        let mut models = catalog
             .models()
             .iter()
-            .map(|model| HamlibModel {
-                id: model.id().to_string(),
+            .map(|model| RadioModel {
+                id: format!("hamlib:{}", model.id()),
                 manufacturer: model.manufacturer().into(),
                 model: model.model().into(),
                 version: model.version().into(),
                 status: format!("{:?}", model.status()).to_lowercase(),
-                port_type: model.port_type(),
+                connection_kind: connection_kind(model.port_type()),
             })
-            .collect())
+            .collect::<Vec<_>>();
+        models.extend(omnirig_models());
+        Ok(models)
     }
 
     fn serial_ports(&self) -> Result<Vec<String>, FieldError> {
@@ -134,14 +146,22 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
     }
 
     fn describe(&self, model_id: &str) -> Result<Vec<serde_json::Value>, FieldError> {
-        let id = model_id.parse().map_err(|_| invalid_model(model_id))?;
-        let catalog = hamlib::Catalog::load().map_err(catalog_error)?;
-        catalog
-            .describe_model(hamlib::RigModelId::new(id))
-            .map_err(catalog_error)?
-            .into_iter()
-            .map(|descriptor| serde_json::to_value(descriptor).map_err(catalog_error))
-            .collect()
+        match resolve_model_id(model_id).map_err(|_| invalid_model(model_id))? {
+            ResolvedRadioModel::Hamlib(id) => {
+                let catalog = hamlib::Catalog::load().map_err(catalog_error)?;
+                catalog
+                    .describe_model(id)
+                    .map_err(catalog_error)?
+                    .into_iter()
+                    .map(|descriptor| serde_json::to_value(descriptor).map_err(catalog_error))
+                    .collect()
+            }
+            ResolvedRadioModel::Omnirig(_) if cfg!(windows) => Ok(Vec::new()),
+            ResolvedRadioModel::Omnirig(_) => Err(config_error(
+                "model_id",
+                RadioConfigError::PlatformUnsupportedModel(model_id.into()),
+            )),
+        }
     }
 
     fn configuration(&self, current: RadioConfig) -> RadioConfig {
@@ -281,7 +301,7 @@ pub(super) fn production(radio: RadioManager) -> RadioConfiguration {
 fn invalid_model(model_id: &str) -> FieldError {
     FieldError {
         field: "model_id".into(),
-        message: format!("invalid Hamlib model: {model_id}"),
+        message: format!("invalid radio model: {model_id}"),
         token: None,
         details: None,
     }
@@ -336,13 +356,38 @@ fn manager_error(error: crate::radio_manager::RadioManagerError) -> FieldError {
     }
 }
 
-fn supported_backends() -> Vec<&'static str> {
+fn connection_kind(port_type: hamlib::RigPortType) -> &'static str {
+    match port_type {
+        hamlib::RigPortType::Serial => "serial",
+        hamlib::RigPortType::Network | hamlib::RigPortType::UdpNetwork => "network",
+        _ => "none",
+    }
+}
+
+fn omnirig_models() -> Vec<RadioModel> {
     #[cfg(windows)]
     {
-        vec!["omnirig", "hamlib"]
+        vec![
+            RadioModel {
+                id: "omnirig:1".into(),
+                manufacturer: "OmniRig".into(),
+                model: "OmniRig Rig 1".into(),
+                version: String::new(),
+                status: "stable".into(),
+                connection_kind: "none",
+            },
+            RadioModel {
+                id: "omnirig:2".into(),
+                manufacturer: "OmniRig".into(),
+                model: "OmniRig Rig 2".into(),
+                version: String::new(),
+                status: "stable".into(),
+                connection_kind: "none",
+            },
+        ]
     }
     #[cfg(not(windows))]
     {
-        vec!["hamlib"]
+        Vec::new()
     }
 }
