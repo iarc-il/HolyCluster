@@ -107,7 +107,21 @@ export default defineConfig(({ mode }) => ({
         rollupOptions: {
             output: {
                 manualChunks: id => {
-                    if (id.includes("node_modules")) {
+                    const dependency_path = id.split("node_modules/")[1];
+                    if (dependency_path?.startsWith("@sentry/")) {
+                        return "vendor-sentry";
+                    }
+                    if (/^d3(?:-|\/)/.test(dependency_path)) {
+                        return "vendor-d3";
+                    }
+                    if (
+                        /^(?:react|react-dom|react-router|react-router-dom|scheduler|use-sync-external-store)\//.test(
+                            dependency_path,
+                        )
+                    ) {
+                        return "vendor-react";
+                    }
+                    if (dependency_path) {
                         return "vendor";
                     }
                     if (id.includes("dxcc_map.json")) {
