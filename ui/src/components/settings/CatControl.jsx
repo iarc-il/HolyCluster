@@ -539,7 +539,7 @@ function CatControl({
             });
         } else if (radio_configuration_result?.failure === "connection") {
             const connection_error = radio_configuration_result.errors?.find(
-                error => error.field === "connection" || error.field === "backend",
+                error => error.field === "connection" || error.field === "configuration",
             );
             set_save_state({
                 ok: false,

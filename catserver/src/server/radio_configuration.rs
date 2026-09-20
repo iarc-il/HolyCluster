@@ -462,7 +462,7 @@ fn model_error(field: &str, error: impl std::fmt::Display) -> FieldError {
 
 fn manager_error(error: crate::radio_manager::RadioManagerError) -> FieldError {
     FieldError {
-        field: "backend".into(),
+        field: "configuration".into(),
         message: error.to_string(),
         token: None,
         details: None,
