@@ -305,13 +305,14 @@ async fn same_healthy_configuration_test_reuses_active_rotator() {
 #[tokio::test]
 async fn testing_and_replacement_never_overlap_exclusive_instances() {
     let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
+    let (config, configured) = configured_rotator();
     let active = Arc::new(AtomicUsize::new(0));
     let overlap = Arc::new(AtomicBool::new(false));
     let active_count = Arc::clone(&active);
     let active_overlap = Arc::clone(&overlap);
     manager
         .replace(
-            RotatorConfig::unconfigured(),
+            config.clone(),
             ActiveRotatorBackend::DummyOverride,
             move || {
                 ExclusiveRotator::create(Arc::clone(&active_count), Arc::clone(&active_overlap))
@@ -323,11 +324,9 @@ async fn testing_and_replacement_never_overlap_exclusive_instances() {
     let test_active = Arc::clone(&active);
     let test_overlap = Arc::clone(&overlap);
     manager
-        .test_connection(
-            RotatorConfig::unconfigured(),
-            ActiveRotatorBackend::Unconfigured,
-            move || ExclusiveRotator::create(Arc::clone(&test_active), Arc::clone(&test_overlap)),
-        )
+        .test_connection(config.clone(), configured.clone(), move || {
+            ExclusiveRotator::create(Arc::clone(&test_active), Arc::clone(&test_overlap))
+        })
         .await
         .unwrap();
     assert_eq!(
@@ -340,16 +339,12 @@ async fn testing_and_replacement_never_overlap_exclusive_instances() {
     let replacement_active = Arc::clone(&active);
     let replacement_overlap = Arc::clone(&overlap);
     manager
-        .replace(
-            RotatorConfig::unconfigured(),
-            ActiveRotatorBackend::Unconfigured,
-            move || {
-                ExclusiveRotator::create(
-                    Arc::clone(&replacement_active),
-                    Arc::clone(&replacement_overlap),
-                )
-            },
-        )
+        .replace(config, configured, move || {
+            ExclusiveRotator::create(
+                Arc::clone(&replacement_active),
+                Arc::clone(&replacement_overlap),
+            )
+        })
         .await
         .unwrap();
     assert_eq!(active.load(Ordering::SeqCst), 1);
