@@ -25,6 +25,30 @@ const sentry_upload_enabled = Object.values({
     sourceMaps: process.env.SENTRY_UPLOAD_SOURCE_MAPS === "true",
 }).every(Boolean);
 
+const catserver_proxy_paths = [
+    "/api",
+    "/catserver",
+    "/dxpeditions",
+    "/history",
+    "/locator",
+    "/propagation",
+    "/radio",
+    "/spots_ws",
+    "/submit_spot",
+    "/voacap",
+    "/ws",
+];
+
+const catserver_proxy = Object.fromEntries(
+    catserver_proxy_paths.map(path => [
+        path,
+        {
+            target: "http://127.0.0.1:3000",
+            ws: true,
+        },
+    ]),
+);
+
 export default defineConfig(({ mode }) => ({
     plugins: [
         ctyDxccEntitiesPlugin(),
@@ -47,29 +71,33 @@ export default defineConfig(({ mode }) => ({
         },
     },
     server: {
-        proxy: {
-            "/propagation": "https://holycluster-dev.iarc.org",
-            "/locator": "https://holycluster-dev.iarc.org",
-            "/catserver": "https://holycluster-dev.iarc.org",
-            "/dxpeditions": "https://holycluster-dev.iarc.org",
-            "/history": "https://holycluster-dev.iarc.org",
-            "/spots_ws": {
-                target: "wss://holycluster-dev.iarc.org",
-                ws: true,
-            },
-            "/radio": {
-                target: "wss://holycluster-dev.iarc.org",
-                ws: true,
-            },
-            "/submit_spot": {
-                target: "wss://holycluster-dev.iarc.org",
-                ws: true,
-            },
-            "/ws": {
-                target: "wss://holycluster-dev.iarc.org",
-                ws: true,
-            },
-        },
+        proxy:
+            process.env.CATSERVER_PROXY === "true"
+                ? catserver_proxy
+                : {
+                      "/propagation": "https://holycluster-dev.iarc.org",
+                      "/locator": "https://holycluster-dev.iarc.org",
+                      "/catserver": "https://holycluster-dev.iarc.org",
+                      "/dxpeditions": "https://holycluster-dev.iarc.org",
+                      "/history": "https://holycluster-dev.iarc.org",
+                      "/voacap": "https://holycluster-dev.iarc.org",
+                      "/spots_ws": {
+                          target: "wss://holycluster-dev.iarc.org",
+                          ws: true,
+                      },
+                      "/radio": {
+                          target: "wss://holycluster-dev.iarc.org",
+                          ws: true,
+                      },
+                      "/submit_spot": {
+                          target: "wss://holycluster-dev.iarc.org",
+                          ws: true,
+                      },
+                      "/ws": {
+                          target: "wss://holycluster-dev.iarc.org",
+                          ws: true,
+                      },
+                  },
     },
     build: {
         sourcemap:

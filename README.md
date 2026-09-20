@@ -31,6 +31,13 @@ npm install
 npm run dev
 ```
 
+To route the development server's API and WebSocket traffic through a local
+CAT server on port 3000, run:
+
+```sh
+npm run dev -- --catserver
+```
+
 The development server requires network access. It sends API and WebSocket
 traffic to the shared `https://holycluster-dev.iarc.org` environment, so it is
 not isolated from shared development data. Run the checks with:
