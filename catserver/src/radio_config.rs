@@ -9,7 +9,10 @@ use std::{
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
-use crate::hamlib_device_config::{HamlibDeviceConfig, HamlibDeviceConfigError};
+use crate::{
+    hamlib_device_config::{HamlibDeviceConfig, HamlibDeviceConfigError},
+    radio_config_store::RadioConfigPlatform,
+};
 
 const CONFIG_FILE: &str = "radio.json";
 const SCHEMA_VERSION: u8 = 3;
@@ -121,6 +124,13 @@ impl RadioConfig {
     }
 
     pub fn load_from_path(path: &Path) -> Result<Self, RadioConfigError> {
+        Self::load_from_path_for_platform(path, RadioConfigPlatform::current())
+    }
+
+    pub(crate) fn load_from_path_for_platform(
+        path: &Path,
+        platform: RadioConfigPlatform,
+    ) -> Result<Self, RadioConfigError> {
         let contents = match fs::read_to_string(path) {
             Ok(contents) => contents,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -137,8 +147,33 @@ impl RadioConfig {
             return Err(RadioConfigError::UnsupportedVersion(header.version));
         }
         let config: Self = serde_json::from_str(&contents).map_err(RadioConfigError::Json)?;
-        config.validate()?;
+        config.validate_for_platform(platform)?;
         Ok(config)
+    }
+
+    pub fn valid_v3_exists_at_path(path: &Path) -> Result<bool, RadioConfigError> {
+        Self::valid_v3_exists_at_path_for_platform(path, RadioConfigPlatform::current())
+    }
+
+    pub fn valid_v3_exists_at_path_for_platform(
+        path: &Path,
+        platform: RadioConfigPlatform,
+    ) -> Result<bool, RadioConfigError> {
+        let contents = match fs::read_to_string(path) {
+            Ok(contents) => contents,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(source) => return Err(RadioConfigError::Read((path.to_path_buf(), source))),
+        };
+        let Ok(header) = serde_json::from_str::<ConfigHeader>(&contents) else {
+            return Ok(false);
+        };
+        if header.version != SCHEMA_VERSION {
+            return Ok(false);
+        }
+        let Ok(config) = serde_json::from_str::<Self>(&contents) else {
+            return Ok(false);
+        };
+        Ok(config.validate_for_platform(platform).is_ok())
     }
 
     pub fn save(&self) -> Result<(), RadioConfigError> {
@@ -146,7 +181,15 @@ impl RadioConfig {
     }
 
     pub fn save_to_path(&self, path: &Path) -> Result<(), RadioConfigError> {
-        self.save_to_path_with_rename(path, |from, to| fs::rename(from, to))
+        self.save_to_path_for_platform(path, RadioConfigPlatform::current())
+    }
+
+    pub(crate) fn save_to_path_for_platform(
+        &self,
+        path: &Path,
+        platform: RadioConfigPlatform,
+    ) -> Result<(), RadioConfigError> {
+        self.save_to_path_with_rename_for_platform(path, platform, replace_file)
     }
 
     pub(crate) fn save_to_path_with_rename(
@@ -154,7 +197,16 @@ impl RadioConfig {
         path: &Path,
         rename: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
     ) -> Result<(), RadioConfigError> {
-        self.validate()?;
+        self.save_to_path_with_rename_for_platform(path, RadioConfigPlatform::current(), rename)
+    }
+
+    pub(crate) fn save_to_path_with_rename_for_platform(
+        &self,
+        path: &Path,
+        platform: RadioConfigPlatform,
+        rename: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+    ) -> Result<(), RadioConfigError> {
+        self.validate_for_platform(platform)?;
         let parent = path.parent().ok_or(RadioConfigError::ProjectDirectories)?;
         fs::create_dir_all(parent).map_err(|source| {
             RadioConfigError::CreateConfigDirectory((parent.to_path_buf(), source))
@@ -205,8 +257,15 @@ impl RadioConfig {
     }
 
     pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
+        self.validate_for_platform(RadioConfigPlatform::current())
+    }
+
+    pub(crate) fn validate_for_platform(
+        &self,
+        platform: RadioConfigPlatform,
+    ) -> Result<(), RadioConfigError> {
         if let Some(rig) = &self.rig {
-            rig.validate()?;
+            rig.validate_for_platform(platform)?;
         }
         Ok(())
     }
@@ -222,8 +281,15 @@ impl RadioRigConfig {
     }
 
     pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
+        self.validate_for_platform(RadioConfigPlatform::current())
+    }
+
+    pub(crate) fn validate_for_platform(
+        &self,
+        platform: RadioConfigPlatform,
+    ) -> Result<(), RadioConfigError> {
         let resolved = resolve_model_id(&self.model_id)?;
-        if matches!(resolved, ResolvedRadioModel::Omnirig(_)) && !cfg!(windows) {
+        if matches!(resolved, ResolvedRadioModel::Omnirig(_)) && !platform.omnirig_supported() {
             return Err(RadioConfigError::PlatformUnsupportedModel(
                 self.model_id.clone(),
             ));
@@ -251,6 +317,18 @@ fn is_descriptor_token(token: &str) -> bool {
     let mut characters = token.chars();
     matches!(characters.next(), Some(character) if character.is_ascii_alphabetic())
         && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+fn replace_file(from: &Path, to: &Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        match fs::remove_file(to) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    fs::rename(from, to)
 }
 
 impl From<HamlibDeviceConfigError> for RadioConfigError {

@@ -15,6 +15,7 @@ mod hamlib_rotator;
 mod omnirig;
 mod radio_actor;
 pub mod radio_config;
+mod radio_config_store;
 mod radio_factory;
 pub mod radio_manager;
 mod reporting;

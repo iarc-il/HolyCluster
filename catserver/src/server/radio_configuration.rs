@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
 use serde::Serialize;
 
@@ -17,6 +17,7 @@ pub(super) struct Capabilities {
     pub(super) radio_configuration: bool,
     pub(super) radio_configuration_api: u8,
     pub(super) rotator_configuration: bool,
+    pub(super) omnirig_selection_migration_available: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -58,6 +59,44 @@ pub(super) struct ConfigurationResult {
     pub(super) errors: Vec<FieldError>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub(super) struct OmniRigSelectionMigrationResult {
+    pub(super) ok: bool,
+    pub(super) migrated: bool,
+    pub(super) effective_model_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) failure: Option<&'static str>,
+}
+
+impl OmniRigSelectionMigrationResult {
+    fn migrated(effective_model_id: Option<String>) -> Self {
+        Self {
+            ok: true,
+            migrated: true,
+            effective_model_id,
+            failure: None,
+        }
+    }
+
+    fn stale(effective_model_id: Option<String>) -> Self {
+        Self {
+            ok: true,
+            migrated: false,
+            effective_model_id,
+            failure: None,
+        }
+    }
+
+    fn failure(failure: &'static str, effective_model_id: Option<String>) -> Self {
+        Self {
+            ok: false,
+            migrated: false,
+            effective_model_id,
+            failure: Some(failure),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum ConfigurationFailure {
@@ -91,11 +130,14 @@ pub(super) trait RadioConfigurationService: Send + Sync {
     fn configuration(&self, current: RadioConfig) -> RadioConfig;
     fn set_configuration(&self, configuration: RadioConfig) -> ConfigurationFuture<'_>;
     fn test_connection(&self, config: RadioConfig) -> ConfigurationFuture<'_>;
+    fn migrate_omnirig_selection(&self, rig: u8) -> MigrationFuture<'_>;
 }
 
 pub(super) type RadioConfiguration = Arc<dyn RadioConfigurationService>;
 pub(super) type ConfigurationFuture<'a> =
     Pin<Box<dyn Future<Output = ConfigurationResult> + Send + 'a>>;
+pub(super) type MigrationFuture<'a> =
+    Pin<Box<dyn Future<Output = OmniRigSelectionMigrationResult> + Send + 'a>>;
 
 pub(super) struct ProductionRadioConfiguration {
     radio: RadioManager,
@@ -114,6 +156,9 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
             radio_configuration: true,
             radio_configuration_api: 2,
             rotator_configuration: true,
+            omnirig_selection_migration_available: self
+                .radio
+                .omnirig_selection_migration_available(),
         }
     }
 
@@ -220,6 +265,68 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
                 ),
             }
         })
+    }
+    fn migrate_omnirig_selection(&self, rig: u8) -> MigrationFuture<'_> {
+        Box::pin(async move {
+            let Some(model_id) = omnirig_model_id(rig) else {
+                return OmniRigSelectionMigrationResult::failure(
+                    "invalid_rig",
+                    self.radio
+                        .snapshot()
+                        .config
+                        .rig
+                        .as_ref()
+                        .map(|rig| rig.model_id.clone()),
+                );
+            };
+            if !self.radio.omnirig_selection_migration_available() {
+                return OmniRigSelectionMigrationResult::stale(
+                    self.radio
+                        .snapshot()
+                        .config
+                        .rig
+                        .as_ref()
+                        .map(|rig| rig.model_id.clone()),
+                );
+            }
+            let config = RadioConfig {
+                rig: Some(RadioRigConfig {
+                    model_id,
+                    token_values: BTreeMap::new(),
+                }),
+            };
+            let dummy_override =
+                matches!(self.radio.snapshot().selected, ActiveRadioBackend::Dummy);
+            let selected = config.effective_backend(dummy_override);
+            let factory = radio_factory::factory(config.clone(), selected.clone());
+            match self
+                .radio
+                .migrate_omnirig_selection(config, selected, move || factory())
+                .await
+            {
+                Ok(result) if result.migrated => {
+                    OmniRigSelectionMigrationResult::migrated(result.effective_model_id)
+                }
+                Ok(result) => OmniRigSelectionMigrationResult::stale(result.effective_model_id),
+                Err(_) => OmniRigSelectionMigrationResult::failure(
+                    "save_failed",
+                    self.radio
+                        .snapshot()
+                        .config
+                        .rig
+                        .as_ref()
+                        .map(|rig| rig.model_id.clone()),
+                ),
+            }
+        })
+    }
+}
+
+fn omnirig_model_id(rig: u8) -> Option<String> {
+    match rig {
+        1 => Some("omnirig:1".into()),
+        2 => Some("omnirig:2".into()),
+        _ => None,
     }
 }
 

@@ -39,6 +39,9 @@ enum ClientMessage {
     DescribeRadioModel {
         model_id: String,
     },
+    MigrateOmniRigSelection {
+        rig: u8,
+    },
     GetRadioConfiguration,
     SetRadioConfiguration {
         configuration: Box<RadioConfig>,
@@ -117,6 +120,10 @@ async fn process(
                 }
                 Err(error) => serde_json::json!({"model_id": model_id, "error": error}),
             },
+        ),
+        ClientMessage::MigrateOmniRigSelection { rig } => (
+            "omnirig_selection_migration_result",
+            serde_json::to_value(service.migrate_omnirig_selection(rig).await)?,
         ),
         ClientMessage::GetRadioConfiguration => (
             "configuration",

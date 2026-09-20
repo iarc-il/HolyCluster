@@ -7,12 +7,19 @@ use crate::{
     device_actor::{DeviceFactory, Worker},
     freq::Freq,
     radio_config::{ActiveRadioBackend, RadioConfig},
+    radio_config_store::RadioConfigStore,
     radio_manager::{ConnectionState, RadioManagerError, RadioSnapshot},
     rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status},
 };
 use tokio::sync::oneshot;
 
 pub(crate) type RadioFactory = DeviceFactory<Box<dyn Radio>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MigrationResult {
+    pub(crate) migrated: bool,
+    pub(crate) effective_model_id: Option<String>,
+}
 
 pub(crate) enum Command {
     Replace {
@@ -27,6 +34,12 @@ pub(crate) enum Command {
         reply: oneshot::Sender<Result<(), RadioInitError>>,
     },
     Retry(oneshot::Sender<()>),
+    MigrateOmniRigSelection {
+        config: RadioConfig,
+        selected: ActiveRadioBackend,
+        factory: RadioFactory,
+        reply: oneshot::Sender<Result<MigrationResult, RadioManagerError>>,
+    },
     SetModeAndFrequency(Mode, Freq, oneshot::Sender<Result<(), RadioOperationError>>),
     Poll(oneshot::Sender<Status>),
     Shutdown(oneshot::Sender<()>),
@@ -34,12 +47,19 @@ pub(crate) enum Command {
 
 pub(crate) fn spawn(
     snapshot: Arc<RwLock<RadioSnapshot>>,
+    store: RadioConfigStore,
 ) -> Result<Worker<Command>, RadioManagerError> {
-    Worker::spawn("radio-worker", move |receiver| run(receiver, snapshot))
-        .map_err(RadioManagerError::WorkerStart)
+    Worker::spawn("radio-worker", move |receiver| {
+        run(receiver, snapshot, store);
+    })
+    .map_err(RadioManagerError::WorkerStart)
 }
 
-fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) {
+fn run(
+    receiver: mpsc::Receiver<Command>,
+    snapshot: Arc<RwLock<RadioSnapshot>>,
+    store: RadioConfigStore,
+) {
     let mut radio: Option<Box<dyn Radio>> = None;
     let mut factory: Option<RadioFactory> = None;
     let mut retry_delay = Duration::from_secs(1);
@@ -89,7 +109,9 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 reply,
             } => {
                 let result = if persist {
-                    config.save().map_err(RadioManagerError::InvalidConfig)
+                    store
+                        .save(&config)
+                        .map_err(RadioManagerError::InvalidConfig)
                 } else {
                     Ok(())
                 };
@@ -123,6 +145,35 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                     next_action = Some(schedule_after_attempt(connected, &mut retry_delay));
                 }
                 let _ = reply.send(());
+            }
+            Command::MigrateOmniRigSelection {
+                config,
+                selected,
+                factory: next_factory,
+                reply,
+            } => {
+                let result = match store.save_migration_if_available(&config) {
+                    Ok(true) => {
+                        let mut candidate = next_factory();
+                        let init = candidate.init();
+                        let status = candidate.get_status();
+                        let connected = publish(&snapshot, config, selected, init, status);
+                        radio = Some(candidate);
+                        factory = Some(next_factory);
+                        retry_delay = Duration::from_secs(1);
+                        next_action = Some(schedule_after_attempt(connected, &mut retry_delay));
+                        Ok(MigrationResult {
+                            migrated: true,
+                            effective_model_id: current_model_id(&snapshot),
+                        })
+                    }
+                    Ok(false) => Ok(MigrationResult {
+                        migrated: false,
+                        effective_model_id: current_model_id(&snapshot),
+                    }),
+                    Err(error) => Err(RadioManagerError::InvalidConfig(error)),
+                };
+                let _ = reply.send(result);
             }
             Command::SetModeAndFrequency(mode, frequency, reply) => {
                 let result = radio.as_mut().map_or_else(
@@ -198,6 +249,16 @@ fn replace_from_factory(
     let connected = publish(snapshot, state.config, state.selected, init, status);
     *radio = Some(candidate);
     connected
+}
+
+fn current_model_id(snapshot: &RwLock<RadioSnapshot>) -> Option<String> {
+    snapshot
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .config
+        .rig
+        .as_ref()
+        .map(|rig| rig.model_id.clone())
 }
 
 fn schedule_after_attempt(connected: bool, retry_delay: &mut Duration) -> Instant {
