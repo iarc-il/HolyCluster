@@ -129,6 +129,14 @@ export default defineConfig(({ mode }) => ({
                     if (dependency_path) {
                         return "vendor";
                     }
+                    if (
+                        id.includes("/src/hooks/") ||
+                        id.includes("/src/data/") ||
+                        id.includes("/src/utils/") ||
+                        id.endsWith("/src/utils.js")
+                    ) {
+                        return "app-core";
+                    }
                     if (id.includes("flags.json")) {
                         return "flags";
                     }
