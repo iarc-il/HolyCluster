@@ -181,10 +181,15 @@ export { expect };
 export const tour_target = name => `[data-tour='${name}']`;
 
 export async function open_tour_launcher(page) {
+    await expect(page.locator(tour_target("app-shell"))).toBeVisible();
+    await expect(page.locator(tour_target("top-bar"))).toBeVisible();
+
     const launcher = page.locator(tour_target("tour-launcher"));
     const launcher_button = launcher.locator("button");
     if (!(await launcher_button.isVisible())) {
-        await page.locator(tour_target("top-bar-left-menu")).locator("button").click();
+        const menu_button = page.locator(tour_target("top-bar-left-menu")).locator("button");
+        await expect(menu_button).toBeVisible();
+        await menu_button.click();
     }
     await expect(launcher_button).toBeVisible();
     await launcher_button.click();
