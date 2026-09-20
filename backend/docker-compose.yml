@@ -1,5 +1,3 @@
-name: ${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME to holycluster-backend-dev or holycluster-backend-prod}
-
 services:
   postgres:
     build:
