@@ -22,9 +22,6 @@ struct Envelope {
 #[derive(Deserialize)]
 #[serde(tag = "action")]
 enum ClientMessage {
-    SetRig {
-        rig: u8,
-    },
     SetModeAndFreq {
         mode: String,
         freq: f32,
@@ -72,9 +69,6 @@ async fn process(
     service: &RadioConfiguration,
 ) -> Result<Option<Message>> {
     let (event, data) = match request {
-        ClientMessage::SetRig { rig } => {
-            return control(ControlMessage::SetRig { rig }, radio).await;
-        }
         ClientMessage::SetModeAndFreq { mode, freq } => {
             return control(ControlMessage::SetModeAndFreq { mode, freq }, radio).await;
         }

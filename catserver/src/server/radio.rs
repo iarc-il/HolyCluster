@@ -3,7 +3,6 @@ use axum::extract::ws::Message;
 use serde::Serialize;
 
 use crate::{
-    radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig},
     radio_manager::{ConnectionState, RadioManager},
     rig::Status,
 };
@@ -54,22 +53,7 @@ pub(super) fn close_message() -> Result<Message> {
 
 fn status_data(data: &Status, radio: &RadioManager) -> serde_json::Value {
     let snapshot = radio.snapshot();
-    serde_json::json!({"freq": data.freq, "status": data.status, "mode": data.mode, "current_rig": data.current_rig, "backend": backend(snapshot.selected, &snapshot.config, data.current_rig), "connection": connection(snapshot.connection), "error": snapshot.last_error.map(|error| error.to_string()), "features": ["radio_configuration"]})
-}
-
-fn backend(backend: ActiveRadioBackend, config: &RadioConfig, _current_rig: u8) -> &'static str {
-    match backend {
-        ActiveRadioBackend::Dummy => "dummy",
-        ActiveRadioBackend::Configured(_) => backend_name(config.backend()),
-    }
-}
-
-fn backend_name(backend: RadioBackendKind) -> &'static str {
-    match backend {
-        RadioBackendKind::Omnirig => "omnirig",
-        RadioBackendKind::Hamlib => "hamlib",
-        RadioBackendKind::Unconfigured => "unconfigured",
-    }
+    serde_json::json!({"freq": data.freq, "status": data.status, "mode": data.mode, "connection": connection(snapshot.connection), "error": snapshot.last_error.map(|error| error.to_string()), "features": ["radio_configuration"]})
 }
 
 fn connection(connection: ConnectionState) -> &'static str {

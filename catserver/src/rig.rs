@@ -108,12 +108,8 @@ impl std::error::Error for RadioOperationError {}
 pub trait Radio {
     fn init(&mut self) -> Result<(), RadioInitError>;
     fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError>;
-    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError>;
     fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError>;
     fn get_status(&mut self) -> Status;
-    fn initialization_errors(&self) -> [Option<RadioInitError>; 2] {
-        [None, None]
-    }
 }
 
 pub struct UnavailableRadio {
@@ -135,13 +131,6 @@ impl Radio for UnavailableRadio {
     }
     fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
         Err(RadioOperationError::new(1, "set mode", "radio unavailable"))
-    }
-    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError> {
-        Err(RadioOperationError::new(
-            rig,
-            "select rig",
-            "radio unavailable",
-        ))
     }
     fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
         Err(RadioOperationError::new(

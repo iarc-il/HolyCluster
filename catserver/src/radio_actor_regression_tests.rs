@@ -49,10 +49,6 @@ impl Radio for RetryRadio {
         self.record();
         Ok(())
     }
-    fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
-        self.record();
-        Ok(())
-    }
     fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
         self.record();
         Ok(())
@@ -80,10 +76,6 @@ impl Radio for WriteFailRadio {
 
     fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
         Err(RadioOperationError::new(1, "set mode", "write failed"))
-    }
-
-    fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
-        Ok(())
     }
 
     fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
@@ -126,11 +118,6 @@ impl Radio for RecoveringOrderedRadio {
         Ok(())
     }
 
-    fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
-        self.events.lock().unwrap().push("rig");
-        Ok(())
-    }
-
     fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
         self.events.lock().unwrap().push("frequency");
         Ok(())
@@ -167,11 +154,6 @@ impl Radio for OrderedRadio {
     fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
         self.mode = "CW";
         self.event("mode");
-        Ok(())
-    }
-    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError> {
-        self.rig = rig;
-        self.event("rig");
         Ok(())
     }
     fn set_frequency(&mut self, _: Slot, frequency: Freq) -> Result<(), RadioOperationError> {
@@ -312,9 +294,6 @@ async fn commands_queued_during_recovery_remain_fifo() {
     tokio::task::spawn_blocking(move || started.recv().unwrap())
         .await
         .unwrap();
-    let rig_manager = Arc::clone(&manager);
-    let set_rig = tokio::spawn(async move { rig_manager.set_rig(2).await });
-    tokio::task::yield_now().await;
     let frequency_manager = Arc::clone(&manager);
     let set_frequency = tokio::spawn(async move {
         frequency_manager
@@ -325,9 +304,8 @@ async fn commands_queued_during_recovery_remain_fifo() {
     release_sender.send(()).unwrap();
 
     retry.await.unwrap().unwrap();
-    set_rig.await.unwrap().unwrap();
     set_frequency.await.unwrap().unwrap();
-    assert_eq!(*events.lock().unwrap(), ["rig", "mode", "frequency"]);
+    assert_eq!(*events.lock().unwrap(), ["mode", "frequency"]);
     manager.shutdown().await.unwrap();
 }
 
@@ -353,7 +331,6 @@ async fn commands_reach_backend_in_fifo_order_with_coherent_status() {
         .await
         .unwrap();
     events.lock().unwrap().clear();
-    manager.set_rig(2).await.unwrap();
     manager
         .set_mode_and_frequency(Mode::CW, Freq::from_u32_hz(7_050_000))
         .await
@@ -361,11 +338,11 @@ async fn commands_reach_backend_in_fifo_order_with_coherent_status() {
     let status = manager.poll_status().await;
     assert_eq!(
         *events.lock().unwrap(),
-        ["rig", "status", "mode", "frequency", "status", "status"]
+        ["mode", "frequency", "status", "status"]
     );
     assert_eq!(
         (status.current_rig, status.freq, status.mode.as_str()),
-        (2, 7_050_000, "CW")
+        (1, 7_050_000, "CW")
     );
     manager.shutdown().await.unwrap();
 }

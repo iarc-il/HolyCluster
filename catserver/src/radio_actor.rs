@@ -27,7 +27,6 @@ pub(crate) enum Command {
         reply: oneshot::Sender<Result<(), RadioInitError>>,
     },
     Retry(oneshot::Sender<()>),
-    SetRig(u8, oneshot::Sender<Result<(), RadioOperationError>>),
     SetModeAndFrequency(Mode, Freq, oneshot::Sender<Result<(), RadioOperationError>>),
     Poll(oneshot::Sender<Status>),
     Shutdown(oneshot::Sender<()>),
@@ -65,8 +64,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 if connected {
                     next_action = radio.as_mut().map(|radio| {
                         let status = radio.get_status();
-                        let connected =
-                            publish_status(&snapshot, status, radio.initialization_errors());
+                        let connected = publish_status(&snapshot, status);
                         schedule_after_attempt(connected, &mut retry_delay)
                     });
                 } else if radio.is_some() {
@@ -99,14 +97,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                     let mut candidate = next_factory();
                     let init = candidate.init();
                     let status = candidate.get_status();
-                    let connected = publish(
-                        &snapshot,
-                        config,
-                        selected,
-                        init,
-                        status,
-                        candidate.initialization_errors(),
-                    );
+                    let connected = publish(&snapshot, config, selected, init, status);
                     radio = Some(candidate);
                     factory = Some(next_factory);
                     retry_delay = Duration::from_secs(1);
@@ -133,33 +124,11 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 }
                 let _ = reply.send(());
             }
-            Command::SetRig(rig, reply) => {
-                let result = radio.as_mut().map_or_else(
-                    || {
-                        Err(RadioOperationError::new(
-                            rig,
-                            "select rig",
-                            "radio unavailable",
-                        ))
-                    },
-                    |radio| radio.set_rig(rig),
-                );
-                let connected = publish_operation_result(&snapshot, radio.as_mut(), &result);
-                next_action = factory
-                    .as_ref()
-                    .map(|_| schedule_after_attempt(connected, &mut retry_delay));
-                let _ = reply.send(result);
-            }
             Command::SetModeAndFrequency(mode, frequency, reply) => {
-                let current_rig = snapshot
-                    .read()
-                    .unwrap_or_else(|error| error.into_inner())
-                    .last_status
-                    .current_rig;
                 let result = radio.as_mut().map_or_else(
                     || {
                         Err(RadioOperationError::new(
-                            current_rig,
+                            1,
                             "set mode and frequency",
                             "radio unavailable",
                         ))
@@ -186,10 +155,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                     },
                     |radio| radio.get_status(),
                 );
-                let errors = radio
-                    .as_ref()
-                    .map_or([None, None], |radio| radio.initialization_errors());
-                let connected = publish_status(&snapshot, status.clone(), errors);
+                let connected = publish_status(&snapshot, status.clone());
                 if radio.is_some() {
                     next_action = Some(schedule_after_attempt(connected, &mut retry_delay));
                 }
@@ -214,14 +180,7 @@ fn reinitialize(snapshot: &RwLock<RadioSnapshot>, radio: &mut Option<Box<dyn Rad
         .unwrap_or_else(|error| error.into_inner())
         .clone();
     let status = radio.get_status();
-    publish(
-        snapshot,
-        state.config,
-        state.selected,
-        init,
-        status,
-        radio.initialization_errors(),
-    )
+    publish(snapshot, state.config, state.selected, init, status)
 }
 
 fn replace_from_factory(
@@ -236,14 +195,7 @@ fn replace_from_factory(
         .unwrap_or_else(|error| error.into_inner())
         .clone();
     let status = candidate.get_status();
-    let connected = publish(
-        snapshot,
-        state.config,
-        state.selected,
-        init,
-        status,
-        candidate.initialization_errors(),
-    );
+    let connected = publish(snapshot, state.config, state.selected, init, status);
     *radio = Some(candidate);
     connected
 }
@@ -265,7 +217,6 @@ fn publish(
     selected: ActiveRadioBackend,
     init: Result<(), RadioInitError>,
     status: Status,
-    rig_errors: [Option<RadioInitError>; 2],
 ) -> bool {
     let (connection, last_error) = match init {
         Ok(()) if status.status == "connected" => (ConnectionState::Connected, None),
@@ -278,16 +229,11 @@ fn publish(
     snapshot.connection = connection;
     snapshot.last_error = last_error;
     snapshot.last_operation_error = None;
-    snapshot.rig_errors = rig_errors;
     snapshot.last_status = status;
     snapshot.connection == ConnectionState::Connected
 }
 
-fn publish_status(
-    snapshot: &RwLock<RadioSnapshot>,
-    status: Status,
-    rig_errors: [Option<RadioInitError>; 2],
-) -> bool {
+fn publish_status(snapshot: &RwLock<RadioSnapshot>, status: Status) -> bool {
     let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());
     snapshot.connection = if status.status == "connected" {
         ConnectionState::Connected
@@ -298,7 +244,6 @@ fn publish_status(
         snapshot.last_error = None;
         snapshot.last_operation_error = None;
     }
-    snapshot.rig_errors = rig_errors;
     snapshot.last_status = status;
     snapshot.connection == ConnectionState::Connected
 }
@@ -311,7 +256,7 @@ fn publish_operation_result(
     match result {
         Ok(()) => radio.is_some_and(|radio| {
             let status = radio.get_status();
-            publish_status(snapshot, status, radio.initialization_errors())
+            publish_status(snapshot, status)
         }),
         Err(error) => {
             let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());

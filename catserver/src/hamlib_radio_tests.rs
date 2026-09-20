@@ -17,23 +17,16 @@ use crate::{
     rig::{Mode, Radio, Slot, Status},
 };
 
-fn config(rig2: bool) -> (HamlibRigConfig, Option<HamlibRigConfig>) {
-    (
-        HamlibRigConfig {
-            model_id: hamlib::RigModelId::DUMMY.to_string(),
-            token_values: BTreeMap::new(),
-        },
-        rig2.then(|| HamlibRigConfig {
-            model_id: hamlib::RigModelId::DUMMY.to_string(),
-            token_values: BTreeMap::new(),
-        }),
-    )
+fn config() -> HamlibRigConfig {
+    HamlibRigConfig {
+        model_id: hamlib::RigModelId::DUMMY.to_string(),
+        token_values: BTreeMap::new(),
+    }
 }
 
 #[test]
-fn dummy_rigs_select_vfos_and_map_modes() {
-    let (rig1, rig2) = config(true);
-    let mut radio = HamlibRadio::new(rig1, rig2);
+fn dummy_rig_selects_vfos_and_maps_modes() {
+    let mut radio = HamlibRadio::new(config());
     radio.init().unwrap();
     radio
         .set_frequency(Slot::A, Freq::from_u32_hz(7_100_000))
@@ -42,22 +35,22 @@ fn dummy_rigs_select_vfos_and_map_modes() {
     assert_eq!(radio.get_status().freq, 7_100_000);
     assert_eq!(radio.get_status().mode, "CW");
 
-    radio.set_rig(2).unwrap();
     radio
         .set_frequency(Slot::B, Freq::from_u32_hz(14_200_000))
         .unwrap();
     radio.set_mode(Mode::Data).unwrap();
-    assert_eq!(radio.get_status().current_rig, 2);
+    assert_eq!(radio.get_status().current_rig, 1);
     assert_eq!(radio.get_status().freq, 14_200_000);
     assert_eq!(radio.get_status().mode, "DIGI");
 }
 
 #[test]
 fn dummy_ignores_a_persisted_serial_path() {
-    let (mut rig1, rig2) = config(false);
-    rig1.token_values
+    let mut config = config();
+    config
+        .token_values
         .insert("rig_pathname".into(), "/dev/ttyS0".into());
-    let mut radio = HamlibRadio::new(rig1, rig2);
+    let mut radio = HamlibRadio::new(config);
     radio.init().unwrap();
     assert_eq!(radio.get_status().current_rig, 1);
 }
@@ -66,8 +59,8 @@ fn dummy_ignores_a_persisted_serial_path() {
 fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
     let mut server = FakeRigctld::start(SocketAddr::from(([127, 0, 0, 1], 0)), 7_100_000, "USB");
     let address = server.address();
-    let (rig1, rig2) = net_config(address);
-    let mut radio = HamlibRadio::new(rig1, rig2);
+    let config = net_config(address);
+    let mut radio = HamlibRadio::new(config);
 
     // Opening the NET rigctl model exercises the real Hamlib network transport and
     // its protocol/capability handshake, rather than only exercising the dummy
@@ -170,7 +163,7 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
     restarted.stop();
 }
 
-fn net_config(address: SocketAddr) -> (HamlibRigConfig, Option<HamlibRigConfig>) {
+fn net_config(address: SocketAddr) -> HamlibRigConfig {
     let model_id = hamlib::Catalog::load()
         .expect("Hamlib catalog loads")
         .models()
@@ -184,36 +177,24 @@ fn net_config(address: SocketAddr) -> (HamlibRigConfig, Option<HamlibRigConfig>)
     // Disable Hamlib's read cache so each status poll exercises the live
     // endpoint and detects a lost rigctld connection immediately.
     token_values.insert("cache_timeout".into(), "0".into());
-    (
-        HamlibRigConfig {
-            model_id,
-            token_values,
-        },
-        None,
-    )
+    HamlibRigConfig {
+        model_id,
+        token_values,
+    }
 }
 
 #[test]
-fn absent_second_rig_is_not_selected() {
-    let (rig1, rig2) = config(false);
-    let mut radio = HamlibRadio::new(rig1, rig2);
-    radio.init().unwrap();
-    assert!(radio.set_rig(2).is_err());
-    assert_eq!(radio.get_status().current_rig, 1);
-}
-
-#[test]
-fn invalid_second_rig_reports_its_slot_and_can_retry() {
-    let (rig1, mut rig2) = config(true);
-    rig2.as_mut().unwrap().model_id = "999999".into();
-    let mut radio = HamlibRadio::new(rig1, rig2);
+fn invalid_rig_reports_slot_one_and_can_retry() {
+    let mut config = config();
+    config.model_id = "999999".into();
+    let mut radio = HamlibRadio::new(config);
     assert!(matches!(
         radio.init(),
-        Err(crate::rig::RadioInitError::Hamlib { rig: 2, .. })
+        Err(crate::rig::RadioInitError::Hamlib { rig: 1, .. })
     ));
     assert!(matches!(
         radio.init(),
-        Err(crate::rig::RadioInitError::Hamlib { rig: 2, .. })
+        Err(crate::rig::RadioInitError::Hamlib { rig: 1, .. })
     ));
 }
 

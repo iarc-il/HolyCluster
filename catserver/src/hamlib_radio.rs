@@ -7,80 +7,50 @@ use crate::{
 };
 
 pub(crate) struct HamlibRadio {
-    config: [Option<HamlibRigConfig>; 2],
-    rigs: [Option<hamlib::Rig<hamlib::Open>>; 2],
-    current_rig: u8,
+    config: HamlibRigConfig,
+    rig: Option<hamlib::Rig<hamlib::Open>>,
 }
 
 impl HamlibRadio {
-    pub(crate) fn new(rig1: HamlibRigConfig, rig2: Option<HamlibRigConfig>) -> Self {
-        Self {
-            config: [Some(rig1), rig2],
-            rigs: [None, None],
-            current_rig: 1,
-        }
-    }
-
-    fn rig(&mut self) -> Option<&mut hamlib::Rig<hamlib::Open>> {
-        self.rigs
-            .get_mut(usize::from(self.current_rig - 1))?
-            .as_mut()
+    pub(crate) fn new(config: HamlibRigConfig) -> Self {
+        Self { config, rig: None }
     }
 }
 
 impl Radio for HamlibRadio {
     fn init(&mut self) -> Result<(), RadioInitError> {
-        self.rigs = [None, None];
-        let rig1 = open(self.config[0].as_ref().expect("rig 1 configuration"))
-            .map_err(|error| init_error(1, error))?;
-        let rig2 = self
-            .config
-            .get(1)
-            .expect("rig 2 configuration")
-            .as_ref()
-            .map(open)
-            .transpose()
-            .map_err(|error| init_error(2, error))?;
-        self.rigs = [Some(rig1), rig2];
+        self.rig = None;
+        self.rig = Some(open(&self.config).map_err(|error| init_error(1, error))?);
         Ok(())
     }
 
     fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
-        let current_rig = self.current_rig;
-        self.rig()
-            .ok_or_else(|| unavailable(current_rig, "set mode"))?
+        self.rig
+            .as_mut()
+            .ok_or_else(|| unavailable("set mode"))?
             .set_mode(
                 hamlib::Vfo::Current,
                 hamlib_mode(mode),
                 hamlib::PassbandWidth::new(0),
             )
-            .map_err(|error| operation_error(current_rig, "set mode", error))
-    }
-
-    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError> {
-        if !(1..=2).contains(&rig) || self.rigs[usize::from(rig - 1)].is_none() {
-            return Err(unavailable(rig, "select rig"));
-        }
-        self.current_rig = rig;
-        Ok(())
+            .map_err(|error| operation_error("set mode", error))
     }
 
     fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError> {
-        let current_rig = self.current_rig;
         let frequency = hamlib::Frequency::new(f64::from(freq.as_u32_hz()))
-            .map_err(|error| operation_error(current_rig, "validate frequency", error))?;
+            .map_err(|error| operation_error("validate frequency", error))?;
         let rig = self
-            .rig()
-            .ok_or_else(|| unavailable(current_rig, "set frequency"))?;
+            .rig
+            .as_mut()
+            .ok_or_else(|| unavailable("set frequency"))?;
         rig.set_vfo(vfo(slot))
-            .map_err(|error| operation_error(current_rig, "select VFO", error))?;
+            .map_err(|error| operation_error("select VFO", error))?;
         rig.set_frequency(hamlib::Vfo::Current, frequency)
-            .map_err(|error| operation_error(current_rig, "set frequency", error))
+            .map_err(|error| operation_error("set frequency", error))
     }
 
     fn get_status(&mut self) -> Status {
-        let current_rig = self.current_rig;
-        let status = if let Some(rig) = self.rig() {
+        let status = if let Some(rig) = &mut self.rig {
             match (
                 rig.frequency(hamlib::Vfo::Current),
                 rig.mode(hamlib::Vfo::Current),
@@ -89,15 +59,15 @@ impl Radio for HamlibRadio {
                     freq: frequency.hertz() as u32,
                     status: "connected".into(),
                     mode: status_mode(mode).into(),
-                    current_rig,
+                    current_rig: 1,
                 },
-                _ => Status::disconnected(current_rig),
+                _ => Status::disconnected(1),
             }
         } else {
-            Status::disconnected(current_rig)
+            Status::disconnected(1)
         };
         if status.status == "disconnected" {
-            self.rigs = [None, None];
+            self.rig = None;
         }
         status
     }
@@ -138,16 +108,12 @@ fn open(config: &HamlibRigConfig) -> Result<hamlib::Rig<hamlib::Open>, OpenError
     rig.open().map_err(OpenError::from_hamlib)
 }
 
-fn unavailable(rig: u8, operation: &'static str) -> RadioOperationError {
-    RadioOperationError::new(rig, operation, "radio unavailable")
+fn unavailable(operation: &'static str) -> RadioOperationError {
+    RadioOperationError::new(1, operation, "radio unavailable")
 }
 
-fn operation_error(
-    rig: u8,
-    operation: &'static str,
-    error: impl fmt::Display,
-) -> RadioOperationError {
-    RadioOperationError::new(rig, operation, error.to_string())
+fn operation_error(operation: &'static str, error: impl fmt::Display) -> RadioOperationError {
+    RadioOperationError::new(1, operation, error.to_string())
 }
 
 fn init_error(rig: u8, error: OpenError) -> RadioInitError {

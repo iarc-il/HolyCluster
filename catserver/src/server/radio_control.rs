@@ -7,9 +7,6 @@ use crate::{freq::Freq, radio_manager::RadioManager, rig::Mode};
 #[derive(Deserialize)]
 #[serde(tag = "action")]
 pub(super) enum ControlMessage {
-    SetRig {
-        rig: u8,
-    },
     SetModeAndFreq {
         mode: String,
         freq: f32,
@@ -25,7 +22,6 @@ pub(super) enum ControlMessage {
 
 pub(super) async fn process_control(message: ControlMessage, radio: &RadioManager) -> Result<()> {
     match message {
-        ControlMessage::SetRig { rig } => radio.set_rig(rig).await?,
         ControlMessage::SetModeAndFreq { mode, freq } => {
             let mode = match (mode.as_str(), is_upper_sideband(freq)) {
                 ("SSB", true) => Mode::USB,
@@ -103,10 +99,6 @@ mod tests {
                 crate::rig::Mode::CW => "CW",
             };
             self.modes.lock().unwrap().push(name);
-            Ok(())
-        }
-
-        fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
             Ok(())
         }
 

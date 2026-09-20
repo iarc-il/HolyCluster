@@ -10,6 +10,7 @@ use super::{
 use crate::{
     radio_config::{RadioConfig, RadioRigConfig},
     radio_manager::RadioManager,
+    rig::Status,
 };
 
 struct Service;
@@ -137,6 +138,43 @@ async fn old_hamlib_model_actions_are_not_accepted() {
         .unwrap()
         .is_none()
     );
+}
+
+#[tokio::test]
+async fn set_rig_action_is_not_accepted() {
+    let radio = radio();
+    let service: RadioConfiguration = Arc::new(Service);
+    assert!(
+        process_ws(
+            r#"{"version":1,"type":"radio","action":"SetRig","rig":2}"#.into(),
+            &radio,
+            &service,
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+}
+
+#[test]
+fn status_message_omits_backend_and_current_rig() {
+    let radio = radio();
+    let message = super::radio::status_message(
+        &Status {
+            freq: 7_100_000,
+            status: "connected".into(),
+            mode: "CW".into(),
+            current_rig: 1,
+        },
+        &radio,
+    )
+    .unwrap()
+    .into_text()
+    .unwrap();
+    let message: serde_json::Value = serde_json::from_str(&message).unwrap();
+    assert_eq!(message["event"], "status");
+    assert!(message.get("backend").is_none());
+    assert!(message.get("current_rig").is_none());
 }
 
 #[tokio::test]

@@ -25,9 +25,6 @@ impl Radio for FailingRadio {
     fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
         Ok(())
     }
-    fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
-        Ok(())
-    }
     fn set_frequency(&mut self, _: Slot, _: crate::freq::Freq) -> Result<(), RadioOperationError> {
         Ok(())
     }
@@ -69,10 +66,6 @@ impl Radio for ThreadRadio {
         Ok(())
     }
     fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
-        self.record();
-        Ok(())
-    }
-    fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
         self.record();
         Ok(())
     }
@@ -134,7 +127,6 @@ async fn actor_keeps_native_lifecycle_on_one_thread() {
         )
         .await
         .unwrap();
-    manager.set_rig(2).await.unwrap();
     manager
         .set_mode_and_frequency(Mode::CW, crate::freq::Freq::from_u32_hz(7_000_000))
         .await

@@ -20,7 +20,6 @@ pub struct RadioSnapshot {
     pub connection: ConnectionState,
     pub last_error: Option<RadioInitError>,
     pub last_operation_error: Option<RadioOperationError>,
-    pub rig_errors: [Option<RadioInitError>; 2],
     pub config: RadioConfig,
     pub last_status: Status,
 }
@@ -64,7 +63,6 @@ impl RadioManager {
             connection: ConnectionState::Disconnected,
             last_error: None,
             last_operation_error: None,
-            rig_errors: [None, None],
             config: config.clone(),
             last_status: Status::disconnected(1),
         }));
@@ -113,9 +111,6 @@ impl RadioManager {
             .request(Command::Retry)
             .await
             .map_err(map_worker_stopped)
-    }
-    pub async fn set_rig(&self, rig: u8) -> Result<(), RadioManagerError> {
-        self.call(|reply| Command::SetRig(rig, reply)).await
     }
     pub async fn set_mode_and_frequency(
         &self,

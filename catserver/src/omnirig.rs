@@ -3,26 +3,40 @@ use winsafe::prelude::oleaut_IDispatch;
 use winsafe::{CLSIDFromProgID, CoInitializeEx, IDispatch, co};
 
 use crate::freq::Freq;
+use crate::radio_config::OmniRigSlot;
 use crate::rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status};
 
 struct OmnirigInner {
     com_guard: CoUninitializeGuard,
     _omnirig: IDispatch,
-    rig1: IDispatch,
-    rig2: IDispatch,
+    rig: IDispatch,
 }
 
 pub struct OmnirigRadio {
-    current_rig: u8,
+    slot: OmniRigSlot,
     inner: Option<OmnirigInner>,
     omnirig_available: bool,
 }
 impl OmnirigRadio {
-    pub fn new() -> Self {
+    pub fn new(slot: OmniRigSlot) -> Self {
         Self {
-            current_rig: 1,
+            slot,
             inner: None,
             omnirig_available: false,
+        }
+    }
+
+    fn rig_number(&self) -> u8 {
+        match self.slot {
+            OmniRigSlot::Rig1 => 1,
+            OmniRigSlot::Rig2 => 2,
+        }
+    }
+
+    fn property_name(&self) -> &'static str {
+        match self.slot {
+            OmniRigSlot::Rig1 => "Rig1",
+            OmniRigSlot::Rig2 => "Rig2",
         }
     }
 
@@ -48,15 +62,7 @@ impl OmnirigRadio {
             tracing::error!("OmniRig was used before it was initialized");
             return None;
         };
-
-        match self.current_rig {
-            1 => Some(inner.rig1.clone()),
-            2 => Some(inner.rig2.clone()),
-            rig => {
-                tracing::error!(rig, "Invalid OmniRig rig selected");
-                None
-            }
-        }
+        Some(inner.rig.clone())
     }
 
     fn disconnected_status(&self) -> Status {
@@ -64,7 +70,7 @@ impl OmnirigRadio {
             freq: 0,
             status: "disconnected".into(),
             mode: "unknown".into(),
-            current_rig: self.current_rig,
+            current_rig: self.rig_number(),
         }
     }
 }
@@ -115,14 +121,8 @@ impl Radio for OmnirigRadio {
             }
         };
 
-        let Some(rig1) = Self::get_rig_dispatch(&omnirig, "Rig1") else {
-            self.omnirig_available = false;
-            return Err(RadioInitError::Io {
-                backend: "omnirig",
-                kind: std::io::ErrorKind::Other,
-            });
-        };
-        let Some(rig2) = Self::get_rig_dispatch(&omnirig, "Rig2") else {
+        let property_name = self.property_name();
+        let Some(rig) = Self::get_rig_dispatch(&omnirig, property_name) else {
             self.omnirig_available = false;
             return Err(RadioInitError::Io {
                 backend: "omnirig",
@@ -133,8 +133,7 @@ impl Radio for OmnirigRadio {
         self.inner = Some(OmnirigInner {
             com_guard,
             _omnirig: omnirig,
-            rig1,
-            rig2,
+            rig,
         });
         self.omnirig_available = true;
         Ok(())
@@ -148,7 +147,7 @@ impl Radio for OmnirigRadio {
             Mode::Data => 0x08000000,
             Mode::Rtty => {
                 return Err(RadioOperationError::new(
-                    self.current_rig,
+                    self.rig_number(),
                     "set mode",
                     "OmniRig does not support RTTY mode",
                 ));
@@ -158,7 +157,7 @@ impl Radio for OmnirigRadio {
         let Some(rig) = self.current_rig() else {
             self.omnirig_available = false;
             return Err(RadioOperationError::new(
-                self.current_rig,
+                self.rig_number(),
                 "set mode",
                 "OmniRig unavailable",
             ));
@@ -168,20 +167,8 @@ impl Radio for OmnirigRadio {
             .map(|_| ())
             .map_err(|error| {
                 self.inner = None;
-                RadioOperationError::new(self.current_rig, "set mode", error.to_string())
+                RadioOperationError::new(self.rig_number(), "set mode", error.to_string())
             })
-    }
-
-    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError> {
-        if rig != 1 && rig != 2 {
-            return Err(RadioOperationError::new(
-                rig,
-                "select rig",
-                "invalid OmniRig rig",
-            ));
-        }
-        self.current_rig = rig;
-        Ok(())
     }
 
     fn set_frequency(&mut self, vfo: Slot, freq: Freq) -> Result<(), RadioOperationError> {
@@ -193,7 +180,7 @@ impl Radio for OmnirigRadio {
         let Some(rig) = self.current_rig() else {
             self.omnirig_available = false;
             return Err(RadioOperationError::new(
-                self.current_rig,
+                self.rig_number(),
                 "set frequency",
                 "OmniRig unavailable",
             ));
@@ -203,7 +190,7 @@ impl Radio for OmnirigRadio {
             .map(|_| ())
             .map_err(|error| {
                 self.inner = None;
-                RadioOperationError::new(self.current_rig, "set frequency", error.to_string())
+                RadioOperationError::new(self.rig_number(), "set frequency", error.to_string())
             })
     }
 
@@ -267,7 +254,7 @@ impl Radio for OmnirigRadio {
             freq: freq.as_u32_hz(),
             status,
             mode: mode.into(),
-            current_rig: self.current_rig,
+            current_rig: self.rig_number(),
         }
     }
 }
