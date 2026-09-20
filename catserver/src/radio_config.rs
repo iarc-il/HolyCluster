@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeMap,
     fmt,
     fs::{self, File},
     io::Write,
@@ -8,6 +7,8 @@ use std::{
 
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
+
+use crate::hamlib_device_config::{HamlibDeviceConfig, HamlibDeviceConfigError};
 
 const CONFIG_FILE: &str = "radio.json";
 const SCHEMA_VERSION: u8 = 2;
@@ -28,11 +29,7 @@ pub enum ActiveRadioBackend {
     Configured(RadioBackendKind),
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
-pub struct HamlibRigConfig {
-    pub model_id: String,
-    pub token_values: BTreeMap<String, String>,
-}
+pub type HamlibRigConfig = HamlibDeviceConfig;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(tag = "backend", rename_all = "snake_case")]
@@ -211,29 +208,17 @@ impl RadioRigConfig {
             return Err(RadioConfigError::PlatformUnsupportedBackend(backend));
         }
         match self {
-            Self::Hamlib { hamlib } => hamlib.validate(),
+            Self::Hamlib { hamlib } => Ok(hamlib.validate()?),
             Self::Omnirig | Self::Unconfigured => Ok(()),
         }
     }
 }
 
-impl HamlibRigConfig {
-    fn validate(&self) -> Result<(), RadioConfigError> {
-        match self.model_id.parse::<u32>() {
-            Ok(model_id) if model_id > 0 => {}
-            _ => return Err(RadioConfigError::InvalidModelId(self.model_id.clone())),
+impl From<HamlibDeviceConfigError> for RadioConfigError {
+    fn from(error: HamlibDeviceConfigError) -> Self {
+        match error {
+            HamlibDeviceConfigError::InvalidModelId(model) => Self::InvalidModelId(model),
+            HamlibDeviceConfigError::InvalidToken(token) => Self::InvalidToken(token),
         }
-        for token in self.token_values.keys() {
-            if !is_descriptor_token(token) {
-                return Err(RadioConfigError::InvalidToken(token.clone()));
-            }
-        }
-        Ok(())
     }
-}
-
-fn is_descriptor_token(token: &str) -> bool {
-    let mut characters = token.chars();
-    matches!(characters.next(), Some(character) if character.is_ascii_alphabetic())
-        && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
 }

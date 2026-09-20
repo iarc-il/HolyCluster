@@ -8,6 +8,7 @@ mod device_actor;
 mod dummy;
 mod dummy_rotator;
 mod freq;
+mod hamlib_device_config;
 mod hamlib_radio;
 #[cfg(windows)]
 mod omnirig;
