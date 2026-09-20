@@ -2,6 +2,7 @@ use std::{
     sync::{
         Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
+        mpsc,
     },
     thread::ThreadId,
 };
@@ -86,6 +87,52 @@ impl Radio for WriteFailRadio {
     }
 
     fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
+        Ok(())
+    }
+
+    fn get_status(&mut self) -> Status {
+        Status {
+            freq: 0,
+            status: "connected".into(),
+            mode: "SSB".into(),
+            current_rig: 1,
+        }
+    }
+}
+
+struct RecoveringOrderedRadio {
+    attempts: usize,
+    started: mpsc::Sender<()>,
+    release: Option<mpsc::Receiver<()>>,
+    events: Arc<Mutex<Vec<&'static str>>>,
+}
+
+impl Radio for RecoveringOrderedRadio {
+    fn init(&mut self) -> Result<(), RadioInitError> {
+        self.attempts += 1;
+        if self.attempts == 1 {
+            return Err(RadioInitError::Io {
+                backend: "recovering",
+                kind: std::io::ErrorKind::ConnectionRefused,
+            });
+        }
+        self.started.send(()).unwrap();
+        self.release.take().unwrap().recv().unwrap();
+        Ok(())
+    }
+
+    fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
+        self.events.lock().unwrap().push("mode");
+        Ok(())
+    }
+
+    fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
+        self.events.lock().unwrap().push("rig");
+        Ok(())
+    }
+
+    fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
+        self.events.lock().unwrap().push("frequency");
         Ok(())
     }
 
@@ -235,6 +282,53 @@ async fn retries_failed_backend_without_a_browser_session() {
     manager.shutdown().await.unwrap();
     let threads = threads.lock().unwrap();
     assert!(threads.iter().all(|thread| *thread == threads[0]));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn commands_queued_during_recovery_remain_fifo() {
+    let config = RadioConfig::platform_default();
+    let manager =
+        Arc::new(RadioManager::new(config.clone(), config.effective_backend(false)).unwrap());
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let factory_events = Arc::clone(&events);
+    let (started_sender, started) = mpsc::channel();
+    let (release_sender, release) = mpsc::channel();
+    let release = Arc::new(Mutex::new(Some(release)));
+    let factory_release = Arc::clone(&release);
+    manager
+        .replace(config.clone(), config.effective_backend(false), move || {
+            Box::new(RecoveringOrderedRadio {
+                attempts: 0,
+                started: started_sender.clone(),
+                release: factory_release.lock().unwrap().take(),
+                events: Arc::clone(&factory_events),
+            })
+        })
+        .await
+        .unwrap();
+
+    let retry_manager = Arc::clone(&manager);
+    let retry = tokio::spawn(async move { retry_manager.retry().await });
+    tokio::task::spawn_blocking(move || started.recv().unwrap())
+        .await
+        .unwrap();
+    let rig_manager = Arc::clone(&manager);
+    let set_rig = tokio::spawn(async move { rig_manager.set_rig(2).await });
+    tokio::task::yield_now().await;
+    let frequency_manager = Arc::clone(&manager);
+    let set_frequency = tokio::spawn(async move {
+        frequency_manager
+            .set_mode_and_frequency(Mode::CW, Freq::from_u32_hz(7_050_000))
+            .await
+    });
+    tokio::task::yield_now().await;
+    release_sender.send(()).unwrap();
+
+    retry.await.unwrap().unwrap();
+    set_rig.await.unwrap().unwrap();
+    set_frequency.await.unwrap().unwrap();
+    assert_eq!(*events.lock().unwrap(), ["rig", "mode", "frequency"]);
+    manager.shutdown().await.unwrap();
 }
 
 #[tokio::test]
