@@ -80,6 +80,11 @@ impl RotatorCatalog {
 pub struct RotatorClosed;
 pub struct RotatorOpen;
 
+/// ```compile_fail
+/// use hamlib::{Rotator, RotatorModelId};
+/// let rotator = Rotator::new(RotatorModelId::DUMMY).unwrap();
+/// std::thread::spawn(move || drop(rotator));
+/// ```
 pub struct Rotator<S> {
     handle: NonNull<sys::ROT>,
     model: RotatorModelId,
@@ -97,11 +102,7 @@ pub struct Position {
 
 impl Position {
     pub fn new(azimuth: f64, elevation: f64) -> Result<Self, HamlibError> {
-        if azimuth.is_finite()
-            && elevation.is_finite()
-            && (0.0..=360.0).contains(&azimuth)
-            && (-90.0..=90.0).contains(&elevation)
-        {
+        if azimuth.is_finite() && elevation.is_finite() {
             Ok(Self { azimuth, elevation })
         } else {
             Err(HamlibError::InvalidPosition)
@@ -170,13 +171,14 @@ impl Rotator<RotatorOpen> {
         })?;
         Position::new(f64::from(a), f64::from(e))
     }
-    pub fn set_position(&mut self, position: Position) -> Result<(), HamlibError> {
+    pub fn set_azimuth(&mut self, heading: f64) -> Result<(), HamlibError> {
+        let azimuth = equivalent_azimuth(
+            heading,
+            f64::from(unsafe { sys::hamlib_sys_rot_min_az(self.handle.as_ptr()) }),
+            f64::from(unsafe { sys::hamlib_sys_rot_max_az(self.handle.as_ptr()) }),
+        )?;
         ffi::hamlib_result("rot_set_position", unsafe {
-            sys::rot_set_position(
-                self.handle.as_ptr(),
-                position.azimuth as f32,
-                position.elevation as f32,
-            )
+            sys::rot_set_position(self.handle.as_ptr(), azimuth as f32, 0.0)
         })
     }
     pub fn close(mut self) -> Result<Rotator<RotatorClosed>, HamlibError> {
@@ -194,6 +196,34 @@ impl Rotator<RotatorOpen> {
     }
 }
 
+fn equivalent_azimuth(
+    heading: f64,
+    minimum: f64,
+    maximum: f64,
+) -> Result<f64, HamlibError> {
+    if !heading.is_finite()
+        || !minimum.is_finite()
+        || !maximum.is_finite()
+        || minimum > maximum
+    {
+        return Err(HamlibError::InvalidPosition);
+    }
+    let normalized = heading.rem_euclid(360.0);
+    let minimum_turn = ((minimum - normalized) / 360.0).ceil();
+    let maximum_turn = ((maximum - normalized) / 360.0).floor();
+    if minimum_turn > maximum_turn {
+        return Err(HamlibError::InvalidPosition);
+    }
+    let preferred_turn = ((heading - normalized) / 360.0)
+        .round()
+        .clamp(minimum_turn, maximum_turn);
+    let azimuth = normalized + preferred_turn * 360.0;
+    if azimuth < minimum || azimuth > maximum || azimuth < f64::from(f32::MIN) || azimuth > f64::from(f32::MAX) {
+        return Err(HamlibError::InvalidPosition);
+    }
+    Ok(azimuth)
+}
+
 impl<S> Drop for Rotator<S> {
     fn drop(&mut self) {
         if self.owned {
@@ -202,5 +232,24 @@ impl<S> Drop for Rotator<S> {
             }
             let _ = unsafe { sys::rot_cleanup(self.handle.as_ptr()) };
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::equivalent_azimuth;
+
+    #[test]
+    fn maps_headings_into_model_ranges() {
+        assert_eq!(equivalent_azimuth(270.0, -180.0, 180.0).unwrap(), -90.0);
+        assert_eq!(equivalent_azimuth(-90.0, 0.0, 360.0).unwrap(), 270.0);
+        assert_eq!(equivalent_azimuth(450.0, -180.0, 540.0).unwrap(), 450.0);
+        assert_eq!(equivalent_azimuth(720.0, -180.0, 180.0).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn rejects_headings_without_equivalent_model_position() {
+        assert!(equivalent_azimuth(180.0, -45.0, 45.0).is_err());
+        assert!(equivalent_azimuth(f64::NAN, -180.0, 180.0).is_err());
     }
 }

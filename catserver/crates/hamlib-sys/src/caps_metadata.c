@@ -25,3 +25,11 @@ azimuth_t hamlib_sys_rot_caps_min_az(const struct rot_caps *caps) {
 azimuth_t hamlib_sys_rot_caps_max_az(const struct rot_caps *caps) {
     return caps->max_az;
 }
+
+azimuth_t hamlib_sys_rot_min_az(const ROT *rot) {
+    return rot->state.min_az;
+}
+
+azimuth_t hamlib_sys_rot_max_az(const ROT *rot) {
+    return rot->state.max_az;
+}
