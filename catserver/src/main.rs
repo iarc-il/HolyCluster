@@ -26,8 +26,6 @@ mod rotator_actor;
 pub mod rotator_config;
 mod rotator_factory;
 pub mod rotator_manager;
-#[cfg(not(windows))]
-mod rotctld;
 mod server;
 mod startup_radio;
 mod tracing_setup;
