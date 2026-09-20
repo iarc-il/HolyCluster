@@ -9,10 +9,7 @@ use std::{
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    hamlib_device_config::{HamlibDeviceConfig, HamlibDeviceConfigError},
-    radio_config_store::RadioConfigPlatform,
-};
+use crate::hamlib_device_config::{HamlibDeviceConfig, HamlibDeviceConfigError};
 
 const CONFIG_FILE: &str = "radio.json";
 const SCHEMA_VERSION: u8 = 3;
@@ -124,13 +121,6 @@ impl RadioConfig {
     }
 
     pub fn load_from_path(path: &Path) -> Result<Self, RadioConfigError> {
-        Self::load_from_path_for_platform(path, RadioConfigPlatform::current())
-    }
-
-    pub(crate) fn load_from_path_for_platform(
-        path: &Path,
-        platform: RadioConfigPlatform,
-    ) -> Result<Self, RadioConfigError> {
         let contents = match fs::read_to_string(path) {
             Ok(contents) => contents,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -147,22 +137,8 @@ impl RadioConfig {
             return Err(RadioConfigError::UnsupportedVersion(header.version));
         }
         let config: Self = serde_json::from_str(&contents).map_err(RadioConfigError::Json)?;
-        config.validate_for_platform(platform)?;
+        config.validate()?;
         Ok(config)
-    }
-
-    pub(crate) fn blocks_omnirig_selection_migration_at_path(
-        path: &Path,
-    ) -> Result<bool, RadioConfigError> {
-        let contents = match fs::read_to_string(path) {
-            Ok(contents) => contents,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-            Err(source) => return Err(RadioConfigError::Read((path.to_path_buf(), source))),
-        };
-        Ok(match serde_json::from_str::<ConfigHeader>(&contents) {
-            Ok(header) => !matches!(header.version, 1 | 2),
-            Err(_) => true,
-        })
     }
 
     pub fn save(&self) -> Result<(), RadioConfigError> {
@@ -170,24 +146,15 @@ impl RadioConfig {
     }
 
     pub fn save_to_path(&self, path: &Path) -> Result<(), RadioConfigError> {
-        self.save_to_path_for_platform(path, RadioConfigPlatform::current())
+        self.save_to_path_with_rename(path, replace_file)
     }
 
-    pub(crate) fn save_to_path_for_platform(
+    pub(crate) fn save_to_path_with_rename(
         &self,
         path: &Path,
-        platform: RadioConfigPlatform,
-    ) -> Result<(), RadioConfigError> {
-        self.save_to_path_with_rename_for_platform(path, platform, replace_file)
-    }
-
-    pub(crate) fn save_to_path_with_rename_for_platform(
-        &self,
-        path: &Path,
-        platform: RadioConfigPlatform,
         rename: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
     ) -> Result<(), RadioConfigError> {
-        self.validate_for_platform(platform)?;
+        self.validate()?;
         let parent = path.parent().ok_or(RadioConfigError::ProjectDirectories)?;
         fs::create_dir_all(parent).map_err(|source| {
             RadioConfigError::CreateConfigDirectory((parent.to_path_buf(), source))
@@ -237,12 +204,9 @@ impl RadioConfig {
         }
     }
 
-    pub(crate) fn validate_for_platform(
-        &self,
-        platform: RadioConfigPlatform,
-    ) -> Result<(), RadioConfigError> {
+    pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
         if let Some(rig) = &self.rig {
-            rig.validate_for_platform(platform)?;
+            rig.validate()?;
         }
         Ok(())
     }
@@ -257,12 +221,9 @@ impl RadioRigConfig {
         }
     }
 
-    pub(crate) fn validate_for_platform(
-        &self,
-        platform: RadioConfigPlatform,
-    ) -> Result<(), RadioConfigError> {
+    pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
         let resolved = resolve_model_id(&self.model_id)?;
-        if matches!(resolved, ResolvedRadioModel::Omnirig(_)) && !platform.omnirig_supported() {
+        if matches!(resolved, ResolvedRadioModel::Omnirig(_)) && !cfg!(windows) {
             return Err(RadioConfigError::PlatformUnsupportedModel(
                 self.model_id.clone(),
             ));

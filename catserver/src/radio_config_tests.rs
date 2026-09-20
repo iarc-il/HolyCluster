@@ -169,7 +169,7 @@ fn rejects_non_windows_omnirig_configs() {
     };
 
     assert!(matches!(
-        config.validate_for_platform(crate::radio_config_store::RadioConfigPlatform::current()),
+        config.validate(),
         Err(RadioConfigError::PlatformUnsupportedModel(model)) if model == "omnirig:1"
     ));
 }
@@ -196,11 +196,8 @@ fn removes_temporary_file_and_preserves_bytes_when_rename_fails() {
     previous.save_to_path(&path).unwrap();
     let previous_bytes = fs::read(&path).unwrap();
 
-    let result = RadioConfig::platform_default().save_to_path_with_rename_for_platform(
-        &path,
-        crate::radio_config_store::RadioConfigPlatform::current(),
-        |_, _| Err(io::Error::other("forced rename failure")),
-    );
+    let result = RadioConfig::platform_default()
+        .save_to_path_with_rename(&path, |_, _| Err(io::Error::other("forced rename failure")));
 
     assert!(matches!(result, Err(RadioConfigError::Rename(_))));
     assert_eq!(fs::read(&path).unwrap(), previous_bytes);

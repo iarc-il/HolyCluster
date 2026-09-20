@@ -3,9 +3,8 @@ use std::sync::{Arc, RwLock};
 use crate::{
     device_actor::{Worker, WorkerStopped},
     freq::Freq,
-    radio_actor::{Command, MigrationResult, RadioFactory, spawn},
+    radio_actor::{Command, RadioFactory, spawn},
     radio_config::{ActiveRadioBackend, RadioConfig, RadioConfigError},
-    radio_config_store::RadioConfigStore,
     rig::{Mode, Radio, RadioInitError, RadioOperationError, Status},
 };
 
@@ -52,25 +51,12 @@ impl std::error::Error for RadioManagerError {}
 pub struct RadioManager {
     worker: Arc<Worker<Command>>,
     snapshot: Arc<RwLock<RadioSnapshot>>,
-    store: RadioConfigStore,
 }
 
 impl RadioManager {
     pub fn new(
         config: RadioConfig,
         selected: ActiveRadioBackend,
-    ) -> Result<Self, RadioManagerError> {
-        Self::new_with_store(
-            config,
-            selected,
-            RadioConfigStore::production().map_err(RadioManagerError::InvalidConfig)?,
-        )
-    }
-
-    pub fn new_with_store(
-        config: RadioConfig,
-        selected: ActiveRadioBackend,
-        store: RadioConfigStore,
     ) -> Result<Self, RadioManagerError> {
         let snapshot = Arc::new(RwLock::new(RadioSnapshot {
             selected: selected.clone(),
@@ -81,9 +67,8 @@ impl RadioManager {
             last_status: Status::disconnected(1),
         }));
         Ok(Self {
-            worker: Arc::new(spawn(Arc::clone(&snapshot), store.clone())?),
+            worker: Arc::new(spawn(Arc::clone(&snapshot))?),
             snapshot,
-            store,
         })
     }
 
@@ -128,31 +113,6 @@ impl RadioManager {
             .map_err(map_worker_stopped)
     }
 
-    pub fn omnirig_selection_migration_available(&self) -> bool {
-        self.store
-            .omnirig_selection_migration_available()
-            .unwrap_or(false)
-    }
-
-    pub async fn migrate_omnirig_selection(
-        &self,
-        config: RadioConfig,
-        selected: ActiveRadioBackend,
-        factory: impl Fn() -> Box<dyn Radio> + Send + Sync + 'static,
-    ) -> Result<MigrationResult, RadioManagerError> {
-        config
-            .validate_for_platform(self.store.platform())
-            .map_err(RadioManagerError::InvalidConfig)?;
-        self.worker
-            .request(|reply| Command::MigrateOmniRigSelection {
-                config,
-                selected,
-                factory: Arc::new(factory),
-                reply,
-            })
-            .await
-            .map_err(map_worker_stopped)?
-    }
     pub async fn set_mode_and_frequency(
         &self,
         mode: Mode,
@@ -196,7 +156,7 @@ impl RadioManager {
         persist: bool,
     ) -> Result<(), RadioManagerError> {
         config
-            .validate_for_platform(self.store.platform())
+            .validate()
             .map_err(RadioManagerError::InvalidConfig)?;
         self.worker
             .request(|reply| Command::Replace {

@@ -1,10 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::PathBuf,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use super::{
     radio_actions::process_ws,
@@ -15,53 +9,9 @@ use super::{
 };
 use crate::{
     radio_config::{RadioConfig, RadioRigConfig},
-    radio_config_store::{RadioConfigPlatform, RadioConfigStore},
-    radio_manager::{ConnectionState, RadioManager},
+    radio_manager::RadioManager,
     rig::Status,
 };
-
-struct TestDir(PathBuf);
-
-impl TestDir {
-    fn new() -> Self {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!("catserver-radio-actions-{unique}"));
-        fs::create_dir(&path).unwrap();
-        Self(path)
-    }
-
-    fn file(&self) -> PathBuf {
-        self.0.join("radio.json")
-    }
-}
-
-impl Drop for TestDir {
-    fn drop(&mut self) {
-        fs::remove_dir_all(&self.0).unwrap();
-    }
-}
-
-fn radio_with_store(path: PathBuf, platform: RadioConfigPlatform) -> RadioManager {
-    let config = RadioConfig::platform_default();
-    RadioManager::new_with_store(
-        config.clone(),
-        config.effective_backend(false),
-        RadioConfigStore::new(path, platform),
-    )
-    .unwrap()
-}
-
-fn production_service_with_store(
-    path: PathBuf,
-    platform: RadioConfigPlatform,
-) -> (RadioManager, RadioConfiguration) {
-    let radio = radio_with_store(path, platform);
-    let service: RadioConfiguration = Arc::new(ProductionRadioConfiguration::new(radio.clone()));
-    (radio, service)
-}
 
 struct Service;
 impl RadioConfigurationService for Service {
@@ -70,7 +20,6 @@ impl RadioConfigurationService for Service {
             radio_configuration: true,
             radio_configuration_api: 2,
             rotator_configuration: true,
-            omnirig_selection_migration_available: false,
         }
     }
     fn models(&self) -> Result<Vec<RadioModel>, FieldError> {
@@ -116,21 +65,10 @@ impl RadioConfigurationService for Service {
             }
         })
     }
-
-    fn migrate_omnirig_selection(&self, _: u8) -> super::radio_configuration::MigrationFuture<'_> {
-        Box::pin(async {
-            super::radio_configuration::OmniRigSelectionMigrationResult {
-                ok: true,
-                migrated: false,
-                effective_model_id: None,
-                failure: None,
-            }
-        })
-    }
 }
 fn radio() -> RadioManager {
-    let directory = TestDir::new();
-    radio_with_store(directory.file(), RadioConfigPlatform::current())
+    let config = RadioConfig::platform_default();
+    RadioManager::new(config.clone(), config.effective_backend(false)).unwrap()
 }
 
 #[tokio::test]
@@ -256,7 +194,6 @@ async fn capabilities_advertise_radio_configuration_api_v2_without_backends() {
     let response: serde_json::Value = serde_json::from_str(&response).unwrap();
     assert_eq!(response["event"], "capabilities");
     assert_eq!(response["radio_configuration_api"], 2);
-    assert_eq!(response["omnirig_selection_migration_available"], false);
     assert!(response.get("backends").is_none());
 }
 
@@ -278,202 +215,6 @@ async fn lists_serial_ports() {
     assert_eq!(response["type"], "radio");
     assert_eq!(response["event"], "serial_ports");
     assert_eq!(response["ports"][0], "/dev/ttyUSB0");
-}
-
-#[tokio::test]
-async fn production_capabilities_expose_windows_only_omnirig_migration_availability() {
-    let directory = TestDir::new();
-    let (_, service) =
-        production_service_with_store(directory.file(), RadioConfigPlatform::windows());
-    assert!(service.capabilities().omnirig_selection_migration_available);
-
-    let directory = TestDir::new();
-    let (_, service) =
-        production_service_with_store(directory.file(), RadioConfigPlatform::non_windows());
-    assert!(!service.capabilities().omnirig_selection_migration_available);
-}
-
-#[tokio::test]
-async fn development_schema_versions_do_not_block_omnirig_migration_availability() {
-    for version in [1, 2] {
-        let directory = TestDir::new();
-        fs::write(
-            directory.file(),
-            format!(r#"{{"version":{version},"rig1":{{"backend":"omnirig"}}}}"#),
-        )
-        .unwrap();
-        let (_, service) =
-            production_service_with_store(directory.file(), RadioConfigPlatform::windows());
-        assert!(service.capabilities().omnirig_selection_migration_available);
-    }
-}
-
-#[tokio::test]
-async fn existing_release_or_invalid_config_blocks_omnirig_migration_availability() {
-    for config in [
-        r#"{"version":3,"rig":null}"#,
-        r#"{"version":3,"rig":{"model_id":"hamlib:1","token_values":{}}}"#,
-        r#"{"version":4,"rig":null}"#,
-        r#"{"version":3,"rig":"invalid"}"#,
-        "invalid json",
-    ] {
-        let directory = TestDir::new();
-        fs::write(directory.file(), config).unwrap();
-        let (_, service) =
-            production_service_with_store(directory.file(), RadioConfigPlatform::windows());
-        assert!(!service.capabilities().omnirig_selection_migration_available);
-    }
-}
-
-#[tokio::test]
-async fn migrates_legacy_omnirig_selection_to_both_slots() {
-    for (rig, expected) in [(1, "omnirig:1"), (2, "omnirig:2")] {
-        let directory = TestDir::new();
-        let (radio, service) =
-            production_service_with_store(directory.file(), RadioConfigPlatform::windows());
-        let response = process_ws(
-            format!(
-                r#"{{"version":1,"type":"radio","action":"MigrateOmniRigSelection","rig":{rig}}}"#
-            ),
-            &radio,
-            &service,
-        )
-        .await
-        .unwrap()
-        .unwrap()
-        .into_text()
-        .unwrap();
-        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(response["event"], "omnirig_selection_migration_result");
-        assert_eq!(response["ok"], true);
-        assert_eq!(response["migrated"], true);
-        assert_eq!(response["effective_model_id"], expected);
-        assert_eq!(response.as_object().unwrap().len(), 6);
-        assert!(response.get("failure").is_none());
-        assert!(response.get("backend").is_none());
-        assert!(response.get("rig1").is_none());
-        assert!(response.get("rig2").is_none());
-        assert_eq!(radio.snapshot().connection, ConnectionState::Disconnected);
-        assert_eq!(
-            RadioConfig::load_from_path_for_platform(
-                &directory.file(),
-                RadioConfigPlatform::windows()
-            )
-            .unwrap()
-            .rig
-            .unwrap()
-            .model_id,
-            expected
-        );
-        assert!(!service.capabilities().omnirig_selection_migration_available);
-        radio.shutdown().await.unwrap();
-    }
-}
-
-#[tokio::test]
-async fn invalid_omnirig_migration_request_does_not_write_config() {
-    let directory = TestDir::new();
-    let (radio, service) =
-        production_service_with_store(directory.file(), RadioConfigPlatform::windows());
-    let response = process_ws(
-        r#"{"version":1,"type":"radio","action":"MigrateOmniRigSelection","rig":3}"#.into(),
-        &radio,
-        &service,
-    )
-    .await
-    .unwrap()
-    .unwrap()
-    .into_text()
-    .unwrap();
-    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(response["ok"], false);
-    assert_eq!(response["migrated"], false);
-    assert_eq!(response["failure"], "invalid_rig");
-    assert!(!directory.file().exists());
-    radio.shutdown().await.unwrap();
-}
-
-#[tokio::test]
-async fn repeated_omnirig_migration_request_cannot_overwrite_config() {
-    let directory = TestDir::new();
-    let (radio, service) =
-        production_service_with_store(directory.file(), RadioConfigPlatform::windows());
-    process_ws(
-        r#"{"version":1,"type":"radio","action":"MigrateOmniRigSelection","rig":1}"#.into(),
-        &radio,
-        &service,
-    )
-    .await
-    .unwrap();
-
-    let response = process_ws(
-        r#"{"version":1,"type":"radio","action":"MigrateOmniRigSelection","rig":2}"#.into(),
-        &radio,
-        &service,
-    )
-    .await
-    .unwrap()
-    .unwrap()
-    .into_text()
-    .unwrap();
-    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(response["ok"], true);
-    assert_eq!(response["migrated"], false);
-    assert_eq!(response["effective_model_id"], "omnirig:1");
-    assert_eq!(
-        RadioConfig::load_from_path_for_platform(&directory.file(), RadioConfigPlatform::windows())
-            .unwrap()
-            .rig
-            .unwrap()
-            .model_id,
-        "omnirig:1"
-    );
-    radio.shutdown().await.unwrap();
-}
-
-#[tokio::test]
-async fn normal_config_write_consumes_migration_availability_before_stale_request() {
-    let directory = TestDir::new();
-    let (radio, service) =
-        production_service_with_store(directory.file(), RadioConfigPlatform::windows());
-    let set_response = process_ws(
-        r#"{"version":1,"type":"radio","action":"SetRadioConfiguration","configuration":{"rig":{"model_id":"hamlib:1","token_values":{}}}}"#.into(),
-        &radio,
-        &service,
-    )
-    .await
-    .unwrap()
-    .unwrap()
-    .into_text()
-    .unwrap();
-    assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&set_response).unwrap()["ok"],
-        true
-    );
-
-    let response = process_ws(
-        r#"{"version":1,"type":"radio","action":"MigrateOmniRigSelection","rig":2}"#.into(),
-        &radio,
-        &service,
-    )
-    .await
-    .unwrap()
-    .unwrap()
-    .into_text()
-    .unwrap();
-    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(response["ok"], true);
-    assert_eq!(response["migrated"], false);
-    assert_eq!(response["effective_model_id"], "hamlib:1");
-    assert_eq!(
-        RadioConfig::load_from_path_for_platform(&directory.file(), RadioConfigPlatform::windows())
-            .unwrap()
-            .rig
-            .unwrap()
-            .model_id,
-        "hamlib:1"
-    );
-    radio.shutdown().await.unwrap();
 }
 
 #[tokio::test]
