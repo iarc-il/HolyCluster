@@ -4,7 +4,10 @@ import {
     PROFILE_STORE_VERSION,
     create_default_profile_data,
     make_unique_profile_name,
+    preserve_omnirig_migration_evidence,
     read_legacy_profile_data,
+    read_omnirig_migration_candidate,
+    remove_omnirig_migration_evidence,
     sanitize_profile_data,
     sanitize_profile_store,
 } from "@/utils/profile_data.js";
@@ -53,6 +56,16 @@ export function useProfiles() {
 export function ProfilesProvider({ children }) {
     const location = useLocation();
     const navigate = useNavigate();
+    const initial_migration_state = useMemo(() => {
+        const raw_profile_store = read_profile_store_snapshot(null);
+        return {
+            candidate: read_omnirig_migration_candidate(undefined, raw_profile_store),
+            raw_profile_store,
+        };
+    }, []);
+    const [omnirig_migration_candidate, set_omnirig_migration_candidate] = useState(
+        initial_migration_state.candidate,
+    );
     const initial_profile_store = useMemo(
         () => sanitize_profile_store(null, read_legacy_profile_data()),
         [],
@@ -73,10 +86,23 @@ export function ProfilesProvider({ children }) {
     const should_clear_filter_url_ref = useRef(false);
 
     useEffect(() => {
-        if (!are_equal(stored_profile_store, persisted_profile_store)) {
-            set_stored_profile_store(persisted_profile_store);
+        const normalized_store =
+            omnirig_migration_candidate == null
+                ? persisted_profile_store
+                : preserve_omnirig_migration_evidence(
+                      persisted_profile_store,
+                      read_profile_store_snapshot(initial_migration_state.raw_profile_store),
+                  );
+        if (!are_equal(stored_profile_store, normalized_store)) {
+            set_stored_profile_store(normalized_store);
         }
-    }, [stored_profile_store, persisted_profile_store, set_stored_profile_store]);
+    }, [
+        stored_profile_store,
+        persisted_profile_store,
+        set_stored_profile_store,
+        omnirig_migration_candidate,
+        initial_migration_state.raw_profile_store,
+    ]);
 
     const active_profile =
         profile_store.profiles.find(
@@ -131,11 +157,26 @@ export function ProfilesProvider({ children }) {
         set_stored_profile_store(current_store => {
             const latest_store = read_profile_store_snapshot(current_store);
             const current = sanitize_profile_store(latest_store, fallback_profile_data);
-            return sanitize_profile_store(
+            const updated = sanitize_profile_store(
                 apply_setter_value(current, value_or_setter),
                 fallback_profile_data,
             );
+            return omnirig_migration_candidate == null
+                ? updated
+                : preserve_omnirig_migration_evidence(updated, latest_store);
         });
+    }
+
+    function clear_omnirig_migration_evidence() {
+        window.localStorage.removeItem("requested_rig");
+        set_stored_profile_store(current_store => {
+            const latest_store = read_profile_store_snapshot(current_store);
+            return sanitize_profile_store(
+                remove_omnirig_migration_evidence(latest_store),
+                fallback_profile_data,
+            );
+        });
+        set_omnirig_migration_candidate(null);
     }
 
     function start_temporary_profile() {
@@ -279,6 +320,8 @@ export function ProfilesProvider({ children }) {
                 active_profile_name: active_profile.name,
                 active_profile_data: active_profile.data,
                 is_temporary_profile: temporary_profile_store != null,
+                omnirig_migration_candidate,
+                clear_omnirig_migration_evidence,
                 set_active_profile_name,
                 create_profile,
                 rename_profile,

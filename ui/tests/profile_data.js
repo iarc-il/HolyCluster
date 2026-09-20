@@ -8,7 +8,10 @@ import {
     create_default_profile_data,
     create_profile_export,
     pick_profile_sections,
+    preserve_omnirig_migration_evidence,
     read_legacy_profile_data,
+    read_omnirig_migration_candidate,
+    remove_omnirig_migration_evidence,
     sanitize_imported_profile,
     sanitize_profile_data,
     sanitize_profile_store,
@@ -321,7 +324,50 @@ describe("profile_data", () => {
             dxpeditions_sort: "start",
             dxpeditions_filter: "active",
         });
-        expect(data.radio.requested_rig).toBe(2);
+        expect(data).not.toHaveProperty("radio");
+    });
+
+    it("uses only an explicit legacy key as OmniRig migration evidence", () => {
+        const profile_store = {
+            active_profile_name: "Default",
+            profiles: [
+                {
+                    name: "Default",
+                    data: { radio: { requested_rig: 2 } },
+                },
+            ],
+        };
+
+        expect(read_omnirig_migration_candidate(create_storage({}), profile_store)).toBeNull();
+        expect(
+            read_omnirig_migration_candidate(
+                create_storage({ requested_rig: json(1) }),
+                profile_store,
+            ),
+        ).toBe(2);
+        expect(
+            read_omnirig_migration_candidate(create_storage({ requested_rig: json(1) }), {
+                ...profile_store,
+                active_profile_name: "Tour",
+            }),
+        ).toBe(1);
+    });
+
+    it("preserves raw migration evidence until acknowledged", () => {
+        const canonical = sanitize_profile_store(null);
+        const raw = {
+            ...canonical,
+            profiles: canonical.profiles.map(profile => ({
+                ...profile,
+                data: { ...profile.data, radio: { requested_rig: 2 } },
+            })),
+        };
+        const preserved = preserve_omnirig_migration_evidence(canonical, raw);
+
+        expect(preserved.profiles[0].data.radio.requested_rig).toBe(2);
+        expect(remove_omnirig_migration_evidence(preserved).profiles[0].data).not.toHaveProperty(
+            "radio",
+        );
     });
 
     it("exports selected profile sections and imports omitted sections from defaults", () => {

@@ -187,7 +187,7 @@ function MainContent({
         }
     }, [max_radius, auto_radius, radius_in_km]);
 
-    const { set_mode_and_freq, radio_freq, rig, radio_mode } = use_radio();
+    const { set_mode_and_freq, radio_freq, radio_mode } = use_radio();
     const { set_azimuth, is_rotator_available } = useRotator();
 
     function get_rotator_azimuth(spot) {

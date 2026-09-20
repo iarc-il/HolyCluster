@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
 
 import MainContainer from "@/components/MainContainer.jsx";
+import OmniRigSelectionMigration from "@/components/OmniRigSelectionMigration.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 import { ColorsProvider } from "@/hooks/useColors";
 import { FiltersProvider } from "@/hooks/useFilters";
@@ -36,6 +37,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                                             <FiltersProvider>
                                                 <SettingsProvider>
                                                     <RadioProvider>
+                                                        <OmniRigSelectionMigration />
                                                         <UpdateProvider>
                                                             <RotatorProvider>
                                                                 <SpotInteractionProvider>

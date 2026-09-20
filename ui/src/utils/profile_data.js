@@ -79,10 +79,6 @@ export const PROFILE_SECTION_DEFINITIONS = {
         label: "Panel Preferences",
         description: "Heatmap, frequency bar, and DXpedition list preferences",
     },
-    radio: {
-        label: "Radio Preferences",
-        description: "Selected rig preference",
-    },
 };
 
 export const PROFILE_SECTION_KEYS = Object.keys(PROFILE_SECTION_DEFINITIONS);
@@ -342,6 +338,73 @@ function get_browser_local_storage() {
     return window.localStorage;
 }
 
+function valid_legacy_rig(value) {
+    const rig = Number(value);
+    return Number.isInteger(rig) && (rig === 1 || rig === 2) ? rig : null;
+}
+
+export function read_omnirig_migration_candidate(
+    storage = get_browser_local_storage(),
+    raw_profile_store = read_storage_value(storage, PROFILE_STORE_KEY),
+) {
+    const legacy_rig = valid_legacy_rig(
+        read_storage_value(storage, LEGACY_PROFILE_STORAGE_KEYS.requested_rig),
+    );
+    if (legacy_rig == null || !is_plain_object(raw_profile_store)) {
+        return legacy_rig;
+    }
+    if (raw_profile_store.active_profile_name === "Tour") {
+        return legacy_rig;
+    }
+    const active_profile = Array.isArray(raw_profile_store.profiles)
+        ? raw_profile_store.profiles.find(
+              profile => profile?.name === raw_profile_store.active_profile_name,
+          )
+        : null;
+    const raw_radio = active_profile?.data?.radio;
+    if (!is_plain_object(raw_radio) || !Object.hasOwn(raw_radio, "requested_rig")) {
+        return legacy_rig;
+    }
+    return valid_legacy_rig(raw_radio.requested_rig) ?? legacy_rig;
+}
+
+export function preserve_omnirig_migration_evidence(profile_store, raw_profile_store) {
+    if (!Array.isArray(profile_store?.profiles) || !Array.isArray(raw_profile_store?.profiles)) {
+        return profile_store;
+    }
+    const raw_profiles = new Map(
+        raw_profile_store.profiles.map(profile => [profile?.name, profile]),
+    );
+    return {
+        ...profile_store,
+        profiles: profile_store.profiles.map(profile => {
+            const raw_radio = raw_profiles.get(profile.name)?.data?.radio;
+            if (!is_plain_object(raw_radio) || !Object.hasOwn(raw_radio, "requested_rig")) {
+                return profile;
+            }
+            return {
+                ...profile,
+                data: {
+                    ...profile.data,
+                    radio: { requested_rig: raw_radio.requested_rig },
+                },
+            };
+        }),
+    };
+}
+
+export function remove_omnirig_migration_evidence(profile_store) {
+    if (!Array.isArray(profile_store?.profiles)) return profile_store;
+    return {
+        ...profile_store,
+        profiles: profile_store.profiles.map(profile => {
+            if (!is_plain_object(profile?.data?.radio)) return profile;
+            const { radio: _radio, ...data } = profile.data;
+            return { ...profile, data };
+        }),
+    };
+}
+
 export function create_default_settings() {
     return {
         locator: "",
@@ -418,12 +481,6 @@ export function create_default_panels() {
     };
 }
 
-export function create_default_radio() {
-    return {
-        requested_rig: 1,
-    };
-}
-
 export function create_default_missing() {
     return {
         worked: Object.fromEntries(
@@ -451,7 +508,6 @@ export function create_default_profile_data() {
         table_sort: create_default_table_sort(),
         history: create_default_history(),
         panels: create_default_panels(),
-        radio: create_default_radio(),
     };
 }
 
@@ -601,18 +657,6 @@ export function sanitize_panels(value, defaults = create_default_panels()) {
     };
 }
 
-export function sanitize_radio(value, defaults = create_default_radio()) {
-    const source = is_plain_object(value) ? value : {};
-
-    return {
-        requested_rig: to_number(source.requested_rig, defaults.requested_rig, {
-            min: 1,
-            max: 2,
-            integer: true,
-        }),
-    };
-}
-
 export function sanitize_missing(value, defaults = create_default_missing()) {
     const source = is_plain_object(value) ? value : {};
 
@@ -641,7 +685,6 @@ export function sanitize_profile_data(value, defaults = create_default_profile_d
         table_sort: sanitize_table_sort(source.table_sort, defaults.table_sort),
         history: sanitize_history(source.history, defaults.history),
         panels: sanitize_panels(source.panels, defaults.panels),
-        radio: sanitize_radio(source.radio, defaults.radio),
     };
 }
 
@@ -790,9 +833,6 @@ export function read_legacy_profile_data(storage = get_browser_local_storage()) 
                 frequency_bar_band: legacy("frequency_bar_band"),
                 dxpeditions_sort: legacy("dxpeditions_sort"),
                 dxpeditions_filter: legacy("dxpeditions_filter"),
-            },
-            radio: {
-                requested_rig: legacy("requested_rig"),
             },
         },
         defaults,

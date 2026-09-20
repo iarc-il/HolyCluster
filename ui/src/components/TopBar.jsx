@@ -3,7 +3,6 @@ import NetworkState from "@/components/NetworkState.jsx";
 import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
 import SubmitSpot from "@/components/SubmitSpot.jsx";
 import { Settings } from "@/components/settings/Settings.jsx";
-import Button from "@/components/ui/Button.jsx";
 import ColorPicker from "@/components/ui/ColorPicker.jsx";
 import Select from "@/components/ui/Select.jsx";
 import Spinner from "@/components/ui/Spinner.jsx";
@@ -29,28 +28,14 @@ const spots_time_limits = {
 function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui, dev_mode }) {
     const { filters, setFilters } = useFilters();
     const { network_state } = useSpotData();
-    const { set_rig, radio_status, rig } = use_radio();
-    const {
-        profiles,
-        active_profile_name,
-        set_active_profile_name,
-        active_profile_data: {
-            radio: { requested_rig },
-        },
-        update_active_profile_section,
-    } = useProfiles();
+    const { radio_status } = use_radio();
+    const { profiles, active_profile_name, set_active_profile_name } = useProfiles();
 
     const network_state_colors = {
         connected: "#00EE00",
         disconnected: "#EE0000",
     };
     const { colors } = useColors();
-
-    useEffect(() => {
-        if (rig && rig !== requested_rig) {
-            set_rig(requested_rig);
-        }
-    }, [rig, requested_rig]);
 
     const { radio_freq } = use_radio();
 
@@ -102,34 +87,6 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
             <div className="flex items-center h-full p-2 gap-3">
                 {radio_status !== "unavailable" ? (
                     <>
-                        <div
-                            className="flex flex-col w-[42px] h-full justify-around"
-                            data-tour="top-bar-rig-selector"
-                        >
-                            {[1, 2].map(rig_val => {
-                                const rig_active = rig === rig_val;
-                                return (
-                                    <Button
-                                        key={rig_val}
-                                        color={rig_active ? "red" : "white"}
-                                        style={{ color: colors.theme.text }}
-                                        className="text-xs p-0 w-full h-4"
-                                        on_click={() => {
-                                            if (!rig_active) {
-                                                update_active_profile_section("radio", radio => ({
-                                                    ...radio,
-                                                    requested_rig: rig_val,
-                                                }));
-                                                set_rig(rig_val);
-                                            }
-                                        }}
-                                    >
-                                        Rig {rig_val}
-                                    </Button>
-                                );
-                            })}
-                        </div>
-
                         <div data-tour="top-bar-radio-frequency">
                             <SevenSegmentDisplay
                                 height="10"
