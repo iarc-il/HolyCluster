@@ -431,8 +431,6 @@ function CatControl({
     const [rotator_save_state, set_rotator_save_state] = useState(null);
     const [selected_rig, set_selected_rig] = useState("rig1");
     const [save_state, set_save_state] = useState(null);
-    const [radio_port_touched, set_radio_port_touched] = useState(false);
-    const [rotator_port_touched, set_rotator_port_touched] = useState(false);
     const [logger_port_touched, set_logger_port_touched] = useState(false);
     const configuration_capable = radio_capabilities?.radio_configuration === true;
     const rotator_configuration_capable = radio_capabilities?.rotator_configuration === true;
@@ -474,19 +472,26 @@ function CatControl({
     )?.message;
     const radio_port_error =
         radio_port_server_error ||
-        (radio_port_touched ? port_error(radio_port_value, 1, "Port") : null);
+        (selected_connection_kind === "network" ? port_error(radio_port_value, 1, "Port") : null);
     const rotator_port_value =
         rotator_connection_kind === "network"
             ? network_endpoint(
                   rotator_form.hamlib.token_values.rot_pathname || rotator_network_default,
               ).port
             : null;
-    const rotator_port_error = rotator_port_touched
-        ? port_error(rotator_port_value, 1, "Port")
-        : null;
+    const rotator_port_error =
+        rotator_connection_kind === "network" ? port_error(rotator_port_value, 1, "Port") : null;
     const logger_port_error = logger_port_touched
         ? port_error(temp_settings.highlight_port, 1024, "UDP port")
         : null;
+    const radio_feedback = radio_port_error
+        ? { ok: false, message: radio_port_error }
+        : has_field_errors
+          ? { ok: false, message: radio_errors.map(error_text).join(" ") }
+          : save_state;
+    const rotator_feedback = rotator_port_error
+        ? { ok: false, message: rotator_port_error }
+        : rotator_save_state;
 
     useEffect(() => {
         if (configuration_capable) {
@@ -630,7 +635,6 @@ function CatControl({
     }
 
     function test_connection() {
-        set_radio_port_touched(true);
         set_save_state({ ok: null, message: "Testing radio connection..." });
         test_radio_connection(serialized_configuration(selected_rig));
     }
@@ -666,13 +670,11 @@ function CatControl({
     }
 
     function save_rotator_configuration() {
-        set_rotator_port_touched(true);
         set_rotator_save_state({ ok: null, message: "Saving rotator hardware..." });
         apply_rotator_configuration(serialized_rotator_configuration());
     }
 
     function test_rotator() {
-        set_rotator_port_touched(true);
         set_rotator_save_state({ ok: null, message: "Testing rotator connection..." });
         test_rotator_connection(serialized_rotator_configuration());
     }
@@ -833,6 +835,7 @@ function CatControl({
                                             id="hamlib-port"
                                             value={radio_port_value}
                                             error={radio_port_error}
+                                            show_error_message={false}
                                             onChange={event =>
                                                 update_selected(rig => ({
                                                     ...rig,
@@ -853,7 +856,6 @@ function CatControl({
                                                     },
                                                 }))
                                             }
-                                            onBlur={() => set_radio_port_touched(true)}
                                         />
                                     </label>
                                 </div>
@@ -901,15 +903,6 @@ function CatControl({
                             ) : null}
                         </div>
                     ) : null}
-                    {has_field_errors ? (
-                        <ul className="space-y-1 text-red-600" role="alert">
-                            {radio_errors.map((error, index) => (
-                                <li key={`${error.field}-${error.token || index}`}>
-                                    {error_text(error)}
-                                </li>
-                            ))}
-                        </ul>
-                    ) : null}
                     <div className="flex flex-col items-start gap-1">
                         <div className="flex items-center gap-3">
                             <Button
@@ -919,25 +912,25 @@ function CatControl({
                             >
                                 Test connection
                             </Button>
-                            {save_state && !has_field_errors ? (
+                            {radio_feedback ? (
                                 <p
                                     className={
-                                        save_state.ok === true
+                                        radio_feedback.ok === true
                                             ? "text-green-600"
-                                            : save_state.ok === false
+                                            : radio_feedback.ok === false
                                               ? "text-red-600"
                                               : "text-gray-500"
                                     }
-                                    role={save_state.ok === false ? "alert" : "status"}
+                                    role={radio_feedback.ok === false ? "alert" : "status"}
                                 >
                                     <span aria-hidden="true" className="mr-1 font-bold">
-                                        {save_state.ok === true
+                                        {radio_feedback.ok === true
                                             ? "✓"
-                                            : save_state.ok === false
+                                            : radio_feedback.ok === false
                                               ? "✕"
                                               : "..."}
                                     </span>{" "}
-                                    {save_state.message}
+                                    {radio_feedback.message}
                                 </p>
                             ) : null}
                         </div>
@@ -1059,6 +1052,7 @@ function CatControl({
                                             id="rotator-port"
                                             value={rotator_port_value}
                                             error={rotator_port_error}
+                                            show_error_message={false}
                                             onChange={event =>
                                                 set_rotator_form(current => ({
                                                     ...current,
@@ -1078,7 +1072,6 @@ function CatControl({
                                                     },
                                                 }))
                                             }
-                                            onBlur={() => set_rotator_port_touched(true)}
                                         />
                                     </label>
                                 </div>
@@ -1134,18 +1127,18 @@ function CatControl({
                         >
                             Apply
                         </Button>
-                        {rotator_save_state ? (
+                        {rotator_feedback ? (
                             <p
                                 className={
-                                    rotator_save_state.ok === true
+                                    rotator_feedback.ok === true
                                         ? "text-green-600"
-                                        : rotator_save_state.ok === false
+                                        : rotator_feedback.ok === false
                                           ? "text-red-600"
                                           : "text-gray-500"
                                 }
-                                role={rotator_save_state.ok === false ? "alert" : "status"}
+                                role={rotator_feedback.ok === false ? "alert" : "status"}
                             >
-                                {rotator_save_state.message}
+                                {rotator_feedback.message}
                             </p>
                         ) : null}
                     </div>
