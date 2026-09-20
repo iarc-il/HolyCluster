@@ -168,6 +168,21 @@ describe("CAT control settings", () => {
         expect(screen.queryByLabelText("Serial port")).toBeNull();
     });
 
+    it("preserves connection tokens while model metadata is unavailable", async () => {
+        radio.current.radio_models = [];
+        radio.current.radio_model_details = {};
+        const apply_ref = { current: null };
+        render_cat(apply_ref);
+
+        await apply_ref.current();
+        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
+            rig: {
+                model_id: "hamlib:4",
+                token_values: { rig_pathname: "127.0.0.1:4532" },
+            },
+        });
+    });
+
     it("keeps an unconfigured server unconfigured until a model is selected", async () => {
         radio.current.radio_configuration = { event: "configuration", rig: null };
         const apply_ref = { current: null };

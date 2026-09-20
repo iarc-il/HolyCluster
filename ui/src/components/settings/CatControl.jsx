@@ -445,7 +445,7 @@ function CatControl({
     const selected_model = model_options.find(
         option => option.value === selected_configuration?.model_id,
     );
-    const selected_connection_kind = selected_model?.connection_kind || "none";
+    const selected_connection_kind = selected_model?.connection_kind ?? null;
     const radio_port_value =
         selected_connection_kind === "network"
             ? network_endpoint(selected_configuration.token_values[network_pathname_token]).port
