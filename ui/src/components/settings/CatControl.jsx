@@ -188,7 +188,9 @@ function materialized_radio(rig, descriptors, serial_ports, connection_kind) {
 function radio_model_options(models) {
     return models.map(model => ({
         value: model.id,
-        label: `${model.manufacturer} ${model.model}`,
+        label: model.model.startsWith(model.manufacturer)
+            ? model.model
+            : `${model.manufacturer} ${model.model}`,
         connection_kind: model.connection_kind,
     }));
 }

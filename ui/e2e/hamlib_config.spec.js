@@ -115,8 +115,8 @@ test("renders unified radio model connection flows in CAT Control", async ({ pag
     for (const [name, connection] of [
         ["Acme Serial rig", "serial"],
         ["Hamlib NET rigctl", "network"],
-        ["OmniRig OmniRig Rig 1", "none"],
-        ["OmniRig OmniRig Rig 2", "none"],
+        ["OmniRig Rig 1", "none"],
+        ["OmniRig Rig 2", "none"],
         ["Hamlib Dummy", "none"],
     ]) {
         await model.click();

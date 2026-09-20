@@ -161,7 +161,7 @@ describe("CAT control settings", () => {
         const model = screen.getByRole("combobox", { name: "Model" });
         await user.clear(model);
         await user.type(model, model_id);
-        await user.click(screen.getByRole("option", { name: /OmniRig OmniRig Rig/ }));
+        await user.click(screen.getByRole("option", { name: /OmniRig Rig/ }));
 
         expect(screen.queryByLabelText("Host")).toBeNull();
         expect(screen.queryByLabelText("Port")).toBeNull();
