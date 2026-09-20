@@ -116,7 +116,6 @@ export default defineConfig(({ mode }) => ({
                     if (id.includes("flags.json")) {
                         return "flags";
                     }
-                    return "index";
                 },
             },
         },
