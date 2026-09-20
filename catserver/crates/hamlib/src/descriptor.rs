@@ -6,9 +6,15 @@ use hamlib_sys as sys;
 
 use crate::{CatalogError, ConfigDescriptor, ConfigToken, ConfigTokenError};
 
+#[derive(Clone, Copy)]
+pub(crate) enum ConfigurationTarget {
+    Rig(*mut sys::RIG),
+    Rotator(*mut sys::ROT),
+}
+
 pub(crate) fn copy(
     param: *const sys::confparams,
-    rig: *mut sys::RIG,
+    target: ConfigurationTarget,
 ) -> Result<Option<ConfigDescriptor>, CatalogError> {
     if param.is_null() {
         return Err(CatalogError::NullMetadata {
@@ -19,7 +25,7 @@ pub(crate) fn copy(
     // SAFETY: Hamlib provides a live `confparams` pointer for the callback duration.
     let param = unsafe { &*param };
     let name = string(param.name, "configuration descriptor", "name")?;
-    if !is_configuration_parameter(rig, &name)? {
+    if !is_configuration_parameter(target, &name)? {
         return Ok(None);
     }
     let token =
@@ -32,22 +38,34 @@ pub(crate) fn copy(
         })?;
     let label = string(param.label, "configuration descriptor", "label")?;
     let tooltip = string(param.tooltip, "configuration descriptor", "tooltip")?;
-    let default = string(param.dflt, "configuration descriptor", "default")?;
-    let default = if token.as_str() == "rig_pathname" && default == "/dev/rig" {
+    let default = if param.dflt.is_null() {
         String::new()
     } else {
-        default
+        string(param.dflt, "configuration descriptor", "default")?
+    };
+    let default = match (token.as_str(), default.as_str()) {
+        ("rig_pathname", "/dev/rig") | ("rot_pathname", "/dev/rotator") => String::new(),
+        _ => default,
     };
     from_parts(param, token, label, tooltip, default).map(Some)
 }
 
-fn is_configuration_parameter(rig: *mut sys::RIG, name: &str) -> Result<bool, CatalogError> {
+fn is_configuration_parameter(
+    target: ConfigurationTarget,
+    name: &str,
+) -> Result<bool, CatalogError> {
     let name = CString::new(name).map_err(|_| CatalogError::MalformedDescriptor {
         token: name.to_owned(),
         reason: "embedded NUL name",
     })?;
-    // SAFETY: `rig` is the live temporary handle and `name` remains NUL-terminated for the call.
-    Ok(!(unsafe { sys::rig_confparam_lookup(rig, name.as_ptr()) }).is_null())
+    // SAFETY: the target is a live temporary handle and `name` remains valid for the call.
+    Ok(!match target {
+        ConfigurationTarget::Rig(rig) => unsafe { sys::rig_confparam_lookup(rig, name.as_ptr()) },
+        ConfigurationTarget::Rotator(rotator) => unsafe {
+            sys::rot_confparam_lookup(rotator, name.as_ptr())
+        },
+    }
+    .is_null())
 }
 
 pub(crate) fn from_parts(
@@ -146,7 +164,7 @@ fn boolean(
     default: String,
 ) -> Result<ConfigDescriptor, CatalogError> {
     let default = match default.as_str() {
-        "0" => false,
+        "" | "0" => false,
         "1" => true,
         _ => return Err(malformed(&token, "non-boolean default")),
     };

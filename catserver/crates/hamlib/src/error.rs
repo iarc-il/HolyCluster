@@ -122,4 +122,6 @@ pub enum CatalogError {
     DuplicateToken { token: String },
     #[error("unknown Hamlib model {model}")]
     UnknownModel { model: RigModelId },
+    #[error("unknown Hamlib rotator model {model}")]
+    UnknownRotatorModel { model: RotatorModelId },
 }

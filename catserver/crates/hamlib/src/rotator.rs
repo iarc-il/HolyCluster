@@ -66,6 +66,15 @@ impl RotatorCatalog {
     pub fn model(&self, id: RotatorModelId) -> Option<&RotatorModel> {
         self.models.iter().find(|model| model.id == id)
     }
+    pub fn describe_model(
+        &self,
+        id: RotatorModelId,
+    ) -> Result<Vec<ConfigDescriptor>, CatalogError> {
+        if self.model(id).is_none() {
+            return Err(CatalogError::UnknownRotatorModel { model: id });
+        }
+        ffi::rotator_descriptors(id)
+    }
 }
 
 pub struct RotatorClosed;

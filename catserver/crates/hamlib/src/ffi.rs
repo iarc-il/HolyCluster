@@ -4,7 +4,6 @@ use std::{
     collections::BTreeMap,
     ffi::{CStr, c_char, c_void},
     panic::{AssertUnwindSafe, catch_unwind},
-    ptr,
     sync::OnceLock,
 };
 
@@ -65,7 +64,8 @@ pub(crate) fn rotator_models() -> Result<Vec<RotatorModel>, CatalogError> {
 pub(crate) fn descriptors(model: RigModelId) -> Result<Vec<ConfigDescriptor>, CatalogError> {
     load_backends()?;
     let rig = TemporaryRig::new(model)?;
-    let mut state: CallbackState<ConfigDescriptor> = CallbackState::for_rig(rig.pointer);
+    let mut state: CallbackState<ConfigDescriptor> =
+        CallbackState::for_target(crate::descriptor::ConfigurationTarget::Rig(rig.pointer));
     // SAFETY: `rig` is valid until its guard drops after synchronous callback completion.
     let result = unsafe {
         sys::rig_token_foreach(
@@ -76,6 +76,26 @@ pub(crate) fn descriptors(model: RigModelId) -> Result<Vec<ConfigDescriptor>, Ca
     };
     hamlib_result("rig_token_foreach", result)?;
     unique_descriptors(state.finish("configuration metadata")?)
+}
+
+pub(crate) fn rotator_descriptors(
+    model: RotatorModelId,
+) -> Result<Vec<ConfigDescriptor>, CatalogError> {
+    load_rotator_backends()?;
+    let rotator = TemporaryRotator::new(model)?;
+    let mut state: CallbackState<ConfigDescriptor> = CallbackState::for_target(
+        crate::descriptor::ConfigurationTarget::Rotator(rotator.pointer),
+    );
+    // SAFETY: `rotator` is valid until its guard drops after synchronous callback completion.
+    let result = unsafe {
+        sys::rot_token_foreach(
+            rotator.pointer,
+            Some(descriptor_callback),
+            (&mut state as *mut CallbackState<ConfigDescriptor>).cast(),
+        )
+    };
+    hamlib_result("rot_token_foreach", result)?;
+    unique_descriptors(state.finish("rotator configuration metadata")?)
 }
 
 pub(crate) fn unique_descriptors(
@@ -171,7 +191,7 @@ fn error_text(
 pub(crate) struct CallbackState<T> {
     values: Vec<T>,
     error: Option<CatalogError>,
-    rig: *mut sys::RIG,
+    target: Option<crate::descriptor::ConfigurationTarget>,
 }
 
 fn record_error<T>(state: &mut CallbackState<T>, error: CatalogError) {
@@ -202,14 +222,14 @@ impl<T> CallbackState<T> {
         Self {
             values: Vec::new(),
             error: None,
-            rig: ptr::null_mut(),
+            target: None,
         }
     }
-    fn for_rig(rig: *mut sys::RIG) -> Self {
+    fn for_target(target: crate::descriptor::ConfigurationTarget) -> Self {
         Self {
             values: Vec::new(),
             error: None,
-            rig,
+            target: Some(target),
         }
     }
     pub(crate) fn finish(self, operation: &'static str) -> Result<Vec<T>, CatalogError> {
@@ -248,9 +268,18 @@ unsafe extern "C" fn descriptor_callback(param: *const sys::confparams, data: *m
     let Some(state) = (unsafe { data.cast::<CallbackState<ConfigDescriptor>>().as_mut() }) else {
         return 0;
     };
-    let rig = state.rig;
+    let Some(target) = state.target else {
+        record_error(
+            state,
+            CatalogError::NullMetadata {
+                subject: "configuration descriptor",
+                field: "target",
+            },
+        );
+        return 0;
+    };
     invoke_callback(state, "configuration metadata", || {
-        crate::descriptor::copy(param, rig)
+        crate::descriptor::copy(param, target)
     })
 }
 
@@ -439,6 +468,32 @@ impl TemporaryRig {
             pointer,
             cleanup: Cleanup::Fixture(cleanup),
         }
+    }
+}
+
+struct TemporaryRotator {
+    pointer: *mut sys::ROT,
+}
+
+impl TemporaryRotator {
+    fn new(model: RotatorModelId) -> Result<Self, CatalogError> {
+        // SAFETY: backends are initialized before this private temporary handle is constructed.
+        let pointer = unsafe { sys::rot_init(model.get()) };
+        if pointer.is_null() {
+            return Err(HamlibError::NullRotatorHandle {
+                operation: "rot_init",
+                model,
+            }
+            .into());
+        }
+        Ok(Self { pointer })
+    }
+}
+
+impl Drop for TemporaryRotator {
+    fn drop(&mut self) {
+        // SAFETY: the handle is exclusively owned and live until this guard drops.
+        let _ = unsafe { sys::rot_cleanup(self.pointer) };
     }
 }
 
