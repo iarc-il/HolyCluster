@@ -20,12 +20,12 @@ impl ConfigDescriptor {
                 ConfigValue::Numeric(value)
             }
             Self::Boolean { .. } => match value {
-                "0" => ConfigValue::Boolean(false),
-                "1" => ConfigValue::Boolean(true),
+                "0" | "false" => ConfigValue::Boolean(false),
+                "1" | "true" => ConfigValue::Boolean(true),
                 _ => {
                     return Err(ConfigValueError::Invalid {
                         token,
-                        expected: "0 or 1",
+                        expected: "0, 1, true, or false",
                     });
                 }
             },

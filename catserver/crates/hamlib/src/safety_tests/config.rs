@@ -78,6 +78,20 @@ fn rejects_invalid_numeric_combo_and_text_values() {
 }
 
 #[test]
+fn accepts_numeric_and_text_boolean_values() {
+    let boolean = ConfigDescriptor::Boolean {
+        token: token(),
+        label: "L".into(),
+        tooltip: "T".into(),
+        default: false,
+    };
+    assert_eq!(boolean.parse_value("0"), Ok(ConfigValue::Boolean(false)));
+    assert_eq!(boolean.parse_value("false"), Ok(ConfigValue::Boolean(false)));
+    assert_eq!(boolean.parse_value("1"), Ok(ConfigValue::Boolean(true)));
+    assert_eq!(boolean.parse_value("true"), Ok(ConfigValue::Boolean(true)));
+}
+
+#[test]
 fn accepts_in_range_numeric_values_without_a_step() {
     let numeric = ConfigDescriptor::Numeric {
         token: token(),
