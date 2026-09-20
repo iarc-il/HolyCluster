@@ -1,11 +1,9 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
 
 import MainContainer from "@/components/MainContainer.jsx";
-import OmniRigError from "@/components/OmniRigError.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
-import Addons from "@/components/addons/Addons";
 import { ColorsProvider } from "@/hooks/useColors";
 import { FiltersProvider } from "@/hooks/useFilters";
 import { ProfilesProvider } from "@/hooks/useProfiles";
@@ -18,6 +16,9 @@ import { WsProvider } from "@/hooks/useWs";
 import "@/index.css";
 import { initializeSentry } from "@/sentry";
 
+const Addons = lazy(() => import("@/components/addons/Addons"));
+const OmniRigError = lazy(() => import("@/components/OmniRigError.jsx"));
+
 initializeSentry();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -26,37 +27,39 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <BrowserRouter>
                 <WsProvider>
                     <ProfilesProvider>
-                        <Routes>
-                            <Route
-                                path="/"
-                                element={
-                                    <ColorsProvider>
-                                        <FiltersProvider>
-                                            <SettingsProvider>
-                                                <RadioProvider>
-                                                    <UpdateProvider>
-                                                        <RotatorProvider>
-                                                            <SpotInteractionProvider>
-                                                                <MainContainer />
-                                                            </SpotInteractionProvider>
-                                                        </RotatorProvider>
-                                                    </UpdateProvider>
-                                                </RadioProvider>
-                                            </SettingsProvider>
-                                        </FiltersProvider>
-                                    </ColorsProvider>
-                                }
-                            />
-                            <Route
-                                path="/addons"
-                                element={
-                                    <SettingsProvider>
-                                        <Addons />
-                                    </SettingsProvider>
-                                }
-                            />
-                            <Route path="/omnirig-error" element={<OmniRigError />} />
-                        </Routes>
+                        <Suspense fallback={null}>
+                            <Routes>
+                                <Route
+                                    path="/"
+                                    element={
+                                        <ColorsProvider>
+                                            <FiltersProvider>
+                                                <SettingsProvider>
+                                                    <RadioProvider>
+                                                        <UpdateProvider>
+                                                            <RotatorProvider>
+                                                                <SpotInteractionProvider>
+                                                                    <MainContainer />
+                                                                </SpotInteractionProvider>
+                                                            </RotatorProvider>
+                                                        </UpdateProvider>
+                                                    </RadioProvider>
+                                                </SettingsProvider>
+                                            </FiltersProvider>
+                                        </ColorsProvider>
+                                    }
+                                />
+                                <Route
+                                    path="/addons"
+                                    element={
+                                        <SettingsProvider>
+                                            <Addons />
+                                        </SettingsProvider>
+                                    }
+                                />
+                                <Route path="/omnirig-error" element={<OmniRigError />} />
+                            </Routes>
+                        </Suspense>
                     </ProfilesProvider>
                 </WsProvider>
             </BrowserRouter>
