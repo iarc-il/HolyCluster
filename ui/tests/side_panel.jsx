@@ -92,7 +92,7 @@ describe("SidePanel", () => {
         render_side_panel();
 
         expect(screen.getByTestId("right-panel-state").textContent).toBe("closed");
-        await user.click(screen.getByRole("button", { name: "Complete import" }));
+        await user.click(await screen.findByRole("button", { name: "Complete import" }));
 
         expect(screen.getByTestId("right-panel-state").textContent).toBe("open");
         expect(screen.getByRole("button", { name: "Missing" }).getAttribute("aria-pressed")).toBe(
