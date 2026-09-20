@@ -86,7 +86,7 @@ async fn handle_ws_socket(
                 UserEvent::OpenBrowser => client_sender.send(radio::focus_message()?).await?,
             },
             _ = radio_interval.tick() => {
-                let data = radio_manager.poll_status().await;
+                let data = radio_manager.status();
                 if previous_radio_data.as_ref() != Some(&data) {
                     client_sender.send(radio::status_message(&data, &radio_manager)?).await?;
                     previous_radio_data = Some(data);

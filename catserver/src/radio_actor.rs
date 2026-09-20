@@ -1,4 +1,7 @@
-use std::sync::{Arc, RwLock, mpsc};
+use std::{
+    sync::{Arc, RwLock, mpsc},
+    time::{Duration, Instant},
+};
 
 use crate::{
     device_actor::{DeviceFactory, Worker},
@@ -36,7 +39,40 @@ pub(crate) fn spawn(
 fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) {
     let mut radio: Option<Box<dyn Radio>> = None;
     let mut factory: Option<RadioFactory> = None;
-    while let Ok(command) = receiver.recv() {
+    let mut retry_delay = Duration::from_secs(1);
+    let mut next_action: Option<Instant> = None;
+    loop {
+        let received = match next_action {
+            Some(deadline) => {
+                receiver.recv_timeout(deadline.saturating_duration_since(Instant::now()))
+            }
+            None => receiver
+                .recv()
+                .map_err(|_| mpsc::RecvTimeoutError::Disconnected),
+        };
+        let command = match received {
+            Ok(command) => command,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                let connected = snapshot
+                    .read()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .connection
+                    == ConnectionState::Connected;
+                if connected {
+                    next_action = radio.as_mut().map(|radio| {
+                        let connected = publish_status(&snapshot, radio.get_status());
+                        schedule_after_attempt(connected, &mut retry_delay)
+                    });
+                } else if let Some(factory) = &factory {
+                    let connected = replace_from_factory(&snapshot, factory, &mut radio);
+                    next_action = Some(schedule_after_attempt(connected, &mut retry_delay));
+                } else {
+                    next_action = None;
+                }
+                continue;
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        };
         match command {
             Command::Replace {
                 config,
@@ -45,43 +81,35 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 persist,
                 reply,
             } => {
-                let mut candidate = next_factory();
-                let init = candidate.init();
                 let result = if persist {
                     config.save().map_err(RadioManagerError::InvalidConfig)
                 } else {
                     Ok(())
                 };
                 if result.is_ok() {
-                    publish(&snapshot, config, selected, init, candidate.get_status());
+                    let mut candidate = next_factory();
+                    let init = candidate.init();
+                    let connected =
+                        publish(&snapshot, config, selected, init, candidate.get_status());
                     radio = Some(candidate);
                     factory = Some(next_factory);
+                    retry_delay = Duration::from_secs(1);
+                    next_action = Some(schedule_after_attempt(connected, &mut retry_delay));
                 }
                 let _ = reply.send(result);
             }
             Command::Retry(reply) => {
                 if let Some(factory) = &factory {
-                    let mut candidate = factory();
-                    let init = candidate.init();
-                    let state = snapshot
-                        .read()
-                        .unwrap_or_else(|error| error.into_inner())
-                        .clone();
-                    publish(
-                        &snapshot,
-                        state.config,
-                        state.selected,
-                        init,
-                        candidate.get_status(),
-                    );
-                    radio = Some(candidate);
+                    let connected = replace_from_factory(&snapshot, factory, &mut radio);
+                    next_action = Some(schedule_after_attempt(connected, &mut retry_delay));
                 }
                 let _ = reply.send(());
             }
             Command::SetRig(rig, reply) => {
                 if let Some(radio) = &mut radio {
                     radio.set_rig(rig);
-                    publish_status(&snapshot, radio.get_status());
+                    let connected = publish_status(&snapshot, radio.get_status());
+                    next_action = Some(schedule_after_attempt(connected, &mut retry_delay));
                 }
                 let _ = reply.send(());
             }
@@ -89,7 +117,8 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 if let Some(radio) = &mut radio {
                     radio.set_mode(mode);
                     radio.set_frequency(Slot::A, frequency);
-                    publish_status(&snapshot, radio.get_status());
+                    let connected = publish_status(&snapshot, radio.get_status());
+                    next_action = Some(schedule_after_attempt(connected, &mut retry_delay));
                 }
                 let _ = reply.send(());
             }
@@ -104,7 +133,10 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                     },
                     |radio| radio.get_status(),
                 );
-                publish_status(&snapshot, status.clone());
+                let connected = publish_status(&snapshot, status.clone());
+                if radio.is_some() {
+                    next_action = Some(schedule_after_attempt(connected, &mut retry_delay));
+                }
                 let _ = reply.send(status);
             }
             Command::Shutdown(reply) => {
@@ -116,15 +148,49 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
     }
 }
 
+fn replace_from_factory(
+    snapshot: &RwLock<RadioSnapshot>,
+    factory: &RadioFactory,
+    radio: &mut Option<Box<dyn Radio>>,
+) -> bool {
+    let mut candidate = factory();
+    let init = candidate.init();
+    let state = snapshot
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
+    let connected = publish(
+        snapshot,
+        state.config,
+        state.selected,
+        init,
+        candidate.get_status(),
+    );
+    *radio = Some(candidate);
+    connected
+}
+
+fn schedule_after_attempt(connected: bool, retry_delay: &mut Duration) -> Instant {
+    if connected {
+        *retry_delay = Duration::from_secs(1);
+        Instant::now() + Duration::from_millis(500)
+    } else {
+        let delay = *retry_delay;
+        *retry_delay = (*retry_delay * 2).min(Duration::from_secs(30));
+        Instant::now() + delay
+    }
+}
+
 fn publish(
     snapshot: &RwLock<RadioSnapshot>,
     config: RadioConfig,
     selected: ActiveRadioBackend,
     init: Result<(), RadioInitError>,
     status: Status,
-) {
+) -> bool {
     let (connection, last_error) = match init {
-        Ok(()) => (ConnectionState::Connected, None),
+        Ok(()) if status.status == "connected" => (ConnectionState::Connected, None),
+        Ok(()) => (ConnectionState::Disconnected, None),
         Err(error) => (ConnectionState::Disconnected, Some(error)),
     };
     let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());
@@ -133,9 +199,10 @@ fn publish(
     snapshot.connection = connection;
     snapshot.last_error = last_error;
     snapshot.last_status = status;
+    snapshot.connection == ConnectionState::Connected
 }
 
-fn publish_status(snapshot: &RwLock<RadioSnapshot>, status: Status) {
+fn publish_status(snapshot: &RwLock<RadioSnapshot>, status: Status) -> bool {
     let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());
     snapshot.connection = if status.status == "connected" {
         ConnectionState::Connected
@@ -146,4 +213,5 @@ fn publish_status(snapshot: &RwLock<RadioSnapshot>, status: Status) {
         snapshot.last_error = None;
     }
     snapshot.last_status = status;
+    snapshot.connection == ConnectionState::Connected
 }

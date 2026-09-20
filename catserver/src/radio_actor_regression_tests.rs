@@ -132,6 +132,38 @@ async fn retry_reconstructs_failed_selected_backend_on_actor_thread() {
 }
 
 #[tokio::test]
+async fn retries_failed_backend_without_a_browser_session() {
+    let config = RadioConfig::platform_default();
+    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let threads = Arc::new(Mutex::new(Vec::new()));
+    let factory_attempts = Arc::clone(&attempts);
+    let factory_threads = Arc::clone(&threads);
+    manager
+        .replace(config.clone(), config.effective_backend(false), move || {
+            Box::new(RetryRadio {
+                attempts: Arc::clone(&factory_attempts),
+                threads: Arc::clone(&factory_threads),
+            })
+        })
+        .await
+        .unwrap();
+
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        while manager.snapshot().connection != ConnectionState::Connected {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("radio reconnects automatically");
+
+    assert!(attempts.load(Ordering::SeqCst) >= 2);
+    manager.shutdown().await.unwrap();
+    let threads = threads.lock().unwrap();
+    assert!(threads.iter().all(|thread| *thread == threads[0]));
+}
+
+#[tokio::test]
 async fn commands_reach_backend_in_fifo_order_with_coherent_status() {
     let config = RadioConfig::platform_default();
     let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
