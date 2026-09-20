@@ -15,6 +15,7 @@ use crate::{
 };
 
 static BACKENDS: OnceLock<Result<(), HamlibError>> = OnceLock::new();
+static ROTATOR_BACKENDS: OnceLock<Result<(), HamlibError>> = OnceLock::new();
 
 pub(crate) fn models() -> Result<Vec<RigModel>, CatalogError> {
     load_backends()?;
@@ -74,6 +75,18 @@ pub(crate) fn load_backends() -> Result<(), HamlibError> {
             // SAFETY: Hamlib's process-wide backend registry is initialized exactly once here.
             hamlib_result("rig_load_all_backends", unsafe {
                 sys::rig_load_all_backends()
+            })
+        })
+        .clone()
+}
+
+pub(crate) fn load_rotator_backends() -> Result<(), HamlibError> {
+    ROTATOR_BACKENDS
+        .get_or_init(|| {
+            configure_debug();
+            // SAFETY: Hamlib's process-wide rotator backend registry is initialized exactly once.
+            hamlib_result("rot_load_all_backends", unsafe {
+                sys::rot_load_all_backends()
             })
         })
         .clone()

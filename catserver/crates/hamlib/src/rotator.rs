@@ -32,7 +32,7 @@ pub struct RotatorCatalog {
 }
 impl RotatorCatalog {
     pub fn load() -> Result<Self, HamlibError> {
-        ffi::load_backends()?;
+        ffi::load_rotator_backends()?;
         let mut ids = Vec::new();
         unsafe extern "C" fn callback(
             caps: *const sys::rot_caps,
@@ -112,7 +112,7 @@ impl Position {
 
 impl Rotator<RotatorClosed> {
     pub fn new(model: RotatorModelId) -> Result<Self, HamlibError> {
-        ffi::load_backends()?;
+        ffi::load_rotator_backends()?;
         let handle =
             NonNull::new(unsafe { sys::rot_init(model.get()) }).ok_or(
                 HamlibError::NullRotatorHandle {
