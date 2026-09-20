@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button.jsx";
 import { useColors } from "@/hooks/useColors";
 
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+const modal_stack = [];
 
 function Modal({
     title = null,
@@ -29,6 +30,7 @@ function Modal({
     const trigger_ref = useRef(null);
     const modal_ref = useRef(null);
     const previously_focused_ref = useRef(null);
+    const modal_instance_ref = useRef({});
 
     const close = useCallback(() => {
         set_show_modal(false);
@@ -52,13 +54,11 @@ function Modal({
             if (!show_modal) return;
 
             if (event.key === "Escape") {
-                event.stopPropagation();
                 if (on_cancel != null) {
                     on_cancel();
                 }
                 close();
             } else if (event.key === "Enter") {
-                event.stopPropagation();
                 if (on_apply && !apply_disabled && !applying) {
                     event.preventDefault();
                     void apply();
@@ -67,6 +67,8 @@ function Modal({
         },
         [applying, apply, apply_disabled, on_apply, on_cancel, show_modal],
     );
+    const on_keydown_ref = useRef(on_keydown);
+    on_keydown_ref.current = on_keydown;
 
     useEffect(() => {
         if (external_open) {
@@ -82,9 +84,25 @@ function Modal({
     }, [external_close]);
 
     useEffect(() => {
-        if (show_modal) {
-            previously_focused_ref.current = document.activeElement;
+        if (!show_modal) return;
+
+        previously_focused_ref.current = document.activeElement;
+        const modal_instance = modal_instance_ref.current;
+        modal_stack.push(modal_instance);
+
+        function handle_keydown(event) {
+            if (modal_stack[modal_stack.length - 1] !== modal_instance) return;
+            on_keydown_ref.current(event);
         }
+
+        document.addEventListener("keydown", handle_keydown);
+        return () => {
+            document.removeEventListener("keydown", handle_keydown);
+            const index = modal_stack.indexOf(modal_instance);
+            if (index !== -1) {
+                modal_stack.splice(index, 1);
+            }
+        };
     }, [show_modal]);
 
     useEffect(() => {
@@ -148,7 +166,6 @@ function Modal({
                     <div
                         ref={modal_ref}
                         role="dialog"
-                        onKeyDown={on_keydown}
                         aria-modal={true}
                         data-tour={dialog_data_tour}
                         className="flex pt-24 fixed inset-0 z-[60] outline-none focus:outline-none overflow-y-auto"

@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/hooks/useColors", () => ({
     useColors: () => ({
@@ -13,7 +13,19 @@ vi.mock("@/hooks/useColors", () => ({
 import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 
+afterEach(cleanup);
+
 describe("Modal keyboard handling", () => {
+    it("closes a modal when Escape is pressed outside its content", async () => {
+        const user = userEvent.setup();
+
+        render(<Modal button={<Button>Open</Button>}>Content</Modal>);
+        await user.click(screen.getByRole("button", { name: "Open" }));
+
+        fireEvent.keyDown(document, { key: "Escape" });
+        expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
     it("closes only the topmost nested modal on Escape", async () => {
         const user = userEvent.setup();
 
