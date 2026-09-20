@@ -36,12 +36,7 @@ fn lists_rotator_models_in_deterministic_order() {
 fn exposes_pinned_rotator_metadata_and_capabilities() {
     let catalog = RotatorCatalog::load().expect("Hamlib rotator catalog loads");
     let expected = [
-        (
-            RotatorModelId::DUMMY,
-            "Hamlib",
-            "Dummy",
-            RigPortType::None,
-        ),
+        (RotatorModelId::DUMMY, "Hamlib", "Dummy", RigPortType::None),
         (
             RotatorModelId::NET_ROTCTL,
             "Hamlib",

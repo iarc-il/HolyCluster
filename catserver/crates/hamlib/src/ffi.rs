@@ -250,10 +250,7 @@ unsafe extern "C" fn model_callback(caps: *const sys::rig_caps, data: *mut c_voi
     invoke_callback(state, "model metadata", || copy_model(caps).map(Some))
 }
 
-unsafe extern "C" fn rotator_model_callback(
-    caps: *const sys::rot_caps,
-    data: *mut c_void,
-) -> i32 {
+unsafe extern "C" fn rotator_model_callback(caps: *const sys::rot_caps, data: *mut c_void) -> i32 {
     // SAFETY: Hamlib invokes the callback with the state pointer passed to `rot_list_foreach`.
     let Some(state) = (unsafe { data.cast::<CallbackState<RotatorModel>>().as_mut() }) else {
         return 0;

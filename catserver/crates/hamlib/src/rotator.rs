@@ -113,13 +113,12 @@ impl Position {
 impl Rotator<RotatorClosed> {
     pub fn new(model: RotatorModelId) -> Result<Self, HamlibError> {
         ffi::load_rotator_backends()?;
-        let handle =
-            NonNull::new(unsafe { sys::rot_init(model.get()) }).ok_or(
-                HamlibError::NullRotatorHandle {
-                    operation: "rot_init",
-                    model,
-                },
-            )?;
+        let handle = NonNull::new(unsafe { sys::rot_init(model.get()) }).ok_or(
+            HamlibError::NullRotatorHandle {
+                operation: "rot_init",
+                model,
+            },
+        )?;
         Ok(Self {
             handle,
             model,
@@ -148,12 +147,11 @@ impl Rotator<RotatorClosed> {
                 token: descriptor.token().as_str().to_owned(),
             });
         }
-        let value = CString::new(value.encoded()).map_err(|_| {
-            RotatorConfigurationError::UnknownToken {
+        let value =
+            CString::new(value.encoded()).map_err(|_| RotatorConfigurationError::UnknownToken {
                 model: self.model,
                 token: descriptor.token().as_str().to_owned(),
-            }
-        })?;
+            })?;
         ffi::hamlib_result("rot_set_conf", unsafe {
             sys::rot_set_conf(self.handle.as_ptr(), (*parameter).token, value.as_ptr())
         })?;
@@ -207,16 +205,8 @@ impl Rotator<RotatorOpen> {
     }
 }
 
-fn equivalent_azimuth(
-    heading: f64,
-    minimum: f64,
-    maximum: f64,
-) -> Result<f64, HamlibError> {
-    if !heading.is_finite()
-        || !minimum.is_finite()
-        || !maximum.is_finite()
-        || minimum > maximum
-    {
+fn equivalent_azimuth(heading: f64, minimum: f64, maximum: f64) -> Result<f64, HamlibError> {
+    if !heading.is_finite() || !minimum.is_finite() || !maximum.is_finite() || minimum > maximum {
         return Err(HamlibError::InvalidPosition);
     }
     let normalized = heading.rem_euclid(360.0);
@@ -229,7 +219,11 @@ fn equivalent_azimuth(
         .round()
         .clamp(minimum_turn, maximum_turn);
     let azimuth = normalized + preferred_turn * 360.0;
-    if azimuth < minimum || azimuth > maximum || azimuth < f64::from(f32::MIN) || azimuth > f64::from(f32::MAX) {
+    if azimuth < minimum
+        || azimuth > maximum
+        || azimuth < f64::from(f32::MIN)
+        || azimuth > f64::from(f32::MAX)
+    {
         return Err(HamlibError::InvalidPosition);
     }
     Ok(azimuth)

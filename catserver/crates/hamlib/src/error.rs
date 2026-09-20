@@ -117,10 +117,7 @@ pub enum CatalogError {
     #[error("Hamlib returned invalid port type for model {model}")]
     InvalidPortType { model: RigModelId },
     #[error("Hamlib returned invalid status {status} for rotator model {model}")]
-    InvalidRotatorStatus {
-        model: RotatorModelId,
-        status: u32,
-    },
+    InvalidRotatorStatus { model: RotatorModelId, status: u32 },
     #[error("Hamlib returned invalid port type for rotator model {model}")]
     InvalidRotatorPortType { model: RotatorModelId },
     #[error("Hamlib returned invalid azimuth range for rotator model {model}")]

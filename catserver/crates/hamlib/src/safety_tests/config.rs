@@ -86,7 +86,10 @@ fn accepts_numeric_and_text_boolean_values() {
         default: false,
     };
     assert_eq!(boolean.parse_value("0"), Ok(ConfigValue::Boolean(false)));
-    assert_eq!(boolean.parse_value("false"), Ok(ConfigValue::Boolean(false)));
+    assert_eq!(
+        boolean.parse_value("false"),
+        Ok(ConfigValue::Boolean(false))
+    );
     assert_eq!(boolean.parse_value("1"), Ok(ConfigValue::Boolean(true)));
     assert_eq!(boolean.parse_value("true"), Ok(ConfigValue::Boolean(true)));
 }
