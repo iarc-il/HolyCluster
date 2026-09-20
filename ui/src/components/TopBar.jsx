@@ -2,6 +2,7 @@ import Clock from "@/components/Clock.jsx";
 import NetworkState from "@/components/NetworkState.jsx";
 import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
 import SubmitSpot from "@/components/SubmitSpot.jsx";
+import { Settings } from "@/components/settings/Settings.jsx";
 import Button from "@/components/ui/Button.jsx";
 import ColorPicker from "@/components/ui/ColorPicker.jsx";
 import Select from "@/components/ui/Select.jsx";
@@ -16,11 +17,7 @@ import Icon from "@/assets/icon.png";
 import OpenMenu from "@/components/OpenMenu.jsx";
 
 import use_radio from "@/hooks/useRadio";
-import { Suspense, lazy, useEffect } from "react";
-
-const Settings = lazy(() =>
-    import("@/components/settings/Settings.jsx").then(module => ({ default: module.Settings })),
-);
+import { useEffect } from "react";
 
 const spots_time_limits = {
     "5 Minutes": 300,
@@ -195,12 +192,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
                         </span>
                     )}
                 </div>
-                <Suspense fallback={null}>
-                    <Settings
-                        set_map_controls={set_map_controls}
-                        set_radius_in_km={set_radius_in_km}
-                    />
-                </Suspense>
+                <Settings set_map_controls={set_map_controls} set_radius_in_km={set_radius_in_km} />
                 {dev_mode ? <ColorPicker /> : ""}
                 <div className="p-2 hidden max-2xl:block" data-tour="top-bar-right-menu">
                     <OpenMenu

@@ -1,8 +1,6 @@
+import About from "@/components/About.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
-import { Suspense, lazy } from "react";
-
-const About = lazy(() => import("@/components/About.jsx"));
 
 function FeedbackButton({ size }) {
     const { colors } = useColors();
@@ -58,9 +56,7 @@ function UtilityButtons() {
                 update_available={enabled && (status === "available" || status === "deferred")}
             />
             <FeedbackButton size="36" />
-            <Suspense fallback={null}>
-                <About />
-            </Suspense>
+            <About />
         </div>
     );
 }
