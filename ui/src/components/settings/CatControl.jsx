@@ -134,38 +134,19 @@ function empty_hamlib() {
     return { model_id: DEFAULT_HAMLIB_MODEL_ID, token_values: {} };
 }
 
-function empty_rig() {
-    return {
-        backend: "unconfigured",
-        hamlib: empty_hamlib(),
-    };
-}
-
-function normalize_rig(rig) {
-    const fallback = empty_rig();
-    const hamlib = { ...fallback.hamlib, ...rig?.hamlib };
-    if (!hamlib.model_id) {
-        hamlib.model_id = DEFAULT_HAMLIB_MODEL_ID;
-    }
-    return {
-        ...fallback,
-        ...rig,
-        backend: ["unconfigured", "omnirig", "hamlib"].includes(rig?.backend)
-            ? rig.backend
-            : fallback.backend,
-        hamlib,
-    };
-}
-
 function normalize_configuration(configuration) {
     if (configuration == null) {
         return null;
     }
-
+    const rig = configuration.rig;
     return {
-        rig1: normalize_rig(configuration.rig1),
-        rig2: normalize_rig(configuration.rig2),
-        rig2_enabled: configuration.rig2 != null,
+        rig:
+            rig?.model_id == null
+                ? null
+                : {
+                      model_id: String(rig.model_id),
+                      token_values: { ...(rig.token_values || {}) },
+                  },
     };
 }
 
@@ -195,14 +176,21 @@ function materialized_hamlib(rig, descriptors, serial_ports, port_type) {
     return { ...rig.hamlib, token_values };
 }
 
-function serialized_rig(rig, descriptors = [], serial_ports = [], port_type = "serial") {
-    if (rig.backend === "hamlib") {
-        return {
-            backend: "hamlib",
-            hamlib: materialized_hamlib(rig, descriptors, serial_ports, port_type),
-        };
+function materialized_radio(rig, descriptors, serial_ports, connection_kind) {
+    if (rig == null) return null;
+    if (connection_kind === "none") {
+        return { ...rig, token_values: {} };
     }
-    return { backend: rig.backend };
+    const wrapper = { hamlib: rig };
+    return materialized_hamlib(wrapper, descriptors, serial_ports, connection_kind);
+}
+
+function radio_model_options(models) {
+    return models.map(model => ({
+        value: model.id,
+        label: `${model.manufacturer} ${model.model}`,
+        connection_kind: model.connection_kind,
+    }));
 }
 
 function hamlib_model_options(models) {
@@ -268,10 +256,6 @@ function select_options(descriptor, value) {
         values.unshift(value);
     }
     return values;
-}
-
-function errors_for_rig(errors, rig) {
-    return errors.filter(error => error.field?.startsWith(`${rig}.`));
 }
 
 function error_matches(errors, field, token = null) {
@@ -387,19 +371,20 @@ function CatControl({
     const colors = theme_colors ?? fallback_colors;
     const {
         radio_capabilities,
+        radio_configuration_support,
         radio_configuration,
         radio_configuration_result,
         radio_connection_result,
-        hamlib_models,
-        hamlib_models_error,
+        radio_models,
+        radio_models_error,
         serial_ports,
         serial_ports_error,
-        hamlib_model_details,
-        hamlib_model_error,
+        radio_model_details,
+        radio_model_error,
         get_radio_configuration,
-        list_hamlib_models,
+        list_radio_models,
         list_serial_ports,
-        describe_hamlib_model,
+        describe_radio_model,
         set_radio_configuration,
         test_radio_connection,
     } = use_radio();
@@ -429,13 +414,11 @@ function CatControl({
     const [configuration, set_configuration] = useState(null);
     const [rotator_form, set_rotator_form] = useState(null);
     const [rotator_save_state, set_rotator_save_state] = useState(null);
-    const [selected_rig, set_selected_rig] = useState("rig1");
     const [save_state, set_save_state] = useState(null);
     const [logger_port_touched, set_logger_port_touched] = useState(false);
-    const configuration_capable = radio_capabilities?.radio_configuration === true;
+    const configuration_capable = radio_configuration_support === "supported";
     const rotator_configuration_capable = radio_capabilities?.rotator_configuration === true;
-    const available_backends = radio_capabilities?.backends || [];
-    const selected_configuration = configuration?.[selected_rig];
+    const selected_configuration = configuration?.rig;
     const server_errors =
         radio_configuration_result?.failure === "invalid_config"
             ? radio_configuration_result.errors || []
@@ -444,8 +427,8 @@ function CatControl({
     const radio_errors =
         radio_result?.failure === "invalid_config" ? radio_result.errors || [] : [];
     const has_field_errors = radio_result?.failure === "invalid_config" && radio_errors.length > 0;
-    const selected_errors = errors_for_rig(radio_errors, selected_rig);
-    const model_options = hamlib_model_options(hamlib_models);
+    const selected_errors = radio_errors.filter(error => error.field?.startsWith("rig"));
+    const model_options = radio_model_options(radio_models);
     const rotator_model_options = hamlib_model_options(rotator_models);
     const selected_rotator_model = rotator_model_options.find(
         option => option.value === rotator_form?.hamlib?.model_id,
@@ -458,14 +441,12 @@ function CatControl({
     const rotator_connection_kind =
         connection_kind_by_port_type[selected_rotator_model?.port_type] || "serial";
     const selected_model = model_options.find(
-        option => option.value === selected_configuration?.hamlib?.model_id,
+        option => option.value === selected_configuration?.model_id,
     );
-    const selected_port_type = selected_model?.port_type || "serial";
-    const selected_connection_kind = connection_kind_by_port_type[selected_port_type];
+    const selected_connection_kind = selected_model?.connection_kind || "none";
     const radio_port_value =
         selected_connection_kind === "network"
-            ? network_endpoint(selected_configuration.hamlib.token_values[network_pathname_token])
-                  .port
+            ? network_endpoint(selected_configuration.token_values[network_pathname_token]).port
             : null;
     const radio_port_server_error = selected_errors.find(
         error => error.token === network_pathname_token,
@@ -496,7 +477,7 @@ function CatControl({
     useEffect(() => {
         if (configuration_capable) {
             get_radio_configuration();
-            list_hamlib_models();
+            list_radio_models();
             list_serial_ports();
         }
     }, [configuration_capable]);
@@ -543,13 +524,10 @@ function CatControl({
     }, [rotator_configuration_result, rotator_connection_result]);
 
     useEffect(() => {
-        if (
-            selected_configuration?.backend === "hamlib" &&
-            selected_configuration.hamlib.model_id
-        ) {
-            describe_hamlib_model(selected_configuration.hamlib.model_id);
+        if (selected_configuration?.model_id) {
+            describe_radio_model(selected_configuration.model_id);
         }
-    }, [selected_configuration?.backend, selected_configuration?.hamlib.model_id]);
+    }, [selected_configuration?.model_id]);
 
     useEffect(() => {
         if (radio_configuration_result?.ok === true) {
@@ -572,10 +550,6 @@ function CatControl({
                         .filter(Boolean)
                         .join("\n\n") || undefined,
             });
-        }
-        if (radio_configuration_result?.ok === false && server_errors.length > 0) {
-            const first_error = server_errors[0];
-            set_selected_rig(first_error.field?.startsWith("rig2.") ? "rig2" : "rig1");
         }
     }, [radio_configuration_result]);
 
@@ -603,28 +577,18 @@ function CatControl({
 
     function update_selected(update) {
         set_save_state(null);
-        set_configuration(current => ({
-            ...current,
-            [selected_rig]: update(current[selected_rig]),
-        }));
+        set_configuration(current => ({ ...current, rig: update(current.rig) }));
     }
 
-    function serialized_configuration(rig_name = null) {
-        const serialize = rig =>
-            serialized_rig(
-                rig,
-                rig.backend === "hamlib" ? hamlib_model_details[rig.hamlib.model_id] || [] : [],
-                serial_ports,
-                rig.backend === "hamlib"
-                    ? hamlib_models.find(model => model.id === rig.hamlib.model_id)?.port_type
-                    : undefined,
-            );
-        if (rig_name != null) {
-            return { rig1: serialize(configuration[rig_name]) };
-        }
+    function serialized_configuration() {
+        const rig = configuration.rig;
         return {
-            rig1: serialize(configuration.rig1),
-            ...(configuration.rig2_enabled ? { rig2: serialize(configuration.rig2) } : {}),
+            rig: materialized_radio(
+                rig,
+                rig == null ? [] : radio_model_details[rig.model_id] || [],
+                serial_ports,
+                selected_connection_kind,
+            ),
         };
     }
 
@@ -636,7 +600,7 @@ function CatControl({
 
     function test_connection() {
         set_save_state({ ok: null, message: "Testing radio connection..." });
-        test_radio_connection(serialized_configuration(selected_rig));
+        test_radio_connection(serialized_configuration());
     }
 
     function serialized_rotator_configuration() {
@@ -685,224 +649,149 @@ function CatControl({
 
     return (
         <div className="p-4" data-tour="settings-cat-control">
+            {radio_configuration_support === "update_required" ? (
+                <p role="alert" className="mb-6">
+                    Update the CAT server to configure radio hardware.
+                </p>
+            ) : null}
             {configuration_capable && configuration != null ? (
                 <section className="mb-6 flex flex-col gap-4" aria-label="Radio hardware settings">
                     <h4 className="text-lg">Radio hardware</h4>
-                    <div className="grid gap-3 min-[720px]:grid-cols-2">
-                        <label className="flex flex-col gap-1" htmlFor="radio-rig">
-                            <span>Rig</span>
-                            <Select
-                                id="radio-rig"
+                    <div className="flex flex-col gap-3">
+                        {radio_models_error ? (
+                            <p role="alert">{radio_models_error.message}</p>
+                        ) : null}
+                        {serial_ports_error ? (
+                            <p role="alert">{serial_ports_error.message}</p>
+                        ) : null}
+                        <label className="flex flex-col gap-1" htmlFor="hamlib-model">
+                            <span>Model</span>
+                            <SearchSelect
+                                inputId="hamlib-model"
+                                aria-label="Model"
                                 className="w-full"
-                                value={selected_rig}
-                                onChange={event => {
-                                    set_selected_rig(event.target.value);
-                                    set_save_state(null);
+                                filterOption={search_filter}
+                                value={selected_model ?? null}
+                                placeholder="Select a model"
+                                onChange={option => {
+                                    const model_id = option?.value;
+                                    update_selected(rig =>
+                                        model_id == null
+                                            ? null
+                                            : {
+                                                  model_id,
+                                                  token_values:
+                                                      model_id === rig?.model_id
+                                                          ? rig.token_values
+                                                          : {},
+                                              },
+                                    );
                                 }}
-                            >
-                                <option value="rig1">Rig 1</option>
-                                <option value="rig2">Rig 2</option>
-                            </Select>
-                        </label>
-                        <label className="flex flex-col gap-1" htmlFor="radio-backend">
-                            <span>Backend</span>
-                            <Select
-                                id="radio-backend"
-                                value={selected_configuration.backend}
-                                className={
-                                    error_matches(radio_errors, `${selected_rig}.backend`)
-                                        ? "bg-red-200"
-                                        : ""
-                                }
-                                onChange={event =>
-                                    update_selected(rig => ({
-                                        ...rig,
-                                        backend: event.target.value,
-                                    }))
-                                }
-                            >
-                                <option value="unconfigured" disabled>
-                                    Choose a backend
-                                </option>
-                                {available_backends.map(backend => (
-                                    <option key={backend} value={backend}>
-                                        {backend}
-                                    </option>
-                                ))}
-                            </Select>
-                        </label>
-                    </div>
-                    {selected_rig === "rig2" ? (
-                        <label className="flex items-center gap-2" htmlFor="enable-rig2">
-                            <input
-                                id="enable-rig2"
-                                type="checkbox"
-                                checked={configuration.rig2_enabled}
-                                onChange={event =>
-                                    set_configuration(current => ({
-                                        ...current,
-                                        rig2_enabled: event.target.checked,
-                                    }))
-                                }
+                                styles={search_select_styles(
+                                    colors,
+                                    error_matches(radio_errors, "rig.model_id"),
+                                )}
+                                options={model_options}
                             />
-                            Enable Rig 2
                         </label>
-                    ) : null}
-                    {selected_configuration.backend === "hamlib" ? (
-                        <div className="flex flex-col gap-3">
-                            {hamlib_models_error ? (
-                                <p role="alert">{hamlib_models_error.message}</p>
-                            ) : null}
-                            {serial_ports_error ? (
-                                <p role="alert">{serial_ports_error.message}</p>
-                            ) : null}
-                            <label className="flex flex-col gap-1" htmlFor="hamlib-model">
-                                <span>Model</span>
-                                <SearchSelect
-                                    inputId="hamlib-model"
-                                    aria-label="Model"
-                                    className="w-full"
-                                    filterOption={search_filter}
-                                    value={selected_model ?? null}
-                                    placeholder="Select a model"
-                                    onChange={option => {
-                                        const model_id = option.value;
-                                        update_selected(rig => ({
-                                            ...rig,
-                                            hamlib: {
-                                                ...rig.hamlib,
-                                                model_id,
-                                                token_values:
-                                                    model_id === rig.hamlib.model_id
-                                                        ? rig.hamlib.token_values
-                                                        : {},
-                                            },
-                                        }));
-                                    }}
-                                    styles={search_select_styles(
-                                        colors,
-                                        error_matches(
-                                            radio_errors,
-                                            `${selected_rig}.hamlib.model_id`,
-                                        ),
-                                    )}
-                                    options={model_options}
-                                />
-                            </label>
+                        {selected_configuration != null && selected_connection_kind !== "none" ? (
                             <h5 className="border-t pt-3 font-semibold">
                                 {selected_connection_kind === "network"
                                     ? "Network connection"
                                     : "Serial connection"}
                             </h5>
-                            {selected_connection_kind === "network" ? (
-                                <div className="grid gap-3 min-[720px]:grid-cols-2">
-                                    <label className="flex flex-col gap-1" htmlFor="hamlib-host">
-                                        <span>Host</span>
-                                        <Input
-                                            id="hamlib-host"
-                                            value={
-                                                network_endpoint(
-                                                    selected_configuration.hamlib.token_values[
-                                                        network_pathname_token
-                                                    ],
-                                                ).host
-                                            }
-                                            onChange={event =>
-                                                update_selected(rig => ({
-                                                    ...rig,
-                                                    hamlib: {
-                                                        ...rig.hamlib,
-                                                        token_values: {
-                                                            ...rig.hamlib.token_values,
-                                                            [network_pathname_token]:
-                                                                network_pathname(
-                                                                    event.target.value,
-                                                                    network_endpoint(
-                                                                        rig.hamlib.token_values[
-                                                                            network_pathname_token
-                                                                        ],
-                                                                    ).port,
-                                                                ),
-                                                        },
-                                                    },
-                                                }))
-                                            }
-                                        />
-                                    </label>
-                                    <label className="flex flex-col gap-1" htmlFor="hamlib-port">
-                                        <span>Port</span>
-                                        <PortInput
-                                            id="hamlib-port"
-                                            value={radio_port_value}
-                                            error={radio_port_error}
-                                            show_error_message={false}
-                                            onChange={event =>
-                                                update_selected(rig => ({
-                                                    ...rig,
-                                                    hamlib: {
-                                                        ...rig.hamlib,
-                                                        token_values: {
-                                                            ...rig.hamlib.token_values,
-                                                            [network_pathname_token]:
-                                                                network_pathname(
-                                                                    network_endpoint(
-                                                                        rig.hamlib.token_values[
-                                                                            network_pathname_token
-                                                                        ],
-                                                                    ).host,
-                                                                    event.target.value,
-                                                                ),
-                                                        },
-                                                    },
-                                                }))
-                                            }
-                                        />
-                                    </label>
-                                </div>
-                            ) : selected_connection_kind === "serial" ? (
-                                <div className="grid gap-3 min-[720px]:grid-cols-2">
-                                    {serial_descriptors(
-                                        hamlib_model_details[
-                                            selected_configuration.hamlib.model_id
-                                        ] || [],
-                                    ).map(descriptor => (
-                                        <DescriptorInput
-                                            key={descriptor.token}
-                                            descriptor={descriptor}
-                                            error_tokens={selected_errors
-                                                .map(error => error.token)
-                                                .filter(Boolean)}
-                                            colors={colors}
-                                            serial_ports={serial_ports}
-                                            value={descriptor_value(
-                                                descriptor,
-                                                selected_configuration.hamlib.token_values[
-                                                    descriptor.token
+                        ) : null}
+                        {selected_connection_kind === "network" ? (
+                            <div className="grid gap-3 min-[720px]:grid-cols-2">
+                                <label className="flex flex-col gap-1" htmlFor="hamlib-host">
+                                    <span>Host</span>
+                                    <Input
+                                        id="hamlib-host"
+                                        value={
+                                            network_endpoint(
+                                                selected_configuration.token_values[
+                                                    network_pathname_token
                                                 ],
-                                                serial_ports,
-                                                selected_model.port_type,
-                                            )}
-                                            on_change={value =>
-                                                update_selected(rig => ({
-                                                    ...rig,
-                                                    hamlib: {
-                                                        ...rig.hamlib,
-                                                        token_values: {
-                                                            ...rig.hamlib.token_values,
-                                                            [descriptor.token]: value,
-                                                        },
-                                                    },
-                                                }))
-                                            }
-                                        />
-                                    ))}
-                                </div>
-                            ) : null}
-                            {hamlib_model_error ? (
-                                <p role="alert">{hamlib_model_error.message}</p>
-                            ) : null}
-                        </div>
-                    ) : null}
+                                            ).host
+                                        }
+                                        onChange={event =>
+                                            update_selected(rig => ({
+                                                ...rig,
+                                                token_values: {
+                                                    ...rig.token_values,
+                                                    [network_pathname_token]: network_pathname(
+                                                        event.target.value,
+                                                        network_endpoint(
+                                                            rig.token_values[
+                                                                network_pathname_token
+                                                            ],
+                                                        ).port,
+                                                    ),
+                                                },
+                                            }))
+                                        }
+                                    />
+                                </label>
+                                <label className="flex flex-col gap-1" htmlFor="hamlib-port">
+                                    <span>Port</span>
+                                    <PortInput
+                                        id="hamlib-port"
+                                        value={radio_port_value}
+                                        error={radio_port_error}
+                                        show_error_message={false}
+                                        onChange={event =>
+                                            update_selected(rig => ({
+                                                ...rig,
+                                                token_values: {
+                                                    ...rig.token_values,
+                                                    [network_pathname_token]: network_pathname(
+                                                        network_endpoint(
+                                                            rig.token_values[
+                                                                network_pathname_token
+                                                            ],
+                                                        ).host,
+                                                        event.target.value,
+                                                    ),
+                                                },
+                                            }))
+                                        }
+                                    />
+                                </label>
+                            </div>
+                        ) : selected_connection_kind === "serial" ? (
+                            <div className="grid gap-3 min-[720px]:grid-cols-2">
+                                {serial_descriptors(
+                                    radio_model_details[selected_configuration.model_id] || [],
+                                ).map(descriptor => (
+                                    <DescriptorInput
+                                        key={descriptor.token}
+                                        descriptor={descriptor}
+                                        error_tokens={selected_errors
+                                            .map(error => error.token)
+                                            .filter(Boolean)}
+                                        colors={colors}
+                                        serial_ports={serial_ports}
+                                        value={descriptor_value(
+                                            descriptor,
+                                            selected_configuration.token_values[descriptor.token],
+                                            serial_ports,
+                                            selected_connection_kind,
+                                        )}
+                                        on_change={value =>
+                                            update_selected(rig => ({
+                                                ...rig,
+                                                token_values: {
+                                                    ...rig.token_values,
+                                                    [descriptor.token]: value,
+                                                },
+                                            }))
+                                        }
+                                    />
+                                ))}
+                            </div>
+                        ) : null}
+                        {radio_model_error ? <p role="alert">{radio_model_error.message}</p> : null}
+                    </div>
                     <div className="flex flex-col items-start gap-1">
                         <div className="flex items-center gap-3">
                             <Button

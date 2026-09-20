@@ -1,5 +1,4 @@
-import hamlib_config_policy from "@shared/hamlib_ui_config_policy.json";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,8 +23,10 @@ vi.mock("@/hooks/useColors", () => ({
 
 import CatControl from "@/components/settings/CatControl.jsx";
 
-const colors = { theme: { text: "black" } };
-const descriptors = [
+const network_descriptors = [
+    { kind: "text", token: "rig_pathname", label: "Pathname", tooltip: "", default: "" },
+];
+const serial_descriptors = [
     { kind: "text", token: "rig_pathname", label: "Pathname", tooltip: "", default: "" },
     {
         kind: "integer",
@@ -37,86 +38,13 @@ const descriptors = [
         maximum: 115200,
         step: 1200,
     },
-    {
-        kind: "integer",
-        token: "data_bits",
-        label: "Data bits",
-        tooltip: "",
-        default: 8,
-        minimum: 5,
-        maximum: 8,
-        step: 1,
-    },
-    {
-        kind: "integer",
-        token: "stop_bits",
-        label: "Stop bits",
-        tooltip: "",
-        default: 1,
-        minimum: 1,
-        maximum: 2,
-        step: 1,
-    },
-    {
-        kind: "combo",
-        token: "serial_handshake",
-        label: "Handshake",
-        tooltip: "",
-        default: "None",
-        options: ["None", "Hardware"],
-    },
-    { kind: "text", token: "unsupported", label: "Unsupported", tooltip: "", default: "" },
 ];
-const network_descriptors = [
-    { kind: "text", token: "rig_pathname", label: "Pathname", tooltip: "", default: "" },
-];
-const policy_serial_descriptors = Object.entries(hamlib_config_policy.serial_labels).map(
-    ([token, label]) => {
-        if (hamlib_config_policy.pathname_tokens.includes(token)) {
-            return { kind: "text", token, label, tooltip: "", default: "" };
-        }
-        if (["serial_speed", "baud", "data_bits", "stop_bits"].includes(token)) {
-            return {
-                kind: "integer",
-                token,
-                label,
-                tooltip: "",
-                default: token === "data_bits" ? 8 : token === "stop_bits" ? 1 : 9600,
-                minimum: 1,
-                maximum: 115200,
-                step: 1,
-            };
-        }
-        if (["parity", "serial_handshake"].includes(token)) {
-            return {
-                kind: "combo",
-                token,
-                label,
-                tooltip: "",
-                default: "None",
-                options: ["None", "Hardware"],
-            };
-        }
-        return { kind: "boolean", token, label, tooltip: "", default: false };
-    },
-);
-
-function configuration(
-    rig1 = {
-        backend: "hamlib",
-        hamlib: { model_id: "4", token_values: { rig_pathname: "127.0.0.1:4532" } },
-    },
-    rig2 = undefined,
-) {
-    return { event: "configuration", rig1, ...(rig2 ? { rig2 } : {}) };
-}
 
 function render_cat(radio_config_apply_ref = null) {
     return render(
         <CatControl
             temp_settings={{ highlight_enabled: true, highlight_port: 2237 }}
             set_temp_settings={vi.fn()}
-            colors={colors}
             radio_config_apply_ref={radio_config_apply_ref}
         />,
     );
@@ -137,419 +65,127 @@ describe("CAT control settings", () => {
             test_rotator_connection: vi.fn(),
         };
         radio.current = {
-            radio_capabilities: { radio_configuration: true, backends: ["hamlib"] },
-            radio_configuration: configuration(),
+            radio_capabilities: { radio_configuration_api: 2, rotator_configuration: false },
+            radio_configuration_support: "supported",
+            radio_configuration: {
+                event: "configuration",
+                rig: {
+                    model_id: "hamlib:4",
+                    token_values: { rig_pathname: "127.0.0.1:4532" },
+                },
+            },
             radio_configuration_result: null,
             radio_connection_result: null,
-            hamlib_models: [
-                { id: "1", manufacturer: "Hamlib", model: "Dummy", port_type: "none" },
-                { id: "2", manufacturer: "Acme", model: "Rig" },
-                { id: "3", manufacturer: "Other", model: "Radio" },
-                { id: "4", manufacturer: "Hamlib", model: "NET rigctl", port_type: "network" },
-                { id: "5", manufacturer: "Hamlib", model: "UDP rigctl", port_type: "udp_network" },
-                { id: "6", manufacturer: "Acme", model: "USB Rig", port_type: "usb" },
+            radio_models: [
+                {
+                    id: "hamlib:2",
+                    manufacturer: "Acme",
+                    model: "Serial Rig",
+                    connection_kind: "serial",
+                },
+                {
+                    id: "hamlib:4",
+                    manufacturer: "Hamlib",
+                    model: "NET rigctl",
+                    connection_kind: "network",
+                },
+                {
+                    id: "omnirig:1",
+                    manufacturer: "OmniRig",
+                    model: "OmniRig Rig 1",
+                    connection_kind: "none",
+                },
+                {
+                    id: "omnirig:2",
+                    manufacturer: "OmniRig",
+                    model: "OmniRig Rig 2",
+                    connection_kind: "none",
+                },
             ],
-            hamlib_models_error: null,
+            radio_models_error: null,
             serial_ports: ["/dev/ttyACM0", "/dev/ttyUSB0"],
             serial_ports_error: null,
-            hamlib_model_details: {
-                2: descriptors,
-                4: network_descriptors,
-                5: network_descriptors,
-                6: network_descriptors,
+            radio_model_details: {
+                "hamlib:2": serial_descriptors,
+                "hamlib:4": network_descriptors,
+                "omnirig:1": [],
+                "omnirig:2": [],
             },
-            hamlib_model_error: null,
+            radio_model_error: null,
             get_radio_configuration: vi.fn(),
-            list_hamlib_models: vi.fn(),
+            list_radio_models: vi.fn(),
             list_serial_ports: vi.fn(),
-            describe_hamlib_model: vi.fn(),
+            describe_radio_model: vi.fn(),
             set_radio_configuration: vi.fn(() => Promise.resolve({ ok: true, errors: [] })),
             test_radio_connection: vi.fn(),
         };
     });
+
     afterEach(() => cleanup());
 
-    it("always provides a native Rig 1 and Rig 2 selector", () => {
-        render_cat();
-        expect(screen.getByLabelText("Rig").tagName).toBe("SELECT");
-        expect(screen.getByRole("option", { name: "Rig 1" })).not.toBeNull();
-        expect(screen.getByRole("option", { name: "Rig 2" })).not.toBeNull();
-    });
-
-    it("prompts first-run users to choose a backend", () => {
-        radio.current.radio_configuration = configuration({ backend: "unconfigured" });
+    it("shows one unified model selector without rig or backend controls", () => {
         render_cat();
 
-        expect(screen.getByLabelText("Backend").value).toBe("unconfigured");
-        expect(screen.getByRole("option", { name: "Choose a backend" }).disabled).toBe(true);
+        expect(screen.getByRole("combobox", { name: "Model" })).not.toBeNull();
+        expect(screen.queryByLabelText("Rig")).toBeNull();
+        expect(screen.queryByLabelText("Backend")).toBeNull();
+        expect(screen.queryByLabelText("Enable Rig 2")).toBeNull();
+        expect(radio.current.list_radio_models).toHaveBeenCalled();
     });
 
-    it("searches and selects Hamlib models while preserving independent rig drafts", async () => {
+    it("serializes generic network configuration for apply and test", async () => {
         const user = userEvent.setup();
-        render_cat();
+        const apply_ref = { current: null };
+        render_cat(apply_ref);
+
         await user.clear(screen.getByLabelText("Host"));
-        await user.type(screen.getByLabelText("Host"), "rig-one");
-        await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
-        await user.click(screen.getByLabelText("Enable Rig 2"));
-        await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
-        const model = screen.getByRole("combobox", { name: "Model" });
-        await user.type(model, "Acme");
-        expect(screen.getByRole("option", { name: "Acme Rig" })).not.toBeNull();
-        expect(screen.queryByRole("option", { name: "Other Radio" })).toBeNull();
-        await user.click(screen.getByRole("option", { name: "Acme Rig" }));
-        const serial_port = screen.getByRole("combobox", { name: "Serial port" });
-        await user.type(serial_port, "ttyACM");
-        expect(screen.getByRole("option", { name: "/dev/ttyACM0" })).not.toBeNull();
-        expect(screen.queryByRole("option", { name: "/dev/ttyUSB0" })).toBeNull();
-        await user.click(screen.getByRole("option", { name: "/dev/ttyACM0" }));
-        expect(screen.getByLabelText("Baud rate").tagName).toBe("SELECT");
-        expect(screen.getByLabelText("Data bits").tagName).toBe("SELECT");
-        expect(screen.getByLabelText("Stop bits").tagName).toBe("SELECT");
-        expect(screen.getByLabelText("Handshake").tagName).toBe("SELECT");
-        expect(screen.queryByLabelText("Unsupported")).toBeNull();
-        await user.selectOptions(screen.getByLabelText("Rig"), "rig1");
-        expect(screen.getByLabelText("Host").value).toBe("rig-one");
-        await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
-        expect(screen.getByText("Acme Rig")).not.toBeNull();
-    });
-
-    it("registers radio config for the settings modal Apply button", async () => {
-        const radio_config_apply_ref = { current: null };
-        render_cat(radio_config_apply_ref);
-
-        expect(screen.queryByRole("button", { name: "Save radio hardware" })).toBeNull();
-        await expect(radio_config_apply_ref.current()).resolves.toBe(true);
-        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
-            rig1: {
-                backend: "hamlib",
-                hamlib: {
-                    model_id: "4",
-                    token_values: { rig_pathname: "127.0.0.1:4532" },
-                },
-            },
-        });
-    });
-
-    it("tests the current radio draft without applying it", async () => {
-        const user = userEvent.setup();
-        render_cat();
-
-        const button = screen.getByRole("button", { name: "Test connection" });
-        await user.click(button);
-
-        expect(button.className).toContain("text-xs");
-        expect(screen.getByRole("status").textContent).toContain("Testing radio connection...");
-        expect(radio.current.test_radio_connection).toHaveBeenCalledWith({
-            rig1: {
-                backend: "hamlib",
-                hamlib: {
-                    model_id: "4",
-                    token_values: { rig_pathname: "127.0.0.1:4532" },
-                },
-            },
-        });
-        expect(radio.current.set_radio_configuration).not.toHaveBeenCalled();
-    });
-
-    it("tests only the selected rig when another rig is configured", async () => {
-        const user = userEvent.setup();
-        radio.current.radio_configuration = configuration(
-            { backend: "hamlib", hamlib: { model_id: "1", token_values: {} } },
-            {
-                backend: "hamlib",
-                hamlib: {
-                    model_id: "3",
-                    token_values: { rig_pathname: "/dev/ttyS0" },
-                },
-            },
-        );
-        render_cat();
-
+        await user.type(screen.getByLabelText("Host"), "radio.local");
+        await user.clear(screen.getByLabelText("Port"));
+        await user.type(screen.getByLabelText("Port"), "5000");
         await user.click(screen.getByRole("button", { name: "Test connection" }));
 
-        expect(radio.current.test_radio_connection).toHaveBeenCalledWith({
-            rig1: { backend: "hamlib", hamlib: { model_id: "1", token_values: {} } },
-        });
-    });
-
-    it("materializes valid serial defaults for a Hamlib model", async () => {
-        const user = userEvent.setup();
-        const radio_config_apply_ref = { current: null };
-        render_cat(radio_config_apply_ref);
-
-        await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
-        await user.click(screen.getByLabelText("Enable Rig 2"));
-        await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
-        await user.click(screen.getByRole("combobox", { name: "Model" }));
-        await user.click(screen.getByRole("option", { name: "Acme Rig" }));
-        expect(screen.getByText("/dev/ttyUSB0")).not.toBeNull();
-        await radio_config_apply_ref.current();
-
-        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
-            rig1: {
-                backend: "hamlib",
-                hamlib: {
-                    model_id: "4",
-                    token_values: { rig_pathname: "127.0.0.1:4532" },
-                },
+        const expected = {
+            rig: {
+                model_id: "hamlib:4",
+                token_values: { rig_pathname: "radio.local:5000" },
             },
-            rig2: {
-                backend: "hamlib",
-                hamlib: {
-                    model_id: "2",
-                    token_values: {
-                        rig_pathname: "/dev/ttyUSB0",
-                        baud: "9600",
-                        data_bits: "8",
-                        stop_bits: "1",
-                        serial_handshake: "None",
-                    },
-                },
-            },
-        });
-    });
-
-    it("renders and serializes every serial control declared in the policy", async () => {
-        const radio_config_apply_ref = { current: null };
-        radio.current.radio_configuration = configuration({
-            backend: "hamlib",
-            hamlib: { model_id: "2", token_values: {} },
-        });
-        radio.current.hamlib_model_details[2] = policy_serial_descriptors;
-        render_cat(radio_config_apply_ref);
-
-        const label_counts = new Map();
-        for (const label of Object.values(hamlib_config_policy.serial_labels)) {
-            label_counts.set(label, (label_counts.get(label) || 0) + 1);
-        }
-        for (const [label, count] of label_counts) {
-            expect(screen.getAllByLabelText(label)).toHaveLength(count);
-        }
-        await radio_config_apply_ref.current();
-
-        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
-            rig1: {
-                backend: "hamlib",
-                hamlib: {
-                    model_id: "2",
-                    token_values: {
-                        rig_pathname: "/dev/ttyUSB0",
-                        pathname: "/dev/ttyUSB0",
-                        device: "/dev/ttyUSB0",
-                        serial_speed: "9600",
-                        baud: "9600",
-                        data_bits: "8",
-                        stop_bits: "1",
-                        parity: "None",
-                        serial_handshake: "None",
-                        rts: "false",
-                        dtr: "false",
-                    },
-                },
-            },
-        });
-    });
-
-    it("renders and serializes network fields for a network Hamlib model", async () => {
-        const user = userEvent.setup();
-        const radio_config_apply_ref = { current: null };
-        render_cat(radio_config_apply_ref);
-
-        await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
-        await user.click(screen.getByRole("combobox", { name: "Model" }));
-        await user.click(screen.getByRole("option", { name: "Hamlib NET rigctl" }));
-
-        expect(screen.getByRole("heading", { name: "Network connection" })).not.toBeNull();
-        expect(screen.getByLabelText("Host").value).toBe("127.0.0.1");
-        expect(screen.getByLabelText("Port").value).toBe("4532");
-        expect(screen.queryByLabelText("Serial port")).toBeNull();
-
-        await user.clear(screen.getByLabelText("Host"));
-        await user.type(screen.getByLabelText("Host"), "radio.example");
-        await user.clear(screen.getByLabelText("Port"));
-        await user.type(screen.getByLabelText("Port"), "4533");
-        await radio_config_apply_ref.current();
-
-        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
-            rig1: {
-                backend: "hamlib",
-                hamlib: {
-                    model_id: "4",
-                    token_values: { rig_pathname: "radio.example:4533" },
-                },
-            },
-        });
-    });
-
-    it("renders network fields for a UDP Hamlib model", async () => {
-        const user = userEvent.setup();
-        const radio_config_apply_ref = { current: null };
-        render_cat(radio_config_apply_ref);
-
-        await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
-        await user.click(screen.getByRole("combobox", { name: "Model" }));
-        await user.click(screen.getByRole("option", { name: "Hamlib UDP rigctl" }));
-
-        expect(screen.getByRole("heading", { name: "Network connection" })).not.toBeNull();
-        expect(screen.getByLabelText("Host").value).toBe("127.0.0.1");
-        expect(screen.getByLabelText("Port").value).toBe("4532");
-        await radio_config_apply_ref.current();
-
-        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
-            rig1: {
-                backend: "hamlib",
-                hamlib: { model_id: "5", token_values: { rig_pathname: "127.0.0.1:4532" } },
-            },
-        });
-    });
-
-    it("does not add a serial pathname to a no-port Hamlib model", async () => {
-        const user = userEvent.setup();
-        const radio_config_apply_ref = { current: null };
-        render_cat(radio_config_apply_ref);
-
-        await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
-        await user.click(screen.getByRole("combobox", { name: "Model" }));
-        await user.click(screen.getByRole("option", { name: "Hamlib Dummy" }));
-        expect(screen.queryByLabelText("Serial port")).toBeNull();
-        await radio_config_apply_ref.current();
-
-        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
-            rig1: {
-                backend: "hamlib",
-                hamlib: { model_id: "1", token_values: {} },
-            },
-        });
-    });
-
-    it("does not add a serial pathname to a USB Hamlib model", async () => {
-        const user = userEvent.setup();
-        const radio_config_apply_ref = { current: null };
-        render_cat(radio_config_apply_ref);
-
-        await user.selectOptions(screen.getByLabelText("Backend"), "hamlib");
-        await user.click(screen.getByRole("combobox", { name: "Model" }));
-        await user.click(screen.getByRole("option", { name: "Acme USB Rig" }));
-        expect(screen.queryByLabelText("Serial port")).toBeNull();
-        await radio_config_apply_ref.current();
-
-        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({
-            rig1: {
-                backend: "hamlib",
-                hamlib: { model_id: "6", token_values: {} },
-            },
-        });
-    });
-
-    it("shows a green success indicator for a connection test", () => {
-        radio.current.radio_connection_result = { ok: true };
-        render_cat();
-
-        const status = screen.getByRole("status");
-        expect(status.textContent).toContain("✓");
-        expect(status.className).toContain("text-green-600");
-    });
-
-    it("shows a red failure indicator for a connection test", () => {
-        radio.current.radio_connection_result = {
-            ok: false,
-            failure: "connection",
-            errors: [{ field: "connection", message: "No radio", details: "Hamlib trace" }],
         };
-        render_cat();
-
-        const status = screen.getAllByRole("alert").find(element => element.tagName === "P");
-        expect(status.textContent).toContain("✕ No radio");
-        expect(status.className).toContain("text-red-600");
-        expect(screen.queryByRole("list")).toBeNull();
-        const details = screen.getByText("Details").parentElement;
-        expect(details.open).toBe(false);
-        details.querySelector("summary").click();
-        expect(details.open).toBe(true);
-        expect(details.textContent).toContain("Hamlib trace");
-        expect(details.querySelector("code").style.backgroundColor).toBe("white");
+        expect(radio.current.test_radio_connection).toHaveBeenCalledWith(expected);
+        await expect(apply_ref.current()).resolves.toBe(true);
+        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith(expected);
     });
 
-    it("shows a successful radio hardware save result", async () => {
-        radio.current.radio_configuration_result = { ok: true };
-        render_cat();
-        expect((await screen.findByRole("status")).textContent).toContain("Radio hardware saved.");
-    });
-
-    it("shows all server errors and highlights the selected rig", async () => {
+    it.each(["omnirig:1", "omnirig:2"])("renders %s without connection fields", async model_id => {
         const user = userEvent.setup();
-        radio.current.radio_configuration_result = {
-            ok: false,
-            failure: "invalid_config",
-            errors: [
-                { field: "rig1.hamlib.model_id", message: "Invalid Rig 1 model" },
-                { field: "rig2.hamlib.model_id", message: "Invalid Rig 2 model" },
-            ],
-        };
         render_cat();
-        const errors = screen.getAllByRole("alert")[0];
-        expect(errors.textContent).toContain("Invalid Rig 1 model");
-        expect(errors.textContent).toContain("Invalid Rig 2 model");
+        const model = screen.getByRole("combobox", { name: "Model" });
+        await user.clear(model);
+        await user.type(model, model_id);
+        await user.click(screen.getByRole("option", { name: /OmniRig OmniRig Rig/ }));
+
+        expect(screen.queryByLabelText("Host")).toBeNull();
+        expect(screen.queryByLabelText("Port")).toBeNull();
+        expect(screen.queryByLabelText("Serial port")).toBeNull();
+    });
+
+    it("keeps an unconfigured server unconfigured until a model is selected", async () => {
+        radio.current.radio_configuration = { event: "configuration", rig: null };
+        const apply_ref = { current: null };
+        render_cat(apply_ref);
+
+        expect(screen.getByRole("combobox", { name: "Model" }).value).toBe("");
+        await apply_ref.current();
+        expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({ rig: null });
+    });
+
+    it("shows update-required state by hiding unsupported radio controls", () => {
+        radio.current.radio_configuration_support = "update_required";
+        render_cat();
+
+        expect(screen.queryByRole("region", { name: "Radio hardware settings" })).toBeNull();
         expect(
-            screen.queryByText("Fix the highlighted radio settings before applying."),
-        ).toBeNull();
-        await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
-        expect(errors.textContent).toContain("Invalid Rig 2 model");
-    });
-
-    it("configures a network rotator through Hamlib", async () => {
-        const user = userEvent.setup();
-        radio.current.radio_capabilities.rotator_configuration = true;
-        rotator.current.rotator_models = [
-            {
-                id: "2",
-                manufacturer: "Hamlib",
-                model: "NET rotctl",
-                port_type: "network",
-                enabled: true,
-            },
-            {
-                id: "701",
-                manufacturer: "WA6UFQ",
-                model: "PcRotor",
-                port_type: "parallel",
-                enabled: false,
-                disabled_reason: "model cannot get or set position",
-            },
-        ];
-        rotator.current.rotator_model_details = {
-            2: [
-                {
-                    kind: "path",
-                    token: "rot_pathname",
-                    label: "Pathname",
-                    tooltip: "",
-                    default: "",
-                },
-            ],
-        };
-        rotator.current.rotator_configuration = {
-            backend: "hamlib",
-            hamlib: { model_id: "2", token_values: { rot_pathname: "localhost:4533" } },
-        };
-        render_cat();
-
-        const section = screen.getByRole("region", { name: "Rotator hardware settings" });
-        expect(within(section).getByLabelText("Host").value).toBe("localhost");
-        expect(within(section).getByLabelText("Port").value).toBe("4533");
-        await user.click(within(section).getByRole("button", { name: "Apply" }));
-
-        expect(rotator.current.apply_rotator_configuration).toHaveBeenCalledWith({
-            backend: "hamlib",
-            hamlib: { model_id: "2", token_values: { rot_pathname: "localhost:4533" } },
-        });
-    });
-
-    it("keeps logger integration available for legacy CAT servers", () => {
-        radio.current.radio_capabilities = null;
-        render_cat();
-        expect(screen.queryByRole("heading", { name: "Radio hardware" })).toBeNull();
-        expect(screen.getByText("Enable logger integration:")).not.toBeNull();
-        expect(radio.current.get_radio_configuration).not.toHaveBeenCalled();
+            screen.getByText("Update the CAT server to configure radio hardware."),
+        ).not.toBeNull();
+        expect(screen.getByText("Logger integration")).not.toBeNull();
     });
 });

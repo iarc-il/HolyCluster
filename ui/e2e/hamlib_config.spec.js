@@ -1,16 +1,21 @@
 import { expect, test } from "@playwright/test";
 
 const models = [
-    { id: "1", manufacturer: "Hamlib", model: "Dummy", port_type: "none" },
-    { id: "2", manufacturer: "Acme", model: "Serial rig", port_type: "serial" },
-    { id: "3", manufacturer: "Hamlib", model: "NET rigctl", port_type: "network" },
-    { id: "4", manufacturer: "Hamlib", model: "UDP rigctl", port_type: "udp_network" },
-    { id: "5", manufacturer: "Acme", model: "USB rig", port_type: "usb" },
+    { id: "hamlib:1", manufacturer: "Hamlib", model: "Dummy", connection_kind: "none" },
+    { id: "hamlib:2", manufacturer: "Acme", model: "Serial rig", connection_kind: "serial" },
+    {
+        id: "hamlib:3",
+        manufacturer: "Hamlib",
+        model: "NET rigctl",
+        connection_kind: "network",
+    },
+    { id: "omnirig:1", manufacturer: "OmniRig", model: "OmniRig Rig 1", connection_kind: "none" },
+    { id: "omnirig:2", manufacturer: "OmniRig", model: "OmniRig Rig 2", connection_kind: "none" },
 ];
 
 const descriptors = {
-    1: [{ kind: "text", token: "rig_pathname", label: "Pathname", tooltip: "", default: "" }],
-    2: [
+    "hamlib:1": [],
+    "hamlib:2": [
         { kind: "text", token: "rig_pathname", label: "Pathname", tooltip: "", default: "" },
         {
             kind: "integer",
@@ -23,9 +28,11 @@ const descriptors = {
             step: 1200,
         },
     ],
-    3: [{ kind: "text", token: "rig_pathname", label: "Pathname", tooltip: "", default: "" }],
-    4: [{ kind: "text", token: "rig_pathname", label: "Pathname", tooltip: "", default: "" }],
-    5: [{ kind: "text", token: "rig_pathname", label: "Pathname", tooltip: "", default: "" }],
+    "hamlib:3": [
+        { kind: "text", token: "rig_pathname", label: "Pathname", tooltip: "", default: "" },
+    ],
+    "omnirig:1": [],
+    "omnirig:2": [],
 };
 
 const radio_status = {
@@ -34,18 +41,14 @@ const radio_status = {
     status: "connected",
     freq: 14_074_000,
     mode: "DIGI",
-    current_rig: 1,
     catserver_version: "catserver-v1.3.0",
 };
 
 const radio_config = {
-    rig1: {
-        backend: "hamlib",
-        hamlib: { model_id: "1", token_values: {} },
-    },
+    rig: { model_id: "hamlib:1", token_values: {} },
 };
 
-test("renders every supported Hamlib port flow in CAT Control", async ({ page }) => {
+test("renders unified radio model connection flows in CAT Control", async ({ page }) => {
     await page.addInitScript(() => {
         localStorage.setItem("first_launch", "false");
         localStorage.setItem("active_view", "0");
@@ -66,7 +69,8 @@ test("renders every supported Hamlib port flow in CAT Control", async ({ page })
                             type: "radio",
                             event: "capabilities",
                             radio_configuration: true,
-                            backends: ["hamlib"],
+                            radio_configuration_api: 2,
+                            omnirig_selection_migration_available: false,
                         }),
                     );
                     break;
@@ -75,9 +79,9 @@ test("renders every supported Hamlib port flow in CAT Control", async ({ page })
                         JSON.stringify({ type: "radio", event: "configuration", ...radio_config }),
                     );
                     break;
-                case "ListHamlibModels":
+                case "ListRadioModels":
                     websocket.send(
-                        JSON.stringify({ type: "radio", event: "hamlib_models", models }),
+                        JSON.stringify({ type: "radio", event: "radio_models", models }),
                     );
                     break;
                 case "ListSerialPorts":
@@ -89,11 +93,11 @@ test("renders every supported Hamlib port flow in CAT Control", async ({ page })
                         }),
                     );
                     break;
-                case "DescribeHamlibModel":
+                case "DescribeRadioModel":
                     websocket.send(
                         JSON.stringify({
                             type: "radio",
-                            event: "hamlib_model",
+                            event: "radio_model",
                             model_id: request.model_id,
                             descriptors: descriptors[request.model_id],
                         }),
@@ -111,8 +115,8 @@ test("renders every supported Hamlib port flow in CAT Control", async ({ page })
     for (const [name, connection] of [
         ["Acme Serial rig", "serial"],
         ["Hamlib NET rigctl", "network"],
-        ["Hamlib UDP rigctl", "network"],
-        ["Acme USB rig", "none"],
+        ["OmniRig OmniRig Rig 1", "none"],
+        ["OmniRig OmniRig Rig 2", "none"],
         ["Hamlib Dummy", "none"],
     ]) {
         await model.click();
