@@ -443,6 +443,9 @@ function CatControl({
     );
     const selected_rotator_descriptors =
         rotator_model_details[rotator_form?.hamlib?.model_id] || [];
+    const rotator_network_default =
+        selected_rotator_descriptors.find(descriptor => descriptor.token === "rot_pathname")
+            ?.default || `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`;
     const rotator_connection_kind =
         connection_kind_by_port_type[selected_rotator_model?.port_type] || "serial";
     const selected_model = model_options.find(
@@ -612,7 +615,7 @@ function CatControl({
                     ...(rotator_connection_kind === "network" &&
                     !rotator_form.hamlib.token_values.rot_pathname
                         ? {
-                              rot_pathname: `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`,
+                              rot_pathname: rotator_network_default,
                           }
                         : {}),
                 },
@@ -999,7 +1002,7 @@ function CatControl({
                                             value={
                                                 network_endpoint(
                                                     rotator_form.hamlib.token_values.rot_pathname ||
-                                                        `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`,
+                                                        rotator_network_default,
                                                 ).host
                                             }
                                             onChange={event =>
@@ -1014,7 +1017,7 @@ function CatControl({
                                                                 network_endpoint(
                                                                     current.hamlib.token_values
                                                                         .rot_pathname ||
-                                                                        `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`,
+                                                                        rotator_network_default,
                                                                 ).port,
                                                             ),
                                                         },
@@ -1033,7 +1036,7 @@ function CatControl({
                                             value={
                                                 network_endpoint(
                                                     rotator_form.hamlib.token_values.rot_pathname ||
-                                                        `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`,
+                                                        rotator_network_default,
                                                 ).port
                                             }
                                             onChange={event =>
@@ -1047,7 +1050,7 @@ function CatControl({
                                                                 network_endpoint(
                                                                     current.hamlib.token_values
                                                                         .rot_pathname ||
-                                                                        `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`,
+                                                                        rotator_network_default,
                                                                 ).host,
                                                                 event.target.value,
                                                             ),
