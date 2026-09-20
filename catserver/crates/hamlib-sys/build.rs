@@ -3,6 +3,9 @@ use std::{env, path::Path, process::Command};
 const HAMLIB_VERSION: &str = "4.7.2";
 
 fn main() {
+    println!("cargo:rerun-if-changed=src/caps_metadata.c");
+    println!("cargo:rerun-if-changed=src/debug.c");
+    println!("cargo:rerun-if-changed=wrapper.h");
     for variable in [
         "DEP_HAMLIB_SRC_VERSION",
         "DEP_HAMLIB_SRC_INCLUDE",

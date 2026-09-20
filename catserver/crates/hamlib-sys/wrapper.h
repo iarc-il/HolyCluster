@@ -35,12 +35,19 @@ const struct hamlib_sys_rig_caps_metadata *hamlib_sys_rig_caps_metadata(
     const struct rig_caps *caps);
 
 struct hamlib_sys_rot_caps_metadata {
-    int rot_model;
+    rot_model_t rot_model;
     const char *model_name;
     const char *mfg_name;
     const char *version;
+    const char *copyright;
     enum rig_status_e status;
+    int rot_type;
+    enum rig_port_e port_type;
 };
 
 const struct hamlib_sys_rot_caps_metadata *hamlib_sys_rot_caps_metadata(
     const struct rot_caps *caps);
+int hamlib_sys_rot_caps_can_get_position(const struct rot_caps *caps);
+int hamlib_sys_rot_caps_can_set_position(const struct rot_caps *caps);
+azimuth_t hamlib_sys_rot_caps_min_az(const struct rot_caps *caps);
+azimuth_t hamlib_sys_rot_caps_max_az(const struct rot_caps *caps);

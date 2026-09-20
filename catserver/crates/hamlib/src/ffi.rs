@@ -12,6 +12,7 @@ use hamlib_sys as sys;
 
 use crate::{
     CatalogError, ConfigDescriptor, HamlibError, RigModel, RigModelId, RigModelStatus, RigPortType,
+    RotatorModel, RotatorModelId,
 };
 
 static BACKENDS: OnceLock<Result<(), HamlibError>> = OnceLock::new();
@@ -29,6 +30,28 @@ pub(crate) fn models() -> Result<Vec<RigModel>, CatalogError> {
     };
     hamlib_result("rig_list_foreach", result)?;
     state.finish("model metadata").map(|mut models| {
+        models.sort_by(|left, right| {
+            left.manufacturer
+                .cmp(&right.manufacturer)
+                .then_with(|| left.model.cmp(&right.model))
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        models
+    })
+}
+
+pub(crate) fn rotator_models() -> Result<Vec<RotatorModel>, CatalogError> {
+    load_rotator_backends()?;
+    let mut state: CallbackState<RotatorModel> = CallbackState::new();
+    // SAFETY: Hamlib calls the callback synchronously and receives the valid address of `state`.
+    let result = unsafe {
+        sys::rot_list_foreach(
+            Some(rotator_model_callback),
+            (&mut state as *mut CallbackState<RotatorModel>).cast(),
+        )
+    };
+    hamlib_result("rot_list_foreach", result)?;
+    state.finish("rotator model metadata").map(|mut models| {
         models.sort_by(|left, right| {
             left.manufacturer
                 .cmp(&right.manufacturer)
@@ -207,6 +230,19 @@ unsafe extern "C" fn model_callback(caps: *const sys::rig_caps, data: *mut c_voi
     invoke_callback(state, "model metadata", || copy_model(caps).map(Some))
 }
 
+unsafe extern "C" fn rotator_model_callback(
+    caps: *const sys::rot_caps,
+    data: *mut c_void,
+) -> i32 {
+    // SAFETY: Hamlib invokes the callback with the state pointer passed to `rot_list_foreach`.
+    let Some(state) = (unsafe { data.cast::<CallbackState<RotatorModel>>().as_mut() }) else {
+        return 0;
+    };
+    invoke_callback(state, "rotator model metadata", || {
+        copy_rotator_model(caps).map(Some)
+    })
+}
+
 unsafe extern "C" fn descriptor_callback(param: *const sys::confparams, data: *mut c_void) -> i32 {
     // SAFETY: Hamlib invokes the callback with the state pointer passed to `rig_token_foreach`.
     let Some(state) = (unsafe { data.cast::<CallbackState<ConfigDescriptor>>().as_mut() }) else {
@@ -269,6 +305,87 @@ fn copy_model(caps: *const sys::rig_caps) -> Result<RigModel, CatalogError> {
         status,
         port_type,
     })
+}
+
+fn copy_rotator_model(caps: *const sys::rot_caps) -> Result<RotatorModel, CatalogError> {
+    if caps.is_null() {
+        return Err(CatalogError::NullMetadata {
+            subject: "rotator model",
+            field: "caps",
+        });
+    }
+    // SAFETY: non-null `caps` is a live callback argument and the shim reads its prefix fields.
+    let metadata = unsafe { sys::hamlib_sys_rot_caps_metadata(caps) };
+    if metadata.is_null() {
+        return Err(CatalogError::NullMetadata {
+            subject: "rotator model",
+            field: "metadata",
+        });
+    }
+    // SAFETY: the shim returns a pointer to the callback's live `rot_caps` prefix metadata.
+    let metadata = unsafe { &*metadata };
+    let id = RotatorModelId::new(metadata.rot_model);
+    let status = rotator_status(id, metadata.status)?;
+    let port_type = rotator_port_type(id, metadata.port_type)?;
+    // SAFETY: `caps` remains live for the callback and each shim only reads capability fields.
+    let minimum_azimuth = f64::from(unsafe { sys::hamlib_sys_rot_caps_min_az(caps) });
+    let maximum_azimuth = f64::from(unsafe { sys::hamlib_sys_rot_caps_max_az(caps) });
+    if !minimum_azimuth.is_finite()
+        || !maximum_azimuth.is_finite()
+        || minimum_azimuth > maximum_azimuth
+    {
+        return Err(CatalogError::InvalidRotatorRange { model: id });
+    }
+    Ok(RotatorModel {
+        id,
+        manufacturer: string(metadata.mfg_name, "manufacturer")?,
+        model: string(metadata.model_name, "name")?,
+        version: string(metadata.version, "version")?,
+        status,
+        port_type,
+        minimum_azimuth,
+        maximum_azimuth,
+        // SAFETY: `caps` remains live for the callback and the shims only inspect function pointers.
+        can_get_position: unsafe { sys::hamlib_sys_rot_caps_can_get_position(caps) } != 0,
+        can_set_position: unsafe { sys::hamlib_sys_rot_caps_can_set_position(caps) } != 0,
+    })
+}
+
+fn rotator_status(
+    model: RotatorModelId,
+    status: sys::rig_status_e,
+) -> Result<RigModelStatus, CatalogError> {
+    match status {
+        sys::rig_status_e_RIG_STATUS_ALPHA => Ok(RigModelStatus::Alpha),
+        sys::rig_status_e_RIG_STATUS_UNTESTED => Ok(RigModelStatus::Untested),
+        sys::rig_status_e_RIG_STATUS_BETA => Ok(RigModelStatus::Beta),
+        sys::rig_status_e_RIG_STATUS_STABLE => Ok(RigModelStatus::Stable),
+        sys::rig_status_e_RIG_STATUS_BUGGY => Ok(RigModelStatus::Buggy),
+        status => Err(CatalogError::InvalidRotatorStatus { model, status }),
+    }
+}
+
+fn rotator_port_type(
+    model: RotatorModelId,
+    port_type: sys::rig_port_e,
+) -> Result<RigPortType, CatalogError> {
+    match port_type {
+        sys::rig_port_e_RIG_PORT_NONE => Ok(RigPortType::None),
+        sys::rig_port_e_RIG_PORT_SERIAL => Ok(RigPortType::Serial),
+        sys::rig_port_e_RIG_PORT_NETWORK => Ok(RigPortType::Network),
+        sys::rig_port_e_RIG_PORT_DEVICE => Ok(RigPortType::Device),
+        sys::rig_port_e_RIG_PORT_PACKET => Ok(RigPortType::Packet),
+        sys::rig_port_e_RIG_PORT_DTMF => Ok(RigPortType::Dtmf),
+        sys::rig_port_e_RIG_PORT_ULTRA => Ok(RigPortType::Ultra),
+        sys::rig_port_e_RIG_PORT_RPC => Ok(RigPortType::Rpc),
+        sys::rig_port_e_RIG_PORT_PARALLEL => Ok(RigPortType::Parallel),
+        sys::rig_port_e_RIG_PORT_USB => Ok(RigPortType::Usb),
+        sys::rig_port_e_RIG_PORT_UDP_NETWORK => Ok(RigPortType::UdpNetwork),
+        sys::rig_port_e_RIG_PORT_CM108 => Ok(RigPortType::Cm108),
+        sys::rig_port_e_RIG_PORT_GPIO => Ok(RigPortType::Gpio),
+        sys::rig_port_e_RIG_PORT_GPION => Ok(RigPortType::Gpion),
+        _ => Err(CatalogError::InvalidRotatorPortType { model }),
+    }
 }
 
 fn string(pointer: *const c_char, field: &'static str) -> Result<String, CatalogError> {

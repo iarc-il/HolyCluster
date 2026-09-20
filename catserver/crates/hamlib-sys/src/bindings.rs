@@ -5,8 +5,8 @@ pub const RIG_VFO_NONE: u32 = 0;
 pub const RIG_MODE_NONE: u32 = 0;
 pub type rig_model_t = u32;
 pub type rot_model_t = u32;
-pub type azimuth_t = f64;
-pub type elevation_t = f64;
+pub type azimuth_t = f32;
+pub type elevation_t = f32;
 pub type ROT = s_rot;
 pub const rig_errcode_e_RIG_OK: rig_errcode_e = 0;
 pub const rig_errcode_e_RIG_EINVAL: rig_errcode_e = 1;
@@ -190,16 +190,23 @@ unsafe extern "C" {
 }
 #[repr(C)]
 pub struct hamlib_sys_rot_caps_metadata {
-    pub rot_model: ::std::os::raw::c_int,
+    pub rot_model: rot_model_t,
     pub model_name: *const ::std::os::raw::c_char,
     pub mfg_name: *const ::std::os::raw::c_char,
     pub version: *const ::std::os::raw::c_char,
+    pub copyright: *const ::std::os::raw::c_char,
     pub status: rig_status_e,
+    pub rot_type: ::std::os::raw::c_int,
+    pub port_type: rig_port_e,
 }
 unsafe extern "C" {
     pub fn hamlib_sys_rot_caps_metadata(
         caps: *const rot_caps,
     ) -> *const hamlib_sys_rot_caps_metadata;
+    pub fn hamlib_sys_rot_caps_can_get_position(caps: *const rot_caps) -> ::std::os::raw::c_int;
+    pub fn hamlib_sys_rot_caps_can_set_position(caps: *const rot_caps) -> ::std::os::raw::c_int;
+    pub fn hamlib_sys_rot_caps_min_az(caps: *const rot_caps) -> azimuth_t;
+    pub fn hamlib_sys_rot_caps_max_az(caps: *const rot_caps) -> azimuth_t;
 }
 unsafe extern "C" {
     pub fn rig_open(rig: *mut RIG) -> ::std::os::raw::c_int;

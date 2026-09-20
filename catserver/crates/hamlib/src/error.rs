@@ -105,6 +105,15 @@ pub enum CatalogError {
     InvalidStatus { model: RigModelId, status: u32 },
     #[error("Hamlib returned invalid port type for model {model}")]
     InvalidPortType { model: RigModelId },
+    #[error("Hamlib returned invalid status {status} for rotator model {model}")]
+    InvalidRotatorStatus {
+        model: RotatorModelId,
+        status: u32,
+    },
+    #[error("Hamlib returned invalid port type for rotator model {model}")]
+    InvalidRotatorPortType { model: RotatorModelId },
+    #[error("Hamlib returned invalid azimuth range for rotator model {model}")]
+    InvalidRotatorRange { model: RotatorModelId },
     #[error("Hamlib callback panicked while enumerating {operation}")]
     CallbackPanic { operation: &'static str },
     #[error("Hamlib returned malformed {reason} for token {token}")]

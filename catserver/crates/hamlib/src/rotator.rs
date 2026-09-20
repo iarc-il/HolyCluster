@@ -1,15 +1,24 @@
 #![allow(unsafe_code)]
 
-use crate::{ConfigDescriptor, ConfigValue, HamlibError, RotatorModelId, ffi};
+use crate::{
+    CatalogError, ConfigDescriptor, ConfigValue, HamlibError, RigModelStatus, RigPortType,
+    RotatorModelId, ffi,
+};
 use hamlib_sys as sys;
-use std::{ffi::CString, marker::PhantomData, ptr::NonNull, rc::Rc};
+use std::{ffi::CString, marker::PhantomData, ops::RangeInclusive, ptr::NonNull, rc::Rc};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RotatorModel {
-    id: RotatorModelId,
-    manufacturer: String,
-    model: String,
-    version: String,
+    pub(crate) id: RotatorModelId,
+    pub(crate) manufacturer: String,
+    pub(crate) model: String,
+    pub(crate) version: String,
+    pub(crate) status: RigModelStatus,
+    pub(crate) port_type: RigPortType,
+    pub(crate) minimum_azimuth: f64,
+    pub(crate) maximum_azimuth: f64,
+    pub(crate) can_get_position: bool,
+    pub(crate) can_set_position: bool,
 }
 impl RotatorModel {
     pub const fn id(&self) -> RotatorModelId {
@@ -24,6 +33,21 @@ impl RotatorModel {
     pub fn version(&self) -> &str {
         &self.version
     }
+    pub const fn status(&self) -> RigModelStatus {
+        self.status
+    }
+    pub const fn port_type(&self) -> RigPortType {
+        self.port_type
+    }
+    pub fn azimuth_range(&self) -> RangeInclusive<f64> {
+        self.minimum_azimuth..=self.maximum_azimuth
+    }
+    pub const fn can_get_position(&self) -> bool {
+        self.can_get_position
+    }
+    pub const fn can_set_position(&self) -> bool {
+        self.can_set_position
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -31,43 +55,9 @@ pub struct RotatorCatalog {
     models: Vec<RotatorModel>,
 }
 impl RotatorCatalog {
-    pub fn load() -> Result<Self, HamlibError> {
-        ffi::load_rotator_backends()?;
-        let mut ids = Vec::new();
-        unsafe extern "C" fn callback(
-            caps: *const sys::rot_caps,
-            data: *mut std::ffi::c_void,
-        ) -> i32 {
-            if caps.is_null() {
-                return 0;
-            }
-            let metadata = unsafe { sys::hamlib_sys_rot_caps_metadata(caps) };
-            if metadata.is_null() {
-                return 0;
-            }
-            unsafe {
-                (&mut *(data as *mut Vec<RotatorModelId>))
-                    .push(RotatorModelId::new((*metadata).rot_model as u32));
-            }
-            1
-        }
-        let result = unsafe {
-            sys::rot_list_foreach(
-                Some(callback),
-                (&mut ids as *mut Vec<RotatorModelId>).cast(),
-            )
-        };
-        ffi::hamlib_result("rot_list_foreach", result)?;
+    pub fn load() -> Result<Self, CatalogError> {
         Ok(Self {
-            models: ids
-                .into_iter()
-                .map(|id| RotatorModel {
-                    id,
-                    manufacturer: String::new(),
-                    model: String::new(),
-                    version: String::new(),
-                })
-                .collect(),
+            models: ffi::rotator_models()?,
         })
     }
     pub fn models(&self) -> &[RotatorModel] {
@@ -169,11 +159,15 @@ impl Rotator<RotatorOpen> {
         ffi::hamlib_result("rot_get_position", unsafe {
             sys::rot_get_position(self.handle.as_ptr(), &mut a, &mut e)
         })?;
-        Position::new(a, e)
+        Position::new(f64::from(a), f64::from(e))
     }
     pub fn set_position(&mut self, position: Position) -> Result<(), HamlibError> {
         ffi::hamlib_result("rot_set_position", unsafe {
-            sys::rot_set_position(self.handle.as_ptr(), position.azimuth, position.elevation)
+            sys::rot_set_position(
+                self.handle.as_ptr(),
+                position.azimuth as f32,
+                position.elevation as f32,
+            )
         })
     }
     pub fn close(mut self) -> Result<Rotator<RotatorClosed>, HamlibError> {
