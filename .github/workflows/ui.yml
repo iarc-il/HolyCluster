@@ -25,10 +25,10 @@ jobs:
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: "npm"
@@ -86,6 +86,17 @@ jobs:
         run: |
           cd ui
           npm run test:e2e
+
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-diagnostics
+          path: |
+            ui/playwright-report
+            ui/test-results
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Remove source maps before deployment
         if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
