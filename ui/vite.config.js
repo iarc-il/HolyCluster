@@ -3,6 +3,7 @@ import { sentryVitePlugin } from "@sentry/vite-plugin";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { ctyDxccEntitiesPlugin } from "./scripts/cty_entities.js";
+import { dxccMapChunkName, dxccMapPlugin } from "./scripts/dxcc_map.js";
 
 const sentry_options = {
     authToken: process.env.SENTRY_AUTH_TOKEN,
@@ -52,6 +53,7 @@ const catserver_proxy = Object.fromEntries(
 export default defineConfig(({ mode }) => ({
     plugins: [
         ctyDxccEntitiesPlugin(),
+        dxccMapPlugin(),
         react(),
         ...(sentry_upload_enabled ? [sentryVitePlugin(sentry_options)] : []),
     ],
@@ -107,6 +109,9 @@ export default defineConfig(({ mode }) => ({
         rollupOptions: {
             output: {
                 manualChunks: id => {
+                    const dxcc_chunk_name = dxccMapChunkName(id);
+                    if (dxcc_chunk_name) return dxcc_chunk_name;
+
                     const dependency_path = id.split("node_modules/")[1];
                     if (dependency_path?.startsWith("@sentry/")) {
                         return "vendor-sentry";
@@ -123,9 +128,6 @@ export default defineConfig(({ mode }) => ({
                     }
                     if (dependency_path) {
                         return "vendor";
-                    }
-                    if (id.includes("dxcc_map.json")) {
-                        return "dxcc";
                     }
                     if (id.includes("flags.json")) {
                         return "flags";

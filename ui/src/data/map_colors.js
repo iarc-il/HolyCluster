@@ -1,4 +1,4 @@
-import dxcc_map from "@/maps/dxcc_map.json";
+import dxcc_map from "virtual:dxcc-map";
 
 const COUNTRY_COLOR_BY_DXCC_NAME = {
     "ITU HQ": 5,
