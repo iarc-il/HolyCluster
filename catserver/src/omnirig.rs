@@ -159,7 +159,7 @@ impl Radio for OmnirigRadio {
 
         if let Err(err) = rig.invoke_put("Mode", &winsafe::Variant::I4(mode)) {
             tracing::error!("Failed to set OmniRig mode: {err}");
-            self.record_connection_failure();
+            self.inner = None;
         }
     }
 
@@ -184,7 +184,7 @@ impl Radio for OmnirigRadio {
 
         if let Err(err) = rig.invoke_put(vfo, &winsafe::Variant::I4(freq as i32)) {
             tracing::error!(vfo, "Failed to set OmniRig frequency: {err}");
-            self.record_connection_failure();
+            self.inner = None;
         }
     }
 
@@ -198,12 +198,10 @@ impl Radio for OmnirigRadio {
             Ok(winsafe::Variant::I4(freq)) => Freq::from_i32_hz(freq),
             Ok(_) => {
                 tracing::error!("OmniRig FreqA did not return an integer");
-                self.record_connection_failure();
                 return self.disconnected_status();
             }
             Err(err) => {
                 tracing::error!("Failed to get OmniRig frequency: {err}");
-                self.record_connection_failure();
                 return self.disconnected_status();
             }
         };
@@ -216,7 +214,6 @@ impl Radio for OmnirigRadio {
             }
             Err(err) => {
                 tracing::error!("Failed to get OmniRig status: {err}");
-                self.record_connection_failure();
                 return self.disconnected_status();
             }
         };
