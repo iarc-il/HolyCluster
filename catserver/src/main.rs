@@ -4,6 +4,7 @@ use anyhow::Result;
 
 mod application;
 mod args;
+mod device_actor;
 mod dummy;
 mod dummy_rotator;
 mod freq;

@@ -1,10 +1,9 @@
 use std::sync::{Arc, RwLock};
 
-use tokio::sync::oneshot;
-
 use crate::{
+    device_actor::{Worker, WorkerStopped},
     freq::Freq,
-    radio_actor::{Command, RadioFactory, Worker},
+    radio_actor::{Command, RadioFactory, spawn},
     radio_config::{ActiveRadioBackend, RadioConfig, RadioConfigError},
     rig::{Mode, Radio, RadioInitError, Status},
 };
@@ -45,7 +44,7 @@ impl std::error::Error for RadioManagerError {}
 
 #[derive(Clone)]
 pub struct RadioManager {
-    worker: Arc<Worker>,
+    worker: Arc<Worker<Command>>,
     snapshot: Arc<RwLock<RadioSnapshot>>,
 }
 
@@ -62,7 +61,7 @@ impl RadioManager {
             last_status: Status::disconnected(1),
         }));
         Ok(Self {
-            worker: Arc::new(Worker::spawn(Arc::clone(&snapshot))?),
+            worker: Arc::new(spawn(Arc::clone(&snapshot))?),
             snapshot,
         })
     }
@@ -114,31 +113,18 @@ impl RadioManager {
     }
 
     pub async fn poll_status(&self) -> Status {
-        let (reply, received) = oneshot::channel();
-        if self.worker.sender.send(Command::Poll(reply)).is_ok()
-            && let Ok(status) = received.await
-        {
-            return status;
-        }
-        self.status()
+        self.worker
+            .request(Command::Poll)
+            .await
+            .unwrap_or_else(|_| self.status())
     }
 
     pub async fn shutdown(&self) -> Result<(), RadioManagerError> {
-        let (reply, received) = oneshot::channel();
         self.worker
-            .sender
-            .send(Command::Shutdown(reply))
-            .map_err(|_| RadioManagerError::WorkerStopped)?;
-        received
+            .request(Command::Shutdown)
             .await
-            .map_err(|_| RadioManagerError::WorkerStopped)?;
-        if let Some(join) = self.worker.take_join() {
-            tokio::task::spawn_blocking(move || join.join())
-                .await
-                .map_err(|_| RadioManagerError::WorkerStopped)?
-                .map_err(|_| RadioManagerError::WorkerStopped)?;
-        }
-        Ok(())
+            .map_err(map_worker_stopped)?;
+        self.worker.join().await.map_err(map_worker_stopped)
     }
 
     async fn replace_inner(
@@ -151,31 +137,29 @@ impl RadioManager {
         config
             .validate()
             .map_err(RadioManagerError::InvalidConfig)?;
-        let (reply, received) = oneshot::channel();
         self.worker
-            .sender
-            .send(Command::Replace {
+            .request(|reply| Command::Replace {
                 config,
                 selected,
                 factory,
                 persist,
                 reply,
             })
-            .map_err(|_| RadioManagerError::WorkerStopped)?;
-        received
             .await
-            .map_err(|_| RadioManagerError::WorkerStopped)?
+            .map_err(map_worker_stopped)?
     }
 
     async fn call(
         &self,
-        command: impl FnOnce(oneshot::Sender<()>) -> Command,
+        command: impl FnOnce(tokio::sync::oneshot::Sender<()>) -> Command,
     ) -> Result<(), RadioManagerError> {
-        let (reply, received) = oneshot::channel();
         self.worker
-            .sender
-            .send(command(reply))
-            .map_err(|_| RadioManagerError::WorkerStopped)?;
-        received.await.map_err(|_| RadioManagerError::WorkerStopped)
+            .request(command)
+            .await
+            .map_err(map_worker_stopped)
     }
+}
+
+fn map_worker_stopped(_: WorkerStopped) -> RadioManagerError {
+    RadioManagerError::WorkerStopped
 }

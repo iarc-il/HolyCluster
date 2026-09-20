@@ -1,9 +1,7 @@
-use std::{
-    sync::{Arc, Mutex, RwLock, mpsc},
-    thread::JoinHandle,
-};
+use std::sync::{Arc, RwLock, mpsc};
 
 use crate::{
+    device_actor::{DeviceFactory, Worker},
     freq::Freq,
     radio_config::{ActiveRadioBackend, RadioConfig},
     radio_manager::{ConnectionState, RadioManagerError, RadioSnapshot},
@@ -11,7 +9,7 @@ use crate::{
 };
 use tokio::sync::oneshot;
 
-pub(crate) type RadioFactory = Arc<dyn Fn() -> Box<dyn Radio> + Send + Sync>;
+pub(crate) type RadioFactory = DeviceFactory<Box<dyn Radio>>;
 
 pub(crate) enum Command {
     Replace {
@@ -28,49 +26,11 @@ pub(crate) enum Command {
     Shutdown(oneshot::Sender<()>),
 }
 
-pub(crate) struct Worker {
-    pub(crate) sender: mpsc::Sender<Command>,
-    join: Mutex<Option<JoinHandle<()>>>,
-}
-
-impl Worker {
-    pub(crate) fn spawn(snapshot: Arc<RwLock<RadioSnapshot>>) -> Result<Self, RadioManagerError> {
-        Self::spawn_with(snapshot, |work| {
-            std::thread::Builder::new()
-                .name("radio-worker".into())
-                .spawn(work)
-        })
-    }
-
-    pub(crate) fn spawn_with(
-        snapshot: Arc<RwLock<RadioSnapshot>>,
-        spawn: impl FnOnce(Box<dyn FnOnce() + Send>) -> std::io::Result<JoinHandle<()>>,
-    ) -> Result<Self, RadioManagerError> {
-        let (sender, receiver) = mpsc::channel();
-        let join = spawn(Box::new(move || run(receiver, snapshot)))
-            .map_err(RadioManagerError::WorkerStart)?;
-        Ok(Self {
-            sender,
-            join: Mutex::new(Some(join)),
-        })
-    }
-
-    pub(crate) fn take_join(&self) -> Option<JoinHandle<()>> {
-        self.join
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .take()
-    }
-}
-
-impl Drop for Worker {
-    fn drop(&mut self) {
-        let _ = self
-            .join
-            .get_mut()
-            .unwrap_or_else(|error| error.into_inner())
-            .take();
-    }
+pub(crate) fn spawn(
+    snapshot: Arc<RwLock<RadioSnapshot>>,
+) -> Result<Worker<Command>, RadioManagerError> {
+    Worker::spawn("radio-worker", move |receiver| run(receiver, snapshot))
+        .map_err(RadioManagerError::WorkerStart)
 }
 
 fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) {

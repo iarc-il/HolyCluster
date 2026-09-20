@@ -5,8 +5,9 @@ use std::{
 };
 
 use crate::{
+    device_actor::Worker,
     dummy::DummyRadio,
-    radio_actor::Worker,
+    radio_actor::Command,
     radio_config::RadioConfig,
     radio_manager::{ConnectionState, RadioManager},
     rig::{Mode, Radio, RadioInitError, Slot, Status},
@@ -191,18 +192,6 @@ async fn shutdown_does_not_starve_current_thread_timer() {
 
 #[test]
 fn worker_start_failure_is_typed() {
-    let config = RadioConfig::platform_default();
-    let state = Arc::new(std::sync::RwLock::new(
-        crate::radio_manager::RadioSnapshot {
-            selected: config.effective_backend(false),
-            connection: ConnectionState::Disconnected,
-            last_error: None,
-            config,
-            last_status: Status::disconnected(1),
-        },
-    ));
-    assert!(matches!(
-        Worker::spawn_with(state, |_| Err(std::io::Error::other("denied"))),
-        Err(crate::radio_manager::RadioManagerError::WorkerStart(_))
-    ));
+    let result = Worker::<Command>::spawn_with(|_| {}, |_| Err(std::io::Error::other("denied")));
+    assert!(matches!(result, Err(error) if error.kind() == std::io::ErrorKind::Other));
 }
