@@ -149,9 +149,6 @@ fn is_expected_radio_error(event: &Event<'_>) -> bool {
         .or_else(|| event.logentry.as_ref().map(|entry| entry.message.as_str()));
     message.is_some_and(|message| {
         [
-            "Failed to connect to rotctld",
-            "Failed to send rotctld command",
-            "Failed to read rotctld response",
             "Radio configuration is invalid",
             "Rotator initialization failed",
         ]
@@ -235,16 +232,6 @@ mod tests {
         assert!(!reporting_enabled_for("dev", false, false));
         assert!(!reporting_enabled_for("prod", true, false));
         assert!(!reporting_enabled_for("dev", true, true));
-    }
-
-    #[test]
-    fn drops_expected_rotator_errors() {
-        let event = Event {
-            message: Some("Failed to connect to rotctld: refused".into()),
-            ..Default::default()
-        };
-
-        assert!(scrub_event(event).is_none());
     }
 
     #[test]
