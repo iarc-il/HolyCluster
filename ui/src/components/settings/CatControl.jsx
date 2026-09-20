@@ -9,6 +9,7 @@ import hamlib_config_policy from "@shared/hamlib_ui_config_policy.json";
 import { useEffect, useState } from "react";
 import { default as SearchSelect } from "react-select";
 import LoggerIntegrationHelp from "./LoggerIntegrationHelp.jsx";
+import PortInput from "./PortInput.jsx";
 
 const {
     connection_kind_by_port_type,
@@ -105,6 +106,14 @@ function network_endpoint(value) {
 
 function network_pathname(host, port) {
     return `${host}:${port}`;
+}
+
+function port_error(value, minimum, label) {
+    const port = Number(value);
+    if (Number.isInteger(port) && port >= minimum && port <= 65535) {
+        return null;
+    }
+    return `${label} must be a whole number between ${minimum} and 65535.`;
 }
 
 function serial_descriptors(descriptors) {
@@ -422,6 +431,8 @@ function CatControl({
     const [rotator_save_state, set_rotator_save_state] = useState(null);
     const [selected_rig, set_selected_rig] = useState("rig1");
     const [save_state, set_save_state] = useState(null);
+    const [radio_port_touched, set_radio_port_touched] = useState(false);
+    const [rotator_port_touched, set_rotator_port_touched] = useState(false);
     const [logger_port_touched, set_logger_port_touched] = useState(false);
     const configuration_capable = radio_capabilities?.radio_configuration === true;
     const rotator_configuration_capable = radio_capabilities?.rotator_configuration === true;
@@ -453,8 +464,29 @@ function CatControl({
     );
     const selected_port_type = selected_model?.port_type || "serial";
     const selected_connection_kind = connection_kind_by_port_type[selected_port_type];
-    const logger_port_valid =
-        temp_settings.highlight_port >= 1024 && temp_settings.highlight_port <= 65535;
+    const radio_port_value =
+        selected_connection_kind === "network"
+            ? network_endpoint(selected_configuration.hamlib.token_values[network_pathname_token])
+                  .port
+            : null;
+    const radio_port_server_error = selected_errors.find(
+        error => error.token === network_pathname_token,
+    )?.message;
+    const radio_port_error =
+        radio_port_server_error ||
+        (radio_port_touched ? port_error(radio_port_value, 1, "Port") : null);
+    const rotator_port_value =
+        rotator_connection_kind === "network"
+            ? network_endpoint(
+                  rotator_form.hamlib.token_values.rot_pathname || rotator_network_default,
+              ).port
+            : null;
+    const rotator_port_error = rotator_port_touched
+        ? port_error(rotator_port_value, 1, "Port")
+        : null;
+    const logger_port_error = logger_port_touched
+        ? port_error(temp_settings.highlight_port, 1024, "UDP port")
+        : null;
 
     useEffect(() => {
         if (configuration_capable) {
@@ -598,6 +630,7 @@ function CatControl({
     }
 
     function test_connection() {
+        set_radio_port_touched(true);
         set_save_state({ ok: null, message: "Testing radio connection..." });
         test_radio_connection(serialized_configuration(selected_rig));
     }
@@ -633,11 +666,13 @@ function CatControl({
     }
 
     function save_rotator_configuration() {
+        set_rotator_port_touched(true);
         set_rotator_save_state({ ok: null, message: "Saving rotator hardware..." });
         apply_rotator_configuration(serialized_rotator_configuration());
     }
 
     function test_rotator() {
+        set_rotator_port_touched(true);
         set_rotator_save_state({ ok: null, message: "Testing rotator connection..." });
         test_rotator_connection(serialized_rotator_configuration());
     }
@@ -794,19 +829,10 @@ function CatControl({
                                     </label>
                                     <label className="flex flex-col gap-1" htmlFor="hamlib-port">
                                         <span>Port</span>
-                                        <Input
+                                        <PortInput
                                             id="hamlib-port"
-                                            type="number"
-                                            min="1"
-                                            max="65535"
-                                            step="1"
-                                            value={
-                                                network_endpoint(
-                                                    selected_configuration.hamlib.token_values[
-                                                        network_pathname_token
-                                                    ],
-                                                ).port
-                                            }
+                                            value={radio_port_value}
+                                            error={radio_port_error}
                                             onChange={event =>
                                                 update_selected(rig => ({
                                                     ...rig,
@@ -827,6 +853,7 @@ function CatControl({
                                                     },
                                                 }))
                                             }
+                                            onBlur={() => set_radio_port_touched(true)}
                                         />
                                     </label>
                                 </div>
@@ -1028,17 +1055,10 @@ function CatControl({
                                     </label>
                                     <label className="flex flex-col gap-1" htmlFor="rotator-port">
                                         <span>Port</span>
-                                        <Input
+                                        <PortInput
                                             id="rotator-port"
-                                            type="number"
-                                            min="1"
-                                            max="65535"
-                                            value={
-                                                network_endpoint(
-                                                    rotator_form.hamlib.token_values.rot_pathname ||
-                                                        rotator_network_default,
-                                                ).port
-                                            }
+                                            value={rotator_port_value}
+                                            error={rotator_port_error}
                                             onChange={event =>
                                                 set_rotator_form(current => ({
                                                     ...current,
@@ -1058,6 +1078,7 @@ function CatControl({
                                                     },
                                                 }))
                                             }
+                                            onBlur={() => set_rotator_port_touched(true)}
                                         />
                                     </label>
                                 </div>
@@ -1155,15 +1176,12 @@ function CatControl({
                     <tr>
                         <td>UDP Port:</td>
                         <td>
-                            <Input
+                            <PortInput
+                                id="logger-port"
                                 value={temp_settings.highlight_port}
-                                className={
-                                    logger_port_touched && !logger_port_valid ? "bg-red-200" : ""
-                                }
+                                error={logger_port_error}
                                 data-tour="settings-cat-udp-port"
-                                type="number"
-                                min="1024"
-                                max="65535"
+                                min={1024}
                                 onChange={event =>
                                     set_temp_settings({
                                         ...temp_settings,
