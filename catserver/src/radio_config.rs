@@ -303,16 +303,25 @@ fn is_descriptor_token(token: &str) -> bool {
         && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
 }
 
+#[cfg(not(windows))]
 fn replace_file(from: &Path, to: &Path) -> std::io::Result<()> {
-    #[cfg(windows)]
-    {
-        match fs::remove_file(to) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
-        }
-    }
     fs::rename(from, to)
+}
+
+#[cfg(windows)]
+fn replace_file(from: &Path, to: &Path) -> std::io::Result<()> {
+    let from = from
+        .to_str()
+        .ok_or_else(|| std::io::Error::other("temporary config path is not valid Unicode"))?;
+    let to = to
+        .to_str()
+        .ok_or_else(|| std::io::Error::other("config path is not valid Unicode"))?;
+    winsafe::MoveFileEx(
+        from,
+        Some(to),
+        winsafe::co::MOVEFILE::REPLACE_EXISTING | winsafe::co::MOVEFILE::WRITE_THROUGH,
+    )
+    .map_err(|error| std::io::Error::from_raw_os_error(error.raw() as i32))
 }
 
 impl From<HamlibDeviceConfigError> for RadioConfigError {

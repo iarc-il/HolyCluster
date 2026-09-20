@@ -16,7 +16,7 @@ use super::{
 use crate::{
     radio_config::{RadioConfig, RadioRigConfig},
     radio_config_store::{RadioConfigPlatform, RadioConfigStore},
-    radio_manager::RadioManager,
+    radio_manager::{ConnectionState, RadioManager},
     rig::Status,
 };
 
@@ -256,6 +256,7 @@ async fn capabilities_advertise_radio_configuration_api_v2_without_backends() {
     let response: serde_json::Value = serde_json::from_str(&response).unwrap();
     assert_eq!(response["event"], "capabilities");
     assert_eq!(response["radio_configuration_api"], 2);
+    assert_eq!(response["omnirig_selection_migration_available"], false);
     assert!(response.get("backends").is_none());
 }
 
@@ -309,15 +310,16 @@ async fn development_schema_versions_do_not_block_omnirig_migration_availability
 
 #[tokio::test]
 async fn valid_v3_config_blocks_omnirig_migration_availability() {
-    let directory = TestDir::new();
-    fs::write(
-        directory.file(),
+    for config in [
+        r#"{"version":3,"rig":null}"#,
         r#"{"version":3,"rig":{"model_id":"hamlib:1","token_values":{}}}"#,
-    )
-    .unwrap();
-    let (_, service) =
-        production_service_with_store(directory.file(), RadioConfigPlatform::windows());
-    assert!(!service.capabilities().omnirig_selection_migration_available);
+    ] {
+        let directory = TestDir::new();
+        fs::write(directory.file(), config).unwrap();
+        let (_, service) =
+            production_service_with_store(directory.file(), RadioConfigPlatform::windows());
+        assert!(!service.capabilities().omnirig_selection_migration_available);
+    }
 }
 
 #[tokio::test]
@@ -343,6 +345,12 @@ async fn migrates_legacy_omnirig_selection_to_both_slots() {
         assert_eq!(response["ok"], true);
         assert_eq!(response["migrated"], true);
         assert_eq!(response["effective_model_id"], expected);
+        assert_eq!(response.as_object().unwrap().len(), 6);
+        assert!(response.get("failure").is_none());
+        assert!(response.get("backend").is_none());
+        assert!(response.get("rig1").is_none());
+        assert!(response.get("rig2").is_none());
+        assert_eq!(radio.snapshot().connection, ConnectionState::Disconnected);
         assert_eq!(
             RadioConfig::load_from_path_for_platform(
                 &directory.file(),
