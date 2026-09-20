@@ -8,6 +8,7 @@ use tokio::sync::oneshot;
 use crate::{
     device_actor::{DeviceFactory, Worker},
     rotator::{Rotator, RotatorError},
+    rotator_config::RotatorConfig,
     rotator_manager::{RotatorConnectionState, RotatorManagerError, RotatorSnapshot},
 };
 
@@ -15,9 +16,11 @@ pub(crate) type RotatorFactory = DeviceFactory<Box<dyn Rotator>>;
 
 pub(crate) enum Command {
     Replace {
+        config: RotatorConfig,
         selected: String,
         factory: RotatorFactory,
-        reply: oneshot::Sender<()>,
+        persist: bool,
+        reply: oneshot::Sender<Result<(), RotatorManagerError>>,
     },
     Retry(oneshot::Sender<()>),
     SetAzimuth(f64, oneshot::Sender<Result<(), RotatorError>>),
@@ -71,20 +74,30 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
         };
         match command {
             Command::Replace {
+                config,
                 selected,
                 factory: next_factory,
+                persist,
                 reply,
             } => {
-                {
-                    let mut state = snapshot.write().unwrap_or_else(|error| error.into_inner());
-                    state.selected = selected.clone();
-                    state.last_status.name = selected;
+                let result = if persist {
+                    config.save().map_err(RotatorManagerError::InvalidConfig)
+                } else {
+                    Ok(())
+                };
+                if result.is_ok() {
+                    {
+                        let mut state = snapshot.write().unwrap_or_else(|error| error.into_inner());
+                        state.config = config;
+                        state.selected = selected.clone();
+                        state.last_status.name = selected;
+                    }
+                    let success = replace_from_factory(&snapshot, &next_factory, &mut rotator);
+                    factory = Some(next_factory);
+                    retry_delay = Duration::from_secs(1);
+                    next_action = Some(schedule_after_attempt(success, &mut retry_delay));
                 }
-                let success = replace_from_factory(&snapshot, &next_factory, &mut rotator);
-                factory = Some(next_factory);
-                retry_delay = Duration::from_secs(1);
-                next_action = Some(schedule_after_attempt(success, &mut retry_delay));
-                let _ = reply.send(());
+                let _ = reply.send(result);
             }
             Command::Retry(reply) => {
                 if let Some(factory) = &factory {

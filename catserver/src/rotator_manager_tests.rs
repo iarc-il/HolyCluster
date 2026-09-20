@@ -11,6 +11,7 @@ use std::{
 use crate::{
     dummy_rotator::DummyRotator,
     rotator::{Rotator, RotatorError, RotatorStatus},
+    rotator_config::RotatorConfig,
     rotator_manager::{RotatorConnectionState, RotatorManager, RotatorManagerError},
 };
 
@@ -92,11 +93,11 @@ impl Rotator for RetryRotator {
 
 #[tokio::test]
 async fn confines_non_send_backend_lifecycle_to_worker_thread() {
-    let manager = RotatorManager::new().unwrap();
+    let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
     let events = Arc::new(Mutex::new(Vec::new()));
     let factory_events = Arc::clone(&events);
     manager
-        .replace("recording", move || {
+        .replace(RotatorConfig::unconfigured(), "recording", move || {
             Box::new(RecordingRotator {
                 events: Arc::clone(&factory_events),
                 marker: Rc::new(()),
@@ -116,9 +117,11 @@ async fn confines_non_send_backend_lifecycle_to_worker_thread() {
 
 #[tokio::test]
 async fn publishes_dummy_status_and_target() {
-    let manager = RotatorManager::new().unwrap();
+    let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
     manager
-        .replace("dummy_rotator", || Box::new(DummyRotator::new()))
+        .replace(RotatorConfig::unconfigured(), "dummy_rotator", || {
+            Box::new(DummyRotator::new())
+        })
         .await
         .unwrap();
     manager.set_azimuth(90.0).await.unwrap();
@@ -132,11 +135,11 @@ async fn publishes_dummy_status_and_target() {
 
 #[tokio::test]
 async fn reconnects_without_consumers() {
-    let manager = RotatorManager::new().unwrap();
+    let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
     let attempts = Arc::new(AtomicUsize::new(0));
     let factory_attempts = Arc::clone(&attempts);
     manager
-        .replace("retry", move || {
+        .replace(RotatorConfig::unconfigured(), "retry", move || {
             Box::new(RetryRotator {
                 attempts: Arc::clone(&factory_attempts),
             })
@@ -162,7 +165,7 @@ async fn reconnects_without_consumers() {
 
 #[tokio::test]
 async fn rejects_non_finite_azimuth_before_worker() {
-    let manager = RotatorManager::new().unwrap();
+    let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
     assert!(matches!(
         manager.set_azimuth(f64::NAN).await,
         Err(RotatorManagerError::InvalidAzimuth)

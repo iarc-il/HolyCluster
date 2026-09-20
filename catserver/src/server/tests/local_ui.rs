@@ -12,8 +12,8 @@ use tokio_tungstenite::connect_async;
 use super::super::{ServerConfig, http_proxy::local_ui, state::AppState};
 use super::{TestDir, spawn_app};
 use crate::{
-    radio_config::RadioConfig, radio_manager::RadioManager, rotator_manager::RotatorManager,
-    tray_icon::UserEvent,
+    radio_config::RadioConfig, radio_manager::RadioManager, rotator_config::RotatorConfig,
+    rotator_manager::RotatorManager, tray_icon::UserEvent,
 };
 
 #[tokio::test]
@@ -51,7 +51,7 @@ async fn local_ui_only_serves_get_and_head_requests() {
             local_port: 0,
         },
         RadioManager::new(config.clone(), config.effective_backend(false)).unwrap(),
-        RotatorManager::new().unwrap(),
+        RotatorManager::new(RotatorConfig::unconfigured()).unwrap(),
         sender,
         Some(ui_dir.path().to_owned()),
     )

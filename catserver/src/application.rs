@@ -5,9 +5,11 @@ use tokio::sync::broadcast::{self, Sender};
 use crate::{
     args::{Args, BASE_LOCAL_PORT, server_config},
     dummy_rotator::DummyRotator,
+    hamlib_rotator::HamlibRotator,
     radio_config::RadioConfig,
     radio_factory,
     radio_manager::RadioManager,
+    rotator_config::RotatorConfig,
     rotator_manager::RotatorManager,
     server::{Server, ServerConfig},
     startup_radio, tray_icon,
@@ -32,7 +34,16 @@ pub fn run(args: Args) -> Result<()> {
         );
     }
     let radio = radio(radio_config.config, args.dummy)?;
-    let rotator = RotatorManager::new()?;
+    let rotator_config = RotatorConfig::config_path()
+        .and_then(|path| RotatorConfig::load_from_path(&path))
+        .unwrap_or_else(|error| {
+            tracing::error!(
+                ?error,
+                "Rotator configuration is invalid; using unconfigured state"
+            );
+            RotatorConfig::unconfigured()
+        });
+    let rotator = RotatorManager::new(rotator_config)?;
     let use_dummy_rotator = args.dummy_rotator;
     let is_single = instance.is_single();
     if is_single {
@@ -111,24 +122,18 @@ async fn run_singleton(
         .await?;
     let snapshot = radio.snapshot();
     tracing::info!(?snapshot.connection, ?snapshot.selected, "Radio startup completed");
+    let active_rotator_config = rotator.snapshot().config;
     if use_dummy_rotator {
         rotator
-            .replace("dummy_rotator", || Box::new(DummyRotator::new()))
-            .await?;
-    } else {
-        #[cfg(windows)]
-        rotator
-            .replace("pstRotator", || {
-                Box::new(crate::pstrotator::PstRotator::new())
+            .replace(active_rotator_config, "dummy_rotator", || {
+                Box::new(DummyRotator::new())
             })
             .await?;
-        #[cfg(not(windows))]
+    } else if let Some(config) = active_rotator_config.hamlib().cloned() {
+        let selected = format!("hamlib:{}", config.model_id);
         rotator
-            .replace("rotctld", || {
-                Box::new(crate::rotctld::RotctldRotator::new(
-                    "localhost".into(),
-                    4533,
-                ))
+            .replace(active_rotator_config, selected, move || {
+                Box::new(HamlibRotator::new(config.clone()))
             })
             .await?;
     }

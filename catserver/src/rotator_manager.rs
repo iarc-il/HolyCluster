@@ -4,6 +4,7 @@ use crate::{
     device_actor::{Worker, WorkerStopped},
     rotator::{Rotator, RotatorError, RotatorStatus},
     rotator_actor::{Command, RotatorFactory, spawn},
+    rotator_config::{RotatorConfig, RotatorConfigError},
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -17,6 +18,7 @@ pub struct RotatorSnapshot {
     pub selected: String,
     pub connection: RotatorConnectionState,
     pub last_error: Option<RotatorError>,
+    pub config: RotatorConfig,
     pub last_status: RotatorStatus,
     pub target_azimuth: Option<f64>,
 }
@@ -24,6 +26,7 @@ pub struct RotatorSnapshot {
 #[derive(Debug)]
 pub enum RotatorManagerError {
     InvalidAzimuth,
+    InvalidConfig(RotatorConfigError),
     Operation(RotatorError),
     WorkerStopped,
     WorkerStart(std::io::Error),
@@ -33,6 +36,9 @@ impl std::fmt::Display for RotatorManagerError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidAzimuth => write!(formatter, "rotator azimuth must be finite"),
+            Self::InvalidConfig(error) => {
+                write!(formatter, "invalid rotator configuration: {error}")
+            }
             Self::Operation(error) => error.fmt(formatter),
             Self::WorkerStopped => write!(formatter, "rotator worker stopped"),
             Self::WorkerStart(error) => {
@@ -51,11 +57,15 @@ pub struct RotatorManager {
 }
 
 impl RotatorManager {
-    pub fn new() -> Result<Self, RotatorManagerError> {
+    pub fn new(config: RotatorConfig) -> Result<Self, RotatorManagerError> {
+        config
+            .validate()
+            .map_err(RotatorManagerError::InvalidConfig)?;
         let snapshot = Arc::new(RwLock::new(RotatorSnapshot {
             selected: "unconfigured".into(),
             connection: RotatorConnectionState::Disconnected,
             last_error: None,
+            config,
             last_status: RotatorStatus::disconnected("unconfigured"),
             target_azimuth: None,
         }));
@@ -67,10 +77,22 @@ impl RotatorManager {
 
     pub async fn replace(
         &self,
+        config: RotatorConfig,
         selected: impl Into<String>,
         factory: impl Fn() -> Box<dyn Rotator> + Send + Sync + 'static,
     ) -> Result<(), RotatorManagerError> {
-        self.replace_inner(selected.into(), Arc::new(factory)).await
+        self.replace_inner(config, selected.into(), Arc::new(factory), false)
+            .await
+    }
+
+    pub async fn replace_and_persist(
+        &self,
+        config: RotatorConfig,
+        selected: impl Into<String>,
+        factory: impl Fn() -> Box<dyn Rotator> + Send + Sync + 'static,
+    ) -> Result<(), RotatorManagerError> {
+        self.replace_inner(config, selected.into(), Arc::new(factory), true)
+            .await
     }
 
     pub async fn retry(&self) -> Result<(), RotatorManagerError> {
@@ -113,17 +135,24 @@ impl RotatorManager {
 
     async fn replace_inner(
         &self,
+        config: RotatorConfig,
         selected: String,
         factory: RotatorFactory,
+        persist: bool,
     ) -> Result<(), RotatorManagerError> {
+        config
+            .validate()
+            .map_err(RotatorManagerError::InvalidConfig)?;
         self.worker
             .request(|reply| Command::Replace {
+                config,
                 selected,
                 factory,
+                persist,
                 reply,
             })
             .await
-            .map_err(map_worker_stopped)
+            .map_err(map_worker_stopped)?
     }
 
     async fn call(
