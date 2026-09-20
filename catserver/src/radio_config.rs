@@ -212,16 +212,6 @@ impl RadioConfig {
     }
 }
 
-impl RadioBackendKind {
-    pub(crate) const fn is_supported_on_platform(self) -> bool {
-        match self {
-            Self::Unconfigured => true,
-            Self::Hamlib => true,
-            Self::Omnirig => cfg!(windows),
-        }
-    }
-}
-
 impl RadioRigConfig {
     pub fn backend(&self) -> RadioBackendKind {
         match resolve_model_id(&self.model_id) {
