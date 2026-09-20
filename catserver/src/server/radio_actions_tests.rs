@@ -309,10 +309,13 @@ async fn development_schema_versions_do_not_block_omnirig_migration_availability
 }
 
 #[tokio::test]
-async fn valid_v3_config_blocks_omnirig_migration_availability() {
+async fn existing_release_or_invalid_config_blocks_omnirig_migration_availability() {
     for config in [
         r#"{"version":3,"rig":null}"#,
         r#"{"version":3,"rig":{"model_id":"hamlib:1","token_values":{}}}"#,
+        r#"{"version":4,"rig":null}"#,
+        r#"{"version":3,"rig":"invalid"}"#,
+        "invalid json",
     ] {
         let directory = TestDir::new();
         fs::write(directory.file(), config).unwrap();

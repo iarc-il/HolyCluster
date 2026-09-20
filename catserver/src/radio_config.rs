@@ -151,29 +151,18 @@ impl RadioConfig {
         Ok(config)
     }
 
-    pub fn valid_v3_exists_at_path(path: &Path) -> Result<bool, RadioConfigError> {
-        Self::valid_v3_exists_at_path_for_platform(path, RadioConfigPlatform::current())
-    }
-
-    pub fn valid_v3_exists_at_path_for_platform(
+    pub(crate) fn blocks_omnirig_selection_migration_at_path(
         path: &Path,
-        platform: RadioConfigPlatform,
     ) -> Result<bool, RadioConfigError> {
         let contents = match fs::read_to_string(path) {
             Ok(contents) => contents,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
             Err(source) => return Err(RadioConfigError::Read((path.to_path_buf(), source))),
         };
-        let Ok(header) = serde_json::from_str::<ConfigHeader>(&contents) else {
-            return Ok(false);
-        };
-        if header.version != SCHEMA_VERSION {
-            return Ok(false);
-        }
-        let Ok(config) = serde_json::from_str::<Self>(&contents) else {
-            return Ok(false);
-        };
-        Ok(config.validate_for_platform(platform).is_ok())
+        Ok(match serde_json::from_str::<ConfigHeader>(&contents) {
+            Ok(header) => !matches!(header.version, 1 | 2),
+            Err(_) => true,
+        })
     }
 
     pub fn save(&self) -> Result<(), RadioConfigError> {

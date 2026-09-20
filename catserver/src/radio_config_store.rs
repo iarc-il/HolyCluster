@@ -73,7 +73,7 @@ impl RadioConfigStore {
     pub fn omnirig_selection_migration_available(&self) -> Result<bool, RadioConfigError> {
         Ok(self.platform.omnirig_supported()
             && !self.migration_consumed.load(Ordering::SeqCst)
-            && !RadioConfig::valid_v3_exists_at_path_for_platform(&self.path, self.platform)?)
+            && !RadioConfig::blocks_omnirig_selection_migration_at_path(&self.path)?)
     }
 
     pub fn save(&self, config: &RadioConfig) -> Result<(), RadioConfigError> {
