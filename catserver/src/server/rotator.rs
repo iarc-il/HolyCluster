@@ -2,7 +2,7 @@ use anyhow::Result;
 use axum::extract::ws::Message;
 use serde::{Deserialize, Serialize};
 
-use crate::rotator::AnyRotator;
+use crate::rotator_manager::RotatorManager;
 
 const VERSION: u8 = 1;
 const TYPE: &str = "rotator";
@@ -47,7 +47,7 @@ pub(super) fn is_message(message: &str) -> bool {
         .is_ok_and(|message| message.version == VERSION && message.message_type == TYPE)
 }
 
-pub(super) async fn process(message: String, rotator: &AnyRotator) -> Result<()> {
+pub(super) async fn process(message: String, rotator: &RotatorManager) -> Result<()> {
     let Ok(message) = serde_json::from_str::<ClientMessage>(&message) else {
         tracing::error!("Failed to parse rotator message: {message}");
         return Ok(());
@@ -55,7 +55,9 @@ pub(super) async fn process(message: String, rotator: &AnyRotator) -> Result<()>
     match message {
         ClientMessage::SetAzimuth { azimuth } => {
             tracing::debug!("Setting azimuth to {azimuth}");
-            rotator.write().set_azimuth(azimuth);
+            if let Err(error) = rotator.set_azimuth(azimuth).await {
+                tracing::error!(?error, "Failed to set rotator azimuth");
+            }
         }
     }
     Ok(())

@@ -8,7 +8,7 @@ use crate::{
     radio_config::RadioConfig,
     radio_factory,
     radio_manager::RadioManager,
-    rotator::AnyRotator,
+    rotator_manager::RotatorManager,
     server::{Server, ServerConfig},
     startup_radio, tray_icon,
     tray_icon::UserEvent,
@@ -32,7 +32,8 @@ pub fn run(args: Args) -> Result<()> {
         );
     }
     let radio = radio(radio_config.config, args.dummy)?;
-    let rotator = rotator(args.dummy_rotator);
+    let rotator = RotatorManager::new()?;
+    let use_dummy_rotator = args.dummy_rotator;
     let is_single = instance.is_single();
     if is_single {
         if args.close {
@@ -45,9 +46,14 @@ pub fn run(args: Args) -> Result<()> {
         let thread = std::thread::Builder::new()
             .name("singleton".into())
             .spawn(move || {
-                if let Err(error) =
-                    run_singleton(event_sender, radio, rotator, server_config, use_local_ui)
-                {
+                if let Err(error) = run_singleton(
+                    event_sender,
+                    radio,
+                    rotator,
+                    server_config,
+                    use_local_ui,
+                    use_dummy_rotator,
+                ) {
                     tracing::error!(?error, "Singleton instance failed");
                 }
             })?;
@@ -83,23 +89,6 @@ fn radio(config: RadioConfig, use_dummy: bool) -> Result<RadioManager> {
     Ok(RadioManager::new(config, selected)?)
 }
 
-fn rotator(use_dummy: bool) -> AnyRotator {
-    if use_dummy {
-        return AnyRotator::new(DummyRotator::new());
-    }
-    #[cfg(windows)]
-    {
-        AnyRotator::new(crate::pstrotator::PstRotator::new())
-    }
-    #[cfg(not(windows))]
-    {
-        AnyRotator::new(crate::rotctld::RotctldRotator::new(
-            "localhost".into(),
-            4533,
-        ))
-    }
-}
-
 fn open_browser(port: u16) -> Result<()> {
     open::that(format!("http://127.0.0.1:{port}"))?;
     Ok(())
@@ -109,9 +98,10 @@ fn open_browser(port: u16) -> Result<()> {
 async fn run_singleton(
     sender: Sender<UserEvent>,
     radio: RadioManager,
-    rotator: AnyRotator,
+    rotator: RotatorManager,
     server_config: ServerConfig,
     use_local_ui: bool,
+    use_dummy_rotator: bool,
 ) -> Result<()> {
     let snapshot = radio.snapshot();
     let selected = snapshot.selected.clone();
@@ -121,16 +111,37 @@ async fn run_singleton(
         .await?;
     let snapshot = radio.snapshot();
     tracing::info!(?snapshot.connection, ?snapshot.selected, "Radio startup completed");
-    tracing::info!("Initializing {} rotator", rotator.read().get_name());
-    rotator.write().init();
-    if rotator.is_available() {
-        tracing::info!("Rotator initialized successfully");
+    if use_dummy_rotator {
+        rotator
+            .replace("dummy_rotator", || Box::new(DummyRotator::new()))
+            .await?;
     } else {
-        tracing::warn!("Rotator initialization failed, continuing without rotator support");
+        #[cfg(windows)]
+        rotator
+            .replace("pstRotator", || {
+                Box::new(crate::pstrotator::PstRotator::new())
+            })
+            .await?;
+        #[cfg(not(windows))]
+        rotator
+            .replace("rotctld", || {
+                Box::new(crate::rotctld::RotctldRotator::new(
+                    "localhost".into(),
+                    4533,
+                ))
+            })
+            .await?;
     }
+    let rotator_snapshot = rotator.snapshot();
+    tracing::info!(
+        ?rotator_snapshot.connection,
+        selected = rotator_snapshot.selected,
+        "Rotator startup completed"
+    );
     let local_port = server_config.local_port;
     let mut receiver = sender.subscribe();
     let shutdown_radio = radio.clone();
+    let shutdown_rotator = rotator.clone();
     let server = Server::build_server(sender, radio, rotator, server_config, use_local_ui).await?;
     open_browser(local_port)?;
     tokio::spawn(async move {
@@ -148,5 +159,6 @@ async fn run_singleton(
     tracing::info!("Running webapp");
     let result = server.run_server().await;
     shutdown_radio.shutdown().await?;
+    shutdown_rotator.shutdown().await?;
     result
 }

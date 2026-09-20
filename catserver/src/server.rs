@@ -29,7 +29,7 @@ use tokio::{
     sync::broadcast::{Receiver, Sender},
 };
 
-use crate::{radio_manager::RadioManager, rotator::AnyRotator, tray_icon::UserEvent};
+use crate::{radio_manager::RadioManager, rotator_manager::RotatorManager, tray_icon::UserEvent};
 
 use self::{
     http_proxy::{local_ui, proxy},
@@ -65,7 +65,7 @@ impl Server {
     pub async fn build_server(
         sender: Sender<UserEvent>,
         radio: RadioManager,
-        rotator: AnyRotator,
+        rotator: RotatorManager,
         server_config: ServerConfig,
         use_local_ui: bool,
     ) -> Result<Self> {

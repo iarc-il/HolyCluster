@@ -1,7 +1,7 @@
 use std::net::UdpSocket;
 use std::time::Duration;
 
-use crate::rotator::{Rotator, RotatorStatus};
+use crate::rotator::{Rotator, RotatorError, RotatorStatus};
 
 pub struct PstRotator {
     socket: Option<UdpSocket>,
@@ -18,90 +18,70 @@ impl PstRotator {
         }
     }
 
-    fn send(&mut self, cmd: &str) {
-        let Some(socket) = &self.socket else {
-            return;
-        };
-        if let Err(e) = socket.send_to(cmd.as_bytes(), &self.addr) {
-            tracing::error!("Failed to send to pstRotator: {}", e);
-        }
-    }
-
-    fn query_status(&mut self) -> Option<String> {
-        self.send("STATUS");
-        let socket = self.socket.as_ref()?;
-        let mut buf = [0u8; 1024];
+    fn send(&self, command: &str) -> Result<(), RotatorError> {
+        let socket = self
+            .socket
+            .as_ref()
+            .ok_or_else(|| RotatorError::new("command", "not connected"))?;
         socket
-            .set_read_timeout(Some(Duration::from_millis(500)))
-            .ok()?;
-        match socket.recv_from(&mut buf) {
-            Ok((len, _)) => {
-                let response = String::from_utf8_lossy(&buf[..len]).trim().to_string();
-                Some(response)
-            }
-            Err(e) => {
-                tracing::error!("Failed to read from pstRotator: {}", e);
-                None
-            }
-        }
+            .send_to(command.as_bytes(), &self.addr)
+            .map(|_| ())
+            .map_err(|error| RotatorError::new("send", error.to_string()))
     }
 
-    fn connect(&mut self) -> bool {
-        match UdpSocket::bind("127.0.0.1:0") {
-            Ok(socket) => {
-                self.socket = Some(socket);
-                true
-            }
-            Err(e) => {
-                tracing::error!("Failed to bind UDP socket for pstRotator: {}", e);
-                false
-            }
-        }
+    fn query_status(&mut self) -> Result<String, RotatorError> {
+        self.send("STATUS")?;
+        let socket = self
+            .socket
+            .as_ref()
+            .ok_or_else(|| RotatorError::new("status", "not connected"))?;
+        let mut buffer = [0u8; 1024];
+        let (length, _) = socket
+            .recv_from(&mut buffer)
+            .map_err(|error| RotatorError::new("receive status", error.to_string()))?;
+        Ok(String::from_utf8_lossy(&buffer[..length]).trim().to_owned())
     }
 }
 
 impl Rotator for PstRotator {
-    fn init(&mut self) {
-        if self.connect() {
-            tracing::info!("Connected to pstRotator at {}", self.addr);
-        }
+    fn init(&mut self) -> Result<(), RotatorError> {
+        let socket = UdpSocket::bind("127.0.0.1:0")
+            .map_err(|error| RotatorError::new("bind", error.to_string()))?;
+        socket
+            .set_read_timeout(Some(Duration::from_millis(500)))
+            .map_err(|error| RotatorError::new("set read timeout", error.to_string()))?;
+        socket
+            .set_write_timeout(Some(Duration::from_millis(500)))
+            .map_err(|error| RotatorError::new("set write timeout", error.to_string()))?;
+        self.socket = Some(socket);
+        Ok(())
     }
 
-    fn get_name(&self) -> &str {
+    fn name(&self) -> &str {
         "pstRotator"
     }
 
-    fn set_azimuth(&mut self, azimuth: f64) {
+    fn set_azimuth(&mut self, azimuth: f64) -> Result<(), RotatorError> {
+        self.send(&format!("AZ={azimuth}"))?;
         self.azimuth = azimuth;
-        self.send(&format!("AZ={azimuth}"));
+        Ok(())
     }
 
-    fn get_status(&mut self) -> RotatorStatus {
-        let mut status = RotatorStatus {
-            azimuth: self.azimuth,
-            status: "disconnected".into(),
-            name: self.get_name().into(),
-        };
-
-        if self.socket.is_some() {
-            status.status = "connected".into();
-            if let Some(response) = self.query_status() {
-                for part in response.split(',') {
-                    let part = part.trim();
-                    if let Some(az) = part.strip_prefix("AZ=")
-                        && let Ok(v) = az.parse::<f64>()
-                    {
-                        status.azimuth = v;
-                        self.azimuth = v;
-                    }
-                }
+    fn status(&mut self) -> Result<RotatorStatus, RotatorError> {
+        let response = self.query_status()?;
+        for part in response.split(',') {
+            if let Some(azimuth) = part.trim().strip_prefix("AZ=") {
+                self.azimuth = azimuth
+                    .parse()
+                    .map_err(|error: std::num::ParseFloatError| {
+                        RotatorError::new("parse azimuth", error.to_string())
+                    })?;
             }
         }
-
-        status
-    }
-
-    fn is_available(&self) -> bool {
-        self.socket.is_some()
+        Ok(RotatorStatus {
+            azimuth: self.azimuth,
+            status: "connected".into(),
+            name: self.name().into(),
+        })
     }
 }

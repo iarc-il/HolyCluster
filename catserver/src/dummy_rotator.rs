@@ -1,4 +1,4 @@
-use crate::rotator::{Rotator, RotatorStatus};
+use crate::rotator::{Rotator, RotatorError, RotatorStatus};
 use std::time::Instant;
 
 const ROTATION_SPEED_DEGREES_PER_SECOND: f64 = 10.0;
@@ -43,27 +43,26 @@ impl DummyRotator {
 }
 
 impl Rotator for DummyRotator {
-    fn init(&mut self) {}
+    fn init(&mut self) -> Result<(), RotatorError> {
+        Ok(())
+    }
 
-    fn get_name(&self) -> &str {
+    fn name(&self) -> &str {
         "dummy_rotator"
     }
 
-    fn set_azimuth(&mut self, azimuth: f64) {
+    fn set_azimuth(&mut self, azimuth: f64) -> Result<(), RotatorError> {
         self.update_azimuth();
         self.target_azimuth = normalize_azimuth(azimuth);
+        Ok(())
     }
 
-    fn get_status(&mut self) -> RotatorStatus {
+    fn status(&mut self) -> Result<RotatorStatus, RotatorError> {
         self.update_azimuth();
-        RotatorStatus {
+        Ok(RotatorStatus {
             azimuth: self.azimuth,
             status: "connected".into(),
-            name: self.get_name().into(),
-        }
-    }
-
-    fn is_available(&self) -> bool {
-        true
+            name: self.name().into(),
+        })
     }
 }

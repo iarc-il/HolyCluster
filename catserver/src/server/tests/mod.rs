@@ -11,8 +11,8 @@ use std::{
 
 use super::{Server, ServerConfig};
 use crate::{
-    dummy_rotator::DummyRotator, radio_config::RadioConfig, radio_manager::RadioManager,
-    rotator::AnyRotator, tray_icon::UserEvent,
+    radio_config::RadioConfig, radio_manager::RadioManager, rotator_manager::RotatorManager,
+    tray_icon::UserEvent,
 };
 use axum::Router;
 
@@ -67,7 +67,7 @@ async fn spawn_catserver(upstream: SocketAddr) -> TestServer {
     let server = Server::build_server(
         sender,
         RadioManager::new(config.clone(), config.effective_backend(false)).unwrap(),
-        AnyRotator::new(DummyRotator::new()),
+        RotatorManager::new().unwrap(),
         ServerConfig {
             dns: upstream.to_string(),
             is_using_ssl: false,

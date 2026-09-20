@@ -9,7 +9,9 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::broadcast::Receiver;
 use tokio_tungstenite::connect_async;
 
-use crate::{radio_manager::RadioManager, rotator::AnyRotator, tray_icon::UserEvent, utils};
+use crate::{
+    radio_manager::RadioManager, rotator_manager::RotatorManager, tray_icon::UserEvent, utils,
+};
 
 use super::{ServerConfig, radio, radio_actions, rotator, state::AppState};
 
@@ -43,14 +45,14 @@ async fn handle_ws_socket(
     server_config: ServerConfig,
     radio_manager: RadioManager,
     radio_configuration: super::radio_configuration::RadioConfiguration,
-    rotator_device: AnyRotator,
+    rotator_manager: RotatorManager,
     mut receiver: Receiver<UserEvent>,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = socket.split();
     let (stream, _) = connect_async(server_config.build_uri("ws", "/ws")).await?;
     let (mut server_sender, mut server_receiver) = stream.split();
     client_sender.send(radio::init_message()?).await?;
-    let rotator_status = rotator_device.write().get_status();
+    let rotator_status = rotator_manager.status();
     client_sender
         .send(rotator::status_message(&rotator_status)?)
         .await?;
@@ -67,7 +69,7 @@ async fn handle_ws_socket(
                     }
                     client_sender.send(radio::status_message(&radio_manager.status(), &radio_manager)?).await?;
                 }
-                Message::Text(text) if rotator::is_message(text.as_ref()) => rotator::process(text.to_string(), &rotator_device).await?,
+                Message::Text(text) if rotator::is_message(text.as_ref()) => rotator::process(text.to_string(), &rotator_manager).await?,
                 Message::Text(text) => {
                     if forward_to_server(&mut server_sender, utils::axum_to_tungstenite_message(Message::Text(text))).await? { break; }
                 }
@@ -93,7 +95,7 @@ async fn handle_ws_socket(
                 }
             }
             _ = rotator_interval.tick() => {
-                let data = rotator_device.write().get_status();
+                let data = rotator_manager.status();
                 if previous_rotator_data.as_ref() != Some(&data) {
                     client_sender.send(rotator::status_message(&data)?).await?;
                     previous_rotator_data = Some(data);

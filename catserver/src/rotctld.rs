@@ -1,14 +1,13 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
+use std::time::Duration;
 
-use crate::rotator::{Rotator, RotatorStatus};
+use crate::rotator::{Rotator, RotatorError, RotatorStatus};
 
 pub struct RotctldRotator {
     stream: Option<TcpStream>,
     host: String,
     port: u16,
-    name: String,
-    reconnect_counter: u8,
 }
 
 impl RotctldRotator {
@@ -17,135 +16,83 @@ impl RotctldRotator {
             stream: None,
             host,
             port,
-            name: "rotctld".into(),
-            reconnect_counter: 0,
         }
     }
 
-    fn send_command(&mut self, cmd: &str) -> Option<String> {
-        let result = if let Some(stream) = &mut self.stream {
-            if let Err(err) = writeln!(stream, "{cmd}") {
-                tracing::error!("Failed to send rotctld command: {}", err);
-                None
-            } else {
-                let mut reader = BufReader::new(stream.try_clone().ok()?);
-                let mut response = String::new();
-                if let Err(err) = reader.read_line(&mut response) {
-                    tracing::error!("Failed to read rotctld response: {}", err);
-                    None
-                } else {
-                    Some(response.trim().to_string())
-                }
-            }
-        } else {
-            None
-        };
-
-        match result {
-            Some(response) => {
-                self.reconnect_counter = 0;
-                Some(response)
-            }
-            None => {
-                self.reconnect_counter += 1;
-                if self.reconnect_counter >= 5 {
-                    self.reconnect_counter = 0;
-                    self.init();
-                }
-                None
-            }
-        }
+    fn send_command(&mut self, command: &str) -> Result<String, RotatorError> {
+        let stream = self
+            .stream
+            .as_mut()
+            .ok_or_else(|| RotatorError::new("command", "not connected"))?;
+        writeln!(stream, "{command}")
+            .map_err(|error| RotatorError::new("write", error.to_string()))?;
+        let mut reader = BufReader::new(
+            stream
+                .try_clone()
+                .map_err(|error| RotatorError::new("clone stream", error.to_string()))?,
+        );
+        let mut response = String::new();
+        reader
+            .read_line(&mut response)
+            .map_err(|error| RotatorError::new("read", error.to_string()))?;
+        Ok(response.trim().to_owned())
     }
 
-    fn send_command_two_lines(&mut self, cmd: &str) -> Option<(String, String)> {
-        let result = if let Some(stream) = &mut self.stream {
-            if let Err(err) = writeln!(stream, "{cmd}") {
-                tracing::error!("Failed to send rotctld command: {}", err);
-                None
-            } else {
-                let mut reader = BufReader::new(stream.try_clone().ok()?);
-                let mut line1 = String::new();
-                let mut line2 = String::new();
-                if let Err(err) = reader.read_line(&mut line1) {
-                    tracing::error!("Failed to read rotctld response: {}", err);
-                    None
-                } else if let Err(err) = reader.read_line(&mut line2) {
-                    tracing::error!("Failed to read rotctld second line: {}", err);
-                    None
-                } else {
-                    Some((line1.trim().to_string(), line2.trim().to_string()))
-                }
-            }
-        } else {
-            None
-        };
-
-        match result {
-            Some(response) => {
-                self.reconnect_counter = 0;
-                Some(response)
-            }
-            None => {
-                self.reconnect_counter += 1;
-                if self.reconnect_counter >= 5 {
-                    self.reconnect_counter = 0;
-                    self.init();
-                }
-                None
-            }
-        }
-    }
-
-    fn connect(&mut self) -> bool {
-        match TcpStream::connect(format!("{}:{}", self.host, self.port)) {
-            Ok(stream) => {
-                self.stream = Some(stream);
-                true
-            }
-            Err(e) => {
-                tracing::error!("Failed to connect to rotctld: {}", e);
-                false
-            }
-        }
+    fn send_command_two_lines(&mut self, command: &str) -> Result<(String, String), RotatorError> {
+        let stream = self
+            .stream
+            .as_mut()
+            .ok_or_else(|| RotatorError::new("command", "not connected"))?;
+        writeln!(stream, "{command}")
+            .map_err(|error| RotatorError::new("write", error.to_string()))?;
+        let mut reader = BufReader::new(
+            stream
+                .try_clone()
+                .map_err(|error| RotatorError::new("clone stream", error.to_string()))?,
+        );
+        let mut first = String::new();
+        let mut second = String::new();
+        reader
+            .read_line(&mut first)
+            .map_err(|error| RotatorError::new("read azimuth", error.to_string()))?;
+        reader
+            .read_line(&mut second)
+            .map_err(|error| RotatorError::new("read elevation", error.to_string()))?;
+        Ok((first.trim().to_owned(), second.trim().to_owned()))
     }
 }
 
 impl Rotator for RotctldRotator {
-    fn init(&mut self) {
-        if self.connect() {
-            tracing::info!("Connected to rotctld at {}:{}", self.host, self.port);
-        }
+    fn init(&mut self) -> Result<(), RotatorError> {
+        let stream = TcpStream::connect(format!("{}:{}", self.host, self.port))
+            .map_err(|error| RotatorError::new("connect", error.to_string()))?;
+        stream
+            .set_read_timeout(Some(Duration::from_millis(500)))
+            .map_err(|error| RotatorError::new("set read timeout", error.to_string()))?;
+        stream
+            .set_write_timeout(Some(Duration::from_millis(500)))
+            .map_err(|error| RotatorError::new("set write timeout", error.to_string()))?;
+        self.stream = Some(stream);
+        Ok(())
     }
 
-    fn get_name(&self) -> &str {
-        &self.name
+    fn name(&self) -> &str {
+        "rotctld"
     }
 
-    fn set_azimuth(&mut self, azimuth: f64) {
-        let cmd = format!("P {azimuth} 0.0");
-        if self.send_command(&cmd).is_none() {
-            tracing::error!("Failed to set azimuth");
-        }
+    fn set_azimuth(&mut self, azimuth: f64) -> Result<(), RotatorError> {
+        self.send_command(&format!("P {azimuth} 0.0")).map(drop)
     }
 
-    fn get_status(&mut self) -> RotatorStatus {
-        let mut status = RotatorStatus {
-            azimuth: 0.0,
-            status: "disconnected".into(),
-            name: self.name.clone(),
-        };
-
-        if let Some((azimuth, _)) = self.send_command_two_lines("p")
-            && let Ok(az) = azimuth.parse::<f64>()
-        {
-            status.azimuth = az;
-            status.status = "connected".into();
-        }
-
-        status
-    }
-
-    fn is_available(&self) -> bool {
-        self.stream.is_some()
+    fn status(&mut self) -> Result<RotatorStatus, RotatorError> {
+        let (azimuth, _) = self.send_command_two_lines("p")?;
+        let azimuth = azimuth
+            .parse::<f64>()
+            .map_err(|error| RotatorError::new("parse azimuth", error.to_string()))?;
+        Ok(RotatorStatus {
+            azimuth,
+            status: "connected".into(),
+            name: self.name().into(),
+        })
     }
 }

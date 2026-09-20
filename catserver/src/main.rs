@@ -20,6 +20,8 @@ pub mod radio_manager;
 mod reporting;
 mod rig;
 mod rotator;
+mod rotator_actor;
+pub mod rotator_manager;
 #[cfg(not(windows))]
 mod rotctld;
 mod server;
@@ -39,6 +41,8 @@ mod radio_actor_regression_tests;
 mod radio_config_tests;
 #[cfg(test)]
 mod radio_manager_tests;
+#[cfg(test)]
+mod rotator_manager_tests;
 #[cfg(test)]
 mod startup_radio_tests;
 #[cfg(test)]
