@@ -26,6 +26,7 @@ pub struct RadioSnapshot {
 #[derive(Debug)]
 pub enum RadioManagerError {
     InvalidConfig(RadioConfigError),
+    Operation(RadioInitError),
     WorkerStopped,
     WorkerStart(std::io::Error),
 }
@@ -34,6 +35,7 @@ impl std::fmt::Display for RadioManagerError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidConfig(error) => write!(formatter, "invalid radio configuration: {error}"),
+            Self::Operation(error) => error.fmt(formatter),
             Self::WorkerStopped => write!(formatter, "radio worker stopped"),
             Self::WorkerStart(error) => write!(formatter, "failed to start radio worker: {error}"),
         }
@@ -84,6 +86,20 @@ impl RadioManager {
     ) -> Result<(), RadioManagerError> {
         self.replace_inner(config, selected, Arc::new(factory), true)
             .await
+    }
+
+    pub async fn test_connection(
+        &self,
+        factory: impl Fn() -> Box<dyn Radio> + Send + Sync + 'static,
+    ) -> Result<(), RadioManagerError> {
+        self.worker
+            .request(|reply| Command::Test {
+                factory: Arc::new(factory),
+                reply,
+            })
+            .await
+            .map_err(map_worker_stopped)?
+            .map_err(RadioManagerError::Operation)
     }
 
     pub async fn retry(&self) -> Result<(), RadioManagerError> {

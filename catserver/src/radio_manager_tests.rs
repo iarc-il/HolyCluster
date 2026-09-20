@@ -135,6 +135,25 @@ async fn actor_keeps_native_lifecycle_on_one_thread() {
     assert!(events.iter().all(|thread| *thread == events[0]));
 }
 
+#[tokio::test]
+async fn connection_test_runs_and_drops_candidate_on_worker() {
+    let config = RadioConfig::platform_default();
+    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let factory_events = Arc::clone(&events);
+    manager
+        .test_connection(move || Box::new(ThreadRadio::new(Arc::clone(&factory_events), None)))
+        .await
+        .unwrap();
+
+    assert_eq!(manager.snapshot().connection, ConnectionState::Disconnected);
+    let events = events.lock().unwrap();
+    assert!(events.iter().all(|thread| *thread == events[0]));
+    assert_ne!(events[0], std::thread::current().id());
+    drop(events);
+    manager.shutdown().await.unwrap();
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn poll_does_not_starve_current_thread_timer_during_blocked_initialization() {
     let manager = Arc::new(manager().await);

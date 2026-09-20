@@ -22,6 +22,10 @@ pub(crate) enum Command {
         persist: bool,
         reply: oneshot::Sender<Result<(), RadioManagerError>>,
     },
+    Test {
+        factory: RadioFactory,
+        reply: oneshot::Sender<Result<(), RadioInitError>>,
+    },
     Retry(oneshot::Sender<()>),
     SetRig(u8, oneshot::Sender<()>),
     SetModeAndFrequency(Mode, Freq, oneshot::Sender<()>),
@@ -96,6 +100,12 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                     retry_delay = Duration::from_secs(1);
                     next_action = Some(schedule_after_attempt(connected, &mut retry_delay));
                 }
+                let _ = reply.send(result);
+            }
+            Command::Test { factory, reply } => {
+                let mut candidate = factory();
+                let result = candidate.init();
+                drop(candidate);
                 let _ = reply.send(result);
             }
             Command::Retry(reply) => {

@@ -162,9 +162,9 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
                 Err(error) => {
                     let failure = match &error {
                         RadioManagerError::InvalidConfig(_) => ConfigurationFailure::InvalidConfig,
-                        RadioManagerError::WorkerStopped | RadioManagerError::WorkerStart(_) => {
-                            ConfigurationFailure::Connection
-                        }
+                        RadioManagerError::Operation(_)
+                        | RadioManagerError::WorkerStopped
+                        | RadioManagerError::WorkerStart(_) => ConfigurationFailure::Connection,
                     };
                     ConfigurationResult::failure(failure, vec![manager_error(error)])
                 }
@@ -180,12 +180,15 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
             }
             let selected = config.effective_backend(false);
             let factory = radio_factory::factory(config, selected);
-            let mut radio = factory();
-            match radio.init() {
+            match self.radio.test_connection(move || factory()).await {
                 Ok(()) => ConfigurationResult::success(),
-                Err(error) => ConfigurationResult::failure(
+                Err(RadioManagerError::Operation(error)) => ConfigurationResult::failure(
                     ConfigurationFailure::Connection,
                     vec![connection_error(error)],
+                ),
+                Err(error) => ConfigurationResult::failure(
+                    ConfigurationFailure::Connection,
+                    vec![manager_error(error)],
                 ),
             }
         })
