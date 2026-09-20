@@ -10,6 +10,7 @@ mod dummy_rotator;
 mod freq;
 mod hamlib_device_config;
 mod hamlib_radio;
+mod hamlib_rotator;
 #[cfg(windows)]
 mod omnirig;
 #[cfg(windows)]
@@ -34,6 +35,8 @@ mod utils;
 
 #[cfg(test)]
 mod hamlib_radio_tests;
+#[cfg(test)]
+mod hamlib_rotator_tests;
 #[cfg(test)]
 mod hamlib_ui_config_tests;
 #[cfg(test)]

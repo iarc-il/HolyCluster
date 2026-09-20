@@ -14,6 +14,17 @@ pub enum HamlibDeviceConfigError {
     InvalidToken(String),
 }
 
+impl std::fmt::Display for HamlibDeviceConfigError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidModelId(model) => write!(formatter, "invalid model id {model}"),
+            Self::InvalidToken(token) => write!(formatter, "invalid configuration token {token}"),
+        }
+    }
+}
+
+impl std::error::Error for HamlibDeviceConfigError {}
+
 impl HamlibDeviceConfig {
     pub(crate) fn validate(&self) -> Result<(), HamlibDeviceConfigError> {
         match self.model_id.parse::<u32>() {
