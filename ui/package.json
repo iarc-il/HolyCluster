@@ -6,6 +6,7 @@
     "scripts": {
         "dev": "node scripts/dev.js",
         "build": "vite build",
+        "check:build": "node scripts/check_build_output.js",
         "test": "vitest run",
         "test:e2e": "playwright test",
         "fmt": "biome check --write .",
