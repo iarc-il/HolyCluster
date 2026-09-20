@@ -20,6 +20,7 @@ pub struct RadioSnapshot {
     pub connection: ConnectionState,
     pub last_error: Option<RadioInitError>,
     pub last_operation_error: Option<RadioOperationError>,
+    pub rig_errors: [Option<RadioInitError>; 2],
     pub config: RadioConfig,
     pub last_status: Status,
 }
@@ -63,6 +64,7 @@ impl RadioManager {
             connection: ConnectionState::Disconnected,
             last_error: None,
             last_operation_error: None,
+            rig_errors: [None, None],
             config: config.clone(),
             last_status: Status::disconnected(1),
         }));

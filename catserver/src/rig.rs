@@ -111,6 +111,9 @@ pub trait Radio {
     fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError>;
     fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError>;
     fn get_status(&mut self) -> Status;
+    fn initialization_errors(&self) -> [Option<RadioInitError>; 2] {
+        [None, None]
+    }
 }
 
 pub struct UnavailableRadio {

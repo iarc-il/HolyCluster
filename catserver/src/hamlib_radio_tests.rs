@@ -198,7 +198,7 @@ fn absent_second_rig_is_not_selected() {
     let (rig1, rig2) = config(false);
     let mut radio = HamlibRadio::new(rig1, rig2);
     radio.init().unwrap();
-    radio.set_rig(2).unwrap();
+    assert!(radio.set_rig(2).is_err());
     assert_eq!(radio.get_status().current_rig, 1);
 }
 
