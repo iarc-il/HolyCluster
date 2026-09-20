@@ -1,8 +1,5 @@
 import FilterButton from "@/components/FilterButton.jsx";
 import FilterOptions from "@/components/FilterOptions.jsx";
-import Filters from "@/components/Filters.jsx";
-import FrequencyBar from "@/components/FrequencyBar.jsx";
-import Heatmap from "@/components/Heatmap.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
 import { TOUR_SELECT_SIDE_PANEL_TAB_EVENT } from "@/components/tour/tour_events.js";
 import { continents } from "@/data/filters_data.js";
@@ -12,6 +9,9 @@ import { useFilters } from "@/hooks/useFilters";
 import { Suspense, lazy, useEffect } from "react";
 
 const DXpeditions = lazy(() => import("@/components/DXpeditions.jsx"));
+const Filters = lazy(() => import("@/components/Filters.jsx"));
+const FrequencyBar = lazy(() => import("@/components/FrequencyBar.jsx"));
+const Heatmap = lazy(() => import("@/components/Heatmap.jsx"));
 const MissingPanel = lazy(() => import("@/components/MissingPanel.jsx"));
 const RotatorPanel = lazy(() => import("@/components/RotatorPanel.jsx"));
 

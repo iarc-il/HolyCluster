@@ -76,7 +76,8 @@ export function RadioProvider({ children }) {
     function get_band_from_freq(freq) {
         for (const band of Object.keys(band_plans)) {
             if (freq <= band_plans[band].max && freq >= band_plans[band].min) {
-                return band;
+                const numeric_band = Number(band);
+                return Number.isNaN(numeric_band) ? band : numeric_band;
             }
         }
 

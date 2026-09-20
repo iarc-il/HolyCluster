@@ -176,6 +176,12 @@ describe("radio configuration", () => {
         expect(Consumer.radio.radio_capabilities).toBeNull();
     });
 
+    it("normalizes numeric radio bands to match spot data", () => {
+        emit({ event: "status", status: "connected", freq: 14_074_000 });
+
+        expect(Consumer.radio.radio_band).toBe(20);
+    });
+
     it("sends RTTY tuning for a CAT version that supports it", () => {
         const supported_version = `catserver-v${RTTY_TUNING_MIN_VERSION.slice(0, 3).join(".")}`;
         emit({ event: "status", status: "connected", catserver_version: supported_version });

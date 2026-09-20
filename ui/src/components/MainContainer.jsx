@@ -6,7 +6,6 @@ import SpotsTable from "@/components/SpotsTable.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
-import HistoryBar from "@/components/history/HistoryBar.jsx";
 import {
     TOUR_CLOSE_LEFT_PANEL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
@@ -33,6 +32,7 @@ import Maidenhead from "maidenhead";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+const HistoryBar = lazy(() => import("@/components/history/HistoryBar.jsx"));
 const WebsiteTour = lazy(() => import("@/components/tour/WebsiteTour.jsx"));
 
 const AUTO_RADIUS_PADDING_KM = 1000;
@@ -445,17 +445,19 @@ function MainContent({
                     />
                 </div>
                 {is_history_mode && (
-                    <HistoryBar
-                        start={history_start}
-                        end={history_end}
-                        display_start={display_start}
-                        display_end={display_end}
-                        set_start={set_history_start}
-                        set_end={set_history_end}
-                        window_size_ms={window_size_ms}
-                        set_window_size_ms={set_window_size_ms}
-                        set_is_dragging={set_is_dragging}
-                    />
+                    <Suspense fallback={null}>
+                        <HistoryBar
+                            start={history_start}
+                            end={history_end}
+                            display_start={display_start}
+                            display_end={display_end}
+                            set_start={set_history_start}
+                            set_end={set_history_end}
+                            window_size_ms={window_size_ms}
+                            set_window_size_ms={set_window_size_ms}
+                            set_is_dragging={set_is_dragging}
+                        />
+                    </Suspense>
                 )}
             </div>
         </div>
