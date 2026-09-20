@@ -181,6 +181,7 @@ export function WsProvider({ children }) {
         <WsContext.Provider
             value={{
                 network_state,
+                transport,
                 subscribe,
                 send,
                 readyState,

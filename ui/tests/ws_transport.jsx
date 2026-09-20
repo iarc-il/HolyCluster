@@ -57,12 +57,11 @@ describe("WebSocket transport", () => {
             </WsProvider>,
         );
 
-        act(() => TestConsumer.context.send("radio", { action: "SetRig", rig: 2 }));
+        act(() => TestConsumer.context.send("radio", { action: "GetCapabilities" }));
         expect(connection.sendJsonMessage).toHaveBeenCalledWith({
             version: 1,
             type: "radio",
-            action: "SetRig",
-            rig: 2,
+            action: "GetCapabilities",
         });
     });
 });

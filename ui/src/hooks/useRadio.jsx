@@ -37,25 +37,27 @@ export function RadioProvider({ children }) {
     const [radio_status, set_radio_status] = useState("unavailable");
     const [radio_freq, set_radio_freq] = useState(0);
     const [radio_mode, set_radio_mode] = useState("");
-    const [rig, set_rig_inner] = useState(1);
     const [radio_band, set_radio_band] = useState(-1);
     const [raw_local_version, set_raw_local_version] = useState(null);
-    const { send, radioReadyState } = useWs();
+    const { send, radioReadyState, transport } = useWs();
     const [radio_ready, set_radio_ready] = useState(false);
     const [radio_capabilities, set_radio_capabilities] = useState(null);
-    const [hamlib_models, set_hamlib_models] = useState([]);
-    const [hamlib_models_error, set_hamlib_models_error] = useState(null);
+    const [radio_models, set_radio_models] = useState([]);
+    const [radio_models_error, set_radio_models_error] = useState(null);
     const [serial_ports, set_serial_ports] = useState([]);
     const [serial_ports_error, set_serial_ports_error] = useState(null);
-    const [hamlib_model_detail, set_hamlib_model_detail] = useState(null);
-    const [hamlib_model_details, set_hamlib_model_details] = useState({});
-    const [hamlib_model_error, set_hamlib_model_error] = useState(null);
+    const [radio_model_detail, set_radio_model_detail] = useState(null);
+    const [radio_model_details, set_radio_model_details] = useState({});
+    const [radio_model_error, set_radio_model_error] = useState(null);
     const [radio_configuration, set_radio_configuration_state] = useState(null);
     const [radio_configuration_result, set_radio_configuration_result] = useState(null);
     const [radio_connection_result, set_radio_connection_result] = useState(null);
     const [radio_retry_result, set_radio_retry_result] = useState(null);
+    const [omnirig_selection_migration_result, set_omnirig_selection_migration_result] =
+        useState(null);
     const requested_model_ids = useRef(new Set());
     const pending_configuration_action = useRef(null);
+    const pending_migration_action = useRef(null);
     const cat_identity_ref = useRef(null);
     const cat_connected_ref = useRef(false);
 
@@ -72,6 +74,12 @@ export function RadioProvider({ children }) {
         set_raw_local_version(null);
         set_radio_capabilities(null);
     }, [radioReadyState]);
+
+    useEffect(() => {
+        if (transport === "unified" && radio_ready && radio_capabilities == null) {
+            send("radio", { action: "GetCapabilities" });
+        }
+    }, [transport, radio_ready, radio_capabilities, send]);
 
     function get_band_from_freq(freq) {
         for (const band of Object.keys(band_plans)) {
@@ -103,7 +111,6 @@ export function RadioProvider({ children }) {
             set_radio_status(data.status);
             set_radio_freq(data.freq || 0);
             set_radio_mode(data.mode || "");
-            set_rig_inner(data.current_rig || 1);
             set_radio_band(get_band_from_freq(data.freq || 0));
             set_radio_ready(true);
         }
@@ -112,9 +119,9 @@ export function RadioProvider({ children }) {
             set_radio_capabilities(data);
         }
 
-        if (data.event === "hamlib_models") {
-            set_hamlib_models(data.models || []);
-            set_hamlib_models_error(data.error || null);
+        if (data.event === "radio_models") {
+            set_radio_models(data.models || []);
+            set_radio_models_error(data.error || null);
         }
 
         if (data.event === "serial_ports") {
@@ -122,15 +129,15 @@ export function RadioProvider({ children }) {
             set_serial_ports_error(data.error || null);
         }
 
-        if (data.event === "hamlib_model" && requested_model_ids.current.has(data.model_id)) {
-            set_hamlib_model_detail(data.descriptors || null);
+        if (data.event === "radio_model" && requested_model_ids.current.has(data.model_id)) {
+            set_radio_model_detail(data.descriptors || null);
             if (data.descriptors != null) {
-                set_hamlib_model_details(current => ({
+                set_radio_model_details(current => ({
                     ...current,
                     [data.model_id]: data.descriptors,
                 }));
             }
-            set_hamlib_model_error(data.error || null);
+            set_radio_model_error(data.error || null);
         }
 
         if (data.event === "configuration") {
@@ -156,6 +163,12 @@ export function RadioProvider({ children }) {
 
         if (data.event === "radio_connection_result") {
             set_radio_connection_result(data);
+        }
+
+        if (data.event === "omnirig_selection_migration_result") {
+            set_omnirig_selection_migration_result(data);
+            pending_migration_action.current?.resolve(data);
+            pending_migration_action.current = null;
         }
 
         if (data.event === "retry") {
@@ -196,17 +209,6 @@ export function RadioProvider({ children }) {
         }
     }
 
-    function set_rig(rig) {
-        if (![1, 2].includes(rig)) {
-            return;
-        }
-
-        send_message_to_radio({
-            action: "SetRig",
-            rig: rig,
-        });
-    }
-
     function set_mode_and_freq(mode, freq) {
         if (mode === "RTTY" && !supports_cat_feature(local_version, RTTY_TUNING_MIN_VERSION)) {
             return;
@@ -223,9 +225,9 @@ export function RadioProvider({ children }) {
         send_message_to_radio({ action: "GetCapabilities" });
     }
 
-    function list_hamlib_models() {
-        set_hamlib_models_error(null);
-        send_message_to_radio({ action: "ListHamlibModels" });
+    function list_radio_models() {
+        set_radio_models_error(null);
+        send_message_to_radio({ action: "ListRadioModels" });
     }
 
     function list_serial_ports() {
@@ -233,11 +235,11 @@ export function RadioProvider({ children }) {
         send_message_to_radio({ action: "ListSerialPorts" });
     }
 
-    function describe_hamlib_model(model_id) {
+    function describe_radio_model(model_id) {
         requested_model_ids.current.add(model_id);
-        set_hamlib_model_detail(null);
-        set_hamlib_model_error(null);
-        send_message_to_radio({ action: "DescribeHamlibModel", model_id });
+        set_radio_model_detail(null);
+        set_radio_model_error(null);
+        send_message_to_radio({ action: "DescribeRadioModel", model_id });
     }
 
     function get_radio_configuration() {
@@ -267,39 +269,58 @@ export function RadioProvider({ children }) {
         send_message_to_radio({ action: "RetryRadio" });
     }
 
+    function migrate_omnirig_selection(rig) {
+        return new Promise(resolve => {
+            pending_migration_action.current = { rig, resolve };
+            set_omnirig_selection_migration_result(null);
+            send_message_to_radio({ action: "MigrateOmniRigSelection", rig });
+        });
+    }
+
+    const radio_configuration_support =
+        transport === "probing"
+            ? "probing"
+            : transport === "cat_v1_2" ||
+                (radio_capabilities != null && radio_capabilities.radio_configuration_api !== 2)
+              ? "update_required"
+              : radio_capabilities?.radio_configuration_api === 2
+                ? "supported"
+                : "probing";
+
     return (
         <RadioContext.Provider
             value={{
-                set_rig,
                 set_mode_and_freq,
                 highlight_spot,
                 get_radio_capabilities,
-                list_hamlib_models,
+                list_radio_models,
                 list_serial_ports,
-                describe_hamlib_model,
+                describe_radio_model,
                 get_radio_configuration,
                 set_radio_configuration,
                 test_radio_connection,
                 retry_radio,
+                migrate_omnirig_selection,
                 is_radio_available,
                 radio_status,
                 radio_freq,
                 radio_mode,
                 radio_band,
                 raw_local_version,
-                rig,
                 radio_capabilities,
-                hamlib_models,
-                hamlib_models_error,
+                radio_configuration_support,
+                radio_models,
+                radio_models_error,
                 serial_ports,
                 serial_ports_error,
-                hamlib_model_detail,
-                hamlib_model_details,
-                hamlib_model_error,
+                radio_model_detail,
+                radio_model_details,
+                radio_model_error,
                 radio_configuration,
                 radio_configuration_result,
                 radio_connection_result,
                 radio_retry_result,
+                omnirig_selection_migration_result,
                 local_version,
             }}
         >
