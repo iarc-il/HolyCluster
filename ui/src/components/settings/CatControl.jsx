@@ -4,6 +4,7 @@ import Select from "@/components/ui/Select.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
+import use_rotator from "@/hooks/useRotator";
 import hamlib_config_policy from "@shared/hamlib_ui_config_policy.json";
 import { useEffect, useState } from "react";
 import { default as SearchSelect } from "react-select";
@@ -23,6 +24,7 @@ const DEFAULT_WINDOWS_SERIAL_PORT = "COM1";
 const DEFAULT_BAUD_RATE = "9600";
 const DEFAULT_HAMLIB_NETWORK_HOST = "127.0.0.1";
 const DEFAULT_HAMLIB_NETWORK_PORT = "4532";
+const DEFAULT_ROTATOR_NETWORK_PORT = "4533";
 
 function default_serial_port(ports) {
     const port_names = ports ?? [];
@@ -38,7 +40,7 @@ function default_serial_port(ports) {
 }
 
 function default_descriptor_value(descriptor, serial_ports, port_type = "serial") {
-    if (pathname_tokens.includes(descriptor.token)) {
+    if (pathname_tokens.includes(descriptor.token) || descriptor.token === "rot_pathname") {
         if (connection_kind_by_port_type[port_type] === "network") {
             return `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_HAMLIB_NETWORK_PORT}`;
         }
@@ -80,7 +82,7 @@ function normalized_descriptor_value(descriptor, value, serial_ports, port_type 
         const options = descriptor.options.map(String);
         return options.includes(String(value)) ? String(value) : default_value;
     }
-    if (pathname_tokens.includes(descriptor.token)) {
+    if (pathname_tokens.includes(descriptor.token) || descriptor.token === "rot_pathname") {
         return value && value !== "/dev/rig" ? String(value) : default_value;
     }
     return value == null || value === "" ? default_value : String(value);
@@ -107,7 +109,11 @@ function network_pathname(host, port) {
 
 function serial_descriptors(descriptors) {
     return descriptors
-        .filter(descriptor => Object.hasOwn(serial_labels, descriptor.token))
+        .filter(
+            descriptor =>
+                Object.hasOwn(serial_labels, descriptor.token) ||
+                descriptor.token === "rot_pathname",
+        )
         .sort(
             (left, right) =>
                 Object.keys(serial_labels).indexOf(left.token) -
@@ -157,16 +163,17 @@ function normalize_configuration(configuration) {
 function materialized_hamlib(rig, descriptors, serial_ports, port_type) {
     const token_values = { ...rig.hamlib.token_values };
     if (connection_kind_by_port_type[port_type] === "none") {
-        for (const token of pathname_tokens) {
+        for (const token of [...pathname_tokens, "rot_pathname"]) {
             delete token_values[token];
         }
     }
     for (const descriptor of descriptors.filter(
         descriptor =>
-            Object.hasOwn(serial_labels, descriptor.token) &&
+            (Object.hasOwn(serial_labels, descriptor.token) ||
+                descriptor.token === "rot_pathname") &&
             !(
                 connection_kind_by_port_type[port_type] === "none" &&
-                pathname_tokens.includes(descriptor.token)
+                (pathname_tokens.includes(descriptor.token) || descriptor.token === "rot_pathname")
             ),
     )) {
         token_values[descriptor.token] = normalized_descriptor_value(
@@ -194,6 +201,8 @@ function hamlib_model_options(models) {
         value: model.id,
         label: `${model.manufacturer} ${model.model}`,
         port_type: model.port_type,
+        isDisabled: model.enabled === false,
+        disabled_reason: model.disabled_reason,
     }));
 }
 
@@ -268,7 +277,10 @@ function error_text(error) {
 function DescriptorInput({ descriptor, value, on_change, error_tokens, colors, serial_ports }) {
     const input_id = `hamlib-${descriptor.token}`;
     const invalid = error_tokens.includes(descriptor.token);
-    const label = serial_labels[descriptor.token] || descriptor.label;
+    const label =
+        descriptor.token === "rot_pathname"
+            ? "Serial port"
+            : serial_labels[descriptor.token] || descriptor.label;
     const input_class = invalid ? "bg-red-200" : "";
     const options = select_options(descriptor, value);
 
@@ -382,11 +394,37 @@ function CatControl({
         set_radio_configuration,
         test_radio_connection,
     } = use_radio();
+    const {
+        rotator_models,
+        rotator_model_details,
+        rotator_configuration,
+        rotator_configuration_result,
+        rotator_connection_result,
+        list_rotator_models,
+        describe_rotator_model,
+        get_rotator_configuration,
+        apply_rotator_configuration,
+        test_rotator_connection,
+    } = use_rotator() ?? {
+        rotator_models: [],
+        rotator_model_details: {},
+        rotator_configuration: null,
+        rotator_configuration_result: null,
+        rotator_connection_result: null,
+        list_rotator_models: () => {},
+        describe_rotator_model: () => {},
+        get_rotator_configuration: () => {},
+        apply_rotator_configuration: () => Promise.resolve({ ok: false }),
+        test_rotator_connection: () => {},
+    };
     const [configuration, set_configuration] = useState(null);
+    const [rotator_form, set_rotator_form] = useState(null);
+    const [rotator_save_state, set_rotator_save_state] = useState(null);
     const [selected_rig, set_selected_rig] = useState("rig1");
     const [save_state, set_save_state] = useState(null);
     const [logger_port_touched, set_logger_port_touched] = useState(false);
     const configuration_capable = radio_capabilities?.radio_configuration === true;
+    const rotator_configuration_capable = radio_capabilities?.rotator_configuration === true;
     const available_backends = radio_capabilities?.backends || [];
     const selected_configuration = configuration?.[selected_rig];
     const server_errors =
@@ -399,6 +437,14 @@ function CatControl({
     const has_field_errors = radio_result?.failure === "invalid_config" && radio_errors.length > 0;
     const selected_errors = errors_for_rig(radio_errors, selected_rig);
     const model_options = hamlib_model_options(hamlib_models);
+    const rotator_model_options = hamlib_model_options(rotator_models);
+    const selected_rotator_model = rotator_model_options.find(
+        option => option.value === rotator_form?.hamlib?.model_id,
+    );
+    const selected_rotator_descriptors =
+        rotator_model_details[rotator_form?.hamlib?.model_id] || [];
+    const rotator_connection_kind =
+        connection_kind_by_port_type[selected_rotator_model?.port_type] || "serial";
     const selected_model = model_options.find(
         option => option.value === selected_configuration?.hamlib?.model_id,
     );
@@ -418,6 +464,43 @@ function CatControl({
     useEffect(() => {
         set_configuration(normalize_configuration(radio_configuration));
     }, [radio_configuration]);
+
+    useEffect(() => {
+        if (rotator_configuration_capable) {
+            get_rotator_configuration();
+            list_rotator_models();
+            list_serial_ports();
+        }
+    }, [rotator_configuration_capable]);
+
+    useEffect(() => {
+        if (rotator_configuration == null) return;
+        set_rotator_form({
+            backend: rotator_configuration.backend || "unconfigured",
+            hamlib: {
+                model_id: rotator_configuration.hamlib?.model_id || DEFAULT_HAMLIB_MODEL_ID,
+                token_values: rotator_configuration.hamlib?.token_values || {},
+            },
+        });
+    }, [rotator_configuration]);
+
+    useEffect(() => {
+        if (rotator_form?.backend === "hamlib" && rotator_form.hamlib.model_id) {
+            describe_rotator_model(rotator_form.hamlib.model_id);
+        }
+    }, [rotator_form?.backend, rotator_form?.hamlib?.model_id]);
+
+    useEffect(() => {
+        const result = rotator_connection_result ?? rotator_configuration_result;
+        if (result?.ok === true) {
+            set_rotator_save_state({ ok: true, message: "Rotator operation succeeded." });
+        } else if (result?.ok === false) {
+            set_rotator_save_state({
+                ok: false,
+                message: result.errors?.[0]?.message || "Rotator operation failed.",
+            });
+        }
+    }, [rotator_configuration_result, rotator_connection_result]);
 
     useEffect(() => {
         if (
@@ -514,6 +597,46 @@ function CatControl({
     function test_connection() {
         set_save_state({ ok: null, message: "Testing radio connection..." });
         test_radio_connection(serialized_configuration(selected_rig));
+    }
+
+    function serialized_rotator_configuration() {
+        if (rotator_form.backend !== "hamlib") {
+            return { backend: "unconfigured" };
+        }
+        const form = {
+            ...rotator_form,
+            hamlib: {
+                ...rotator_form.hamlib,
+                token_values: {
+                    ...rotator_form.hamlib.token_values,
+                    ...(rotator_connection_kind === "network" &&
+                    !rotator_form.hamlib.token_values.rot_pathname
+                        ? {
+                              rot_pathname: `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`,
+                          }
+                        : {}),
+                },
+            },
+        };
+        return {
+            backend: "hamlib",
+            hamlib: materialized_hamlib(
+                form,
+                selected_rotator_descriptors,
+                serial_ports,
+                selected_rotator_model?.port_type,
+            ),
+        };
+    }
+
+    function save_rotator_configuration() {
+        set_rotator_save_state({ ok: null, message: "Saving rotator hardware..." });
+        apply_rotator_configuration(serialized_rotator_configuration());
+    }
+
+    function test_rotator() {
+        set_rotator_save_state({ ok: null, message: "Testing rotator connection..." });
+        test_rotator_connection(serialized_rotator_configuration());
     }
 
     if (radio_config_apply_ref != null) {
@@ -802,6 +925,204 @@ function CatControl({
                                     {save_state.details}
                                 </code>
                             </details>
+                        ) : null}
+                    </div>
+                </section>
+            ) : null}
+            {rotator_configuration_capable && rotator_form != null ? (
+                <section
+                    className="mb-6 flex flex-col gap-4 border-t pt-4"
+                    aria-label="Rotator hardware settings"
+                >
+                    <h4 className="text-lg">Rotator hardware</h4>
+                    <label className="flex flex-col gap-1" htmlFor="rotator-backend">
+                        <span>Backend</span>
+                        <Select
+                            id="rotator-backend"
+                            value={rotator_form.backend}
+                            onChange={event => {
+                                set_rotator_save_state(null);
+                                set_rotator_form(current => ({
+                                    ...current,
+                                    backend: event.target.value,
+                                }));
+                            }}
+                        >
+                            <option value="unconfigured">Unconfigured</option>
+                            <option value="hamlib">Hamlib</option>
+                        </Select>
+                    </label>
+                    {rotator_form.backend === "hamlib" ? (
+                        <div className="flex flex-col gap-3">
+                            <label className="flex flex-col gap-1" htmlFor="rotator-hamlib-model">
+                                <span>Model</span>
+                                <SearchSelect
+                                    inputId="rotator-hamlib-model"
+                                    aria-label="Rotator model"
+                                    className="w-full"
+                                    filterOption={search_filter}
+                                    isOptionDisabled={option => option.isDisabled}
+                                    formatOptionLabel={option =>
+                                        option.disabled_reason
+                                            ? `${option.label} — ${option.disabled_reason}`
+                                            : option.label
+                                    }
+                                    value={selected_rotator_model ?? null}
+                                    onChange={option => {
+                                        if (!option) return;
+                                        set_rotator_save_state(null);
+                                        set_rotator_form(current => ({
+                                            ...current,
+                                            hamlib: {
+                                                model_id: option.value,
+                                                token_values: {},
+                                            },
+                                        }));
+                                    }}
+                                    styles={search_select_styles(colors)}
+                                    options={rotator_model_options}
+                                />
+                            </label>
+                            <h5 className="border-t pt-3 font-semibold">
+                                {rotator_connection_kind === "network"
+                                    ? "Network connection"
+                                    : rotator_connection_kind === "serial"
+                                      ? "Serial connection"
+                                      : "Device configuration"}
+                            </h5>
+                            {rotator_connection_kind === "network" ? (
+                                <div className="grid gap-3 min-[720px]:grid-cols-2">
+                                    <label className="flex flex-col gap-1" htmlFor="rotator-host">
+                                        <span>Host</span>
+                                        <Input
+                                            id="rotator-host"
+                                            value={
+                                                network_endpoint(
+                                                    rotator_form.hamlib.token_values.rot_pathname ||
+                                                        `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`,
+                                                ).host
+                                            }
+                                            onChange={event =>
+                                                set_rotator_form(current => ({
+                                                    ...current,
+                                                    hamlib: {
+                                                        ...current.hamlib,
+                                                        token_values: {
+                                                            ...current.hamlib.token_values,
+                                                            rot_pathname: network_pathname(
+                                                                event.target.value,
+                                                                network_endpoint(
+                                                                    current.hamlib.token_values
+                                                                        .rot_pathname ||
+                                                                        `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`,
+                                                                ).port,
+                                                            ),
+                                                        },
+                                                    },
+                                                }))
+                                            }
+                                        />
+                                    </label>
+                                    <label className="flex flex-col gap-1" htmlFor="rotator-port">
+                                        <span>Port</span>
+                                        <Input
+                                            id="rotator-port"
+                                            type="number"
+                                            min="1"
+                                            max="65535"
+                                            value={
+                                                network_endpoint(
+                                                    rotator_form.hamlib.token_values.rot_pathname ||
+                                                        `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`,
+                                                ).port
+                                            }
+                                            onChange={event =>
+                                                set_rotator_form(current => ({
+                                                    ...current,
+                                                    hamlib: {
+                                                        ...current.hamlib,
+                                                        token_values: {
+                                                            ...current.hamlib.token_values,
+                                                            rot_pathname: network_pathname(
+                                                                network_endpoint(
+                                                                    current.hamlib.token_values
+                                                                        .rot_pathname ||
+                                                                        `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`,
+                                                                ).host,
+                                                                event.target.value,
+                                                            ),
+                                                        },
+                                                    },
+                                                }))
+                                            }
+                                        />
+                                    </label>
+                                </div>
+                            ) : rotator_connection_kind === "serial" ? (
+                                <div className="grid gap-3 min-[720px]:grid-cols-2">
+                                    {serial_descriptors(selected_rotator_descriptors).map(
+                                        descriptor => (
+                                            <DescriptorInput
+                                                key={descriptor.token}
+                                                descriptor={descriptor}
+                                                error_tokens={[]}
+                                                colors={colors}
+                                                serial_ports={serial_ports}
+                                                value={descriptor_value(
+                                                    descriptor,
+                                                    rotator_form.hamlib.token_values[
+                                                        descriptor.token
+                                                    ],
+                                                    serial_ports,
+                                                    selected_rotator_model?.port_type,
+                                                )}
+                                                on_change={value =>
+                                                    set_rotator_form(current => ({
+                                                        ...current,
+                                                        hamlib: {
+                                                            ...current.hamlib,
+                                                            token_values: {
+                                                                ...current.hamlib.token_values,
+                                                                [descriptor.token]: value,
+                                                            },
+                                                        },
+                                                    }))
+                                                }
+                                            />
+                                        ),
+                                    )}
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
+                    <div className="flex items-center gap-3">
+                        <Button
+                            type="button"
+                            className="whitespace-nowrap px-2 py-1 text-xs"
+                            on_click={test_rotator}
+                        >
+                            Test connection
+                        </Button>
+                        <Button
+                            type="button"
+                            className="whitespace-nowrap px-2 py-1 text-xs"
+                            on_click={save_rotator_configuration}
+                        >
+                            Apply
+                        </Button>
+                        {rotator_save_state ? (
+                            <p
+                                className={
+                                    rotator_save_state.ok === true
+                                        ? "text-green-600"
+                                        : rotator_save_state.ok === false
+                                          ? "text-red-600"
+                                          : "text-gray-500"
+                                }
+                                role={rotator_save_state.ok === false ? "alert" : "status"}
+                            >
+                                {rotator_save_state.message}
+                            </p>
                         ) : null}
                     </div>
                 </section>

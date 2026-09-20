@@ -1,11 +1,13 @@
 import hamlib_config_policy from "@shared/hamlib_ui_config_policy.json";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const radio = vi.hoisted(() => ({ current: null }));
+const rotator = vi.hoisted(() => ({ current: null }));
 
 vi.mock("@/hooks/useRadio", () => ({ default: () => radio.current }));
+vi.mock("@/hooks/useRotator", () => ({ default: () => rotator.current }));
 vi.mock("@/hooks/useColors", () => ({
     useColors: () => ({
         colors: {
@@ -122,6 +124,18 @@ function render_cat(radio_config_apply_ref = null) {
 
 describe("CAT control settings", () => {
     beforeEach(() => {
+        rotator.current = {
+            rotator_models: [],
+            rotator_model_details: {},
+            rotator_configuration: null,
+            rotator_configuration_result: null,
+            rotator_connection_result: null,
+            list_rotator_models: vi.fn(),
+            describe_rotator_model: vi.fn(),
+            get_rotator_configuration: vi.fn(),
+            apply_rotator_configuration: vi.fn(() => Promise.resolve({ ok: true })),
+            test_rotator_connection: vi.fn(),
+        };
         radio.current = {
             radio_capabilities: { radio_configuration: true, backends: ["hamlib"] },
             radio_configuration: configuration(),
@@ -481,6 +495,54 @@ describe("CAT control settings", () => {
         ).toBeNull();
         await user.selectOptions(screen.getByLabelText("Rig"), "rig2");
         expect(errors.textContent).toContain("Invalid Rig 2 model");
+    });
+
+    it("configures a network rotator through Hamlib", async () => {
+        const user = userEvent.setup();
+        radio.current.radio_capabilities.rotator_configuration = true;
+        rotator.current.rotator_models = [
+            {
+                id: "2",
+                manufacturer: "Hamlib",
+                model: "NET rotctl",
+                port_type: "network",
+                enabled: true,
+            },
+            {
+                id: "701",
+                manufacturer: "WA6UFQ",
+                model: "PcRotor",
+                port_type: "parallel",
+                enabled: false,
+                disabled_reason: "model cannot get or set position",
+            },
+        ];
+        rotator.current.rotator_model_details = {
+            2: [
+                {
+                    kind: "path",
+                    token: "rot_pathname",
+                    label: "Pathname",
+                    tooltip: "",
+                    default: "",
+                },
+            ],
+        };
+        rotator.current.rotator_configuration = {
+            backend: "hamlib",
+            hamlib: { model_id: "2", token_values: { rot_pathname: "localhost:4533" } },
+        };
+        render_cat();
+
+        const section = screen.getByRole("region", { name: "Rotator hardware settings" });
+        expect(within(section).getByLabelText("Host").value).toBe("localhost");
+        expect(within(section).getByLabelText("Port").value).toBe("4533");
+        await user.click(within(section).getByRole("button", { name: "Apply" }));
+
+        expect(rotator.current.apply_rotator_configuration).toHaveBeenCalledWith({
+            backend: "hamlib",
+            hamlib: { model_id: "2", token_values: { rot_pathname: "localhost:4533" } },
+        });
     });
 
     it("keeps logger integration available for legacy CAT servers", () => {
