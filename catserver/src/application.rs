@@ -10,7 +10,7 @@ use crate::{
     radio_factory,
     radio_manager::RadioManager,
     rotator_config::RotatorConfig,
-    rotator_manager::RotatorManager,
+    rotator_manager::{ActiveRotatorBackend, RotatorManager},
     server::{Server, ServerConfig},
     startup_radio, tray_icon,
     tray_icon::UserEvent,
@@ -125,12 +125,14 @@ async fn run_singleton(
     let active_rotator_config = rotator.snapshot().config;
     if use_dummy_rotator {
         rotator
-            .replace(active_rotator_config, "dummy_rotator", || {
-                Box::new(DummyRotator::new())
-            })
+            .replace(
+                active_rotator_config,
+                ActiveRotatorBackend::DummyOverride,
+                || Box::new(DummyRotator::new()),
+            )
             .await?;
     } else if let Some(config) = active_rotator_config.hamlib().cloned() {
-        let selected = format!("hamlib:{}", config.model_id);
+        let selected = ActiveRotatorBackend::Configured(config.clone());
         rotator
             .replace(active_rotator_config, selected, move || {
                 Box::new(HamlibRotator::new(config.clone()))
@@ -140,7 +142,7 @@ async fn run_singleton(
     let rotator_snapshot = rotator.snapshot();
     tracing::info!(
         ?rotator_snapshot.connection,
-        selected = rotator_snapshot.selected,
+        selected = %rotator_snapshot.selected,
         "Rotator startup completed"
     );
     let local_port = server_config.local_port;

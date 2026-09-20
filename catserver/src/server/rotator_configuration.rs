@@ -98,10 +98,14 @@ impl RotatorConfiguration {
         if let Err(error) = config.validate() {
             return invalid_configuration(error);
         }
-        let Some((_, factory)) = rotator_factory::factory(&config) else {
+        let Some((selected, factory)) = rotator_factory::factory(&config) else {
             return ConfigurationResult::success();
         };
-        match self.manager.test_connection(move || factory()).await {
+        match self
+            .manager
+            .test_connection(config, selected, move || factory())
+            .await
+        {
             Ok(()) => ConfigurationResult::success(),
             Err(error) => manager_failure(error),
         }

@@ -4,8 +4,9 @@ use axum::extract::ws::Message;
 
 use super::{rotator::process, rotator_configuration::RotatorConfiguration};
 use crate::{
-    hamlib_device_config::HamlibDeviceConfig, rotator_config::RotatorConfig,
-    rotator_manager::RotatorManager,
+    hamlib_device_config::HamlibDeviceConfig,
+    rotator_config::RotatorConfig,
+    rotator_manager::{ActiveRotatorBackend, RotatorManager},
 };
 
 fn response_json(message: Message) -> serde_json::Value {
@@ -64,6 +65,9 @@ async fn tests_candidate_without_replacing_active_configuration() {
     assert_eq!(response["event"], "rotator_connection_result");
     assert_eq!(response["ok"], true);
     assert_eq!(manager.snapshot().config, RotatorConfig::Unconfigured);
-    assert_eq!(manager.snapshot().selected, "unconfigured");
+    assert_eq!(
+        manager.snapshot().selected,
+        ActiveRotatorBackend::Unconfigured
+    );
     manager.shutdown().await.unwrap();
 }

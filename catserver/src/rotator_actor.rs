@@ -9,7 +9,9 @@ use crate::{
     device_actor::{DeviceFactory, Worker},
     rotator::{Rotator, RotatorError},
     rotator_config::RotatorConfig,
-    rotator_manager::{RotatorConnectionState, RotatorManagerError, RotatorSnapshot},
+    rotator_manager::{
+        ActiveRotatorBackend, RotatorConnectionState, RotatorManagerError, RotatorSnapshot,
+    },
 };
 
 pub(crate) type RotatorFactory = DeviceFactory<Box<dyn Rotator>>;
@@ -22,12 +24,14 @@ pub(crate) enum Command {
     },
     Replace {
         config: RotatorConfig,
-        selected: String,
+        selected: ActiveRotatorBackend,
         factory: RotatorFactory,
         persist: bool,
         reply: oneshot::Sender<Result<(), RotatorManagerError>>,
     },
     Test {
+        config: RotatorConfig,
+        selected: ActiveRotatorBackend,
         factory: RotatorFactory,
         reply: oneshot::Sender<Result<(), RotatorError>>,
     },
@@ -103,7 +107,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                     retry_delay = Duration::from_secs(1);
                     let mut state = snapshot.write().unwrap_or_else(|error| error.into_inner());
                     state.config = config;
-                    state.selected = "unconfigured".into();
+                    state.selected = ActiveRotatorBackend::Unconfigured;
                     state.connection = RotatorConnectionState::Disconnected;
                     state.last_error = None;
                     state.last_status = crate::rotator::RotatorStatus::disconnected("unconfigured");
@@ -124,12 +128,12 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                     Ok(())
                 };
                 if result.is_ok() {
-                    tracing::info!(selected, "Replacing rotator backend");
+                    tracing::info!(selected = %selected, "Replacing rotator backend");
                     {
                         let mut state = snapshot.write().unwrap_or_else(|error| error.into_inner());
                         state.config = config;
                         state.selected = selected.clone();
-                        state.last_status.name = selected;
+                        state.last_status.name = selected.to_string();
                     }
                     let success = replace_from_factory(&snapshot, &next_factory, &mut rotator);
                     factory = Some(next_factory);
@@ -138,10 +142,40 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                 }
                 let _ = reply.send(result);
             }
-            Command::Test { factory, reply } => {
-                let mut candidate = factory();
+            Command::Test {
+                config,
+                selected,
+                factory: test_factory,
+                reply,
+            } => {
+                let active_is_healthy = {
+                    let state = snapshot.read().unwrap_or_else(|error| error.into_inner());
+                    state.config == config
+                        && state.selected == selected
+                        && state.connection == RotatorConnectionState::Connected
+                };
+                if active_is_healthy {
+                    let _ = reply.send(Ok(()));
+                    continue;
+                }
+
+                {
+                    let mut state = snapshot.write().unwrap_or_else(|error| error.into_inner());
+                    state.connection = RotatorConnectionState::Disconnected;
+                    state.last_status.status = "disconnected".into();
+                }
+                drop(rotator.take());
+                let mut candidate = test_factory();
                 let result = candidate.init().and_then(|()| candidate.status()).map(drop);
                 drop(candidate);
+
+                if let Some(active_factory) = &factory {
+                    let success = replace_from_factory(&snapshot, active_factory, &mut rotator);
+                    retry_delay = Duration::from_secs(1);
+                    next_action = Some(schedule_after_attempt(success, &mut retry_delay));
+                } else {
+                    next_action = None;
+                }
                 let _ = reply.send(result);
             }
             Command::Retry(reply) => {
@@ -186,6 +220,7 @@ fn replace_from_factory(
     factory: &RotatorFactory,
     rotator: &mut Option<Box<dyn Rotator>>,
 ) -> bool {
+    drop(rotator.take());
     let mut candidate = factory();
     let result = candidate.init().and_then(|()| candidate.status());
     let success = publish_status(snapshot, result).is_ok();

@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::{
     device_actor::{Worker, WorkerStopped},
+    hamlib_device_config::HamlibDeviceConfig,
     rotator::{Rotator, RotatorError, RotatorStatus},
     rotator_actor::{Command, RotatorFactory, spawn},
     rotator_config::{RotatorConfig, RotatorConfigError},
@@ -13,9 +14,26 @@ pub enum RotatorConnectionState {
     Disconnected,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ActiveRotatorBackend {
+    Unconfigured,
+    DummyOverride,
+    Configured(HamlibDeviceConfig),
+}
+
+impl std::fmt::Display for ActiveRotatorBackend {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unconfigured => formatter.write_str("unconfigured"),
+            Self::DummyOverride => formatter.write_str("dummy_rotator"),
+            Self::Configured(config) => write!(formatter, "hamlib:{}", config.model_id),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct RotatorSnapshot {
-    pub selected: String,
+    pub selected: ActiveRotatorBackend,
     pub connection: RotatorConnectionState,
     pub last_error: Option<RotatorError>,
     pub config: RotatorConfig,
@@ -62,7 +80,7 @@ impl RotatorManager {
             .validate()
             .map_err(RotatorManagerError::InvalidConfig)?;
         let snapshot = Arc::new(RwLock::new(RotatorSnapshot {
-            selected: "unconfigured".into(),
+            selected: ActiveRotatorBackend::Unconfigured,
             connection: RotatorConnectionState::Disconnected,
             last_error: None,
             config,
@@ -90,29 +108,33 @@ impl RotatorManager {
     pub async fn replace(
         &self,
         config: RotatorConfig,
-        selected: impl Into<String>,
+        selected: ActiveRotatorBackend,
         factory: impl Fn() -> Box<dyn Rotator> + Send + Sync + 'static,
     ) -> Result<(), RotatorManagerError> {
-        self.replace_inner(config, selected.into(), Arc::new(factory), false)
+        self.replace_inner(config, selected, Arc::new(factory), false)
             .await
     }
 
     pub async fn replace_and_persist(
         &self,
         config: RotatorConfig,
-        selected: impl Into<String>,
+        selected: ActiveRotatorBackend,
         factory: impl Fn() -> Box<dyn Rotator> + Send + Sync + 'static,
     ) -> Result<(), RotatorManagerError> {
-        self.replace_inner(config, selected.into(), Arc::new(factory), true)
+        self.replace_inner(config, selected, Arc::new(factory), true)
             .await
     }
 
     pub async fn test_connection(
         &self,
+        config: RotatorConfig,
+        selected: ActiveRotatorBackend,
         factory: impl Fn() -> Box<dyn Rotator> + Send + Sync + 'static,
     ) -> Result<(), RotatorManagerError> {
         self.worker
             .request(|reply| Command::Test {
+                config,
+                selected,
                 factory: Arc::new(factory),
                 reply,
             })
@@ -162,7 +184,7 @@ impl RotatorManager {
     async fn replace_inner(
         &self,
         config: RotatorConfig,
-        selected: String,
+        selected: ActiveRotatorBackend,
         factory: RotatorFactory,
         persist: bool,
     ) -> Result<(), RotatorManagerError> {
