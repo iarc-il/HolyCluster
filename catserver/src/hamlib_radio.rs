@@ -10,7 +10,6 @@ pub(crate) struct HamlibRadio {
     config: [Option<HamlibRigConfig>; 2],
     rigs: [Option<hamlib::Rig<hamlib::Open>>; 2],
     current_rig: u8,
-    failures: u8,
 }
 
 impl HamlibRadio {
@@ -19,7 +18,6 @@ impl HamlibRadio {
             config: [Some(rig1), rig2],
             rigs: [None, None],
             current_rig: 1,
-            failures: 0,
         }
     }
 
@@ -27,14 +25,6 @@ impl HamlibRadio {
         self.rigs
             .get_mut(usize::from(self.current_rig - 1))?
             .as_mut()
-    }
-
-    fn result(&mut self, success: bool) {
-        self.failures = if success { 0 } else { self.failures + 1 };
-        if self.failures == 5 {
-            self.failures = 0;
-            let _ = self.init();
-        }
     }
 }
 
@@ -52,19 +42,17 @@ impl Radio for HamlibRadio {
             .transpose()
             .map_err(|error| init_error(2, error))?;
         self.rigs = [Some(rig1), rig2];
-        self.failures = 0;
         Ok(())
     }
 
     fn set_mode(&mut self, mode: Mode) {
-        let result = self.rig().map(|rig| {
+        let _ = self.rig().map(|rig| {
             rig.set_mode(
                 hamlib::Vfo::Current,
                 hamlib_mode(mode),
                 hamlib::PassbandWidth::new(0),
             )
         });
-        self.result(result.is_some_and(|result| result.is_ok()));
     }
 
     fn set_rig(&mut self, rig: u8) {
@@ -74,16 +62,13 @@ impl Radio for HamlibRadio {
     }
 
     fn set_frequency(&mut self, slot: Slot, freq: Freq) {
-        let result = if let (Some(rig), Ok(frequency)) = (
+        if let (Some(rig), Ok(frequency)) = (
             self.rig(),
             hamlib::Frequency::new(f64::from(freq.as_u32_hz())),
         ) && rig.set_vfo(vfo(slot)).is_ok()
         {
-            rig.set_frequency(hamlib::Vfo::Current, frequency).is_ok()
-        } else {
-            false
-        };
-        self.result(result);
+            let _ = rig.set_frequency(hamlib::Vfo::Current, frequency);
+        }
     }
 
     fn get_status(&mut self) -> Status {
@@ -107,7 +92,6 @@ impl Radio for HamlibRadio {
         if status.status == "disconnected" {
             self.rigs = [None, None];
         }
-        self.result(status.status == "connected");
         status
     }
 }

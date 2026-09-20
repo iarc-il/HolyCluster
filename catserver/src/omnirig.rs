@@ -15,7 +15,6 @@ struct OmnirigInner {
 pub struct OmnirigRadio {
     current_rig: u8,
     inner: Option<OmnirigInner>,
-    reconnect_counter: u8,
     omnirig_available: bool,
 }
 impl OmnirigRadio {
@@ -23,7 +22,6 @@ impl OmnirigRadio {
         Self {
             current_rig: 1,
             inner: None,
-            reconnect_counter: 0,
             omnirig_available: false,
         }
     }
@@ -67,14 +65,6 @@ impl OmnirigRadio {
             status: "disconnected".into(),
             mode: "unknown".into(),
             current_rig: self.current_rig,
-        }
-    }
-
-    fn record_connection_failure(&mut self) {
-        self.reconnect_counter = self.reconnect_counter.saturating_add(1);
-        if self.reconnect_counter >= 5 {
-            self.reconnect_counter = 0;
-            let _ = self.init();
         }
     }
 }
@@ -251,14 +241,8 @@ impl Radio for OmnirigRadio {
         };
 
         let status = match status_str.as_str() {
-            "On-line" => {
-                self.reconnect_counter = 0;
-                "connected"
-            }
-            "Rig is not responding" => {
-                self.record_connection_failure();
-                "disconnected"
-            }
+            "On-line" => "connected",
+            "Rig is not responding" => "disconnected",
             "Port is not available" => "disconnected",
             _ => "unknown",
         }

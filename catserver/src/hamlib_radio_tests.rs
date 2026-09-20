@@ -139,13 +139,11 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
     };
     assert_eq!(disconnected, Status::disconnected(1));
 
-    // Restart the server on the configured endpoint. HamlibRadio retries after
-    // five failed polls; the subsequent poll must observe the new connection.
     server.stop();
     let mut restarted = FakeRigctld::start(address, 14_074_000, "USB");
-    for _ in 0..4 {
-        assert_eq!(radio.get_status(), Status::disconnected(1));
-    }
+    radio
+        .init()
+        .expect("manager retry reconstructs the connection");
     assert_eq!(
         radio.get_status(),
         Status {
