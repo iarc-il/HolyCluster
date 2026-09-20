@@ -75,6 +75,18 @@ impl RotatorManager {
         })
     }
 
+    pub async fn clear(&self, persist: bool) -> Result<(), RotatorManagerError> {
+        let config = RotatorConfig::unconfigured();
+        self.worker
+            .request(|reply| Command::Clear {
+                config,
+                persist,
+                reply,
+            })
+            .await
+            .map_err(map_worker_stopped)?
+    }
+
     pub async fn replace(
         &self,
         config: RotatorConfig,
@@ -93,6 +105,20 @@ impl RotatorManager {
     ) -> Result<(), RotatorManagerError> {
         self.replace_inner(config, selected.into(), Arc::new(factory), true)
             .await
+    }
+
+    pub async fn test_connection(
+        &self,
+        factory: impl Fn() -> Box<dyn Rotator> + Send + Sync + 'static,
+    ) -> Result<(), RotatorManagerError> {
+        self.worker
+            .request(|reply| Command::Test {
+                factory: Arc::new(factory),
+                reply,
+            })
+            .await
+            .map_err(map_worker_stopped)?
+            .map_err(RotatorManagerError::Operation)
     }
 
     pub async fn retry(&self) -> Result<(), RotatorManagerError> {

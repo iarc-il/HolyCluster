@@ -76,6 +76,18 @@ fn rejects_unknown_tokens_without_overwriting_file() {
 }
 
 #[test]
+fn rejects_models_without_position_capabilities() {
+    let config = RotatorConfig::Hamlib {
+        hamlib: HamlibDeviceConfig {
+            model_id: "701".into(),
+            token_values: BTreeMap::new(),
+        },
+    };
+
+    assert!(config.validate().is_err());
+}
+
+#[test]
 fn removes_temporary_file_when_rename_fails() {
     let directory = TestDir::new();
     let file = directory.file();

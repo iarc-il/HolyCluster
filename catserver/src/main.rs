@@ -24,6 +24,7 @@ mod rig;
 mod rotator;
 mod rotator_actor;
 pub mod rotator_config;
+mod rotator_factory;
 pub mod rotator_manager;
 #[cfg(not(windows))]
 mod rotctld;

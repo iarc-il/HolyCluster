@@ -12,6 +12,7 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub(super) struct Capabilities {
     pub(super) radio_configuration: bool,
+    pub(super) rotator_configuration: bool,
     pub(super) backends: Vec<&'static str>,
 }
 
@@ -52,7 +53,7 @@ pub(super) enum ConfigurationFailure {
 }
 
 impl ConfigurationResult {
-    fn success() -> Self {
+    pub(super) fn success() -> Self {
         Self {
             ok: true,
             failure: None,
@@ -60,7 +61,7 @@ impl ConfigurationResult {
         }
     }
 
-    fn failure(failure: ConfigurationFailure, errors: Vec<FieldError>) -> Self {
+    pub(super) fn failure(failure: ConfigurationFailure, errors: Vec<FieldError>) -> Self {
         Self {
             ok: false,
             failure: Some(failure),
@@ -98,6 +99,7 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
     fn capabilities(&self) -> Capabilities {
         Capabilities {
             radio_configuration: true,
+            rotator_configuration: true,
             backends: supported_backends(),
         }
     }

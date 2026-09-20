@@ -14,6 +14,7 @@ use crate::{radio_manager::RadioManager, rotator_manager::RotatorManager, tray_i
 use super::{
     ServerConfig,
     radio_configuration::{RadioConfiguration, production},
+    rotator_configuration::RotatorConfiguration,
 };
 
 #[derive(Clone)]
@@ -25,6 +26,7 @@ pub(super) struct AppState {
     pub(super) sender: Sender<UserEvent>,
     pub(super) ui_dir: Option<PathBuf>,
     pub(super) radio_configuration: RadioConfiguration,
+    pub(super) rotator_configuration: RotatorConfiguration,
     pub(super) updater: UpdateService,
 }
 
@@ -44,6 +46,7 @@ impl AppState {
         Ok(Self {
             server_config,
             radio_configuration: production(radio.clone()),
+            rotator_configuration: RotatorConfiguration::new(rotator.clone()),
             updater: UpdateService::new(manifest_url, env!("VERSION"))?,
             radio,
             rotator,

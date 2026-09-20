@@ -4,12 +4,15 @@ mod radio_actions;
 mod radio_configuration;
 mod radio_control;
 mod rotator;
+mod rotator_configuration;
 mod session;
 mod state;
 mod update;
 
 #[cfg(test)]
 mod radio_actions_tests;
+#[cfg(test)]
+mod rotator_tests;
 #[cfg(test)]
 mod tests;
 

@@ -31,6 +31,7 @@ pub(super) async fn ws_handler(
                 state.radio,
                 state.radio_configuration,
                 state.rotator,
+                state.rotator_configuration,
                 receiver,
             )
             .await
@@ -46,6 +47,7 @@ async fn handle_ws_socket(
     radio_manager: RadioManager,
     radio_configuration: super::radio_configuration::RadioConfiguration,
     rotator_manager: RotatorManager,
+    rotator_configuration: super::rotator_configuration::RotatorConfiguration,
     mut receiver: Receiver<UserEvent>,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = socket.split();
@@ -69,7 +71,11 @@ async fn handle_ws_socket(
                     }
                     client_sender.send(radio::status_message(&radio_manager.status(), &radio_manager)?).await?;
                 }
-                Message::Text(text) if rotator::is_message(text.as_ref()) => rotator::process(text.to_string(), &rotator_manager).await?,
+                Message::Text(text) if rotator::is_message(text.as_ref()) => {
+                    if let Some(response) = rotator::process(text.to_string(), &rotator_manager, &rotator_configuration).await? {
+                        client_sender.send(response).await?;
+                    }
+                },
                 Message::Text(text) => {
                     if forward_to_server(&mut server_sender, utils::axum_to_tungstenite_message(Message::Text(text))).await? { break; }
                 }

@@ -17,6 +17,7 @@ impl RadioConfigurationService for Service {
     fn capabilities(&self) -> Capabilities {
         Capabilities {
             radio_configuration: true,
+            rotator_configuration: true,
             backends: vec!["hamlib"],
         }
     }

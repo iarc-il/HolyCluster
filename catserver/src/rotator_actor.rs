@@ -15,12 +15,21 @@ use crate::{
 pub(crate) type RotatorFactory = DeviceFactory<Box<dyn Rotator>>;
 
 pub(crate) enum Command {
+    Clear {
+        config: RotatorConfig,
+        persist: bool,
+        reply: oneshot::Sender<Result<(), RotatorManagerError>>,
+    },
     Replace {
         config: RotatorConfig,
         selected: String,
         factory: RotatorFactory,
         persist: bool,
         reply: oneshot::Sender<Result<(), RotatorManagerError>>,
+    },
+    Test {
+        factory: RotatorFactory,
+        reply: oneshot::Sender<Result<(), RotatorError>>,
     },
     Retry(oneshot::Sender<()>),
     SetAzimuth(f64, oneshot::Sender<Result<(), RotatorError>>),
@@ -73,6 +82,31 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         };
         match command {
+            Command::Clear {
+                config,
+                persist,
+                reply,
+            } => {
+                let result = if persist {
+                    config.save().map_err(RotatorManagerError::InvalidConfig)
+                } else {
+                    Ok(())
+                };
+                if result.is_ok() {
+                    drop(rotator.take());
+                    factory = None;
+                    next_action = None;
+                    retry_delay = Duration::from_secs(1);
+                    let mut state = snapshot.write().unwrap_or_else(|error| error.into_inner());
+                    state.config = config;
+                    state.selected = "unconfigured".into();
+                    state.connection = RotatorConnectionState::Disconnected;
+                    state.last_error = None;
+                    state.last_status = crate::rotator::RotatorStatus::disconnected("unconfigured");
+                    state.target_azimuth = None;
+                }
+                let _ = reply.send(result);
+            }
             Command::Replace {
                 config,
                 selected,
@@ -97,6 +131,12 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                     retry_delay = Duration::from_secs(1);
                     next_action = Some(schedule_after_attempt(success, &mut retry_delay));
                 }
+                let _ = reply.send(result);
+            }
+            Command::Test { factory, reply } => {
+                let mut candidate = factory();
+                let result = candidate.init().and_then(|()| candidate.status()).map(drop);
+                drop(candidate);
                 let _ = reply.send(result);
             }
             Command::Retry(reply) => {

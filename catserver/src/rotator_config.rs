@@ -32,6 +32,7 @@ pub enum RotatorConfigError {
     UnsupportedVersion(u8),
     InvalidDevice(HamlibDeviceConfigError),
     UnknownModel(hamlib::RotatorModelId),
+    UnsupportedModel(hamlib::RotatorModelId),
     UnknownToken(String),
     InvalidValue(String, String),
     WriteTemporary(IoFailure),
@@ -152,8 +153,11 @@ impl RotatorConfig {
         let catalog = hamlib::RotatorCatalog::load().map_err(|error| {
             RotatorConfigError::InvalidValue("catalog".into(), error.to_string())
         })?;
-        if catalog.model(model).is_none() {
+        let Some(metadata) = catalog.model(model) else {
             return Err(RotatorConfigError::UnknownModel(model));
+        };
+        if !metadata.can_get_position() || !metadata.can_set_position() {
+            return Err(RotatorConfigError::UnsupportedModel(model));
         }
         let descriptors = catalog.describe_model(model).map_err(|error| {
             RotatorConfigError::InvalidValue("catalog".into(), error.to_string())
