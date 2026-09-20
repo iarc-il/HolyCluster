@@ -338,7 +338,9 @@ fn validate_configuration(configuration: &RadioConfig) -> Vec<FieldError> {
 }
 
 fn validate_rig_configuration(field: &str, configuration: &RadioRigConfig) -> Vec<FieldError> {
-    match configuration.validate() {
+    match configuration
+        .validate_for_platform(crate::radio_config_store::RadioConfigPlatform::current())
+    {
         Ok(()) => {}
         Err(error) => return vec![config_error(field, error)],
     }

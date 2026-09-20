@@ -192,14 +192,6 @@ impl RadioConfig {
         self.save_to_path_with_rename_for_platform(path, platform, replace_file)
     }
 
-    pub(crate) fn save_to_path_with_rename(
-        &self,
-        path: &Path,
-        rename: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
-    ) -> Result<(), RadioConfigError> {
-        self.save_to_path_with_rename_for_platform(path, RadioConfigPlatform::current(), rename)
-    }
-
     pub(crate) fn save_to_path_with_rename_for_platform(
         &self,
         path: &Path,
@@ -256,10 +248,6 @@ impl RadioConfig {
         }
     }
 
-    pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
-        self.validate_for_platform(RadioConfigPlatform::current())
-    }
-
     pub(crate) fn validate_for_platform(
         &self,
         platform: RadioConfigPlatform,
@@ -278,10 +266,6 @@ impl RadioRigConfig {
             Ok(ResolvedRadioModel::Omnirig(_)) => RadioBackendKind::Omnirig,
             Err(_) => RadioBackendKind::Unconfigured,
         }
-    }
-
-    pub(crate) fn validate(&self) -> Result<(), RadioConfigError> {
-        self.validate_for_platform(RadioConfigPlatform::current())
     }
 
     pub(crate) fn validate_for_platform(
