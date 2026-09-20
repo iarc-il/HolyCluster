@@ -26,6 +26,38 @@ impl fmt::Display for RigModelId {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub struct RotatorModelId(u32);
+
+impl RotatorModelId {
+    pub const DUMMY: Self = Self(1);
+    pub const NET_ROTCTL: Self = Self(2);
+    pub const PSTROTATOR: Self = Self(3);
+
+    pub const fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl fmt::Display for RotatorModelId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+impl FromStr for RotatorModelId {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        value.parse().map(Self)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct RigModel {
     pub(crate) id: RigModelId,

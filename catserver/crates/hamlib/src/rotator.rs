@@ -1,18 +1,18 @@
 #![allow(unsafe_code)]
 
-use crate::{ConfigDescriptor, ConfigValue, HamlibError, RigModelId, ffi};
+use crate::{ConfigDescriptor, ConfigValue, HamlibError, RotatorModelId, ffi};
 use hamlib_sys as sys;
 use std::{ffi::CString, marker::PhantomData, ptr::NonNull, rc::Rc};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RotatorModel {
-    id: RigModelId,
+    id: RotatorModelId,
     manufacturer: String,
     model: String,
     version: String,
 }
 impl RotatorModel {
-    pub const fn id(&self) -> RigModelId {
+    pub const fn id(&self) -> RotatorModelId {
         self.id
     }
     pub fn manufacturer(&self) -> &str {
@@ -46,13 +46,16 @@ impl RotatorCatalog {
                 return 0;
             }
             unsafe {
-                (&mut *(data as *mut Vec<RigModelId>))
-                    .push(RigModelId::new((*metadata).rot_model as u32));
+                (&mut *(data as *mut Vec<RotatorModelId>))
+                    .push(RotatorModelId::new((*metadata).rot_model as u32));
             }
             1
         }
         let result = unsafe {
-            sys::rot_list_foreach(Some(callback), (&mut ids as *mut Vec<RigModelId>).cast())
+            sys::rot_list_foreach(
+                Some(callback),
+                (&mut ids as *mut Vec<RotatorModelId>).cast(),
+            )
         };
         ffi::hamlib_result("rot_list_foreach", result)?;
         Ok(Self {
@@ -70,7 +73,7 @@ impl RotatorCatalog {
     pub fn models(&self) -> &[RotatorModel] {
         &self.models
     }
-    pub fn model(&self, id: RigModelId) -> Option<&RotatorModel> {
+    pub fn model(&self, id: RotatorModelId) -> Option<&RotatorModel> {
         self.models.iter().find(|model| model.id == id)
     }
 }
@@ -80,7 +83,7 @@ pub struct RotatorOpen;
 
 pub struct Rotator<S> {
     handle: NonNull<sys::ROT>,
-    model: RigModelId,
+    model: RotatorModelId,
     open: bool,
     owned: bool,
     state: PhantomData<S>,
@@ -108,13 +111,15 @@ impl Position {
 }
 
 impl Rotator<RotatorClosed> {
-    pub fn new(model: RigModelId) -> Result<Self, HamlibError> {
+    pub fn new(model: RotatorModelId) -> Result<Self, HamlibError> {
         ffi::load_backends()?;
         let handle =
-            NonNull::new(unsafe { sys::rot_init(model.get()) }).ok_or(HamlibError::NullHandle {
-                operation: "rot_init",
-                model,
-            })?;
+            NonNull::new(unsafe { sys::rot_init(model.get()) }).ok_or(
+                HamlibError::NullRotatorHandle {
+                    operation: "rot_init",
+                    model,
+                },
+            )?;
         Ok(Self {
             handle,
             model,

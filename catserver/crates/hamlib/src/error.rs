@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::RigModelId;
+use crate::{RigModelId, RotatorModelId};
 
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum ConfigTokenError {
@@ -66,6 +66,11 @@ pub enum HamlibError {
     NullHandle {
         operation: &'static str,
         model: RigModelId,
+    },
+    #[error("Hamlib {operation} returned a null handle for rotator model {model}")]
+    NullRotatorHandle {
+        operation: &'static str,
+        model: RotatorModelId,
     },
     #[error("Hamlib {operation} returned null error text for code {code}")]
     NullErrorText { operation: &'static str, code: i32 },
