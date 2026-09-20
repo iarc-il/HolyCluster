@@ -40,8 +40,12 @@ pub(crate) enum Command {
 pub(crate) fn spawn(
     snapshot: Arc<RwLock<RotatorSnapshot>>,
 ) -> Result<Worker<Command>, RotatorManagerError> {
-    Worker::spawn("rotator-worker", move |receiver| run(receiver, snapshot))
-        .map_err(RotatorManagerError::WorkerStart)
+    Worker::spawn("rotator-worker", move |receiver| {
+        tracing::info!("Rotator worker started");
+        run(receiver, snapshot);
+        tracing::info!("Rotator worker stopped");
+    })
+    .map_err(RotatorManagerError::WorkerStart)
 }
 
 fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>) {
@@ -120,6 +124,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                     Ok(())
                 };
                 if result.is_ok() {
+                    tracing::info!(selected, "Replacing rotator backend");
                     {
                         let mut state = snapshot.write().unwrap_or_else(|error| error.into_inner());
                         state.config = config;
@@ -195,6 +200,9 @@ fn publish_status(
     match result {
         Ok(status) if status.status == "connected" => {
             let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());
+            if snapshot.connection != RotatorConnectionState::Connected {
+                tracing::info!(selected = %snapshot.selected, "Rotator connected");
+            }
             snapshot.connection = RotatorConnectionState::Connected;
             snapshot.last_error = None;
             snapshot.last_status = status;
@@ -203,6 +211,11 @@ fn publish_status(
         Ok(status) => {
             let error = RotatorError::new("status", status.status.clone());
             let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());
+            if snapshot.connection != RotatorConnectionState::Disconnected
+                || snapshot.last_error.as_ref() != Some(&error)
+            {
+                tracing::warn!(selected = %snapshot.selected, %error, "Rotator disconnected");
+            }
             snapshot.connection = RotatorConnectionState::Disconnected;
             snapshot.last_error = Some(error.clone());
             snapshot.last_status = status;
@@ -217,6 +230,11 @@ fn publish_status(
 
 fn publish_error(snapshot: &RwLock<RotatorSnapshot>, error: RotatorError) {
     let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());
+    if snapshot.connection != RotatorConnectionState::Disconnected
+        || snapshot.last_error.as_ref() != Some(&error)
+    {
+        tracing::warn!(selected = %snapshot.selected, %error, "Rotator disconnected");
+    }
     snapshot.connection = RotatorConnectionState::Disconnected;
     snapshot.last_error = Some(error);
     snapshot.last_status.status = "disconnected".into();
