@@ -88,6 +88,10 @@ impl RadioSlot {
                     return;
                 }
                 self.status = status;
+                self.last_error = Some(RadioInitError::Io {
+                    backend: "radio",
+                    kind: std::io::ErrorKind::NotConnected,
+                });
             }
             Err(error) => self.last_error = Some(with_rig(error, rig)),
         }
