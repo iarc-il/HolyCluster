@@ -146,8 +146,8 @@ async def telnet_and_collect(
                         logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
         except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
-            task_logger.exception(f"Connection failed: {host}:{port}  {e}")
-            logger.exception(f"Connection failed: {host}:{port}  {e}")
+            task_logger.error(f"Connection failed: {host}:{port}  {e}")
+            logger.error(f"Connection failed: {host}:{port}  {e}")
             capture_exception(e, operation="collector.telnet.reconnect")
 
         except asyncio.CancelledError:
