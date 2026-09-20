@@ -1,5 +1,12 @@
+import CanvasMap from "@/components/CanvasMap/index.jsx";
+import LeftColumn from "@/components/LeftColumn.jsx";
+import MapControls from "@/components/MapControls.jsx";
+import SidePanel from "@/components/SidePanel.jsx";
+import SpotsTable from "@/components/SpotsTable.jsx";
+import TopBar from "@/components/TopBar.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
+import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
     TOUR_CLOSE_LEFT_PANEL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
@@ -26,14 +33,7 @@ import Maidenhead from "maidenhead";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-const CanvasMap = lazy(() => import("@/components/CanvasMap/index.jsx"));
 const HistoryBar = lazy(() => import("@/components/history/HistoryBar.jsx"));
-const LeftColumn = lazy(() => import("@/components/LeftColumn.jsx"));
-const MapControls = lazy(() => import("@/components/MapControls.jsx"));
-const SidePanel = lazy(() => import("@/components/SidePanel.jsx"));
-const SpotsTable = lazy(() => import("@/components/SpotsTable.jsx"));
-const TopBar = lazy(() => import("@/components/TopBar.jsx"));
-const WebsiteTour = lazy(() => import("@/components/tour/WebsiteTour.jsx"));
 
 const AUTO_RADIUS_PADDING_KM = 1000;
 const AUTO_RADIUS_RECENTER_ENABLED = false;
@@ -318,44 +318,38 @@ function MainContent({
             className={`relative h-full w-full ${is_map_fullscreen ? "fixed inset-0 z-[80]" : ""}`}
             style={{ backgroundColor: colors.theme.background }}
         >
-            <Suspense fallback={null}>
-                <MapControls
-                    map_controls={map_controls}
-                    set_map_controls={set_map_controls}
-                    set_radius_in_km={set_radius_in_km}
-                    can_undo_cat={prev_freqs.length > 0}
-                    undo_cat={undo_freq_change}
-                    is_map_fullscreen={is_map_fullscreen}
-                    toggle_map_fullscreen={toggle_map_fullscreen}
-                    is_mobile={is_md_device}
-                    is_history_mode={is_history_mode}
-                    toggle_history={toggle_history}
-                />
-            </Suspense>
-            <Suspense fallback={null}>
-                <CanvasMap
-                    map_controls={map_controls}
-                    set_map_controls={set_map_controls}
-                    set_cat_to_spot={set_cat_to_spot}
-                    radius_in_km={radius_in_km}
-                    set_radius_in_km={set_radius_in_km}
-                    auto_radius={auto_radius}
-                    set_auto_radius={set_auto_radius}
-                    night_time={is_history_mode ? display_end : null}
-                />
-            </Suspense>
+            <MapControls
+                map_controls={map_controls}
+                set_map_controls={set_map_controls}
+                set_radius_in_km={set_radius_in_km}
+                can_undo_cat={prev_freqs.length > 0}
+                undo_cat={undo_freq_change}
+                is_map_fullscreen={is_map_fullscreen}
+                toggle_map_fullscreen={toggle_map_fullscreen}
+                is_mobile={is_md_device}
+                is_history_mode={is_history_mode}
+                toggle_history={toggle_history}
+            />
+            <CanvasMap
+                map_controls={map_controls}
+                set_map_controls={set_map_controls}
+                set_cat_to_spot={set_cat_to_spot}
+                radius_in_km={radius_in_km}
+                set_radius_in_km={set_radius_in_km}
+                auto_radius={auto_radius}
+                set_auto_radius={set_auto_radius}
+                night_time={is_history_mode ? display_end : null}
+            />
         </div>
     );
 
     const table =
         compare_version(local_version, [1, 0, 0, 0]) > 0 || local_version == null ? (
-            <Suspense fallback={null}>
-                <SpotsTable
-                    set_cat_to_spot={set_cat_to_spot}
-                    table_sort={table_sort}
-                    set_table_sort={set_table_sort}
-                />
-            </Suspense>
+            <SpotsTable
+                set_cat_to_spot={set_cat_to_spot}
+                table_sort={table_sort}
+                set_table_sort={set_table_sort}
+            />
         ) : (
             <UnsupportedVersion />
         );
@@ -408,24 +402,18 @@ function MainContent({
     return (
         <div className="flex flex-col h-full" data-tour="app-shell">
             <UpdateConsentDialog />
-            <Suspense fallback={null}>
-                <TopBar
-                    set_map_controls={set_map_controls}
-                    set_radius_in_km={set_radius_in_km}
-                    toggled_ui={toggled_ui}
-                    set_toggled_ui={set_toggled_ui}
-                    dev_mode={dev_mode}
-                />
-            </Suspense>
+            <TopBar
+                set_map_controls={set_map_controls}
+                set_radius_in_km={set_radius_in_km}
+                toggled_ui={toggled_ui}
+                set_toggled_ui={set_toggled_ui}
+                dev_mode={dev_mode}
+            />
             <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
                 <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
-                    <Suspense fallback={null}>
-                        <LeftColumn toggled_ui={toggled_ui}>
-                            <Suspense fallback={null}>
-                                <WebsiteTour />
-                            </Suspense>
-                        </LeftColumn>
-                    </Suspense>
+                    <LeftColumn toggled_ui={toggled_ui}>
+                        <WebsiteTour />
+                    </LeftColumn>
                     {is_md_device ? (
                         <Tabs
                             key={mobile_tabs_key}
@@ -446,15 +434,13 @@ function MainContent({
                             ))}
                         </div>
                     )}
-                    <Suspense fallback={null}>
-                        <SidePanel
-                            toggled_ui={toggled_ui}
-                            set_toggled_ui={set_toggled_ui}
-                            set_cat_to_spot={set_cat_to_spot}
-                            active_view={active_view}
-                            set_active_view={set_active_view}
-                        />
-                    </Suspense>
+                    <SidePanel
+                        toggled_ui={toggled_ui}
+                        set_toggled_ui={set_toggled_ui}
+                        set_cat_to_spot={set_cat_to_spot}
+                        active_view={active_view}
+                        set_active_view={set_active_view}
+                    />
                 </div>
                 {is_history_mode && (
                     <Suspense fallback={null}>
