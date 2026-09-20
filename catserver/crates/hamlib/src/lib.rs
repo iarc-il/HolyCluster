@@ -13,7 +13,7 @@ mod safety_tests;
 
 pub use error::{
     CatalogError, ConfigTokenError, ConfigValueError, ConfigurationError, HamlibError,
-    RigControlError,
+    RigControlError, RotatorConfigurationError,
 };
 pub use rig::{Closed, Frequency, Mode, Open, PassbandWidth, Rig, Vfo};
 pub use rotator::{Position, Rotator, RotatorCatalog, RotatorClosed, RotatorModel, RotatorOpen};

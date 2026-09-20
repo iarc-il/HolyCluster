@@ -2,7 +2,7 @@
 
 use crate::{
     CatalogError, ConfigDescriptor, ConfigValue, HamlibError, RigModelStatus, RigPortType,
-    RotatorModelId, ffi,
+    RotatorConfigurationError, RotatorModelId, ffi,
 };
 use hamlib_sys as sys;
 use std::{ffi::CString, marker::PhantomData, ops::RangeInclusive, ptr::NonNull, rc::Rc};
@@ -133,20 +133,31 @@ impl Rotator<RotatorClosed> {
         &mut self,
         descriptor: &ConfigDescriptor,
         value: &ConfigValue,
-    ) -> Result<(), HamlibError> {
-        descriptor
-            .validate(value)
-            .map_err(|_| HamlibError::InvalidConfiguration)?;
-        let name = CString::new(descriptor.token().as_str())
-            .map_err(|_| HamlibError::InvalidConfiguration)?;
+    ) -> Result<(), RotatorConfigurationError> {
+        descriptor.validate(value)?;
+        let name = CString::new(descriptor.token().as_str()).map_err(|_| {
+            RotatorConfigurationError::UnknownToken {
+                model: self.model,
+                token: descriptor.token().as_str().to_owned(),
+            }
+        })?;
         let parameter = unsafe { sys::rot_confparam_lookup(self.handle.as_ptr(), name.as_ptr()) };
         if parameter.is_null() {
-            return Err(HamlibError::InvalidConfiguration);
+            return Err(RotatorConfigurationError::UnknownToken {
+                model: self.model,
+                token: descriptor.token().as_str().to_owned(),
+            });
         }
-        let value = CString::new(value.encoded()).map_err(|_| HamlibError::InvalidConfiguration)?;
+        let value = CString::new(value.encoded()).map_err(|_| {
+            RotatorConfigurationError::UnknownToken {
+                model: self.model,
+                token: descriptor.token().as_str().to_owned(),
+            }
+        })?;
         ffi::hamlib_result("rot_set_conf", unsafe {
             sys::rot_set_conf(self.handle.as_ptr(), (*parameter).token, value.as_ptr())
-        })
+        })?;
+        Ok(())
     }
     pub fn open(mut self) -> Result<Rotator<RotatorOpen>, HamlibError> {
         ffi::hamlib_result("rot_open", unsafe { sys::rot_open(self.handle.as_ptr()) })?;

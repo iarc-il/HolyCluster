@@ -38,6 +38,19 @@ pub enum ConfigurationError {
 }
 
 #[derive(Clone, Debug, Error, PartialEq)]
+pub enum RotatorConfigurationError {
+    #[error(transparent)]
+    Value(#[from] ConfigValueError),
+    #[error("configuration token {token} is unavailable on rotator model {model}")]
+    UnknownToken {
+        model: RotatorModelId,
+        token: String,
+    },
+    #[error(transparent)]
+    Hamlib(#[from] HamlibError),
+}
+
+#[derive(Clone, Debug, Error, PartialEq)]
 pub enum RigControlError {
     #[error(transparent)]
     Hamlib(#[from] HamlibError),
@@ -53,8 +66,6 @@ pub enum RigControlError {
 pub enum HamlibError {
     #[error("invalid rotator position")]
     InvalidPosition,
-    #[error("invalid configuration")]
-    InvalidConfiguration,
     #[error("Hamlib {operation} failed with code {code}: {message}")]
     Call {
         operation: &'static str,
