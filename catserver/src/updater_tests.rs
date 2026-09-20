@@ -1,5 +1,5 @@
 #[cfg(target_os = "linux")]
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsRawFd, FromRawFd};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::{fs, io, io::Cursor, path::Path};
@@ -195,7 +195,16 @@ fn makes_staged_appimage_executable() {
 #[cfg(target_os = "linux")]
 #[test]
 fn closes_inherited_descriptors_on_exec() {
-    let file = fs::File::open("/dev/null").unwrap();
+    let source = fs::File::open("/dev/null").unwrap();
+    let fd = unsafe {
+        libc::fcntl(
+            source.as_raw_fd(),
+            libc::F_DUPFD_CLOEXEC,
+            libc::STDERR_FILENO + 1,
+        )
+    };
+    assert_ne!(fd, -1);
+    let file = unsafe { fs::File::from_raw_fd(fd) };
     let standard_flags = (0..=libc::STDERR_FILENO)
         .map(|fd| unsafe { libc::fcntl(fd, libc::F_GETFD) })
         .collect::<Vec<_>>();
