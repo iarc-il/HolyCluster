@@ -10,7 +10,7 @@ use crate::{
     radio_actor::Command,
     radio_config::RadioConfig,
     radio_manager::{ConnectionState, RadioManager},
-    rig::{Mode, Radio, RadioInitError, Slot, Status},
+    rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status},
 };
 
 struct FailingRadio;
@@ -22,9 +22,15 @@ impl Radio for FailingRadio {
             kind: std::io::ErrorKind::ConnectionRefused,
         })
     }
-    fn set_mode(&mut self, _: Mode) {}
-    fn set_rig(&mut self, _: u8) {}
-    fn set_frequency(&mut self, _: Slot, _: crate::freq::Freq) {}
+    fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
+        Ok(())
+    }
+    fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
+        Ok(())
+    }
+    fn set_frequency(&mut self, _: Slot, _: crate::freq::Freq) -> Result<(), RadioOperationError> {
+        Ok(())
+    }
     fn get_status(&mut self) -> Status {
         Status::disconnected(1)
     }
@@ -62,14 +68,17 @@ impl Radio for ThreadRadio {
         }
         Ok(())
     }
-    fn set_mode(&mut self, _: Mode) {
+    fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
         self.record();
+        Ok(())
     }
-    fn set_rig(&mut self, _: u8) {
+    fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
         self.record();
+        Ok(())
     }
-    fn set_frequency(&mut self, _: Slot, _: crate::freq::Freq) {
+    fn set_frequency(&mut self, _: Slot, _: crate::freq::Freq) -> Result<(), RadioOperationError> {
         self.record();
+        Ok(())
     }
     fn get_status(&mut self) -> Status {
         self.record();

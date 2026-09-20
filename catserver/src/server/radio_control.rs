@@ -82,7 +82,7 @@ mod tests {
     use crate::{
         freq::Freq,
         radio_config::{ActiveRadioBackend, RadioConfig},
-        rig::{Radio, RadioInitError, Slot, Status},
+        rig::{Radio, RadioInitError, RadioOperationError, Slot, Status},
     };
 
     struct RecordingRadio {
@@ -94,7 +94,7 @@ mod tests {
             Ok(())
         }
 
-        fn set_mode(&mut self, mode: crate::rig::Mode) {
+        fn set_mode(&mut self, mode: crate::rig::Mode) -> Result<(), RadioOperationError> {
             let name = match mode {
                 crate::rig::Mode::USB => "USB",
                 crate::rig::Mode::LSB => "LSB",
@@ -103,11 +103,16 @@ mod tests {
                 crate::rig::Mode::CW => "CW",
             };
             self.modes.lock().unwrap().push(name);
+            Ok(())
         }
 
-        fn set_rig(&mut self, _: u8) {}
+        fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
+            Ok(())
+        }
 
-        fn set_frequency(&mut self, _: Slot, _: Freq) {}
+        fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
+            Ok(())
+        }
 
         fn get_status(&mut self) -> Status {
             Status {

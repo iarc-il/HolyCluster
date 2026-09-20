@@ -5,7 +5,7 @@ use serde::Serialize;
 use crate::freq::Freq;
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Mode {
     USB,
     LSB,
@@ -69,11 +69,47 @@ impl fmt::Display for RadioInitError {
 
 impl std::error::Error for RadioInitError {}
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct RadioOperationError {
+    pub rig: u8,
+    pub operation: &'static str,
+    pub message: String,
+    pub details: Option<String>,
+}
+
+impl RadioOperationError {
+    pub fn new(rig: u8, operation: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            rig,
+            operation,
+            message: message.into(),
+            details: None,
+        }
+    }
+
+    pub fn with_rig(mut self, rig: u8) -> Self {
+        self.rig = rig;
+        self
+    }
+}
+
+impl fmt::Display for RadioOperationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "radio {} failed for rig {}: {}",
+            self.operation, self.rig, self.message
+        )
+    }
+}
+
+impl std::error::Error for RadioOperationError {}
+
 pub trait Radio {
     fn init(&mut self) -> Result<(), RadioInitError>;
-    fn set_mode(&mut self, mode: Mode);
-    fn set_rig(&mut self, rig: u8);
-    fn set_frequency(&mut self, slot: Slot, freq: Freq);
+    fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError>;
+    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError>;
+    fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError>;
     fn get_status(&mut self) -> Status;
 }
 
@@ -94,9 +130,23 @@ impl Radio for UnavailableRadio {
             kind: io::ErrorKind::NotFound,
         })
     }
-    fn set_mode(&mut self, _: Mode) {}
-    fn set_rig(&mut self, _: u8) {}
-    fn set_frequency(&mut self, _: Slot, _: Freq) {}
+    fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
+        Err(RadioOperationError::new(1, "set mode", "radio unavailable"))
+    }
+    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError> {
+        Err(RadioOperationError::new(
+            rig,
+            "select rig",
+            "radio unavailable",
+        ))
+    }
+    fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
+        Err(RadioOperationError::new(
+            1,
+            "set frequency",
+            "radio unavailable",
+        ))
+    }
     fn get_status(&mut self) -> Status {
         Status::disconnected(1)
     }

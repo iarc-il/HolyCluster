@@ -35,14 +35,18 @@ fn dummy_rigs_select_vfos_and_map_modes() {
     let (rig1, rig2) = config(true);
     let mut radio = HamlibRadio::new(rig1, rig2);
     radio.init().unwrap();
-    radio.set_frequency(Slot::A, Freq::from_u32_hz(7_100_000));
-    radio.set_mode(Mode::CW);
+    radio
+        .set_frequency(Slot::A, Freq::from_u32_hz(7_100_000))
+        .unwrap();
+    radio.set_mode(Mode::CW).unwrap();
     assert_eq!(radio.get_status().freq, 7_100_000);
     assert_eq!(radio.get_status().mode, "CW");
 
-    radio.set_rig(2);
-    radio.set_frequency(Slot::B, Freq::from_u32_hz(14_200_000));
-    radio.set_mode(Mode::Data);
+    radio.set_rig(2).unwrap();
+    radio
+        .set_frequency(Slot::B, Freq::from_u32_hz(14_200_000))
+        .unwrap();
+    radio.set_mode(Mode::Data).unwrap();
     assert_eq!(radio.get_status().current_rig, 2);
     assert_eq!(radio.get_status().freq, 14_200_000);
     assert_eq!(radio.get_status().mode, "DIGI");
@@ -79,8 +83,10 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
         }
     );
 
-    radio.set_frequency(Slot::B, Freq::from_u32_hz(14_200_000));
-    radio.set_mode(Mode::CW);
+    radio
+        .set_frequency(Slot::B, Freq::from_u32_hz(14_200_000))
+        .unwrap();
+    radio.set_mode(Mode::CW).unwrap();
     assert_eq!(
         radio.get_status(),
         Status {
@@ -90,9 +96,9 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
             current_rig: 1,
         }
     );
-    radio.set_mode(Mode::Data);
+    radio.set_mode(Mode::Data).unwrap();
     assert_eq!(radio.get_status().mode, "DIGI");
-    radio.set_mode(Mode::Rtty);
+    radio.set_mode(Mode::Rtty).unwrap();
     assert_eq!(radio.get_status().mode, "RTTY");
     let commands = server.commands();
     assert!(
@@ -192,7 +198,7 @@ fn absent_second_rig_is_not_selected() {
     let (rig1, rig2) = config(false);
     let mut radio = HamlibRadio::new(rig1, rig2);
     radio.init().unwrap();
-    radio.set_rig(2);
+    radio.set_rig(2).unwrap();
     assert_eq!(radio.get_status().current_rig, 1);
 }
 

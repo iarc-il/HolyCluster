@@ -3,7 +3,7 @@ use std::fmt;
 use crate::{
     freq::Freq,
     radio_config::HamlibRigConfig,
-    rig::{Mode, Radio, RadioInitError, Slot, Status},
+    rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status},
 };
 
 pub(crate) struct HamlibRadio {
@@ -45,30 +45,37 @@ impl Radio for HamlibRadio {
         Ok(())
     }
 
-    fn set_mode(&mut self, mode: Mode) {
-        let _ = self.rig().map(|rig| {
-            rig.set_mode(
+    fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
+        let current_rig = self.current_rig;
+        self.rig()
+            .ok_or_else(|| unavailable(current_rig, "set mode"))?
+            .set_mode(
                 hamlib::Vfo::Current,
                 hamlib_mode(mode),
                 hamlib::PassbandWidth::new(0),
             )
-        });
+            .map_err(|error| operation_error(current_rig, "set mode", error))
     }
 
-    fn set_rig(&mut self, rig: u8) {
-        if (1..=2).contains(&rig) && self.rigs[usize::from(rig - 1)].is_some() {
-            self.current_rig = rig;
+    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError> {
+        if !(1..=2).contains(&rig) || self.rigs[usize::from(rig - 1)].is_none() {
+            return Err(unavailable(rig, "select rig"));
         }
+        self.current_rig = rig;
+        Ok(())
     }
 
-    fn set_frequency(&mut self, slot: Slot, freq: Freq) {
-        if let (Some(rig), Ok(frequency)) = (
-            self.rig(),
-            hamlib::Frequency::new(f64::from(freq.as_u32_hz())),
-        ) && rig.set_vfo(vfo(slot)).is_ok()
-        {
-            let _ = rig.set_frequency(hamlib::Vfo::Current, frequency);
-        }
+    fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError> {
+        let current_rig = self.current_rig;
+        let frequency = hamlib::Frequency::new(f64::from(freq.as_u32_hz()))
+            .map_err(|error| operation_error(current_rig, "validate frequency", error))?;
+        let rig = self
+            .rig()
+            .ok_or_else(|| unavailable(current_rig, "set frequency"))?;
+        rig.set_vfo(vfo(slot))
+            .map_err(|error| operation_error(current_rig, "select VFO", error))?;
+        rig.set_frequency(hamlib::Vfo::Current, frequency)
+            .map_err(|error| operation_error(current_rig, "set frequency", error))
     }
 
     fn get_status(&mut self) -> Status {
@@ -129,6 +136,18 @@ fn open(config: &HamlibRigConfig) -> Result<hamlib::Rig<hamlib::Open>, OpenError
             .map_err(OpenError::from_display)?;
     }
     rig.open().map_err(OpenError::from_hamlib)
+}
+
+fn unavailable(rig: u8, operation: &'static str) -> RadioOperationError {
+    RadioOperationError::new(rig, operation, "radio unavailable")
+}
+
+fn operation_error(
+    rig: u8,
+    operation: &'static str,
+    error: impl fmt::Display,
+) -> RadioOperationError {
+    RadioOperationError::new(rig, operation, error.to_string())
 }
 
 fn init_error(rig: u8, error: OpenError) -> RadioInitError {

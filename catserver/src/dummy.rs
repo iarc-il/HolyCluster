@@ -1,5 +1,5 @@
 use crate::freq::Freq;
-use crate::rig::{Mode, Radio, RadioInitError, Slot, Status};
+use crate::rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status};
 
 #[derive(Clone)]
 pub struct DummyRadio {
@@ -29,19 +29,24 @@ impl Radio for DummyRadio {
         Ok(())
     }
 
-    fn set_mode(&mut self, mode: Mode) {
+    fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
         self.mode = mode;
+        Ok(())
     }
 
-    fn set_rig(&mut self, rig: u8) {
+    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError> {
         if rig != 1 && rig != 2 {
-            tracing::error!(rig, "Ignoring invalid dummy rig");
-            return;
+            return Err(RadioOperationError::new(
+                rig,
+                "select rig",
+                "invalid rig number",
+            ));
         }
         self.current_rig = rig;
+        Ok(())
     }
 
-    fn set_frequency(&mut self, slot: Slot, freq: Freq) {
+    fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError> {
         match (slot, self.current_rig) {
             (Slot::A, 1) => {
                 self.freq_a1 = freq;
@@ -56,9 +61,14 @@ impl Radio for DummyRadio {
                 self.freq_b2 = freq;
             }
             (_, rig) => {
-                tracing::error!(rig, "Ignoring frequency update for invalid dummy rig");
+                return Err(RadioOperationError::new(
+                    rig,
+                    "set frequency",
+                    "invalid rig number",
+                ));
             }
         }
+        Ok(())
     }
 
     fn get_status(&mut self) -> Status {

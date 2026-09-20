@@ -163,6 +163,7 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
                     let failure = match &error {
                         RadioManagerError::InvalidConfig(_) => ConfigurationFailure::InvalidConfig,
                         RadioManagerError::Operation(_)
+                        | RadioManagerError::Command(_)
                         | RadioManagerError::WorkerStopped
                         | RadioManagerError::WorkerStart(_) => ConfigurationFailure::Connection,
                     };

@@ -10,7 +10,7 @@ use crate::{
     freq::Freq,
     radio_config::RadioConfig,
     radio_manager::{ConnectionState, RadioManager},
-    rig::{Mode, Radio, RadioInitError, Slot, Status},
+    rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status},
 };
 
 struct RetryRadio {
@@ -44,17 +44,52 @@ impl Radio for RetryRadio {
         }
         Ok(())
     }
-    fn set_mode(&mut self, _: Mode) {
+    fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
         self.record();
+        Ok(())
     }
-    fn set_rig(&mut self, _: u8) {
+    fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
         self.record();
+        Ok(())
     }
-    fn set_frequency(&mut self, _: Slot, _: Freq) {
+    fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
         self.record();
+        Ok(())
     }
     fn get_status(&mut self) -> Status {
         self.record();
+        Status {
+            freq: 0,
+            status: "connected".into(),
+            mode: "SSB".into(),
+            current_rig: 1,
+        }
+    }
+}
+
+struct WriteFailRadio {
+    attempts: Arc<AtomicUsize>,
+}
+
+impl Radio for WriteFailRadio {
+    fn init(&mut self) -> Result<(), RadioInitError> {
+        self.attempts.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
+        Err(RadioOperationError::new(1, "set mode", "write failed"))
+    }
+
+    fn set_rig(&mut self, _: u8) -> Result<(), RadioOperationError> {
+        Ok(())
+    }
+
+    fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
+        Ok(())
+    }
+
+    fn get_status(&mut self) -> Status {
         Status {
             freq: 0,
             status: "connected".into(),
@@ -82,17 +117,20 @@ impl Radio for OrderedRadio {
         self.event("init");
         Ok(())
     }
-    fn set_mode(&mut self, _: Mode) {
+    fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
         self.mode = "CW";
         self.event("mode");
+        Ok(())
     }
-    fn set_rig(&mut self, rig: u8) {
+    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError> {
         self.rig = rig;
         self.event("rig");
+        Ok(())
     }
-    fn set_frequency(&mut self, _: Slot, frequency: Freq) {
+    fn set_frequency(&mut self, _: Slot, frequency: Freq) -> Result<(), RadioOperationError> {
         self.frequency = frequency.as_u32_hz();
         self.event("frequency");
+        Ok(())
     }
     fn get_status(&mut self) -> Status {
         self.event("status");
@@ -103,6 +141,42 @@ impl Radio for OrderedRadio {
             current_rig: self.rig,
         }
     }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn write_failure_is_visible_and_schedules_recovery_when_reads_succeed() {
+    let config = RadioConfig::platform_default();
+    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let factory_attempts = Arc::clone(&attempts);
+    manager
+        .replace(config.clone(), config.effective_backend(false), move || {
+            Box::new(WriteFailRadio {
+                attempts: Arc::clone(&factory_attempts),
+            })
+        })
+        .await
+        .unwrap();
+
+    let error = manager
+        .set_mode_and_frequency(Mode::CW, Freq::from_u32_hz(7_100_000))
+        .await
+        .expect_err("failed write was reported as successful");
+    assert!(error.to_string().contains("set mode"));
+    let snapshot = manager.snapshot();
+    assert_eq!(snapshot.connection, ConnectionState::Disconnected);
+    assert_eq!(
+        snapshot
+            .last_operation_error
+            .as_ref()
+            .map(|error| error.operation),
+        Some("set mode")
+    );
+
+    tokio::time::sleep(std::time::Duration::from_millis(1_100)).await;
+    assert!(attempts.load(Ordering::SeqCst) >= 2);
+    assert_eq!(manager.snapshot().connection, ConnectionState::Connected);
+    manager.shutdown().await.unwrap();
 }
 
 #[tokio::test(flavor = "current_thread")]

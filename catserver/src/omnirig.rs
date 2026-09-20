@@ -3,7 +3,7 @@ use winsafe::prelude::oleaut_IDispatch;
 use winsafe::{CLSIDFromProgID, CoInitializeEx, IDispatch, co};
 
 use crate::freq::Freq;
-use crate::rig::{Mode, Radio, RadioInitError, Slot, Status};
+use crate::rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status};
 
 struct OmnirigInner {
     com_guard: CoUninitializeGuard,
@@ -140,38 +140,51 @@ impl Radio for OmnirigRadio {
         Ok(())
     }
 
-    fn set_mode(&mut self, mode: Mode) {
+    fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
         let mode = match mode {
             Mode::LSB => 0x04000000,
             Mode::USB => 0x02000000,
             Mode::CW => 0x00800000,
             Mode::Data => 0x08000000,
             Mode::Rtty => {
-                tracing::error!("OmniRig does not support RTTY mode");
-                return;
+                return Err(RadioOperationError::new(
+                    self.current_rig,
+                    "set mode",
+                    "OmniRig does not support RTTY mode",
+                ));
             }
         };
 
         let Some(rig) = self.current_rig() else {
             self.omnirig_available = false;
-            return;
+            return Err(RadioOperationError::new(
+                self.current_rig,
+                "set mode",
+                "OmniRig unavailable",
+            ));
         };
 
-        if let Err(err) = rig.invoke_put("Mode", &winsafe::Variant::I4(mode)) {
-            tracing::error!("Failed to set OmniRig mode: {err}");
-            self.inner = None;
-        }
+        rig.invoke_put("Mode", &winsafe::Variant::I4(mode))
+            .map(|_| ())
+            .map_err(|error| {
+                self.inner = None;
+                RadioOperationError::new(self.current_rig, "set mode", error.to_string())
+            })
     }
 
-    fn set_rig(&mut self, rig: u8) {
+    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError> {
         if rig != 1 && rig != 2 {
-            tracing::error!(rig, "Ignoring invalid OmniRig rig");
-            return;
+            return Err(RadioOperationError::new(
+                rig,
+                "select rig",
+                "invalid OmniRig rig",
+            ));
         }
         self.current_rig = rig;
+        Ok(())
     }
 
-    fn set_frequency(&mut self, vfo: Slot, freq: Freq) {
+    fn set_frequency(&mut self, vfo: Slot, freq: Freq) -> Result<(), RadioOperationError> {
         let vfo = match vfo {
             Slot::A => "FreqA",
             Slot::B => "FreqB",
@@ -179,13 +192,19 @@ impl Radio for OmnirigRadio {
         let freq = freq.as_u32_hz();
         let Some(rig) = self.current_rig() else {
             self.omnirig_available = false;
-            return;
+            return Err(RadioOperationError::new(
+                self.current_rig,
+                "set frequency",
+                "OmniRig unavailable",
+            ));
         };
 
-        if let Err(err) = rig.invoke_put(vfo, &winsafe::Variant::I4(freq as i32)) {
-            tracing::error!(vfo, "Failed to set OmniRig frequency: {err}");
-            self.inner = None;
-        }
+        rig.invoke_put(vfo, &winsafe::Variant::I4(freq as i32))
+            .map(|_| ())
+            .map_err(|error| {
+                self.inner = None;
+                RadioOperationError::new(self.current_rig, "set frequency", error.to_string())
+            })
     }
 
     fn get_status(&mut self) -> Status {

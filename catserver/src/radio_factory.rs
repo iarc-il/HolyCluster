@@ -4,7 +4,7 @@ use crate::{
     hamlib_radio::HamlibRadio,
     radio_actor::RadioFactory,
     radio_config::{ActiveRadioBackend, RadioConfig, RadioRigConfig},
-    rig::{Mode, Radio, RadioInitError, Slot, Status, UnavailableRadio},
+    rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status, UnavailableRadio},
 };
 
 #[cfg(windows)]
@@ -80,22 +80,34 @@ impl Radio for CompositeRadio {
         first_error.map_or(Ok(()), Err)
     }
 
-    fn set_mode(&mut self, mode: Mode) {
-        if let Some(rig) = self.current() {
-            rig.set_mode(mode);
-        }
+    fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
+        let current_rig = self.current_rig;
+        self.current()
+            .ok_or_else(|| RadioOperationError::new(current_rig, "set mode", "rig unavailable"))?
+            .set_mode(mode)
+            .map_err(|error| error.with_rig(current_rig))
     }
 
-    fn set_rig(&mut self, rig: u8) {
-        if (1..=2).contains(&rig) && self.rigs[usize::from(rig - 1)].is_some() {
-            self.current_rig = rig;
+    fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError> {
+        if !(1..=2).contains(&rig) || self.rigs[usize::from(rig - 1)].is_none() {
+            return Err(RadioOperationError::new(
+                rig,
+                "select rig",
+                "rig unavailable",
+            ));
         }
+        self.current_rig = rig;
+        Ok(())
     }
 
-    fn set_frequency(&mut self, slot: Slot, freq: Freq) {
-        if let Some(rig) = self.current() {
-            rig.set_frequency(slot, freq);
-        }
+    fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError> {
+        let current_rig = self.current_rig;
+        self.current()
+            .ok_or_else(|| {
+                RadioOperationError::new(current_rig, "set frequency", "rig unavailable")
+            })?
+            .set_frequency(slot, freq)
+            .map_err(|error| error.with_rig(current_rig))
     }
 
     fn get_status(&mut self) -> Status {
@@ -122,7 +134,7 @@ mod tests {
         freq::Freq,
         radio_config::{HamlibRigConfig, RadioConfig, RadioRigConfig},
         radio_manager::{ConnectionState, RadioManager},
-        rig::{Mode, Radio, RadioInitError, Slot, Status},
+        rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status},
     };
 
     struct RecordingRadio {
@@ -134,15 +146,19 @@ mod tests {
             Ok(())
         }
 
-        fn set_mode(&mut self, mode: Mode) {
+        fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
             self.events.lock().unwrap().push(format!("mode:{mode:?}"));
+            Ok(())
         }
 
-        fn set_rig(&mut self, rig: u8) {
+        fn set_rig(&mut self, rig: u8) -> Result<(), RadioOperationError> {
             self.events.lock().unwrap().push(format!("rig:{rig}"));
+            Ok(())
         }
 
-        fn set_frequency(&mut self, _: Slot, _: Freq) {}
+        fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
+            Ok(())
+        }
 
         fn get_status(&mut self) -> Status {
             Status::disconnected(0)
@@ -214,9 +230,9 @@ mod tests {
             })),
         );
 
-        radio.set_mode(Mode::USB);
-        radio.set_rig(2);
-        radio.set_mode(Mode::CW);
+        radio.set_mode(Mode::USB).unwrap();
+        radio.set_rig(2).unwrap();
+        radio.set_mode(Mode::CW).unwrap();
 
         assert_eq!(*rig1_events.lock().unwrap(), vec!["mode:USB".to_owned()]);
         assert_eq!(*rig2_events.lock().unwrap(), vec!["mode:CW".to_owned()]);

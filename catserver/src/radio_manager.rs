@@ -5,7 +5,7 @@ use crate::{
     freq::Freq,
     radio_actor::{Command, RadioFactory, spawn},
     radio_config::{ActiveRadioBackend, RadioConfig, RadioConfigError},
-    rig::{Mode, Radio, RadioInitError, Status},
+    rig::{Mode, Radio, RadioInitError, RadioOperationError, Status},
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -19,6 +19,7 @@ pub struct RadioSnapshot {
     pub selected: ActiveRadioBackend,
     pub connection: ConnectionState,
     pub last_error: Option<RadioInitError>,
+    pub last_operation_error: Option<RadioOperationError>,
     pub config: RadioConfig,
     pub last_status: Status,
 }
@@ -27,6 +28,7 @@ pub struct RadioSnapshot {
 pub enum RadioManagerError {
     InvalidConfig(RadioConfigError),
     Operation(RadioInitError),
+    Command(RadioOperationError),
     WorkerStopped,
     WorkerStart(std::io::Error),
 }
@@ -36,6 +38,7 @@ impl std::fmt::Display for RadioManagerError {
         match self {
             Self::InvalidConfig(error) => write!(formatter, "invalid radio configuration: {error}"),
             Self::Operation(error) => error.fmt(formatter),
+            Self::Command(error) => error.fmt(formatter),
             Self::WorkerStopped => write!(formatter, "radio worker stopped"),
             Self::WorkerStart(error) => write!(formatter, "failed to start radio worker: {error}"),
         }
@@ -59,6 +62,7 @@ impl RadioManager {
             selected: selected.clone(),
             connection: ConnectionState::Disconnected,
             last_error: None,
+            last_operation_error: None,
             config: config.clone(),
             last_status: Status::disconnected(1),
         }));
@@ -103,7 +107,10 @@ impl RadioManager {
     }
 
     pub async fn retry(&self) -> Result<(), RadioManagerError> {
-        self.call(Command::Retry).await
+        self.worker
+            .request(Command::Retry)
+            .await
+            .map_err(map_worker_stopped)
     }
     pub async fn set_rig(&self, rig: u8) -> Result<(), RadioManagerError> {
         self.call(|reply| Command::SetRig(rig, reply)).await
@@ -167,12 +174,13 @@ impl RadioManager {
 
     async fn call(
         &self,
-        command: impl FnOnce(tokio::sync::oneshot::Sender<()>) -> Command,
+        command: impl FnOnce(tokio::sync::oneshot::Sender<Result<(), RadioOperationError>>) -> Command,
     ) -> Result<(), RadioManagerError> {
         self.worker
             .request(command)
             .await
-            .map_err(map_worker_stopped)
+            .map_err(map_worker_stopped)?
+            .map_err(RadioManagerError::Command)
     }
 }
 
