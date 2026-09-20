@@ -1,8 +1,6 @@
-import CanvasMap from "@/components/CanvasMap/index.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import MapControls from "@/components/MapControls.jsx";
 import SidePanel from "@/components/SidePanel.jsx";
-import SpotsTable from "@/components/SpotsTable.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
@@ -32,7 +30,9 @@ import Maidenhead from "maidenhead";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+const CanvasMap = lazy(() => import("@/components/CanvasMap/index.jsx"));
 const HistoryBar = lazy(() => import("@/components/history/HistoryBar.jsx"));
+const SpotsTable = lazy(() => import("@/components/SpotsTable.jsx"));
 const WebsiteTour = lazy(() => import("@/components/tour/WebsiteTour.jsx"));
 
 const AUTO_RADIUS_PADDING_KM = 1000;
@@ -330,26 +330,30 @@ function MainContent({
                 is_history_mode={is_history_mode}
                 toggle_history={toggle_history}
             />
-            <CanvasMap
-                map_controls={map_controls}
-                set_map_controls={set_map_controls}
-                set_cat_to_spot={set_cat_to_spot}
-                radius_in_km={radius_in_km}
-                set_radius_in_km={set_radius_in_km}
-                auto_radius={auto_radius}
-                set_auto_radius={set_auto_radius}
-                night_time={is_history_mode ? display_end : null}
-            />
+            <Suspense fallback={null}>
+                <CanvasMap
+                    map_controls={map_controls}
+                    set_map_controls={set_map_controls}
+                    set_cat_to_spot={set_cat_to_spot}
+                    radius_in_km={radius_in_km}
+                    set_radius_in_km={set_radius_in_km}
+                    auto_radius={auto_radius}
+                    set_auto_radius={set_auto_radius}
+                    night_time={is_history_mode ? display_end : null}
+                />
+            </Suspense>
         </div>
     );
 
     const table =
         compare_version(local_version, [1, 0, 0, 0]) > 0 || local_version == null ? (
-            <SpotsTable
-                set_cat_to_spot={set_cat_to_spot}
-                table_sort={table_sort}
-                set_table_sort={set_table_sort}
-            />
+            <Suspense fallback={null}>
+                <SpotsTable
+                    set_cat_to_spot={set_cat_to_spot}
+                    table_sort={table_sort}
+                    set_table_sort={set_table_sort}
+                />
+            </Suspense>
         ) : (
             <UnsupportedVersion />
         );
