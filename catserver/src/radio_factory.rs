@@ -165,7 +165,7 @@ impl Radio for CompositeRadio {
             }
         }
         let current_rig = self.current_rig;
-        let slot = self.current().ok_or_else(|| RadioInitError::Io {
+        let slot = self.current().ok_or(RadioInitError::Io {
             backend: "unconfigured",
             kind: std::io::ErrorKind::NotFound,
         })?;

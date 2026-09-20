@@ -156,10 +156,11 @@ async fn connection_test_runs_and_drops_candidate_on_worker() {
         .unwrap();
 
     assert_eq!(manager.snapshot().connection, ConnectionState::Disconnected);
-    let events = events.lock().unwrap();
-    assert!(events.iter().all(|thread| *thread == events[0]));
-    assert_ne!(events[0], std::thread::current().id());
-    drop(events);
+    {
+        let events = events.lock().unwrap();
+        assert!(events.iter().all(|thread| *thread == events[0]));
+        assert_ne!(events[0], std::thread::current().id());
+    }
     manager.shutdown().await.unwrap();
 }
 
