@@ -134,6 +134,41 @@ async fn publishes_dummy_status_and_target() {
 }
 
 #[tokio::test]
+async fn cached_consumers_do_not_multiply_hardware_polls() {
+    let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let factory_events = Arc::clone(&events);
+    manager
+        .replace(RotatorConfig::unconfigured(), "recording", move || {
+            Box::new(RecordingRotator {
+                events: Arc::clone(&factory_events),
+                marker: Rc::new(()),
+            })
+        })
+        .await
+        .unwrap();
+    let polls_before = events
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(event, _)| *event == "status")
+        .count();
+
+    for _ in 0..100 {
+        let _ = manager.status();
+    }
+
+    let polls_after = events
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(event, _)| *event == "status")
+        .count();
+    assert_eq!(polls_after, polls_before);
+    manager.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn reconnects_without_consumers() {
     let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
     let attempts = Arc::new(AtomicUsize::new(0));
