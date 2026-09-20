@@ -1,7 +1,3 @@
-import LeftColumn from "@/components/LeftColumn.jsx";
-import MapControls from "@/components/MapControls.jsx";
-import SidePanel from "@/components/SidePanel.jsx";
-import TopBar from "@/components/TopBar.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
 import {
@@ -32,7 +28,11 @@ import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "re
 
 const CanvasMap = lazy(() => import("@/components/CanvasMap/index.jsx"));
 const HistoryBar = lazy(() => import("@/components/history/HistoryBar.jsx"));
+const LeftColumn = lazy(() => import("@/components/LeftColumn.jsx"));
+const MapControls = lazy(() => import("@/components/MapControls.jsx"));
+const SidePanel = lazy(() => import("@/components/SidePanel.jsx"));
 const SpotsTable = lazy(() => import("@/components/SpotsTable.jsx"));
+const TopBar = lazy(() => import("@/components/TopBar.jsx"));
 const WebsiteTour = lazy(() => import("@/components/tour/WebsiteTour.jsx"));
 
 const AUTO_RADIUS_PADDING_KM = 1000;
@@ -318,18 +318,20 @@ function MainContent({
             className={`relative h-full w-full ${is_map_fullscreen ? "fixed inset-0 z-[80]" : ""}`}
             style={{ backgroundColor: colors.theme.background }}
         >
-            <MapControls
-                map_controls={map_controls}
-                set_map_controls={set_map_controls}
-                set_radius_in_km={set_radius_in_km}
-                can_undo_cat={prev_freqs.length > 0}
-                undo_cat={undo_freq_change}
-                is_map_fullscreen={is_map_fullscreen}
-                toggle_map_fullscreen={toggle_map_fullscreen}
-                is_mobile={is_md_device}
-                is_history_mode={is_history_mode}
-                toggle_history={toggle_history}
-            />
+            <Suspense fallback={null}>
+                <MapControls
+                    map_controls={map_controls}
+                    set_map_controls={set_map_controls}
+                    set_radius_in_km={set_radius_in_km}
+                    can_undo_cat={prev_freqs.length > 0}
+                    undo_cat={undo_freq_change}
+                    is_map_fullscreen={is_map_fullscreen}
+                    toggle_map_fullscreen={toggle_map_fullscreen}
+                    is_mobile={is_md_device}
+                    is_history_mode={is_history_mode}
+                    toggle_history={toggle_history}
+                />
+            </Suspense>
             <Suspense fallback={null}>
                 <CanvasMap
                     map_controls={map_controls}
@@ -406,20 +408,24 @@ function MainContent({
     return (
         <div className="flex flex-col h-full" data-tour="app-shell">
             <UpdateConsentDialog />
-            <TopBar
-                set_map_controls={set_map_controls}
-                set_radius_in_km={set_radius_in_km}
-                toggled_ui={toggled_ui}
-                set_toggled_ui={set_toggled_ui}
-                dev_mode={dev_mode}
-            />
+            <Suspense fallback={null}>
+                <TopBar
+                    set_map_controls={set_map_controls}
+                    set_radius_in_km={set_radius_in_km}
+                    toggled_ui={toggled_ui}
+                    set_toggled_ui={set_toggled_ui}
+                    dev_mode={dev_mode}
+                />
+            </Suspense>
             <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
                 <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
-                    <LeftColumn toggled_ui={toggled_ui}>
-                        <Suspense fallback={null}>
-                            <WebsiteTour />
-                        </Suspense>
-                    </LeftColumn>
+                    <Suspense fallback={null}>
+                        <LeftColumn toggled_ui={toggled_ui}>
+                            <Suspense fallback={null}>
+                                <WebsiteTour />
+                            </Suspense>
+                        </LeftColumn>
+                    </Suspense>
                     {is_md_device ? (
                         <Tabs
                             key={mobile_tabs_key}
@@ -440,13 +446,15 @@ function MainContent({
                             ))}
                         </div>
                     )}
-                    <SidePanel
-                        toggled_ui={toggled_ui}
-                        set_toggled_ui={set_toggled_ui}
-                        set_cat_to_spot={set_cat_to_spot}
-                        active_view={active_view}
-                        set_active_view={set_active_view}
-                    />
+                    <Suspense fallback={null}>
+                        <SidePanel
+                            toggled_ui={toggled_ui}
+                            set_toggled_ui={set_toggled_ui}
+                            set_cat_to_spot={set_cat_to_spot}
+                            active_view={active_view}
+                            set_active_view={set_active_view}
+                        />
+                    </Suspense>
                 </div>
                 {is_history_mode && (
                     <Suspense fallback={null}>
