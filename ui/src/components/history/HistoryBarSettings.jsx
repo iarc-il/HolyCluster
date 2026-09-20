@@ -1,4 +1,4 @@
-import { SettingsIcon } from "@/components/settings/Settings";
+import SettingsIcon from "@/components/settings/SettingsIcon";
 import Button from "@/components/ui/Button.jsx";
 import Input from "@/components/ui/Input";
 import Popup from "@/components/ui/Popup.jsx";

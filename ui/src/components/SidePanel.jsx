@@ -1,18 +1,19 @@
-import DXpeditions from "@/components/DXpeditions.jsx";
 import FilterButton from "@/components/FilterButton.jsx";
 import FilterOptions from "@/components/FilterOptions.jsx";
 import Filters from "@/components/Filters.jsx";
 import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Heatmap from "@/components/Heatmap.jsx";
-import MissingPanel from "@/components/MissingPanel.jsx";
-import RotatorPanel from "@/components/RotatorPanel.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
 import { TOUR_SELECT_SIDE_PANEL_TAB_EVENT } from "@/components/tour/tour_events.js";
 import { continents } from "@/data/filters_data.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
+
+const DXpeditions = lazy(() => import("@/components/DXpeditions.jsx"));
+const MissingPanel = lazy(() => import("@/components/MissingPanel.jsx"));
+const RotatorPanel = lazy(() => import("@/components/RotatorPanel.jsx"));
 
 const continent_title = { dx: "DX", spotter: "DE" };
 
@@ -313,7 +314,7 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
                     className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64 min-w-0"
                     data-tour={active_view_label ? `side-panel-view-${active_view_label}` : null}
                 >
-                    {content[effective_active_view]}
+                    <Suspense fallback={null}>{content[effective_active_view]}</Suspense>
                 </div>
                 <RightColumnContent colors={colors} />
             </div>

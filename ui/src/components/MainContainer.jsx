@@ -7,7 +7,6 @@ import TopBar from "@/components/TopBar.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
 import HistoryBar from "@/components/history/HistoryBar.jsx";
-import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
     TOUR_CLOSE_LEFT_PANEL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
@@ -32,7 +31,9 @@ import { open_db_and_evict as open_db_and_evict_spots } from "@/utils/spot_cache
 import Maidenhead from "maidenhead";
 
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
+
+const WebsiteTour = lazy(() => import("@/components/tour/WebsiteTour.jsx"));
 
 const AUTO_RADIUS_PADDING_KM = 1000;
 const AUTO_RADIUS_RECENTER_ENABLED = false;
@@ -411,7 +412,9 @@ function MainContent({
             <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
                 <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
                     <LeftColumn toggled_ui={toggled_ui}>
-                        <WebsiteTour />
+                        <Suspense fallback={null}>
+                            <WebsiteTour />
+                        </Suspense>
                     </LeftColumn>
                     {is_md_device ? (
                         <Tabs
