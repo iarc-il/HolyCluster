@@ -158,7 +158,7 @@ describe("MapControls GPS", () => {
     it("provides tooltips for non-textual map controls", async () => {
         const user = userEvent.setup();
         radio_status = "connected";
-        const { container } = render_map_controls({ is_mobile: false, can_undo_cat: true });
+        render_map_controls({ is_mobile: false, can_undo_cat: true });
 
         for (const [name, content] of [
             ["Reset map", "Reset map"],
@@ -188,11 +188,6 @@ describe("MapControls GPS", () => {
         await user.click(equator_button);
         expect(screen.getByRole("tooltip").textContent).toBe("Hide equator");
         await user.unhover(equator_button);
-
-        const spot_source = container.querySelector("[data-tour='map-radio-status']");
-        await user.hover(spot_source);
-        expect(screen.getByRole("tooltip").textContent).toBe("Spot source");
-        await user.unhover(spot_source);
 
         await user.hover(screen.getByRole("button", { name: "Switch to globe projection" }));
 

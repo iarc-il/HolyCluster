@@ -4,7 +4,6 @@ import PropagationBar from "@/components/PropagationBar.jsx";
 import { TOUR_CLOSE_MAP_CONTROLS_EVENT } from "@/components/tour/tour_events.js";
 import Button from "@/components/ui/Button.jsx";
 import Popup from "@/components/ui/Popup.jsx";
-import Radio from "@/components/ui/Radio.jsx";
 import { MAP_THEME_CONFIGS, map_theme_names, useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import use_radio from "@/hooks/useRadio";
@@ -225,15 +224,6 @@ function MapControls({
             state.location = { displayed_locator: locator, location: [lon, lat] };
         });
     }
-
-    const radio_status_to_color = {
-        // Probably rig is not configured
-        unknown: colors.map_controls.radio_unknown,
-        // CAT control is working
-        connected: colors.map_controls.radio_connected,
-        // Radio or omnirig is disconnected
-        disconnected: colors.map_controls.radio_disconnected,
-    };
 
     function set_exclusive_overlay(map_control_key, show_overlay) {
         set_map_controls(state => {
@@ -556,14 +546,6 @@ function MapControls({
                             ) : (
                                 ""
                             )}
-                            {radio_status !== "unavailable" ? (
-                                <span
-                                    data-tour="map-radio-status"
-                                    {...tooltip_trigger("Spot source")}
-                                >
-                                    <Radio color={radio_status_to_color[radio_status]} size="40" />
-                                </span>
-                            ) : null}
                             <button
                                 type="button"
                                 onClick={toggle_equator}
