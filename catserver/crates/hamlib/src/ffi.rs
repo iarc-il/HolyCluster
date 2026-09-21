@@ -149,11 +149,7 @@ unsafe extern "C" fn hamlib_debug_callback(level: std::os::raw::c_int, message: 
     let Ok(message) = (unsafe { CStr::from_ptr(message) }).to_str() else {
         return;
     };
-    match level {
-        0..=2 => tracing::error!(target: "hamlib", "{message}"),
-        3 => tracing::warn!(target: "hamlib", "{message}"),
-        _ => tracing::debug!(target: "hamlib", "{message}"),
-    }
+    tracing::debug!(target: "hamlib", level, "{message}");
 }
 
 pub(crate) fn hamlib_result(operation: &'static str, result: i32) -> Result<(), HamlibError> {
