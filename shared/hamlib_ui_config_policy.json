@@ -8,10 +8,6 @@
     },
     "pathname_tokens": ["rig_pathname", "pathname", "device"],
     "network_pathname_token": "rig_pathname",
-    "network_pathname_tokens": {
-        "radio": "rig_pathname",
-        "rotator": "rot_pathname"
-    },
     "serial_labels": {
         "rig_pathname": "Serial port",
         "pathname": "Serial port",
