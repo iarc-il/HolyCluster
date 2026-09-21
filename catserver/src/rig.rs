@@ -52,6 +52,10 @@ pub enum RadioInitError {
         backend: &'static str,
         kind: io::ErrorKind,
     },
+    Backend {
+        backend: &'static str,
+        message: String,
+    },
 }
 
 impl fmt::Display for RadioInitError {
@@ -62,6 +66,9 @@ impl fmt::Display for RadioInitError {
             }
             Self::Io { backend, kind } => {
                 write!(formatter, "{backend} initialization failed: {kind}")
+            }
+            Self::Backend { backend, message } => {
+                write!(formatter, "{backend} initialization failed: {message}")
             }
         }
     }
