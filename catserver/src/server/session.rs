@@ -75,6 +75,8 @@ async fn handle_ws_socket(
     let mut rotator_interval = tokio::time::interval(Duration::from_millis(1000));
     let mut previous_radio_data = None;
     let mut previous_rotator_data = None;
+    let mut upstream_receiver_open = true;
+    let mut upstream_receiver_failed = false;
     loop {
         tokio::select! {
             Some(message) = client_receiver.next() => match message? {
@@ -91,37 +93,35 @@ async fn handle_ws_socket(
                     client_sender.send(rotator::status_message(&rotator_manager.status())?).await?;
                 },
                 Message::Text(text) => {
-                    if let Err(error) = forward_to_server(
+                    if forward_to_server(
                         &mut server_sender,
                         utils::axum_to_tungstenite_message(Message::Text(text)),
-                    ).await {
-                        upstream_connection.unavailable(&error);
-                        break;
-                    }
+                        &mut upstream_connection,
+                    ).await? { break; }
                 }
                 Message::Close(_) => break,
-                message => {
-                    if let Err(error) = forward_to_server(
-                        &mut server_sender,
-                        utils::axum_to_tungstenite_message(message),
-                    ).await {
-                        upstream_connection.unavailable(&error);
-                        break;
-                    }
-                },
+                message => if forward_to_server(
+                    &mut server_sender,
+                    utils::axum_to_tungstenite_message(message),
+                    &mut upstream_connection,
+                ).await? { break; },
             },
-            message = server_receiver.next() => match message {
+            message = server_receiver.next(), if upstream_receiver_open => match message {
                 Some(Ok(message)) => {
+                    if upstream_receiver_failed {
+                        upstream_connection = availability.connection();
+                        upstream_receiver_failed = false;
+                    }
                     let Some(message) = utils::tungstenite_to_axum_message(message) else { continue; };
                     if client_sender.send(message).await.is_err() { break; }
                 }
                 Some(Err(error)) => {
                     upstream_connection.unavailable(&error);
-                    break;
+                    upstream_receiver_failed = true;
                 }
                 None => {
                     upstream_connection.unavailable(&anyhow!("upstream WebSocket closed"));
-                    break;
+                    upstream_receiver_open = false;
                 }
             },
             event = receiver.recv() => match event? {
@@ -172,6 +172,17 @@ async fn forward_to_server(
         tokio_tungstenite::tungstenite::Message,
     >,
     message: tokio_tungstenite::tungstenite::Message,
-) -> Result<()> {
-    sender.send(message).await.map_err(Into::into)
+    availability: &mut super::availability_trace::AvailabilityConnection,
+) -> Result<bool> {
+    match sender.send(message).await {
+        Ok(()) => Ok(false),
+        Err(error @ tokio_tungstenite::tungstenite::Error::ConnectionClosed) => {
+            availability.unavailable(&error);
+            Ok(true)
+        }
+        Err(error) => {
+            availability.unavailable(&error);
+            Err(error.into())
+        }
+    }
 }
