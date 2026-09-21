@@ -4,8 +4,23 @@ import useWebSocket, { ReadyState } from "react-use-websocket";
 export { ReadyState };
 
 const WS_BASE_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
-const WS_PROBE_TIMEOUT_MS = 1500;
 const WsContext = createContext(null);
+
+function is_unified_cat_identity(message) {
+    return (
+        message?.type === "radio" &&
+        message.event === "status" &&
+        typeof message.catserver_version === "string"
+    );
+}
+
+function is_cat_v1_2_identity(message) {
+    return (
+        typeof message?.status === "string" &&
+        typeof message.version === "string" &&
+        message.version.startsWith("catserver-v")
+    );
+}
 
 /** @deprecated CAT <=1.2 compatibility; remove when the minimum supported CAT version exceeds 1.2. */
 function normalize_cat_v1_2_radio_message(message) {
@@ -44,6 +59,7 @@ const reconnect_options = {
 export function WsProvider({ children }) {
     const [transport, set_transport] = useState("probing");
     const [network_state, set_network_state] = useState("connecting");
+    const transport_ref = useRef("probing");
     const subscribers_ref = useRef(new Map());
     const ready_state_ref = useRef(ReadyState.CONNECTING);
     const ready_waiters_ref = useRef([]);
@@ -57,6 +73,19 @@ export function WsProvider({ children }) {
         }
     }, []);
 
+    const select_transport = useCallback(candidate => {
+        if (transport_ref.current !== "probing") return false;
+        transport_ref.current = candidate;
+        set_transport(candidate);
+        return true;
+    }, []);
+
+    const reset_transport = useCallback(candidate => {
+        if (transport_ref.current !== candidate) return;
+        transport_ref.current = "probing";
+        set_transport("probing");
+    }, []);
+
     const {
         sendJsonMessage: send_unified_message,
         readyState: unified_ready_state,
@@ -65,9 +94,8 @@ export function WsProvider({ children }) {
         `${WS_BASE_URL}/ws`,
         {
             ...reconnect_options,
-            onOpen: () => set_transport(current => (current === "probing" ? "unified" : current)),
-            onClose: () => set_transport(current => (current === "probing" ? "cat_v1_2" : current)),
-            shouldReconnect: () => transport !== "cat_v1_2",
+            onClose: () => reset_transport("unified"),
+            shouldReconnect: () => transport_ref.current !== "cat_v1_2",
         },
         transport !== "cat_v1_2",
     );
@@ -82,17 +110,28 @@ export function WsProvider({ children }) {
         sendJsonMessage: send_compatibility_radio_message,
         readyState: compatibility_radio_ready_state,
         lastJsonMessage: compatibility_radio_message,
-    } = useWebSocket(`${WS_BASE_URL}/radio`, reconnect_options, transport === "cat_v1_2");
+    } = useWebSocket(
+        `${WS_BASE_URL}/radio`,
+        {
+            ...reconnect_options,
+            onClose: () => reset_transport("cat_v1_2"),
+            shouldReconnect: () => transport_ref.current !== "unified",
+        },
+        transport !== "unified",
+    );
 
-    const readyState = transport === "cat_v1_2" ? compatibility_ready_state : unified_ready_state;
+    const readyState =
+        transport === "probing"
+            ? ReadyState.CONNECTING
+            : transport === "cat_v1_2"
+              ? compatibility_ready_state
+              : unified_ready_state;
     const radioReadyState =
-        transport === "cat_v1_2" ? compatibility_radio_ready_state : unified_ready_state;
-
-    useEffect(() => {
-        if (transport !== "probing") return;
-        const timeout = setTimeout(() => set_transport("cat_v1_2"), WS_PROBE_TIMEOUT_MS);
-        return () => clearTimeout(timeout);
-    }, [transport]);
+        transport === "probing"
+            ? ReadyState.CONNECTING
+            : transport === "cat_v1_2"
+              ? compatibility_radio_ready_state
+              : unified_ready_state;
 
     useEffect(() => {
         ready_state_ref.current = readyState;
@@ -112,22 +151,37 @@ export function WsProvider({ children }) {
     }, [readyState]);
 
     useEffect(() => {
-        if (transport !== "cat_v1_2" && unified_message?.type) {
+        if (!unified_message?.type) return;
+        if (transport_ref.current === "unified") {
+            dispatch(unified_message);
+        } else if (
+            transport_ref.current === "probing" &&
+            is_unified_cat_identity(unified_message) &&
+            select_transport("unified")
+        ) {
             dispatch(unified_message);
         }
-    }, [dispatch, transport, unified_message]);
+    }, [dispatch, select_transport, unified_message]);
 
     useEffect(() => {
-        if (transport === "cat_v1_2" && compatibility_message?.type) {
+        if (transport_ref.current === "cat_v1_2" && compatibility_message?.type) {
             dispatch(compatibility_message);
         }
-    }, [compatibility_message, dispatch, transport]);
+    }, [compatibility_message, dispatch]);
 
     useEffect(() => {
-        if (transport === "cat_v1_2" && compatibility_radio_message) {
-            dispatch(normalize_cat_v1_2_radio_message(compatibility_radio_message));
+        if (!compatibility_radio_message) return;
+        const message = normalize_cat_v1_2_radio_message(compatibility_radio_message);
+        if (transport_ref.current === "cat_v1_2") {
+            dispatch(message);
+        } else if (
+            transport_ref.current === "probing" &&
+            is_cat_v1_2_identity(compatibility_radio_message) &&
+            select_transport("cat_v1_2")
+        ) {
+            dispatch(message);
         }
-    }, [compatibility_radio_message, dispatch, transport]);
+    }, [compatibility_radio_message, dispatch, select_transport]);
 
     const subscribe = useCallback((type, handler) => {
         const handlers = subscribers_ref.current.get(type) || [];
@@ -144,6 +198,8 @@ export function WsProvider({ children }) {
 
     const send = useCallback(
         (type, data) => {
+            if (transport === "probing") return;
+
             if (transport === "cat_v1_2") {
                 if (type === "radio") {
                     if (compatibility_radio_ready_state === ReadyState.OPEN) {
