@@ -126,8 +126,8 @@ function MainContent({
     const display_start = displayed_window.start ?? history_start;
     const display_end = displayed_window.end ?? history_end;
 
-    const [prev_freqs, set_prev_freqs] = useState([]);
-    const prev_freq_limit = 1; // Set the max number of undos a user can do
+    const [previous_cat_states, set_previous_cat_states] = useState([]);
+    const previous_cat_state_limit = 1;
     const map_wrapper_ref = useRef(null);
     const [is_map_fullscreen, set_is_map_fullscreen] = useState(false);
 
@@ -189,7 +189,8 @@ function MainContent({
     }, [max_radius, auto_radius, radius_in_km]);
 
     const { set_mode_and_freq, radio_freq, radio_mode } = use_radio();
-    const { set_azimuth, is_rotator_available, rotator_target_azimuth } = useRotator();
+    const { set_azimuth, is_rotator_available, rotator_azimuth, rotator_target_azimuth } =
+        useRotator();
 
     useEffect(() => {
         if (rotator_target_azimuth == null) return;
@@ -217,34 +218,37 @@ function MainContent({
     }
 
     function set_cat_to_spot(spot) {
-        set_prev_freqs(
+        const next_rotator_azimuth = is_rotator_available() ? get_rotator_azimuth(spot) : null;
+        set_previous_cat_states(
             [
                 {
                     mode: radio_mode,
                     freq: Math.round((radio_freq / 1000) * 10) / 10,
+                    rotator_azimuth: next_rotator_azimuth == null ? null : rotator_azimuth,
                 },
             ]
-                .concat(prev_freqs)
-                .slice(0, prev_freq_limit),
+                .concat(previous_cat_states)
+                .slice(0, previous_cat_state_limit),
         );
 
         set_mode_and_freq(spot.mode, spot.freq);
 
-        if (is_rotator_available()) {
-            const azimuth = get_rotator_azimuth(spot);
-            if (azimuth != null) {
-                set_azimuth(azimuth);
-            }
+        if (next_rotator_azimuth != null) {
+            set_azimuth(next_rotator_azimuth);
         }
     }
 
-    function undo_freq_change() {
-        if (prev_freqs.length <= 0) {
+    function undo_cat_change() {
+        if (previous_cat_states.length <= 0) {
             return;
         }
 
-        set_mode_and_freq(prev_freqs[0].mode, prev_freqs[0].freq);
-        set_prev_freqs(prev_freqs.slice(1));
+        const previous_cat_state = previous_cat_states[0];
+        set_mode_and_freq(previous_cat_state.mode, previous_cat_state.freq);
+        if (previous_cat_state.rotator_azimuth != null && is_rotator_available()) {
+            set_azimuth(previous_cat_state.rotator_azimuth);
+        }
+        set_previous_cat_states(previous_cat_states.slice(1));
     }
 
     // The view with zero index is the Filters view
@@ -419,8 +423,8 @@ function MainContent({
                 toggled_ui={toggled_ui}
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
-                can_undo_cat={prev_freqs.length > 0}
-                undo_cat={undo_freq_change}
+                can_undo_cat={previous_cat_states.length > 0}
+                undo_cat={undo_cat_change}
             />
             <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
                 <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
