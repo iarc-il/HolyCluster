@@ -75,6 +75,7 @@ async fn handle_ws_socket(
                     if let Some(response) = rotator::process(text.to_string(), &rotator_manager, &rotator_configuration).await? {
                         client_sender.send(response).await?;
                     }
+                    client_sender.send(rotator::status_message(&rotator_manager.status())?).await?;
                 },
                 Message::Text(text) => {
                     if forward_to_server(&mut server_sender, utils::axum_to_tungstenite_message(Message::Text(text))).await? { break; }
