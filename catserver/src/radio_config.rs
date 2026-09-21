@@ -266,11 +266,12 @@ fn replace_file(from: &Path, to: &Path) -> std::io::Result<()> {
     let to = to
         .to_str()
         .ok_or_else(|| std::io::Error::other("config path is not valid Unicode"))?;
-    winsafe::MoveFileEx(
-        from,
-        Some(to),
-        winsafe::co::MOVEFILE::REPLACE_EXISTING | winsafe::co::MOVEFILE::WRITE_THROUGH,
-    )
+    winsafe::MoveFileEx(from, Some(to), unsafe {
+        winsafe::co::MOVEFILE::from_raw(
+            winsafe::co::MOVEFILE::REPLACE_EXISTING.raw()
+                | winsafe::co::MOVEFILE::WRITE_THROUGH.raw(),
+        )
+    })
     .map_err(|error| std::io::Error::from_raw_os_error(error.raw() as i32))
 }
 
