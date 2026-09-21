@@ -149,6 +149,12 @@ const base_theme = {
         radio_connected: "#00DD00",
         radio_disconnected: "#DD0000",
     },
+    rotator: {
+        connected: "#00EE00",
+        disconnected: "#EE0000",
+        moving: "#facc15",
+        moving_flash: "#ffffff",
+    },
 };
 
 function merge_theme(overrides) {

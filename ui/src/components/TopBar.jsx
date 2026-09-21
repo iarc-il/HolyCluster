@@ -40,7 +40,7 @@ function TopBar({
     const { filters, setFilters } = useFilters();
     const { network_state } = useSpotData();
     const { radio_status } = use_radio();
-    const { rotator_status, rotator_name, rotator_azimuth } = useRotator();
+    const { rotator_status, rotator_name, rotator_azimuth, rotator_target_azimuth } = useRotator();
     const { profiles, active_profile_name, set_active_profile_name } = useProfiles();
 
     const network_state_colors = {
@@ -122,6 +122,7 @@ function TopBar({
                     status={rotator_status}
                     name={rotator_name}
                     azimuth={rotator_azimuth}
+                    moving={rotator_status === "connected" && rotator_target_azimuth != null}
                 />
                 {radio_status !== "unavailable" ? (
                     <>

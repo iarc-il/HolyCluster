@@ -1,7 +1,20 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import RotatorState from "@/components/RotatorState.jsx";
+
+vi.mock("@/hooks/useColors", () => ({
+    useColors: () => ({
+        colors: {
+            rotator: {
+                connected: "#00EE00",
+                disconnected: "#EE0000",
+                moving: "#facc15",
+                moving_flash: "#ffffff",
+            },
+        },
+    }),
+}));
 
 afterEach(cleanup);
 
@@ -10,14 +23,14 @@ describe("RotatorState", () => {
         render(<RotatorState status="connected" name="Hamlib rotator" />);
 
         const indicator = screen.getByRole("img", { name: "Rotator connected" });
-        expect(indicator.querySelector("g").getAttribute("stroke")).toBe("#00EE00");
+        expect(indicator.getAttribute("color")).toBe("#00EE00");
     });
 
     it("shows a red indicator when disconnected", () => {
         render(<RotatorState status="disconnected" name="Hamlib rotator" />);
 
         const indicator = screen.getByRole("img", { name: "Rotator disconnected" });
-        expect(indicator.querySelector("g").getAttribute("stroke")).toBe("#EE0000");
+        expect(indicator.getAttribute("color")).toBe("#EE0000");
     });
 
     it("points the needle at the rotator azimuth", () => {
