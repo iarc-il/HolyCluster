@@ -13,7 +13,10 @@ use crate::{
     radio_manager::RadioManager, rotator_manager::RotatorManager, tray_icon::UserEvent, utils,
 };
 
-use super::{ServerConfig, radio, radio_actions, rotator, state::AppState};
+use super::{
+    ServerConfig, availability_trace::AvailabilityTrace, radio, radio_actions, rotator,
+    state::AppState,
+};
 
 pub(super) async fn ws_handler(
     websocket: WebSocketUpgrade,
@@ -25,6 +28,7 @@ pub(super) async fn ws_handler(
         .read_buffer_size(0)
         .accept_unmasked_frames(true)
         .on_upgrade(move |websocket| async move {
+            let availability = state.upstream_websocket_trace.clone();
             if let Err(error) = handle_ws_socket(
                 websocket,
                 state.server_config,
@@ -33,10 +37,11 @@ pub(super) async fn ws_handler(
                 state.rotator,
                 state.rotator_configuration,
                 receiver,
+                availability.clone(),
             )
             .await
             {
-                tracing::error!(?error, "Unified WebSocket handler failed");
+                availability.unavailable(&error);
             }
         })
 }
@@ -49,9 +54,11 @@ async fn handle_ws_socket(
     rotator_manager: RotatorManager,
     rotator_configuration: super::rotator_configuration::RotatorConfiguration,
     mut receiver: Receiver<UserEvent>,
+    availability: AvailabilityTrace,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = socket.split();
     let (stream, _) = connect_async(server_config.build_uri("ws", "/ws")).await?;
+    availability.available();
     let (mut server_sender, mut server_receiver) = stream.split();
     client_sender.send(radio::init_message()?).await?;
     let rotator_status = rotator_manager.status();

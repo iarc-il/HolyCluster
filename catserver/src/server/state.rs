@@ -13,6 +13,7 @@ use crate::{radio_manager::RadioManager, rotator_manager::RotatorManager, tray_i
 
 use super::{
     ServerConfig,
+    availability_trace::AvailabilityTrace,
     radio_configuration::{RadioConfiguration, production},
     rotator_configuration::RotatorConfiguration,
 };
@@ -23,6 +24,9 @@ pub(super) struct AppState {
     pub(super) radio: RadioManager,
     pub(super) rotator: RotatorManager,
     pub(super) http_client: Client<HttpsConnector<HttpConnector>, Body>,
+    pub(super) upstream_http_trace: AvailabilityTrace,
+    pub(super) upstream_websocket_trace: AvailabilityTrace,
+    pub(super) upstream_upgrade_trace: AvailabilityTrace,
     pub(super) sender: Sender<UserEvent>,
     pub(super) ui_dir: Option<PathBuf>,
     pub(super) radio_configuration: RadioConfiguration,
@@ -51,6 +55,9 @@ impl AppState {
             radio,
             rotator,
             http_client: Client::builder(TokioExecutor::new()).build(HttpsConnector::new()),
+            upstream_http_trace: AvailabilityTrace::new("http"),
+            upstream_websocket_trace: AvailabilityTrace::new("websocket"),
+            upstream_upgrade_trace: AvailabilityTrace::new("proxy-upgrade"),
             sender,
             ui_dir,
         })

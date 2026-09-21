@@ -11,7 +11,7 @@ use hyper_util::rt::TokioIo;
 use tower::{ServiceExt, service_fn};
 use tower_http::services::ServeDir;
 
-use super::state::AppState;
+use super::{availability_trace::AvailabilityTrace, state::AppState};
 
 pub(super) async fn proxy(
     State(state): State<AppState>,
@@ -33,12 +33,14 @@ pub(super) async fn proxy(
     request.headers_mut().remove(header::HOST);
     match state.http_client.request(request).await {
         Ok(mut response) => {
+            state.upstream_http_trace.available();
             if response.status() == StatusCode::SWITCHING_PROTOCOLS
                 && let Some(downstream_upgrade) = downstream_upgrade
             {
                 tokio::spawn(tunnel_upgrades(
                     downstream_upgrade,
                     hyper::upgrade::on(&mut response),
+                    state.upstream_upgrade_trace.clone(),
                 ));
                 return response.map(Body::new);
             }
@@ -46,7 +48,7 @@ pub(super) async fn proxy(
             response.map(Body::new)
         }
         Err(error) => {
-            tracing::error!(?error, "Upstream request failed");
+            state.upstream_http_trace.unavailable(&error);
             (StatusCode::BAD_GATEWAY, Body::empty()).into_response()
         }
     }
@@ -82,18 +84,23 @@ fn is_upgrade_request(request: &Request<Body>) -> bool {
             .any(|value| value.trim().eq_ignore_ascii_case("upgrade"))
 }
 
-async fn tunnel_upgrades(downstream: OnUpgrade, upstream: OnUpgrade) {
+async fn tunnel_upgrades(
+    downstream: OnUpgrade,
+    upstream: OnUpgrade,
+    availability: AvailabilityTrace,
+) {
     let (downstream, upstream) = match tokio::try_join!(downstream, upstream) {
         Ok(upgrades) => upgrades,
         Err(error) => {
-            tracing::error!(?error, "Failed to establish proxy upgrade");
+            availability.unavailable(&error);
             return;
         }
     };
+    availability.available();
     let mut downstream = TokioIo::new(downstream);
     let mut upstream = TokioIo::new(upstream);
     if let Err(error) = tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await {
-        tracing::error!(?error, "Upgraded proxy connection failed");
+        availability.unavailable(&error);
     }
 }
 

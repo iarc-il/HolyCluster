@@ -1,3 +1,4 @@
+mod availability_trace;
 mod http_proxy;
 mod radio;
 mod radio_actions;
