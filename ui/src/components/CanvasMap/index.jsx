@@ -137,13 +137,8 @@ function CanvasMap({
             ? voacap_state
             : null;
     const home_location = useMemo(() => get_station_location(settings), [settings.locator]);
-    const is_centered_on_home =
-        home_location != null &&
-        Math.abs(center_lon - home_location[0]) < 0.000001 &&
-        Math.abs(center_lat - home_location[1]) < 0.000001;
-    const effective_rotator_azimuth = dev_mode && is_centered_on_home ? rotator_azimuth : null;
-    const effective_rotator_target_azimuth =
-        dev_mode && is_centered_on_home ? rotator_target_azimuth : null;
+    const effective_rotator_azimuth = dev_mode ? rotator_azimuth : null;
+    const effective_rotator_target_azimuth = dev_mode ? rotator_target_azimuth : null;
     const night_time_ms = night_time?.getTime() ?? null;
     const missing_overlay_actions = useMemo(
         () => get_active_missing_filter_actions(callsign_filters),

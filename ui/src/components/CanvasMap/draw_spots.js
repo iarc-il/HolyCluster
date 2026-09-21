@@ -160,6 +160,15 @@ function draw_spot(
     }
 }
 
+function is_centered_on_location(projection, location) {
+    if (location == null) return false;
+    const [center_lon, center_lat] = projection.rotate().map(value => -value);
+    return (
+        Math.abs(center_lon - location[0]) < 0.000001 &&
+        Math.abs(center_lat - location[1]) < 0.000001
+    );
+}
+
 function draw_rotator_azimuth(context, dims, azimuth, color, line_width) {
     if (azimuth == null) return;
 
@@ -366,7 +375,7 @@ export function draw_spots(
         });
     }
 
-    if (!is_globe) {
+    if (!is_globe && is_centered_on_location(projection, home_location)) {
         draw_rotator_azimuth(context, dims, rotator_target_azimuth, "#facc15", 3);
         draw_rotator_azimuth(context, dims, rotator_azimuth, "#ef4444", 4);
     }
