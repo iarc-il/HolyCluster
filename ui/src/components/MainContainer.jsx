@@ -25,6 +25,7 @@ import {
     get_bearing_origin,
     get_max_radius,
     get_spots_center,
+    get_station_location,
 } from "@/utils.js";
 import { open_db_and_evict as open_db_and_evict_propagation } from "@/utils/propagation_cache_db.jsx";
 import { open_db_and_evict as open_db_and_evict_spots } from "@/utils/spot_cache_db.jsx";
@@ -217,9 +218,18 @@ function MainContent({
 
         set_mode_and_freq(spot.mode, spot.freq);
 
-        if (dev_mode) {
+        if (dev_mode && is_rotator_available()) {
+            const home_location = get_station_location(settings);
             const azimuth = get_rotator_azimuth(spot);
-            if (azimuth != null && is_rotator_available()) {
+            if (home_location != null) {
+                set_map_controls(state => {
+                    state.location = {
+                        displayed_locator: settings.locator,
+                        location: home_location,
+                    };
+                });
+            }
+            if (azimuth != null) {
                 set_azimuth(azimuth);
             }
         }
