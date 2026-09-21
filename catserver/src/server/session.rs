@@ -46,6 +46,7 @@ pub(super) async fn ws_handler(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_ws_socket(
     socket: WebSocket,
     server_config: ServerConfig,

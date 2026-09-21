@@ -183,22 +183,24 @@ mod tests {
 
     #[test]
     fn scrubs_sensitive_event_data_and_enforces_metadata() {
-        let mut event = sentry::protocol::Event::default();
-        event.user = Some(User::default());
-        event.request = Some(Request::default());
-        event.server_name = Some("workstation".into());
-        event
-            .contexts
-            .insert("radio".into(), Context::Other(BTreeMap::new()));
-        event.extra.insert("token".into(), "secret".into());
-        event.tags.insert("callsign".into(), "N0CALL".into());
-        event.message = Some("private radio failure".into());
-        event.exception.values.push(Exception {
-            value: Some("private exception".into()),
+        let event = sentry::protocol::Event {
+            user: Some(User::default()),
+            request: Some(Request::default()),
+            server_name: Some("workstation".into()),
+            release: Some("untrusted".into()),
+            environment: Some("untrusted".into()),
+            contexts: BTreeMap::from([("radio".into(), Context::Other(BTreeMap::new()))]),
+            extra: BTreeMap::from([("token".into(), "secret".into())]),
+            tags: BTreeMap::from([("callsign".into(), "N0CALL".into())]),
+            message: Some("private radio failure".into()),
+            exception: sentry::protocol::Values {
+                values: vec![Exception {
+                    value: Some("private exception".into()),
+                    ..Default::default()
+                }],
+            },
             ..Default::default()
-        });
-        event.release = Some("untrusted".into());
-        event.environment = Some("untrusted".into());
+        };
 
         let event = scrub_event(event).unwrap();
 
