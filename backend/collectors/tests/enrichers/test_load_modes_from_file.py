@@ -15,12 +15,12 @@ def test_load_band_plans():
     assert modes["40"] == {
         "FT8": {"start": 7074, "end": 7077},
         "FT4": {"start": 7047.5, "end": 7050.5},
-        "FT2": {"start": 7052, "end": 7055},
         "CW": {"start": 7000, "end": 7040},
         "DIGI": {"start": 7040, "end": 7060},
         "SSB": {"start": 7100, "end": 7300},
     }
     assert all("RTTY" not in band_modes for band_modes in modes.values())
+    assert all("FT2" not in band_modes for band_modes in modes.values())
 
     for band_modes in modes.values():
         if "DIGI" not in band_modes:
