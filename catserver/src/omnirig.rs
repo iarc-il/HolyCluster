@@ -224,18 +224,12 @@ impl Radio for OmnirigRadio {
                 _ => "Unknown",
             },
             Ok(_) => {
-                return Err(RadioOperationError::new(
-                    self.rig_number(),
-                    "read mode",
-                    "Mode did not return an integer",
-                ));
+                tracing::debug!("OmniRig Mode did not return an integer");
+                "Unknown"
             }
             Err(error) => {
-                return Err(RadioOperationError::new(
-                    self.rig_number(),
-                    "read mode",
-                    error.to_string(),
-                ));
+                tracing::debug!(%error, "Failed to get OmniRig mode");
+                "Unknown"
             }
         };
 
