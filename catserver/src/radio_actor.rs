@@ -71,8 +71,12 @@ pub(crate) enum Command {
 pub(crate) fn spawn(
     snapshot: Arc<RwLock<RadioSnapshot>>,
 ) -> Result<Worker<Command>, RadioManagerError> {
-    Worker::spawn("radio-worker", move |receiver| run(receiver, snapshot))
-        .map_err(RadioManagerError::WorkerStart)
+    Worker::spawn("radio-worker", move |receiver| {
+        tracing::info!("Radio worker started");
+        run(receiver, snapshot);
+        tracing::info!("Radio worker stopped");
+    })
+    .map_err(RadioManagerError::WorkerStart)
 }
 
 fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) {
