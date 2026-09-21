@@ -21,7 +21,14 @@ const OmniRigError = lazy(() => import("@/components/OmniRigError.jsx"));
 
 initializeSentry();
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+const container = document.getElementById("root");
+const root = import.meta.hot?.data.root ?? ReactDOM.createRoot(container);
+
+if (import.meta.hot) {
+    import.meta.hot.data.root = root;
+}
+
+root.render(
     <React.StrictMode>
         <RouteErrorBoundary>
             <BrowserRouter>
