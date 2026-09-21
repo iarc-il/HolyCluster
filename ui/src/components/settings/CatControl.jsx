@@ -391,6 +391,7 @@ function CatControl({
         test_radio_connection,
     } = use_radio();
     const {
+        rotator_supported,
         rotator_models,
         rotator_model_details,
         rotator_configuration,
@@ -402,6 +403,7 @@ function CatControl({
         apply_rotator_configuration,
         test_rotator_connection,
     } = use_rotator() ?? {
+        rotator_supported: false,
         rotator_models: [],
         rotator_model_details: {},
         rotator_configuration: null,
@@ -419,7 +421,8 @@ function CatControl({
     const [save_state, set_save_state] = useState(null);
     const [logger_port_touched, set_logger_port_touched] = useState(false);
     const configuration_capable = radio_configuration_support === "supported";
-    const rotator_configuration_capable = radio_capabilities?.rotator_configuration === true;
+    const rotator_configuration_capable =
+        rotator_supported && radio_capabilities?.rotator_configuration === true;
     const selected_configuration = configuration?.rig;
     const server_errors =
         radio_configuration_result?.failure === "invalid_config"

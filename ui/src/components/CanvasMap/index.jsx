@@ -137,8 +137,6 @@ function CanvasMap({
             ? voacap_state
             : null;
     const home_location = useMemo(() => get_station_location(settings), [settings.locator]);
-    const effective_rotator_azimuth = dev_mode ? rotator_azimuth : null;
-    const effective_rotator_target_azimuth = dev_mode ? rotator_target_azimuth : null;
     const night_time_ms = night_time?.getTime() ?? null;
     const missing_overlay_actions = useMemo(
         () => get_active_missing_filter_actions(callsign_filters),
@@ -170,8 +168,8 @@ function CanvasMap({
         hovered_zone,
         hovered_dxcc,
         home_location,
-        rotator_azimuth: effective_rotator_azimuth,
-        rotator_target_azimuth: effective_rotator_target_azimuth,
+        rotator_azimuth,
+        rotator_target_azimuth,
         night_time,
         voacap: voacap_render_state,
     };
@@ -220,8 +218,8 @@ function CanvasMap({
         hovered_zone,
         hovered_dxcc,
         home_location,
-        rotator_azimuth: effective_rotator_azimuth,
-        rotator_target_azimuth: effective_rotator_target_azimuth,
+        rotator_azimuth,
+        rotator_target_azimuth,
         voacap_state,
         animation_id_ref,
     });

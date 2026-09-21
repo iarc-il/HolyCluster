@@ -230,7 +230,7 @@ function MainContent({
 
         set_mode_and_freq(spot.mode, spot.freq);
 
-        if (dev_mode && is_rotator_available()) {
+        if (is_rotator_available()) {
             const azimuth = get_rotator_azimuth(spot);
             if (azimuth != null) {
                 set_azimuth(azimuth);
