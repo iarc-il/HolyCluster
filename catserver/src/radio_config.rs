@@ -254,12 +254,12 @@ fn is_descriptor_token(token: &str) -> bool {
 }
 
 #[cfg(not(windows))]
-fn replace_file(from: &Path, to: &Path) -> std::io::Result<()> {
+pub(crate) fn replace_file(from: &Path, to: &Path) -> std::io::Result<()> {
     fs::rename(from, to)
 }
 
 #[cfg(windows)]
-fn replace_file(from: &Path, to: &Path) -> std::io::Result<()> {
+pub(crate) fn replace_file(from: &Path, to: &Path) -> std::io::Result<()> {
     let from = from
         .to_str()
         .ok_or_else(|| std::io::Error::other("temporary config path is not valid Unicode"))?;

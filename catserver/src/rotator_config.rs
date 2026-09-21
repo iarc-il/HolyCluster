@@ -93,7 +93,7 @@ impl RotatorConfig {
     }
 
     pub fn save_to_path(&self, path: &Path) -> Result<(), RotatorConfigError> {
-        self.save_to_path_with_rename(path, |from, to| fs::rename(from, to))
+        self.save_to_path_with_rename(path, crate::radio_config::replace_file)
     }
 
     pub(crate) fn save_to_path_with_rename(
