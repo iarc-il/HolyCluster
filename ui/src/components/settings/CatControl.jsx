@@ -857,53 +857,55 @@ function CatControl({
                         ) : null}
                         {radio_model_error ? <p role="alert">{radio_model_error.message}</p> : null}
                     </div>
-                    <div className="flex flex-col items-start gap-1">
-                        <div className="flex items-center gap-3">
-                            <Button
-                                type="button"
-                                className="whitespace-nowrap px-2 py-1 text-xs"
-                                on_click={test_connection}
-                            >
-                                Test connection
-                            </Button>
-                            {radio_feedback ? (
-                                <p
-                                    className={
-                                        radio_feedback.ok === true
-                                            ? "text-green-600"
-                                            : radio_feedback.ok === false
-                                              ? "text-red-600"
-                                              : "text-gray-500"
-                                    }
-                                    role={radio_feedback.ok === false ? "alert" : "status"}
+                    {selected_configuration != null ? (
+                        <div className="flex flex-col items-start gap-1">
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    type="button"
+                                    className="whitespace-nowrap px-2 py-1 text-xs"
+                                    on_click={test_connection}
                                 >
-                                    <span aria-hidden="true" className="mr-1 font-bold">
-                                        {radio_feedback.ok === true
-                                            ? "✓"
-                                            : radio_feedback.ok === false
-                                              ? "✕"
-                                              : "..."}
-                                    </span>{" "}
-                                    {radio_feedback.message}
-                                </p>
+                                    Test connection
+                                </Button>
+                                {radio_feedback ? (
+                                    <p
+                                        className={
+                                            radio_feedback.ok === true
+                                                ? "text-green-600"
+                                                : radio_feedback.ok === false
+                                                  ? "text-red-600"
+                                                  : "text-gray-500"
+                                        }
+                                        role={radio_feedback.ok === false ? "alert" : "status"}
+                                    >
+                                        <span aria-hidden="true" className="mr-1 font-bold">
+                                            {radio_feedback.ok === true
+                                                ? "✓"
+                                                : radio_feedback.ok === false
+                                                  ? "✕"
+                                                  : "..."}
+                                        </span>{" "}
+                                        {radio_feedback.message}
+                                    </p>
+                                ) : null}
+                            </div>
+                            {save_state?.details ? (
+                                <details className="w-full text-sm">
+                                    <summary className="cursor-pointer">Details</summary>
+                                    <code
+                                        className="mt-1 block max-w-[36rem] overflow-x-auto whitespace-pre-wrap rounded p-2 text-left"
+                                        style={{
+                                            backgroundColor: colors.theme.input_background,
+                                            border: `1px solid ${colors.theme.borders}`,
+                                            color: colors.theme.text,
+                                        }}
+                                    >
+                                        {save_state.details}
+                                    </code>
+                                </details>
                             ) : null}
                         </div>
-                        {save_state?.details ? (
-                            <details className="w-full text-sm">
-                                <summary className="cursor-pointer">Details</summary>
-                                <code
-                                    className="mt-1 block max-w-[36rem] overflow-x-auto whitespace-pre-wrap rounded p-2 text-left"
-                                    style={{
-                                        backgroundColor: colors.theme.input_background,
-                                        border: `1px solid ${colors.theme.borders}`,
-                                        color: colors.theme.text,
-                                    }}
-                                >
-                                    {save_state.details}
-                                </code>
-                            </details>
-                        ) : null}
-                    </div>
+                    ) : null}
                 </section>
             ) : null}
             {rotator_configuration_capable && rotator_form != null ? (
@@ -1058,30 +1060,32 @@ function CatControl({
                             ) : null}
                         </div>
                     ) : null}
-                    <div className="flex items-center gap-3">
-                        <Button
-                            type="button"
-                            className="whitespace-nowrap px-2 py-1 text-xs"
-                            disabled={rotator_configuration_blocked}
-                            on_click={test_rotator}
-                        >
-                            Test connection
-                        </Button>
-                        {rotator_feedback ? (
-                            <p
-                                className={
-                                    rotator_feedback.ok === true
-                                        ? "text-green-600"
-                                        : rotator_feedback.ok === false
-                                          ? "text-red-600"
-                                          : "text-gray-500"
-                                }
-                                role={rotator_feedback.ok === false ? "alert" : "status"}
+                    {rotator_form.backend === "hamlib" ? (
+                        <div className="flex items-center gap-3">
+                            <Button
+                                type="button"
+                                className="whitespace-nowrap px-2 py-1 text-xs"
+                                disabled={rotator_configuration_blocked}
+                                on_click={test_rotator}
                             >
-                                {rotator_feedback.message}
-                            </p>
-                        ) : null}
-                    </div>
+                                Test connection
+                            </Button>
+                            {rotator_feedback ? (
+                                <p
+                                    className={
+                                        rotator_feedback.ok === true
+                                            ? "text-green-600"
+                                            : rotator_feedback.ok === false
+                                              ? "text-red-600"
+                                              : "text-gray-500"
+                                    }
+                                    role={rotator_feedback.ok === false ? "alert" : "status"}
+                                >
+                                    {rotator_feedback.message}
+                                </p>
+                            ) : null}
+                        </div>
+                    ) : null}
                 </section>
             ) : null}
             <h4 className="mb-2 border-t pt-4 text-lg">Logger integration</h4>

@@ -141,6 +141,7 @@ test("renders unified radio model connection flows in CAT Control", async ({ pag
     await page.locator("[data-tour='top-bar-settings']").click();
     await page.getByRole("button", { name: "CAT Control" }).click();
 
+    const radio_settings = page.getByRole("region", { name: "Radio hardware settings" });
     const model = page.getByRole("combobox", { name: "Model", exact: true });
     await model.click();
     await expect(page.getByRole("listbox").getByRole("option").first()).toHaveText("Unconfigured");
@@ -156,6 +157,15 @@ test("renders unified radio model connection flows in CAT Control", async ({ pag
     ]) {
         await model.click();
         await page.getByRole("option", { name }).click();
+        if (name === "Unconfigured") {
+            await expect(
+                radio_settings.getByRole("button", { name: "Test connection" }),
+            ).toBeHidden();
+        } else {
+            await expect(
+                radio_settings.getByRole("button", { name: "Test connection" }),
+            ).toBeVisible();
+        }
         if (connection === "serial") {
             await expect(page.getByLabel("Serial port")).toBeVisible();
         } else if (connection === "network") {
@@ -171,6 +181,7 @@ test("renders unified radio model connection flows in CAT Control", async ({ pag
     const rotator_settings = page.getByRole("region", { name: "Rotator hardware settings" });
     const rotator_model = page.getByRole("combobox", { name: "Rotator model" });
     await expect(rotator_settings.getByText("Unconfigured")).toBeVisible();
+    await expect(rotator_settings.getByRole("button", { name: "Test connection" })).toBeHidden();
     await rotator_model.click();
     await expect(page.getByRole("listbox").getByRole("option").first()).toHaveText("Unconfigured");
 });

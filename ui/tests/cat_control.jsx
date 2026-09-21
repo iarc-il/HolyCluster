@@ -192,7 +192,9 @@ describe("CAT control settings", () => {
         const apply_ref = { current: null };
         render_cat(apply_ref);
 
-        expect(screen.getByText("Unconfigured")).not.toBeNull();
+        const region = screen.getByRole("region", { name: "Radio hardware settings" });
+        expect(within(region).getByText("Unconfigured")).not.toBeNull();
+        expect(within(region).queryByRole("button", { name: "Test connection" })).toBeNull();
         await user.click(screen.getByRole("combobox", { name: "Model" }));
         expect(screen.getAllByRole("option")[0].textContent).toBe("Unconfigured");
         await user.keyboard("{Escape}");
@@ -219,6 +221,7 @@ describe("CAT control settings", () => {
         const region = screen.getByRole("region", { name: "Rotator hardware settings" });
         expect(within(region).getByText("Unconfigured")).not.toBeNull();
         expect(within(region).queryByLabelText("Backend")).toBeNull();
+        expect(within(region).queryByRole("button", { name: "Test connection" })).toBeNull();
         await user.click(within(region).getByRole("combobox", { name: "Rotator model" }));
         expect(screen.getAllByRole("option")[0].textContent).toBe("Unconfigured");
     });
