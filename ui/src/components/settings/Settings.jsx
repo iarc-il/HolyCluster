@@ -204,8 +204,8 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 }
 
                 if (radio_config_apply_ref.current) {
-                    const radio_applied = await radio_config_apply_ref.current();
-                    if (!radio_applied) {
+                    const cat_config_applied = await radio_config_apply_ref.current();
+                    if (!cat_config_applied) {
                         return false;
                     }
                 }

@@ -635,9 +635,24 @@ function CatControl({
         };
     }
 
-    function save_rotator_configuration() {
+    async function save_rotator_configuration() {
         set_rotator_save_state({ ok: null, message: "Saving rotator hardware..." });
-        apply_rotator_configuration(serialized_rotator_configuration());
+        const result = await apply_rotator_configuration(serialized_rotator_configuration());
+        return result.ok;
+    }
+
+    async function save_cat_configuration() {
+        if (configuration != null && !(await save_configuration())) {
+            return false;
+        }
+        if (
+            rotator_configuration_capable &&
+            rotator_form != null &&
+            !(await save_rotator_configuration())
+        ) {
+            return false;
+        }
+        return true;
     }
 
     function test_rotator() {
@@ -646,7 +661,10 @@ function CatControl({
     }
 
     if (radio_config_apply_ref != null) {
-        radio_config_apply_ref.current = configuration == null ? null : save_configuration;
+        radio_config_apply_ref.current =
+            configuration == null && (!rotator_configuration_capable || rotator_form == null)
+                ? null
+                : save_cat_configuration;
     }
 
     return (
@@ -1010,13 +1028,6 @@ function CatControl({
                             on_click={test_rotator}
                         >
                             Test connection
-                        </Button>
-                        <Button
-                            type="button"
-                            className="whitespace-nowrap px-2 py-1 text-xs"
-                            on_click={save_rotator_configuration}
-                        >
-                            Apply
                         </Button>
                         {rotator_feedback ? (
                             <p
