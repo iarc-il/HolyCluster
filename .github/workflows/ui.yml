@@ -82,6 +82,12 @@ jobs:
           cd ui
           npm run check:build
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('ui/package-lock.json') }}
+
       - name: Install Playwright browser
         run: |
           cd ui
