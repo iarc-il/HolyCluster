@@ -32,6 +32,7 @@ function SubmitIcon({ size }) {
 }
 
 const empty_temp_data = {
+    spotter_callsign: "",
     callsign: "",
     freq: 0,
     comment: "",
@@ -110,7 +111,7 @@ function SubmitSpot({ dev_mode }) {
             }
             set_submit_status({ status: "sending", reason: "" });
             const message = {
-                spotter_callsign: settings.callsign,
+                spotter_callsign: temp_data.spotter_callsign,
                 dx_callsign: temp_data.callsign,
                 freq: temp_data.freq,
                 comment: temp_data.comment,
@@ -201,7 +202,11 @@ function SubmitSpot({ dev_mode }) {
                 on_open={() => {
                     set_is_open(true);
                     set_external_close(true);
-                    set_temp_data(quick_spot_ref.current ?? empty_temp_data);
+                    set_temp_data({
+                        ...empty_temp_data,
+                        ...(quick_spot_ref.current ?? {}),
+                        spotter_callsign: settings.callsign || "",
+                    });
                     quick_spot_ref.current = null;
                 }}
                 on_apply={() => {
@@ -239,12 +244,18 @@ function SubmitSpot({ dev_mode }) {
                         <tr>
                             <td>Spotter callsign:</td>
                             <td>
-                                <span
-                                    className="inline-block w-32 uppercase font-bold text-lg text-center"
+                                <CallsignInput
+                                    value={temp_data.spotter_callsign}
+                                    className="w-32"
+                                    maxLength={11}
                                     data-tour="submit-spot-spotter-callsign"
-                                >
-                                    {settings.callsign}
-                                </span>
+                                    onChange={event => {
+                                        set_temp_data({
+                                            ...temp_data,
+                                            spotter_callsign: event.target.value,
+                                        });
+                                    }}
+                                />
                             </td>
                         </tr>
                         <tr>
