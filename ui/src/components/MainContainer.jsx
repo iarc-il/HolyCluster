@@ -189,7 +189,19 @@ function MainContent({
     }, [max_radius, auto_radius, radius_in_km]);
 
     const { set_mode_and_freq, radio_freq, radio_mode } = use_radio();
-    const { set_azimuth, is_rotator_available } = useRotator();
+    const { set_azimuth, is_rotator_available, rotator_target_azimuth } = useRotator();
+
+    useEffect(() => {
+        if (rotator_target_azimuth == null) return;
+        const home_location = get_station_location(settings);
+        if (home_location == null) return;
+        set_map_controls(state => {
+            state.location = {
+                displayed_locator: settings.locator,
+                location: home_location,
+            };
+        });
+    }, [rotator_target_azimuth]);
 
     function get_rotator_azimuth(spot) {
         if (!spot?.dx_loc) {
@@ -219,16 +231,7 @@ function MainContent({
         set_mode_and_freq(spot.mode, spot.freq);
 
         if (dev_mode && is_rotator_available()) {
-            const home_location = get_station_location(settings);
             const azimuth = get_rotator_azimuth(spot);
-            if (home_location != null) {
-                set_map_controls(state => {
-                    state.location = {
-                        displayed_locator: settings.locator,
-                        location: home_location,
-                    };
-                });
-            }
             if (azimuth != null) {
                 set_azimuth(azimuth);
             }
