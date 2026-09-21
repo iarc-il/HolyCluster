@@ -11,9 +11,7 @@ import { continents } from "@/data/filters_data.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 
-import { Suspense, lazy, useEffect } from "react";
-
-const RotatorPanel = lazy(() => import("@/components/RotatorPanel.jsx"));
+import { useEffect } from "react";
 
 const continent_title = { dx: "DX", spotter: "DE" };
 
@@ -178,18 +176,9 @@ const view_options = [
         size: 32,
         is_disabled: false,
     },
-    {
-        label: "Rotator",
-        bg: "#38bdf8",
-        icon: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m4.24 5.76-2.12 6.36a1 1 0 0 1-.63.63l-6.36 2.12 2.12-6.36a1 1 0 0 1 .63-.63z",
-        viewbox: "0 0 24 24",
-        size: 36,
-        is_disabled: false,
-        dev_only: true,
-    },
 ];
 
-function ViewSelectorTabs({ active_view, set_active_view, colors, dev_mode }) {
+function ViewSelectorTabs({ active_view, set_active_view, colors }) {
     return (
         <div
             className="flex shrink-0 border-b-2"
@@ -199,10 +188,6 @@ function ViewSelectorTabs({ active_view, set_active_view, colors, dev_mode }) {
             }}
         >
             {view_options.map((option, index) => {
-                if (option.dev_only && !dev_mode) {
-                    return null;
-                }
-
                 const is_active = active_view === index;
                 return (
                     <div
@@ -255,7 +240,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors, dev_mode }) {
 }
 
 function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, set_active_view }) {
-    const { colors, dev_mode } = useColors();
+    const { colors } = useColors();
 
     useEffect(() => {
         function select_tab(event) {
@@ -268,9 +253,6 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
     }, [set_active_view]);
 
     if (active_view === null) return null;
-
-    const effective_active_view =
-        !dev_mode && view_options[active_view]?.dev_only ? 0 : active_view;
 
     function handle_import_complete() {
         set_toggled_ui(state => ({ ...state, right_visible: true }));
@@ -288,11 +270,8 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
         </div>,
         <DXpeditions key="dxpeditions" />,
         <MissingPanel key="missing" on_import_complete={handle_import_complete} />,
-        <RotatorPanel key="rotator" />,
     ];
-    const active_view_label = view_options[effective_active_view]?.label
-        .toLowerCase()
-        .replaceAll(" ", "-");
+    const active_view_label = view_options[active_view]?.label.toLowerCase().replaceAll(" ", "-");
 
     const toggled_classes = toggled_ui.right_visible
         ? "max-2xl:absolute max-2xl:flex right-0 top-0"
@@ -304,17 +283,16 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
             style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}
         >
             <ViewSelectorTabs
-                active_view={effective_active_view}
+                active_view={active_view}
                 set_active_view={set_active_view}
                 colors={colors}
-                dev_mode={dev_mode}
             />
             <div className="flex flex-1 overflow-hidden" data-tour="side-panel-body">
                 <div
                     className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64 min-w-0"
                     data-tour={active_view_label ? `side-panel-view-${active_view_label}` : null}
                 >
-                    <Suspense fallback={null}>{content[effective_active_view]}</Suspense>
+                    {content[active_view]}
                 </div>
                 <RightColumnContent colors={colors} />
             </div>
