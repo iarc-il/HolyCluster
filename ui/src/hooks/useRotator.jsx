@@ -23,7 +23,9 @@ export function RotatorProvider({ children }) {
     const [rotator_name, set_rotator_name] = useState("");
     const [rotator_ready, set_rotator_ready] = useState(false);
     const [rotator_models, set_rotator_models] = useState([]);
+    const [rotator_models_error, set_rotator_models_error] = useState(null);
     const [rotator_model_details, set_rotator_model_details] = useState({});
+    const [rotator_model_error, set_rotator_model_error] = useState(null);
     const [rotator_configuration, set_rotator_configuration] = useState(null);
     const [rotator_configuration_result, set_rotator_configuration_result] = useState(null);
     const [rotator_connection_result, set_rotator_connection_result] = useState(null);
@@ -33,6 +35,7 @@ export function RotatorProvider({ children }) {
     useWsMessage("rotator", data => {
         if (data.event === "rotator_models") {
             set_rotator_models(data.models || []);
+            set_rotator_models_error(data.error || null);
             return;
         }
         if (data.event === "rotator_model") {
@@ -42,6 +45,7 @@ export function RotatorProvider({ children }) {
                     [data.model_id]: data.descriptors,
                 }));
             }
+            set_rotator_model_error(data.error || null);
             return;
         }
         if (data.event === "rotator_configuration") {
@@ -95,11 +99,17 @@ export function RotatorProvider({ children }) {
     }
 
     function list_rotator_models() {
-        if (rotator_supported) send("rotator", { action: "ListRotatorModels" });
+        if (!rotator_supported) return;
+
+        set_rotator_models_error(null);
+        send("rotator", { action: "ListRotatorModels" });
     }
 
     function describe_rotator_model(model_id) {
-        if (rotator_supported) send("rotator", { action: "DescribeRotatorModel", model_id });
+        if (!rotator_supported) return;
+
+        set_rotator_model_error(null);
+        send("rotator", { action: "DescribeRotatorModel", model_id });
     }
 
     function get_rotator_configuration() {
@@ -151,7 +161,9 @@ export function RotatorProvider({ children }) {
                 rotator_target_azimuth: rotator_supported ? rotator_target_azimuth : null,
                 rotator_name: rotator_supported ? rotator_name : "",
                 rotator_models: rotator_supported ? rotator_models : [],
+                rotator_models_error: rotator_supported ? rotator_models_error : null,
                 rotator_model_details: rotator_supported ? rotator_model_details : {},
+                rotator_model_error: rotator_supported ? rotator_model_error : null,
                 rotator_configuration: rotator_supported ? rotator_configuration : null,
                 rotator_configuration_result: rotator_supported
                     ? rotator_configuration_result

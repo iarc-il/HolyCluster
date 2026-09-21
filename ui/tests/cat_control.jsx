@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -53,8 +53,11 @@ function render_cat(radio_config_apply_ref = null) {
 describe("CAT control settings", () => {
     beforeEach(() => {
         rotator.current = {
+            rotator_supported: true,
             rotator_models: [],
+            rotator_models_error: null,
             rotator_model_details: {},
+            rotator_model_error: null,
             rotator_configuration: null,
             rotator_configuration_result: null,
             rotator_connection_result: null,
@@ -191,6 +194,39 @@ describe("CAT control settings", () => {
         expect(screen.getByRole("combobox", { name: "Model" }).value).toBe("");
         await apply_ref.current();
         expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({ rig: null });
+    });
+
+    it("shows rotator catalog errors and blocks rotator actions", async () => {
+        const apply_ref = { current: null };
+        radio.current.radio_capabilities.rotator_configuration = true;
+        rotator.current.rotator_models = [
+            {
+                id: "1",
+                manufacturer: "Hamlib",
+                model: "Dummy rotator",
+                port_type: "serial",
+                enabled: true,
+            },
+        ];
+        rotator.current.rotator_model_details = { 1: [] };
+        rotator.current.rotator_models_error = { message: "Rotator catalog unavailable" };
+        rotator.current.rotator_model_error = { message: "Rotator model unavailable" };
+        rotator.current.rotator_configuration = {
+            backend: "hamlib",
+            hamlib: { model_id: "1", token_values: {} },
+        };
+
+        render_cat(apply_ref);
+
+        const region = screen.getByRole("region", { name: "Rotator hardware settings" });
+        expect(within(region).getByText("Rotator catalog unavailable")).not.toBeNull();
+        expect(within(region).getByText("Rotator model unavailable")).not.toBeNull();
+        expect(within(region).getByRole("button", { name: "Test connection" })).toHaveProperty(
+            "disabled",
+            true,
+        );
+        await expect(apply_ref.current()).resolves.toBe(false);
+        expect(rotator.current.apply_rotator_configuration).not.toHaveBeenCalled();
     });
 
     it("shows update-required state by hiding unsupported radio controls", () => {

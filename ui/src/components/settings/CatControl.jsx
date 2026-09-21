@@ -393,7 +393,9 @@ function CatControl({
     const {
         rotator_supported,
         rotator_models,
+        rotator_models_error,
         rotator_model_details,
+        rotator_model_error,
         rotator_configuration,
         rotator_configuration_result,
         rotator_connection_result,
@@ -405,7 +407,9 @@ function CatControl({
     } = use_rotator() ?? {
         rotator_supported: false,
         rotator_models: [],
+        rotator_models_error: null,
         rotator_model_details: {},
+        rotator_model_error: null,
         rotator_configuration: null,
         rotator_configuration_result: null,
         rotator_connection_result: null,
@@ -445,6 +449,9 @@ function CatControl({
             ?.default || `${DEFAULT_HAMLIB_NETWORK_HOST}:${DEFAULT_ROTATOR_NETWORK_PORT}`;
     const rotator_connection_kind =
         connection_kind_by_port_type[selected_rotator_model?.port_type] || "serial";
+    const rotator_configuration_blocked =
+        rotator_form?.backend === "hamlib" &&
+        (rotator_models_error || rotator_model_error || !selected_rotator_model);
     const selected_model = model_options.find(
         option => option.value === selected_configuration?.model_id,
     );
@@ -639,6 +646,13 @@ function CatControl({
     }
 
     async function save_rotator_configuration() {
+        if (rotator_configuration_blocked) {
+            set_rotator_save_state({
+                ok: false,
+                message: "Load rotator model metadata before applying.",
+            });
+            return false;
+        }
         set_rotator_save_state({ ok: null, message: "Saving rotator hardware..." });
         const result = await apply_rotator_configuration(serialized_rotator_configuration());
         return result.ok;
@@ -659,6 +673,13 @@ function CatControl({
     }
 
     function test_rotator() {
+        if (rotator_configuration_blocked) {
+            set_rotator_save_state({
+                ok: false,
+                message: "Load rotator model metadata before testing.",
+            });
+            return;
+        }
         set_rotator_save_state({ ok: null, message: "Testing rotator connection..." });
         test_rotator_connection(serialized_rotator_configuration());
     }
@@ -870,6 +891,10 @@ function CatControl({
                     aria-label="Rotator hardware settings"
                 >
                     <h4 className="text-lg">Rotator hardware</h4>
+                    {rotator_models_error ? (
+                        <p role="alert">{rotator_models_error.message}</p>
+                    ) : null}
+                    {rotator_model_error ? <p role="alert">{rotator_model_error.message}</p> : null}
                     <label className="flex flex-col gap-1" htmlFor="rotator-backend">
                         <span>Backend</span>
                         <Select
@@ -1028,6 +1053,7 @@ function CatControl({
                         <Button
                             type="button"
                             className="whitespace-nowrap px-2 py-1 text-xs"
+                            disabled={rotator_configuration_blocked}
                             on_click={test_rotator}
                         >
                             Test connection
