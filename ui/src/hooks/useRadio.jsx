@@ -114,6 +114,9 @@ export function RadioProvider({ children }) {
 
         if (data.event === "capabilities" && cat_connected_ref.current) {
             set_radio_capabilities(data);
+            if (data.radio_configuration_api === 2) {
+                send_message_to_radio({ action: "GetRadioConfiguration" });
+            }
         }
 
         if (data.event === "radio_models") {
@@ -180,6 +183,10 @@ export function RadioProvider({ children }) {
     }
 
     function is_radio_available() {
+        return radio_ready && radio_configuration?.rig !== null && radio_status !== "unavailable";
+    }
+
+    function is_cat_available() {
         return radio_ready && radio_status !== "unavailable";
     }
 
@@ -279,7 +286,8 @@ export function RadioProvider({ children }) {
                 test_radio_connection,
                 retry_radio,
                 is_radio_available,
-                radio_status,
+                is_cat_available,
+                radio_status: radio_configuration?.rig === null ? "unavailable" : radio_status,
                 radio_freq,
                 radio_mode,
                 radio_band,

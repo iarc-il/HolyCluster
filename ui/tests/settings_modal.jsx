@@ -12,7 +12,7 @@ import { PROFILE_STORE_KEY } from "@/utils/profile_data.js";
 
 vi.mock("@/hooks/useRadio", () => ({
     default: () => ({
-        is_radio_available: () => false,
+        is_cat_available: () => false,
     }),
 }));
 

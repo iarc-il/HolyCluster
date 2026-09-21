@@ -45,7 +45,7 @@ afterEach(() => {
 beforeEach(() => {
     cat.current = {
         local_version: [...NATIVE_UPDATER_MIN_VERSION],
-        is_radio_available: () => true,
+        is_cat_available: () => true,
     };
 });
 
@@ -55,7 +55,7 @@ describe("CAT Control updates", () => {
         vi.stubGlobal("fetch", fetch);
         cat.current = {
             local_version: null,
-            is_radio_available: () => false,
+            is_cat_available: () => false,
         };
 
         render_updates();

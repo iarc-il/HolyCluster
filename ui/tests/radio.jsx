@@ -111,6 +111,23 @@ describe("radio configuration", () => {
         expect(Consumer.radio.radio_configuration_support).toBe("update_required");
     });
 
+    it("reports an unconfigured radio as unavailable", () => {
+        render_radio();
+        emit({ event: "status", status: "connected", catserver_version: "catserver-v2.0.0" });
+        emit({ event: "capabilities", radio_configuration_api: 2 });
+
+        expect(websocket.send).toHaveBeenCalledWith("radio", {
+            action: "GetRadioConfiguration",
+        });
+
+        emit({ event: "configuration", rig: null });
+
+        expect(Consumer.radio.radio_status).toBe("unavailable");
+        expect(Consumer.radio.is_radio_available()).toBe(false);
+        expect(Consumer.radio.is_cat_available()).toBe(true);
+        expect(Consumer.radio.radio_configuration_support).toBe("supported");
+    });
+
     it("continues tuning without active-rig state", () => {
         render_radio();
         const supported_version = `catserver-v${RTTY_TUNING_MIN_VERSION.slice(0, 3).join(".")}`;
