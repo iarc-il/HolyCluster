@@ -215,59 +215,6 @@ function draw_rotator_azimuth(context, dims, azimuth, color, line_width) {
     context.restore();
 }
 
-function draw_home_bearing_line(context, projection, dims, colors, home_location, dx_location) {
-    if (!home_location || !dx_location) return;
-
-    const home_pos = projection(home_location);
-    const dx_pos = projection(dx_location);
-    if (!home_pos || !dx_pos) return;
-
-    const azimuth = calculate_geographic_azimuth(
-        home_location[1],
-        home_location[0],
-        dx_location[1],
-        dx_location[0],
-    );
-    const angle = (90 - azimuth) * (Math.PI / 180);
-    const direction_x = Math.cos(angle);
-    const direction_y = -Math.sin(angle);
-    const color = colors.map.home_marker || "#2563eb";
-    const head_size = 12 * dims.scale;
-    const head_angle = Math.PI / 7;
-    const tip_x = dims.center_x + dims.radius * direction_x;
-    const tip_y = dims.center_y + dims.radius * direction_y;
-    const shaft_end_x = tip_x - head_size * Math.cos(head_angle) * direction_x;
-    const shaft_end_y = tip_y - head_size * Math.cos(head_angle) * direction_y;
-    const control_x = 2 * dx_pos[0] - (home_pos[0] + shaft_end_x) / 2;
-    const control_y = 2 * dx_pos[1] - (home_pos[1] + shaft_end_y) / 2;
-    const left_angle = angle + Math.PI - head_angle;
-    const right_angle = angle + Math.PI + head_angle;
-
-    context.save();
-    context.beginPath();
-    context.moveTo(home_pos[0], home_pos[1]);
-    context.quadraticCurveTo(control_x, control_y, shaft_end_x, shaft_end_y);
-    context.strokeStyle = with_alpha(color, 0.9);
-    context.lineWidth = 2.5;
-    context.lineCap = "round";
-    context.stroke();
-
-    context.beginPath();
-    context.moveTo(tip_x, tip_y);
-    context.lineTo(
-        tip_x + head_size * Math.cos(left_angle),
-        tip_y - head_size * Math.sin(left_angle),
-    );
-    context.lineTo(
-        tip_x + head_size * Math.cos(right_angle),
-        tip_y - head_size * Math.sin(right_angle),
-    );
-    context.closePath();
-    context.fillStyle = with_alpha(color, 0.9);
-    context.fill();
-    context.restore();
-}
-
 export function draw_spots(
     context,
     spots,
@@ -281,7 +228,6 @@ export function draw_spots(
     projection,
     is_globe,
     home_location,
-    show_dev_bearings,
     rotator_azimuth,
     rotator_target_azimuth,
     missing_flash_phase = 0,
@@ -352,17 +298,6 @@ export function draw_spots(
         context.setLineDash([5, 5]);
         context.stroke();
         context.setLineDash([]);
-
-        if (show_dev_bearings) {
-            draw_home_bearing_line(
-                context,
-                projection,
-                dims,
-                colors,
-                home_location,
-                azimuth_spot.dx_loc,
-            );
-        }
     }
 
     // Bold spot drawn last (on top)
