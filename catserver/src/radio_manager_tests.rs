@@ -28,8 +28,8 @@ impl Radio for FailingRadio {
     fn set_frequency(&mut self, _: Slot, _: crate::freq::Freq) -> Result<(), RadioOperationError> {
         Ok(())
     }
-    fn get_status(&mut self) -> Status {
-        Status::disconnected(1)
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+        Ok(Status::disconnected(1))
     }
 }
 
@@ -73,14 +73,14 @@ impl Radio for ThreadRadio {
         self.record();
         Ok(())
     }
-    fn get_status(&mut self) -> Status {
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
         self.record();
-        Status {
+        Ok(Status {
             freq: 0,
             status: "connected".into(),
             mode: "SSB".into(),
             current_rig: 1,
-        }
+        })
     }
 }
 

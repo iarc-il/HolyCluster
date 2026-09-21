@@ -40,12 +40,12 @@ impl Radio for DummyRadio {
         Ok(())
     }
 
-    fn get_status(&mut self) -> Status {
-        Status {
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+        Ok(Status {
             freq: self.freq_a.as_u32_hz(),
             mode: "SSB".into(),
             status: "connected".into(),
             current_rig: 1,
-        }
+        })
     }
 }

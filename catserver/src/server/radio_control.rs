@@ -106,13 +106,13 @@ mod tests {
             Ok(())
         }
 
-        fn get_status(&mut self) -> Status {
-            Status {
+        fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+            Ok(Status {
                 freq: 0,
                 status: "connected".into(),
                 mode: "SSB".into(),
                 current_rig: 1,
-            }
+            })
         }
     }
 

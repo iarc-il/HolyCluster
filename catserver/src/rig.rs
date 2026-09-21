@@ -109,7 +109,7 @@ pub trait Radio {
     fn init(&mut self) -> Result<(), RadioInitError>;
     fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError>;
     fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError>;
-    fn get_status(&mut self) -> Status;
+    fn get_status(&mut self) -> Result<Status, RadioOperationError>;
 }
 
 pub struct UnavailableRadio {
@@ -139,7 +139,11 @@ impl Radio for UnavailableRadio {
             "radio unavailable",
         ))
     }
-    fn get_status(&mut self) -> Status {
-        Status::disconnected(1)
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+        Err(RadioOperationError::new(
+            1,
+            "read status",
+            "radio unavailable",
+        ))
     }
 }

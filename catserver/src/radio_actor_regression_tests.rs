@@ -53,14 +53,14 @@ impl Radio for RetryRadio {
         self.record();
         Ok(())
     }
-    fn get_status(&mut self) -> Status {
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
         self.record();
-        Status {
+        Ok(Status {
             freq: 0,
             status: "connected".into(),
             mode: "SSB".into(),
             current_rig: 1,
-        }
+        })
     }
 }
 
@@ -82,13 +82,13 @@ impl Radio for WriteFailRadio {
         Ok(())
     }
 
-    fn get_status(&mut self) -> Status {
-        Status {
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+        Ok(Status {
             freq: 0,
             status: "connected".into(),
             mode: "SSB".into(),
             current_rig: 1,
-        }
+        })
     }
 }
 
@@ -123,13 +123,13 @@ impl Radio for RecoveringOrderedRadio {
         Ok(())
     }
 
-    fn get_status(&mut self) -> Status {
-        Status {
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+        Ok(Status {
             freq: 0,
             status: "connected".into(),
             mode: "SSB".into(),
             current_rig: 1,
-        }
+        })
     }
 }
 
@@ -161,14 +161,14 @@ impl Radio for OrderedRadio {
         self.event("frequency");
         Ok(())
     }
-    fn get_status(&mut self) -> Status {
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
         self.event("status");
-        Status {
+        Ok(Status {
             freq: self.frequency,
             status: "connected".into(),
             mode: self.mode.into(),
             current_rig: self.rig,
-        }
+        })
     }
 }
 

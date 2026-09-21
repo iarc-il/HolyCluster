@@ -194,21 +194,33 @@ impl Radio for OmnirigRadio {
             })
     }
 
-    fn get_status(&mut self) -> Status {
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
         let Some(rig) = self.current_rig() else {
             self.omnirig_available = false;
-            return self.disconnected_status();
+            return Err(RadioOperationError::new(
+                self.rig_number(),
+                "read status",
+                "OmniRig unavailable",
+            ));
         };
 
         let freq = match rig.invoke_get("FreqA", &[]) {
             Ok(winsafe::Variant::I4(freq)) => Freq::from_i32_hz(freq),
             Ok(_) => {
                 tracing::error!("OmniRig FreqA did not return an integer");
-                return self.disconnected_status();
+                return Err(RadioOperationError::new(
+                    self.rig_number(),
+                    "read frequency",
+                    "FreqA did not return an integer",
+                ));
             }
             Err(err) => {
                 tracing::error!("Failed to get OmniRig frequency: {err}");
-                return self.disconnected_status();
+                return Err(RadioOperationError::new(
+                    self.rig_number(),
+                    "read frequency",
+                    err.to_string(),
+                ));
             }
         };
 
@@ -216,13 +228,29 @@ impl Radio for OmnirigRadio {
             Ok(winsafe::Variant::Bstr(status_str)) => status_str,
             Ok(_) => {
                 tracing::error!("OmniRig StatusStr did not return a string");
-                "unknown".into()
+                return Err(RadioOperationError::new(
+                    self.rig_number(),
+                    "read status",
+                    "StatusStr did not return a string",
+                ));
             }
             Err(err) => {
                 tracing::error!("Failed to get OmniRig status: {err}");
-                return self.disconnected_status();
+                return Err(RadioOperationError::new(
+                    self.rig_number(),
+                    "read status",
+                    err.to_string(),
+                ));
             }
         };
+
+        if status_str != "On-line" {
+            return Err(RadioOperationError::new(
+                self.rig_number(),
+                "read status",
+                status_str,
+            ));
+        }
 
         let mode = match rig.invoke_get("Mode", &[]) {
             Ok(winsafe::Variant::I4(mode)) => match mode {
@@ -235,26 +263,27 @@ impl Radio for OmnirigRadio {
             },
             Ok(_) => {
                 tracing::error!("OmniRig Mode did not return an integer");
-                "Unknown"
+                return Err(RadioOperationError::new(
+                    self.rig_number(),
+                    "read mode",
+                    "Mode did not return an integer",
+                ));
             }
             Err(err) => {
                 tracing::error!("Failed to get OmniRig mode: {err}");
-                "Unknown"
+                return Err(RadioOperationError::new(
+                    self.rig_number(),
+                    "read mode",
+                    err.to_string(),
+                ));
             }
         };
 
-        let status = match status_str.as_str() {
-            "On-line" => "connected",
-            "Rig is not responding" => "disconnected",
-            "Port is not available" => "disconnected",
-            _ => "unknown",
-        }
-        .to_string();
-        Status {
+        Ok(Status {
             freq: freq.as_u32_hz(),
-            status,
+            status: "connected".into(),
             mode: mode.into(),
             current_rig: self.rig_number(),
-        }
+        })
     }
 }

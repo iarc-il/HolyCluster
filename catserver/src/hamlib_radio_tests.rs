@@ -32,16 +32,16 @@ fn dummy_rig_selects_vfos_and_maps_modes() {
         .set_frequency(Slot::A, Freq::from_u32_hz(7_100_000))
         .unwrap();
     radio.set_mode(Mode::CW).unwrap();
-    assert_eq!(radio.get_status().freq, 7_100_000);
-    assert_eq!(radio.get_status().mode, "CW");
+    assert_eq!(radio.get_status().unwrap().freq, 7_100_000);
+    assert_eq!(radio.get_status().unwrap().mode, "CW");
 
     radio
         .set_frequency(Slot::B, Freq::from_u32_hz(14_200_000))
         .unwrap();
     radio.set_mode(Mode::Data).unwrap();
-    assert_eq!(radio.get_status().current_rig, 1);
-    assert_eq!(radio.get_status().freq, 14_200_000);
-    assert_eq!(radio.get_status().mode, "DIGI");
+    assert_eq!(radio.get_status().unwrap().current_rig, 1);
+    assert_eq!(radio.get_status().unwrap().freq, 14_200_000);
+    assert_eq!(radio.get_status().unwrap().mode, "DIGI");
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn dummy_ignores_a_persisted_serial_path() {
         .insert("rig_pathname".into(), "/dev/ttyS0".into());
     let mut radio = HamlibRadio::new(config);
     radio.init().unwrap();
-    assert_eq!(radio.get_status().current_rig, 1);
+    assert_eq!(radio.get_status().unwrap().current_rig, 1);
 }
 
 #[test]
@@ -68,12 +68,12 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
     radio.init().expect("NET rigctl initializes");
     assert_eq!(
         radio.get_status(),
-        Status {
+        Ok(Status {
             freq: 7_100_000,
             status: "connected".into(),
             mode: "SSB".into(),
             current_rig: 1,
-        }
+        })
     );
 
     radio
@@ -82,17 +82,17 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
     radio.set_mode(Mode::CW).unwrap();
     assert_eq!(
         radio.get_status(),
-        Status {
+        Ok(Status {
             freq: 14_200_000,
             status: "connected".into(),
             mode: "CW".into(),
             current_rig: 1,
-        }
+        })
     );
     radio.set_mode(Mode::Data).unwrap();
-    assert_eq!(radio.get_status().mode, "DIGI");
+    assert_eq!(radio.get_status().unwrap().mode, "DIGI");
     radio.set_mode(Mode::Rtty).unwrap();
-    assert_eq!(radio.get_status().mode, "RTTY");
+    assert_eq!(radio.get_status().unwrap().mode, "RTTY");
     let commands = server.commands();
     assert!(
         commands.iter().any(|command| command == "V VFOB"),
@@ -127,8 +127,8 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
     let deadline = Instant::now() + Duration::from_secs(3);
     let disconnected = loop {
         let status = radio.get_status();
-        if status.status == "disconnected" {
-            break status;
+        if let Err(error) = status {
+            break error;
         }
         assert!(
             Instant::now() < deadline,
@@ -136,7 +136,7 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
         );
         thread::sleep(Duration::from_millis(10));
     };
-    assert_eq!(disconnected, Status::disconnected(1));
+    assert_eq!(disconnected.operation, "read frequency");
 
     server.stop();
     let mut restarted = FakeRigctld::start(address, 14_074_000, "USB");
@@ -145,12 +145,12 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
         .expect("manager retry reconstructs the connection");
     assert_eq!(
         radio.get_status(),
-        Status {
+        Ok(Status {
             freq: 14_074_000,
             status: "connected".into(),
             mode: "SSB".into(),
             current_rig: 1,
-        }
+        })
     );
     assert!(
         restarted

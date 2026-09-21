@@ -49,27 +49,29 @@ impl Radio for HamlibRadio {
             .map_err(|error| operation_error("set frequency", error))
     }
 
-    fn get_status(&mut self) -> Status {
-        let status = if let Some(rig) = &mut self.rig {
-            match (
-                rig.frequency(hamlib::Vfo::Current),
-                rig.mode(hamlib::Vfo::Current),
-            ) {
-                (Ok(frequency), Ok((mode, _))) => Status {
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+        let result = self
+            .rig
+            .as_mut()
+            .ok_or_else(|| unavailable("read status"))
+            .and_then(|rig| {
+                let frequency = rig
+                    .frequency(hamlib::Vfo::Current)
+                    .map_err(|error| operation_error("read frequency", error))?;
+                let (mode, _) = rig
+                    .mode(hamlib::Vfo::Current)
+                    .map_err(|error| operation_error("read mode", error))?;
+                Ok(Status {
                     freq: frequency.hertz() as u32,
                     status: "connected".into(),
                     mode: status_mode(mode).into(),
                     current_rig: 1,
-                },
-                _ => Status::disconnected(1),
-            }
-        } else {
-            Status::disconnected(1)
-        };
-        if status.status == "disconnected" {
+                })
+            });
+        if result.is_err() {
             self.rig = None;
         }
-        status
+        result
     }
 }
 
