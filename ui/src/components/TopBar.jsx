@@ -14,8 +14,10 @@ import { useMediaQuery } from "@uidotdev/usehooks";
 
 import Icon from "@/assets/icon.png";
 import OpenMenu from "@/components/OpenMenu.jsx";
+import RotatorState from "@/components/RotatorState.jsx";
 
 import use_radio from "@/hooks/useRadio";
+import useRotator from "@/hooks/useRotator";
 import { useEffect } from "react";
 
 const spots_time_limits = {
@@ -29,6 +31,7 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
     const { filters, setFilters } = useFilters();
     const { network_state } = useSpotData();
     const { radio_status } = use_radio();
+    const { rotator_status, rotator_name, rotator_azimuth } = useRotator();
     const { profiles, active_profile_name, set_active_profile_name } = useProfiles();
 
     const network_state_colors = {
@@ -85,6 +88,11 @@ function TopBar({ set_map_controls, set_radius_in_km, toggled_ui, set_toggled_ui
             </h1>
 
             <div className="flex items-center h-full p-2 gap-3">
+                <RotatorState
+                    status={rotator_status}
+                    name={rotator_name}
+                    azimuth={rotator_azimuth}
+                />
                 {radio_status !== "unavailable" ? (
                     <>
                         <div data-tour="top-bar-radio-frequency">
