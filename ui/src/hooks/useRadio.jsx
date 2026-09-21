@@ -212,10 +212,6 @@ export function RadioProvider({ children }) {
         });
     }
 
-    function get_radio_capabilities() {
-        send_message_to_radio({ action: "GetCapabilities" });
-    }
-
     function list_radio_models() {
         set_radio_models_error(null);
         send_message_to_radio({ action: "ListRadioModels" });
@@ -275,7 +271,6 @@ export function RadioProvider({ children }) {
             value={{
                 set_mode_and_freq,
                 highlight_spot,
-                get_radio_capabilities,
                 list_radio_models,
                 list_serial_ports,
                 describe_radio_model,
