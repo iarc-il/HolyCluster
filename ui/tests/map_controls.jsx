@@ -4,8 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import MapControls from "@/components/MapControls.jsx";
 
-let radio_status = "unavailable";
-
 vi.mock("@/hooks/useColors", () => ({
     MAP_THEME_CONFIGS: {
         colorful: { palette: { a: "#ff0000", b: "#00ff00", c: "#0000ff", d: "#ffff00" } },
@@ -22,9 +20,6 @@ vi.mock("@/hooks/useColors", () => ({
                 utility: "#ffffff",
             },
             map_controls: {
-                radio_connected: "#00ff00",
-                radio_disconnected: "#ff0000",
-                radio_unknown: "#777777",
                 zone_label_inactive: "#999999",
             },
             theme: {
@@ -39,12 +34,6 @@ vi.mock("@/hooks/useFilters", () => ({
     useFilters: () => ({
         filters: {},
         setFilters: vi.fn(),
-    }),
-}));
-
-vi.mock("@/hooks/useRadio", () => ({
-    default: () => ({
-        radio_status,
     }),
 }));
 
@@ -71,7 +60,7 @@ function set_geolocation(getCurrentPosition) {
     });
 }
 
-function render_map_controls({ is_mobile, can_undo_cat = false }) {
+function render_map_controls({ is_mobile }) {
     const map_controls = {
         map_theme: "colorful",
         location: {
@@ -87,8 +76,6 @@ function render_map_controls({ is_mobile, can_undo_cat = false }) {
             set_map_controls={set_map_controls}
             set_radius_in_km={vi.fn()}
             auto_toggle_radius={false}
-            can_undo_cat={can_undo_cat}
-            undo_cat={vi.fn()}
             is_map_fullscreen={false}
             toggle_map_fullscreen={vi.fn()}
             is_mobile={is_mobile}
@@ -105,7 +92,6 @@ describe("MapControls GPS", () => {
         cleanup();
         vi.restoreAllMocks();
         set_geolocation(null);
-        radio_status = "unavailable";
     });
 
     it("centers the mobile map on the current GPS location", async () => {
@@ -157,8 +143,7 @@ describe("MapControls GPS", () => {
 
     it("provides tooltips for non-textual map controls", async () => {
         const user = userEvent.setup();
-        radio_status = "connected";
-        render_map_controls({ is_mobile: false, can_undo_cat: true });
+        render_map_controls({ is_mobile: false });
 
         for (const [name, content] of [
             ["Reset map", "Reset map"],
@@ -173,7 +158,6 @@ describe("MapControls GPS", () => {
         await user.click(screen.getByRole("button", { name: "Show map controls" }));
 
         for (const [name, content] of [
-            ["Undo CAT change", "Undo CAT change"],
             ["Show equator", "Show equator"],
             ["Toggle night mode", "Toggle night mode"],
             ["Use colorful map theme", "Colorful map theme"],

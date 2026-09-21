@@ -335,8 +335,6 @@ function MainContent({
                 map_controls={map_controls}
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
-                can_undo_cat={prev_freqs.length > 0}
-                undo_cat={undo_freq_change}
                 is_map_fullscreen={is_map_fullscreen}
                 toggle_map_fullscreen={toggle_map_fullscreen}
                 is_mobile={is_md_device}
@@ -421,6 +419,8 @@ function MainContent({
                 toggled_ui={toggled_ui}
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
+                can_undo_cat={prev_freqs.length > 0}
+                undo_cat={undo_freq_change}
             />
             <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
                 <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
