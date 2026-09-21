@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use axum::extract::{
     State, WebSocketUpgrade,
     ws::{Message, WebSocket},
@@ -41,7 +41,7 @@ pub(super) async fn ws_handler(
             )
             .await
             {
-                availability.unavailable(&error);
+                tracing::debug!(%error, "Unified WebSocket session ended");
             }
         })
 }
@@ -57,8 +57,14 @@ async fn handle_ws_socket(
     availability: AvailabilityTrace,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = socket.split();
-    let (stream, _) = connect_async(server_config.build_uri("ws", "/ws")).await?;
-    availability.available();
+    let (stream, _) = match connect_async(server_config.build_uri("ws", "/ws")).await {
+        Ok(connection) => connection,
+        Err(error) => {
+            availability.unavailable(&error);
+            return Err(error.into());
+        }
+    };
+    let mut upstream_connection = availability.connection();
     let (mut server_sender, mut server_receiver) = stream.split();
     client_sender.send(radio::init_message()?).await?;
     let rotator_status = rotator_manager.status();
@@ -85,15 +91,39 @@ async fn handle_ws_socket(
                     client_sender.send(rotator::status_message(&rotator_manager.status())?).await?;
                 },
                 Message::Text(text) => {
-                    if forward_to_server(&mut server_sender, utils::axum_to_tungstenite_message(Message::Text(text))).await? { break; }
+                    if let Err(error) = forward_to_server(
+                        &mut server_sender,
+                        utils::axum_to_tungstenite_message(Message::Text(text)),
+                    ).await {
+                        upstream_connection.unavailable(&error);
+                        break;
+                    }
                 }
                 Message::Close(_) => break,
-                message => if forward_to_server(&mut server_sender, utils::axum_to_tungstenite_message(message)).await? { break; },
+                message => {
+                    if let Err(error) = forward_to_server(
+                        &mut server_sender,
+                        utils::axum_to_tungstenite_message(message),
+                    ).await {
+                        upstream_connection.unavailable(&error);
+                        break;
+                    }
+                },
             },
-            Some(Ok(message)) = server_receiver.next() => {
-                let Some(message) = utils::tungstenite_to_axum_message(message) else { continue; };
-                if client_sender.send(message).await.is_err() { break; }
-            }
+            message = server_receiver.next() => match message {
+                Some(Ok(message)) => {
+                    let Some(message) = utils::tungstenite_to_axum_message(message) else { continue; };
+                    if client_sender.send(message).await.is_err() { break; }
+                }
+                Some(Err(error)) => {
+                    upstream_connection.unavailable(&error);
+                    break;
+                }
+                None => {
+                    upstream_connection.unavailable(&anyhow!("upstream WebSocket closed"));
+                    break;
+                }
+            },
             event = receiver.recv() => match event? {
                 UserEvent::Quit => {
                     let _ = client_sender.send(radio::close_message()?).await;
@@ -142,10 +172,6 @@ async fn forward_to_server(
         tokio_tungstenite::tungstenite::Message,
     >,
     message: tokio_tungstenite::tungstenite::Message,
-) -> Result<bool> {
-    match sender.send(message).await {
-        Ok(()) => Ok(false),
-        Err(tokio_tungstenite::tungstenite::Error::ConnectionClosed) => Ok(true),
-        Err(error) => Err(error.into()),
-    }
+) -> Result<()> {
+    sender.send(message).await.map_err(Into::into)
 }
