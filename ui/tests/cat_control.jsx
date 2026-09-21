@@ -186,14 +186,41 @@ describe("CAT control settings", () => {
         });
     });
 
-    it("keeps an unconfigured server unconfigured until a model is selected", async () => {
+    it("shows an unconfigured radio first and keeps it unconfigured", async () => {
+        const user = userEvent.setup();
         radio.current.radio_configuration = { event: "configuration", rig: null };
         const apply_ref = { current: null };
         render_cat(apply_ref);
 
-        expect(screen.getByRole("combobox", { name: "Model" }).value).toBe("");
+        expect(screen.getByText("Unconfigured")).not.toBeNull();
+        await user.click(screen.getByRole("combobox", { name: "Model" }));
+        expect(screen.getAllByRole("option")[0].textContent).toBe("Unconfigured");
+        await user.keyboard("{Escape}");
         await apply_ref.current();
         expect(radio.current.set_radio_configuration).toHaveBeenCalledWith({ rig: null });
+    });
+
+    it("shows an unconfigured rotator first in the unified model selector", async () => {
+        const user = userEvent.setup();
+        radio.current.radio_capabilities.rotator_configuration = true;
+        rotator.current.rotator_models = [
+            {
+                id: "1",
+                manufacturer: "Hamlib",
+                model: "Dummy rotator",
+                port_type: "none",
+                enabled: true,
+            },
+        ];
+        rotator.current.rotator_configuration = { backend: "unconfigured" };
+
+        render_cat();
+
+        const region = screen.getByRole("region", { name: "Rotator hardware settings" });
+        expect(within(region).getByText("Unconfigured")).not.toBeNull();
+        expect(within(region).queryByLabelText("Backend")).toBeNull();
+        await user.click(within(region).getByRole("combobox", { name: "Rotator model" }));
+        expect(screen.getAllByRole("option")[0].textContent).toBe("Unconfigured");
     });
 
     it("shows rotator catalog errors and blocks rotator actions", async () => {

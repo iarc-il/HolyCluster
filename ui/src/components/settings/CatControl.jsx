@@ -19,6 +19,7 @@ const {
     serial_option_values,
 } = hamlib_config_policy;
 
+const UNCONFIGURED_MODEL_ID = "unconfigured";
 const DEFAULT_HAMLIB_MODEL_ID = "1";
 const DEFAULT_UNIX_SERIAL_PORT = "/dev/ttyUSB0";
 const DEFAULT_WINDOWS_SERIAL_PORT = "COM1";
@@ -186,23 +187,39 @@ function materialized_radio(rig, descriptors, serial_ports, connection_kind) {
 }
 
 function radio_model_options(models) {
-    return models.map(model => ({
-        value: model.id,
-        label: model.model.startsWith(model.manufacturer)
-            ? model.model
-            : `${model.manufacturer} ${model.model}`,
-        connection_kind: model.connection_kind,
-    }));
+    return [
+        { value: UNCONFIGURED_MODEL_ID, label: "Unconfigured", connection_kind: "none" },
+        ...models
+            .filter(model => model.id !== UNCONFIGURED_MODEL_ID)
+            .map(model => ({
+                value: model.id,
+                label: model.model.startsWith(model.manufacturer)
+                    ? model.model
+                    : `${model.manufacturer} ${model.model}`,
+                connection_kind: model.connection_kind,
+            })),
+    ];
 }
 
-function hamlib_model_options(models) {
-    return models.map(model => ({
-        value: model.id,
-        label: `${model.manufacturer} ${model.model}`,
-        port_type: model.port_type,
-        isDisabled: model.enabled === false,
-        disabled_reason: model.disabled_reason,
-    }));
+function rotator_options(models) {
+    return [
+        {
+            value: UNCONFIGURED_MODEL_ID,
+            label: "Unconfigured",
+            port_type: "none",
+        },
+        ...models
+            .filter(model => model.id !== UNCONFIGURED_MODEL_ID)
+            .map(model => ({
+                value: model.id,
+                label: model.model.startsWith(model.manufacturer)
+                    ? model.model
+                    : `${model.manufacturer} ${model.model}`,
+                port_type: model.port_type,
+                isDisabled: model.enabled === false,
+                disabled_reason: model.disabled_reason,
+            })),
+    ];
 }
 
 function serial_port_options(ports, current_value) {
@@ -438,9 +455,11 @@ function CatControl({
     const has_field_errors = radio_result?.failure === "invalid_config" && radio_errors.length > 0;
     const selected_errors = radio_errors.filter(error => error.field?.startsWith("rig"));
     const model_options = radio_model_options(radio_models);
-    const rotator_model_options = hamlib_model_options(rotator_models);
-    const selected_rotator_model = rotator_model_options.find(
-        option => option.value === rotator_form?.hamlib?.model_id,
+    const rotator_model_options = rotator_options(rotator_models);
+    const selected_rotator_model = rotator_model_options.find(option =>
+        rotator_form?.backend === "unconfigured"
+            ? option.value === UNCONFIGURED_MODEL_ID
+            : option.value === rotator_form?.hamlib?.model_id,
     );
     const selected_rotator_descriptors =
         rotator_model_details[rotator_form?.hamlib?.model_id] || [];
@@ -452,8 +471,10 @@ function CatControl({
     const rotator_configuration_blocked =
         rotator_form?.backend === "hamlib" &&
         (rotator_models_error || rotator_model_error || !selected_rotator_model);
-    const selected_model = model_options.find(
-        option => option.value === selected_configuration?.model_id,
+    const selected_model = model_options.find(option =>
+        selected_configuration == null
+            ? option.value === UNCONFIGURED_MODEL_ID
+            : option.value === selected_configuration.model_id,
     );
     const selected_connection_kind = selected_model?.connection_kind ?? null;
     const radio_port_value =
@@ -720,7 +741,7 @@ function CatControl({
                                 onChange={option => {
                                     const model_id = option?.value;
                                     update_selected(rig =>
-                                        model_id == null
+                                        model_id == null || model_id === UNCONFIGURED_MODEL_ID
                                             ? null
                                             : {
                                                   model_id,
@@ -895,54 +916,42 @@ function CatControl({
                         <p role="alert">{rotator_models_error.message}</p>
                     ) : null}
                     {rotator_model_error ? <p role="alert">{rotator_model_error.message}</p> : null}
-                    <label className="flex flex-col gap-1" htmlFor="rotator-backend">
-                        <span>Backend</span>
-                        <Select
-                            id="rotator-backend"
-                            value={rotator_form.backend}
-                            onChange={event => {
+                    <label className="flex flex-col gap-1" htmlFor="rotator-model">
+                        <span>Model</span>
+                        <SearchSelect
+                            inputId="rotator-model"
+                            aria-label="Rotator model"
+                            className="w-full"
+                            filterOption={search_filter}
+                            isOptionDisabled={option => option.isDisabled}
+                            formatOptionLabel={option =>
+                                option.disabled_reason
+                                    ? `${option.label} — ${option.disabled_reason}`
+                                    : option.label
+                            }
+                            value={selected_rotator_model ?? null}
+                            onChange={option => {
+                                if (!option) return;
                                 set_rotator_save_state(null);
-                                set_rotator_form(current => ({
-                                    ...current,
-                                    backend: event.target.value,
-                                }));
+                                set_rotator_form(current =>
+                                    option.value === UNCONFIGURED_MODEL_ID
+                                        ? { ...current, backend: "unconfigured" }
+                                        : {
+                                              ...current,
+                                              backend: "hamlib",
+                                              hamlib: {
+                                                  model_id: option.value,
+                                                  token_values: {},
+                                              },
+                                          },
+                                );
                             }}
-                        >
-                            <option value="unconfigured">Unconfigured</option>
-                            <option value="hamlib">Hamlib</option>
-                        </Select>
+                            styles={search_select_styles(colors)}
+                            options={rotator_model_options}
+                        />
                     </label>
                     {rotator_form.backend === "hamlib" ? (
                         <div className="flex flex-col gap-3">
-                            <label className="flex flex-col gap-1" htmlFor="rotator-hamlib-model">
-                                <span>Model</span>
-                                <SearchSelect
-                                    inputId="rotator-hamlib-model"
-                                    aria-label="Rotator model"
-                                    className="w-full"
-                                    filterOption={search_filter}
-                                    isOptionDisabled={option => option.isDisabled}
-                                    formatOptionLabel={option =>
-                                        option.disabled_reason
-                                            ? `${option.label} — ${option.disabled_reason}`
-                                            : option.label
-                                    }
-                                    value={selected_rotator_model ?? null}
-                                    onChange={option => {
-                                        if (!option) return;
-                                        set_rotator_save_state(null);
-                                        set_rotator_form(current => ({
-                                            ...current,
-                                            hamlib: {
-                                                model_id: option.value,
-                                                token_values: {},
-                                            },
-                                        }));
-                                    }}
-                                    styles={search_select_styles(colors)}
-                                    options={rotator_model_options}
-                                />
-                            </label>
                             <h5 className="border-t pt-3 font-semibold">
                                 {rotator_connection_kind === "network"
                                     ? "Network connection"

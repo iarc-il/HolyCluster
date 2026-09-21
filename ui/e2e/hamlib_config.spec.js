@@ -13,6 +13,16 @@ const models = [
     { id: "omnirig:2", manufacturer: "OmniRig", model: "OmniRig Rig 2", connection_kind: "none" },
 ];
 
+const rotator_models = [
+    {
+        id: "1",
+        manufacturer: "Hamlib",
+        model: "Dummy",
+        port_type: "none",
+        enabled: true,
+    },
+];
+
 const descriptors = {
     "hamlib:1": [],
     "hamlib:2": [
@@ -60,6 +70,26 @@ test("renders unified radio model connection flows in CAT Control", async ({ pag
                 websocket.send(JSON.stringify(radio_status));
                 return;
             }
+            if (request.type === "rotator") {
+                if (request.action === "GetRotatorConfiguration") {
+                    websocket.send(
+                        JSON.stringify({
+                            type: "rotator",
+                            event: "rotator_configuration",
+                            backend: "unconfigured",
+                        }),
+                    );
+                } else if (request.action === "ListRotatorModels") {
+                    websocket.send(
+                        JSON.stringify({
+                            type: "rotator",
+                            event: "rotator_models",
+                            models: rotator_models,
+                        }),
+                    );
+                }
+                return;
+            }
             if (request.type !== "radio") return;
             websocket.send(JSON.stringify(radio_status));
             switch (request.action) {
@@ -70,6 +100,7 @@ test("renders unified radio model connection flows in CAT Control", async ({ pag
                             event: "capabilities",
                             radio_configuration: true,
                             radio_configuration_api: 2,
+                            rotator_configuration: true,
                         }),
                     );
                     break;
@@ -110,8 +141,13 @@ test("renders unified radio model connection flows in CAT Control", async ({ pag
     await page.locator("[data-tour='top-bar-settings']").click();
     await page.getByRole("button", { name: "CAT Control" }).click();
 
-    const model = page.getByRole("combobox", { name: "Model" });
+    const model = page.getByRole("combobox", { name: "Model", exact: true });
+    await model.click();
+    await expect(page.getByRole("listbox").getByRole("option").first()).toHaveText("Unconfigured");
+    await page.getByRole("option", { name: "Hamlib Dummy" }).click();
+
     for (const [name, connection] of [
+        ["Unconfigured", "none"],
         ["Acme Serial rig", "serial"],
         ["Hamlib NET rigctl", "network"],
         ["OmniRig Rig 1", "none"],
@@ -131,4 +167,10 @@ test("renders unified radio model connection flows in CAT Control", async ({ pag
             await expect(page.getByLabel("Host")).toBeHidden();
         }
     }
+
+    const rotator_settings = page.getByRole("region", { name: "Rotator hardware settings" });
+    const rotator_model = page.getByRole("combobox", { name: "Rotator model" });
+    await expect(rotator_settings.getByText("Unconfigured")).toBeVisible();
+    await rotator_model.click();
+    await expect(page.getByRole("listbox").getByRole("option").first()).toHaveText("Unconfigured");
 });
