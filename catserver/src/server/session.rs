@@ -82,14 +82,18 @@ async fn handle_ws_socket(
         tokio::select! {
             Some(message) = client_receiver.next() => match message? {
                 Message::Text(text) if radio_actions::is_message(text.as_ref()) => {
-                    if let Some(response) = radio_actions::process_ws(text.to_string(), &radio_manager, &radio_configuration).await? {
-                        client_sender.send(response).await?;
+                    match radio_actions::process_ws(text.to_string(), &radio_manager, &radio_configuration).await {
+                        Ok(Some(response)) => client_sender.send(response).await?,
+                        Ok(None) => {}
+                        Err(error) => tracing::error!(%error, "Failed to process radio WebSocket message"),
                     }
                     client_sender.send(radio::status_message(&radio_manager.status(), &radio_manager)?).await?;
                 }
                 Message::Text(text) if rotator::is_message(text.as_ref()) => {
-                    if let Some(response) = rotator::process(text.to_string(), &rotator_manager, &rotator_configuration).await? {
-                        client_sender.send(response).await?;
+                    match rotator::process(text.to_string(), &rotator_manager, &rotator_configuration).await {
+                        Ok(Some(response)) => client_sender.send(response).await?,
+                        Ok(None) => {}
+                        Err(error) => tracing::error!(%error, "Failed to process rotator WebSocket message"),
                     }
                     client_sender.send(rotator::status_message(&rotator_manager.status())?).await?;
                 },
