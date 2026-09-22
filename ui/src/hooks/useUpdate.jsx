@@ -78,6 +78,7 @@ export function normalize_update_status(payload) {
         loading: "loading",
         checking: "checking",
         installing: "installing",
+        reboot_required: "reboot_required",
         failed: "failed",
         error: "failed",
     };

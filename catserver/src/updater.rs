@@ -65,6 +65,7 @@ pub enum UpdateState {
     Downloaded,
     Installing,
     Installed,
+    RebootRequired,
     Failed,
 }
 
@@ -325,8 +326,8 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
         install_linux(&plan)
     };
     let status = match &result {
-        Ok(()) => UpdateStatus {
-            state: UpdateState::Installed,
+        Ok(state) => UpdateStatus {
+            state: state.clone(),
             available_version: None,
             diagnostic: None,
         },
@@ -341,7 +342,9 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
     }
     write_json(&plan.state_path, &status).context("cannot persist update helper status")?;
     #[cfg(target_os = "linux")]
-    if result.is_ok()
+    if result
+        .as_ref()
+        .is_ok_and(|state| *state == UpdateState::Installed)
         && let Err(error) = exec_linux(&plan)
     {
         tracing::error!(?error, "Updated AppImage handoff failed");
@@ -358,10 +361,10 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
     if result.is_ok() {
         tracing::info!("Update helper completed successfully");
     }
-    result
+    result.map(drop)
 }
 
-fn install_linux(plan: &InstallPlan) -> Result<()> {
+fn install_linux(plan: &InstallPlan) -> Result<UpdateState> {
     if platform() != PLATFORM_LINUX || !is_appimage(&plan.current_executable) {
         bail!(
             "automatic update is only supported for APPIMAGE-backed executables; update manually"
@@ -385,7 +388,7 @@ fn install_linux(plan: &InstallPlan) -> Result<()> {
         let _ = fs::rename(&backup, &plan.current_executable);
         return Err(error).context("cannot activate updated AppImage; previous version restored");
     }
-    Ok(())
+    Ok(UpdateState::Installed)
 }
 
 #[cfg(target_os = "linux")]
@@ -412,7 +415,7 @@ pub(crate) fn make_executable(_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn install_windows(plan: &InstallPlan) -> Result<()> {
+fn install_windows(plan: &InstallPlan) -> Result<UpdateState> {
     if platform() != PLATFORM_WINDOWS {
         bail!("Windows installer received on unsupported platform");
     }
@@ -421,16 +424,26 @@ fn install_windows(plan: &InstallPlan) -> Result<()> {
     if log_path.exists() {
         fs::remove_file(&log_path).context("cannot remove previous MSI installer log")?;
     }
-    let exit_code = run_elevated_windows_installer(&plan.staged_artifact, &log_path)?;
-    if exit_code != 0 {
-        bail!(
-            "MSI installer exited with code {exit_code}; see msi-install.log; MSI rollback is not guaranteed"
-        );
+    let state = windows_install_state(run_elevated_windows_installer(
+        &plan.staged_artifact,
+        &log_path,
+    )?)?;
+    if state == UpdateState::Installed {
+        let mut command = Command::new(&plan.current_executable);
+        command.args(&plan.command_args);
+        command.spawn()?;
     }
-    let mut command = Command::new(&plan.current_executable);
-    command.args(&plan.command_args);
-    command.spawn()?;
-    Ok(())
+    Ok(state)
+}
+
+pub(crate) fn windows_install_state(exit_code: u32) -> Result<UpdateState> {
+    match exit_code {
+        0 => Ok(UpdateState::Installed),
+        3010 => Ok(UpdateState::RebootRequired),
+        _ => bail!(
+            "MSI installer exited with code {exit_code}; see msi-install.log; MSI rollback is not guaranteed"
+        ),
+    }
 }
 
 #[cfg(target_os = "linux")]

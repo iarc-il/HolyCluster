@@ -35,6 +35,7 @@ function message_for(status, error) {
         malformed: "CAT Control update information is unavailable.",
         deferred: "CAT Control update available.",
         installing: "Installing CAT Control. The connection may close while it restarts.",
+        reboot_required: "Restart Windows to finish installing CAT Control.",
         unsupported: "Automatic updates are not supported on this platform.",
         failed: error ?? "CAT Control update failed.",
     };

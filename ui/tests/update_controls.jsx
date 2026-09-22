@@ -90,6 +90,9 @@ describe("CAT Control updates", () => {
                 diagnostic: null,
             }).status,
         ).toBe("current");
+        expect(normalize_update_status({ state: "reboot_required" }).status).toBe(
+            "reboot_required",
+        );
     });
 
     it("handles an empty update response", async () => {
