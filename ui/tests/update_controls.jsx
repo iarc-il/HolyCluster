@@ -119,6 +119,19 @@ describe("CAT Control updates", () => {
         expect(fetch).toHaveBeenNthCalledWith(2, "/api/update/check", expect.any(Object));
     });
 
+    it("checks automatically after a previous update was installed", async () => {
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(response({ state: "installed" }))
+            .mockResolvedValueOnce(response({ state: "available", available_version: "1.2.0-3" }));
+        vi.stubGlobal("fetch", fetch);
+
+        render_updates();
+
+        expect(await screen.findByRole("button", { name: "Update" })).not.toBeNull();
+        expect(fetch).toHaveBeenNthCalledWith(2, "/api/update/check", expect.any(Object));
+    });
+
     it("periodically checks idle status without reopening deferred updates", async () => {
         vi.useFakeTimers();
         const fetch = vi

@@ -161,7 +161,7 @@ export function UpdateProvider({ children }) {
             if (!response.ok) throw new Error(`Update status failed (${response.status})`);
             const payload = await read_update_payload(response);
             const next =
-                payload?.state === "idle"
+                payload?.state === "idle" || payload?.state === "installed"
                     ? await request_update("/api/update/check")
                     : normalize_update_status(payload);
             if (enabled_ref.current && generation === request_generation_ref.current) {
