@@ -24,6 +24,21 @@ pub fn run(args: Args) -> Result<()> {
     }
     let instance = SingleInstance::new(INSTANCE_NAME)?;
     tracing::info!("Version tag: {}", env!("VERSION"));
+    if !instance.is_single() {
+        let path = if args.close { "exit" } else { "open" };
+        if !args.close {
+            tracing::info!("Server is already running");
+        }
+        reqwest::blocking::Client::new()
+            .post(format!("http://127.0.0.1:{BASE_LOCAL_PORT}/{path}"))
+            .send()?;
+        return Ok(());
+    }
+    if args.close {
+        tracing::warn!("No running instance, not closing");
+        return Ok(());
+    }
+
     let server_config = server_config(&args);
     let path = RadioConfig::config_path()?;
     let radio_config = startup_radio::load(&path);
@@ -45,53 +60,36 @@ pub fn run(args: Args) -> Result<()> {
         });
     let rotator = RotatorManager::new(rotator_config)?;
     let use_dummy_rotator = args.dummy_rotator;
-    let is_single = instance.is_single();
-    if is_single {
-        if args.close {
-            tracing::warn!("No running instance, not closing");
-            return Ok(());
-        }
-        let (sender, _) = broadcast::channel::<UserEvent>(10);
-        let event_sender = sender.clone();
-        let use_local_ui = args.local_ui;
-        let thread = std::thread::Builder::new()
-            .name("singleton".into())
-            .spawn(move || {
-                if let Err(error) = run_singleton(
-                    event_sender,
-                    radio,
-                    rotator,
-                    server_config,
-                    use_local_ui,
-                    use_dummy_rotator,
-                ) {
-                    tracing::error!(?error, "Singleton instance failed");
-                }
-            })?;
-        if cfg!(any(windows, target_os = "linux")) {
-            tray_icon::run_tray_icon(sender.clone(), sender.subscribe());
-        }
-        if let Err(error) = thread.join() {
-            let message = error
-                .downcast_ref::<&str>()
-                .copied()
-                .or_else(|| error.downcast_ref::<String>().map(String::as_str))
-                .unwrap_or("unknown panic payload");
-            tracing::error!(message, "Singleton thread panicked");
-        }
-    } else {
-        let path = if args.close { "exit" } else { "open" };
-        if !args.close {
-            tracing::info!("Server is already running");
-        }
-        reqwest::blocking::Client::new()
-            .post(format!("http://127.0.0.1:{BASE_LOCAL_PORT}/{path}"))
-            .send()?;
+    let (sender, _) = broadcast::channel::<UserEvent>(10);
+    let event_sender = sender.clone();
+    let use_local_ui = args.local_ui;
+    let thread = std::thread::Builder::new()
+        .name("singleton".into())
+        .spawn(move || {
+            if let Err(error) = run_singleton(
+                event_sender,
+                radio,
+                rotator,
+                server_config,
+                use_local_ui,
+                use_dummy_rotator,
+            ) {
+                tracing::error!(?error, "Singleton instance failed");
+            }
+        })?;
+    if cfg!(any(windows, target_os = "linux")) {
+        tray_icon::run_tray_icon(sender.clone(), sender.subscribe());
+    }
+    if let Err(error) = thread.join() {
+        let message = error
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| error.downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("unknown panic payload");
+        tracing::error!(message, "Singleton thread panicked");
     }
     drop(instance);
-    if is_single {
-        crate::updater::exec_pending_update()?;
-    }
+    crate::updater::exec_pending_update()?;
     Ok(())
 }
 
