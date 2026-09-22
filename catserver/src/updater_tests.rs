@@ -166,6 +166,35 @@ fn persists_deferred_status() {
 }
 
 #[test]
+#[ignore]
+fn clears_installed_status_only_when_running_version_matches() {
+    let data_dir = std::env::temp_dir().join(format!(
+        "catserver-update-installed-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&data_dir).unwrap();
+    fs::write(
+        data_dir.join("state.json"),
+        r#"{"state":"installed","available_version":"1.3.0","diagnostic":null}"#,
+    )
+    .unwrap();
+    let service = |version| {
+        UpdateService::with_data_dir(
+            Url::parse("https://releases.example/manifest.json").unwrap(),
+            version,
+            data_dir.clone(),
+        )
+        .unwrap()
+    };
+    assert_eq!(service("1.2.0").status().state, UpdateState::Installed);
+    assert_eq!(service("1.3.0").status().state, UpdateState::Idle);
+    fs::remove_dir_all(data_dir).unwrap();
+}
+
+#[test]
 fn builds_silent_msi_arguments() {
     assert_eq!(
         windows_installer_arguments(

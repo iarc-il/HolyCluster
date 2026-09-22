@@ -96,6 +96,8 @@ struct InstallPlan {
     state_path: PathBuf,
     parent_pid: u32,
     #[serde(default)]
+    version: Option<String>,
+    #[serde(default)]
     command_args: Vec<String>,
 }
 
@@ -118,16 +120,32 @@ impl UpdateService {
         current_version: &str,
         data_dir: PathBuf,
     ) -> Result<Self> {
-        Ok(Self {
+        let service = Self {
             manifest_url,
             current_version: parse_version(current_version)?,
             platform: platform(),
             data_dir,
-        })
+        };
+        service.reconcile_installed_status()?;
+        Ok(service)
     }
 
     pub fn status(&self) -> UpdateStatus {
         read_status(&self.state_path()).unwrap_or_default()
+    }
+
+    fn reconcile_installed_status(&self) -> Result<()> {
+        let status = self.status();
+        if status.state == UpdateState::Installed
+            && status
+                .available_version
+                .as_deref()
+                .and_then(|version| parse_version(version).ok())
+                .is_some_and(|version| self.current_version >= version)
+        {
+            self.write_status(&UpdateStatus::default())?;
+        }
+        Ok(())
     }
 
     pub fn defer(&self) -> Result<UpdateStatus> {
@@ -220,6 +238,7 @@ impl UpdateService {
                 artifact,
                 state_path: self.state_path(),
                 parent_pid: std::process::id(),
+                version: Some(version.to_string()),
                 command_args: std::env::args().skip(1).collect(),
             })?,
         )?;
@@ -329,7 +348,7 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
     let status = match &result {
         Ok(state) => UpdateStatus {
             state: state.clone(),
-            available_version: None,
+            available_version: plan.version.clone(),
             diagnostic: None,
         },
         Err(error) => UpdateStatus {
