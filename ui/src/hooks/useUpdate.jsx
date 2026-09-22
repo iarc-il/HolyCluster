@@ -11,6 +11,7 @@ import {
 } from "react";
 
 const UpdateContext = createContext(null);
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 function parse_version(value) {
     if (typeof value !== "string") return null;
@@ -158,7 +159,11 @@ export function UpdateProvider({ children }) {
         try {
             const response = await fetch("/api/update");
             if (!response.ok) throw new Error(`Update status failed (${response.status})`);
-            const next = normalize_update_status(await read_update_payload(response));
+            const payload = await read_update_payload(response);
+            const next =
+                payload?.state === "idle"
+                    ? await request_update("/api/update/check")
+                    : normalize_update_status(payload);
             if (enabled_ref.current && generation === request_generation_ref.current) {
                 set_update(next);
             }
@@ -188,6 +193,8 @@ export function UpdateProvider({ children }) {
         }
 
         refresh();
+        const interval = window.setInterval(refresh, UPDATE_CHECK_INTERVAL_MS);
+        return () => window.clearInterval(interval);
     }, [enabled, refresh]);
 
     const action = useCallback(

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -40,6 +40,7 @@ function render_updates() {
 afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.useRealTimers();
 });
 
 beforeEach(() => {
@@ -104,6 +105,44 @@ describe("CAT Control updates", () => {
         ).not.toBeNull();
     });
 
+    it("checks automatically when update status is idle", async () => {
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(response({ state: "idle" }))
+            .mockResolvedValueOnce(response({ state: "available", available_version: "1.2.0-2" }));
+        vi.stubGlobal("fetch", fetch);
+
+        render_updates();
+
+        expect(await screen.findByRole("button", { name: "Update" })).not.toBeNull();
+        expect(fetch).toHaveBeenNthCalledWith(1, "/api/update");
+        expect(fetch).toHaveBeenNthCalledWith(2, "/api/update/check", expect.any(Object));
+    });
+
+    it("periodically checks idle status without reopening deferred updates", async () => {
+        vi.useFakeTimers();
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(response({ state: "idle" }))
+            .mockResolvedValueOnce(response({ state: "idle" }))
+            .mockResolvedValue(response({ state: "deferred", available_version: "1.2.0-2" }));
+        vi.stubGlobal("fetch", fetch);
+
+        render_updates();
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000);
+        });
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000);
+        });
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
+
+        expect(fetch.mock.calls.filter(([path]) => path === "/api/update/check")).toHaveLength(1);
+        expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
+    });
+
     it("installs after accepting the update prompt", async () => {
         const fetch = vi
             .fn()
@@ -144,6 +183,7 @@ describe("CAT Control updates", () => {
     it("offers retry after a failed update check", async () => {
         const fetch = vi
             .fn()
+            .mockResolvedValueOnce(response({ state: "idle" }))
             .mockResolvedValueOnce(response({ state: "idle" }))
             .mockResolvedValueOnce(response({}, false))
             .mockResolvedValueOnce(response({ state: "idle" }));
