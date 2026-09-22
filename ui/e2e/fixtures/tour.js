@@ -157,6 +157,15 @@ export const test = base.extend({
             }),
         );
         await page.routeWebSocket("**/ws", websocket => {
+            websocket.send(
+                JSON.stringify({
+                    version: 1,
+                    type: "radio",
+                    event: "status",
+                    status: "unavailable",
+                    catserver_version: "catserver-v1.2.0",
+                }),
+            );
             websocket.onMessage(message => {
                 const request = JSON.parse(message);
                 if (request.type !== "spots" || request.action !== "initial") return;

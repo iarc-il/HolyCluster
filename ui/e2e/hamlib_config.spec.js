@@ -63,7 +63,15 @@ test("renders unified radio model connection flows in CAT Control", async ({ pag
         localStorage.setItem("first_launch", "false");
         localStorage.setItem("active_view", "0");
     });
+    await page.route(/\/api\/update(?:\/.*)?$/, route =>
+        route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ state: "idle" }),
+        }),
+    );
     await page.routeWebSocket("**/ws", websocket => {
+        websocket.send(JSON.stringify(radio_status));
         websocket.onMessage(message => {
             const request = JSON.parse(message);
             if (request.type === "spots") {

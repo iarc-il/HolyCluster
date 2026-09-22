@@ -66,6 +66,15 @@ test("plays back historical spots and propagation over the canonical WebSocket",
     );
 
     await page.routeWebSocket("**/ws", websocket => {
+        websocket.send(
+            JSON.stringify({
+                version: 1,
+                type: "radio",
+                event: "status",
+                status: "unavailable",
+                catserver_version: "catserver-v1.2.0",
+            }),
+        );
         websocket.onMessage(message => {
             const request = JSON.parse(message);
 
