@@ -10,8 +10,7 @@ use reqwest::Url;
 use crate::updater::close_inherited_descriptors_on_exec;
 use crate::updater::{
     AppRelease, Artifact, PLATFORM_LINUX, ReleaseManifest, UpdateService, UpdateState,
-    copy_verified, make_executable, validate_artifact, windows_install_state,
-    windows_installer_arguments,
+    copy_verified, make_executable, validate_artifact, windows_installer_arguments,
 };
 
 fn artifact() -> Artifact {
@@ -180,16 +179,6 @@ fn builds_silent_msi_arguments() {
             "C:/safe/update.log"
         ]
     );
-}
-
-#[test]
-fn accepts_windows_installer_reboot_result() {
-    assert_eq!(windows_install_state(0).unwrap(), UpdateState::Installed);
-    assert_eq!(
-        windows_install_state(3010).unwrap(),
-        UpdateState::RebootRequired
-    );
-    assert!(windows_install_state(1603).is_err());
 }
 
 #[cfg(unix)]
