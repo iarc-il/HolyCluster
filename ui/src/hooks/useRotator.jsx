@@ -1,5 +1,5 @@
 import { ROTATOR_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import useRadio from "./useRadio";
 import { useWs, useWsMessage } from "./useWs";
 
@@ -30,7 +30,13 @@ export function RotatorProvider({ children }) {
     const [rotator_configuration_result, set_rotator_configuration_result] = useState(null);
     const [rotator_connection_result, set_rotator_connection_result] = useState(null);
     const pending_action = useRef(null);
-    const { send } = useWs();
+    const { network_state, send } = useWs();
+
+    useEffect(() => {
+        if (network_state !== "connected") {
+            set_rotator_target_azimuth(null);
+        }
+    }, [network_state]);
 
     useWsMessage("rotator", data => {
         if (data.event === "rotator_models") {
@@ -73,6 +79,9 @@ export function RotatorProvider({ children }) {
         set_rotator_status(data.status || "unavailable");
         set_rotator_azimuth(next_azimuth);
         set_rotator_target_azimuth(target => {
+            if (data.status !== "connected") {
+                return null;
+            }
             if (target == null || next_azimuth == null) {
                 return target;
             }
