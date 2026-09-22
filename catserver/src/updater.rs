@@ -522,83 +522,47 @@ fn run_elevated_windows_installer(_msi: &Path, _log: &Path) -> Result<u32> {
 
 #[cfg(windows)]
 mod windows_elevation {
-    use std::{ffi::c_void, io, os::windows::ffi::OsStrExt};
+    use std::{io, os::windows::ffi::OsStrExt};
 
     use anyhow::{Context, Result, bail};
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, WAIT_OBJECT_0},
+        System::Threading::{GetExitCodeProcess, INFINITE, WaitForSingleObject},
+        UI::{
+            Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW},
+            WindowsAndMessaging::SW_HIDE,
+        },
+    };
 
     use super::OsString;
-
-    const SEE_MASK_NOCLOSEPROCESS: u32 = 0x00000040;
-    const SW_HIDE: i32 = 0;
-    const INFINITE: u32 = 0xffffffff;
-    const WAIT_OBJECT_0: u32 = 0;
-
-    #[repr(C)]
-    struct ShellExecuteInfo {
-        size: u32,
-        mask: u32,
-        window: *mut c_void,
-        verb: *const u16,
-        file: *const u16,
-        parameters: *const u16,
-        directory: *const u16,
-        show: i32,
-        instance: *mut c_void,
-        id_list: *mut c_void,
-        class: *const u16,
-        class_key: *mut c_void,
-        hot_key: u32,
-        icon_or_monitor: *mut c_void,
-        process: *mut c_void,
-    }
-
-    #[link(name = "shell32")]
-    unsafe extern "system" {
-        fn ShellExecuteExW(info: *mut ShellExecuteInfo) -> i32;
-    }
-
-    #[link(name = "kernel32")]
-    unsafe extern "system" {
-        fn WaitForSingleObject(handle: *mut c_void, milliseconds: u32) -> u32;
-        fn GetExitCodeProcess(handle: *mut c_void, exit_code: *mut u32) -> i32;
-        fn CloseHandle(handle: *mut c_void) -> i32;
-    }
 
     pub(super) fn run(program: &str, arguments: &[OsString]) -> Result<u32> {
         let verb = wide("runas");
         let program = wide(program);
         let parameters = command_line(arguments);
-        let mut info = ShellExecuteInfo {
-            size: size_of::<ShellExecuteInfo>() as u32,
-            mask: SEE_MASK_NOCLOSEPROCESS,
-            window: std::ptr::null_mut(),
-            verb: verb.as_ptr(),
-            file: program.as_ptr(),
-            parameters: parameters.as_ptr(),
-            directory: std::ptr::null(),
-            show: SW_HIDE,
-            instance: std::ptr::null_mut(),
-            id_list: std::ptr::null_mut(),
-            class: std::ptr::null(),
-            class_key: std::ptr::null_mut(),
-            hot_key: 0,
-            icon_or_monitor: std::ptr::null_mut(),
-            process: std::ptr::null_mut(),
+        let mut info = SHELLEXECUTEINFOW {
+            cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
+            fMask: SEE_MASK_NOCLOSEPROCESS,
+            lpVerb: verb.as_ptr(),
+            lpFile: program.as_ptr(),
+            lpParameters: parameters.as_ptr(),
+            nShow: SW_HIDE,
+            ..Default::default()
         };
         if unsafe { ShellExecuteExW(&mut info) } == 0 {
             return Err(io::Error::last_os_error()).context("cannot start elevated MSI installer");
         }
-        if info.process.is_null() {
+        if info.hProcess.is_null() {
             bail!("elevated MSI installer did not return a process handle");
         }
-        let wait = unsafe { WaitForSingleObject(info.process, INFINITE) };
+        let wait = unsafe { WaitForSingleObject(info.hProcess, INFINITE) };
         if wait != WAIT_OBJECT_0 {
-            unsafe { CloseHandle(info.process) };
+            unsafe { CloseHandle(info.hProcess) };
             bail!("cannot wait for elevated MSI installer: {wait:#x}");
         }
         let mut exit_code = 0;
-        let result = unsafe { GetExitCodeProcess(info.process, &mut exit_code) };
-        unsafe { CloseHandle(info.process) };
+        let result = unsafe { GetExitCodeProcess(info.hProcess, &mut exit_code) };
+        unsafe { CloseHandle(info.hProcess) };
         if result == 0 {
             return Err(io::Error::last_os_error()).context("cannot read MSI installer exit code");
         }
