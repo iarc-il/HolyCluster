@@ -166,8 +166,18 @@ fn persists_deferred_status() {
 #[test]
 fn builds_silent_msi_arguments() {
     assert_eq!(
-        windows_installer_arguments(Path::new("C:/safe/update.msi")),
-        ["/i", "C:/safe/update.msi", "/qn", "/norestart"]
+        windows_installer_arguments(
+            Path::new("C:/safe/update.msi"),
+            Path::new("C:/safe/update.log")
+        ),
+        [
+            "/i",
+            "C:/safe/update.msi",
+            "/qn",
+            "/norestart",
+            "/L*v",
+            "C:/safe/update.log"
+        ]
     );
 }
 

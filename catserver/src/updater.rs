@@ -417,9 +417,15 @@ fn install_windows(plan: &InstallPlan) -> Result<()> {
         bail!("Windows installer received on unsupported platform");
     }
     verify_file(&plan.staged_artifact, &plan.artifact)?;
-    let exit_code = run_elevated_windows_installer(&plan.staged_artifact)?;
+    let log_path = plan.state_path.with_file_name("msi-install.log");
+    if log_path.exists() {
+        fs::remove_file(&log_path).context("cannot remove previous MSI installer log")?;
+    }
+    let exit_code = run_elevated_windows_installer(&plan.staged_artifact, &log_path)?;
     if exit_code != 0 {
-        bail!("MSI installer exited with code {exit_code}; MSI rollback is not guaranteed");
+        bail!(
+            "MSI installer exited with code {exit_code}; see msi-install.log; MSI rollback is not guaranteed"
+        );
     }
     let mut command = Command::new(&plan.current_executable);
     command.args(&plan.command_args);
@@ -480,22 +486,24 @@ pub fn exec_pending_update() -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn windows_installer_arguments(msi: &Path) -> Vec<OsString> {
+pub(crate) fn windows_installer_arguments(msi: &Path, log: &Path) -> Vec<OsString> {
     vec![
         "/i".into(),
         msi.as_os_str().to_owned(),
         "/qn".into(),
         "/norestart".into(),
+        "/L*v".into(),
+        log.as_os_str().to_owned(),
     ]
 }
 
 #[cfg(windows)]
-fn run_elevated_windows_installer(msi: &Path) -> Result<u32> {
-    windows_elevation::run("msiexec.exe", &windows_installer_arguments(msi))
+fn run_elevated_windows_installer(msi: &Path, log: &Path) -> Result<u32> {
+    windows_elevation::run("msiexec.exe", &windows_installer_arguments(msi, log))
 }
 
 #[cfg(not(windows))]
-fn run_elevated_windows_installer(_msi: &Path) -> Result<u32> {
+fn run_elevated_windows_installer(_msi: &Path, _log: &Path) -> Result<u32> {
     bail!("Windows installer received on unsupported platform")
 }
 
