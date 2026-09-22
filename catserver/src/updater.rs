@@ -231,7 +231,10 @@ impl UpdateService {
         #[cfg(windows)]
         {
             let executable = std::env::current_exe()?;
-            let helper = Command::new(executable)
+            let helper_path = self.data_dir.join("update-helper.exe");
+            fs::create_dir_all(&self.data_dir)?;
+            fs::copy(executable, &helper_path).context("cannot stage update helper")?;
+            let helper = Command::new(helper_path)
                 .arg("--apply-update")
                 .arg(self.plan_path())
                 .spawn()
