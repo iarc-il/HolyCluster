@@ -341,6 +341,22 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
         tracing::error!(?error, "Update helper failed");
     }
     write_json(&plan.state_path, &status).context("cannot persist update helper status")?;
+    #[cfg(windows)]
+    if result.as_ref().err().is_some_and(|error| {
+        error
+            .downcast_ref::<io::Error>()
+            .and_then(io::Error::raw_os_error)
+            == Some(windows_sys::Win32::Foundation::ERROR_CANCELLED as i32)
+    }) {
+        let mut command = Command::new(&plan.current_executable);
+        command.args(&plan.command_args);
+        if let Err(error) = command.spawn() {
+            tracing::error!(
+                ?error,
+                "Cannot restart catserver after elevation was canceled"
+            );
+        }
+    }
     #[cfg(target_os = "linux")]
     if result
         .as_ref()
@@ -550,7 +566,12 @@ mod windows_elevation {
             ..Default::default()
         };
         if unsafe { ShellExecuteExW(&mut info) } == 0 {
-            return Err(io::Error::last_os_error()).context("cannot start elevated MSI installer");
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() == Some(windows_sys::Win32::Foundation::ERROR_CANCELLED as i32)
+            {
+                return Err(error).context("Windows elevation was canceled");
+            }
+            return Err(error).context("cannot start elevated MSI installer");
         }
         if info.hProcess.is_null() {
             bail!("elevated MSI installer did not return a process handle");
