@@ -3,6 +3,7 @@ use std::os::unix::fs::PermissionsExt;
 #[cfg(target_os = "linux")]
 use std::os::unix::process::CommandExt;
 use std::{
+    ffi::OsString,
     fs::{self, File},
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -416,9 +417,9 @@ fn install_windows(plan: &InstallPlan) -> Result<()> {
         bail!("Windows installer received on unsupported platform");
     }
     verify_file(&plan.staged_artifact, &plan.artifact)?;
-    let status = windows_installer_command(&plan.staged_artifact).status()?;
-    if !status.success() {
-        bail!("MSI installer exited with {status}; MSI rollback is not guaranteed");
+    let exit_code = run_elevated_windows_installer(&plan.staged_artifact)?;
+    if exit_code != 0 {
+        bail!("MSI installer exited with code {exit_code}; MSI rollback is not guaranteed");
     }
     let mut command = Command::new(&plan.current_executable);
     command.args(&plan.command_args);
@@ -479,10 +480,146 @@ pub fn exec_pending_update() -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn windows_installer_command(msi: &Path) -> Command {
-    let mut command = Command::new("msiexec.exe");
-    command.args(["/i"]).arg(msi).args(["/qn", "/norestart"]);
-    command
+pub(crate) fn windows_installer_arguments(msi: &Path) -> Vec<OsString> {
+    vec![
+        "/i".into(),
+        msi.as_os_str().to_owned(),
+        "/qn".into(),
+        "/norestart".into(),
+    ]
+}
+
+#[cfg(windows)]
+fn run_elevated_windows_installer(msi: &Path) -> Result<u32> {
+    windows_elevation::run("msiexec.exe", &windows_installer_arguments(msi))
+}
+
+#[cfg(not(windows))]
+fn run_elevated_windows_installer(_msi: &Path) -> Result<u32> {
+    bail!("Windows installer received on unsupported platform")
+}
+
+#[cfg(windows)]
+mod windows_elevation {
+    use std::{ffi::c_void, io, os::windows::ffi::OsStrExt};
+
+    use anyhow::{Context, Result, bail};
+
+    use super::OsString;
+
+    const SEE_MASK_NOCLOSEPROCESS: u32 = 0x00000040;
+    const SW_HIDE: i32 = 0;
+    const INFINITE: u32 = 0xffffffff;
+    const WAIT_OBJECT_0: u32 = 0;
+
+    #[repr(C)]
+    struct ShellExecuteInfo {
+        size: u32,
+        mask: u32,
+        window: *mut c_void,
+        verb: *const u16,
+        file: *const u16,
+        parameters: *const u16,
+        directory: *const u16,
+        show: i32,
+        instance: *mut c_void,
+        id_list: *mut c_void,
+        class: *const u16,
+        class_key: *mut c_void,
+        hot_key: u32,
+        icon_or_monitor: *mut c_void,
+        process: *mut c_void,
+    }
+
+    #[link(name = "shell32")]
+    unsafe extern "system" {
+        fn ShellExecuteExW(info: *mut ShellExecuteInfo) -> i32;
+    }
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn WaitForSingleObject(handle: *mut c_void, milliseconds: u32) -> u32;
+        fn GetExitCodeProcess(handle: *mut c_void, exit_code: *mut u32) -> i32;
+        fn CloseHandle(handle: *mut c_void) -> i32;
+    }
+
+    pub(super) fn run(program: &str, arguments: &[OsString]) -> Result<u32> {
+        let verb = wide("runas");
+        let program = wide(program);
+        let parameters = command_line(arguments);
+        let mut info = ShellExecuteInfo {
+            size: size_of::<ShellExecuteInfo>() as u32,
+            mask: SEE_MASK_NOCLOSEPROCESS,
+            window: std::ptr::null_mut(),
+            verb: verb.as_ptr(),
+            file: program.as_ptr(),
+            parameters: parameters.as_ptr(),
+            directory: std::ptr::null(),
+            show: SW_HIDE,
+            instance: std::ptr::null_mut(),
+            id_list: std::ptr::null_mut(),
+            class: std::ptr::null(),
+            class_key: std::ptr::null_mut(),
+            hot_key: 0,
+            icon_or_monitor: std::ptr::null_mut(),
+            process: std::ptr::null_mut(),
+        };
+        if unsafe { ShellExecuteExW(&mut info) } == 0 {
+            return Err(io::Error::last_os_error()).context("cannot start elevated MSI installer");
+        }
+        if info.process.is_null() {
+            bail!("elevated MSI installer did not return a process handle");
+        }
+        let wait = unsafe { WaitForSingleObject(info.process, INFINITE) };
+        if wait != WAIT_OBJECT_0 {
+            unsafe { CloseHandle(info.process) };
+            bail!("cannot wait for elevated MSI installer: {wait:#x}");
+        }
+        let mut exit_code = 0;
+        let result = unsafe { GetExitCodeProcess(info.process, &mut exit_code) };
+        unsafe { CloseHandle(info.process) };
+        if result == 0 {
+            return Err(io::Error::last_os_error()).context("cannot read MSI installer exit code");
+        }
+        Ok(exit_code)
+    }
+
+    fn wide(value: &str) -> Vec<u16> {
+        value.encode_utf16().chain([0]).collect()
+    }
+
+    fn command_line(arguments: &[OsString]) -> Vec<u16> {
+        let mut command_line = Vec::new();
+        for (index, argument) in arguments.iter().enumerate() {
+            if index != 0 {
+                command_line.push(' ' as u16);
+            }
+            command_line.extend(quote(argument));
+        }
+        command_line.push(0);
+        command_line
+    }
+
+    fn quote(argument: &OsString) -> Vec<u16> {
+        let mut quoted = vec!['"' as u16];
+        let mut backslashes = 0;
+        for character in argument.encode_wide() {
+            if character == '\\' as u16 {
+                backslashes += 1;
+            } else if character == '"' as u16 {
+                quoted.extend(std::iter::repeat_n('\\' as u16, backslashes * 2 + 1));
+                quoted.push(character);
+                backslashes = 0;
+            } else {
+                quoted.extend(std::iter::repeat_n('\\' as u16, backslashes));
+                quoted.push(character);
+                backslashes = 0;
+            }
+        }
+        quoted.extend(std::iter::repeat_n('\\' as u16, backslashes * 2));
+        quoted.push('"' as u16);
+        quoted
+    }
 }
 
 fn download_artifact(artifact: &Artifact, destination: &Path) -> Result<()> {

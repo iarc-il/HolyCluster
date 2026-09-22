@@ -10,7 +10,7 @@ use reqwest::Url;
 use crate::updater::close_inherited_descriptors_on_exec;
 use crate::updater::{
     AppRelease, Artifact, PLATFORM_LINUX, ReleaseManifest, UpdateService, UpdateState,
-    copy_verified, make_executable, validate_artifact, windows_installer_command,
+    copy_verified, make_executable, validate_artifact, windows_installer_arguments,
 };
 
 fn artifact() -> Artifact {
@@ -164,11 +164,9 @@ fn persists_deferred_status() {
 }
 
 #[test]
-fn builds_silent_msi_command_without_shell() {
-    let command = windows_installer_command(Path::new("C:/safe/update.msi"));
-    assert_eq!(command.get_program(), "msiexec.exe");
+fn builds_silent_msi_arguments() {
     assert_eq!(
-        command.get_args().collect::<Vec<_>>(),
+        windows_installer_arguments(Path::new("C:/safe/update.msi")),
         ["/i", "C:/safe/update.msi", "/qn", "/norestart"]
     );
 }
