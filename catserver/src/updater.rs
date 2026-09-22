@@ -357,6 +357,13 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
             );
         }
     }
+    #[cfg(windows)]
+    if result
+        .as_ref()
+        .is_ok_and(|state| *state == UpdateState::RebootRequired)
+    {
+        windows_elevation::notify_reboot_required();
+    }
     #[cfg(target_os = "linux")]
     if result
         .as_ref()
@@ -546,7 +553,9 @@ mod windows_elevation {
         System::Threading::{GetExitCodeProcess, INFINITE, WaitForSingleObject},
         UI::{
             Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW},
-            WindowsAndMessaging::SW_HIDE,
+            WindowsAndMessaging::{
+                MB_ICONINFORMATION, MB_OK, MB_SETFOREGROUND, MB_TOPMOST, MessageBoxW, SW_HIDE,
+            },
         },
     };
 
@@ -588,6 +597,19 @@ mod windows_elevation {
             return Err(io::Error::last_os_error()).context("cannot read MSI installer exit code");
         }
         Ok(exit_code)
+    }
+
+    pub(super) fn notify_reboot_required() {
+        let message = wide("Restart Windows to finish installing CAT Control.");
+        let title = wide("CAT Control update");
+        unsafe {
+            MessageBoxW(
+                std::ptr::null_mut(),
+                message.as_ptr(),
+                title.as_ptr(),
+                MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND | MB_TOPMOST,
+            );
+        }
     }
 
     fn wide(value: &str) -> Vec<u16> {
