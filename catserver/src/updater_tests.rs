@@ -8,9 +8,11 @@ use reqwest::Url;
 
 #[cfg(not(windows))]
 use crate::updater::close_inherited_descriptors_on_exec;
+#[cfg(unix)]
+use crate::updater::make_executable;
 use crate::updater::{
     AppRelease, Artifact, PLATFORM_LINUX, ReleaseManifest, UpdateService, UpdateState,
-    copy_verified, make_executable, validate_artifact, windows_installer_arguments,
+    copy_verified, validate_artifact, windows_installer_arguments,
 };
 
 fn artifact() -> Artifact {

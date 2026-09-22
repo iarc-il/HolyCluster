@@ -1,9 +1,10 @@
+#[cfg(any(test, windows))]
+use std::ffi::OsString;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 #[cfg(target_os = "linux")]
 use std::os::unix::process::CommandExt;
 use std::{
-    ffi::OsString,
     fs::{self, File},
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -522,6 +523,7 @@ pub fn exec_pending_update() -> Result<()> {
     Ok(())
 }
 
+#[cfg(any(test, windows))]
 pub(crate) fn windows_installer_arguments(msi: &Path, log: &Path) -> Vec<OsString> {
     vec![
         "/i".into(),
