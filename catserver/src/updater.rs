@@ -630,12 +630,12 @@ mod windows_elevation {
         UI::{
             Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW},
             WindowsAndMessaging::{
-                MB_ICONINFORMATION, MB_OK, MB_SETFOREGROUND, MB_TOPMOST, MessageBoxW, SW_HIDE,
+                MB_ICONINFORMATION, MB_OK, MB_SETFOREGROUND, MB_TOPMOST, MessageBoxW, SW_SHOWNORMAL,
             },
         },
     };
 
-    use super::OsString;
+    use super::{OsString, quote_windows_argument};
 
     pub(super) fn run(program: &str, arguments: &[OsString]) -> Result<u32> {
         let verb = wide("runas");
@@ -647,7 +647,7 @@ mod windows_elevation {
             lpVerb: verb.as_ptr(),
             lpFile: program.as_ptr(),
             lpParameters: parameters.as_ptr(),
-            nShow: SW_HIDE,
+            nShow: SW_SHOWNORMAL,
             ..Default::default()
         };
         if unsafe { ShellExecuteExW(&mut info) } == 0 {
@@ -705,25 +705,37 @@ mod windows_elevation {
     }
 
     fn quote(argument: &OsString) -> Vec<u16> {
-        let mut quoted = vec!['"' as u16];
-        let mut backslashes = 0;
-        for character in argument.encode_wide() {
-            if character == '\\' as u16 {
-                backslashes += 1;
-            } else if character == '"' as u16 {
-                quoted.extend(std::iter::repeat_n('\\' as u16, backslashes * 2 + 1));
-                quoted.push(character);
-                backslashes = 0;
-            } else {
-                quoted.extend(std::iter::repeat_n('\\' as u16, backslashes));
-                quoted.push(character);
-                backslashes = 0;
-            }
-        }
-        quoted.extend(std::iter::repeat_n('\\' as u16, backslashes * 2));
-        quoted.push('"' as u16);
-        quoted
+        quote_windows_argument(&argument.encode_wide().collect::<Vec<_>>())
     }
+}
+
+#[cfg(any(test, windows))]
+pub(crate) fn quote_windows_argument(argument: &[u16]) -> Vec<u16> {
+    if !argument.is_empty()
+        && !argument
+            .iter()
+            .any(|&character| matches!(character, 0x09 | 0x20 | 0x22))
+    {
+        return argument.to_vec();
+    }
+    let mut quoted = vec!['"' as u16];
+    let mut backslashes = 0;
+    for &character in argument {
+        if character == '\\' as u16 {
+            backslashes += 1;
+        } else if character == '"' as u16 {
+            quoted.extend(std::iter::repeat_n('\\' as u16, backslashes * 2 + 1));
+            quoted.push(character);
+            backslashes = 0;
+        } else {
+            quoted.extend(std::iter::repeat_n('\\' as u16, backslashes));
+            quoted.push(character);
+            backslashes = 0;
+        }
+    }
+    quoted.extend(std::iter::repeat_n('\\' as u16, backslashes * 2));
+    quoted.push('"' as u16);
+    quoted
 }
 
 fn download_artifact(artifact: &Artifact, destination: &Path) -> Result<()> {

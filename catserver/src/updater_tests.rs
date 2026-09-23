@@ -12,7 +12,7 @@ use crate::updater::close_inherited_descriptors_on_exec;
 use crate::updater::make_executable;
 use crate::updater::{
     AppRelease, Artifact, PLATFORM_LINUX, ReleaseManifest, UpdateService, UpdateState,
-    copy_verified, validate_artifact, windows_installer_arguments,
+    copy_verified, quote_windows_argument, validate_artifact, windows_installer_arguments,
 };
 
 fn artifact() -> Artifact {
@@ -263,6 +263,25 @@ fn preserves_installing_on_linux_restart() {
     .unwrap();
     assert_eq!(service.status().state, UpdateState::Installing);
     fs::remove_dir_all(data_dir).unwrap();
+}
+
+#[test]
+fn quotes_windows_arguments_only_when_needed() {
+    let quote = |value: &str| {
+        String::from_utf16(&quote_windows_argument(
+            &value.encode_utf16().collect::<Vec<_>>(),
+        ))
+        .unwrap()
+    };
+    assert_eq!(quote("/i"), "/i");
+    assert_eq!(quote("/L*v"), "/L*v");
+    assert_eq!(quote(""), "\"\"");
+    assert_eq!(quote("C:\\safe\\update.msi"), "C:\\safe\\update.msi");
+    assert_eq!(
+        quote("C:\\Program Files\\update.msi"),
+        "\"C:\\Program Files\\update.msi\""
+    );
+    assert_eq!(quote("C:\\Program Files\\"), "\"C:\\Program Files\\\\\"");
 }
 
 #[test]
