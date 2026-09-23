@@ -195,6 +195,77 @@ fn clears_installed_status_only_when_running_version_matches() {
 }
 
 #[test]
+fn preserves_active_install_and_reports_exited_helper() {
+    let data_dir = std::env::temp_dir().join(format!(
+        "catserver-update-interrupted-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let service = UpdateService::with_data_dir(
+        Url::parse("https://releases.example/manifest.json").unwrap(),
+        "1.2.0",
+        data_dir.clone(),
+    )
+    .unwrap();
+    fs::create_dir_all(&data_dir).unwrap();
+    fs::write(
+        data_dir.join("state.json"),
+        r#"{"state":"installing","available_version":"1.3.0","diagnostic":null}"#,
+    )
+    .unwrap();
+    service
+        .reconcile_installing_status_with(|_| Some(false))
+        .unwrap();
+    assert_eq!(service.status().state, UpdateState::Installing);
+    fs::write(
+        data_dir.join("update-helper.json"),
+        r#"{"pid":42,"started_at":123}"#,
+    )
+    .unwrap();
+    service.reconcile_installing_status_with(|_| None).unwrap();
+    assert_eq!(service.status().state, UpdateState::Installing);
+    service
+        .reconcile_installing_status_with(|_| Some(true))
+        .unwrap();
+    assert_eq!(service.status().state, UpdateState::Installing);
+    service
+        .reconcile_installing_status_with(|_| Some(false))
+        .unwrap();
+    let status = service.status();
+    assert_eq!(status.state, UpdateState::Failed);
+    assert!(status.diagnostic.unwrap().contains("helper exited"));
+    fs::remove_dir_all(data_dir).unwrap();
+}
+
+#[cfg(not(windows))]
+#[test]
+fn preserves_installing_on_linux_restart() {
+    let data_dir = std::env::temp_dir().join(format!(
+        "catserver-update-linux-handoff-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&data_dir).unwrap();
+    fs::write(
+        data_dir.join("state.json"),
+        r#"{"state":"installing","available_version":"1.3.0","diagnostic":null}"#,
+    )
+    .unwrap();
+    let service = UpdateService::with_data_dir(
+        Url::parse("https://releases.example/manifest.json").unwrap(),
+        "1.2.0",
+        data_dir.clone(),
+    )
+    .unwrap();
+    assert_eq!(service.status().state, UpdateState::Installing);
+    fs::remove_dir_all(data_dir).unwrap();
+}
+
+#[test]
 fn builds_silent_msi_arguments() {
     assert_eq!(
         windows_installer_arguments(

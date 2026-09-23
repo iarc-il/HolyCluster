@@ -101,6 +101,13 @@ struct InstallPlan {
     command_args: Vec<String>,
 }
 
+#[cfg(any(test, windows))]
+#[derive(Deserialize, Serialize)]
+pub(crate) struct UpdateHelper {
+    pid: u32,
+    started_at: u64,
+}
+
 impl UpdateService {
     pub fn new(manifest_url: Url, current_version: &str) -> Result<Self> {
         if !is_secure_url(&manifest_url) {
@@ -127,11 +134,33 @@ impl UpdateService {
             data_dir,
         };
         service.reconcile_installed_status()?;
+        #[cfg(windows)]
+        service.reconcile_installing_status_with(update_helper_active)?;
         Ok(service)
     }
 
     pub fn status(&self) -> UpdateStatus {
         read_status(&self.state_path()).unwrap_or_default()
+    }
+
+    #[cfg(any(test, windows))]
+    pub(crate) fn reconcile_installing_status_with(
+        &self,
+        is_active: impl FnOnce(&UpdateHelper) -> Option<bool>,
+    ) -> Result<()> {
+        if self.status().state != UpdateState::Installing {
+            return Ok(());
+        }
+        let Ok(data) = fs::read(self.helper_path()) else {
+            return Ok(());
+        };
+        let Ok(helper) = serde_json::from_slice::<UpdateHelper>(&data) else {
+            return Ok(());
+        };
+        if is_active(&helper) == Some(false) && self.status().state == UpdateState::Installing {
+            self.record_failure("Update helper exited before reporting an installation result")?;
+        }
+        Ok(())
     }
 
     fn reconcile_installed_status(&self) -> Result<()> {
@@ -250,26 +279,48 @@ impl UpdateService {
         if status.state != UpdateState::Downloaded {
             bail!("an update must be downloaded before installation");
         }
-        #[cfg(windows)]
-        {
-            let executable = std::env::current_exe()?;
-            let helper_path = self.data_dir.join("update-helper.exe");
-            fs::create_dir_all(&self.data_dir)?;
-            fs::copy(executable, &helper_path).context("cannot stage update helper")?;
-            let helper = Command::new(helper_path)
-                .arg("--apply-update")
-                .arg(self.plan_path())
-                .spawn()
-                .context("cannot start detached update helper")?;
-            tracing::info!(pid = helper.id(), "Detached update helper started");
-        }
-        #[cfg(not(windows))]
-        close_inherited_descriptors_on_exec()?;
-        self.write_status(&UpdateStatus {
+        let installing = UpdateStatus {
             state: UpdateState::Installing,
             available_version: status.available_version,
             diagnostic: None,
-        })
+        };
+        #[cfg(windows)]
+        return self.start_windows_helper(&installing);
+        #[cfg(not(windows))]
+        {
+            close_inherited_descriptors_on_exec()?;
+            self.write_status(&installing)
+        }
+    }
+
+    #[cfg(windows)]
+    fn start_windows_helper(&self, installing: &UpdateStatus) -> Result<()> {
+        let executable = std::env::current_exe()?;
+        let helper_path = self.data_dir.join("update-helper.exe");
+        fs::create_dir_all(&self.data_dir)?;
+        fs::copy(executable, &helper_path).context("cannot stage update helper")?;
+        let mut helper = Command::new(helper_path)
+            .arg("--apply-update")
+            .arg(self.plan_path())
+            .spawn()
+            .context("cannot start detached update helper")?;
+        let result = (|| {
+            let identity = UpdateHelper {
+                pid: helper.id(),
+                started_at: windows_process_start_time(
+                    std::os::windows::io::AsRawHandle::as_raw_handle(&helper),
+                )?,
+            };
+            write_json(&self.helper_path(), &identity)?;
+            self.write_status(installing)
+        })();
+        if let Err(error) = result {
+            let _ = helper.kill();
+            let _ = helper.wait();
+            return Err(error);
+        }
+        tracing::info!(pid = helper.id(), "Detached update helper started");
+        Ok(())
     }
 
     fn fetch_manifest(&self) -> Result<ReleaseManifest> {
@@ -317,6 +368,10 @@ impl UpdateService {
     }
     fn plan_path(&self) -> PathBuf {
         self.data_dir.join("install-plan.json")
+    }
+    #[cfg(any(test, windows))]
+    fn helper_path(&self) -> PathBuf {
+        self.data_dir.join("update-helper.json")
     }
     fn staging_dir(&self) -> PathBuf {
         self.data_dir.join("staging")
@@ -823,6 +878,121 @@ fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
     }
     fs::rename(temporary, path)?;
     Ok(())
+}
+
+#[cfg(windows)]
+fn windows_process_start_time(handle: windows_sys::Win32::Foundation::HANDLE) -> Result<u64> {
+    use windows_sys::Win32::{Foundation::FILETIME, System::Threading::GetProcessTimes};
+
+    let mut creation = FILETIME::default();
+    let mut exit = FILETIME::default();
+    let mut kernel = FILETIME::default();
+    let mut user = FILETIME::default();
+    if unsafe { GetProcessTimes(handle, &mut creation, &mut exit, &mut kernel, &mut user) } == 0 {
+        return Err(io::Error::last_os_error().into());
+    }
+    Ok((u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime))
+}
+
+#[cfg(windows)]
+fn update_helper_active(helper: &UpdateHelper) -> Option<bool> {
+    use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
+    use windows_sys::Win32::{
+        Foundation::{ERROR_INVALID_PARAMETER, WAIT_OBJECT_0, WAIT_TIMEOUT},
+        System::Threading::{
+            OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
+            WaitForSingleObject,
+        },
+    };
+
+    let handle = unsafe {
+        OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
+            0,
+            helper.pid,
+        )
+    };
+    if handle.is_null() {
+        return (io::Error::last_os_error().raw_os_error() == Some(ERROR_INVALID_PARAMETER as i32))
+            .then_some(false);
+    }
+    let process = unsafe { OwnedHandle::from_raw_handle(handle) };
+    let handle = process.as_raw_handle();
+    let started_at = windows_process_start_time(handle).ok()?;
+    if started_at != helper.started_at {
+        return Some(false);
+    }
+    match unsafe { WaitForSingleObject(handle, 0) } {
+        WAIT_TIMEOUT => Some(true),
+        WAIT_OBJECT_0 => Some(false),
+        _ => None,
+    }
+}
+
+#[cfg(all(test, windows))]
+mod helper_process_tests {
+    use super::*;
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+    #[test]
+    fn identifies_live_helper_and_reused_pid() {
+        let pid = std::process::id();
+        let started_at = windows_process_start_time(unsafe { GetCurrentProcess() }).unwrap();
+        assert_eq!(
+            update_helper_active(&UpdateHelper { pid, started_at }),
+            Some(true)
+        );
+        assert_eq!(
+            update_helper_active(&UpdateHelper {
+                pid,
+                started_at: started_at + 1,
+            }),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn reconciles_live_and_stale_install_on_windows_restart() {
+        let data_dir = std::env::temp_dir().join(format!(
+            "catserver-update-restart-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let service = || {
+            UpdateService::with_data_dir(
+                Url::parse("https://releases.example/manifest.json").unwrap(),
+                "1.2.0",
+                data_dir.clone(),
+            )
+            .unwrap()
+        };
+        let running = service();
+        running
+            .write_status(&UpdateStatus {
+                state: UpdateState::Installing,
+                available_version: Some("1.3.0".into()),
+                diagnostic: None,
+            })
+            .unwrap();
+        let helper = UpdateHelper {
+            pid: std::process::id(),
+            started_at: windows_process_start_time(unsafe { GetCurrentProcess() }).unwrap(),
+        };
+        write_json(&running.helper_path(), &helper).unwrap();
+        assert_eq!(service().status().state, UpdateState::Installing);
+        write_json(
+            &running.helper_path(),
+            &UpdateHelper {
+                started_at: helper.started_at + 1,
+                ..helper
+            },
+        )
+        .unwrap();
+        assert_eq!(service().status().state, UpdateState::Failed);
+        fs::remove_dir_all(data_dir).unwrap();
+    }
 }
 
 #[cfg(windows)]
