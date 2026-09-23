@@ -583,13 +583,7 @@ pub fn exec_pending_update() -> Result<()> {
     if read_status(&state_path).unwrap_or_default().state != UpdateState::Installing {
         return Ok(());
     }
-    close_inherited_descriptors_on_exec()?;
-    let executable = std::env::current_exe()?;
-    let mut command = Command::new(executable);
-    command
-        .arg("--apply-update")
-        .arg(data_dir.join("install-plan.json"));
-    Err(command.exec().into())
+    run_helper(&data_dir.join("install-plan.json"))
 }
 
 #[cfg(not(target_os = "linux"))]
