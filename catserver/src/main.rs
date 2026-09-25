@@ -11,6 +11,7 @@ mod freq;
 mod hamlib_device_config;
 mod hamlib_radio;
 mod hamlib_rotator;
+mod instance_port;
 #[cfg(windows)]
 mod omnirig;
 mod radio_actor;

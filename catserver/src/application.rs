@@ -1,11 +1,14 @@
+use std::time::{Duration, Instant};
+
 use anyhow::Result;
 use single_instance::SingleInstance;
 use tokio::sync::broadcast::{self, Sender};
 
 use crate::{
-    args::{Args, BASE_LOCAL_PORT, server_config},
+    args::{Args, server_config},
     dummy_rotator::DummyRotator,
     hamlib_rotator::HamlibRotator,
+    instance_port,
     radio_config::RadioConfig,
     radio_factory,
     radio_manager::RadioManager,
@@ -24,16 +27,15 @@ pub fn run(args: Args) -> Result<()> {
     }
     let instance = SingleInstance::new(INSTANCE_NAME)?;
     tracing::info!("Version tag: {}", env!("VERSION"));
+    let port_file = instance_port::path()?;
     if !instance.is_single() {
         let path = if args.close { "exit" } else { "open" };
         if !args.close {
             tracing::info!("Server is already running");
         }
-        reqwest::blocking::Client::new()
-            .post(format!("http://127.0.0.1:{BASE_LOCAL_PORT}/{path}"))
-            .send()?;
-        return Ok(());
+        return contact_existing_instance(&port_file, path);
     }
+    instance_port::clear(&port_file)?;
     if args.close {
         tracing::warn!("No running instance, not closing");
         return Ok(());
@@ -63,9 +65,12 @@ pub fn run(args: Args) -> Result<()> {
     let (sender, _) = broadcast::channel::<UserEvent>(10);
     let event_sender = sender.clone();
     let use_local_ui = args.local_ui;
+    let fallback_if_busy = args.port.is_none();
+    let tray_receiver = sender.subscribe();
     let thread = std::thread::Builder::new()
         .name("singleton".into())
         .spawn(move || {
+            let quit_sender = event_sender.clone();
             if let Err(error) = run_singleton(
                 event_sender,
                 radio,
@@ -73,12 +78,14 @@ pub fn run(args: Args) -> Result<()> {
                 server_config,
                 use_local_ui,
                 use_dummy_rotator,
+                fallback_if_busy,
             ) {
                 tracing::error!(?error, "Singleton instance failed");
+                let _ = quit_sender.send(UserEvent::Quit);
             }
         })?;
     if cfg!(any(windows, target_os = "linux")) {
-        tray_icon::run_tray_icon(sender.clone(), sender.subscribe());
+        tray_icon::run_tray_icon(sender.clone(), tray_receiver);
     }
     if let Err(error) = thread.join() {
         let message = error
@@ -88,9 +95,36 @@ pub fn run(args: Args) -> Result<()> {
             .unwrap_or("unknown panic payload");
         tracing::error!(message, "Singleton thread panicked");
     }
+    instance_port::clear(&port_file)?;
     drop(instance);
     crate::updater::exec_pending_update()?;
     Ok(())
+}
+
+pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &str) -> Result<()> {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_millis(500))
+        .build()?;
+    loop {
+        if let Ok(port) = instance_port::read(port_file) {
+            match client
+                .post(format!("http://127.0.0.1:{port}/{action}"))
+                .send()
+            {
+                Ok(response) => {
+                    response.error_for_status()?;
+                    return Ok(());
+                }
+                Err(error) if Instant::now() >= deadline => return Err(error.into()),
+                Err(_) => {}
+            }
+        }
+        if Instant::now() >= deadline {
+            anyhow::bail!("running catserver did not publish a reachable local port");
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 fn radio(config: RadioConfig, use_dummy: bool) -> Result<RadioManager> {
@@ -111,6 +145,7 @@ async fn run_singleton(
     server_config: ServerConfig,
     use_local_ui: bool,
     use_dummy_rotator: bool,
+    fallback_if_busy: bool,
 ) -> Result<()> {
     let snapshot = radio.snapshot();
     let selected = snapshot.selected.clone();
@@ -143,12 +178,33 @@ async fn run_singleton(
         selected = %rotator_snapshot.selected,
         "Rotator startup completed"
     );
-    let local_port = server_config.local_port;
     let mut receiver = sender.subscribe();
     let shutdown_radio = radio.clone();
     let shutdown_rotator = rotator.clone();
-    let server = Server::build_server(sender, radio, rotator, server_config, use_local_ui).await?;
-    open_browser(local_port)?;
+    let building = Server::build_server(
+        sender,
+        radio,
+        rotator,
+        server_config,
+        use_local_ui,
+        fallback_if_busy,
+    );
+    tokio::pin!(building);
+    let server = loop {
+        tokio::select! {
+            result = &mut building => break result?,
+            event = receiver.recv() => {
+                if event == Ok(UserEvent::Quit) {
+                    return Ok(());
+                }
+            }
+        }
+    };
+    let local_port = server.local_port()?;
+    instance_port::publish(&instance_port::path()?, local_port)?;
+    if let Err(error) = open_browser(local_port) {
+        tracing::error!(?error, "Failed to open browser on startup");
+    }
     tokio::spawn(async move {
         while let Ok(event) = receiver.recv().await {
             match event {

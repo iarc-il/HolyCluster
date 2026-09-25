@@ -59,6 +59,18 @@ impl ServerConfig {
     }
 }
 
+async fn bind_local_listener(port: u16, fallback_if_busy: bool) -> Result<TcpListener> {
+    let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
+    match TcpListener::bind(address).await {
+        Ok(listener) => Ok(listener),
+        Err(error) if fallback_if_busy && error.kind() == std::io::ErrorKind::AddrInUse => {
+            tracing::warn!(%address, ?error, "Local port busy; choosing free loopback port");
+            Ok(TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)).await?)
+        }
+        Err(error) => Err(error).with_context(|| format!("cannot listen on {address}")),
+    }
+}
+
 pub struct Server {
     app: Router,
     listener: TcpListener,
@@ -72,6 +84,7 @@ impl Server {
         rotator: RotatorManager,
         server_config: ServerConfig,
         use_local_ui: bool,
+        fallback_if_busy: bool,
     ) -> Result<Self> {
         let ui_dir = use_local_ui.then(find_ui_dir).transpose()?;
         let state = AppState::new(server_config, radio, rotator, sender.clone(), ui_dir)?;
@@ -99,16 +112,17 @@ impl Server {
             app.fallback(any(proxy))
         }
         .with_state(state.clone());
-        let listener = TcpListener::bind(SocketAddrV4::new(
-            Ipv4Addr::LOCALHOST,
-            state.server_config.local_port,
-        ))
-        .await?;
+        let listener =
+            bind_local_listener(state.server_config.local_port, fallback_if_busy).await?;
         Ok(Self {
             app,
             listener,
             sender,
         })
+    }
+
+    pub fn local_port(&self) -> Result<u16> {
+        Ok(self.listener.local_addr()?.port())
     }
 
     pub async fn run_server(self) -> Result<()> {
