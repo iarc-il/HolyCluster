@@ -73,9 +73,12 @@ describe("WebSocket transport", () => {
         TestConsumer.context = null;
     });
 
-    afterEach(() => cleanup());
+    afterEach(() => {
+        cleanup();
+        vi.useRealTimers();
+    });
 
-    it("probes both CAT protocols and selects a valid unified identity", () => {
+    it("selects unified transport for the direct backend identity", () => {
         const view = render_provider();
         const unified = websocket_mock.connection_for("/ws");
         const legacy_radio = websocket_mock.connection_for("/radio");
@@ -86,9 +89,32 @@ describe("WebSocket transport", () => {
         expect(legacy_radio.connect).toBe(true);
         expect(legacy_spots.connect).toBe(false);
 
+        unified.readyState = websocket_mock.ReadyState.OPEN;
         receive(view, "/radio", { status: "unavailable" });
-        expect(TestConsumer.context.transport).toBe("probing");
-        expect(view.messages).toEqual([]);
+
+        expect(TestConsumer.context.transport).toBe("unified");
+        expect(legacy_radio.connect).toBe(false);
+        expect(view.messages).toEqual([
+            {
+                version: 1,
+                type: "radio",
+                event: "status",
+                status: "unavailable",
+            },
+        ]);
+
+        act(() => TestConsumer.context.send("radio", { action: "GetCapabilities" }));
+        expect(unified.sendJsonMessage).toHaveBeenCalledWith({
+            version: 1,
+            type: "radio",
+            action: "GetCapabilities",
+        });
+    });
+
+    it("selects unified transport for a current CAT identity", () => {
+        const view = render_provider();
+        const unified = websocket_mock.connection_for("/ws");
+        const legacy_radio = websocket_mock.connection_for("/radio");
 
         unified.readyState = websocket_mock.ReadyState.OPEN;
         receive(view, "/ws", {
@@ -102,13 +128,20 @@ describe("WebSocket transport", () => {
         expect(TestConsumer.context.transport).toBe("unified");
         expect(legacy_radio.connect).toBe(false);
         expect(view.messages).toHaveLength(1);
+    });
 
-        act(() => TestConsumer.context.send("radio", { action: "GetCapabilities" }));
-        expect(unified.sendJsonMessage).toHaveBeenCalledWith({
-            version: 1,
-            type: "radio",
-            action: "GetCapabilities",
-        });
+    it("falls back to unified transport when neither probe identifies itself", () => {
+        vi.useFakeTimers();
+        const view = render_provider();
+        const unified = websocket_mock.connection_for("/ws");
+        const legacy_radio = websocket_mock.connection_for("/radio");
+
+        act(() => vi.advanceTimersByTime(1500));
+
+        expect(TestConsumer.context.transport).toBe("unified");
+        expect(unified.connect).toBe(true);
+        expect(legacy_radio.connect).toBe(false);
+        view.unmount();
     });
 
     it("selects legacy CAT only after receiving its versioned identity", () => {

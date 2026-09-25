@@ -4,6 +4,7 @@ import useWebSocket, { ReadyState } from "react-use-websocket";
 export { ReadyState };
 
 const WS_BASE_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
+const WS_PROBE_TIMEOUT_MS = 1500;
 const WsContext = createContext(null);
 
 function is_unified_cat_identity(message) {
@@ -20,6 +21,10 @@ function is_cat_v1_2_identity(message) {
         typeof message.version === "string" &&
         message.version.startsWith("catserver-v")
     );
+}
+
+function is_direct_backend_identity(message) {
+    return message?.status === "unavailable" && message.version == null;
 }
 
 /** @deprecated CAT <=1.2 compatibility; remove when the minimum supported CAT version exceeds 1.2. */
@@ -134,6 +139,12 @@ export function WsProvider({ children }) {
               : unified_ready_state;
 
     useEffect(() => {
+        if (transport !== "probing") return;
+        const timeout = setTimeout(() => select_transport("unified"), WS_PROBE_TIMEOUT_MS);
+        return () => clearTimeout(timeout);
+    }, [select_transport, transport]);
+
+    useEffect(() => {
         ready_state_ref.current = readyState;
         switch (readyState) {
             case ReadyState.CONNECTING:
@@ -174,12 +185,15 @@ export function WsProvider({ children }) {
         const message = normalize_cat_v1_2_radio_message(compatibility_radio_message);
         if (transport_ref.current === "cat_v1_2") {
             dispatch(message);
-        } else if (
-            transport_ref.current === "probing" &&
-            is_cat_v1_2_identity(compatibility_radio_message) &&
-            select_transport("cat_v1_2")
-        ) {
-            dispatch(message);
+        } else if (transport_ref.current === "probing") {
+            if (is_cat_v1_2_identity(compatibility_radio_message) && select_transport("cat_v1_2")) {
+                dispatch(message);
+            } else if (
+                is_direct_backend_identity(compatibility_radio_message) &&
+                select_transport("unified")
+            ) {
+                dispatch(message);
+            }
         }
     }, [compatibility_radio_message, dispatch, select_transport]);
 
