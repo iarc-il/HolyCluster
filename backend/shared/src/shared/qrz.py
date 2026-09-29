@@ -8,6 +8,25 @@ from loguru import logger
 QRZ_KEEPALIVE_EXPIRY_SECONDS = 1.0
 HTTPX_DEFAULT_MAX_CONNECTIONS = 100
 HTTPX_DEFAULT_MAX_KEEPALIVE_CONNECTIONS = 20
+QRZ_XML_NAMESPACE = {"qrz": "http://xmldata.qrz.com"}
+
+
+def _xml_text(root: ET.Element, tag_name: str) -> str | None:
+    element = root.find(f".//qrz:{tag_name}", QRZ_XML_NAMESPACE)
+    if element is None or element.text is None:
+        return None
+    value = element.text.strip()
+    return value or None
+
+
+def _lookup_error(message: str) -> dict:
+    return {
+        "locator": None,
+        "state": None,
+        "cq_zone": None,
+        "itu_zone": None,
+        "error": message,
+    }
 
 
 class QrzSessionManager:
@@ -97,11 +116,16 @@ async def get_qrz_session_key(username: str, password: str, api_key: str, http_c
             raise type(e)(f"xmldata.qrz.com: {e}") from e
 
         if response.status_code == 200:
-            root = ET.fromstring(response.text)
-            ns = {"qrz": "http://xmldata.qrz.com"}
-            session_key = root.find(".//qrz:Key", ns).text
-            logger.info(f"Received QRZ key in {attempts=}")
-            return session_key
+            try:
+                root = ET.fromstring(response.text)
+            except ET.ParseError as e:
+                logger.warning(f"Invalid QRZ session response XML: {e}")
+            else:
+                session_key = _xml_text(root, "Key")
+                if session_key is not None:
+                    logger.info(f"Received QRZ key in {attempts=}")
+                    return session_key
+                logger.warning(f"QRZ session response did not contain a key: {_xml_text(root, 'Error') or 'unknown error'}")
         else:
             logger.error(f"**** Error: trying to get qrz session key {attempts=}: {response.status_code=}")
         await asyncio.sleep(5)
@@ -127,13 +151,7 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client:
         if callsign.upper().endswith(suffix):
             callsign = callsign[: -len(suffix)]
     if not qrz_session_key:
-        return {
-            "locator": None,
-            "state": None,
-            "cq_zone": None,
-            "itu_zone": None,
-            "error": "No qrz_session_key",
-        }
+        return _lookup_error("No qrz_session_key")
 
     url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
 
@@ -182,40 +200,28 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client:
                 retries += 1
 
     if response.status_code != 200:
-        return {
-            "locator": None,
-            "state": None,
-            "cq_zone": None,
-            "itu_zone": None,
-            "error": f"qrz response code {response.status_code}",
-        }
+        return _lookup_error(f"qrz response code {response.status_code}")
 
-    ns = {"qrz": "http://xmldata.qrz.com"}
-    root = ET.fromstring(response.text)
-    xml_error = root.find(".//qrz:Error", ns)
+    try:
+        root = ET.fromstring(response.text)
+    except ET.ParseError as e:
+        return _lookup_error(f"invalid qrz response XML: {e}")
+
+    xml_error = _xml_text(root, "Error")
     if xml_error is not None:
-        error = root.find(".//qrz:Error", ns).text
-        return {
-            "locator": None,
-            "state": None,
-            "cq_zone": None,
-            "itu_zone": None,
-            "error": error,
-        }
+        return _lookup_error(xml_error)
 
-    geoloc = root.find(".//qrz:geoloc", ns).text
-    if geoloc != "none":
-        locator = root.find(".//qrz:grid", ns).text
-        state_elem = root.find(".//qrz:state", ns)
-        state = state_elem.text if state_elem is not None else None
-        cq_zone = parse_zone_int(root, ns, "cqzone")
-        itu_zone = parse_zone_int(root, ns, "ituzone")
-        return {"locator": locator, "state": state, "cq_zone": cq_zone, "itu_zone": itu_zone}
-    else:
-        return {
-            "locator": None,
-            "state": None,
-            "cq_zone": None,
-            "itu_zone": None,
-            "error": "no user supplied grid",
-        }
+    geoloc = _xml_text(root, "geoloc")
+    if geoloc is None:
+        return _lookup_error("qrz response did not contain geoloc")
+    if geoloc == "none":
+        return _lookup_error("no user supplied grid")
+
+    locator = _xml_text(root, "grid")
+    if locator is None:
+        return _lookup_error("qrz response did not contain grid")
+
+    state = _xml_text(root, "state")
+    cq_zone = parse_zone_int(root, QRZ_XML_NAMESPACE, "cqzone")
+    itu_zone = parse_zone_int(root, QRZ_XML_NAMESPACE, "ituzone")
+    return {"locator": locator, "state": state, "cq_zone": cq_zone, "itu_zone": itu_zone}
