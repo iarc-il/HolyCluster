@@ -5,12 +5,14 @@ import re
 from datetime import datetime, timezone
 
 from loguru import logger
+import redis.exceptions
 from shared.cty import ensure_cty_available
 from shared.db import HolySpot
 from shared.geo import GeoException, get_geo_details
 from shared.qrz import QrzSessionManager
 from shared.telemetry import capture_exception, initialize_sentry
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from collectors.db.valkey_config import get_valkey_client
@@ -28,6 +30,7 @@ from collectors.wwff import run_wwff_collector
 import aiomonitor
 
 STREAM_API = "stream-api"
+PERSIST_ATTEMPTS = 3
 LOTW_USERS: dict[str, datetime] = {}
 
 
@@ -165,6 +168,21 @@ async def add_spot_to_postgres(engine, spot: dict):
         await session.commit()
 
 
+async def persist_spot(engine, valkey_client, spot: dict):
+    for attempt in range(PERSIST_ATTEMPTS):
+        try:
+            await add_spot_to_postgres(engine, spot)
+            if all(spot.get(key) for key in ("spotter_locator", "dx_locator", "band", "mode")):
+                await valkey_client.xadd(STREAM_API, spot, "*", maxlen=10000)
+            return
+        except (SQLAlchemyError, redis.exceptions.RedisError):
+            if attempt == PERSIST_ATTEMPTS - 1:
+                raise
+            delay = 2**attempt
+            logger.warning(f"Failed to persist spot, retrying in {delay}s ({attempt + 1}/{PERSIST_ATTEMPTS})")
+            await asyncio.sleep(delay)
+
+
 async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManager):
     logger.info("Spot processor started")
 
@@ -205,10 +223,11 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     logger.info(f"Dropping spot with South Pole locator: {enriched_spot.get('dx_callsign')}")
                     continue
 
-                await add_spot_to_postgres(engine, enriched_spot)
-
-                if all(enriched_spot.get(k) for k in ("spotter_locator", "dx_locator", "band", "mode")):
-                    await valkey_client.xadd(STREAM_API, enriched_spot, "*", maxlen=10000)
+                try:
+                    await persist_spot(engine, valkey_client, enriched_spot)
+                except (SQLAlchemyError, redis.exceptions.RedisError) as e:
+                    logger.opt(exception=e).warning("Failed to persist spot after retries")
+                    capture_exception(e, operation="collector.persist")
             finally:
                 input_queue.task_done()
 
