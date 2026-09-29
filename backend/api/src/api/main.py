@@ -98,17 +98,26 @@ async def propagation_data_collector(app):
         await asyncio.sleep(sleep)
 
 
+def get_websocket_send_lock(websocket):
+    send_locks = getattr(app.state, "websocket_send_locks", None)
+    if send_locks is None:
+        send_locks = {}
+        app.state.websocket_send_locks = send_locks
+    return send_locks.setdefault(websocket, asyncio.Lock())
+
+
 async def send_json_to_websockets(websockets, message):
     disconnected = set()
     for websocket in websockets.copy():
         try:
-            await websocket.send_json(message)
+            await send_ws_json(websocket, get_websocket_send_lock(websocket), message)
         except Exception as e:
             logger.warning(f"Failed to send to websocket: {e}")
             disconnected.add(websocket)
 
     for websocket in disconnected:
         websockets.discard(websocket)
+        app.state.websocket_send_locks.pop(websocket, None)
 
 
 async def broadcast_spots(app, spots):
@@ -168,6 +177,7 @@ async def lifespan(app: fastapi.FastAPI):
 
     app.state.active_connections = set()
     app.state.active_ws_spot_connections = set()
+    app.state.websocket_send_locks = {}
     app.state.propagation = None
 
     app.state.valkey_client = redis.asyncio.Redis(
@@ -653,11 +663,11 @@ async def dispatch_ws_message(websocket, send_lock, missing_jobs, message):
         return
 
     if message.get("type") == WsMessageType.SPOTS.value:
-        await send_ws_spots(websocket, message)
+        await send_ws_spots(websocket, send_lock, message)
         return
 
     if message.get("type") == WsMessageType.SUBMIT.value:
-        await send_ws_submit(websocket, message)
+        await send_ws_submit(websocket, send_lock, message)
         return
 
     if message.get("type") == WsMessageType.RADIO.value:
@@ -692,7 +702,7 @@ async def dispatch_ws_message(websocket, send_lock, missing_jobs, message):
 async def submit_spot_one_spot(websocket: fastapi.WebSocket):
     await websocket.accept()
     missing_jobs = {}
-    send_lock = asyncio.Lock()
+    send_lock = get_websocket_send_lock(websocket)
 
     try:
         while True:
@@ -726,7 +736,7 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
 async def ws(websocket: fastapi.WebSocket):
     await websocket.accept()
     missing_jobs = {}
-    send_lock = asyncio.Lock()
+    send_lock = get_websocket_send_lock(websocket)
 
     try:
         while True:
@@ -751,12 +761,12 @@ async def ws(websocket: fastapi.WebSocket):
         app.state.active_ws_spot_connections.discard(websocket)
 
 
-async def send_ws_submit(websocket: fastapi.WebSocket, message: dict):
+async def send_ws_submit(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
     response = await submit_spot.handle_spot(message)
     if "type" in response:
         response = {**response, "error_type": response["type"]}
         del response["type"]
-    await websocket.send_json(build_ws_message(WsMessageType.SUBMIT, **response))
+    await send_ws_json(websocket, send_lock, build_ws_message(WsMessageType.SUBMIT, **response))
 
 
 async def send_ws_json(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
@@ -770,22 +780,30 @@ async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
     event = message.get("event", WsHistoryEvent.SPOTS.value)
 
     if start_time is None:
-        await websocket.send_json(build_ws_error(WsErrorType.MISSING_FIELD, "Missing start_time", field="start_time"))
+        await send_ws_json(
+            websocket, send_lock, build_ws_error(WsErrorType.MISSING_FIELD, "Missing start_time", field="start_time")
+        )
         return
     if end_time is None:
-        await websocket.send_json(build_ws_error(WsErrorType.MISSING_FIELD, "Missing end_time", field="end_time"))
+        await send_ws_json(
+            websocket, send_lock, build_ws_error(WsErrorType.MISSING_FIELD, "Missing end_time", field="end_time")
+        )
         return
 
     if end_time < start_time:
-        await websocket.send_json(
+        await send_ws_json(
+            websocket,
+            send_lock,
             build_ws_error(
                 WsErrorType.MALFORMED_MESSAGE, "end_time must be greater than start_time", field="start_time"
-            )
+            ),
         )
         return
     if end_time - start_time > MAX_PROPAGATION_HISTORY_RANGE_SECONDS:
-        await websocket.send_json(
-            build_ws_error(WsErrorType.MALFORMED_MESSAGE, "time range cannot exceed 24 hours", field="end_time")
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(WsErrorType.MALFORMED_MESSAGE, "time range cannot exceed 24 hours", field="end_time"),
         )
         return
 
@@ -1054,48 +1072,63 @@ async def get_spots_after(last_time):
         return cleanup_spots((await session.execute(query)).scalars())
 
 
-async def send_ws_spots(websocket: fastapi.WebSocket, message: dict):
+async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
     action = message.get("action")
     if action == WsSpotAction.INITIAL.value:
-        app.state.active_ws_spot_connections.add(websocket)
         spots = await get_initial_spots()
-        await websocket.send_json(build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.INITIAL.value, spots=spots))
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.INITIAL.value, spots=spots),
+        )
+        app.state.active_ws_spot_connections.add(websocket)
     elif action == WsSpotAction.CATCH_UP.value:
         if "last_time" not in message:
-            await websocket.send_json(build_ws_error(WsErrorType.MISSING_FIELD, "Missing last_time", field="last_time"))
+            await send_ws_json(
+                websocket,
+                send_lock,
+                build_ws_error(WsErrorType.MISSING_FIELD, "Missing last_time", field="last_time"),
+            )
             return
 
-        app.state.active_ws_spot_connections.add(websocket)
         spots = await get_spots_after(message["last_time"])
-        await websocket.send_json(build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots))
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots),
+        )
+        app.state.active_ws_spot_connections.add(websocket)
     else:
-        await websocket.send_json(
+        await send_ws_json(
+            websocket,
+            send_lock,
             build_ws_error(
                 WsErrorType.UNSUPPORTED_ACTION,
                 "Unsupported spots action",
                 received_action=action,
-            )
+            ),
         )
 
 
-async def send_spots(websocket: fastapi.WebSocket, message: dict):
+async def send_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
     if "initial" in message:
         spots = await get_initial_spots()
-        await websocket.send_json({"type": "initial", "spots": spots})
+        await send_ws_json(websocket, send_lock, {"type": "initial", "spots": spots})
     elif "last_time" in message:
         spots = await get_spots_after(message["last_time"])
-        await websocket.send_json({"type": "update", "spots": spots})
+        await send_ws_json(websocket, send_lock, {"type": "update", "spots": spots})
 
 
 @app.websocket("/spots_ws")
 async def spots_ws(websocket: fastapi.WebSocket):
     await websocket.accept()
+    send_lock = get_websocket_send_lock(websocket)
 
     app.state.active_connections.add(websocket)
 
     try:
         message = await websocket.receive_json()
-        await send_spots(websocket, message)
+        await send_spots(websocket, send_lock, message)
 
         while True:
             await websocket.receive_text()
