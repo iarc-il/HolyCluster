@@ -157,11 +157,11 @@ async def telnet_and_collect(
 
         finally:
             if writer:
-                writer.close()
                 try:
+                    writer.close()
                     await asyncio.wait_for(writer.wait_closed(), timeout=5.0)
-                except asyncio.TimeoutError:
-                    logger.warning(f"{host}:{port} Timeout waiting for writer to close")
+                except (asyncio.TimeoutError, ConnectionError, OSError) as e:
+                    logger.warning(f"{host}:{port} Failed to close connection cleanly: {e}")
 
         delay = min(INITIAL_BACKOFF * (2**reconnect_attempts), MAX_BACKOFF)
 
