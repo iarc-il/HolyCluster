@@ -126,13 +126,36 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
     if is_expected_radio_error(&event) {
         return None;
     }
+    let operation = event
+        .logger
+        .clone()
+        .unwrap_or_else(|| "catserver".to_owned());
+    let error_type = event
+        .exception
+        .iter()
+        .last()
+        .map(|exception| exception.ty.clone())
+        .filter(|ty| !ty.is_empty())
+        .unwrap_or_else(|| "Error".to_owned());
+    let tracing_location = event.contexts.remove("Rust Tracing Location");
+
     event.user = None;
     event.request = None;
     event.server_name = None;
     event.contexts.clear();
+    if let Some(location) = tracing_location {
+        event
+            .contexts
+            .insert("Rust Tracing Location".to_owned(), location);
+    }
     event.extra.clear();
     event.tags.clear();
-    event.message = Some("Catserver error".to_owned());
+    event.tags.insert("operation".to_owned(), operation.clone());
+    event.fingerprint = Cow::Owned(vec![
+        Cow::Owned(operation.clone()),
+        Cow::Owned(error_type.clone()),
+    ]);
+    event.message = Some(format!("{error_type} in {operation}"));
     event.logentry = None;
     for exception in &mut event.exception {
         exception.value = None;
@@ -189,12 +212,20 @@ mod tests {
             server_name: Some("workstation".into()),
             release: Some("untrusted".into()),
             environment: Some("untrusted".into()),
-            contexts: BTreeMap::from([("radio".into(), Context::Other(BTreeMap::new()))]),
+            contexts: BTreeMap::from([
+                ("radio".into(), Context::Other(BTreeMap::new())),
+                (
+                    "Rust Tracing Location".into(),
+                    Context::Other(BTreeMap::new()),
+                ),
+            ]),
             extra: BTreeMap::from([("token".into(), "secret".into())]),
             tags: BTreeMap::from([("callsign".into(), "N0CALL".into())]),
+            logger: Some("catserver::radio".into()),
             message: Some("private radio failure".into()),
             exception: sentry::protocol::Values {
                 values: vec![Exception {
+                    ty: "RadioError".into(),
                     value: Some("private exception".into()),
                     ..Default::default()
                 }],
@@ -207,10 +238,23 @@ mod tests {
         assert!(event.user.is_none());
         assert!(event.request.is_none());
         assert!(event.server_name.is_none());
-        assert!(event.contexts.is_empty());
+        assert_eq!(
+            event.contexts.keys().collect::<Vec<_>>(),
+            vec!["Rust Tracing Location"]
+        );
         assert!(event.extra.is_empty());
-        assert!(event.tags.is_empty());
-        assert_eq!(event.message.as_deref(), Some("Catserver error"));
+        assert_eq!(
+            event.tags,
+            BTreeMap::from([("operation".into(), "catserver::radio".into())])
+        );
+        assert_eq!(
+            event.message.as_deref(),
+            Some("RadioError in catserver::radio")
+        );
+        assert_eq!(
+            event.fingerprint.as_ref(),
+            ["catserver::radio", "RadioError"]
+        );
         assert!(event.logentry.is_none());
         assert!(
             event
