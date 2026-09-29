@@ -1,4 +1,5 @@
 import asyncio
+import random
 from collections.abc import Callable
 from typing import Any
 
@@ -7,10 +8,17 @@ from loguru import logger
 from shared.telemetry import capture_exception
 
 USER_AGENT = "HolyCluster collector (https://holycluster.iarc.org/)"
+MAX_RETRY_DELAY_SECONDS = 300
 
 
 class UpstreamResponseError(Exception):
     pass
+
+
+def retry_delay(poll_interval: int, failure_count: int) -> float:
+    exponent = min(failure_count - 1, 10)
+    base_delay = min(poll_interval * 2**exponent, MAX_RETRY_DELAY_SECONDS)
+    return min(base_delay + random.uniform(0, base_delay * 0.2), MAX_RETRY_DELAY_SECONDS)
 
 
 def as_text(value: Any) -> str:
@@ -53,6 +61,7 @@ async def run_json_spot_collector(
     valkey_client = get_valkey_client()
     timeout = aiohttp.ClientTimeout(total=request_timeout)
     headers = {"User-Agent": USER_AGENT}
+    failure_count = 0
     async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
         while True:
             try:
@@ -79,14 +88,26 @@ async def run_json_spot_collector(
                         queued_count += 1
 
                 logger.debug(f"Fetched {len(raw_spots)} {source_label} spots, queued {queued_count} new spots")
+                failure_count = 0
                 await asyncio.sleep(poll_interval)
             except asyncio.CancelledError:
                 logger.info(f"{source_label} collector cancelled")
                 break
             except UpstreamResponseError as e:
-                logger.warning(f"{source_label} upstream response unavailable: {e}")
-                await asyncio.sleep(min(poll_interval, 300))
+                failure_count += 1
+                delay = retry_delay(poll_interval, failure_count)
+                logger.warning(f"{source_label} upstream response unavailable; retrying in {delay:.1f}s: {e}")
+                await asyncio.sleep(delay)
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                failure_count += 1
+                delay = retry_delay(poll_interval, failure_count)
+                logger.warning(
+                    f"{source_label} endpoint unavailable; retrying in {delay:.1f}s: {type(e).__name__}"
+                )
+                capture_exception(e, operation=f"collector.poll.{metric_name}")
+                await asyncio.sleep(delay)
             except Exception as e:
+                failure_count += 1
                 logger.exception(f"{source_label} collector failed")
                 capture_exception(e, operation=f"collector.poll.{metric_name}")
-                await asyncio.sleep(min(poll_interval, 300))
+                await asyncio.sleep(retry_delay(poll_interval, failure_count))
