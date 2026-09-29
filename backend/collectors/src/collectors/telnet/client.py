@@ -106,7 +106,7 @@ async def telnet_and_collect(
                     data = await asyncio.wait_for(reader.read(4096), timeout=5)
 
                 if not data:
-                    task_logger.error("Connection closed by remote host.")
+                    task_logger.info("Connection closed by remote host.")
                     break
 
                 lines = (line_buffer + data).split(b"\n")
@@ -121,8 +121,8 @@ async def telnet_and_collect(
 
                     spot = parse_dx_line(line)
                     if spot is None:
-                        task_logger.error(f"Could not parse spot line: {line}")
-                        logger.error(f"Could not parse spot line: {line}")
+                        task_logger.warning(f"Could not parse spot line: {line}")
+                        logger.warning(f"Could not parse spot line: {line}")
                         continue
 
                     # W3LPL is a spammer and J9AQ is a pirate
@@ -147,8 +147,8 @@ async def telnet_and_collect(
                         logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
         except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
-            task_logger.error(f"Connection failed: {host}:{port}  {e}")
-            logger.error(f"Connection failed: {host}:{port}  {e}")
+            task_logger.warning(f"Connection failed: {host}:{port}  {e}")
+            logger.warning(f"Connection failed: {host}:{port}  {e}")
             capture_exception(e, operation="collector.telnet.reconnect")
 
         except asyncio.CancelledError:
