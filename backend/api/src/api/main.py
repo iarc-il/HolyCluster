@@ -151,38 +151,59 @@ async def spots_broadcast_task(app):
     valkey_client = redis.asyncio.Redis(
         host=settings.valkey_effective_host,
         port=settings.valkey_effective_port,
-        db=0,
+        db=int(settings.valkey_db),
         decode_responses=True,
     )
 
     try:
-        await valkey_client.xgroup_create(STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True)
-    except redis.exceptions.ResponseError:
-        pass
+        while True:
+            try:
+                await valkey_client.xgroup_create(STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True)
+                break
+            except redis.exceptions.ResponseError as e:
+                if "BUSYGROUP" in str(e):
+                    break
+                logger.warning(f"Failed to initialize spots consumer group: {e}")
+                capture_exception(e, operation="api.broadcast.initialize")
+                await asyncio.sleep(2)
+            except redis.exceptions.RedisError as e:
+                logger.warning(f"Failed to initialize spots consumer group: {e}")
+                capture_exception(e, operation="api.broadcast.initialize")
+                await asyncio.sleep(2)
 
-    while True:
-        response = await valkey_client.xreadgroup(
-            CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: ">"}, count=10, block=60000
-        )
-        if not response:
-            continue
+        stream_id = "0"
+        while True:
+            try:
+                response = await valkey_client.xreadgroup(
+                    CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: stream_id}, count=10, block=60000
+                )
+                if not response:
+                    stream_id = ">"
+                    continue
 
-        try:
-            for stream_name, messages in response:
-                spots = []
-                for msg_id, spot in messages:
-                    await valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
-                    await valkey_client.xtrim(STREAM_NAME, minid=msg_id, approximate=False)
+                for stream_name, messages in response:
+                    message_ids = []
+                    spots = []
+                    for msg_id, spot in messages:
+                        message_ids.append(msg_id)
+                        spot = cleanup_spot(spot)
+                        if spot is not None:
+                            spots.append(spot)
 
-                    spot = cleanup_spot(spot)
-                    if spot is not None:
-                        spots.append(spot)
+                    if spots:
+                        await broadcast_spots(app, spots)
 
-                await broadcast_spots(app, spots)
-
-        except Exception as e:
-            logger.exception(f"Error in spots broadcast task: {e}")
-            capture_exception(e, operation="api.broadcast")
+                    if message_ids:
+                        await valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, *message_ids)
+                        await valkey_client.xdel(STREAM_NAME, *message_ids)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.opt(exception=e).warning("Error in spots broadcast task")
+                capture_exception(e, operation="api.broadcast")
+                await asyncio.sleep(2)
+    finally:
+        await valkey_client.aclose()
 
 
 @asynccontextmanager
