@@ -155,6 +155,11 @@ async def telnet_and_collect(
             logger.info(f"{host}:{port} Task cancelled, shutting down.")
             break
 
+        except Exception as e:
+            task_logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
+            logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
+            capture_exception(e, operation="collector.telnet.unexpected")
+
         finally:
             if writer:
                 try:
