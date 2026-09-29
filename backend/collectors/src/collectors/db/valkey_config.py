@@ -15,3 +15,12 @@ def get_valkey_client():
             decode_responses=True,
         )
     return _valkey_client
+
+
+async def close_valkey_client():
+    global _valkey_client
+    if _valkey_client is None:
+        return
+    client = _valkey_client
+    _valkey_client = None
+    await client.aclose()

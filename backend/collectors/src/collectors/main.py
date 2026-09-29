@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from collectors.db.valkey_config import get_valkey_client
+from collectors.db.valkey_config import close_valkey_client, get_valkey_client
 from collectors.enrichers.dxpeditions import is_active_dxpedition
 from collectors.enrichers.frequencies import InvalidBandError, find_band, find_band_and_mode
 from collectors.enrichers.lotw import fetch_lotw_user_activity, get_lotw_status
@@ -287,27 +287,33 @@ async def run_collector():
         refresh_interval=settings.qrz_session_key_refresh,
         redis_client=valkey_client,
     )
-    await qrz_manager.start()
-
-    qrz_refresh_task = asyncio.create_task(qrz_manager.refresh_loop(), name="qrz_refresh_task")
-    dxpedition_refresh_task = asyncio.create_task(
-        refresh_dxpedition_data(valkey_client), name="dxpedition_refresh_task"
-    )
-    lotw_refresh_task = asyncio.create_task(refresh_lotw_user_data(valkey_client), name="lotw_refresh_task")
-    processor_task = asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task")
-    collector_tasks = run_concurrent_telnet_connections(spots_queue)
-    collector_tasks.append(asyncio.create_task(run_pota_collector(spots_queue), name="pota.app"))
-    if SOTA_ENABLED:
-        collector_tasks.append(asyncio.create_task(run_sota_collector(spots_queue), name="sota"))
-    collector_tasks.append(asyncio.create_task(run_wwff_collector(spots_queue), name="spots.wwff.co"))
-
-    tasks = [qrz_refresh_task, dxpedition_refresh_task, lotw_refresh_task, processor_task]
-    tasks.extend(collector_tasks)
+    tasks = []
 
     try:
+        await qrz_manager.start()
+
+        tasks = [
+            asyncio.create_task(qrz_manager.refresh_loop(), name="qrz_refresh_task"),
+            asyncio.create_task(refresh_dxpedition_data(valkey_client), name="dxpedition_refresh_task"),
+            asyncio.create_task(refresh_lotw_user_data(valkey_client), name="lotw_refresh_task"),
+            asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task"),
+        ]
+        tasks.extend(run_concurrent_telnet_connections(spots_queue))
+        tasks.append(asyncio.create_task(run_pota_collector(spots_queue), name="pota.app"))
+        if SOTA_ENABLED:
+            tasks.append(asyncio.create_task(run_sota_collector(spots_queue), name="sota"))
+        tasks.append(asyncio.create_task(run_wwff_collector(spots_queue), name="spots.wwff.co"))
+
         await asyncio.gather(*tasks)
     except asyncio.CancelledError:
         logger.info("Collector shutting down...")
+        raise
+    finally:
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(qrz_manager.aclose(), close_valkey_client(), return_exceptions=True)
 
 
 async def run_collector_with_monitor():
