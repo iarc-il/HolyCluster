@@ -727,9 +727,12 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
 
             response = await submit_spot.handle_spot(message)
             await send_ws_json(websocket, send_lock, response)
+    except websockets.WebSocketDisconnect:
+        pass
     finally:
-        await cancel_missing_jobs(missing_jobs)
         app.state.active_ws_spot_connections.discard(websocket)
+        app.state.websocket_send_locks.pop(websocket, None)
+        await cancel_missing_jobs(missing_jobs)
 
 
 @app.websocket("/ws")
@@ -756,9 +759,12 @@ async def ws(websocket: fastapi.WebSocket):
                 continue
 
             await dispatch_ws_message(websocket, send_lock, missing_jobs, message)
+    except websockets.WebSocketDisconnect:
+        pass
     finally:
-        await cancel_missing_jobs(missing_jobs)
         app.state.active_ws_spot_connections.discard(websocket)
+        app.state.websocket_send_locks.pop(websocket, None)
+        await cancel_missing_jobs(missing_jobs)
 
 
 async def send_ws_submit(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
@@ -771,7 +777,12 @@ async def send_ws_submit(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, 
 
 async def send_ws_json(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
     async with send_lock:
-        await websocket.send_json(message)
+        try:
+            await websocket.send_json(message)
+        except RuntimeError as e:
+            if str(e) == 'Cannot call "send" once a close message has been sent.':
+                raise websockets.WebSocketDisconnect(code=1000) from e
+            raise
 
 
 async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
@@ -1137,6 +1148,7 @@ async def spots_ws(websocket: fastapi.WebSocket):
         pass
     finally:
         app.state.active_connections.discard(websocket)
+        app.state.websocket_send_locks.pop(websocket, None)
 
 
 def get_release_manifest():
