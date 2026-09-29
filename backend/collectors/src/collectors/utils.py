@@ -66,14 +66,19 @@ async def run_json_spot_collector(
         while True:
             try:
                 raw_spots = await fetch_json_list(session, url, source_label)
+                valid_raw_spots = [spot for spot in raw_spots if isinstance(spot, dict)]
+                invalid_count = len(raw_spots) - len(valid_raw_spots)
+                if invalid_count:
+                    logger.info(f"Dropping {invalid_count} malformed {source_label} spot records")
+
                 queued_count = 0
-                for raw_spot in sorted(raw_spots, key=sort_key):
+                for raw_spot in sorted(valid_raw_spots, key=sort_key):
                     try:
                         source_spot_key = get_spot_key(raw_spot)
                         spot = parse_spot(raw_spot)
                         content_spot_key = build_spot_key(spot)
-                    except (KeyError, ValueError) as e:
-                        logger.info(f"Dropping {source_label} spot due to parse error: {e}: {raw_spot}")
+                    except (KeyError, TypeError, ValueError) as e:
+                        logger.info(f"Dropping {source_label} spot due to parse error: {e}")
                         continue
 
                     source_added = await valkey_client.set(source_spot_key, 1, ex=spot_expiration, nx=True)
