@@ -225,21 +225,28 @@ async def lifespan(app: fastapi.FastAPI):
     )
 
     app.state.http_client = httpx.AsyncClient()
+    tasks = []
 
-    await ensure_cty_available(http_client=app.state.http_client)
+    try:
+        await ensure_cty_available(http_client=app.state.http_client)
 
-    tasks = [
-        asyncio.create_task(propagation_data_collector(app)),
-        asyncio.create_task(spots_broadcast_task(app)),
-    ]
+        tasks = [
+            asyncio.create_task(propagation_data_collector(app)),
+            asyncio.create_task(spots_broadcast_task(app)),
+        ]
 
-    yield
-
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks)
-    await app.state.http_client.aclose()
-    await app.state.valkey_client.aclose()
+        yield
+    finally:
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(
+            app.state.http_client.aclose(),
+            app.state.valkey_client.aclose(),
+            engine.dispose(),
+            return_exceptions=True,
+        )
 
 
 engine = create_async_engine(
