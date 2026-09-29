@@ -9,6 +9,10 @@ from shared.telemetry import capture_exception
 USER_AGENT = "HolyCluster collector (https://holycluster.iarc.org/)"
 
 
+class UpstreamResponseError(Exception):
+    pass
+
+
 def as_text(value: Any) -> str:
     if value is None:
         return ""
@@ -25,7 +29,7 @@ async def fetch_json_list(session: aiohttp.ClientSession, url: str, source_label
         data = await response.json()
 
     if not isinstance(data, list):
-        raise ValueError(f"{source_label} spots response is {type(data).__name__}, expected list")
+        raise UpstreamResponseError(f"{source_label} spots response is {type(data).__name__}, expected list")
     return data
 
 
@@ -79,6 +83,9 @@ async def run_json_spot_collector(
             except asyncio.CancelledError:
                 logger.info(f"{source_label} collector cancelled")
                 break
+            except UpstreamResponseError as e:
+                logger.warning(f"{source_label} upstream response unavailable: {e}")
+                await asyncio.sleep(min(poll_interval, 300))
             except Exception as e:
                 logger.exception(f"{source_label} collector failed")
                 capture_exception(e, operation=f"collector.poll.{metric_name}")
