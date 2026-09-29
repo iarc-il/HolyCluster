@@ -2,6 +2,7 @@ import asyncio
 import json
 import re
 import time
+import weakref
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -101,9 +102,21 @@ async def propagation_data_collector(app):
 def get_websocket_send_lock(websocket):
     send_locks = getattr(app.state, "websocket_send_locks", None)
     if send_locks is None:
-        send_locks = {}
+        send_locks = weakref.WeakKeyDictionary()
         app.state.websocket_send_locks = send_locks
     return send_locks.setdefault(websocket, asyncio.Lock())
+
+
+def get_closed_websockets():
+    closed_websockets = getattr(app.state, "closed_websockets", None)
+    if closed_websockets is None:
+        closed_websockets = weakref.WeakSet()
+        app.state.closed_websockets = closed_websockets
+    return closed_websockets
+
+
+def mark_websocket_closed(websocket):
+    get_closed_websockets().add(websocket)
 
 
 async def send_json_to_websockets(websockets, message):
@@ -111,6 +124,8 @@ async def send_json_to_websockets(websockets, message):
     for websocket in websockets.copy():
         try:
             await send_ws_json(websocket, get_websocket_send_lock(websocket), message)
+        except websockets.WebSocketDisconnect:
+            disconnected.add(websocket)
         except Exception as e:
             logger.warning(f"Failed to send to websocket: {e}")
             disconnected.add(websocket)
@@ -177,7 +192,8 @@ async def lifespan(app: fastapi.FastAPI):
 
     app.state.active_connections = set()
     app.state.active_ws_spot_connections = set()
-    app.state.websocket_send_locks = {}
+    app.state.websocket_send_locks = weakref.WeakKeyDictionary()
+    app.state.closed_websockets = weakref.WeakSet()
     app.state.propagation = None
 
     app.state.valkey_client = redis.asyncio.Redis(
@@ -730,6 +746,7 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
     except websockets.WebSocketDisconnect:
         pass
     finally:
+        mark_websocket_closed(websocket)
         app.state.active_ws_spot_connections.discard(websocket)
         app.state.websocket_send_locks.pop(websocket, None)
         await cancel_missing_jobs(missing_jobs)
@@ -762,6 +779,7 @@ async def ws(websocket: fastapi.WebSocket):
     except websockets.WebSocketDisconnect:
         pass
     finally:
+        mark_websocket_closed(websocket)
         app.state.active_ws_spot_connections.discard(websocket)
         app.state.websocket_send_locks.pop(websocket, None)
         await cancel_missing_jobs(missing_jobs)
@@ -776,7 +794,11 @@ async def send_ws_submit(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, 
 
 
 async def send_ws_json(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
+    if websocket in get_closed_websockets():
+        raise websockets.WebSocketDisconnect(code=1000)
     async with send_lock:
+        if websocket in get_closed_websockets():
+            raise websockets.WebSocketDisconnect(code=1000)
         try:
             await websocket.send_json(message)
         except RuntimeError as e:
@@ -1147,6 +1169,7 @@ async def spots_ws(websocket: fastapi.WebSocket):
     except websockets.WebSocketDisconnect:
         pass
     finally:
+        mark_websocket_closed(websocket)
         app.state.active_connections.discard(websocket)
         app.state.websocket_send_locks.pop(websocket, None)
 
