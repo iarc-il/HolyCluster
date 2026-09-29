@@ -1,9 +1,11 @@
 import argparse
 import asyncio
+import random
 import sys
 import re
 from datetime import datetime, timezone
 
+import httpx
 from loguru import logger
 import redis.exceptions
 from shared.cty import ensure_cty_available
@@ -18,7 +20,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from collectors.db.valkey_config import close_valkey_client, get_valkey_client
 from collectors.enrichers.dxpeditions import is_active_dxpedition
 from collectors.enrichers.frequencies import InvalidBandError, find_band, find_band_and_mode
-from collectors.enrichers.lotw import fetch_lotw_user_activity, get_lotw_status
+from collectors.enrichers.lotw import (
+    LotwResponseError,
+    deserialize_lotw_user_activity,
+    fetch_lotw_user_activity,
+    get_lotw_status,
+    serialize_lotw_user_activity,
+)
 from collectors.pota import run_pota_collector
 from collectors.settings import settings
 from collectors.sota import SOTA_ENABLED, run_sota_collector
@@ -31,6 +39,10 @@ import aiomonitor
 
 STREAM_API = "stream-api"
 PERSIST_ATTEMPTS = 3
+LOTW_CACHE_KEY = "collector:lotw:user_activity"
+LOTW_REFRESH_INTERVAL_SECONDS = 7 * 86400
+LOTW_RETRY_BASE_SECONDS = 600
+LOTW_RETRY_MAX_SECONDS = 6 * 3600
 LOTW_USERS: dict[str, datetime] = {}
 
 
@@ -252,22 +264,62 @@ async def refresh_dxpedition_data(valkey_client):
         await asyncio.sleep(sleep)
 
 
-async def update_lotw_user_data():
+def lotw_retry_delay(failure_count: int) -> float:
+    exponent = min(failure_count - 1, 10)
+    base_delay = min(LOTW_RETRY_BASE_SECONDS * 2**exponent, LOTW_RETRY_MAX_SECONDS)
+    return min(base_delay + random.uniform(0, base_delay * 0.2), LOTW_RETRY_MAX_SECONDS)
+
+
+async def load_cached_lotw_user_data(valkey_client):
     global LOTW_USERS
 
-    LOTW_USERS = await fetch_lotw_user_activity()
+    try:
+        cached = await valkey_client.get(LOTW_CACHE_KEY)
+    except redis.exceptions.RedisError as e:
+        logger.warning(f"Failed to load cached LoTW user activity: {type(e).__name__}")
+        return
+    if not cached:
+        return
+
+    users = deserialize_lotw_user_activity(cached)
+    if not users:
+        logger.warning("Ignoring invalid cached LoTW user activity")
+        return
+    LOTW_USERS = users
+    logger.info(f"Loaded cached LoTW user activity with {len(LOTW_USERS)} callsigns")
+
+
+async def update_lotw_user_data(valkey_client):
+    global LOTW_USERS
+
+    users = await fetch_lotw_user_activity()
+    LOTW_USERS = users
     logger.info(f"LoTW user activity refreshed with {len(LOTW_USERS)} callsigns")
+    try:
+        await valkey_client.set(LOTW_CACHE_KEY, serialize_lotw_user_activity(users))
+    except redis.exceptions.RedisError as e:
+        logger.warning(f"Failed to cache LoTW user activity: {type(e).__name__}")
 
 
 async def refresh_lotw_user_data(valkey_client):
+    await load_cached_lotw_user_data(valkey_client)
+    failure_count = 0
     while True:
-        sleep = 7 * 86400
         try:
-            await update_lotw_user_data()
+            await update_lotw_user_data(valkey_client)
+            failure_count = 0
+            sleep = LOTW_REFRESH_INTERVAL_SECONDS
+        except (httpx.HTTPError, LotwResponseError) as e:
+            failure_count += 1
+            sleep = lotw_retry_delay(failure_count)
+            logger.warning(f"LoTW user activity unavailable; retrying in {sleep:.1f}s: {type(e).__name__}")
+            if failure_count == 1:
+                capture_exception(e, operation="collector.lotw_refresh")
         except Exception as e:
+            failure_count += 1
+            sleep = lotw_retry_delay(failure_count)
             logger.exception("Failed to refresh LoTW user activity")
             capture_exception(e, operation="collector.lotw_refresh")
-            sleep = 600
         await asyncio.sleep(sleep)
 
 

@@ -4,7 +4,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[3]))
 
-from collectors.enrichers.lotw import get_lotw_status, parse_lotw_user_activity
+from collectors.enrichers.lotw import (
+    deserialize_lotw_user_activity,
+    get_lotw_status,
+    parse_lotw_user_activity,
+    serialize_lotw_user_activity,
+)
 
 
 def test_parse_lotw_user_activity_skips_invalid_rows():
@@ -16,6 +21,19 @@ def test_parse_lotw_user_activity_skips_invalid_rows():
         "K1ABC": datetime(2026, 7, 31, 20, 15, 52, tzinfo=timezone.utc),
         "K3ABC": datetime(2026, 7, 30, 12, 0, tzinfo=timezone.utc),
     }
+
+
+def test_lotw_user_activity_cache_round_trip():
+    users = {
+        "K1ABC": datetime(2026, 7, 31, 20, 15, 52, tzinfo=timezone.utc),
+        "K2ABC": datetime(2026, 7, 30, 12, 0, tzinfo=timezone.utc),
+    }
+
+    assert deserialize_lotw_user_activity(serialize_lotw_user_activity(users)) == users
+
+
+def test_lotw_user_activity_cache_skips_invalid_entries():
+    assert deserialize_lotw_user_activity('{"K1ABC":"invalid","K2ABC":2}') == {}
 
 
 def test_get_lotw_status_classifies_frequent_infrequent_and_non_users():
