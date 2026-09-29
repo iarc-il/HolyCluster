@@ -1,4 +1,5 @@
 import asyncio
+import random
 import xml.etree.ElementTree as ET
 
 import httpx
@@ -9,6 +10,32 @@ QRZ_KEEPALIVE_EXPIRY_SECONDS = 1.0
 HTTPX_DEFAULT_MAX_CONNECTIONS = 100
 HTTPX_DEFAULT_MAX_KEEPALIVE_CONNECTIONS = 20
 QRZ_XML_NAMESPACE = {"qrz": "http://xmldata.qrz.com"}
+QRZ_REQUEST_ATTEMPTS = 6
+QRZ_MAX_RETRY_DELAY_SECONDS = 30
+
+
+async def _get_with_retries(http_client: httpx.AsyncClient, url: str, timeout: float | None = None):
+    last_error = None
+    for attempt in range(QRZ_REQUEST_ATTEMPTS):
+        try:
+            if timeout is None:
+                response = await http_client.get(url)
+            else:
+                response = await http_client.get(url, timeout=timeout)
+            if response.status_code != 429 and response.status_code < 500:
+                return response
+            response.raise_for_status()
+        except (httpx.TransportError, httpx.HTTPStatusError) as e:
+            last_error = e
+            if attempt == QRZ_REQUEST_ATTEMPTS - 1:
+                raise
+            delay = min(2**attempt, QRZ_MAX_RETRY_DELAY_SECONDS) + random.uniform(0, 1)
+            logger.warning(
+                f"QRZ request failed, retrying in {delay:.1f}s "
+                f"({attempt + 1}/{QRZ_REQUEST_ATTEMPTS}): {type(e).__name__}"
+            )
+            await asyncio.sleep(delay)
+    raise RuntimeError("QRZ request failed") from last_error
 
 
 def _xml_text(root: ET.Element, tag_name: str) -> str | None:
@@ -106,31 +133,22 @@ async def get_qrz_session_key(username: str, password: str, api_key: str, http_c
     if password == "":
         raise ValueError("Password is empty")
 
-    attempts = 0
-    while attempts <= 5:
-        attempts += 1
-        url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
-        try:
-            response = await http_client.get(url)
-        except httpx.TransportError as e:
-            raise type(e)(f"xmldata.qrz.com: {e}") from e
+    url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
+    response = await _get_with_retries(http_client, url)
+    if response.status_code != 200:
+        raise RuntimeError(f"QRZ session request failed with status {response.status_code}")
 
-        if response.status_code == 200:
-            try:
-                root = ET.fromstring(response.text)
-            except ET.ParseError as e:
-                logger.warning(f"Invalid QRZ session response XML: {e}")
-            else:
-                session_key = _xml_text(root, "Key")
-                if session_key is not None:
-                    logger.info(f"Received QRZ key in {attempts=}")
-                    return session_key
-                logger.warning(f"QRZ session response did not contain a key: {_xml_text(root, 'Error') or 'unknown error'}")
-        else:
-            logger.error(f"**** Error: trying to get qrz session key {attempts=}: {response.status_code=}")
-        await asyncio.sleep(5)
-    logger.error(f"**** Error: stopped attempting to get QRZ key after {attempts=}")
-    return None
+    try:
+        root = ET.fromstring(response.text)
+    except ET.ParseError as e:
+        raise RuntimeError("QRZ session response contained invalid XML") from e
+
+    session_key = _xml_text(root, "Key")
+    if session_key is None:
+        error = _xml_text(root, "Error") or "response did not contain a key"
+        raise RuntimeError(f"QRZ session request failed: {error}")
+    logger.info("Received QRZ key")
+    return session_key
 
 
 async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client: httpx.AsyncClient) -> dict:
@@ -155,49 +173,7 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client:
 
     url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
 
-    retries = 0
-    response = None
-    max_retries = 5
-    while response is None:
-        try:
-            response = await http_client.get(url, timeout=5)
-            response.raise_for_status()
-        except httpx.TimeoutException as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com timeout: {e}") from e
-            else:
-                logger.warning("Timeout error, retrying")
-                retries += 1
-        except httpx.NetworkError as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com network: {e}") from e
-            else:
-                logger.warning("Network error, retrying")
-                retries += 1
-        except httpx.ProtocolError as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com protocol: {e}") from e
-            else:
-                logger.warning(f"Protocol error, retrying ({retries + 1}/{max_retries}): {type(e).__name__}: {e}")
-                retries += 1
-        except httpx.ProxyError as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com proxy: {e}") from e
-            else:
-                logger.warning("Proxy error, retrying")
-                retries += 1
-        except httpx.UnsupportedProtocol as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com unsupported protocol: {e}") from e
-            else:
-                logger.warning("Unsupported protocol error, retrying")
-                retries += 1
-        except httpx.TransportError as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com transport: {e}") from e
-            else:
-                logger.warning("Transport error, retrying")
-                retries += 1
+    response = await _get_with_retries(http_client, url, timeout=5)
 
     if response.status_code != 200:
         return _lookup_error(f"qrz response code {response.status_code}")
