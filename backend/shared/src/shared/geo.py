@@ -127,6 +127,7 @@ async def get_geo_details(
     geo_expiration: int,
     http_client,
     callsign_type,
+    refresh_qrz_session=None,
 ) -> GeoData:
     # Get geo details from cache
     if valkey_client is not None:
@@ -143,7 +144,7 @@ async def get_geo_details(
         geo_data["cached"] = True
         return GeoData(**geo_data)
 
-    qrz_locator_dict = await get_locator_from_qrz(qrz_session_key, callsign, http_client)
+    qrz_locator_dict = await get_locator_from_qrz(qrz_session_key, callsign, http_client, refresh_qrz_session)
 
     locator = qrz_locator_dict.get("locator")
     state = qrz_locator_dict.get("state")

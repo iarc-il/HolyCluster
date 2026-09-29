@@ -43,7 +43,7 @@ def validate_callsign(callsign, role):
         raise InvalidCallsignError(f"Invalid {role} callsign: {callsign}")
 
 
-async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_client) -> dict:
+async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_client, refresh_qrz_session=None) -> dict:
     spot["timestamp"] = float(spot.get("timestamp") or datetime.now(timezone.utc).timestamp())
 
     source_mode = (spot.get("mode") or "").strip().upper()
@@ -69,6 +69,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             settings.valkey_geo_expiration,
             http_client,
             "spotter",
+            refresh_qrz_session,
         ),
         get_geo_details(
             valkey_client,
@@ -77,6 +78,7 @@ async def enrich_spot(qrz_session_key: str, spot: dict, http_client, valkey_clie
             settings.valkey_geo_expiration,
             http_client,
             "dx_callsign",
+            refresh_qrz_session,
         ),
     )
 
@@ -179,6 +181,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                         spot=spot,
                         http_client=qrz_manager.http_client,
                         valkey_client=valkey_client,
+                        refresh_qrz_session=qrz_manager.refresh_if_stale,
                     )
                 except InvalidBandError:
                     logger.debug(f"Dropping spot due to invalid band: {spot}")

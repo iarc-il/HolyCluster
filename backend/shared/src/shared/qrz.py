@@ -1,6 +1,7 @@
 import asyncio
 import random
 import xml.etree.ElementTree as ET
+from collections.abc import Awaitable, Callable
 
 import httpx
 from loguru import logger
@@ -56,6 +57,11 @@ def _lookup_error(message: str) -> dict:
     }
 
 
+def _is_session_error(message: str) -> bool:
+    normalized = message.lower()
+    return "session" in normalized and any(value in normalized for value in ("expired", "invalid", "timeout"))
+
+
 class QrzSessionManager:
     def __init__(
         self,
@@ -97,6 +103,22 @@ class QrzSessionManager:
 
     async def aclose(self):
         await self.http_client.aclose()
+
+    async def refresh_if_stale(self, stale_key: str) -> str:
+        async with self._lock:
+            if self.session_key and self.session_key != stale_key:
+                return self.session_key
+            new_key = await get_qrz_session_key(
+                username=self.username,
+                password=self.password,
+                api_key=self.api_key,
+                http_client=self.http_client,
+            )
+            self.session_key = new_key
+            if self.redis_client:
+                await self.redis_client.set(self.redis_key, new_key)
+            logger.info("QRZ session refreshed after lookup rejection")
+            return new_key
 
     async def refresh_loop(self):
         try:
@@ -151,7 +173,12 @@ async def get_qrz_session_key(username: str, password: str, api_key: str, http_c
     return session_key
 
 
-async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client: httpx.AsyncClient) -> dict:
+async def get_locator_from_qrz(
+    qrz_session_key: str,
+    callsign: str,
+    http_client: httpx.AsyncClient,
+    refresh_session: Callable[[str], Awaitable[str]] | None = None,
+) -> dict:
     def parse_zone_int(root, ns, tag_name):
         elem = root.find(f".//qrz:{tag_name}", ns)
         if elem is None or elem.text is None:
@@ -185,6 +212,9 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client:
 
     xml_error = _xml_text(root, "Error")
     if xml_error is not None:
+        if refresh_session is not None and _is_session_error(xml_error):
+            refreshed_key = await refresh_session(qrz_session_key)
+            return await get_locator_from_qrz(refreshed_key, callsign, http_client)
         return _lookup_error(xml_error)
 
     geoloc = _xml_text(root, "geoloc")
