@@ -84,6 +84,7 @@ impl Default for UpdateStatus {
 pub struct UpdateService {
     manifest_url: Url,
     current_version: Version,
+    dev_mode: bool,
     platform: &'static str,
     data_dir: PathBuf,
 }
@@ -97,6 +98,8 @@ struct InstallPlan {
     parent_pid: u32,
     #[serde(default)]
     version: Option<String>,
+    #[serde(default)]
+    reinstall: bool,
     #[serde(default)]
     command_args: Vec<String>,
 }
@@ -130,6 +133,7 @@ impl UpdateService {
         let service = Self {
             manifest_url,
             current_version: parse_version(current_version)?,
+            dev_mode: false,
             platform: platform(),
             data_dir,
         };
@@ -137,6 +141,11 @@ impl UpdateService {
         #[cfg(windows)]
         service.reconcile_installing_status_with(update_helper_active)?;
         Ok(service)
+    }
+
+    pub fn with_dev_mode(mut self, dev_mode: bool) -> Self {
+        self.dev_mode = dev_mode;
+        self
     }
 
     pub fn status(&self) -> UpdateStatus {
@@ -267,6 +276,7 @@ impl UpdateService {
                 artifact,
                 state_path: self.state_path(),
                 parent_pid: std::process::id(),
+                reinstall: self.dev_mode && version == self.current_version,
                 version: Some(version.to_string()),
                 command_args: std::env::args().skip(1).collect(),
             })?,
@@ -349,7 +359,7 @@ impl UpdateService {
             .find(|r| map_platform(&r.platform) == Some(self.platform))
             .context("release does not contain an artifact for this platform")?;
         let version = parse_version(&release.version)?;
-        if version <= self.current_version {
+        if version < self.current_version || (version == self.current_version && !self.dev_mode) {
             return Ok(None);
         }
         let mut artifact = release.artifact.clone();
@@ -525,6 +535,7 @@ fn install_windows(plan: &InstallPlan) -> Result<UpdateState> {
     let state = windows_install_state(run_elevated_windows_installer(
         &plan.staged_artifact,
         &log_path,
+        plan.reinstall,
     )?)?;
     if state == UpdateState::Installed {
         let mut command = Command::new(&plan.current_executable);
@@ -592,24 +603,35 @@ pub fn exec_pending_update() -> Result<()> {
 }
 
 #[cfg(any(test, windows))]
-pub(crate) fn windows_installer_arguments(msi: &Path, log: &Path) -> Vec<OsString> {
-    vec![
+pub(crate) fn windows_installer_arguments(
+    msi: &Path,
+    log: &Path,
+    reinstall: bool,
+) -> Vec<OsString> {
+    let mut arguments = vec![
         "/i".into(),
         msi.as_os_str().to_owned(),
         "/qn".into(),
         "/norestart".into(),
         "/L*v".into(),
         log.as_os_str().to_owned(),
-    ]
+    ];
+    if reinstall {
+        arguments.extend(["REINSTALL=ALL".into(), "REINSTALLMODE=vamus".into()]);
+    }
+    arguments
 }
 
 #[cfg(windows)]
-fn run_elevated_windows_installer(msi: &Path, log: &Path) -> Result<u32> {
-    windows_elevation::run("msiexec.exe", &windows_installer_arguments(msi, log))
+fn run_elevated_windows_installer(msi: &Path, log: &Path, reinstall: bool) -> Result<u32> {
+    windows_elevation::run(
+        "msiexec.exe",
+        &windows_installer_arguments(msi, log, reinstall),
+    )
 }
 
 #[cfg(not(windows))]
-fn run_elevated_windows_installer(_msi: &Path, _log: &Path) -> Result<u32> {
+fn run_elevated_windows_installer(_msi: &Path, _log: &Path, _reinstall: bool) -> Result<u32> {
     bail!("Windows installer received on unsupported platform")
 }
 

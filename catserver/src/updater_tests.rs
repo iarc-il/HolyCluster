@@ -289,7 +289,8 @@ fn builds_silent_msi_arguments() {
     assert_eq!(
         windows_installer_arguments(
             Path::new("C:/safe/update.msi"),
-            Path::new("C:/safe/update.log")
+            Path::new("C:/safe/update.log"),
+            false,
         ),
         [
             "/i",

@@ -1,5 +1,6 @@
 import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
+import { useColors } from "@/hooks/useColors";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
 
 export function UpdateConsentDialog() {
@@ -43,8 +44,19 @@ function message_for(status, error) {
 }
 
 export default function UpdateControls() {
-    const { enabled, status, local_version, remote_version, error, check, install, retry } =
-        useUpdate();
+    const { dev_mode } = useColors();
+    const {
+        enabled,
+        status,
+        local_version,
+        remote_version,
+        error,
+        check,
+        install,
+        retry,
+        allow_same_version,
+        set_allow_same_version,
+    } = useUpdate();
     if (!enabled) return null;
 
     const message = message_for(status, error);
@@ -56,6 +68,16 @@ export default function UpdateControls() {
             {local_version && <p>Installed version: {local_version}</p>}
             {remote_version && <p>Available version: {remote_version}</p>}
             {message && <p>{message}</p>}
+            {dev_mode && (
+                <label className="mt-3 flex items-center gap-2">
+                    <input
+                        type="checkbox"
+                        checked={allow_same_version}
+                        onChange={event => set_allow_same_version(event.target.checked)}
+                    />
+                    Allow same-version updates (testing only)
+                </label>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
                 <Button disabled={status === "loading" || status === "checking"} on_click={check}>
                     Check for updates

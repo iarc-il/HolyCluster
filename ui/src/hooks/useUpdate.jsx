@@ -1,3 +1,4 @@
+import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { NATIVE_UPDATER_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
 import {
@@ -129,11 +130,11 @@ async function read_update_payload(response) {
     }
 }
 
-async function request_update(path) {
+async function request_update(path, dev_mode = false) {
     const response = await fetch(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: "{}",
+        body: JSON.stringify({ dev_mode }),
     });
     if (!response.ok) throw new Error(`Update request failed (${response.status})`);
     return normalize_update_status(await read_update_payload(response));
@@ -141,6 +142,9 @@ async function request_update(path) {
 
 export function UpdateProvider({ children }) {
     const { local_version } = use_radio();
+    const { dev_mode } = useColors();
+    const [allow_same_version, set_allow_same_version] = useState(false);
+    const update_dev_mode = Boolean(dev_mode && allow_same_version);
     const enabled = supports_cat_feature(local_version, NATIVE_UPDATER_MIN_VERSION);
     const enabled_ref = useRef(enabled);
     const request_generation_ref = useRef(0);
@@ -163,7 +167,7 @@ export function UpdateProvider({ children }) {
             const payload = await read_update_payload(response);
             const next =
                 payload?.state === "idle" || payload?.state === "installed"
-                    ? await request_update("/api/update/check")
+                    ? await request_update("/api/update/check", update_dev_mode)
                     : normalize_update_status(payload);
             if (enabled_ref.current && generation === request_generation_ref.current) {
                 set_update(next);
@@ -179,7 +183,7 @@ export function UpdateProvider({ children }) {
                 error: error.message,
             }));
         }
-    }, [enabled]);
+    }, [enabled, update_dev_mode]);
 
     useEffect(() => {
         if (!enabled) {
@@ -210,7 +214,7 @@ export function UpdateProvider({ children }) {
                 error: null,
             }));
             try {
-                const next = await request_update(path);
+                const next = await request_update(path, update_dev_mode);
                 if (enabled_ref.current && generation === request_generation_ref.current) {
                     set_update(next);
                 }
@@ -226,20 +230,22 @@ export function UpdateProvider({ children }) {
                 return null;
             }
         },
-        [enabled],
+        [enabled, update_dev_mode],
     );
 
     const value = useMemo(
         () => ({
             ...update,
             enabled,
+            allow_same_version,
+            set_allow_same_version,
             refresh,
             check: () => action("/api/update/check"),
             install: () => action("/api/update/install"),
             defer: () => action("/api/update/defer"),
             retry: () => action("/api/update/retry"),
         }),
-        [update, enabled, refresh, action],
+        [update, enabled, allow_same_version, refresh, action],
     );
 
     return <UpdateContext.Provider value={value}>{children}</UpdateContext.Provider>;

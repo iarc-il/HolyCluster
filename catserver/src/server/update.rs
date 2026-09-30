@@ -4,6 +4,25 @@ use crate::updater::{UpdateState, UpdateStatus};
 
 use super::state::AppState;
 
+#[derive(Default, serde::Deserialize)]
+pub(super) struct UpdateOptions {
+    #[serde(default)]
+    dev_mode: bool,
+}
+
+pub(super) async fn check(
+    State(state): State<AppState>,
+    options: Option<Json<UpdateOptions>>,
+) -> (StatusCode, Json<UpdateStatus>) {
+    let dev_mode = options
+        .map(|Json(options)| options.dev_mode)
+        .unwrap_or(false);
+    run(state, move |updater| {
+        updater.with_dev_mode(dev_mode).check()
+    })
+    .await
+}
+
 pub(super) async fn status(State(state): State<AppState>) -> Json<UpdateStatus> {
     Json(state.updater.status())
 }
@@ -20,8 +39,14 @@ pub(super) async fn run(
     }
 }
 
-pub(super) async fn install(State(state): State<AppState>) -> (StatusCode, Json<UpdateStatus>) {
-    let updater = state.updater.clone();
+pub(super) async fn install(
+    State(state): State<AppState>,
+    options: Option<Json<UpdateOptions>>,
+) -> (StatusCode, Json<UpdateStatus>) {
+    let dev_mode = options
+        .map(|Json(options)| options.dev_mode)
+        .unwrap_or(false);
+    let updater = state.updater.clone().with_dev_mode(dev_mode);
     let result = tokio::task::spawn_blocking(move || {
         let status = updater.download()?;
         if status.state == UpdateState::Downloaded {
