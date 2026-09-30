@@ -1,7 +1,9 @@
 import asyncio
+import errno
 import json
 import os
 import re
+import socket
 
 from loguru import logger
 from shared.telemetry import capture_exception
@@ -13,6 +15,12 @@ from collectors.utils import build_spot_key
 
 DX_CC_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
 DX_AR_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\d+Z)")
+TRANSIENT_CONNECTION_ERRNOS = {
+    errno.EHOSTUNREACH,
+    errno.ENETDOWN,
+    errno.ENETUNREACH,
+    socket.EAI_AGAIN,
+}
 
 
 def parse_cc_dx_cluster_line(line: str) -> dict | None:
@@ -146,9 +154,18 @@ async def telnet_and_collect(
                         task_logger.debug(f"Duplicate spot not queued: {spot_data}")
                         logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
-        except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
+        except (asyncio.TimeoutError, ConnectionError) as e:
             task_logger.warning(f"Connection failed: {host}:{port}  {e}")
             logger.warning(f"Connection failed: {host}:{port}  {e}")
+
+        except OSError as e:
+            if e.errno in TRANSIENT_CONNECTION_ERRNOS:
+                task_logger.warning(f"Connection failed: {host}:{port}  {e}")
+                logger.warning(f"Connection failed: {host}:{port}  {e}")
+            else:
+                task_logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
+                logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
+                capture_exception(e, operation="collector.telnet.unexpected")
 
         except asyncio.CancelledError:
             logger.info(f"{host}:{port} Task cancelled, shutting down.")
