@@ -10,10 +10,11 @@ const labels = {
     installing: "Installing",
     waiting_for_local_port: "Waiting for the original local port",
     reconnecting: "Reconnecting",
+    recovering: "Restarting CAT Control after the installer did not complete",
     updated: "Updated",
     permission_cancelled: "Windows permission was canceled",
     failed: "Update failed",
-    restart_failed: "Installation finished, but CAT Control could not restart",
+    restart_failed: "CAT Control could not restart after the installation attempt",
     reboot_required: "Restart Windows to finish installation",
 };
 

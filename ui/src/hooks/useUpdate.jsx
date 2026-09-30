@@ -100,7 +100,12 @@ export function normalize_update_status(payload) {
     if (direction > 0)
         return { status: "available", local_version: local, remote_version: remote, error };
     if (direction === 0)
-        return { status: "current", local_version: local, remote_version: remote, error };
+        return {
+            status: status === "available" ? "available" : "current",
+            local_version: local,
+            remote_version: remote,
+            error,
+        };
     if (direction < 0)
         return { status: "newer_local", local_version: local, remote_version: remote, error };
 
@@ -133,7 +138,10 @@ async function read_update_payload(response) {
 
 async function fetch_update(path, options = {}, timeout = 5000) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
+    const abort = () => controller.abort();
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.signal?.aborted) controller.abort();
+    const timer = setTimeout(abort, timeout);
     try {
         const response = await fetch(path, {
             ...options,
@@ -151,6 +159,7 @@ async function fetch_update(path, options = {}, timeout = 5000) {
         return payload;
     } finally {
         clearTimeout(timer);
+        options.signal?.removeEventListener("abort", abort);
     }
 }
 
@@ -194,6 +203,7 @@ export function UpdateProvider({ children }) {
     const supported = supports_cat_feature(local_version, NATIVE_UPDATER_MIN_VERSION);
     const [session, set_session_state] = useState(null);
     const session_ref = useRef(null);
+    const dismissed_sessions_ref = useRef(new Set());
     const [poll_generation, set_poll_generation] = useState(0);
     const enabled = supported || session != null;
     const enabled_ref = useRef(enabled);
@@ -213,12 +223,18 @@ export function UpdateProvider({ children }) {
         incoming => {
             if (!incoming?.id) return;
             const current = session_ref.current;
-            if (current?.verified || (current?.id && current.id !== incoming.id)) return;
+            if (
+                dismissed_sessions_ref.current.has(incoming.id) ||
+                terminal_session(current) ||
+                (current?.id && current.id !== incoming.id)
+            )
+                return;
             const next = {
                 ...current,
                 ...incoming,
                 started: current?.started ?? Date.now(),
                 accepted: true,
+                verified: current?.verified === true,
             };
             set_session(next);
             set_update(previous => ({
@@ -251,7 +267,11 @@ export function UpdateProvider({ children }) {
                 session_ref.current
             )
                 return;
-            if (payload?.session && payload.session.phase !== "updated") {
+            if (
+                payload?.session &&
+                payload.session.phase !== "updated" &&
+                !dismissed_sessions_ref.current.has(payload.session.id)
+            ) {
                 adopt(payload.session);
                 return;
             }
@@ -263,8 +283,15 @@ export function UpdateProvider({ children }) {
                 enabled_ref.current &&
                 generation === request_generation_ref.current &&
                 !session_ref.current
-            )
-                set_update(next);
+            ) {
+                if (
+                    next.session &&
+                    next.session.phase !== "updated" &&
+                    !dismissed_sessions_ref.current.has(next.session.id)
+                )
+                    adopt(next.session);
+                else set_update(next);
+            }
         } catch (error) {
             if (
                 !enabled_ref.current ||
@@ -301,7 +328,8 @@ export function UpdateProvider({ children }) {
     }, [supported, refresh]);
 
     useEffect(() => {
-        if (!session?.started || (terminal_session(session) && session.phase !== "updated")) return;
+        if (!session?.started || terminal_session(session)) return;
+        const controller = new AbortController();
         let canceled = false;
         let timer;
         let delay = 750;
@@ -313,12 +341,14 @@ export function UpdateProvider({ children }) {
                     const progress = await fetch_update(current.helper_url, {
                         headers: { "X-HolyCluster-Update": current.capability },
                         credentials: "omit",
+                        signal: controller.signal,
                     });
                     if (!canceled && progress.id === current.id) adopt(progress);
                 }
             } catch {}
+            if (canceled || terminal_session(session_ref.current)) return;
             try {
-                const payload = await fetch_update("/api/update");
+                const payload = await fetch_update("/api/update", { signal: controller.signal });
                 if (!canceled && payload?.session) adopt(payload.session);
             } catch {}
             if (canceled) return;
@@ -326,7 +356,7 @@ export function UpdateProvider({ children }) {
             if (terminal_session(current) && current.phase !== "updated") return;
             if (current.id && current.installer_outcome === "installed") {
                 try {
-                    const ready = await fetch_update("/api/ready");
+                    const ready = await fetch_update("/api/ready", { signal: controller.signal });
                     if (
                         !canceled &&
                         ready.update_id === current.id &&
@@ -354,6 +384,7 @@ export function UpdateProvider({ children }) {
         timer = setTimeout(poll, 500);
         return () => {
             canceled = true;
+            controller.abort();
             clearTimeout(timer);
         };
     }, [session?.started, poll_generation, adopt, set_session, ws?.reconnect]);
@@ -372,7 +403,11 @@ export function UpdateProvider({ children }) {
                     phase: "requested",
                     accepted: false,
                 });
-            else set_session(null);
+            else {
+                if (session_ref.current?.id)
+                    dismissed_sessions_ref.current.add(session_ref.current.id);
+                set_session(null);
+            }
             set_update(current => ({
                 ...current,
                 status: is_install ? "requested" : "checking",
@@ -382,7 +417,12 @@ export function UpdateProvider({ children }) {
                 const next = await request_update(path, update_dev_mode);
                 if (!enabled_ref.current || generation !== request_generation_ref.current)
                     return next;
-                if (next.session) adopt(next.session);
+                if (
+                    next.session &&
+                    (is_install || next.session.phase !== "updated") &&
+                    !dismissed_sessions_ref.current.has(next.session.id)
+                )
+                    adopt(next.session);
                 else {
                     if (is_install && next.status === "installing") {
                         set_session({
@@ -432,6 +472,8 @@ export function UpdateProvider({ children }) {
                 set_poll_generation(current => current + 1);
             },
             dismiss: () => {
+                if (session_ref.current?.id)
+                    dismissed_sessions_ref.current.add(session_ref.current.id);
                 set_session(null);
                 refresh();
             },

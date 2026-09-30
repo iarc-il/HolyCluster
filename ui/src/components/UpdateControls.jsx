@@ -42,6 +42,7 @@ function message_for(status, error) {
         verifying: "Verifying the download…",
         waiting_for_local_port: "Waiting for the original local port…",
         reconnecting: "Reconnecting to CAT Control…",
+        recovering: "Restarting CAT Control after the installer did not complete…",
         updated: "CAT Control restarted with the verified update.",
         installing: "Installing CAT Control. This page will stay open while it restarts.",
         reboot_required: "Restart Windows to finish installing CAT Control.",
@@ -65,11 +66,12 @@ export default function UpdateControls() {
         allow_same_version,
         set_allow_same_version,
         session,
+        active,
     } = useUpdate();
     if (!enabled) return null;
 
     const message = message_for(status, error);
-    const busy = session != null && !session.verified;
+    const busy = Boolean(active) || session?.installer_outcome === "unconfirmed";
     const can_install = !busy && (status === "available" || status === "deferred");
 
     return (
