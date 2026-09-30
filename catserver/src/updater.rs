@@ -309,10 +309,9 @@ impl UpdateService {
         let helper_path = self.data_dir.join("update-helper.exe");
         fs::create_dir_all(&self.data_dir)?;
         fs::copy(executable, &helper_path).context("cannot stage update helper")?;
-        let mut helper = Command::new(helper_path)
-            .arg("--apply-update")
-            .arg(self.plan_path())
-            .spawn()
+        let mut command = Command::new(helper_path);
+        command.arg("--apply-update").arg(self.plan_path());
+        let mut helper = crate::windows_sockets::spawn(&mut command)
             .context("cannot start detached update helper")?;
         let result = (|| {
             let identity = UpdateHelper {
@@ -435,7 +434,7 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
     }) {
         let mut command = Command::new(&plan.current_executable);
         command.args(&plan.command_args);
-        if let Err(error) = command.spawn() {
+        if let Err(error) = crate::windows_sockets::spawn(&mut command) {
             tracing::error!(
                 ?error,
                 "Cannot restart catserver after elevation was canceled"
@@ -540,6 +539,9 @@ fn install_windows(plan: &InstallPlan) -> Result<UpdateState> {
     if state == UpdateState::Installed {
         let mut command = Command::new(&plan.current_executable);
         command.args(&plan.command_args);
+        #[cfg(windows)]
+        crate::windows_sockets::spawn(&mut command)?;
+        #[cfg(not(windows))]
         command.spawn()?;
     }
     Ok(state)

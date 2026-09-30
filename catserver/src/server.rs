@@ -35,7 +35,7 @@ use crate::{radio_manager::RadioManager, rotator_manager::RotatorManager, tray_i
 
 use self::{
     http_proxy::{local_ui, proxy},
-    listener::bind_local_listener,
+    listener::{bind_local_listener, protect_listener},
     session::ws_handler,
     state::AppState,
 };
@@ -110,7 +110,7 @@ impl Server {
     }
 
     pub async fn run_server(self) -> Result<()> {
-        axum::serve(self.listener, self.app)
+        axum::serve(protect_listener(self.listener), self.app)
             .with_graceful_shutdown(shutdown(self.sender.subscribe()))
             .await?;
         Ok(())

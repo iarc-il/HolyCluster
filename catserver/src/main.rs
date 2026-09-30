@@ -31,6 +31,8 @@ mod tracing_setup;
 mod tray_icon;
 mod updater;
 mod utils;
+#[cfg(windows)]
+mod windows_sockets;
 
 #[cfg(test)]
 mod hamlib_radio_tests;

@@ -133,7 +133,24 @@ fn radio(config: RadioConfig, use_dummy: bool) -> Result<RadioManager> {
 }
 
 fn open_browser(port: u16) -> Result<()> {
-    open::that(format!("http://127.0.0.1:{port}"))?;
+    let url = format!("http://127.0.0.1:{port}");
+    #[cfg(windows)]
+    {
+        use anyhow::Context;
+        use std::process::Stdio;
+
+        let mut command = open::commands(url)
+            .pop()
+            .context("cannot determine browser launch command")?;
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let status = crate::windows_sockets::spawn(&mut command)?.wait()?;
+        anyhow::ensure!(status.success(), "browser launcher exited with {status}");
+    }
+    #[cfg(not(windows))]
+    open::that(url)?;
     Ok(())
 }
 
