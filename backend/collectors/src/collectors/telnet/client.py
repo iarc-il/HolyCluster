@@ -149,7 +149,6 @@ async def telnet_and_collect(
         except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
             task_logger.warning(f"Connection failed: {host}:{port}  {e}")
             logger.warning(f"Connection failed: {host}:{port}  {e}")
-            capture_exception(e, operation="collector.telnet.reconnect")
 
         except asyncio.CancelledError:
             logger.info(f"{host}:{port} Task cancelled, shutting down.")
