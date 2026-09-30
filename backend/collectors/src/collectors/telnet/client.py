@@ -4,6 +4,7 @@ import json
 import os
 import re
 import socket
+import time
 from collections import Counter
 
 from loguru import logger
@@ -22,10 +23,11 @@ TRANSIENT_CONNECTION_ERRNOS = {
     errno.ENETUNREACH,
     socket.EAI_AGAIN,
 }
+OUTAGE_WARNING_INTERVAL_SECONDS = 3600
 reconnect_failure_counts: Counter[tuple[str, int, str]] = Counter()
 
 
-def record_reconnect_failure(host: str, port: int, error: OSError) -> int:
+def record_reconnect_failure(host: str, port: int, error: OSError, level: str) -> int:
     reason = error.__class__.__name__
     key = (host, port, reason)
     reconnect_failure_counts[key] += 1
@@ -36,7 +38,7 @@ def record_reconnect_failure(host: str, port: int, error: OSError) -> int:
         host=host,
         port=port,
         reason=reason,
-    ).warning(f"Connection failed: {host}:{port}  {error}")
+    ).log(level, f"Connection failed: {host}:{port}  {error} (reason={reason}, total={count})")
     return count
 
 
@@ -106,6 +108,24 @@ async def telnet_and_collect(
 
     task_logger.info(f"Start of telnet_and_collect for {host}")
     valkey_client = get_valkey_client()
+    outage_started_at = None
+    next_outage_warning_at = None
+
+    def log_reconnect_failure(error: OSError) -> None:
+        nonlocal outage_started_at, next_outage_warning_at
+        now = time.monotonic()
+        if outage_started_at is None:
+            outage_started_at = now
+            next_outage_warning_at = now + OUTAGE_WARNING_INTERVAL_SECONDS
+            level = "WARNING"
+        elif next_outage_warning_at is not None and now >= next_outage_warning_at:
+            next_outage_warning_at = now + OUTAGE_WARNING_INTERVAL_SECONDS
+            level = "WARNING"
+        else:
+            level = "INFO"
+
+        failure_count = record_reconnect_failure(host, port, error, level)
+        task_logger.log(level, f"Connection failed: {host}:{port}  {error} (total {failure_count})")
 
     while True:
         reader, writer = None, None
@@ -115,6 +135,17 @@ async def telnet_and_collect(
             reader, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), timeout=10)
 
             logger.info(f"{host}:{port}  Successfully connected")
+            if outage_started_at is not None:
+                outage_duration = time.monotonic() - outage_started_at
+                logger.bind(
+                    metric="telnet_outage_duration_seconds",
+                    metric_value=outage_duration,
+                    host=host,
+                    port=port,
+                ).info(f"{host}:{port} Recovered after {outage_duration:.0f} seconds")
+                task_logger.info(f"Connection recovered after {outage_duration:.0f} seconds")
+                outage_started_at = None
+                next_outage_warning_at = None
             reconnect_attempts = 0
             if username:
                 await asyncio.sleep(2)
@@ -172,13 +203,11 @@ async def telnet_and_collect(
                         logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
         except (asyncio.TimeoutError, ConnectionError) as e:
-            failure_count = record_reconnect_failure(host, port, e)
-            task_logger.warning(f"Connection failed: {host}:{port}  {e} (total {failure_count})")
+            log_reconnect_failure(e)
 
         except OSError as e:
             if e.errno in TRANSIENT_CONNECTION_ERRNOS:
-                failure_count = record_reconnect_failure(host, port, e)
-                task_logger.warning(f"Connection failed: {host}:{port}  {e} (total {failure_count})")
+                log_reconnect_failure(e)
             else:
                 task_logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
                 logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
