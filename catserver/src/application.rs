@@ -211,7 +211,7 @@ async fn run_singleton(
         tokio::select! {
             result = &mut building => break result?,
             event = receiver.recv() => {
-                if event == Ok(UserEvent::Quit) {
+                if matches!(event, Ok(event) if event.is_shutdown()) {
                     return Ok(());
                 }
             }
@@ -225,7 +225,7 @@ async fn run_singleton(
     tokio::spawn(async move {
         while let Ok(event) = receiver.recv().await {
             match event {
-                UserEvent::Quit => break,
+                UserEvent::Quit | UserEvent::RestartForUpdate => break,
                 UserEvent::OpenBrowser => {
                     if let Err(error) = open_browser(local_port) {
                         tracing::error!(?error, "Failed to open browser from user event");

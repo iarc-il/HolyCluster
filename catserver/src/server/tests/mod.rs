@@ -1,5 +1,6 @@
 mod local_ui;
 mod proxy;
+mod shutdown;
 mod update;
 
 use std::{
@@ -117,10 +118,16 @@ async fn spawn_app(app: Router) -> TestServer {
 }
 
 async fn spawn_catserver(upstream: SocketAddr) -> TestServer {
+    spawn_catserver_with_events(upstream).await.0
+}
+
+async fn spawn_catserver_with_events(
+    upstream: SocketAddr,
+) -> (TestServer, tokio::sync::broadcast::Sender<UserEvent>) {
     let (sender, _) = tokio::sync::broadcast::channel::<UserEvent>(10);
     let config = RadioConfig::platform_default();
     let server = Server::build_server(
-        sender,
+        sender.clone(),
         RadioManager::new(config.clone(), config.effective_backend(false)).unwrap(),
         RotatorManager::new(RotatorConfig::unconfigured()).unwrap(),
         ServerConfig {
@@ -137,5 +144,5 @@ async fn spawn_catserver(upstream: SocketAddr) -> TestServer {
     let task = tokio::spawn(async move {
         server.run_server().await.unwrap();
     });
-    TestServer { address, task }
+    (TestServer { address, task }, sender)
 }

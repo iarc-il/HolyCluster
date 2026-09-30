@@ -150,6 +150,6 @@ fn find_ui_dir() -> Result<PathBuf> {
 
 async fn shutdown(mut receiver: Receiver<UserEvent>) {
     while let Ok(message) = receiver.recv().await
-        && message != UserEvent::Quit
+        && !message.is_shutdown()
     {}
 }

@@ -39,7 +39,22 @@ fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum UserEvent {
     Quit,
+    RestartForUpdate,
     OpenBrowser,
+}
+
+impl UserEvent {
+    pub(crate) fn is_shutdown(&self) -> bool {
+        matches!(self, Self::Quit | Self::RestartForUpdate)
+    }
+
+    pub(crate) fn update_shutdown() -> Self {
+        if cfg!(windows) {
+            Self::RestartForUpdate
+        } else {
+            Self::Quit
+        }
+    }
 }
 
 fn create_tray_icon() -> Result<(TrayIcon, MenuItem, MenuItem)> {
@@ -72,8 +87,8 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
     let proxy_clone = proxy.clone();
     std::thread::spawn(move || {
         while let Ok(event) = tray_receiver.blocking_recv() {
-            if event == UserEvent::Quit {
-                let _ = proxy_clone.send_event(UserEvent::Quit);
+            if event.is_shutdown() {
+                let _ = proxy_clone.send_event(event);
                 break;
             }
         }
@@ -120,7 +135,7 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
         }
 
         fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
-            if event == UserEvent::Quit {
+            if event.is_shutdown() {
                 event_loop.exit();
             }
         }
@@ -169,7 +184,7 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
     }));
     std::thread::spawn(move || {
         while let Ok(event) = tray_receiver.blocking_recv() {
-            if event == UserEvent::Quit {
+            if event.is_shutdown() {
                 gtk::glib::MainContext::default().invoke(gtk::main_quit);
                 break;
             }

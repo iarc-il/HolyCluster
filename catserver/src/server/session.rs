@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     ServerConfig, availability_trace::AvailabilityTrace, radio, radio_actions, rotator,
-    state::AppState,
+    state::AppState, update,
 };
 
 pub(super) async fn ws_handler(
@@ -78,6 +78,7 @@ async fn handle_ws_socket(
     let mut previous_rotator_data = None;
     let mut upstream_receiver_open = true;
     let mut upstream_receiver_failed = false;
+    let mut client_close_code = axum::extract::ws::close_code::NORMAL;
     loop {
         tokio::select! {
             Some(message) = client_receiver.next() => match message? {
@@ -134,6 +135,11 @@ async fn handle_ws_socket(
                     let _ = client_sender.send(radio::close_message()?).await;
                     break;
                 }
+                UserEvent::RestartForUpdate => {
+                    let _ = client_sender.send(update::restart_message()).await;
+                    client_close_code = axum::extract::ws::close_code::RESTART;
+                    break;
+                }
                 UserEvent::OpenBrowser => client_sender.send(radio::focus_message()?).await?,
             },
             _ = radio_interval.tick() => {
@@ -162,7 +168,7 @@ async fn handle_ws_socket(
         .await;
     let _ = client_sender
         .send(Message::Close(Some(axum::extract::ws::CloseFrame {
-            code: axum::extract::ws::close_code::NORMAL,
+            code: client_close_code,
             reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
         })))
         .await;

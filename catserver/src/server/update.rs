@@ -1,4 +1,8 @@
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{
+    Json,
+    extract::{State, ws::Message},
+    http::StatusCode,
+};
 
 use crate::updater::{UpdateState, UpdateStatus};
 
@@ -57,7 +61,10 @@ pub(super) async fn install(
     .await;
     match result {
         Ok(Ok(status)) if status.state == UpdateState::Installing => {
-            match state.sender.send(crate::tray_icon::UserEvent::Quit) {
+            match state
+                .sender
+                .send(crate::tray_icon::UserEvent::update_shutdown())
+            {
                 Ok(receivers) => {
                     tracing::info!(receivers, "Catserver shutdown requested for update")
                 }
@@ -71,6 +78,14 @@ pub(super) async fn install(
         Ok(Err(error)) => failed_status(&state.updater, error),
         Err(error) => failed_status(&state.updater, error.into()),
     }
+}
+
+pub(super) fn restart_message() -> Message {
+    Message::Text(
+        serde_json::json!({"version": 1, "type": "update", "event": "restarting"})
+            .to_string()
+            .into(),
+    )
 }
 
 fn failed_status(
