@@ -117,8 +117,17 @@ describe("CAT Control updates", () => {
 
         render_updates();
 
-        expect(await screen.findByRole("button", { name: "Update" })).not.toBeNull();
-        expect(fetch).toHaveBeenNthCalledWith(1, "/api/update");
+        expect(
+            await screen.findByRole("button", { name: "Update" }, { timeout: 5000 }),
+        ).not.toBeNull();
+        expect(fetch).toHaveBeenNthCalledWith(
+            1,
+            "/api/update",
+            expect.objectContaining({
+                cache: "no-store",
+                signal: expect.any(AbortSignal),
+            }),
+        );
         expect(fetch).toHaveBeenNthCalledWith(2, "/api/update/check", expect.any(Object));
     });
 

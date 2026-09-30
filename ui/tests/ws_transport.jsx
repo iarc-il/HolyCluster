@@ -42,6 +42,7 @@ import { WsProvider, useWs, useWsMessage } from "@/hooks/useWs";
 function TestConsumer({ messages }) {
     const context = useWs();
     useWsMessage("radio", message => messages.push(message));
+    useWsMessage("update", message => messages.push(message));
     TestConsumer.context = context;
     return null;
 }
@@ -76,6 +77,28 @@ describe("WebSocket transport", () => {
     afterEach(() => {
         cleanup();
         vi.useRealTimers();
+    });
+
+    it("delivers the update handoff before an immediate transport close", () => {
+        const view = render_provider();
+        receive(view, "/ws", {
+            type: "radio",
+            event: "status",
+            catserver_version: "catserver-v1.3.0",
+        });
+        const connection = websocket_mock.connection_for("/ws");
+        const handoff = {
+            version: 1,
+            type: "update",
+            event: "restarting",
+            session: { id: "transaction" },
+        };
+        act(() => {
+            connection.options.onMessage?.({ data: JSON.stringify(handoff) });
+            connection.options.onClose();
+        });
+        receive(view, "/ws", handoff);
+        expect(view.messages.filter(message => message.type === "update")).toEqual([handoff]);
     });
 
     it("selects unified transport for the direct backend identity", () => {

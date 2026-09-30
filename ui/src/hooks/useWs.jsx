@@ -63,6 +63,7 @@ const reconnect_options = {
 
 export function WsProvider({ children }) {
     const [transport, set_transport] = useState("probing");
+    const [connection_generation, set_connection_generation] = useState(0);
     const [network_state, set_network_state] = useState("connecting");
     const transport_ref = useRef("probing");
     const subscribers_ref = useRef(new Map());
@@ -96,10 +97,18 @@ export function WsProvider({ children }) {
         readyState: unified_ready_state,
         lastJsonMessage: unified_message,
     } = useWebSocket(
-        `${WS_BASE_URL}/ws`,
+        `${WS_BASE_URL}/ws${connection_generation ? `?resume=${connection_generation}` : ""}`,
         {
             ...reconnect_options,
             onClose: () => reset_transport("unified"),
+            onMessage: event => {
+                try {
+                    const message = JSON.parse(event.data);
+                    if (message?.type === "update" && transport_ref.current === "unified") {
+                        dispatch(message);
+                    }
+                } catch {}
+            },
             shouldReconnect: () => transport_ref.current !== "cat_v1_2",
         },
         transport !== "cat_v1_2",
@@ -162,7 +171,7 @@ export function WsProvider({ children }) {
     }, [readyState]);
 
     useEffect(() => {
-        if (!unified_message?.type) return;
+        if (!unified_message?.type || unified_message.type === "update") return;
         if (transport_ref.current === "unified") {
             dispatch(unified_message);
         } else if (
@@ -247,6 +256,10 @@ export function WsProvider({ children }) {
         });
     }, []);
 
+    const reconnect = useCallback(() => {
+        set_connection_generation(current => current + 1);
+    }, []);
+
     return (
         <WsContext.Provider
             value={{
@@ -257,6 +270,7 @@ export function WsProvider({ children }) {
                 readyState,
                 radioReadyState,
                 wait_for_open,
+                reconnect,
             }}
         >
             {children}
