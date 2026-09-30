@@ -1,0 +1,89 @@
+import { useUpdate } from "@/hooks/useUpdate.jsx";
+import { useEffect, useState } from "react";
+
+const labels = {
+    requested: "Preparing update request",
+    downloading: "Downloading",
+    verifying: "Verifying the download",
+    waiting_for_parent: "Waiting for CAT Control to stop",
+    awaiting_permission: "Awaiting Windows permission",
+    installing: "Installing",
+    waiting_for_local_port: "Waiting for the original local port",
+    reconnecting: "Reconnecting",
+    updated: "Updated",
+    permission_cancelled: "Windows permission was canceled",
+    failed: "Update failed",
+    restart_failed: "Installation finished, but CAT Control could not restart",
+    reboot_required: "Restart Windows to finish installation",
+};
+
+export default function UpdateProgress() {
+    const { session, active, status, error, reconnect, dismiss, local_version } = useUpdate();
+    const [now, set_now] = useState(Date.now());
+    useEffect(() => {
+        if (!session || !active) return;
+        const timer = setInterval(() => set_now(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, [session?.started, active]);
+    if (!session) return null;
+    const phase = session.verified
+        ? "updated"
+        : session.phase === "updated"
+          ? "reconnecting"
+          : session.phase;
+    const seconds = Math.max(0, Math.floor((now - session.started) / 1000));
+    return (
+        <section
+            role="status"
+            aria-live="polite"
+            className="relative z-40 border-b border-blue-400 bg-slate-900 p-3 text-white"
+        >
+            <strong>CAT Control update: {labels[phase] ?? "Waiting for confirmation"}</strong>
+            {session.expected_version && <span> — {session.expected_version}</span>}
+            {phase === "downloading" && session.total > 0 ? (
+                <div>
+                    <progress
+                        aria-label="Download progress"
+                        max={session.total}
+                        value={session.downloaded ?? 0}
+                        className="w-full"
+                    />
+                    <span>
+                        {session.downloaded ?? 0} / {session.total} bytes
+                    </span>
+                </div>
+            ) : active ? (
+                <progress aria-label="Update in progress" className="w-full" />
+            ) : null}
+            {active && (
+                <p>
+                    The current view is retained. CAT and network data may be temporarily offline or
+                    stale.
+                </p>
+            )}
+            {status === "request_unconfirmed" && (
+                <p>The request was interrupted; installation has not yet been confirmed.</p>
+            )}
+            {(session.diagnostic || error) && <p>{session.diagnostic ?? error}</p>}
+            {phase === "updated" && <p>Verified running version: {local_version}</p>}
+            {active && seconds >= 60 && (
+                <p>
+                    Still waiting ({seconds}s). Keep this page open. Do not start another installer.
+                    If necessary, inspect the updater log or restart CAT Control manually after
+                    installation.
+                </p>
+            )}
+            {session.log_path && !active && <p>Installer log: {session.log_path}</p>}
+            {phase !== "updated" && (
+                <button type="button" className="mr-3 underline" onClick={reconnect}>
+                    Retry connection
+                </button>
+            )}
+            {!active && (
+                <button type="button" className="underline" onClick={dismiss}>
+                    Dismiss
+                </button>
+            )}
+        </section>
+    );
+}

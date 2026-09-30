@@ -1,3 +1,5 @@
+import UpdateControls from "@/components/UpdateControls.jsx";
+import UpdateProgress from "@/components/UpdateProgress.jsx";
 import { UpdateProvider, useUpdate } from "@/hooks/useUpdate.jsx";
 import { NATIVE_UPDATER_MIN_VERSION } from "@/utils/cat_features.js";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
@@ -19,6 +21,8 @@ function Page() {
     return (
         <UpdateProvider>
             <Probe />
+            <UpdateProgress />
+            <UpdateControls />
             <input aria-label="Retained filter" defaultValue="20m" />
         </UpdateProvider>
     );
@@ -56,6 +60,9 @@ it("retains the update session and document state through the expected outage", 
     });
     await waitFor(() => expect(update.status).toBe("installing"));
     expect(update.remote_version).toBe("1.3.0");
+    expect(
+        screen.getByRole("progressbar", { name: "Update in progress" }).hasAttribute("value"),
+    ).toBe(false);
     expect(fetch.mock.calls.filter(([path]) => path.endsWith("/check"))).toHaveLength(0);
 });
 
@@ -129,6 +136,38 @@ it("does not confirm a canceled reinstall even when the expected version is runn
     expect(update.status).toBe("failed");
     expect(update.session.installer_outcome).toBe("failed");
     expect(update.error).toContain("canceled");
+});
+
+it("shows only real download progress and disables installer mutations", async () => {
+    vi.stubGlobal(
+        "fetch",
+        vi.fn(path =>
+            Promise.resolve(
+                response(
+                    path.endsWith("/install")
+                        ? {
+                              state: "installing",
+                              session: {
+                                  id: "download",
+                                  expected_version: "1.3.0",
+                                  phase: "downloading",
+                                  downloaded: 32,
+                                  total: 128,
+                              },
+                          }
+                        : { state: "available", available_version: "1.3.0" },
+                ),
+            ),
+        ),
+    );
+    render(<Page />);
+    await waitFor(() => expect(update.status).toBe("available"));
+    await act(async () => {
+        await update.install();
+    });
+    expect(screen.getByRole("progressbar", { name: "Download progress" }).value).toBe(32);
+    expect(screen.getByRole("button", { name: "Check for updates" }).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Install update" })).toBeNull();
 });
 
 it("does not present a rejected install as an accepted installation", async () => {
