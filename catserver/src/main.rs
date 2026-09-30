@@ -29,6 +29,7 @@ mod server;
 mod startup_radio;
 mod tracing_setup;
 mod tray_icon;
+mod update_progress;
 mod updater;
 mod utils;
 #[cfg(windows)]

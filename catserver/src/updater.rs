@@ -9,15 +9,26 @@ use std::{
     io::{self, Read, Write},
     path::{Path, PathBuf},
     process::Command,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
+use crate::update_progress::{SessionStore, UpdateSession};
 use anyhow::{Context, Result, bail};
 use directories::ProjectDirs;
 use reqwest::{Url, blocking::Client, redirect::Policy};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+
+#[derive(Debug)]
+pub(crate) struct UpdateBusy;
+impl std::fmt::Display for UpdateBusy {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("An update is already in progress; no second installer was started")
+    }
+}
+impl std::error::Error for UpdateBusy {}
 
 const MAX_ARTIFACT_SIZE: u64 = 512 * 1024 * 1024;
 pub(crate) const PLATFORM_LINUX: &str = "linux-appimage";
@@ -90,6 +101,8 @@ pub struct UpdateService {
     local_port: u16,
     instance_id: String,
     resumed: Option<RestartContext>,
+    action_lock: Arc<Mutex<()>>,
+    origin: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -170,6 +183,8 @@ impl UpdateService {
             local_port: 0,
             instance_id: uuid::Uuid::new_v4().to_string(),
             resumed: None,
+            action_lock: Arc::new(Mutex::new(())),
+            origin: None,
         };
         service.reconcile_installed_status()?;
         #[cfg(windows)]
@@ -197,6 +212,36 @@ impl UpdateService {
                     .is_ok_and(|version| version == self.current_version)
             }),
         }
+    }
+
+    pub(crate) fn with_origin(mut self, origin: String) -> Self {
+        self.origin = Some(origin);
+        self
+    }
+
+    pub(crate) fn session(&self) -> Option<UpdateSession> {
+        SessionStore::load(&self.session_path())
+            .ok()
+            .map(|store| store.snapshot())
+    }
+
+    pub(crate) fn exclusive<T>(&self, action: impl FnOnce() -> Result<T>) -> Result<T> {
+        let _guard = match self.action_lock.try_lock() {
+            Ok(guard) => guard,
+            Err(std::sync::TryLockError::Poisoned(error)) => error.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => return Err(UpdateBusy.into()),
+        };
+        if self.session().is_some_and(|session| !session.terminal()) {
+            return Err(UpdateBusy.into());
+        }
+        if self.session_path().exists() {
+            fs::remove_file(self.session_path())?;
+        }
+        action()
+    }
+
+    fn session_path(&self) -> PathBuf {
+        self.data_dir.join("session.json")
     }
 
     pub fn with_dev_mode(mut self, dev_mode: bool) -> Self {
@@ -257,10 +302,17 @@ impl UpdateService {
     }
 
     pub fn record_failure(&self, diagnostic: impl Into<String>) -> Result<UpdateStatus> {
+        let diagnostic = diagnostic.into();
+        if let Ok(store) = SessionStore::load(&self.session_path()) {
+            store.change(|session| {
+                session.phase = "failed".into();
+                session.diagnostic = Some(diagnostic.clone());
+            })?;
+        }
         let status = UpdateStatus {
             state: UpdateState::Failed,
             available_version: None,
-            diagnostic: Some(diagnostic.into()),
+            diagnostic: Some(diagnostic),
         };
         self.write_status(&status)?;
         Ok(status)
@@ -307,7 +359,31 @@ impl UpdateService {
         let final_path = self
             .staging_dir()
             .join(format!("{}-{}", version, artifact.name));
-        download_artifact(&artifact, &staged)?;
+        let restart = (cfg!(windows) && self.local_port != 0).then(|| RestartContext {
+            id: uuid::Uuid::new_v4().to_string(),
+            port: self.local_port,
+            expected_version: version.to_string(),
+        });
+        let progress = restart
+            .as_ref()
+            .map(|context| {
+                SessionStore::create(
+                    self.session_path(),
+                    context.id.clone(),
+                    context.port,
+                    self.origin
+                        .clone()
+                        .unwrap_or_else(|| format!("http://127.0.0.1:{}", context.port)),
+                    context.expected_version.clone(),
+                    artifact.size,
+                )
+            })
+            .transpose()?;
+        download_artifact(&artifact, &staged, progress.as_ref())?;
+        if let Some(progress) = &progress {
+            progress.phase("verifying")?;
+        }
+        verify_file(&staged, &artifact)?;
         fs::rename(&staged, &final_path)?;
         let status = UpdateStatus {
             state: UpdateState::Downloaded,
@@ -335,11 +411,7 @@ impl UpdateService {
                 reinstall: self.dev_mode && version == self.current_version,
                 version: Some(version.to_string()),
                 command_args: original_arguments(&std::env::args().skip(1).collect::<Vec<_>>()),
-                restart: (cfg!(windows) && self.local_port != 0).then(|| RestartContext {
-                    id: uuid::Uuid::new_v4().to_string(),
-                    port: self.local_port,
-                    expected_version: version.to_string(),
-                }),
+                restart,
             })?,
         )?;
         Ok(status)
@@ -839,7 +911,11 @@ pub(crate) fn quote_windows_argument(argument: &[u16]) -> Vec<u16> {
     quoted
 }
 
-fn download_artifact(artifact: &Artifact, destination: &Path) -> Result<()> {
+fn download_artifact(
+    artifact: &Artifact,
+    destination: &Path,
+    progress: Option<&Arc<SessionStore>>,
+) -> Result<()> {
     let url = Url::parse(&artifact.url)?;
     if !is_secure_url(&url) {
         bail!("artifact URL must use HTTPS");
@@ -851,9 +927,37 @@ fn download_artifact(artifact: &Artifact, destination: &Path) -> Result<()> {
     {
         bail!("artifact Content-Length does not match manifest");
     }
-    let mut response = response;
+    let mut reader = ProgressReader {
+        reader: response,
+        progress,
+        downloaded: 0,
+        reported: 0,
+    };
     let file = File::create(destination)?;
-    copy_verified(&mut response, file, artifact)
+    copy_verified(&mut reader, file, artifact)
+}
+
+struct ProgressReader<'a, R> {
+    reader: R,
+    progress: Option<&'a Arc<SessionStore>>,
+    downloaded: u64,
+    reported: u64,
+}
+
+impl<R: Read> Read for ProgressReader<'_, R> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        let count = self.reader.read(buffer)?;
+        self.downloaded += count as u64;
+        if count == 0 || self.downloaded.saturating_sub(self.reported) >= 65536 {
+            if let Some(progress) = self.progress {
+                progress
+                    .change(|session| session.downloaded = self.downloaded)
+                    .map_err(|error| io::Error::other(error.to_string()))?;
+            }
+            self.reported = self.downloaded;
+        }
+        Ok(count)
+    }
 }
 
 pub(crate) fn copy_verified(
@@ -981,7 +1085,7 @@ fn read_status(path: &Path) -> Result<UpdateStatus> {
     Ok(serde_json::from_slice(&fs::read(path)?)?)
 }
 
-fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
+pub(crate) fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
     fs::create_dir_all(path.parent().context("state path has no parent")?)?;
     let temporary = path.with_extension("tmp");
     fs::write(&temporary, serde_json::to_vec(value)?)?;

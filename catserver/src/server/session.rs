@@ -38,6 +38,7 @@ pub(super) async fn ws_handler(
                 state.rotator_configuration,
                 receiver,
                 availability.clone(),
+                state.updater,
             )
             .await
             {
@@ -56,6 +57,7 @@ async fn handle_ws_socket(
     rotator_configuration: super::rotator_configuration::RotatorConfiguration,
     mut receiver: Receiver<UserEvent>,
     availability: AvailabilityTrace,
+    updater: crate::updater::UpdateService,
 ) -> Result<()> {
     let (mut client_sender, mut client_receiver) = socket.split();
     let (stream, _) = match connect_async(server_config.build_uri("ws", "/ws")).await {
@@ -136,7 +138,7 @@ async fn handle_ws_socket(
                     break;
                 }
                 UserEvent::RestartForUpdate => {
-                    let _ = client_sender.send(update::restart_message()).await;
+                    let _ = client_sender.send(update::restart_message(updater.session())).await;
                     client_close_code = axum::extract::ws::close_code::RESTART;
                     break;
                 }
