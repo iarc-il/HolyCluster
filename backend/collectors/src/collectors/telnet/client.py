@@ -4,6 +4,7 @@ import json
 import os
 import re
 import socket
+from collections import Counter
 
 from loguru import logger
 from shared.telemetry import capture_exception
@@ -21,6 +22,22 @@ TRANSIENT_CONNECTION_ERRNOS = {
     errno.ENETUNREACH,
     socket.EAI_AGAIN,
 }
+reconnect_failure_counts: Counter[tuple[str, int, str]] = Counter()
+
+
+def record_reconnect_failure(host: str, port: int, error: OSError) -> int:
+    reason = error.__class__.__name__
+    key = (host, port, reason)
+    reconnect_failure_counts[key] += 1
+    count = reconnect_failure_counts[key]
+    logger.bind(
+        metric="telnet_reconnect_failures_total",
+        metric_value=count,
+        host=host,
+        port=port,
+        reason=reason,
+    ).warning(f"Connection failed: {host}:{port}  {error}")
+    return count
 
 
 def parse_cc_dx_cluster_line(line: str) -> dict | None:
@@ -155,13 +172,13 @@ async def telnet_and_collect(
                         logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
         except (asyncio.TimeoutError, ConnectionError) as e:
-            task_logger.warning(f"Connection failed: {host}:{port}  {e}")
-            logger.warning(f"Connection failed: {host}:{port}  {e}")
+            failure_count = record_reconnect_failure(host, port, e)
+            task_logger.warning(f"Connection failed: {host}:{port}  {e} (total {failure_count})")
 
         except OSError as e:
             if e.errno in TRANSIENT_CONNECTION_ERRNOS:
-                task_logger.warning(f"Connection failed: {host}:{port}  {e}")
-                logger.warning(f"Connection failed: {host}:{port}  {e}")
+                failure_count = record_reconnect_failure(host, port, e)
+                task_logger.warning(f"Connection failed: {host}:{port}  {e} (total {failure_count})")
             else:
                 task_logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
                 logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
