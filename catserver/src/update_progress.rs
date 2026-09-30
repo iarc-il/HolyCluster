@@ -18,6 +18,8 @@ pub(crate) struct UpdateSession {
     pub downloaded: u64,
     pub total: u64,
     pub helper_url: Option<String>,
+    #[serde(default)]
+    pub ui_attached: bool,
     pub installer_outcome: Option<String>,
     pub diagnostic: Option<String>,
     pub log_path: String,
@@ -56,6 +58,7 @@ impl SessionStore {
             downloaded: 0,
             total,
             helper_url: None,
+            ui_attached: false,
             installer_outcome: None,
             diagnostic: None,
             log_path: path

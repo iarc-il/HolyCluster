@@ -22,6 +22,16 @@ use crate::{
 const INSTANCE_NAME: &str = "HolyCluster";
 
 pub fn run(args: Args) -> Result<()> {
+    let internal_modes = usize::from(args.apply_update.is_some())
+        + usize::from(args.resume_update.is_some())
+        + usize::from(args.elevate_update.is_some());
+    anyhow::ensure!(
+        internal_modes <= 1 && !(internal_modes != 0 && args.close),
+        "update launch modes cannot be combined with each other or --close"
+    );
+    if let Some(plan) = args.elevate_update.as_deref() {
+        return crate::updater::run_installer_broker(plan);
+    }
     if let Some(plan) = args.apply_update.as_deref() {
         return crate::updater::run_helper(plan);
     }

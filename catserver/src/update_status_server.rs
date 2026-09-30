@@ -59,11 +59,11 @@ impl StatusServer {
                     tokio::select! {
                         result = &mut serving => result?,
                         _ = shutdown_rx.changed() => { let _ = tokio::time::timeout(Duration::from_secs(3), &mut serving).await; }
-                        _ = tokio::time::sleep(Duration::from_secs(2400)) => {
+                        _ = tokio::time::sleep(Duration::from_secs(2700)) => {
                             let _ = watchdog.change(|session| {
                                 session.phase = "failed".into();
                                 session.installer_outcome = Some("unconfirmed".into());
-                                session.diagnostic = Some("Update helper reached its forty-minute lifetime limit. Windows Installer may still be running; do not start another installation until it has finished. Inspect msi-install.log.".into());
+                                session.diagnostic = Some("Update helper reached its forty-five-minute lifetime limit. Windows Installer may still be running; do not start another installation until it has finished. Inspect msi-install.log.".into());
                             });
                             #[cfg(all(windows, not(test)))]
                             std::process::exit(2);
@@ -155,6 +155,14 @@ async fn status(State(state): State<StatusState>, headers: HeaderMap) -> Respons
             != Some(session.capability.as_str())
     {
         return StatusCode::FORBIDDEN.into_response();
+    }
+    if !session.ui_attached
+        && state
+            .session
+            .change(|session| session.ui_attached = true)
+            .is_err()
+    {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     if session.terminal() {
         state.acknowledged.store(true, Ordering::Release);

@@ -37,6 +37,9 @@ pub struct Args {
     /// internal same-origin update restart plan
     #[argh(option, hidden_help)]
     pub resume_update: Option<PathBuf>,
+    /// internal isolated MSI elevation broker plan
+    #[argh(option, hidden_help)]
+    pub elevate_update: Option<PathBuf>,
 }
 
 pub fn server_config(args: &Args) -> ServerConfig {

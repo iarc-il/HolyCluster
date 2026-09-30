@@ -17,6 +17,7 @@ pub(crate) fn wait_until_ready(
     context: &RestartContext,
     child: &mut Child,
     progress: &Arc<SessionStore>,
+    require_updated_version: bool,
 ) -> Result<()> {
     let client = reqwest::blocking::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
@@ -40,8 +41,10 @@ pub(crate) fn wait_until_ready(
             && let Ok(ready) = serde_json::from_str::<serde_json::Value>(&body)
         {
             if ready["update_id"] == context.id
-                && ready["version"] == context.expected_version
-                && ready["verified"] == true
+                && ready["instance_id"].is_string()
+                && ready["version"].is_string()
+                && (!require_updated_version
+                    || (ready["version"] == context.expected_version && ready["verified"] == true))
             {
                 return Ok(());
             }
@@ -54,7 +57,8 @@ pub(crate) fn wait_until_ready(
             if let Some(diagnostic) = signal["diagnostic"].as_str() {
                 bail!("{diagnostic}");
             }
-            if signal["phase"] == "waiting_for_local_port"
+            if require_updated_version
+                && signal["phase"] == "waiting_for_local_port"
                 && progress.snapshot().phase != "waiting_for_local_port"
             {
                 progress.phase("waiting_for_local_port")?;

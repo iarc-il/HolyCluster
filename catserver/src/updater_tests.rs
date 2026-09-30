@@ -262,6 +262,16 @@ fn preserves_active_install_and_reports_exited_helper() {
     let status = service.status();
     assert_eq!(status.state, UpdateState::Failed);
     assert!(status.diagnostic.unwrap().contains("helper exited"));
+    assert_eq!(
+        service.session().unwrap().installer_outcome.as_deref(),
+        Some("unconfirmed")
+    );
+    assert!(
+        service
+            .exclusive(|| Ok(()))
+            .unwrap_err()
+            .is::<crate::updater::UpdateBusy>()
+    );
     fs::remove_dir_all(data_dir).unwrap();
 }
 
