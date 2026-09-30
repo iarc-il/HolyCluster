@@ -1,5 +1,6 @@
 mod availability_trace;
 mod http_proxy;
+mod listener;
 mod radio;
 mod radio_actions;
 mod radio_configuration;
@@ -17,10 +18,7 @@ mod rotator_tests;
 #[cfg(test)]
 mod tests;
 
-use std::{
-    net::{Ipv4Addr, SocketAddrV4},
-    path::PathBuf,
-};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use axum::{
@@ -37,6 +35,7 @@ use crate::{radio_manager::RadioManager, rotator_manager::RotatorManager, tray_i
 
 use self::{
     http_proxy::{local_ui, proxy},
+    listener::bind_local_listener,
     session::ws_handler,
     state::AppState,
 };
@@ -56,18 +55,6 @@ impl ServerConfig {
             .path_and_query(path_and_query)
             .build()
             .expect("valid URI from config")
-    }
-}
-
-async fn bind_local_listener(port: u16, fallback_if_busy: bool) -> Result<TcpListener> {
-    let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-    match TcpListener::bind(address).await {
-        Ok(listener) => Ok(listener),
-        Err(error) if fallback_if_busy && error.kind() == std::io::ErrorKind::AddrInUse => {
-            tracing::warn!(%address, ?error, "Local port busy; choosing free loopback port");
-            Ok(TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)).await?)
-        }
-        Err(error) => Err(error).with_context(|| format!("cannot listen on {address}")),
     }
 }
 
