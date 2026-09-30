@@ -29,6 +29,10 @@ pub fn run(args: Args) -> Result<()> {
     tracing::info!("Version tag: {}", env!("VERSION"));
     let port_file = instance_port::path()?;
     if !instance.is_single() {
+        anyhow::ensure!(
+            args.resume_update.is_none(),
+            "another CAT Control instance is already running; update restart cannot take over its port"
+        );
         let path = if args.close { "exit" } else { "open" };
         if !args.close {
             tracing::info!("Server is already running");
@@ -41,7 +45,15 @@ pub fn run(args: Args) -> Result<()> {
         return Ok(());
     }
 
-    let server_config = server_config(&args);
+    let restart = args
+        .resume_update
+        .as_deref()
+        .map(crate::updater::restart_context)
+        .transpose()?;
+    let mut server_config = server_config(&args);
+    if let Some(context) = &restart {
+        server_config.local_port = context.port;
+    }
     let path = RadioConfig::config_path()?;
     let radio_config = startup_radio::load(&path);
     if let Some(error) = radio_config.load_error {
@@ -79,6 +91,7 @@ pub fn run(args: Args) -> Result<()> {
                 use_local_ui,
                 use_dummy_rotator,
                 fallback_if_busy,
+                restart,
             ) {
                 tracing::error!(?error, "Singleton instance failed");
                 let _ = quit_sender.send(UserEvent::Quit);
@@ -155,6 +168,7 @@ fn open_browser(port: u16) -> Result<()> {
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_arguments)]
 async fn run_singleton(
     sender: Sender<UserEvent>,
     radio: RadioManager,
@@ -163,6 +177,7 @@ async fn run_singleton(
     use_local_ui: bool,
     use_dummy_rotator: bool,
     fallback_if_busy: bool,
+    restart: Option<crate::updater::RestartContext>,
 ) -> Result<()> {
     let snapshot = radio.snapshot();
     let selected = snapshot.selected.clone();
@@ -198,6 +213,7 @@ async fn run_singleton(
     let mut receiver = sender.subscribe();
     let shutdown_radio = radio.clone();
     let shutdown_rotator = rotator.clone();
+    let silent = restart.is_some();
     let building = Server::build_server(
         sender,
         radio,
@@ -205,6 +221,7 @@ async fn run_singleton(
         server_config,
         use_local_ui,
         fallback_if_busy,
+        restart,
     );
     tokio::pin!(building);
     let server = loop {
@@ -219,7 +236,7 @@ async fn run_singleton(
     };
     let local_port = server.local_port()?;
     instance_port::publish(&instance_port::path()?, local_port)?;
-    if let Err(error) = open_browser(local_port) {
+    if !silent && let Err(error) = open_browser(local_port) {
         tracing::error!(?error, "Failed to open browser on startup");
     }
     tokio::spawn(async move {

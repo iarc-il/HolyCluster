@@ -47,11 +47,13 @@ impl AppState {
                 .build_uri("http", "/catserver/releases/latest")
                 .to_string(),
         )?;
+        let updater = UpdateService::new(manifest_url, env!("VERSION"))?
+            .with_local_port(server_config.local_port);
         Ok(Self {
             server_config,
             radio_configuration: production(radio.clone()),
             rotator_configuration: RotatorConfiguration::new(rotator.clone()),
-            updater: UpdateService::new(manifest_url, env!("VERSION"))?,
+            updater,
             radio,
             rotator,
             http_client: Client::builder(TokioExecutor::new()).build(HttpsConnector::new()),

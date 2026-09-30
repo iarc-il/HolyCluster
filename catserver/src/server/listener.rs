@@ -16,6 +16,26 @@ pub(super) async fn bind_local_listener(port: u16, fallback_if_busy: bool) -> Re
     }
 }
 
+pub(super) async fn bind_update_listener(
+    port: u16,
+    timeout: std::time::Duration,
+) -> Result<TcpListener> {
+    anyhow::ensure!(port != 0, "update restart requires the original port");
+    let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
+    let deadline = tokio::time::Instant::now() + timeout;
+    let mut backoff = std::time::Duration::from_millis(100);
+    loop {
+        match bind_tcp_listener(address).await {
+            Ok(listener) => return Ok(listener),
+            Err(error) if error.kind() == std::io::ErrorKind::AddrInUse && tokio::time::Instant::now() < deadline => {
+                tokio::time::sleep(backoff.min(deadline.saturating_duration_since(tokio::time::Instant::now()))).await;
+                backoff = (backoff * 2).min(std::time::Duration::from_secs(1));
+            }
+            Err(error) => return Err(error).with_context(|| format!("cannot reclaim original update port {address}; close conflicting applications and restart CAT Control")),
+        }
+    }
+}
+
 async fn bind_tcp_listener(address: SocketAddrV4) -> std::io::Result<TcpListener> {
     #[cfg(windows)]
     {

@@ -87,6 +87,25 @@ pub struct UpdateService {
     dev_mode: bool,
     platform: &'static str,
     data_dir: PathBuf,
+    local_port: u16,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub(crate) struct RestartContext {
+    pub id: String,
+    pub port: u16,
+    pub expected_version: String,
+}
+
+pub(crate) fn restart_context(path: &Path) -> Result<RestartContext> {
+    let plan: InstallPlan = serde_json::from_slice(&fs::read(path)?)?;
+    let context = plan.restart.context("update plan has no restart context")?;
+    anyhow::ensure!(
+        context.port != 0,
+        "update restart requires the original port"
+    );
+    parse_version(&context.expected_version)?;
+    Ok(context)
 }
 
 #[derive(Deserialize, Serialize)]
@@ -102,6 +121,8 @@ struct InstallPlan {
     reinstall: bool,
     #[serde(default)]
     command_args: Vec<String>,
+    #[serde(default)]
+    restart: Option<RestartContext>,
 }
 
 #[cfg(any(test, windows))]
@@ -136,11 +157,17 @@ impl UpdateService {
             dev_mode: false,
             platform: platform(),
             data_dir,
+            local_port: 0,
         };
         service.reconcile_installed_status()?;
         #[cfg(windows)]
         service.reconcile_installing_status_with(update_helper_active)?;
         Ok(service)
+    }
+
+    pub(crate) fn with_local_port(mut self, port: u16) -> Self {
+        self.local_port = port;
+        self
     }
 
     pub fn with_dev_mode(mut self, dev_mode: bool) -> Self {
@@ -278,7 +305,12 @@ impl UpdateService {
                 parent_pid: std::process::id(),
                 reinstall: self.dev_mode && version == self.current_version,
                 version: Some(version.to_string()),
-                command_args: std::env::args().skip(1).collect(),
+                command_args: original_arguments(&std::env::args().skip(1).collect::<Vec<_>>()),
+                restart: (cfg!(windows) && self.local_port != 0).then(|| RestartContext {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    port: self.local_port,
+                    expected_version: version.to_string(),
+                }),
             })?,
         )?;
         Ok(status)
@@ -432,8 +464,7 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
             .and_then(io::Error::raw_os_error)
             == Some(windows_sys::Win32::Foundation::ERROR_CANCELLED as i32)
     }) {
-        let mut command = Command::new(&plan.current_executable);
-        command.args(&plan.command_args);
+        let mut command = restart_command(&plan, plan_path);
         if let Err(error) = crate::windows_sockets::spawn(&mut command) {
             tracing::error!(
                 ?error,
@@ -522,6 +553,28 @@ pub(crate) fn make_executable(_path: &Path) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn original_arguments(arguments: &[String]) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut arguments = arguments.iter();
+    while let Some(argument) = arguments.next() {
+        if argument == "--resume-update" {
+            arguments.next();
+        } else if !argument.starts_with("--resume-update=") {
+            result.push(argument.clone());
+        }
+    }
+    result
+}
+
+fn restart_command(plan: &InstallPlan, plan_path: &Path) -> Command {
+    let mut command = Command::new(&plan.current_executable);
+    command.args(original_arguments(&plan.command_args));
+    if plan.restart.is_some() {
+        command.arg("--resume-update").arg(plan_path);
+    }
+    command
+}
+
 fn install_windows(plan: &InstallPlan) -> Result<UpdateState> {
     if platform() != PLATFORM_WINDOWS {
         bail!("Windows installer received on unsupported platform");
@@ -537,8 +590,8 @@ fn install_windows(plan: &InstallPlan) -> Result<UpdateState> {
         plan.reinstall,
     )?)?;
     if state == UpdateState::Installed {
-        let mut command = Command::new(&plan.current_executable);
-        command.args(&plan.command_args);
+        let mut command =
+            restart_command(plan, &plan.state_path.with_file_name("install-plan.json"));
         #[cfg(windows)]
         crate::windows_sockets::spawn(&mut command)?;
         #[cfg(not(windows))]

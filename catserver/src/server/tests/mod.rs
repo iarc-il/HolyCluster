@@ -98,6 +98,25 @@ async fn fallback_port_is_discoverable_by_second_instance() {
 }
 
 #[tokio::test]
+async fn update_restart_waits_for_the_original_port() {
+    let previous = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+        .await
+        .unwrap();
+    let port = previous.local_addr().unwrap().port();
+    let release = tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        drop(previous);
+    });
+    let listener = super::bind_update_listener(port, std::time::Duration::from_secs(2))
+        .await
+        .unwrap();
+    assert_eq!(listener.local_addr().unwrap().port(), port);
+    release.await.unwrap();
+    let occupied = super::bind_update_listener(port, std::time::Duration::from_millis(50)).await;
+    assert!(occupied.is_err(), "update restart migrated to another port");
+}
+
+#[tokio::test]
 async fn normal_startup_rejects_occupied_port() {
     let previous = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
         .await
@@ -137,6 +156,7 @@ async fn spawn_catserver_with_events(
         },
         false,
         false,
+        None,
     )
     .await
     .unwrap();

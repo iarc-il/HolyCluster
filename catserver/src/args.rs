@@ -34,6 +34,9 @@ pub struct Args {
     /// internal detached update helper plan
     #[argh(option, hidden_help)]
     pub apply_update: Option<PathBuf>,
+    /// internal same-origin update restart plan
+    #[argh(option, hidden_help)]
+    pub resume_update: Option<PathBuf>,
 }
 
 pub fn server_config(args: &Args) -> ServerConfig {

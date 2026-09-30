@@ -25,6 +25,32 @@ fn artifact() -> Artifact {
 }
 
 #[test]
+fn restart_arguments_preserve_options_without_duplicate_internal_flags() {
+    use argh::FromArgs;
+    let arguments = [
+        "--dummy",
+        "--backend",
+        "localhost:9000",
+        "--port",
+        "41234",
+        "--resume-update",
+        "old-plan",
+        "--resume-update=older-plan",
+    ]
+    .map(str::to_owned);
+    let retained = crate::updater::original_arguments(&arguments);
+    assert_eq!(retained, arguments[..5]);
+    let mut launch = retained;
+    launch.extend(["--resume-update".into(), "new-plan".into()]);
+    let borrowed = launch.iter().map(String::as_str).collect::<Vec<_>>();
+    let parsed = crate::args::Args::from_args(&["catserver"], &borrowed).unwrap();
+    assert!(parsed.dummy);
+    assert_eq!(parsed.backend.as_deref(), Some("localhost:9000"));
+    assert_eq!(parsed.port, Some(41234));
+    assert_eq!(parsed.resume_update.as_deref(), Some(Path::new("new-plan")));
+}
+
+#[test]
 fn rejects_unsafe_artifacts() {
     let mut value = artifact();
     value.url = "http://releases.example/update".into();

@@ -35,7 +35,7 @@ use crate::{radio_manager::RadioManager, rotator_manager::RotatorManager, tray_i
 
 use self::{
     http_proxy::{local_ui, proxy},
-    listener::{bind_local_listener, protect_listener},
+    listener::{bind_local_listener, bind_update_listener, protect_listener},
     session::ws_handler,
     state::AppState,
 };
@@ -65,14 +65,22 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn build_server(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn build_server(
         sender: Sender<UserEvent>,
         radio: RadioManager,
         rotator: RotatorManager,
-        server_config: ServerConfig,
+        mut server_config: ServerConfig,
         use_local_ui: bool,
         fallback_if_busy: bool,
+        restart: Option<crate::updater::RestartContext>,
     ) -> Result<Self> {
+        let listener = if let Some(context) = &restart {
+            bind_update_listener(context.port, std::time::Duration::from_secs(180)).await?
+        } else {
+            bind_local_listener(server_config.local_port, fallback_if_busy).await?
+        };
+        server_config.local_port = listener.local_addr()?.port();
         let ui_dir = use_local_ui.then(find_ui_dir).transpose()?;
         let state = AppState::new(server_config, radio, rotator, sender.clone(), ui_dir)?;
         let app = Router::new()
@@ -96,8 +104,6 @@ impl Server {
             app.fallback(any(proxy))
         }
         .with_state(state.clone());
-        let listener =
-            bind_local_listener(state.server_config.local_port, fallback_if_busy).await?;
         Ok(Self {
             app,
             listener,
