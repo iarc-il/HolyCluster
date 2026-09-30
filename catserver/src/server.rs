@@ -1,6 +1,6 @@
 mod availability_trace;
 mod http_proxy;
-mod listener;
+pub(crate) mod listener;
 mod radio;
 mod radio_actions;
 mod radio_configuration;
@@ -76,7 +76,31 @@ impl Server {
         restart: Option<crate::updater::RestartContext>,
     ) -> Result<Self> {
         let listener = if let Some(context) = &restart {
-            bind_update_listener(context.port, std::time::Duration::from_secs(180)).await?
+            let marker = context.state_path.with_file_name("restart-startup.json");
+            if !context.state_path.as_os_str().is_empty() {
+                crate::update_restart::startup_signal(context, &marker, None)?;
+            }
+            match bind_update_listener(context.port, std::time::Duration::from_secs(180)).await {
+                Ok(listener) => {
+                    if !context.state_path.as_os_str().is_empty() {
+                        crate::updater::write_json(
+                            &marker,
+                            &serde_json::json!({ "id": context.id, "phase": "reconnecting" }),
+                        )?;
+                    }
+                    listener
+                }
+                Err(error) => {
+                    if !context.state_path.as_os_str().is_empty() {
+                        crate::update_restart::startup_signal(
+                            context,
+                            &marker,
+                            Some(error.to_string()),
+                        )?;
+                    }
+                    return Err(error);
+                }
+            }
         } else {
             bind_local_listener(server_config.local_port, fallback_if_busy).await?
         };

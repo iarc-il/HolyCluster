@@ -12,11 +12,15 @@ use windows_sys::Win32::Foundation::{HANDLE_FLAG_INHERIT, SetHandleInformation};
 // Acceptance and process creation must share the same inheritance lock.
 static INHERITANCE_LOCK: Mutex<()> = Mutex::new(());
 
-pub(crate) fn spawn(command: &mut Command) -> io::Result<Child> {
+pub(crate) fn with_spawn_lock<T>(action: impl FnOnce() -> T) -> T {
     let _guard = INHERITANCE_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    command.spawn()
+    action()
+}
+
+pub(crate) fn spawn(command: &mut Command) -> io::Result<Child> {
+    with_spawn_lock(|| command.spawn())
 }
 
 pub(crate) fn poll_accept(

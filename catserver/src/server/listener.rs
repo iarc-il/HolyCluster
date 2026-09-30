@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use axum::serve::Listener;
 use tokio::net::{TcpListener, TcpStream};
 
-pub(super) async fn bind_local_listener(port: u16, fallback_if_busy: bool) -> Result<TcpListener> {
+pub(crate) async fn bind_local_listener(port: u16, fallback_if_busy: bool) -> Result<TcpListener> {
     let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
     match bind_tcp_listener(address).await {
         Ok(listener) => Ok(listener),
@@ -47,7 +47,7 @@ async fn bind_tcp_listener(address: SocketAddrV4) -> std::io::Result<TcpListener
     TcpListener::bind(address).await
 }
 
-pub(super) fn protect_listener(
+pub(crate) fn protect_listener(
     listener: TcpListener,
 ) -> impl Listener<Io = TcpStream, Addr = SocketAddr> {
     #[cfg(windows)]

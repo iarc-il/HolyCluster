@@ -30,6 +30,18 @@ impl std::fmt::Display for UpdateBusy {
 }
 impl std::error::Error for UpdateBusy {}
 
+#[cfg(windows)]
+#[derive(Debug)]
+struct InstallerUnconfirmed;
+#[cfg(windows)]
+impl std::fmt::Display for InstallerUnconfirmed {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("MSI result could not be confirmed after waiting; the installer may still be running. Do not start another installer or restart CAT Control until Windows Installer has finished; inspect msi-install.log")
+    }
+}
+#[cfg(windows)]
+impl std::error::Error for InstallerUnconfirmed {}
+
 const MAX_ARTIFACT_SIZE: u64 = 512 * 1024 * 1024;
 pub(crate) const PLATFORM_LINUX: &str = "linux-appimage";
 pub(crate) const PLATFORM_WINDOWS: &str = "windows-msi";
@@ -118,6 +130,8 @@ pub(crate) struct RestartContext {
     pub id: String,
     pub port: u16,
     pub expected_version: String,
+    #[serde(default)]
+    pub state_path: PathBuf,
 }
 
 pub(crate) fn restart_context(path: &Path) -> Result<RestartContext> {
@@ -231,7 +245,11 @@ impl UpdateService {
             Err(std::sync::TryLockError::Poisoned(error)) => error.into_inner(),
             Err(std::sync::TryLockError::WouldBlock) => return Err(UpdateBusy.into()),
         };
-        if self.session().is_some_and(|session| !session.terminal()) {
+        if self.status().state == UpdateState::Installing
+            || self.session().is_some_and(|session| {
+                !session.terminal() || session.installer_outcome.as_deref() == Some("unconfirmed")
+            })
+        {
             return Err(UpdateBusy.into());
         }
         if self.session_path().exists() {
@@ -363,6 +381,7 @@ impl UpdateService {
             id: uuid::Uuid::new_v4().to_string(),
             port: self.local_port,
             expected_version: version.to_string(),
+            state_path: self.state_path(),
         });
         let progress = restart
             .as_ref()
@@ -454,6 +473,21 @@ impl UpdateService {
                 )?,
             };
             write_json(&self.helper_path(), &identity)?;
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
+            while self
+                .session()
+                .is_none_or(|session| session.helper_url.is_none())
+            {
+                anyhow::ensure!(
+                    helper.try_wait()?.is_none(),
+                    "update helper exited before starting its status service"
+                );
+                anyhow::ensure!(
+                    std::time::Instant::now() < deadline,
+                    "update helper status handoff timed out; no shutdown was requested"
+                );
+                std::thread::sleep(Duration::from_millis(50));
+            }
             self.write_status(installing)
         })();
         if let Err(error) = result {
@@ -525,23 +559,28 @@ impl UpdateService {
 }
 
 pub fn run_helper(plan_path: &Path) -> Result<()> {
-    tracing::info!(plan = ?plan_path, "Loading update plan");
     let plan: InstallPlan =
         serde_json::from_slice(&fs::read(plan_path)?).context("cannot load update plan")?;
-    tracing::info!(
-        parent_pid = plan.parent_pid,
-        current = ?plan.current_executable,
-        staged = ?plan.staged_artifact,
-        "Update helper started"
-    );
-    #[cfg(windows)]
-    wait_for_parent(plan.parent_pid);
-    tracing::info!("Parent catserver exited; applying update");
-    let result = if cfg!(windows) {
-        install_windows(&plan)
+    let progress = if cfg!(windows) && plan.restart.is_some() {
+        let store = SessionStore::load(&plan.state_path.with_file_name("session.json"))?;
+        anyhow::ensure!(
+            plan.restart
+                .as_ref()
+                .is_some_and(|context| context.id == store.snapshot().id),
+            "update session identity does not match install plan"
+        );
+        store.phase("waiting_for_parent")?;
+        Some(store)
     } else {
-        install_linux(&plan)
+        None
     };
+    let status_server = progress
+        .as_ref()
+        .map(|store| crate::update_status_server::StatusServer::start(store.clone()))
+        .transpose()?;
+    let result = apply_install_plan(&plan, progress.as_ref());
+    #[cfg(windows)]
+    let mut result = result;
     let status = match &result {
         Ok(state) => UpdateStatus {
             state: state.clone(),
@@ -554,39 +593,89 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
             diagnostic: Some(error.to_string()),
         },
     };
-    if let Err(error) = &result {
-        tracing::error!(?error, "Update helper failed");
-    }
     write_json(&plan.state_path, &status).context("cannot persist update helper status")?;
-    #[cfg(windows)]
-    if result
-        .as_ref()
-        .is_ok_and(|state| *state == UpdateState::Installed)
-        || result.is_err()
-    {
-        let mut command = restart_command(&plan, plan_path);
-        if let Err(error) = crate::windows_sockets::spawn(&mut command) {
-            tracing::error!(?error, "Cannot restart catserver after installation");
-            write_json(
-                &plan.state_path,
-                &UpdateStatus {
-                    state: status.state.clone(),
-                    available_version: status.available_version.clone(),
-                    diagnostic: Some(format!(
-                        "Installer outcome: {:?}; CAT Control restart failed: {error}; see msi-install.log",
-                        status.state
-                    )),
-                },
-            )?;
-            return Err(error.into());
-        }
+    if let Some(store) = &progress {
+        store.change(|session| {
+            session.installer_outcome = Some(
+                match status.state {
+                    UpdateState::Installed => "installed",
+                    UpdateState::RebootRequired => "reboot_required",
+                    _ => "failed",
+                }
+                .into(),
+            );
+            session.phase = match status.state {
+                UpdateState::Installed => "reconnecting",
+                UpdateState::RebootRequired => "reboot_required",
+                _ => "failed",
+            }
+            .into();
+            session.diagnostic = status.diagnostic.clone();
+        })?;
     }
     #[cfg(windows)]
-    if result
-        .as_ref()
-        .is_ok_and(|state| *state == UpdateState::RebootRequired)
     {
-        windows_elevation::notify_reboot_required();
+        if result
+            .as_ref()
+            .is_err_and(|error| error.is::<InstallerUnconfirmed>())
+            && let Some(store) = &progress
+        {
+            store.change(|session| session.installer_outcome = Some("unconfirmed".into()))?;
+        }
+        if let Some(error) = result.as_ref().err()
+            && error
+                .downcast_ref::<io::Error>()
+                .and_then(io::Error::raw_os_error)
+                == Some(windows_sys::Win32::Foundation::ERROR_CANCELLED as i32)
+            && let Some(store) = &progress
+        {
+            store.phase("permission_cancelled")?;
+        }
+        if result
+            .as_ref()
+            .is_ok_and(|state| *state == UpdateState::Installed)
+            || result
+                .as_ref()
+                .is_err_and(|error| !error.is::<InstallerUnconfirmed>())
+        {
+            let restart_result = (|| {
+                let mut child =
+                    crate::windows_sockets::spawn(&mut restart_command(&plan, plan_path))?;
+                if status.state == UpdateState::Installed
+                    && let (Some(context), Some(store)) = (&plan.restart, &progress)
+                {
+                    crate::update_restart::wait_until_ready(context, &mut child, store)?;
+                    store.phase("updated")?;
+                }
+                Ok::<_, anyhow::Error>(())
+            })();
+            if let Err(error) = restart_result {
+                let diagnostic = format!(
+                    "Installer outcome: {:?}; CAT Control restart failed: {error}; see msi-install.log",
+                    status.state
+                );
+                if let Some(store) = &progress {
+                    store.change(|session| {
+                        session.phase = "restart_failed".into();
+                        session.diagnostic = Some(diagnostic.clone());
+                    })?;
+                }
+                write_json(
+                    &plan.state_path,
+                    &UpdateStatus {
+                        diagnostic: Some(diagnostic),
+                        ..status
+                    },
+                )?;
+                result = Err(error);
+            }
+        }
+        if result
+            .as_ref()
+            .is_ok_and(|state| *state == UpdateState::RebootRequired)
+        {
+            std::thread::spawn(windows_elevation::notify_reboot_required);
+        }
     }
     #[cfg(target_os = "linux")]
     if result
@@ -594,7 +683,6 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
         .is_ok_and(|state| *state == UpdateState::Installed)
         && let Err(error) = exec_linux(&plan)
     {
-        tracing::error!(?error, "Updated AppImage handoff failed");
         write_json(
             &plan.state_path,
             &UpdateStatus {
@@ -605,10 +693,23 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
         )?;
         return Err(error);
     }
-    if result.is_ok() {
-        tracing::info!("Update helper completed successfully");
+    if let Some(server) = status_server {
+        server.await_acknowledgment(Duration::from_secs(120));
     }
     result.map(drop)
+}
+
+fn apply_install_plan(
+    plan: &InstallPlan,
+    progress: Option<&Arc<SessionStore>>,
+) -> Result<UpdateState> {
+    #[cfg(windows)]
+    crate::update_restart::wait_for_parent(plan.parent_pid)?;
+    if cfg!(windows) {
+        install_windows(plan, progress)
+    } else {
+        install_linux(plan)
+    }
 }
 
 fn install_linux(plan: &InstallPlan) -> Result<UpdateState> {
@@ -685,11 +786,20 @@ fn restart_command(plan: &InstallPlan, plan_path: &Path) -> Command {
     command
 }
 
-fn install_windows(plan: &InstallPlan) -> Result<UpdateState> {
+fn install_windows(
+    plan: &InstallPlan,
+    progress: Option<&Arc<SessionStore>>,
+) -> Result<UpdateState> {
     if platform() != PLATFORM_WINDOWS {
         bail!("Windows installer received on unsupported platform");
     }
+    if let Some(store) = progress {
+        store.phase("verifying")?;
+    }
     verify_file(&plan.staged_artifact, &plan.artifact)?;
+    if let Some(store) = progress {
+        store.phase("awaiting_permission")?;
+    }
     let log_path = plan.state_path.with_file_name("msi-install.log");
     if log_path.exists() {
         fs::remove_file(&log_path).context("cannot remove previous MSI installer log")?;
@@ -698,6 +808,7 @@ fn install_windows(plan: &InstallPlan) -> Result<UpdateState> {
         &plan.staged_artifact,
         &log_path,
         plan.reinstall,
+        progress,
     )?)?;
     Ok(state)
 }
@@ -780,15 +891,26 @@ pub(crate) fn windows_installer_arguments(
 }
 
 #[cfg(windows)]
-fn run_elevated_windows_installer(msi: &Path, log: &Path, reinstall: bool) -> Result<u32> {
+fn run_elevated_windows_installer(
+    msi: &Path,
+    log: &Path,
+    reinstall: bool,
+    progress: Option<&Arc<SessionStore>>,
+) -> Result<u32> {
     windows_elevation::run(
         "msiexec.exe",
         &windows_installer_arguments(msi, log, reinstall),
+        progress,
     )
 }
 
 #[cfg(not(windows))]
-fn run_elevated_windows_installer(_msi: &Path, _log: &Path, _reinstall: bool) -> Result<u32> {
+fn run_elevated_windows_installer(
+    _msi: &Path,
+    _log: &Path,
+    _reinstall: bool,
+    _progress: Option<&Arc<SessionStore>>,
+) -> Result<u32> {
     bail!("Windows installer received on unsupported platform")
 }
 
@@ -799,7 +921,7 @@ mod windows_elevation {
     use anyhow::{Context, Result, bail};
     use windows_sys::Win32::{
         Foundation::{CloseHandle, WAIT_OBJECT_0},
-        System::Threading::{GetExitCodeProcess, INFINITE, WaitForSingleObject},
+        System::Threading::{GetExitCodeProcess, WaitForSingleObject},
         UI::{
             Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW},
             WindowsAndMessaging::{
@@ -810,7 +932,11 @@ mod windows_elevation {
 
     use super::{OsString, quote_windows_argument};
 
-    pub(super) fn run(program: &str, arguments: &[OsString]) -> Result<u32> {
+    pub(super) fn run(
+        program: &str,
+        arguments: &[OsString],
+        progress: Option<&std::sync::Arc<crate::update_progress::SessionStore>>,
+    ) -> Result<u32> {
         let verb = wide("runas");
         let program = wide(program);
         let parameters = command_line(arguments);
@@ -823,7 +949,7 @@ mod windows_elevation {
             nShow: SW_SHOWNORMAL,
             ..Default::default()
         };
-        if unsafe { ShellExecuteExW(&mut info) } == 0 {
+        if crate::windows_sockets::with_spawn_lock(|| unsafe { ShellExecuteExW(&mut info) }) == 0 {
             let error = io::Error::last_os_error();
             if error.raw_os_error() == Some(windows_sys::Win32::Foundation::ERROR_CANCELLED as i32)
             {
@@ -834,10 +960,13 @@ mod windows_elevation {
         if info.hProcess.is_null() {
             bail!("elevated MSI installer did not return a process handle");
         }
-        let wait = unsafe { WaitForSingleObject(info.hProcess, INFINITE) };
+        if let Some(store) = progress {
+            store.phase("installing")?;
+        }
+        let wait = unsafe { WaitForSingleObject(info.hProcess, 1800000) };
         if wait != WAIT_OBJECT_0 {
             unsafe { CloseHandle(info.hProcess) };
-            bail!("cannot wait for elevated MSI installer: {wait:#x}");
+            return Err(super::InstallerUnconfirmed.into());
         }
         let mut exit_code = 0;
         let result = unsafe { GetExitCodeProcess(info.hProcess, &mut exit_code) };
@@ -1090,9 +1219,34 @@ pub(crate) fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
     let temporary = path.with_extension("tmp");
     fs::write(&temporary, serde_json::to_vec(value)?)?;
     #[cfg(windows)]
-    if path.exists() {
-        fs::remove_file(path)?;
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::Storage::FileSystem::{
+            MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+        };
+        let source = temporary
+            .as_os_str()
+            .encode_wide()
+            .chain([0])
+            .collect::<Vec<_>>();
+        let destination = path
+            .as_os_str()
+            .encode_wide()
+            .chain([0])
+            .collect::<Vec<_>>();
+        if unsafe {
+            MoveFileExW(
+                source.as_ptr(),
+                destination.as_ptr(),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+            )
+        } == 0
+        {
+            return Err(io::Error::last_os_error())
+                .context("cannot atomically replace update metadata");
+        }
     }
+    #[cfg(not(windows))]
     fs::rename(temporary, path)?;
     Ok(())
 }
@@ -1209,34 +1363,5 @@ mod helper_process_tests {
         .unwrap();
         assert_eq!(service().status().state, UpdateState::Failed);
         fs::remove_dir_all(data_dir).unwrap();
-    }
-}
-
-#[cfg(windows)]
-fn wait_for_parent(parent_pid: u32) {
-    while process_exists(parent_pid) {
-        std::thread::sleep(Duration::from_millis(200));
-    }
-}
-
-#[cfg(windows)]
-fn process_exists(pid: u32) -> bool {
-    #[link(name = "kernel32")]
-    unsafe extern "system" {
-        fn OpenProcess(access: u32, inherit: i32, process_id: u32) -> *mut std::ffi::c_void;
-        fn GetExitCodeProcess(handle: *mut std::ffi::c_void, exit_code: *mut u32) -> i32;
-        fn CloseHandle(handle: *mut std::ffi::c_void) -> i32;
-    }
-    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
-    const STILL_ACTIVE: u32 = 259;
-    unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-        if handle.is_null() {
-            return false;
-        }
-        let mut exit_code = 0;
-        let result = GetExitCodeProcess(handle, &mut exit_code) != 0 && exit_code == STILL_ACTIVE;
-        CloseHandle(handle);
-        result
     }
 }

@@ -30,6 +30,10 @@ mod startup_radio;
 mod tracing_setup;
 mod tray_icon;
 mod update_progress;
+mod update_restart;
+mod update_status_server;
+#[cfg(test)]
+mod update_status_tests;
 mod updater;
 mod utils;
 #[cfg(windows)]

@@ -31,6 +31,7 @@ async fn local_readiness_does_not_depend_on_the_remote_backend() {
                 id: "transaction".into(),
                 port,
                 expected_version,
+                state_path: Default::default(),
             }),
         )
         .await;
