@@ -1,5 +1,6 @@
 mod local_ui;
 mod proxy;
+mod readiness;
 mod shutdown;
 mod update;
 
@@ -143,6 +144,13 @@ async fn spawn_catserver(upstream: SocketAddr) -> TestServer {
 async fn spawn_catserver_with_events(
     upstream: SocketAddr,
 ) -> (TestServer, tokio::sync::broadcast::Sender<UserEvent>) {
+    spawn_catserver_with_restart(upstream, None).await
+}
+
+async fn spawn_catserver_with_restart(
+    upstream: SocketAddr,
+    restart: Option<crate::updater::RestartContext>,
+) -> (TestServer, tokio::sync::broadcast::Sender<UserEvent>) {
     let (sender, _) = tokio::sync::broadcast::channel::<UserEvent>(10);
     let config = RadioConfig::platform_default();
     let server = Server::build_server(
@@ -156,7 +164,7 @@ async fn spawn_catserver_with_events(
         },
         false,
         false,
-        None,
+        restart,
     )
     .await
     .unwrap();

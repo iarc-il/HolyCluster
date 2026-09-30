@@ -27,6 +27,10 @@ pub(super) async fn check(
     .await
 }
 
+pub(super) async fn ready(State(state): State<AppState>) -> Json<crate::updater::LocalReadiness> {
+    Json(state.updater.readiness())
+}
+
 pub(super) async fn status(State(state): State<AppState>) -> Json<UpdateStatus> {
     Json(state.updater.status())
 }

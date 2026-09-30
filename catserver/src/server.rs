@@ -82,11 +82,13 @@ impl Server {
         };
         server_config.local_port = listener.local_addr()?.port();
         let ui_dir = use_local_ui.then(find_ui_dir).transpose()?;
-        let state = AppState::new(server_config, radio, rotator, sender.clone(), ui_dir)?;
+        let mut state = AppState::new(server_config, radio, rotator, sender.clone(), ui_dir)?;
+        state.updater = state.updater.with_restart(restart);
         let app = Router::new()
             .route("/ws", any(ws_handler))
             .route("/exit", post(exit_server_handler))
             .route("/open", post(open_tab_handler))
+            .route("/api/ready", get(update::ready))
             .route("/api/update", get(update::status))
             .route("/api/update/check", post(update::check))
             .route("/api/update/install", post(update::install))

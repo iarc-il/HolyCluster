@@ -88,6 +88,16 @@ pub struct UpdateService {
     platform: &'static str,
     data_dir: PathBuf,
     local_port: u16,
+    instance_id: String,
+    resumed: Option<RestartContext>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct LocalReadiness {
+    pub version: String,
+    pub instance_id: String,
+    pub update_id: Option<String>,
+    pub verified: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -158,6 +168,8 @@ impl UpdateService {
             platform: platform(),
             data_dir,
             local_port: 0,
+            instance_id: uuid::Uuid::new_v4().to_string(),
+            resumed: None,
         };
         service.reconcile_installed_status()?;
         #[cfg(windows)]
@@ -168,6 +180,23 @@ impl UpdateService {
     pub(crate) fn with_local_port(mut self, port: u16) -> Self {
         self.local_port = port;
         self
+    }
+
+    pub(crate) fn with_restart(mut self, context: Option<RestartContext>) -> Self {
+        self.resumed = context;
+        self
+    }
+
+    pub(crate) fn readiness(&self) -> LocalReadiness {
+        LocalReadiness {
+            version: self.current_version.to_string(),
+            instance_id: self.instance_id.clone(),
+            update_id: self.resumed.as_ref().map(|context| context.id.clone()),
+            verified: self.resumed.as_ref().is_some_and(|context| {
+                parse_version(&context.expected_version)
+                    .is_ok_and(|version| version == self.current_version)
+            }),
+        }
     }
 
     pub fn with_dev_mode(mut self, dev_mode: bool) -> Self {
@@ -458,18 +487,26 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
     }
     write_json(&plan.state_path, &status).context("cannot persist update helper status")?;
     #[cfg(windows)]
-    if result.as_ref().err().is_some_and(|error| {
-        error
-            .downcast_ref::<io::Error>()
-            .and_then(io::Error::raw_os_error)
-            == Some(windows_sys::Win32::Foundation::ERROR_CANCELLED as i32)
-    }) {
+    if result
+        .as_ref()
+        .is_ok_and(|state| *state == UpdateState::Installed)
+        || result.is_err()
+    {
         let mut command = restart_command(&plan, plan_path);
         if let Err(error) = crate::windows_sockets::spawn(&mut command) {
-            tracing::error!(
-                ?error,
-                "Cannot restart catserver after elevation was canceled"
-            );
+            tracing::error!(?error, "Cannot restart catserver after installation");
+            write_json(
+                &plan.state_path,
+                &UpdateStatus {
+                    state: status.state.clone(),
+                    available_version: status.available_version.clone(),
+                    diagnostic: Some(format!(
+                        "Installer outcome: {:?}; CAT Control restart failed: {error}; see msi-install.log",
+                        status.state
+                    )),
+                },
+            )?;
+            return Err(error.into());
         }
     }
     #[cfg(windows)]
@@ -566,6 +603,7 @@ pub(crate) fn original_arguments(arguments: &[String]) -> Vec<String> {
     result
 }
 
+#[cfg(windows)]
 fn restart_command(plan: &InstallPlan, plan_path: &Path) -> Command {
     let mut command = Command::new(&plan.current_executable);
     command.args(original_arguments(&plan.command_args));
@@ -589,14 +627,6 @@ fn install_windows(plan: &InstallPlan) -> Result<UpdateState> {
         &log_path,
         plan.reinstall,
     )?)?;
-    if state == UpdateState::Installed {
-        let mut command =
-            restart_command(plan, &plan.state_path.with_file_name("install-plan.json"));
-        #[cfg(windows)]
-        crate::windows_sockets::spawn(&mut command)?;
-        #[cfg(not(windows))]
-        command.spawn()?;
-    }
     Ok(state)
 }
 
