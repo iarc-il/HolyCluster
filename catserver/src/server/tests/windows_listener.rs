@@ -12,7 +12,7 @@ use axum::serve::Listener;
 use tokio::{io::AsyncReadExt, net::TcpSocket};
 use windows_sys::Win32::Foundation::{GetHandleInformation, HANDLE_FLAG_INHERIT};
 
-use super::{bind_local_listener, protect_listener};
+use super::{bind_local_listener, bind_update_listener, protect_listener};
 
 const CHILD_READY_PATH: &str = "HOLYCLUSTER_SOCKET_CHILD_READY";
 
@@ -80,6 +80,43 @@ async fn pending_accept_does_not_block_helper_spawn() {
     assert!(child.0.try_wait().unwrap().is_none());
 }
 
+#[tokio::test]
+async fn broker_wait_does_not_block_loopback_accept() {
+    let mut listener = protect_listener(bind_local_listener(0, false).await.unwrap());
+    let mut broker = spawn_helper().await;
+    let client = TcpSocket::new_v4()
+        .unwrap()
+        .connect(listener.local_addr().unwrap())
+        .await
+        .unwrap();
+    let (connection, _) = tokio::time::timeout(Duration::from_secs(1), listener.accept())
+        .await
+        .expect("broker inheritance lock blocked status acceptance");
+    assert!(broker.0.try_wait().unwrap().is_none());
+    drop(connection);
+    drop(client);
+}
+
+#[tokio::test]
+async fn update_retry_keeps_the_original_port() {
+    let occupied = bind_local_listener(0, false).await.unwrap();
+    let port = occupied.local_addr().unwrap().port();
+    let release = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        drop(occupied);
+    });
+    let rebound = bind_update_listener(port, Duration::from_secs(2))
+        .await
+        .unwrap();
+    assert_eq!(rebound.local_addr().unwrap().port(), port);
+    release.await.unwrap();
+    assert!(
+        bind_update_listener(port, Duration::from_millis(50))
+            .await
+            .is_err()
+    );
+}
+
 async fn spawn_helper() -> HelperChild {
     let test_module = module_path!().split_once("::").unwrap().1;
     let ready_path = std::env::temp_dir().join(format!(
@@ -119,6 +156,8 @@ async fn spawn_helper() -> HelperChild {
 #[ignore]
 fn inherited_listener_child() {
     let ready_path = std::env::var_os(CHILD_READY_PATH).expect("only run through the parent test");
-    fs::write(ready_path, b"ready").unwrap();
-    std::io::stdin().read_exact(&mut [0]).unwrap();
+    crate::windows_sockets::with_spawn_lock(|| {
+        fs::write(ready_path, b"ready").unwrap();
+        std::io::stdin().read_exact(&mut [0]).unwrap();
+    });
 }
