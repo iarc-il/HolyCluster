@@ -157,8 +157,7 @@ function deep_merge(target, source) {
     const output = Object.assign({}, target);
     let new_keys_added;
     if (is_object(target) && is_object(source)) {
-        new_keys_added =
-            new Set(Object.keys(target)).difference(new Set(Object.keys(source))).size !== 0;
+        new_keys_added = Object.keys(target).some(key => !(key in source));
 
         Object.keys(source).forEach(key => {
             if (is_object(source[key])) {
