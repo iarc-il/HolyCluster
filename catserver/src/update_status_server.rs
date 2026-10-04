@@ -44,7 +44,7 @@ impl StatusServer {
                 let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
                 let announce = ready_tx.clone();
                 runtime.block_on(async move {
-                    let listener = crate::server::listener::bind_local_listener(0, false).await?;
+                    let listener = crate::server::listener::bind_local_listener(0).await?;
                     let host = format!("127.0.0.1:{}", listener.local_addr()?.port());
                     session.change(|data| data.helper_url = Some(format!("http://{host}/status")))?;
                     let watchdog = session.clone();

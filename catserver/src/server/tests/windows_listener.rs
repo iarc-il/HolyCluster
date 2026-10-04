@@ -27,14 +27,14 @@ impl Drop for HelperChild {
 
 #[tokio::test]
 async fn update_helper_does_not_keep_closed_listener_bound() {
-    let listener = bind_local_listener(0, false).await.unwrap();
+    let listener = bind_local_listener(0).await.unwrap();
     let port = listener.local_addr().unwrap().port();
-    assert!(bind_local_listener(port, false).await.is_err());
+    assert!(bind_local_listener(port).await.is_err());
     let mut child = spawn_helper().await;
 
     drop(listener);
 
-    let rebound = bind_local_listener(port, false)
+    let rebound = bind_local_listener(port)
         .await
         .expect("live helper inherited the closed listener");
     assert_eq!(rebound.local_addr().unwrap().port(), port);
@@ -43,7 +43,7 @@ async fn update_helper_does_not_keep_closed_listener_bound() {
 
 #[tokio::test]
 async fn update_helper_does_not_keep_closed_connection_alive() {
-    let mut listener = protect_listener(bind_local_listener(0, false).await.unwrap());
+    let mut listener = protect_listener(bind_local_listener(0).await.unwrap());
     let mut client = TcpSocket::new_v4()
         .unwrap()
         .connect(listener.local_addr().unwrap())
@@ -70,7 +70,7 @@ async fn update_helper_does_not_keep_closed_connection_alive() {
 
 #[tokio::test]
 async fn pending_accept_does_not_block_helper_spawn() {
-    let mut listener = protect_listener(bind_local_listener(0, false).await.unwrap());
+    let mut listener = protect_listener(bind_local_listener(0).await.unwrap());
     let mut accepting = Box::pin(listener.accept());
     let mut context = Context::from_waker(Waker::noop());
     assert!(accepting.as_mut().poll(&mut context).is_pending());
@@ -82,7 +82,7 @@ async fn pending_accept_does_not_block_helper_spawn() {
 
 #[tokio::test]
 async fn broker_wait_does_not_block_loopback_accept() {
-    let mut listener = protect_listener(bind_local_listener(0, false).await.unwrap());
+    let mut listener = protect_listener(bind_local_listener(0).await.unwrap());
     let mut broker = spawn_helper().await;
     let client = TcpSocket::new_v4()
         .unwrap()
@@ -99,7 +99,7 @@ async fn broker_wait_does_not_block_loopback_accept() {
 
 #[tokio::test]
 async fn update_retry_keeps_the_original_port() {
-    let occupied = bind_local_listener(0, false).await.unwrap();
+    let occupied = bind_local_listener(0).await.unwrap();
     let port = occupied.local_addr().unwrap().port();
     let release = tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(100)).await;

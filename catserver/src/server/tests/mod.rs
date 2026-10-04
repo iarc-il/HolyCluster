@@ -13,10 +13,10 @@ use std::{
 
 use super::{Server, ServerConfig};
 use crate::{
-    instance_port, radio_config::RadioConfig, radio_manager::RadioManager,
-    rotator_config::RotatorConfig, rotator_manager::RotatorManager, tray_icon::UserEvent,
+    radio_config::RadioConfig, radio_manager::RadioManager, rotator_config::RotatorConfig,
+    rotator_manager::RotatorManager, tray_icon::UserEvent,
 };
-use axum::{Router, routing::post};
+use axum::Router;
 
 struct TestServer {
     address: SocketAddr,
@@ -53,49 +53,30 @@ impl Drop for TestDir {
 }
 
 #[tokio::test]
-async fn update_relaunch_uses_free_loopback_port_when_original_is_busy() {
+async fn normal_startup_waits_for_the_requested_port() {
     let previous = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
         .await
         .unwrap();
     let port = previous.local_addr().unwrap().port();
-    let listener = super::bind_local_listener(port, true).await.unwrap();
-    assert_ne!(listener.local_addr().unwrap().port(), port);
-    assert_eq!(listener.local_addr().unwrap().ip(), Ipv4Addr::LOCALHOST);
+    let release = tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        drop(previous);
+    });
+    let listener = super::bind_startup_listener(port, std::time::Duration::from_secs(2))
+        .await
+        .unwrap();
+    assert_eq!(listener.local_addr().unwrap().port(), port);
+    release.await.unwrap();
 }
 
 #[tokio::test]
-async fn fallback_port_is_discoverable_by_second_instance() {
+async fn normal_startup_never_migrates_from_an_occupied_port() {
     let previous = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
         .await
         .unwrap();
-    let listener = super::bind_local_listener(previous.local_addr().unwrap().port(), true)
-        .await
-        .unwrap();
-    let dir = TestDir::new();
-    let file = dir.path().join("instance-port");
-    instance_port::publish(&file, listener.local_addr().unwrap().port()).unwrap();
-    assert_eq!(
-        instance_port::read(&file).unwrap(),
-        listener.local_addr().unwrap().port()
-    );
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            Router::new().route("/open", post(|| async { "ok" })),
-        )
-        .await
-        .unwrap();
-    });
-    let port_file = file.clone();
-    tokio::task::spawn_blocking(move || {
-        crate::application::contact_existing_instance(&port_file, "open")
-    })
-    .await
-    .unwrap()
-    .unwrap();
-    server.abort();
-    instance_port::clear(&file).unwrap();
-    assert!(instance_port::read(&file).is_err());
+    let port = previous.local_addr().unwrap().port();
+    let result = super::bind_startup_listener(port, std::time::Duration::from_millis(50)).await;
+    assert!(result.is_err(), "normal startup migrated to another port");
 }
 
 #[tokio::test]
@@ -115,15 +96,6 @@ async fn update_restart_waits_for_the_original_port() {
     release.await.unwrap();
     let occupied = super::bind_update_listener(port, std::time::Duration::from_millis(50)).await;
     assert!(occupied.is_err(), "update restart migrated to another port");
-}
-
-#[tokio::test]
-async fn normal_startup_rejects_occupied_port() {
-    let previous = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-        .await
-        .unwrap();
-    let port = previous.local_addr().unwrap().port();
-    assert!(super::bind_local_listener(port, false).await.is_err());
 }
 
 async fn spawn_app(app: Router) -> TestServer {
@@ -162,7 +134,6 @@ async fn spawn_catserver_with_restart(
             is_using_ssl: false,
             local_port: 0,
         },
-        false,
         false,
         restart,
     )

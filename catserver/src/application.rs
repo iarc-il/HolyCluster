@@ -87,39 +87,43 @@ pub fn run(args: Args) -> Result<()> {
     let (sender, _) = broadcast::channel::<UserEvent>(10);
     let event_sender = sender.clone();
     let use_local_ui = args.local_ui;
-    let fallback_if_busy = args.port.is_none();
     let tray_receiver = sender.subscribe();
     let thread = std::thread::Builder::new()
         .name("singleton".into())
         .spawn(move || {
             let quit_sender = event_sender.clone();
-            if let Err(error) = run_singleton(
+            let result = run_singleton(
                 event_sender,
                 radio,
                 rotator,
                 server_config,
                 use_local_ui,
                 use_dummy_rotator,
-                fallback_if_busy,
                 restart,
-            ) {
+            );
+            if let Err(error) = &result {
                 tracing::error!(?error, "Singleton instance failed");
                 let _ = quit_sender.send(UserEvent::Quit);
             }
+            result
         })?;
     if cfg!(any(windows, target_os = "linux")) {
         tray_icon::run_tray_icon(sender.clone(), tray_receiver);
     }
-    if let Err(error) = thread.join() {
-        let message = error
-            .downcast_ref::<&str>()
-            .copied()
-            .or_else(|| error.downcast_ref::<String>().map(String::as_str))
-            .unwrap_or("unknown panic payload");
-        tracing::error!(message, "Singleton thread panicked");
-    }
+    let result = match thread.join() {
+        Ok(result) => result,
+        Err(error) => {
+            let message = error
+                .downcast_ref::<&str>()
+                .copied()
+                .or_else(|| error.downcast_ref::<String>().map(String::as_str))
+                .unwrap_or("unknown panic payload");
+            Err(anyhow::anyhow!("Singleton thread panicked: {message}"))
+        }
+    };
     instance_port::clear(&port_file)?;
     drop(instance);
+    result?;
     crate::updater::exec_pending_update()?;
     Ok(())
 }
@@ -186,7 +190,6 @@ async fn run_singleton(
     server_config: ServerConfig,
     use_local_ui: bool,
     use_dummy_rotator: bool,
-    fallback_if_busy: bool,
     restart: Option<crate::updater::RestartContext>,
 ) -> Result<()> {
     let snapshot = radio.snapshot();
@@ -224,15 +227,8 @@ async fn run_singleton(
     let shutdown_radio = radio.clone();
     let shutdown_rotator = rotator.clone();
     let silent = restart.is_some();
-    let building = Server::build_server(
-        sender,
-        radio,
-        rotator,
-        server_config,
-        use_local_ui,
-        fallback_if_busy,
-        restart,
-    );
+    let building =
+        Server::build_server(sender, radio, rotator, server_config, use_local_ui, restart);
     tokio::pin!(building);
     let server = loop {
         tokio::select! {

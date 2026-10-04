@@ -4,16 +4,25 @@ use anyhow::{Context, Result};
 use axum::serve::Listener;
 use tokio::net::{TcpListener, TcpStream};
 
-pub(crate) async fn bind_local_listener(port: u16, fallback_if_busy: bool) -> Result<TcpListener> {
+pub(crate) async fn bind_local_listener(port: u16) -> Result<TcpListener> {
     let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-    match bind_tcp_listener(address).await {
-        Ok(listener) => Ok(listener),
-        Err(error) if fallback_if_busy && error.kind() == std::io::ErrorKind::AddrInUse => {
-            tracing::warn!(%address, ?error, "Local port busy; choosing free loopback port");
-            Ok(bind_tcp_listener(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)).await?)
-        }
-        Err(error) => Err(error).with_context(|| format!("cannot listen on {address}")),
-    }
+    bind_tcp_listener(address)
+        .await
+        .with_context(|| format!("cannot listen on {address}"))
+}
+
+pub(crate) async fn bind_startup_listener(
+    port: u16,
+    timeout: std::time::Duration,
+) -> Result<TcpListener> {
+    let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
+    bind_required_listener(address, timeout)
+        .await
+        .with_context(|| {
+            format!(
+                "cannot claim required local port {address}; close the conflicting application and restart CAT Control"
+            )
+        })
 }
 
 pub(super) async fn bind_update_listener(
@@ -22,16 +31,42 @@ pub(super) async fn bind_update_listener(
 ) -> Result<TcpListener> {
     anyhow::ensure!(port != 0, "update restart requires the original port");
     let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-    let deadline = tokio::time::Instant::now() + timeout;
+    bind_required_listener(address, timeout)
+        .await
+        .with_context(|| format!("cannot reclaim original update port {address}; close conflicting applications and restart CAT Control"))
+}
+
+async fn bind_required_listener(
+    address: SocketAddrV4,
+    timeout: std::time::Duration,
+) -> std::io::Result<TcpListener> {
+    let started = tokio::time::Instant::now();
+    let deadline = started + timeout;
     let mut backoff = std::time::Duration::from_millis(100);
+    let mut waiting = false;
     loop {
         match bind_tcp_listener(address).await {
-            Ok(listener) => return Ok(listener),
-            Err(error) if error.kind() == std::io::ErrorKind::AddrInUse && tokio::time::Instant::now() < deadline => {
-                tokio::time::sleep(backoff.min(deadline.saturating_duration_since(tokio::time::Instant::now()))).await;
+            Ok(listener) => {
+                if waiting {
+                    tracing::info!(%address, elapsed_ms = started.elapsed().as_millis(), "Required local port released");
+                }
+                return Ok(listener);
+            }
+            Err(error)
+                if error.kind() == std::io::ErrorKind::AddrInUse
+                    && tokio::time::Instant::now() < deadline =>
+            {
+                if !waiting {
+                    tracing::warn!(%address, ?error, "Required local port is busy; waiting for release");
+                    waiting = true;
+                }
+                tokio::time::sleep(
+                    backoff.min(deadline.saturating_duration_since(tokio::time::Instant::now())),
+                )
+                .await;
                 backoff = (backoff * 2).min(std::time::Duration::from_secs(1));
             }
-            Err(error) => return Err(error).with_context(|| format!("cannot reclaim original update port {address}; close conflicting applications and restart CAT Control")),
+            Err(error) => return Err(error),
         }
     }
 }
