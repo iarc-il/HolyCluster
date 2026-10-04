@@ -107,7 +107,6 @@ async def run_json_spot_collector(
                 failure_count += 1
                 delay = retry_delay(poll_interval, failure_count)
                 logger.warning(f"{source_label} endpoint unavailable; retrying in {delay:.1f}s: {type(e).__name__}")
-                capture_exception(e, operation=f"collector.poll.{metric_name}")
                 await asyncio.sleep(delay)
             except Exception as e:
                 failure_count += 1
