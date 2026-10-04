@@ -1363,37 +1363,59 @@ pub(crate) fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
     fs::create_dir_all(path.parent().context("state path has no parent")?)?;
     let temporary = path.with_extension("tmp");
     fs::write(&temporary, serde_json::to_vec(value)?)?;
-    #[cfg(windows)]
-    {
-        use std::os::windows::ffi::OsStrExt;
-        use windows_sys::Win32::Storage::FileSystem::{
-            MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
-        };
-        let source = temporary
-            .as_os_str()
-            .encode_wide()
-            .chain([0])
-            .collect::<Vec<_>>();
-        let destination = path
-            .as_os_str()
-            .encode_wide()
-            .chain([0])
-            .collect::<Vec<_>>();
+    replace_file(&temporary, path).context("cannot atomically replace update metadata")
+}
+
+#[cfg(windows)]
+fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::{
+        Foundation::{ERROR_ACCESS_DENIED, ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION},
+        Storage::FileSystem::{MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW},
+    };
+
+    let source = source
+        .as_os_str()
+        .encode_wide()
+        .chain([0])
+        .collect::<Vec<_>>();
+    let destination = destination
+        .as_os_str()
+        .encode_wide()
+        .chain([0])
+        .collect::<Vec<_>>();
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let mut delay = Duration::from_millis(10);
+    loop {
         if unsafe {
             MoveFileExW(
                 source.as_ptr(),
                 destination.as_ptr(),
                 MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
             )
-        } == 0
+        } != 0
         {
-            return Err(io::Error::last_os_error())
-                .context("cannot atomically replace update metadata");
+            return Ok(());
         }
+        let error = io::Error::last_os_error();
+        if !matches!(
+            error.raw_os_error(),
+            Some(code)
+                if code == ERROR_ACCESS_DENIED as i32
+                    || code == ERROR_LOCK_VIOLATION as i32
+                    || code == ERROR_SHARING_VIOLATION as i32
+        ) || std::time::Instant::now() >= deadline
+        {
+            return Err(error);
+        }
+        std::thread::sleep(delay);
+        delay = (delay * 2).min(Duration::from_millis(100));
     }
-    #[cfg(not(windows))]
-    fs::rename(temporary, path)?;
-    Ok(())
+}
+
+#[cfg(not(windows))]
+fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
+    fs::rename(source, destination)
 }
 
 #[cfg(windows)]
@@ -1449,6 +1471,41 @@ fn update_helper_active(helper: &UpdateHelper) -> Option<bool> {
 mod helper_process_tests {
     use super::*;
     use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+    #[test]
+    fn retries_metadata_replace_while_destination_is_open() {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_SHARE_READ;
+
+        let data_dir = std::env::temp_dir().join(format!(
+            "catserver-update-metadata-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&data_dir).unwrap();
+        let path = data_dir.join("state.json");
+        fs::write(&path, br#"{"state":"old"}"#).unwrap();
+        let handle = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ)
+            .open(&path)
+            .unwrap();
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(100));
+            drop(handle);
+        });
+
+        write_json(&path, &serde_json::json!({ "state": "new" })).unwrap();
+
+        release.join().unwrap();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&fs::read(&path).unwrap()).unwrap(),
+            serde_json::json!({ "state": "new" })
+        );
+        fs::remove_dir_all(data_dir).unwrap();
+    }
 
     #[test]
     fn identifies_live_helper_and_reused_pid() {
