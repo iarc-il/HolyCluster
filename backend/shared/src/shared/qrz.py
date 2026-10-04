@@ -200,7 +200,10 @@ async def get_locator_from_qrz(
 
     url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
 
-    response = await _get_with_retries(http_client, url, timeout=5)
+    try:
+        response = await _get_with_retries(http_client, url, timeout=5)
+    except (httpx.TransportError, httpx.HTTPStatusError) as e:
+        return _lookup_error(f"qrz request unavailable: {type(e).__name__}")
 
     if response.status_code != 200:
         return _lookup_error(f"qrz response code {response.status_code}")
