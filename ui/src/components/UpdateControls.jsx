@@ -1,27 +1,42 @@
+import UpdateProgress from "@/components/UpdateProgress.jsx";
 import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
 
 export function UpdateConsentDialog() {
-    const { enabled, status, remote_version, defer, install, session } = useUpdate();
+    const { enabled, status, remote_version, defer, install, session, active, dismiss } =
+        useUpdate();
     const is_available = enabled && !session && status === "available";
+    const show_update = is_available || session != null;
 
     return (
         <Modal
-            title={<h2 className="text-xl">CAT Control update available</h2>}
+            title={<h2 className="text-lg">CAT Control update{session ? "" : " available"}</h2>}
             button={<span aria-hidden="true" />}
-            external_open={is_available}
-            on_cancel={() => defer()}
-            on_apply={() => {
-                install();
-                return true;
+            external_open={show_update}
+            external_close={show_update}
+            on_cancel={() => {
+                if (!session) defer();
+                else if (!active) dismiss();
             }}
+            on_apply={
+                session
+                    ? null
+                    : () => {
+                          install();
+                          return false;
+                      }
+            }
             apply_text="Update"
             cancel_text="Later"
-            modal_style={{ width: "30rem" }}
+            modal_style={{ width: "24rem", maxWidth: "calc(100vw - 2rem)" }}
         >
-            <p className="p-4">Version {remote_version ?? ""} is ready to install.</p>
+            {session ? (
+                <UpdateProgress />
+            ) : (
+                <p className="p-4 text-sm">Version {remote_version ?? ""} is ready to install.</p>
+            )}
         </Modal>
     );
 }
@@ -44,7 +59,7 @@ function message_for(status, error) {
         reconnecting: "Reconnecting to CAT Control…",
         recovering: "Restarting CAT Control after the installer did not complete…",
         updated: "CAT Control restarted with the verified update.",
-        installing: "Installing CAT Control. This page will stay open while it restarts.",
+        installing: "Installing CAT Control…",
         reboot_required: "Restart Windows to finish installing CAT Control.",
         unsupported: "Automatic updates are not supported on this platform.",
         failed: error ?? "CAT Control update failed.",

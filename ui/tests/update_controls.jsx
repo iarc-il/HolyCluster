@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -182,6 +182,50 @@ describe("CAT Control updates", () => {
         await waitFor(() =>
             expect(fetch).toHaveBeenLastCalledWith("/api/update/install", expect.any(Object)),
         );
+    });
+
+    it("keeps compact installation progress inside the update modal", async () => {
+        const session = {
+            id: "compact",
+            phase: "downloading",
+            expected_version: "1.3.0",
+            downloaded: 32,
+            total: 128,
+            log_path: "C:/private/msi-install.log",
+        };
+        let installing = false;
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(path => {
+                if (path.endsWith("/install")) installing = true;
+                return Promise.resolve(
+                    response(
+                        installing
+                            ? { state: "installing", session }
+                            : { state: "available", available_version: "1.3.0" },
+                    ),
+                );
+            }),
+        );
+        render_updates();
+        await userEvent.click(await screen.findByRole("button", { name: "Update" }));
+        const dialog = screen.getByRole("dialog");
+        const progress = await within(dialog).findByRole("progressbar", {
+            name: "Download progress",
+        });
+        expect(progress.value).toBe(32);
+        expect(screen.getAllByRole("progressbar")).toHaveLength(1);
+        expect(within(dialog).getByRole("status").className).not.toContain("z-40");
+        expect(
+            screen.queryByText(/current view is retained|Installer log:|private\/msi-install/i),
+        ).toBeNull();
+        expect(within(dialog).queryByRole("button", { name: "Update", exact: true })).toBeNull();
+        session.phase = "failed";
+        session.installer_outcome = "failed";
+        await within(dialog).findByText("Update failed");
+        expect(
+            screen.queryByText(/current view is retained|Installer log:|private\/msi-install/i),
+        ).toBeNull();
     });
 
     it("keeps a declined update visible and installable later", async () => {
