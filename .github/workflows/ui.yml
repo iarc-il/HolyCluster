@@ -97,7 +97,7 @@ jobs:
       - name: Install Playwright browser
         run: |
           cd ui
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
 
       - name: Run Playwright end-to-end tests
         run: |
