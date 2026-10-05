@@ -1,10 +1,12 @@
 name: Build and Deploy the UI
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - "ui/**"
       - ".github/workflows/ui.yml"
+      - "scripts/ci_ssh.sh"
     branches:
       - "dev"
       - "int"
@@ -14,15 +16,19 @@ on:
     paths:
       - "ui/**"
       - ".github/workflows/ui.yml"
+      - "scripts/ci_ssh.sh"
     branches:
       - "dev"
       - "int"
 
+permissions:
+  contents: read
+
 jobs:
   build-and-deploy-ui:
     name: Build, Lint, and Deploy the UI
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/')
+    runs-on: [self-hosted, Linux, X64]
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -47,7 +53,7 @@ jobs:
       - name: Run tests
         run: |
           cd ui
-          npm test
+          npm test -- --maxWorkers=1
 
       - name: Set Sentry build metadata
         env:
@@ -96,7 +102,7 @@ jobs:
       - name: Run Playwright end-to-end tests
         run: |
           cd ui
-          npm run test:e2e
+          npm run test:e2e -- --workers=1
 
       - name: Upload Playwright diagnostics
         if: failure()
@@ -117,13 +123,9 @@ jobs:
 
       - name: Setup SSH
         if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/')
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_DEV }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_INT }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_PROD }} >> ~/.ssh/known_hosts
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: scripts/ci_ssh.sh "${{ secrets.DEPLOY_HOST_DEV }}" "${{ secrets.DEPLOY_HOST_INT }}" "${{ secrets.DEPLOY_HOST_PROD }}"
 
       - name: Upload to Development Server
         if: github.ref == 'refs/heads/dev'
@@ -139,3 +141,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           scripts/deploy_ui.sh "${{ secrets.DEPLOY_USER_PROD }}" "${{ secrets.DEPLOY_HOST_PROD }}" "${{ secrets.DEPLOY_PATH_PROD }}"
+
+      - name: Remove deployment credentials
+        if: always() && env.SSH_AGENT_PID != ''
+        run: ssh-agent -k
