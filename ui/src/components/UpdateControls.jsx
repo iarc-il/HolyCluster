@@ -18,7 +18,8 @@ export function UpdateConsentDialog() {
         dialog_open,
         close_dialog,
     } = useUpdate();
-    const is_available = enabled && !session && status === "available";
+    const is_available =
+        enabled && !session && (status === "available" || (dialog_open && status === "deferred"));
     const show_update = is_available || session != null || (enabled && dialog_open);
 
     return (
@@ -105,7 +106,6 @@ export default function UpdateControls({ on_check = null }) {
         remote_version,
         error,
         check,
-        install,
         retry,
         allow_same_version,
         set_allow_same_version,
@@ -116,7 +116,6 @@ export default function UpdateControls({ on_check = null }) {
 
     const message = message_for(status, error);
     const busy = Boolean(active) || session?.installer_outcome === "unconfirmed";
-    const can_install = !busy && (status === "available" || status === "deferred");
 
     return (
         <section aria-live="polite" className="mt-4 rounded-lg border border-blue-300 p-4">
@@ -145,7 +144,6 @@ export default function UpdateControls({ on_check = null }) {
                 >
                     Check for updates
                 </Button>
-                {can_install && <Button on_click={install}>Install update</Button>}
                 {status === "failed" && !busy && <Button on_click={retry}>Retry update</Button>}
                 {status === "unsupported" && (
                     <a

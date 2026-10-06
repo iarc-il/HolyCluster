@@ -246,6 +246,9 @@ describe("CAT Control updates", () => {
                 response({ status: "deferred", version: { local: "1.0.0", remote: "1.1.0" } }),
             )
             .mockResolvedValueOnce(
+                response({ status: "deferred", version: { local: "1.0.0", remote: "1.1.0" } }),
+            )
+            .mockResolvedValueOnce(
                 response({ status: "installing", version: { local: "1.0.0", remote: "1.1.0" } }),
             );
         vi.stubGlobal("fetch", fetch);
@@ -253,7 +256,14 @@ describe("CAT Control updates", () => {
         render_updates();
         await userEvent.click(await screen.findByRole("button", { name: "Later" }));
         expect(await screen.findByText("CAT Control update available.")).not.toBeNull();
-        await userEvent.click(screen.getByRole("button", { name: "Install update" }));
+        expect(screen.queryByRole("button", { name: "Install update" })).toBeNull();
+        await userEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+        await userEvent.click(
+            await within(screen.getByRole("dialog")).findByRole("button", {
+                name: "Update",
+                exact: true,
+            }),
+        );
         await waitFor(() =>
             expect(fetch).toHaveBeenLastCalledWith("/api/update/install", expect.any(Object)),
         );
