@@ -1,5 +1,6 @@
 import { is_canada_dxcc_code, is_us_state_dxcc_code } from "@/data/dxcc_entities.js";
 import { continents, modes } from "@/data/filters_data.js";
+import { read_live_spot_snapshot, write_live_spot_snapshot } from "@/utils/live_spot_snapshot.js";
 import { normalize_spot_dxcc_fields } from "@/utils/spot_dxcc.js";
 import { find_zone_number } from "@/utils/zones.js";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -62,10 +63,11 @@ export function flatten_buffered_spot_batches(spot_batches) {
 
 export default function useSpotWebSocket() {
     const { send, network_state, readyState } = useWs();
-    const [raw_spots, set_spots] = useState([]);
+    const [raw_spots, set_spots] = useState(read_live_spot_snapshot);
     const [new_spot_ids, set_new_spot_ids] = useState(new Set());
 
     const started_ref = useRef(false);
+    const received_initial_ref = useRef(false);
     const last_spot_time_ref = useRef(0);
     const is_buffering_spots_ref = useRef(false);
     const buffered_spot_batches_ref = useRef([]);
@@ -126,6 +128,17 @@ export default function useSpotWebSocket() {
         },
         [release_buffered_spots],
     );
+
+    useEffect(() => {
+        if (!received_initial_ref.current) return;
+        const save = () => write_live_spot_snapshot(raw_spots);
+        if (window.requestIdleCallback) {
+            const handle = window.requestIdleCallback(save, { timeout: 1000 });
+            return () => window.cancelIdleCallback(handle);
+        }
+        const handle = setTimeout(save, 0);
+        return () => clearTimeout(handle);
+    }, [raw_spots]);
 
     useEffect(() => {
         if (readyState === ReadyState.OPEN && !started_ref.current) {
@@ -191,6 +204,7 @@ export default function useSpotWebSocket() {
 
             apply_spot_update(new_spots);
         } else {
+            received_initial_ref.current = true;
             new_spots = trim_spots_to_last_hour(new_spots);
             set_spots(new_spots);
 
