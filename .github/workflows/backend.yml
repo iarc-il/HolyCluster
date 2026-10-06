@@ -1,12 +1,10 @@
 name: Build and Deploy Backend
 
 on:
-  workflow_dispatch:
   push:
     paths:
       - "backend/**"
       - ".github/workflows/backend.yml"
-      - "scripts/ci_ssh.sh"
     branches:
       - "dev"
       - "int"
@@ -16,19 +14,15 @@ on:
     paths:
       - "backend/**"
       - ".github/workflows/backend.yml"
-      - "scripts/ci_ssh.sh"
     branches:
       - "dev"
       - "int"
 
-permissions:
-  contents: read
-
 jobs:
   build-and-deploy-backend:
     name: Lint and Deploy Backend
-    runs-on: [self-hosted, Linux, X64]
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/backend-v')
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/backend-v')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -69,9 +63,13 @@ jobs:
 
       - name: Setup SSH
         if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/backend-v')
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: scripts/ci_ssh.sh "${{ secrets.DEPLOY_HOST_DEV }}" "${{ secrets.DEPLOY_HOST_INT }}" "${{ secrets.DEPLOY_HOST_PROD }}"
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_DEV }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_INT }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_PROD }} >> ~/.ssh/known_hosts
 
       - name: Deploy to Development Server
         if: github.ref == 'refs/heads/dev'
@@ -91,7 +89,3 @@ jobs:
           TAG=${GITHUB_REF#refs/tags/}
           ssh ${{ secrets.DEPLOY_USER_PROD }}@${{ secrets.DEPLOY_HOST_PROD }} \
             "cd ${{ secrets.REPO_ROOT_PROD }} && git fetch --tags && git checkout $TAG -- backend/deploy.sh && cd backend && bash deploy.sh $TAG"
-
-      - name: Remove deployment credentials
-        if: always() && env.SSH_AGENT_PID != ''
-        run: ssh-agent -k

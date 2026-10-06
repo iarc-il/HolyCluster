@@ -1,12 +1,10 @@
 name: Build and upload catserve
 
 on:
-  workflow_dispatch:
   push:
     paths:
       - "catserver/**"
       - ".github/workflows/catserver.yml"
-      - "scripts/ci_ssh.sh"
     branches:
       - "dev"
     tags:
@@ -15,17 +13,10 @@ on:
     paths:
       - "catserver/**"
       - ".github/workflows/catserver.yml"
-      - "scripts/ci_ssh.sh"
     branches:
       - "dev"
 
-permissions:
-  contents: read
-
 env:
-  CARGO_BUILD_JOBS: "1"
-  CARGO_PROFILE_DEV_DEBUG: "0"
-  CARGO_PROFILE_TEST_DEBUG: "0"
   CARGO_TARGET_DIR: target
   TARGET: x86_64-pc-windows-gnu
   CATSERVER_SENTRY_ENVIRONMENT: ${{ github.ref == 'refs/heads/dev' && 'dev' || github.ref_type == 'tag' && 'prod' || 'dev' }}
@@ -46,11 +37,10 @@ concurrency:
 jobs:
   test-catserver:
     name: Test Catserver
-    runs-on: [self-hosted, Linux, X64]
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/iarc-il/catserver-ci@sha256:4ce4424867da6695955f291277c04ac0155e8d006a1323cbf922ab4c29506117
-      options: --user root --cpus 1 --memory 2g --memory-swap 4g
+      options: --user root
     steps:
       - uses: actions/checkout@v4
         with:
@@ -96,11 +86,10 @@ jobs:
 
   lint-catserver:
     name: Lint Catserver
-    runs-on: [self-hosted, Linux, X64]
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/iarc-il/catserver-ci@sha256:4ce4424867da6695955f291277c04ac0155e8d006a1323cbf922ab4c29506117
-      options: --user root --cpus 1 --memory 2g --memory-swap 4g
+      options: --user root
     steps:
       - uses: actions/checkout@v4
         with:
@@ -139,11 +128,10 @@ jobs:
 
   build-linux:
     name: Build Linux Catserver
-    runs-on: [self-hosted, Linux, X64]
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/iarc-il/catserver-ci@sha256:4ce4424867da6695955f291277c04ac0155e8d006a1323cbf922ab4c29506117
-      options: --user root --cpus 1 --memory 2g --memory-swap 4g
+      options: --user root
     steps:
       - uses: actions/checkout@v4
         with:
@@ -197,11 +185,10 @@ jobs:
 
   build-windows:
     name: Build Windows Catserver
-    runs-on: [self-hosted, Linux, X64]
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/iarc-il/catserver-ci@sha256:4ce4424867da6695955f291277c04ac0155e8d006a1323cbf922ab4c29506117
-      options: --user root --cpus 1 --memory 2g --memory-swap 4g
+      options: --user root
     steps:
       - uses: actions/checkout@v4
         with:
@@ -275,7 +262,7 @@ jobs:
     name: Publish Catserver
     if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
     needs: [test-catserver, lint-catserver, build-linux, build-windows]
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -295,9 +282,14 @@ jobs:
           path: catserver/target/${{ env.TARGET }}/release
 
       - name: Setup SSH
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: scripts/ci_ssh.sh "${{ secrets.DEPLOY_HOST_DEV }}" "${{ secrets.DEPLOY_HOST_PROD }}"
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_DEV }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_PROD }}" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       - name: Upload to Development Server
         if: github.ref == 'refs/heads/dev'
@@ -322,7 +314,3 @@ jobs:
             --version "$VERSION" \
             --artifact "windows:x86_64:catserver/target/$TARGET/release/HolyCluster.msi:$VERSION-windows-x86_64.msi" \
             --artifact "linux:x86_64:catserver/target/x86_64-unknown-linux-gnu/release/$VERSION-linux-x86_64.AppImage:$VERSION-linux-x86_64.AppImage"
-
-      - name: Remove deployment credentials
-        if: always() && env.SSH_AGENT_PID != ''
-        run: ssh-agent -k
