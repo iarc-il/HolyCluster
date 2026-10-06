@@ -517,9 +517,9 @@ impl UpdateService {
     #[cfg(windows)]
     fn start_windows_helper(&self, installing: &UpdateStatus) -> Result<()> {
         let executable = std::env::current_exe()?;
-        let helper_path = self.data_dir.join("update-helper.exe");
-        fs::create_dir_all(&self.data_dir)?;
-        fs::copy(executable, &helper_path).context("cannot stage update helper")?;
+        cleanup_update_helpers(&self.data_dir);
+        let helper_path = stage_update_helper(&executable, &self.data_dir)
+            .context("cannot stage update helper")?;
         let mut command = Command::new(helper_path);
         command.arg("--apply-update").arg(self.plan_path());
         let mut helper = crate::windows_sockets::spawn(&mut command)
@@ -1418,6 +1418,47 @@ fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
     fs::rename(source, destination)
 }
 
+#[cfg(any(test, windows))]
+fn stage_update_helper(executable: &Path, data_dir: &Path) -> io::Result<PathBuf> {
+    let helpers_dir = data_dir.join("helpers");
+    fs::create_dir_all(&helpers_dir)?;
+    let attempt_dir = helpers_dir.join(uuid::Uuid::new_v4().to_string());
+    fs::create_dir(&attempt_dir)?;
+    let helper_path = attempt_dir.join("update-helper.exe");
+    if let Err(error) = fs::copy(executable, &helper_path) {
+        let _ = fs::remove_file(&helper_path);
+        let _ = fs::remove_dir(&attempt_dir);
+        return Err(error);
+    }
+    Ok(helper_path)
+}
+
+#[cfg(any(test, windows))]
+fn cleanup_update_helpers(data_dir: &Path) {
+    let _ = fs::remove_file(data_dir.join("update-helper.exe"));
+    let Ok(entries) = fs::read_dir(data_dir.join("helpers")) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if !entry.file_type().is_ok_and(|kind| kind.is_dir())
+            || uuid::Uuid::parse_str(&entry.file_name().to_string_lossy()).is_err()
+        {
+            continue;
+        }
+        let attempt_dir = entry.path();
+        let helper_path = attempt_dir.join("update-helper.exe");
+        match fs::remove_file(helper_path) {
+            Ok(()) => {
+                let _ = fs::remove_dir(attempt_dir);
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                let _ = fs::remove_dir(attempt_dir);
+            }
+            Err(_) => {}
+        }
+    }
+}
+
 #[cfg(windows)]
 fn windows_process_start_time(handle: windows_sys::Win32::Foundation::HANDLE) -> Result<u64> {
     use windows_sys::Win32::{Foundation::FILETIME, System::Threading::GetProcessTimes};
@@ -1464,6 +1505,87 @@ fn update_helper_active(helper: &UpdateHelper) -> Option<bool> {
         WAIT_TIMEOUT => Some(true),
         WAIT_OBJECT_0 => Some(false),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod helper_staging_tests {
+    use super::*;
+
+    #[test]
+    fn stages_each_attempt_without_overwriting_a_previous_helper() {
+        let root =
+            std::env::temp_dir().join(format!("catserver-helper-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let executable = root.join("source.exe");
+        let data_dir = root.join("updates");
+        fs::write(&executable, b"first helper").unwrap();
+        let first = stage_update_helper(&executable, &data_dir).unwrap();
+        fs::write(&executable, b"second helper").unwrap();
+        let second = stage_update_helper(&executable, &data_dir).unwrap();
+        assert_ne!(first, second);
+        assert_eq!(fs::read(first).unwrap(), b"first helper");
+        assert_eq!(fs::read(second).unwrap(), b"second helper");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn removes_unused_helpers_but_preserves_unrelated_files() {
+        let root =
+            std::env::temp_dir().join(format!("catserver-helper-cleanup-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let executable = root.join("source.exe");
+        fs::write(&executable, b"helper").unwrap();
+        let helper = stage_update_helper(&executable, &root).unwrap();
+        let unrelated = root.join("helpers/not-an-attempt");
+        fs::create_dir(&unrelated).unwrap();
+        fs::write(unrelated.join("update-helper.exe"), b"unrelated").unwrap();
+        fs::write(root.join("update-helper.exe"), b"legacy").unwrap();
+        cleanup_update_helpers(&root);
+        assert!(!helper.exists());
+        assert!(!helper.parent().unwrap().exists());
+        assert!(!root.join("update-helper.exe").exists());
+        assert!(unrelated.join("update-helper.exe").exists());
+        assert!(executable.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn removes_partial_helper_directory_when_copy_fails() {
+        let root =
+            std::env::temp_dir().join(format!("catserver-helper-failure-{}", uuid::Uuid::new_v4()));
+        let error = stage_update_helper(&root.join("missing.exe"), &root).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+        assert_eq!(fs::read_dir(root.join("helpers")).unwrap().count(), 0);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn stages_new_helper_while_previous_helper_is_locked() {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_SHARE_READ;
+        let root =
+            std::env::temp_dir().join(format!("catserver-helper-locked-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let executable = root.join("source.exe");
+        fs::write(&executable, b"helper").unwrap();
+        let first = stage_update_helper(&executable, &root).unwrap();
+        let lock = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ)
+            .open(&first)
+            .unwrap();
+        cleanup_update_helpers(&root);
+        let second = stage_update_helper(&executable, &root).unwrap();
+        assert_ne!(first, second);
+        assert!(first.exists());
+        assert!(second.exists());
+        drop(lock);
+        cleanup_update_helpers(&root);
+        assert!(!first.exists());
+        assert!(!second.exists());
+        fs::remove_dir_all(root).unwrap();
     }
 }
 
