@@ -23,6 +23,7 @@ function Modal({
     data_tour = null,
     dialog_data_tour = null,
     children,
+    footer = null,
 }) {
     const [show_modal, set_show_modal] = useState(false);
     const [applying, set_applying] = useState(false);
@@ -206,7 +207,11 @@ function Modal({
                                     </div>
                                 ) : null}
                                 <div>{children}</div>
-                                {on_cancel != null && on_apply != null ? (
+                                {footer != null ? (
+                                    <div className="flex items-center justify-around p-3 border-t border-solid border-blueGray-200 rounded-b">
+                                        {footer}
+                                    </div>
+                                ) : on_cancel != null && on_apply != null ? (
                                     <div className="flex items-center justify-around p-3 border-t border-solid border-blueGray-200 rounded-b">
                                         {on_cancel != null ? (
                                             <Button

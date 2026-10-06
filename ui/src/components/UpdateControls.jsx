@@ -30,6 +30,13 @@ export function UpdateConsentDialog() {
             }
             apply_text="Update"
             cancel_text="Later"
+            footer={
+                session && !active ? (
+                    <Button color="red" on_click={dismiss}>
+                        Dismiss
+                    </Button>
+                ) : null
+            }
             modal_style={{ width: "24rem", maxWidth: "calc(100vw - 2rem)" }}
         >
             {session ? (

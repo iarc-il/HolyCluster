@@ -21,7 +21,7 @@ const labels = {
 };
 
 export default function UpdateProgress() {
-    const { session, active, status, error, reconnect, dismiss, local_version } = useUpdate();
+    const { session, active, status, error, reconnect, local_version } = useUpdate();
     const [now, set_now] = useState(Date.now());
     useEffect(() => {
         if (!session || !active) return;
@@ -63,11 +63,6 @@ export default function UpdateProgress() {
             {session.installer_outcome === "installed" && !session.verified && (
                 <button type="button" className="mr-3 underline" onClick={reconnect}>
                     Retry connection
-                </button>
-            )}
-            {!active && (
-                <button type="button" className="underline" onClick={dismiss}>
-                    Dismiss
                 </button>
             )}
         </section>

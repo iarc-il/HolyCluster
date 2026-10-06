@@ -223,6 +223,10 @@ describe("CAT Control updates", () => {
         session.phase = "failed";
         session.installer_outcome = "failed";
         await within(dialog).findByText("Update failed");
+        const dismiss = within(dialog).getByRole("button", { name: "Dismiss" });
+        expect(dismiss.className).toContain("bg-red-600");
+        expect(dismiss.parentElement.className).toContain("justify-around");
+        expect(dismiss.closest('[role="status"]')).toBeNull();
         expect(
             screen.queryByText(/current view is retained|Installer log:|private\/msi-install/i),
         ).toBeNull();
