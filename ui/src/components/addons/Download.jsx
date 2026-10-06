@@ -1,4 +1,5 @@
 import Card from "@/components/addons/components/Card";
+import Spinner from "@/components/ui/Spinner.jsx";
 import { useEffect, useState } from "react";
 
 function platform() {
@@ -7,6 +8,7 @@ function platform() {
 
 export default function Download() {
     const [downloads, set_downloads] = useState({});
+    const [loading, set_loading] = useState(true);
     const current_platform = platform();
     const alternate_platform = current_platform === "linux" ? "windows" : "linux";
     const current_name = current_platform === "linux" ? "Linux" : "Windows";
@@ -32,7 +34,8 @@ export default function Download() {
             }),
         )
             .then(results => set_downloads(Object.fromEntries(results.filter(Boolean))))
-            .catch(() => set_downloads({}));
+            .catch(() => set_downloads({}))
+            .finally(() => set_loading(false));
     }, []);
 
     return (
@@ -55,13 +58,17 @@ export default function Download() {
                                 >
                                     Download for {current_name}
                                 </a>
-                            ) : current_platform === "linux" ? (
-                                <span className="mt-6 inline-flex rounded-lg bg-gray-400 px-8 py-4 text-xl font-semibold text-white">
-                                    Linux download: Upcoming!
+                            ) : loading ? (
+                                <span
+                                    className="mt-6 inline-flex items-center justify-center rounded-lg bg-addons-primary px-8 py-4 text-xl font-semibold text-white"
+                                    role="status"
+                                >
+                                    <Spinner size="28" color="currentColor" />
+                                    <span className="sr-only">Loading {current_name} download</span>
                                 </span>
                             ) : (
                                 <span className="mt-6 inline-flex rounded-lg bg-gray-400 px-8 py-4 text-xl font-semibold text-white">
-                                    Preparing {current_name} download...
+                                    {current_name} download unavailable
                                 </span>
                             )}
                             <p className="mt-2 text-sm text-gray-600">
@@ -77,13 +84,7 @@ export default function Download() {
                                         Download the {alternate_format}
                                     </a>
                                 </p>
-                            ) : (
-                                alternate_platform === "linux" && (
-                                    <p className="mt-6 text-sm text-gray-600">
-                                        Linux version: Upcoming!
-                                    </p>
-                                )
-                            )}
+                            ) : null}
                         </div>
                     </Card>
                 </div>
