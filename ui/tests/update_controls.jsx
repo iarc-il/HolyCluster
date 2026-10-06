@@ -8,6 +8,7 @@ vi.mock("@/hooks/useRadio", () => ({
     default: () => cat.current,
 }));
 
+import About from "@/components/About.jsx";
 import UpdateControls, { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
 import {
     UpdateProvider,
@@ -17,7 +18,12 @@ import {
 import { NATIVE_UPDATER_MIN_VERSION } from "@/utils/cat_features.js";
 
 vi.mock("@/hooks/useColors", () => ({
-    useColors: () => ({ colors: { theme: { text: "#fff", modals: "#111", borders: "#333" } } }),
+    useColors: () => ({
+        colors: {
+            buttons: { utility: "#fff" },
+            theme: { text: "#fff", modals: "#111", borders: "#333" },
+        },
+    }),
 }));
 
 function response(payload, ok = true) {
@@ -251,6 +257,40 @@ describe("CAT Control updates", () => {
         await waitFor(() =>
             expect(fetch).toHaveBeenLastCalledWith("/api/update/install", expect.any(Object)),
         );
+    });
+
+    it("replaces About with the update dialog while a manual check is pending", async () => {
+        window.localStorage.clear();
+        let finish;
+        let manual = false;
+        const fetch = vi.fn(path =>
+            path.endsWith("/check") && manual
+                ? new Promise(resolve => {
+                      finish = resolve;
+                  })
+                : Promise.resolve(response({ state: "idle" })),
+        );
+        vi.stubGlobal("fetch", fetch);
+        render(
+            <UpdateProvider>
+                <UpdateConsentDialog />
+                <About />
+            </UpdateProvider>,
+        );
+        await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+        await userEvent.click(screen.getByTitle("About us!"));
+        manual = true;
+        await userEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+        expect(screen.getAllByRole("dialog")).toHaveLength(1);
+        const dialog = screen.getByRole("dialog");
+        expect(dialog.getAttribute("data-tour")).not.toBe("about-modal");
+        expect(within(dialog).getByText("Checking for CAT Control updates…")).not.toBeNull();
+        await act(async () => finish(response({ state: "idle" })));
+        expect(within(dialog).getByText("CAT Control is up to date.")).not.toBeNull();
+        await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+        expect(screen.queryByRole("dialog")).toBeNull();
+        await userEvent.click(screen.getByTitle("About us!"));
+        expect(screen.getByRole("dialog").getAttribute("data-tour")).toBe("about-modal");
     });
 
     it("offers retry after a failed update check", async () => {

@@ -199,6 +199,7 @@ export function UpdateProvider({ children }) {
     const ws = useWs();
     const { dev_mode } = useColors();
     const [allow_same_version, set_allow_same_version] = useState(false);
+    const [dialog_open, set_dialog_open] = useState(false);
     const update_dev_mode = Boolean(dev_mode && allow_same_version);
     const supported = supports_cat_feature(local_version, NATIVE_UPDATER_MIN_VERSION);
     const [session, set_session_state] = useState(null);
@@ -463,6 +464,8 @@ export function UpdateProvider({ children }) {
             ...update,
             enabled,
             session,
+            dialog_open,
+            close_dialog: () => set_dialog_open(false),
             active: session != null && !terminal_session(session),
             allow_same_version,
             set_allow_same_version,
@@ -472,17 +475,34 @@ export function UpdateProvider({ children }) {
                 set_poll_generation(current => current + 1);
             },
             dismiss: () => {
+                set_dialog_open(false);
                 if (session_ref.current?.id)
                     dismissed_sessions_ref.current.add(session_ref.current.id);
                 set_session(null);
                 refresh();
             },
-            check: () => action("/api/update/check"),
+            check: () => {
+                set_dialog_open(true);
+                return action("/api/update/check");
+            },
             install: () => action("/api/update/install"),
-            defer: () => action("/api/update/defer"),
+            defer: () => {
+                set_dialog_open(false);
+                return action("/api/update/defer");
+            },
             retry: () => action("/api/update/retry"),
         }),
-        [update, enabled, session, allow_same_version, refresh, action, ws?.reconnect, set_session],
+        [
+            update,
+            enabled,
+            session,
+            dialog_open,
+            allow_same_version,
+            refresh,
+            action,
+            ws?.reconnect,
+            set_session,
+        ],
     );
     return <UpdateContext.Provider value={value}>{children}</UpdateContext.Provider>;
 }

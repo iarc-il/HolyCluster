@@ -5,28 +5,42 @@ import { useColors } from "@/hooks/useColors";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
 
 export function UpdateConsentDialog() {
-    const { enabled, status, remote_version, defer, install, session, active, dismiss } =
-        useUpdate();
+    const {
+        enabled,
+        status,
+        remote_version,
+        error,
+        defer,
+        install,
+        session,
+        active,
+        dismiss,
+        dialog_open,
+        close_dialog,
+    } = useUpdate();
     const is_available = enabled && !session && status === "available";
-    const show_update = is_available || session != null;
+    const show_update = is_available || session != null || (enabled && dialog_open);
 
     return (
         <Modal
-            title={<h2 className="text-lg">CAT Control update{session ? "" : " available"}</h2>}
+            title={
+                <h2 className="text-lg">CAT Control update{is_available ? " available" : ""}</h2>
+            }
             button={<span aria-hidden="true" />}
             external_open={show_update}
             external_close={show_update}
             on_cancel={() => {
-                if (!session) defer();
-                else if (!active) dismiss();
+                close_dialog();
+                if (is_available) defer();
+                else if (session && !active) dismiss();
             }}
             on_apply={
-                session
-                    ? null
-                    : () => {
+                is_available
+                    ? () => {
                           install();
                           return false;
                       }
+                    : null
             }
             apply_text="Update"
             cancel_text="Later"
@@ -35,6 +49,10 @@ export function UpdateConsentDialog() {
                     <Button color="red" on_click={dismiss}>
                         Dismiss
                     </Button>
+                ) : !session && !is_available ? (
+                    <Button color="red" on_click={close_dialog}>
+                        Close
+                    </Button>
                 ) : null
             }
             modal_style={{ width: "24rem", maxWidth: "calc(100vw - 2rem)" }}
@@ -42,7 +60,11 @@ export function UpdateConsentDialog() {
             {session ? (
                 <UpdateProgress />
             ) : (
-                <p className="p-4 text-sm">Version {remote_version ?? ""} is ready to install.</p>
+                <p className="p-4 text-sm">
+                    {is_available
+                        ? `Version ${remote_version ?? ""} is ready to install.`
+                        : (message_for(status, error) ?? "Checking for CAT Control updates…")}
+                </p>
             )}
         </Modal>
     );
@@ -74,7 +96,7 @@ function message_for(status, error) {
     return messages[status] ?? null;
 }
 
-export default function UpdateControls() {
+export default function UpdateControls({ on_check = null }) {
     const { dev_mode } = useColors();
     const {
         enabled,
@@ -116,7 +138,10 @@ export default function UpdateControls() {
             <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                     disabled={busy || status === "loading" || status === "checking"}
-                    on_click={check}
+                    on_click={() => {
+                        on_check?.();
+                        check();
+                    }}
                 >
                     Check for updates
                 </Button>

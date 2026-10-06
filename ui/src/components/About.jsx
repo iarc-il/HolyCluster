@@ -182,6 +182,7 @@ function Info({ size }) {
 
 function About() {
     const { colors } = useColors();
+    const [about_closed, set_about_closed] = useState(false);
 
     const about = (
         <div className="p-2">
@@ -238,7 +239,7 @@ function About() {
                 </a>
             </p>
             Contact us at: <strong>holycluster@iarc.org</strong>
-            <UpdateControls />
+            <UpdateControls on_check={() => set_about_closed(true)} />
         </div>
     );
 
@@ -312,6 +313,8 @@ function About() {
             on_cancel={() => true}
             cancel_text="close"
             external_open={should_display_release_notes}
+            external_close={!about_closed}
+            on_open={() => set_about_closed(false)}
         >
             <div className="text-left w-full" style={{ color: colors.theme.text }}>
                 <Tabs
