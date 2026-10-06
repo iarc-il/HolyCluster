@@ -34,6 +34,34 @@ function sanitizeExtra(value) {
     return "[redacted]";
 }
 
+function sanitizeErrorMessage(message) {
+    if (typeof message !== "string") return sanitized_message;
+
+    if (/^Cannot read properties of (undefined|null)/.test(message)) {
+        return message.startsWith("Cannot read properties of undefined")
+            ? "Cannot read properties of undefined"
+            : "Cannot read properties of null";
+    }
+    if (/^.* is not a function$/.test(message)) return "Value is not a function";
+    if (/^.* is not defined$/.test(message)) return "Variable is not defined";
+    if (/^Cannot access .* before initialization$/.test(message)) {
+        return "Cannot access variable before initialization";
+    }
+    if (message === "Failed to fetch" || message === "Load failed") return message;
+    if (/^Loading (chunk|CSS chunk) .* failed/.test(message)) return "Loading chunk failed";
+    if (/^Failed to fetch dynamically imported module/.test(message)) {
+        return "Failed to fetch dynamically imported module";
+    }
+    if (message === "ResizeObserver loop completed with undelivered notifications.") return message;
+    return sanitized_message;
+}
+
+function sanitizeFunctionName(name) {
+    return typeof name === "string" && /^[A-Za-z_$][A-Za-z_$.<> ]{0,127}$/.test(name)
+        ? name
+        : undefined;
+}
+
 function sanitizeException(exception) {
     if (!exception?.values) {
         return exception;
@@ -43,12 +71,21 @@ function sanitizeException(exception) {
         ...exception,
         values: exception.values.map(value => ({
             type: value.type,
-            value: sanitized_message,
+            value: sanitizeErrorMessage(value.value),
+            mechanism: value.mechanism && {
+                type: sanitizeFunctionName(value.mechanism.type),
+                handled:
+                    typeof value.mechanism.handled === "boolean"
+                        ? value.mechanism.handled
+                        : undefined,
+            },
             stacktrace: value.stacktrace && {
                 frames: value.stacktrace.frames?.map(frame => ({
                     colno: frame.colno,
                     filename: sanitizeSourceUrl(frame.filename),
+                    function: sanitizeFunctionName(frame.function),
                     lineno: frame.lineno,
+                    in_app: typeof frame.in_app === "boolean" ? frame.in_app : undefined,
                 })),
             },
         })),
