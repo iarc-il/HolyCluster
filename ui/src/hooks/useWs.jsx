@@ -7,11 +7,12 @@ const WS_BASE_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//
 const WS_PROBE_TIMEOUT_MS = 1500;
 const WsContext = createContext(null);
 
-function is_unified_cat_identity(message) {
+function is_unified_identity(message) {
     return (
         message?.type === "radio" &&
         message.event === "status" &&
-        typeof message.catserver_version === "string"
+        (typeof message.catserver_version === "string" ||
+            (message.version === 1 && message.status === "unavailable"))
     );
 }
 
@@ -100,6 +101,13 @@ export function WsProvider({ children }) {
         `${WS_BASE_URL}/ws${connection_generation ? `?resume=${connection_generation}` : ""}`,
         {
             ...reconnect_options,
+            onOpen: event => {
+                if (transport_ref.current === "probing") {
+                    event.target.send(
+                        JSON.stringify({ version: 1, type: "radio", action: "GetCapabilities" }),
+                    );
+                }
+            },
             onClose: () => reset_transport("unified"),
             onMessage: event => {
                 try {
@@ -176,7 +184,7 @@ export function WsProvider({ children }) {
             dispatch(unified_message);
         } else if (
             transport_ref.current === "probing" &&
-            is_unified_cat_identity(unified_message) &&
+            is_unified_identity(unified_message) &&
             select_transport("unified")
         ) {
             dispatch(unified_message);
