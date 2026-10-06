@@ -60,7 +60,7 @@ export default function UpdateProgress() {
             {(session.diagnostic || error) && <p>{session.diagnostic ?? error}</p>}
             {phase === "updated" && <p>Verified running version: {local_version}</p>}
             {active && seconds >= 60 && <p>Still waiting ({seconds}s)…</p>}
-            {phase !== "updated" && (
+            {session.installer_outcome === "installed" && !session.verified && (
                 <button type="button" className="mr-3 underline" onClick={reconnect}>
                     Retry connection
                 </button>
