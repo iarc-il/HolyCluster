@@ -303,6 +303,42 @@ describe("CAT Control updates", () => {
         expect(screen.getByRole("dialog").getAttribute("data-tour")).toBe("about-modal");
     });
 
+    it("retries installation from the UAC cancellation dialog", async () => {
+        let attempts = 0;
+        const fetch = vi.fn(path => {
+            if (path.endsWith("/install")) {
+                attempts += 1;
+                return Promise.resolve(
+                    response({
+                        state: attempts === 1 ? "failed" : "installing",
+                        session: {
+                            id: `uac-${attempts}`,
+                            phase: attempts === 1 ? "permission_cancelled" : "downloading",
+                            expected_version: "1.3.0",
+                            installer_outcome: attempts === 1 ? "failed" : null,
+                            diagnostic:
+                                attempts === 1 ? "The user dismissed the installation" : null,
+                        },
+                    }),
+                );
+            }
+            return Promise.resolve(response({ state: "available", available_version: "1.3.0" }));
+        });
+        vi.stubGlobal("fetch", fetch);
+        render_updates();
+        await userEvent.click(await screen.findByRole("button", { name: "Update", exact: true }));
+        const dialog = screen.getByRole("dialog");
+        const retry = await within(dialog).findByRole("button", { name: "Retry update" });
+        expect(within(dialog).getByText("The user dismissed the installation")).not.toBeNull();
+        expect(retry.parentElement).toBe(
+            within(dialog).getByRole("button", { name: "Dismiss" }).parentElement,
+        );
+        await userEvent.click(retry);
+        expect(attempts).toBe(2);
+        expect(fetch).toHaveBeenLastCalledWith("/api/update/install", expect.any(Object));
+        expect(within(dialog).queryByRole("button", { name: "Retry update" })).toBeNull();
+    });
+
     it("offers retry after a failed update check", async () => {
         const fetch = vi
             .fn()

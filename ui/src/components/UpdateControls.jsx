@@ -47,9 +47,15 @@ export function UpdateConsentDialog() {
             cancel_text="Later"
             footer={
                 session && !active ? (
-                    <Button color="red" on_click={dismiss}>
-                        Dismiss
-                    </Button>
+                    <>
+                        <Button color="red" on_click={dismiss}>
+                            Dismiss
+                        </Button>
+                        {session.phase === "permission_cancelled" &&
+                            session.installer_outcome === "failed" && (
+                                <Button on_click={install}>Retry update</Button>
+                            )}
+                    </>
                 ) : !session && !is_available ? (
                     <Button color="red" on_click={close_dialog}>
                         Close
