@@ -10,6 +10,7 @@ use crate::{
     archive::{ArchiveError, ArchiveRequest, NetworkAccess, acquire_archive, extract_archive},
     package::{HAMLIB, LIBUSB, SourcePackage},
     plan::{BuildPlan, BuildPlanError, libusb_metadata},
+    size_flags::native_size_flags,
     source::{SourceOverrideError, local_source},
     target_dir::resolve_cargo_target_dir,
     toolchain::{MINGW_TOOLCHAIN, ToolchainError, validate_mingw_toolchain},
@@ -47,6 +48,9 @@ pub fn build_from_environment() -> Result<(), SupportError> {
     println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_ARCHIVE");
     println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_DIR");
     println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_NETWORK");
+    for variable in ["PROFILE", "CFLAGS", "CXXFLAGS"] {
+        println!("cargo:rerun-if-env-changed={variable}");
+    }
     let out_dir = variable_path("OUT_DIR")?;
     let target = env::var("TARGET").map_err(|_| SupportError::MissingEnvironment("TARGET"))?;
     let plan = BuildPlan::for_target(&target)?;
@@ -63,7 +67,13 @@ pub fn build_from_environment() -> Result<(), SupportError> {
         .is_windows()
         .then(|| build_libusb(&out_dir, &target))
         .transpose()?;
-    run_configure(&source, &plan, &prefix, libusb.as_deref())?;
+    run_configure(
+        &source,
+        &plan,
+        &prefix,
+        libusb.as_deref(),
+        source_override.is_none(),
+    )?;
     run_make(&source)?;
     run_make_install(&source)?;
     emit_metadata(&plan.metadata(&prefix), &prefix, libusb.as_deref());
@@ -125,6 +135,8 @@ fn build_libusb(out_dir: &Path, target: &str) -> Result<PathBuf, SupportError> {
         "--disable-shared".to_owned(),
         "--enable-static".to_owned(),
     ]);
+    // Keep libusb's own compiler settings. GCC's -Os triggers an upstream
+    // -Werror=maybe-uninitialized failure in libusb 1.0.30 on MinGW.
     command.envs(MINGW_TOOLCHAIN);
     run("sh", &mut command)?;
     validate_mingw_toolchain(&fs::read_to_string(source.join("config.log"))?)?;
@@ -142,6 +154,7 @@ fn run_configure(
     plan: &BuildPlan,
     prefix: &Path,
     libusb: Option<&Path>,
+    managed_source: bool,
 ) -> Result<(), SupportError> {
     let mut command = Command::new("sh");
     command
@@ -160,11 +173,26 @@ fn run_configure(
         command.env("PKG_CONFIG_LIBDIR", libusb.join("lib/pkgconfig"));
         command.env("PKG_CONFIG_PATH", "");
     }
+    // Only change flags for fresh, Cargo-managed source trees. Reconfiguring a
+    // caller's existing HAMLIB_SOURCE_DIR does not rebuild its cached objects.
+    if managed_source {
+        configure_native_size_flags(&mut command, plan.is_windows());
+    }
     run("sh", &mut command)?;
     if plan.is_windows() {
         validate_mingw_toolchain(&fs::read_to_string(source.join("config.log"))?)?;
     }
     Ok(())
+}
+
+fn configure_native_size_flags(command: &mut Command, windows: bool) {
+    let release = env::var("PROFILE").as_deref() == Ok("release");
+    for variable in ["CFLAGS", "CXXFLAGS"] {
+        if release {
+            let caller_flags = env::var_os(variable).unwrap_or_default();
+            command.env(variable, native_size_flags(release, windows, &caller_flags));
+        }
+    }
 }
 
 fn run_make(source: &Path) -> Result<(), SupportError> {

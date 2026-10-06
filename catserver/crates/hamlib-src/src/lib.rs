@@ -3,6 +3,8 @@
 mod archive;
 mod package;
 mod plan;
+#[cfg(test)]
+mod size_flags;
 mod source;
 #[cfg(test)]
 mod target_dir;

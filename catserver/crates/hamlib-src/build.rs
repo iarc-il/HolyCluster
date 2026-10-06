@@ -4,6 +4,8 @@ mod archive;
 mod package;
 #[path = "src/plan.rs"]
 mod plan;
+#[path = "src/size_flags.rs"]
+mod size_flags;
 #[path = "src/source.rs"]
 mod source;
 #[path = "src/support.rs"]
