@@ -1,4 +1,5 @@
 import ProgressBar from "@/components/ui/ProgressBar.jsx";
+import Spinner from "@/components/ui/Spinner.jsx";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
 import { format_bytes } from "@/utils/format_bytes.js";
 import { useEffect, useState } from "react";
@@ -35,11 +36,21 @@ export default function UpdateProgress() {
           ? "reconnecting"
           : session.phase;
     const seconds = Math.max(0, Math.floor((now - session.started) / 1000));
+    const has_download_progress = phase === "downloading" && session.total > 0;
     return (
         <section role="status" aria-live="polite" className="space-y-2 p-4 text-sm">
-            <strong className="font-medium">{labels[phase] ?? "Waiting for confirmation"}</strong>
+            <div className="flex items-center gap-2">
+                {active && !has_download_progress && (
+                    <span aria-hidden="true" className="h-4 w-4 shrink-0">
+                        <Spinner size="16" color="currentColor" />
+                    </span>
+                )}
+                <strong className="font-medium">
+                    {labels[phase] ?? "Waiting for confirmation"}
+                </strong>
+            </div>
             {session.expected_version && <span> — {session.expected_version}</span>}
-            {phase === "downloading" && session.total > 0 ? (
+            {has_download_progress ? (
                 <div>
                     <ProgressBar
                         label="Download progress"
@@ -51,8 +62,6 @@ export default function UpdateProgress() {
                         {format_bytes(session.downloaded ?? 0)} / {format_bytes(session.total)}
                     </span>
                 </div>
-            ) : active ? (
-                <ProgressBar label="Update in progress" className="w-full" />
             ) : null}
             {status === "request_unconfirmed" && (
                 <p>The request was interrupted; installation has not yet been confirmed.</p>

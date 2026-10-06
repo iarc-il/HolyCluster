@@ -124,9 +124,12 @@ it("retains the update session and document state through the expected outage", 
     });
     await waitFor(() => expect(update.status).toBe("installing"));
     expect(update.remote_version).toBe("1.3.0");
+    expect(screen.queryByRole("progressbar", { name: "Update in progress" })).toBeNull();
     expect(
-        screen.getByRole("progressbar", { name: "Update in progress" }).hasAttribute("value"),
-    ).toBe(false);
+        screen
+            .getByText("Installing", { exact: true })
+            .parentElement.querySelector("svg.animate-spin"),
+    ).not.toBeNull();
     expect(fetch.mock.calls.filter(([path]) => path.endsWith("/check"))).toHaveLength(0);
 });
 
