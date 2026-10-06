@@ -138,6 +138,47 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
         .filter(|ty| !ty.is_empty())
         .unwrap_or_else(|| "Error".to_owned());
     let tracing_location = event.contexts.remove("Rust Tracing Location");
+    let update_failure = event
+        .contexts
+        .remove("Rust Tracing Fields")
+        .and_then(|context| {
+            let sentry::protocol::Context::Other(mut fields) = context else {
+                return None;
+            };
+            let stage = fields.remove("error_stage")?;
+            if !matches!(
+                stage.as_str(),
+                Some("stage_update_helper" | "start_update_helper" | "update_request")
+            ) {
+                return None;
+            }
+            let mut safe_fields = std::collections::BTreeMap::new();
+            safe_fields.insert("stage".to_owned(), stage);
+            if let Some(kind) = fields.remove("io_error_kind")
+                && matches!(
+                    kind.as_str(),
+                    Some(
+                        "NotFound"
+                            | "PermissionDenied"
+                            | "AlreadyExists"
+                            | "WouldBlock"
+                            | "InvalidInput"
+                            | "Other"
+                            | "NotApplicable"
+                    )
+                )
+            {
+                safe_fields.insert("io_error_kind".to_owned(), kind);
+            }
+            if let Some(code) = fields.remove("os_error_code")
+                && code
+                    .as_i64()
+                    .is_some_and(|value| value > 0 && value <= i32::MAX as i64)
+            {
+                safe_fields.insert("os_error_code".to_owned(), code);
+            }
+            Some(sentry::protocol::Context::Other(safe_fields))
+        });
 
     event.user = None;
     event.request = None;
@@ -147,6 +188,9 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
         event
             .contexts
             .insert("Rust Tracing Location".to_owned(), location);
+    }
+    if let Some(failure) = update_failure {
+        event.contexts.insert("Update Failure".to_owned(), failure);
     }
     event.extra.clear();
     event.tags.clear();
@@ -264,6 +308,59 @@ mod tests {
         );
         assert_eq!(event.release.as_deref(), Some(env!("VERSION")));
         assert_eq!(event.environment.as_deref(), Some(SENTRY_ENVIRONMENT));
+    }
+
+    #[test]
+    fn preserves_safe_update_failure_codes_without_error_text() {
+        let event = Event {
+            contexts: BTreeMap::from([(
+                "Rust Tracing Fields".into(),
+                Context::Other(BTreeMap::from([
+                    ("error_stage".into(), "stage_update_helper".into()),
+                    ("io_error_kind".into(), "PermissionDenied".into()),
+                    ("os_error_code".into(), 32.into()),
+                    (
+                        "error".into(),
+                        "C:/Users/private/update-helper.exe secret".into(),
+                    ),
+                ])),
+            )]),
+            ..Default::default()
+        };
+        let event = scrub_event(event).unwrap();
+        let Context::Other(fields) = &event.contexts["Update Failure"] else {
+            panic!("missing safe diagnostics")
+        };
+        assert_eq!(
+            fields,
+            &BTreeMap::from([
+                ("stage".into(), "stage_update_helper".into()),
+                ("io_error_kind".into(), "PermissionDenied".into()),
+                ("os_error_code".into(), 32.into()),
+            ])
+        );
+        assert!(!serde_json::to_string(&event).unwrap().contains("private"));
+        assert!(!serde_json::to_string(&event).unwrap().contains("secret"));
+    }
+
+    #[test]
+    fn rejects_untrusted_update_failure_values() {
+        let event = Event {
+            contexts: BTreeMap::from([(
+                "Rust Tracing Fields".into(),
+                Context::Other(BTreeMap::from([
+                    ("error_stage".into(), "stage_update_helper".into()),
+                    ("io_error_kind".into(), "private path".into()),
+                    ("os_error_code".into(), "secret".into()),
+                ])),
+            )]),
+            ..Default::default()
+        };
+        let event = scrub_event(event).unwrap();
+        let Context::Other(fields) = &event.contexts["Update Failure"] else {
+            panic!("missing safe diagnostics")
+        };
+        assert_eq!(fields.len(), 1);
     }
 
     #[test]

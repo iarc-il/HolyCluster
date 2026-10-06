@@ -129,7 +129,34 @@ fn failed_status(
     if error.is::<crate::updater::UpdateBusy>() {
         return (StatusCode::CONFLICT, response(updater, updater.status()));
     }
-    tracing::error!(?error, "Update request failed");
+    let error_stage = error
+        .chain()
+        .find_map(|cause| match cause.to_string().as_str() {
+            "cannot stage update helper" => Some("stage_update_helper"),
+            "cannot start detached update helper" => Some("start_update_helper"),
+            _ => None,
+        })
+        .unwrap_or("update_request");
+    let io_error = error
+        .chain()
+        .find_map(|cause| cause.downcast_ref::<std::io::Error>());
+    let io_error_kind = match io_error.map(std::io::Error::kind) {
+        Some(std::io::ErrorKind::NotFound) => "NotFound",
+        Some(std::io::ErrorKind::PermissionDenied) => "PermissionDenied",
+        Some(std::io::ErrorKind::AlreadyExists) => "AlreadyExists",
+        Some(std::io::ErrorKind::WouldBlock) => "WouldBlock",
+        Some(std::io::ErrorKind::InvalidInput) => "InvalidInput",
+        Some(_) => "Other",
+        None => "NotApplicable",
+    };
+    let os_error_code = io_error.and_then(std::io::Error::raw_os_error).unwrap_or(0);
+    tracing::error!(
+        ?error,
+        error_stage,
+        io_error_kind,
+        os_error_code,
+        "Update request failed"
+    );
     let status = updater
         .record_failure(error.to_string())
         .unwrap_or(UpdateStatus {
