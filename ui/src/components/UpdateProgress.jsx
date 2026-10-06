@@ -1,5 +1,6 @@
 import ProgressBar from "@/components/ui/ProgressBar.jsx";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
+import { format_bytes } from "@/utils/format_bytes.js";
 import { useEffect, useState } from "react";
 
 const labels = {
@@ -47,7 +48,7 @@ export default function UpdateProgress() {
                         className="w-full"
                     />
                     <span>
-                        {session.downloaded ?? 0} / {session.total} bytes
+                        {format_bytes(session.downloaded ?? 0)} / {format_bytes(session.total)}
                     </span>
                 </div>
             ) : active ? (
