@@ -1,3 +1,4 @@
+import ProgressBar from "@/components/ui/ProgressBar.jsx";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
 import { useEffect, useState } from "react";
 
@@ -39,8 +40,8 @@ export default function UpdateProgress() {
             {session.expected_version && <span> — {session.expected_version}</span>}
             {phase === "downloading" && session.total > 0 ? (
                 <div>
-                    <progress
-                        aria-label="Download progress"
+                    <ProgressBar
+                        label="Download progress"
                         max={session.total}
                         value={session.downloaded ?? 0}
                         className="w-full"
@@ -50,7 +51,7 @@ export default function UpdateProgress() {
                     </span>
                 </div>
             ) : active ? (
-                <progress aria-label="Update in progress" className="w-full" />
+                <ProgressBar label="Update in progress" className="w-full" />
             ) : null}
             {status === "request_unconfirmed" && (
                 <p>The request was interrupted; installation has not yet been confirmed.</p>

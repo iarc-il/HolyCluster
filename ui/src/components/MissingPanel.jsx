@@ -1,5 +1,6 @@
 import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
+import ProgressBar from "@/components/ui/ProgressBar.jsx";
 import SearchIcon from "@/components/ui/SearchIcon.jsx";
 import Toggle from "@/components/ui/Toggle.jsx";
 import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
@@ -246,7 +247,10 @@ function MissingSectionCard({
         <section
             className="rounded-lg border p-3 space-y-3"
             data-tour={`missing-section-${section}`}
-            style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
+            style={{
+                backgroundColor: colors.theme.columns,
+                borderColor: colors.theme.borders,
+            }}
         >
             <div className="flex items-start justify-between gap-3">
                 <div>
@@ -263,12 +267,10 @@ function MissingSectionCard({
             {is_section_complete ? (
                 <SectionCompleteState section={section} />
             ) : (
-                <div className="h-2 rounded-full overflow-hidden bg-slate-500/30">
-                    <div
-                        className="h-full bg-green-500"
-                        style={{ width: `${progress_percentage}%` }}
-                    />
-                </div>
+                <ProgressBar
+                    label={`${SECTION_LABELS[section]} progress`}
+                    value={progress_percentage}
+                />
             )}
 
             <MissingSectionModal
@@ -374,7 +376,10 @@ function MissingSection({
         <section
             className="rounded-lg border p-3 space-y-3"
             data-tour="missing-section-editor"
-            style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
+            style={{
+                backgroundColor: colors.theme.columns,
+                borderColor: colors.theme.borders,
+            }}
         >
             <h3 className="font-bold leading-tight">{SECTION_LABELS[section]}</h3>
 
@@ -564,7 +569,10 @@ function RecentImports({ imports, colors }) {
         <section
             className="rounded-lg border p-3 space-y-2"
             data-tour="missing-recent-imports"
-            style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
+            style={{
+                backgroundColor: colors.theme.columns,
+                borderColor: colors.theme.borders,
+            }}
         >
             <h3 className="font-bold">Recent Imports</h3>
             {recent_imports.length === 0 ? (
@@ -697,7 +705,10 @@ export default function MissingPanel({ on_import_complete = null }) {
             <section
                 className="rounded-lg border p-3 space-y-2"
                 data-tour="missing-adif-import"
-                style={{ backgroundColor: colors.theme.columns, borderColor: colors.theme.borders }}
+                style={{
+                    backgroundColor: colors.theme.columns,
+                    borderColor: colors.theme.borders,
+                }}
             >
                 <h2 className="text-lg font-bold">Missing</h2>
                 <div className="flex items-center gap-2">
@@ -751,30 +762,18 @@ export default function MissingPanel({ on_import_complete = null }) {
                     </Modal>
                 </div>
                 {is_importing && import_progress != null ? (
-                    <div
-                        className="space-y-1"
-                        role="progressbar"
-                        aria-label="ADIF import progress"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={import_progress.percentage}
-                        tabIndex={0}
-                    >
+                    <div className="space-y-1">
                         <div className="flex justify-between gap-2 text-xs font-semibold">
                             <span>
                                 {IMPORT_PHASE_LABELS[import_progress.phase] ?? "Importing ADIF"}
                             </span>
                             <span>{import_progress.percentage}%</span>
                         </div>
-                        <div
-                            className="h-2 rounded-full overflow-hidden"
-                            style={{ backgroundColor: colors.theme.background }}
-                        >
-                            <div
-                                className="h-full bg-green-500 transition-[width] duration-200"
-                                style={{ width: `${import_progress.percentage}%` }}
-                            />
-                        </div>
+                        <ProgressBar
+                            label="ADIF import progress"
+                            value={import_progress.percentage}
+                            background_color={colors.theme.background}
+                        />
                     </div>
                 ) : null}
                 {import_error ? <p className="text-sm text-red-500">{import_error}</p> : null}
