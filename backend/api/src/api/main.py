@@ -177,7 +177,7 @@ async def spots_broadcast_task(app):
                 response = await valkey_client.xreadgroup(
                     CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: stream_id}, count=10, block=60000
                 )
-                if not response:
+                if not any(messages for _, messages in response):
                     stream_id = ">"
                     continue
 
