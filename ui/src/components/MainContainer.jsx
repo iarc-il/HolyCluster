@@ -361,7 +361,7 @@ function MainContent({
     );
 
     const table =
-        compare_version(local_version, [1, 0, 0, 0]) > 0 || local_version == null ? (
+        compare_version(local_version, [1, 2, 0, 0]) > 0 || local_version == null ? (
             <SpotsTable
                 set_cat_to_spot={set_cat_to_spot}
                 table_sort={table_sort}
