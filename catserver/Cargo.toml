@@ -9,6 +9,8 @@ members = ["crates/hamlib", "crates/hamlib-src", "crates/hamlib-sys"]
 resolver = "3"
 
 [profile.release]
+# Optimize for file size without changing panic/unwind behavior.
+opt-level = "z"
 strip = true
 lto = true
 codegen-units = 1
