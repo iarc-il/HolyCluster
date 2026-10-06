@@ -695,9 +695,12 @@ async def get_dxpeditions():
 @app.websocket("/radio")
 async def radio(websocket: fastapi.WebSocket):
     """Dummy websockets endpoint to indicate to the client that radio connection is not available."""
-    await websocket.accept()
-    await websocket.send_json({"status": "unavailable"})
-    await websocket.close()
+    try:
+        await websocket.accept()
+        await websocket.send_json({"status": "unavailable"})
+        await websocket.close()
+    except websockets.WebSocketDisconnect:
+        pass
 
 
 async def dispatch_ws_message(websocket, send_lock, missing_jobs, message):
