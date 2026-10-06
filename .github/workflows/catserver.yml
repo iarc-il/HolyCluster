@@ -64,8 +64,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
+            /usr/local/cargo/registry
+            /usr/local/cargo/git
           key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ env.TARGET }}-
@@ -114,8 +114,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
+            /usr/local/cargo/registry
+            /usr/local/cargo/git
           key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ env.TARGET }}-
@@ -157,8 +157,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
+            /usr/local/cargo/registry
+            /usr/local/cargo/git
           key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ env.TARGET }}-
@@ -215,8 +215,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
+            /usr/local/cargo/registry
+            /usr/local/cargo/git
           key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('catserver/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ env.TARGET }}-
