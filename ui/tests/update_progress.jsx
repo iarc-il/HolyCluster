@@ -28,6 +28,16 @@ it("replaces download progress with the existing spinner beside active status te
     expect(screen.getByRole("status").querySelector("svg.animate-spin")).toBeNull();
 });
 
+it("shows only the phase in the status message without a version suffix", () => {
+    state.current = {
+        session: { phase: "installing", started: Date.now(), expected_version: "1.2.3-1" },
+        active: true,
+    };
+    render(<UpdateProgress />);
+    expect(screen.getByText("Installing", { exact: true })).not.toBeNull();
+    expect(screen.queryByText(/1\.2\.3-1/)).toBeNull();
+});
+
 it("offers reconnection only after confirmed installation and before verification", () => {
     state.current = { session: { phase: "downloading", started: Date.now() }, active: true };
     const { rerender } = render(<UpdateProgress />);

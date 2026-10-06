@@ -49,7 +49,6 @@ export default function UpdateProgress() {
                     {labels[phase] ?? "Waiting for confirmation"}
                 </strong>
             </div>
-            {session.expected_version && <span> — {session.expected_version}</span>}
             {has_download_progress ? (
                 <div>
                     <ProgressBar
