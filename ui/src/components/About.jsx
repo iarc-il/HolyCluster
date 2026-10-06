@@ -8,9 +8,22 @@ import { useColors } from "@/hooks/useColors.jsx";
 
 const RELEASES = [
     [
+        "??/10/2026",
+        [
+            "▶️ playback mode to explore past spots and propagation conditions",
+            "🐧 CAT Control is now available as a Linux AppImage download",
+            "🧭 Added rotator control: click a spot to rotate the antenna",
+            "Added Hamlib radio support, see the new settings interface",
+            "The CAT Control executable can now be auto-updated",
+            "New guided website tour",
+            "Added LoTW activity indicators in the table",
+            "The band bar can be zoomed and dragged",
+            "New re-spot with right click on the DX callsign in the table",
+        ],
+    ],
+    [
         "18/07/2026",
         [
-            // "New guided website tour with quick start, map, table, filters, side panel, and settings chapters",
             "New spot sources for POTA, SOTA and WWFF",
             "Mobile GPS support for centering the map and filling your locator in settings",
             "Layout settings now allowing configuration of the view: map only, table only and view order",
@@ -265,7 +278,7 @@ function About() {
                 return (
                     <div className="pb-4" key={date}>
                         <h1 className="text-xl font-bold">{date}</h1>
-                        <ul className="list-disc pl-4">
+                        <ul className="list-disc pl-4 space-y-2">
                             {changes.map((change, index) => {
                                 const key =
                                     typeof change === "string"
