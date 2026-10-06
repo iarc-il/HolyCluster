@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { ctyDxccEntitiesPlugin } from "./scripts/cty_entities.js";
 import { dxccMapChunkName, dxccMapPlugin } from "./scripts/dxcc_map.js";
+import { flagsPlugin } from "./scripts/flags.js";
 
 const sentry_options = {
     authToken: process.env.SENTRY_AUTH_TOKEN,
@@ -54,6 +55,7 @@ export default defineConfig(({ mode }) => ({
     plugins: [
         ctyDxccEntitiesPlugin(),
         dxccMapPlugin(),
+        flagsPlugin(),
         react(),
         ...(sentry_upload_enabled ? [sentryVitePlugin(sentry_options)] : []),
     ],
@@ -111,6 +113,7 @@ export default defineConfig(({ mode }) => ({
                 manualChunks: id => {
                     const dxcc_chunk_name = dxccMapChunkName(id);
                     if (dxcc_chunk_name) return dxcc_chunk_name;
+                    if (id === "\0virtual:flags") return "flag-urls";
 
                     const dependency_path = id.split("node_modules/")[1];
                     if (dependency_path?.startsWith("@sentry/")) {
@@ -136,9 +139,6 @@ export default defineConfig(({ mode }) => ({
                         id.endsWith("/src/utils.js")
                     ) {
                         return "app-core";
-                    }
-                    if (id.includes("flags.json")) {
-                        return "flags";
                     }
                 },
             },

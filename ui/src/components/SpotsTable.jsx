@@ -336,7 +336,9 @@ const Spot = forwardRef(function Spot(
                 <img
                     className="m-auto"
                     width="16"
-                    src={`data:image/webp;base64, ${flag}`}
+                    src={flag}
+                    loading="lazy"
+                    decoding="async"
                     alt={`${dx_label} flag`}
                 />
                 {dx_state}
