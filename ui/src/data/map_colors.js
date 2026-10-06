@@ -1,4 +1,4 @@
-import dxcc_map from "virtual:dxcc-map";
+import dxcc_names from "virtual:dxcc-map-names";
 
 const COUNTRY_COLOR_BY_DXCC_NAME = {
     "ITU HQ": 5,
@@ -348,17 +348,17 @@ const COUNTRY_COLOR_BY_FEATURE_INDEX = {
     153: 2,
 };
 
-function get_country_color_index(feature, feature_index) {
+function get_country_color_index(dxcc_name, feature_index) {
     const color_by_index = COUNTRY_COLOR_BY_FEATURE_INDEX[feature_index];
     if (color_by_index != null) return color_by_index;
 
-    return COUNTRY_COLOR_BY_DXCC_NAME[feature.properties.dxcc_name];
+    return COUNTRY_COLOR_BY_DXCC_NAME[dxcc_name];
 }
 
-const country_color_indices = dxcc_map.features.map((feature, feature_index) => {
-    const color_index = get_country_color_index(feature, feature_index);
+const country_color_indices = dxcc_names.map((dxcc_name, feature_index) => {
+    const color_index = get_country_color_index(dxcc_name, feature_index);
     if (color_index == null) {
-        const label = feature.properties.dxcc_name ?? `feature ${feature_index}`;
+        const label = dxcc_name ?? `feature ${feature_index}`;
         throw new Error(`Missing hardcoded map color for ${label}`);
     }
     return color_index;

@@ -8,6 +8,7 @@ const DXCC_MAP_PATH = path.resolve(
 );
 const PART_TARGET_BYTES = 400_000;
 const VIRTUAL_DXCC_MAP_MODULE_ID = "virtual:dxcc-map";
+const VIRTUAL_DXCC_NAMES_MODULE_ID = "virtual:dxcc-map-names";
 const VIRTUAL_DXCC_MAP_PART_PREFIX = "virtual:dxcc-map-part/";
 
 function split_features(features) {
@@ -35,6 +36,7 @@ export function dxccMapChunkName(id) {
 
 export function dxccMapPlugin() {
     const resolved_module_id = `\0${VIRTUAL_DXCC_MAP_MODULE_ID}`;
+    const resolved_names_id = `\0${VIRTUAL_DXCC_NAMES_MODULE_ID}`;
     const resolved_part_prefix = `\0${VIRTUAL_DXCC_MAP_PART_PREFIX}`;
     let map_data;
     let feature_parts;
@@ -50,14 +52,25 @@ export function dxccMapPlugin() {
         name: "dxcc-map",
         resolveId(id) {
             if (id === VIRTUAL_DXCC_MAP_MODULE_ID) return resolved_module_id;
+            if (id === VIRTUAL_DXCC_NAMES_MODULE_ID) return resolved_names_id;
             if (id.startsWith(VIRTUAL_DXCC_MAP_PART_PREFIX)) return `\0${id}`;
             return null;
         },
         async load(id) {
-            if (id !== resolved_module_id && !id.startsWith(resolved_part_prefix)) return null;
+            if (
+                id !== resolved_module_id &&
+                id !== resolved_names_id &&
+                !id.startsWith(resolved_part_prefix)
+            ) {
+                return null;
+            }
 
             await load_map();
             this.addWatchFile(DXCC_MAP_PATH);
+
+            if (id === resolved_names_id) {
+                return `export default ${JSON.stringify(map_data.features.map(feature => feature.properties.dxcc_name))};`;
+            }
 
             if (id.startsWith(resolved_part_prefix)) {
                 const part_index = Number(id.slice(resolved_part_prefix.length));

@@ -1,4 +1,3 @@
-import CanvasMap from "@/components/CanvasMap/index.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import MapControls from "@/components/MapControls.jsx";
 import SidePanel from "@/components/SidePanel.jsx";
@@ -34,6 +33,7 @@ import Maidenhead from "maidenhead";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+const CanvasMap = lazy(() => import("@/components/CanvasMap/index.jsx"));
 const HistoryBar = lazy(() => import("@/components/history/HistoryBar.jsx"));
 
 const AUTO_RADIUS_PADDING_KM = 1000;
@@ -345,16 +345,18 @@ function MainContent({
                 is_history_mode={is_history_mode}
                 toggle_history={toggle_history}
             />
-            <CanvasMap
-                map_controls={map_controls}
-                set_map_controls={set_map_controls}
-                set_cat_to_spot={set_cat_to_spot}
-                radius_in_km={radius_in_km}
-                set_radius_in_km={set_radius_in_km}
-                auto_radius={auto_radius}
-                set_auto_radius={set_auto_radius}
-                night_time={is_history_mode ? display_end : null}
-            />
+            <Suspense fallback={null}>
+                <CanvasMap
+                    map_controls={map_controls}
+                    set_map_controls={set_map_controls}
+                    set_cat_to_spot={set_cat_to_spot}
+                    radius_in_km={radius_in_km}
+                    set_radius_in_km={set_radius_in_km}
+                    auto_radius={auto_radius}
+                    set_auto_radius={set_auto_radius}
+                    night_time={is_history_mode ? display_end : null}
+                />
+            </Suspense>
         </div>
     );
 
