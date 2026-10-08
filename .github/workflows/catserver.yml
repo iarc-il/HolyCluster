@@ -81,6 +81,12 @@ jobs:
         working-directory: catserver
         run: cargo test --workspace
 
+      - name: Test build entry and native archive tracking
+        working-directory: catserver
+        run: |
+          python3 tests/test_build_entry.py
+          python3 tests/test_native_build_inputs.py
+
       - name: Test release publisher
         run: python3 catserver/test_publish.py
 
@@ -228,7 +234,15 @@ jobs:
 
       - name: Build static catserver
         working-directory: catserver
-        run: ./build_windows.sh
+        shell: bash
+        run: |
+          SOURCE_ROOT=$(pwd -P)
+          export CFLAGS="${CFLAGS:+$CFLAGS }-ffile-prefix-map=$SOURCE_ROOT=/src"
+          export CXXFLAGS="${CXXFLAGS:+$CXXFLAGS }-ffile-prefix-map=$SOURCE_ROOT=/src"
+          # Cargo merges this array with the static flags in .cargo/config.toml.
+          # Caller RUSTFLAGS/CARGO_ENCODED_RUSTFLAGS retain Cargo's precedence.
+          RUST_CONFIG=$(python3 -c 'import json, os; print("target.x86_64-pc-windows-gnu.rustflags = " + json.dumps(["--remap-path-prefix=" + os.getcwd() + "=/src"]))')
+          cargo build --workspace --target "$TARGET" --release --locked --config "$RUST_CONFIG"
 
       - name: Reject non-system DLL imports
         working-directory: catserver
