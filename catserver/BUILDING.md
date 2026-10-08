@@ -6,7 +6,7 @@ An archive is a file that contains compiled native objects.
 
 ## Tools
 
-Use the Rust toolchain and native tools in `Dockerfile`, or the CI container pinned in `.github/workflows/catserver.yml`.
+Use the Rust toolchain and native tools in `Dockerfile`, or the CI container pinned in `../.github/workflows/catserver.yml`.
 For Linux, install a C/C++ compiler, Make, pkg-config, and development packages for GTK 3, libusb, libudev, and libxdo.
 For Windows builds on Linux, install the x86_64 MinGW GCC/G++ POSIX toolchain and binutils.
 Add the Rust target before the first Windows build:
