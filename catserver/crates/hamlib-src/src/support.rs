@@ -48,7 +48,29 @@ pub fn build_from_environment() -> Result<(), SupportError> {
     println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_ARCHIVE");
     println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_DIR");
     println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_NETWORK");
-    for variable in ["PROFILE", "CFLAGS", "CXXFLAGS"] {
+    // Configure and make inherit these inputs, including host toolchain
+    // overrides. A changed input must rebuild Cargo-managed native objects.
+    for variable in [
+        "PROFILE",
+        "CC",
+        "CXX",
+        "AR",
+        "RANLIB",
+        "DLLTOOL",
+        "WINDRES",
+        "CFLAGS",
+        "CXXFLAGS",
+        "CPPFLAGS",
+        "LDFLAGS",
+        "LIBS",
+        "MAKE",
+        "PATH",
+        "PKG_CONFIG",
+        "PKG_CONFIG_PATH",
+        "PKG_CONFIG_LIBDIR",
+        "PKG_CONFIG_SYSROOT_DIR",
+        "CONFIG_SITE",
+    ] {
         println!("cargo:rerun-if-env-changed={variable}");
     }
     let out_dir = variable_path("OUT_DIR")?;
@@ -105,6 +127,7 @@ fn pinned_source(
         network,
         url: package.url.to_owned(),
     })?;
+    println!("cargo:rerun-if-changed={}", archive.display());
     let extraction = out_dir.join(package.name).join("source");
     if extraction.exists() {
         fs::remove_dir_all(&extraction)?;
@@ -164,11 +187,16 @@ fn run_configure(
     if plan.is_windows() {
         let libusb = libusb.expect("Windows builds create libusb first");
         command.envs(MINGW_TOOLCHAIN);
-        command.env(
+        append_environment_flag(
+            &mut command,
             "CPPFLAGS",
-            format!("-I{}", libusb.join("include").display()),
+            &format!("-I{}", libusb.join("include").display()),
         );
-        command.env("LDFLAGS", format!("-L{}", libusb.join("lib").display()));
+        append_environment_flag(
+            &mut command,
+            "LDFLAGS",
+            &format!("-L{}", libusb.join("lib").display()),
+        );
         command.env("PKG_CONFIG", "pkg-config");
         command.env("PKG_CONFIG_LIBDIR", libusb.join("lib/pkgconfig"));
         command.env("PKG_CONFIG_PATH", "");
@@ -183,6 +211,15 @@ fn run_configure(
         validate_mingw_toolchain(&fs::read_to_string(source.join("config.log"))?)?;
     }
     Ok(())
+}
+
+fn append_environment_flag(command: &mut Command, variable: &str, flag: &str) {
+    let mut flags = env::var_os(variable).unwrap_or_default();
+    if !flags.is_empty() {
+        flags.push(" ");
+    }
+    flags.push(flag);
+    command.env(variable, flags);
 }
 
 fn configure_native_size_flags(command: &mut Command, windows: bool) {

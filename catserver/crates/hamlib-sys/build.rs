@@ -29,6 +29,9 @@ fn main() {
         library.is_file(),
         "Hamlib static archive is missing: {library:?}"
     );
+    // Cargo bundles these archives into the hamlib-sys rlib. Metadata paths
+    // alone do not change when hamlib-src rebuilds an archive in place.
+    println!("cargo:rerun-if-changed={}", library.display());
     println!("cargo:rustc-link-search=native={}", lib_dir);
     println!("cargo:rustc-link-lib=static=hamlib");
     if target == "x86_64-pc-windows-gnu" {
@@ -45,9 +48,15 @@ fn main() {
         );
         let libusb = required("DEP_HAMLIB_SRC_LIBUSB_ARTIFACT");
         assert_static_archive(Path::new(&libusb), "libusb");
+        println!("cargo:rerun-if-changed={libusb}");
+        let winpthread = target_library_path("libwinpthread.a");
+        println!("cargo:rerun-if-changed={}", winpthread.display());
         println!(
             "cargo:rustc-link-search=native={}",
-            target_library_directory("libwinpthread.a")
+            winpthread
+                .parent()
+                .expect("runtime archive has a parent")
+                .display()
         );
         println!("cargo:rustc-link-lib=static=usb-1.0");
         println!("cargo:rustc-link-lib=static=winpthread");
@@ -84,7 +93,7 @@ fn required(name: &str) -> String {
     env::var(name).unwrap_or_else(|_| panic!("missing Hamlib source metadata {name}"))
 }
 
-fn target_library_directory(name: &str) -> String {
+fn target_library_path(name: &str) -> std::path::PathBuf {
     let output = Command::new("x86_64-w64-mingw32-gcc")
         .arg(format!("-print-file-name={name}"))
         .output()
@@ -97,8 +106,5 @@ fn target_library_directory(name: &str) -> String {
         path.is_file(),
         "target runtime archive is missing: {path:?}"
     );
-    path.parent()
-        .unwrap_or_else(|| panic!("target runtime archive has no parent: {path:?}"))
-        .display()
-        .to_string()
+    path.to_owned()
 }
