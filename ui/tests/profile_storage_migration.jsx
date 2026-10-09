@@ -10,6 +10,7 @@ import {
 } from "@/utils/profile_data.js";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sanitize_profile_store as sanitize_old_store } from "./fixtures/profiles/master_profile_data.mjs";
@@ -94,6 +95,7 @@ describe("profile store migration across UI versions", () => {
     beforeEach(() => window.localStorage.clear());
     afterEach(() => {
         cleanup();
+        vi.restoreAllMocks();
         window.localStorage.clear();
     });
 
@@ -204,6 +206,79 @@ describe("profile store migration across UI versions", () => {
         };
         expect(() => initialize_profile_store(storage)).toThrow("Storage full");
         expect(storage.setItem).toHaveBeenCalledExactlyOnceWith(PROFILE_STORE_BACKUP_KEY, raw);
+    });
+
+    it.each([PROFILE_STORE_BACKUP_KEY, PROFILE_STORE_KEY])(
+        "shows a recoverable error when migration cannot write %s",
+        async failed_key => {
+            const original = JSON.stringify(old_store());
+            window.localStorage.setItem(LEGACY_PROFILE_STORE_KEY, original);
+            window.localStorage.setItem("unrelated", "keep me");
+            const set_item = Storage.prototype.setItem;
+            let blocked = true;
+            const writes = vi
+                .spyOn(Storage.prototype, "setItem")
+                .mockImplementation(function (key, value) {
+                    if (blocked && key === failed_key) {
+                        throw new DOMException("Storage full", "QuotaExceededError");
+                    }
+                    return set_item.call(this, key, value);
+                });
+
+            mount();
+            expect(screen.getByRole("alert").textContent).toContain(
+                "Your saved profile data has not been deleted",
+            );
+            expect(screen.queryByTestId("progress")).toBeNull();
+            expect(window.localStorage.getItem(LEGACY_PROFILE_STORE_KEY)).toBe(original);
+            expect(window.localStorage.getItem("unrelated")).toBe("keep me");
+            expect(window.localStorage.getItem(PROFILE_STORE_KEY)).toBeNull();
+            // The persistent hook must not mount and repeat the failed allocation.
+            expect(writes.mock.calls.filter(([key]) => key === failed_key)).toHaveLength(1);
+            if (failed_key === PROFILE_STORE_BACKUP_KEY) {
+                expect(window.localStorage.getItem(PROFILE_STORE_BACKUP_KEY)).toBeNull();
+                expect(writes.mock.calls.some(([key]) => key === PROFILE_STORE_KEY)).toBe(false);
+            } else {
+                expect(window.localStorage.getItem(PROFILE_STORE_BACKUP_KEY)).toBe(original);
+            }
+
+            const user = userEvent.setup();
+            await user.click(screen.getByRole("button", { name: "Retry" }));
+            expect(screen.queryByTestId("progress")).toBeNull();
+            expect(screen.getByRole("alert")).toBeTruthy();
+            blocked = false;
+            await user.click(screen.getByRole("button", { name: "Retry" }));
+            expect(screen.queryByRole("alert")).toBeNull();
+            expect(screen.getByTestId("progress").textContent).toBe("[291,339]");
+            expect(progress(read(PROFILE_STORE_KEY))).toEqual([
+                [291, 339],
+                [291, 339],
+            ]);
+            expect(window.localStorage.getItem(PROFILE_STORE_BACKUP_KEY)).toBe(original);
+            expect(window.localStorage.getItem(LEGACY_PROFILE_STORE_KEY)).toBe(original);
+            expect(window.localStorage.getItem("unrelated")).toBe("keep me");
+        },
+    );
+
+    it("initializes migration only once under StrictMode", () => {
+        const original = JSON.stringify(old_store());
+        window.localStorage.setItem(LEGACY_PROFILE_STORE_KEY, original);
+        const writes = vi.spyOn(Storage.prototype, "setItem");
+        render(
+            <StrictMode>
+                <MemoryRouter>
+                    <ProfilesProvider>
+                        <ProgressHarness />
+                    </ProfilesProvider>
+                </MemoryRouter>
+            </StrictMode>,
+        );
+        expect(screen.getByTestId("progress").textContent).toBe("[291,339]");
+        expect(writes.mock.calls.filter(([key]) => key === PROFILE_STORE_BACKUP_KEY)).toHaveLength(
+            1,
+        );
+        expect(writes.mock.calls.filter(([key]) => key === PROFILE_STORE_KEY)).toHaveLength(1);
+        expect(window.localStorage.getItem(LEGACY_PROFILE_STORE_KEY)).toBe(original);
     });
 
     it("keeps legacy imports and current export format working", () => {

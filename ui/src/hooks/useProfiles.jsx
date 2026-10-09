@@ -51,9 +51,37 @@ export function useProfiles() {
 }
 
 export function ProfilesProvider({ children }) {
+    function try_initialize() {
+        try {
+            return initialize_profile_store();
+        } catch (_error) {
+            return null;
+        }
+    }
+
+    const [initial_profile_store, set_initial_profile_store] = useState(try_initialize);
+    if (initial_profile_store == null) {
+        return (
+            <div role="alert">
+                <p>Cannot prepare saved profiles because browser storage is unavailable or full.</p>
+                <p>Your saved profile data has not been deleted. Free storage space, then retry.</p>
+                <button type="button" onClick={() => set_initial_profile_store(try_initialize())}>
+                    Retry
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <PersistentProfilesProvider initial_profile_store={initial_profile_store}>
+            {children}
+        </PersistentProfilesProvider>
+    );
+}
+
+function PersistentProfilesProvider({ children, initial_profile_store }) {
     const location = useLocation();
     const navigate = useNavigate();
-    const initial_profile_store = useMemo(() => initialize_profile_store(), []);
     const fallback_profile_data = initial_profile_store.profiles[0].data;
     const [stored_profile_store, set_stored_profile_store] = useLocalStorage(
         PROFILE_STORE_KEY,
