@@ -8,7 +8,7 @@ import { useColors } from "@/hooks/useColors.jsx";
 
 const RELEASES = [
     [
-        "??/10/2026",
+        "9/10/2026",
         [
             "▶️ playback mode to explore past spots and propagation conditions",
             "🐧 CAT Control is now available as a Linux AppImage download",
