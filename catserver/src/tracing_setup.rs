@@ -17,8 +17,6 @@ use tracing_subscriber::{
     EnvFilter, Layer, Registry, layer::SubscriberExt, util::SubscriberInitExt,
 };
 
-use crate::args::Args;
-
 const SENTRY_ENVIRONMENT: &str = env!("CATSERVER_SENTRY_ENVIRONMENT");
 const SENTRY_DSN: &str = env!("CATSERVER_SENTRY_DSN");
 
@@ -46,18 +44,15 @@ fn log_file_filter() -> EnvFilter {
     }
 }
 
-pub fn reporting_enabled(args: &Args) -> bool {
-    reporting_enabled_for(SENTRY_ENVIRONMENT, args.dev_server, args.backend.is_some())
-}
-
-fn reporting_enabled_for(environment: &str, dev_server: bool, custom_backend: bool) -> bool {
-    if custom_backend {
-        return false;
+fn sentry_event_filter(metadata: &tracing::Metadata<'_>) -> EventFilter {
+    if *metadata.level() == tracing::Level::ERROR {
+        EventFilter::Event
+    } else {
+        EventFilter::Ignore
     }
-    matches!((environment, dev_server), ("dev", true) | ("prod", false))
 }
 
-pub fn configure(reporting_enabled: bool) -> Option<ClientInitGuard> {
+pub fn configure() -> Option<ClientInitGuard> {
     std::panic::set_hook(Box::new(panic_hook));
     let console_layer = tracing_subscriber::fmt::layer()
         .compact()
@@ -65,13 +60,7 @@ pub fn configure(reporting_enabled: bool) -> Option<ClientInitGuard> {
         .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
             tracing::Level::INFO,
         ));
-    let sentry_layer = sentry::integrations::tracing::layer().event_filter(|metadata| {
-        if *metadata.level() == tracing::Level::ERROR {
-            EventFilter::Event
-        } else {
-            EventFilter::Ignore
-        }
-    });
+    let sentry_layer = sentry::integrations::tracing::layer().event_filter(sentry_event_filter);
     let result = if let Some(debug_file) = open_debug_log() {
         Registry::default()
             .with(console_layer)
@@ -92,10 +81,14 @@ pub fn configure(reporting_enabled: bool) -> Option<ClientInitGuard> {
     if let Err(error) = result {
         eprintln!("Failed to configure tracing subscriber: {error}");
     }
-    configure_sentry(reporting_enabled.then_some(SENTRY_DSN))
+    configure_sentry(Some(SENTRY_DSN))
 }
 
 fn configure_sentry(dsn: Option<&str>) -> Option<ClientInitGuard> {
+    sentry_options(dsn).map(sentry::init)
+}
+
+fn sentry_options(dsn: Option<&str>) -> Option<ClientOptions> {
     let dsn = dsn.filter(|dsn| !dsn.trim().is_empty())?;
     let dsn = match dsn.parse() {
         Ok(dsn) => dsn,
@@ -104,7 +97,7 @@ fn configure_sentry(dsn: Option<&str>) -> Option<ClientInitGuard> {
             return None;
         }
     };
-    Some(sentry::init(ClientOptions {
+    Some(ClientOptions {
         dsn: Some(dsn),
         release: Some(Cow::Borrowed(env!("VERSION"))),
         environment: Some(Cow::Borrowed(SENTRY_ENVIRONMENT)),
@@ -115,7 +108,7 @@ fn configure_sentry(dsn: Option<&str>) -> Option<ClientInitGuard> {
         before_send: Some(Arc::new(scrub_event)),
         shutdown_timeout: Duration::from_millis(500),
         ..Default::default()
-    }))
+    })
 }
 
 fn scrub_breadcrumb(_: Breadcrumb) -> Option<Breadcrumb> {
@@ -228,7 +221,7 @@ fn is_expected_radio_error(event: &Event<'_>) -> bool {
 mod tests {
     use std::{
         collections::BTreeMap,
-        sync::Arc,
+        sync::{Arc, Mutex},
         time::{Duration, Instant},
     };
 
@@ -237,14 +230,18 @@ mod tests {
         protocol::{Context, Event, Exception, Request, User},
     };
 
+    use tracing_subscriber::layer::SubscriberExt;
+
     use super::{
-        SENTRY_ENVIRONMENT, configure_sentry, reporting_enabled_for, scrub_breadcrumb, scrub_event,
+        SENTRY_ENVIRONMENT, configure_sentry, scrub_breadcrumb, scrub_event, sentry_event_filter,
+        sentry_options,
     };
 
     #[test]
     fn skips_sentry_without_a_dsn() {
         assert!(configure_sentry(None).is_none());
         assert!(configure_sentry(Some("")).is_none());
+        assert!(configure_sentry(Some("   ")).is_none());
         assert!(configure_sentry(Some("not-a-dsn")).is_none());
     }
 
@@ -368,13 +365,60 @@ mod tests {
         assert!(scrub_breadcrumb(sentry::protocol::Breadcrumb::default()).is_none());
     }
 
+    #[derive(Default)]
+    struct MemoryTransport(Mutex<Vec<Event<'static>>>);
+
+    impl sentry::Transport for MemoryTransport {
+        fn send_envelope(&self, envelope: sentry::Envelope) {
+            for item in envelope.items() {
+                if let sentry::protocol::EnvelopeItem::Event(event) = item {
+                    self.0.lock().unwrap().push(event.clone());
+                }
+            }
+        }
+    }
+
     #[test]
-    fn enables_only_matching_deployments() {
-        assert!(reporting_enabled_for("dev", true, false));
-        assert!(reporting_enabled_for("prod", false, false));
-        assert!(!reporting_enabled_for("dev", false, false));
-        assert!(!reporting_enabled_for("prod", true, false));
-        assert!(!reporting_enabled_for("dev", true, true));
+    fn valid_dsn_enables_reporting_and_scrubs_msi_failure() {
+        let transport = Arc::new(MemoryTransport::default());
+        let options = sentry_options(Some("http://public@127.0.0.1:1/1")).unwrap();
+        assert_eq!(options.environment.as_deref(), Some(SENTRY_ENVIRONMENT));
+        assert!(!options.send_default_pii);
+        let client = Arc::new(Client::from(ClientOptions {
+            transport: Some(Arc::new(transport.clone())),
+            ..options
+        }));
+        assert!(client.is_enabled());
+        let hub = sentry::Hub::new(Some(client), Arc::new(sentry::Scope::default()));
+        let subscriber = tracing_subscriber::Registry::default()
+            .with(sentry::integrations::tracing::layer().event_filter(sentry_event_filter));
+        sentry::Hub::run(Arc::new(hub), || {
+            tracing::subscriber::with_default(subscriber, || {
+                tracing::info!("not an error");
+                tracing::error!("Radio configuration is invalid; private details");
+                tracing::error!("Rotator initialization failed; private details");
+                let error = anyhow::anyhow!(
+                    "MSI installer exited with code 1603; see msi-install.log; MSI rollback is not guaranteed"
+                );
+                tracing::error!(
+                    ?error,
+                    artifact_path = "C:/Users/private/update.msi",
+                    "Catserver terminated unexpectedly"
+                );
+            });
+        });
+        let events = transport.0.lock().unwrap();
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+        assert_eq!(event.environment.as_deref(), Some(SENTRY_ENVIRONMENT));
+        assert_eq!(event.release.as_deref(), Some(env!("VERSION")));
+        assert!(event.user.is_none());
+        assert!(event.request.is_none());
+        assert!(event.extra.is_empty());
+        assert!(!event.contexts.contains_key("Rust Tracing Fields"));
+        let serialized = serde_json::to_string(event).unwrap();
+        assert!(!serialized.contains("private"));
+        assert!(!serialized.contains("1603"));
     }
 
     #[test]

@@ -64,7 +64,7 @@ mod updater_tests;
 
 fn main() -> Result<()> {
     let args = argh::from_env();
-    let _sentry = tracing_setup::configure(tracing_setup::reporting_enabled(&args));
+    let _sentry = tracing_setup::configure();
     let result = application::run(args);
     if let Err(error) = &result {
         tracing::error!(?error, "Catserver terminated unexpectedly");
