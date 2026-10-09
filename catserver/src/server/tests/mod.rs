@@ -1,6 +1,7 @@
 mod local_ui;
 mod proxy;
 mod readiness;
+mod session;
 mod shutdown;
 mod update;
 
