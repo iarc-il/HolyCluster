@@ -8,7 +8,7 @@ use crate::{
     freq::Freq,
     radio_config::{ActiveRadioBackend, RadioConfig},
     radio_manager::{ConnectionState, RadioManagerError, RadioSnapshot},
-    rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status},
+    rig::{Mode, Radio, RadioInitError, RadioOperationError, Status},
 };
 use tokio::sync::oneshot;
 
@@ -137,6 +137,8 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 };
                 if result.is_ok() {
                     connection_trace.reset();
+                    // Release exclusive device ownership before opening the replacement.
+                    drop(radio.take());
                     let mut candidate = next_factory();
                     let init = candidate.init();
                     let status = init.as_ref().ok().map(|_| candidate.get_status());
@@ -155,10 +157,40 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 }
                 let _ = reply.send(result);
             }
-            Command::Test { factory, reply } => {
-                let mut candidate = factory();
-                let result = candidate.init();
+            Command::Test {
+                factory: test_factory,
+                reply,
+            } => {
+                // A test may use the same exclusive serial port as the active radio.
+                drop(radio.take());
+                let mut candidate = test_factory();
+                let mut result = candidate.init();
                 drop(candidate);
+                if let Some(factory) = &factory {
+                    let connected =
+                        replace_from_factory(&snapshot, factory, &mut radio, &mut connection_trace);
+                    next_action = Some(schedule_after_attempt(connected, &mut retry_delay));
+                    if !connected {
+                        let state = snapshot.read().unwrap_or_else(|error| error.into_inner());
+                        let restoration = state
+                            .last_error
+                            .as_ref()
+                            .map(ToString::to_string)
+                            .or_else(|| {
+                                state.last_operation_error.as_ref().map(ToString::to_string)
+                            })
+                            .unwrap_or_else(|| "radio disconnected".into());
+                        let test = result
+                            .as_ref()
+                            .err()
+                            .map(|error| format!("Test failed: {error}; "))
+                            .unwrap_or_default();
+                        result = Err(RadioInitError::Backend {
+                            backend: "radio",
+                            message: format!("{test}failed to restore active radio: {restoration}"),
+                        });
+                    }
+                }
                 let _ = reply.send(result);
             }
             Command::Retry(reply) => {
@@ -183,10 +215,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                             "radio unavailable",
                         ))
                     },
-                    |radio| {
-                        radio.set_mode(mode)?;
-                        radio.set_frequency(Slot::A, frequency)
-                    },
+                    |radio| radio.tune_spot(mode, frequency),
                 );
                 let connected = publish_operation_result(
                     &snapshot,
@@ -251,6 +280,7 @@ fn replace_from_factory(
     radio: &mut Option<Box<dyn Radio>>,
     connection_trace: &mut ConnectionTrace,
 ) -> bool {
+    drop(radio.take());
     let mut candidate = factory();
     let init = candidate.init();
     let state = snapshot

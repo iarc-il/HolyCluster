@@ -114,6 +114,13 @@ impl std::error::Error for RadioOperationError {}
 
 pub trait Radio {
     fn init(&mut self) -> Result<(), RadioInitError>;
+    /// Tune a spot with frequency on A. Hamlib selects A before both writes.
+    /// The default preserves the existing backend-specific mode targeting
+    /// and mode/frequency sequence.
+    fn tune_spot(&mut self, mode: Mode, frequency: Freq) -> Result<(), RadioOperationError> {
+        self.set_mode(mode)?;
+        self.set_frequency(Slot::A, frequency)
+    }
     fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError>;
     fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError>;
     fn get_status(&mut self) -> Result<Status, RadioOperationError>;

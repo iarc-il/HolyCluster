@@ -14,6 +14,8 @@ use crate::{
     rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status},
 };
 
+include!("radio_target_ownership_tests.rs");
+
 struct RetryRadio {
     attempts: Arc<AtomicUsize>,
     threads: Arc<Mutex<Vec<ThreadId>>>,

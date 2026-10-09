@@ -24,6 +24,13 @@ impl Radio for HamlibRadio {
         Ok(())
     }
 
+    fn tune_spot(&mut self, mode: Mode, frequency: Freq) -> Result<(), RadioOperationError> {
+        // set_frequency selects A before writing. Only after selection succeeds
+        // may set_mode write the current VFO's mode.
+        self.set_frequency(Slot::A, frequency)?;
+        self.set_mode(mode)
+    }
+
     fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
         self.rig
             .as_mut()
@@ -157,6 +164,10 @@ impl OpenError {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "hamlib_radio_target_tests.rs"]
+mod target_tests;
 
 fn vfo(slot: Slot) -> hamlib::Vfo {
     match slot {
