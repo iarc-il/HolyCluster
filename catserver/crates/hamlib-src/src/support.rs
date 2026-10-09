@@ -45,6 +45,9 @@ pub enum SupportError {
 }
 
 pub fn build_from_environment() -> Result<(), SupportError> {
+    for input in ["build.rs", "src", "patches"] {
+        println!("cargo:rerun-if-changed={input}");
+    }
     println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_ARCHIVE");
     println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_DIR");
     println!("cargo:rerun-if-env-changed=HAMLIB_SOURCE_NETWORK");
@@ -85,10 +88,14 @@ pub fn build_from_environment() -> Result<(), SupportError> {
     let source = match local_source(source_override.as_deref())? {
         Some(source) => {
             println!("cargo:rerun-if-changed={}", source.display());
+            crate::diagnostic_patch::validate_override(&source)?;
             source
         }
         None => pinned_source(&out_dir, &target, HAMLIB)?,
     };
+    if source_override.is_none() {
+        crate::diagnostic_patch::apply(&source)?;
+    }
     let prefix = out_dir.join("prefix");
     let libusb = plan
         .is_windows()
@@ -101,6 +108,14 @@ pub fn build_from_environment() -> Result<(), SupportError> {
         libusb.as_deref(),
         source_override.is_none(),
     )?;
+    if source_override.is_some() {
+        // Validated headers alone cannot establish that caller-owned objects are
+        // patched. Rebuild all native objects before installing the archive.
+        run(
+            "make",
+            Command::new("make").current_dir(&source).arg("clean"),
+        )?;
+    }
     run_make(&source)?;
     run_make_install(&source)?;
     emit_metadata(&plan.metadata(&prefix), &prefix, libusb.as_deref());

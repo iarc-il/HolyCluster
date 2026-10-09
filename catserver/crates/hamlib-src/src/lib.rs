@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
 mod archive;
+#[cfg(test)]
+mod diagnostic_patch;
 mod package;
 mod plan;
 #[cfg(test)]

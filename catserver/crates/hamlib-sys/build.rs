@@ -23,6 +23,15 @@ fn main() {
     assert_eq!(version, HAMLIB_VERSION, "unsupported Hamlib header version");
     let include_dir = required("DEP_HAMLIB_SRC_INCLUDE");
     let target = required("TARGET");
+    if target.contains("linux") {
+        let prefix = Path::new(&include_dir)
+            .parent()
+            .expect("Hamlib include has a prefix");
+        println!(
+            "cargo:rustc-env=HAMLIB_SYS_NATIVE_PREFIX={}",
+            prefix.display()
+        );
+    }
     let lib_dir = required("DEP_HAMLIB_SRC_LIBDIR");
     let library = Path::new(&lib_dir).join(required("DEP_HAMLIB_SRC_LIBRARY_FILE"));
     assert!(

@@ -156,7 +156,8 @@ pub(crate) fn hamlib_result(operation: &'static str, result: i32) -> Result<(), 
     if result == 0 {
         return Ok(());
     }
-    // SAFETY: Hamlib error functions accept return codes and return static NUL-terminated text.
+    // SAFETY: The patched pinned Hamlib returns NUL-terminated thread-local text.
+    // Copy before another call to the same error function on this thread.
     let short_message = error_text(unsafe { sys::rigerror2(result) }, operation, result)?
         .trim_end()
         .to_owned();
@@ -177,7 +178,8 @@ fn error_text(
     if pointer.is_null() {
         return Err(HamlibError::NullErrorText { operation, code });
     }
-    // SAFETY: Hamlib returns a NUL-terminated static string when non-null.
+    // SAFETY: Patched Hamlib returns NUL-terminated thread-local storage (or a
+    // constant out-of-range string). Other threads cannot change this storage.
     unsafe { CStr::from_ptr(pointer) }
         .to_str()
         .map(str::to_owned)

@@ -1,5 +1,7 @@
 #[path = "src/archive.rs"]
 mod archive;
+#[path = "src/diagnostic_patch.rs"]
+mod diagnostic_patch;
 #[path = "src/package.rs"]
 mod package;
 #[path = "src/plan.rs"]
