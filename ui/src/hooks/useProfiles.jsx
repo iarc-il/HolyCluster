@@ -3,8 +3,8 @@ import {
     PROFILE_STORE_KEY,
     PROFILE_STORE_VERSION,
     create_default_profile_data,
+    initialize_profile_store,
     make_unique_profile_name,
-    read_legacy_profile_data,
     sanitize_profile_data,
     sanitize_profile_store,
 } from "@/utils/profile_data.js";
@@ -53,10 +53,7 @@ export function useProfiles() {
 export function ProfilesProvider({ children }) {
     const location = useLocation();
     const navigate = useNavigate();
-    const initial_profile_store = useMemo(
-        () => sanitize_profile_store(null, read_legacy_profile_data()),
-        [],
-    );
+    const initial_profile_store = useMemo(() => initialize_profile_store(), []);
     const fallback_profile_data = initial_profile_store.profiles[0].data;
     const [stored_profile_store, set_stored_profile_store] = useLocalStorage(
         PROFILE_STORE_KEY,
