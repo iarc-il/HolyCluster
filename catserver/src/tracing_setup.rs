@@ -97,6 +97,19 @@ fn sentry_options(dsn: Option<&str>) -> Option<ClientOptions> {
             return None;
         }
     };
+    let fallback_client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+    {
+        Ok(client) => client,
+        Err(error) => {
+            tracing::warn!(
+                ?error,
+                "Sentry is disabled because its HTTP client could not be built"
+            );
+            return None;
+        }
+    };
     Some(ClientOptions {
         dsn: Some(dsn),
         release: Some(Cow::Borrowed(env!("VERSION"))),
@@ -106,7 +119,34 @@ fn sentry_options(dsn: Option<&str>) -> Option<ClientOptions> {
         send_default_pii: false,
         before_breadcrumb: Some(Arc::new(scrub_breadcrumb)),
         before_send: Some(Arc::new(scrub_event)),
-        shutdown_timeout: Duration::from_millis(500),
+        // The SDK also joins its worker on drop; this is not a total exit deadline.
+        shutdown_timeout: Duration::from_secs(2),
+        transport: Some(Arc::new(move |options: &ClientOptions| {
+            let mut builder = reqwest::Client::builder()
+                .timeout(Duration::from_secs(2))
+                .danger_accept_invalid_certs(options.accept_invalid_certs);
+            // Match the SDK's proxy handling after sentry::init applies defaults.
+            if let Some(url) = &options.http_proxy
+                && let Ok(proxy) = reqwest::Proxy::http(url.as_ref())
+            {
+                builder = builder.proxy(proxy);
+            }
+            if let Some(url) = &options.https_proxy
+                && let Ok(proxy) = reqwest::Proxy::https(url.as_ref())
+            {
+                builder = builder.proxy(proxy);
+            }
+            let client = builder.build().unwrap_or_else(|error| {
+                tracing::warn!(
+                    ?error,
+                    "Sentry HTTP client configuration failed; using default proxy settings"
+                );
+                fallback_client.clone()
+            });
+            Arc::new(sentry::transports::ReqwestHttpTransport::with_client(
+                options, client,
+            )) as Arc<dyn sentry::Transport>
+        })),
         ..Default::default()
     })
 }
@@ -422,17 +462,49 @@ mod tests {
     }
 
     #[test]
+    fn stalled_http_request_times_out_without_a_response() {
+        use std::{io::Read, net::TcpListener, sync::mpsc, thread};
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (received_tx, received_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            received_tx.send(()).unwrap();
+            // Keep the connection open without returning any HTTP response.
+            let _ = release_rx.recv_timeout(Duration::from_secs(10));
+        });
+        let options = sentry_options(Some(&format!("http://public@{address}/1"))).unwrap();
+        assert_eq!(options.shutdown_timeout, Duration::from_secs(2));
+        let client = Client::from(options);
+        let started = Instant::now();
+        client.capture_event(Event::default(), None);
+        let received = received_rx.recv_timeout(Duration::from_secs(5));
+        let drained = client.flush(Some(Duration::from_secs(5)));
+        let elapsed = started.elapsed();
+        // Release the server only after the transport has finished the request.
+        let _ = release_tx.send(());
+        server.join().unwrap();
+        assert!(received.is_ok(), "local server did not receive the request");
+        assert!(
+            drained,
+            "stalled request did not finish within the flush budget"
+        );
+        assert!(elapsed >= Duration::from_secs(1));
+        assert!(elapsed < Duration::from_secs(5));
+    }
+
+    #[test]
     fn offline_transport_does_not_block_event_capture() {
-        let options = ClientOptions {
-            dsn: Some("http://public@127.0.0.1:1/1".parse().unwrap()),
-            default_integrations: false,
-            shutdown_timeout: Duration::ZERO,
-            ..Default::default()
-        };
-        let transport = Arc::new(sentry::transports::ReqwestHttpTransport::new(&options));
         let client = Client::from(ClientOptions {
-            transport: Some(Arc::new(transport)),
-            ..options
+            shutdown_timeout: Duration::ZERO,
+            ..sentry_options(Some("http://public@127.0.0.1:1/1")).unwrap()
         });
 
         let started = Instant::now();
