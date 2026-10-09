@@ -1,4 +1,4 @@
-import { useWs } from "@/hooks/useWs";
+import { ReadyState, useWs } from "@/hooks/useWs";
 import {
     ensure_propagation_loaded,
     get_propagation,
@@ -22,7 +22,7 @@ function snap_to_bucket_end(ms) {
 }
 
 export default function useHistoryPropagation(startTime, endTime) {
-    const { send, subscribe: subscribe_ws, wait_for_open } = useWs();
+    const { send, subscribe: subscribe_ws, wait_for_open, readyState } = useWs();
     const inflight = useRef(new Set());
     const latest_request_ref = useRef(null);
     const fetch_running_ref = useRef(false);
@@ -57,8 +57,6 @@ export default function useHistoryPropagation(startTime, endTime) {
             inflight.current.add(key);
 
             ensure_loaded(s, e, signal)
-                .catch(() => {})
-                .finally(() => inflight.current.delete(key))
                 .then(() => {
                     if (signal.aborted) return;
                     const next_s = s + BUCKET_MS * direction;
@@ -67,9 +65,21 @@ export default function useHistoryPropagation(startTime, endTime) {
                     if (direction > 0 && next_e > now_ms + 60_000) return;
                     if (direction < 0 && next_s < now_ms - PREFETCH_RETENTION_MS) return;
                     prefetch_chain(next_s, next_e, direction, signal);
-                });
+                })
+                .catch(() => {})
+                .finally(() => inflight.current.delete(key));
         },
         [ensure_loaded],
+    );
+
+    // Cancel work from the old connection and on unmount. Reopening queues
+    // the desired window again, even when its bounds have not changed.
+    useEffect(
+        () => () => {
+            latest_request_ref.current = null;
+            chain_controller_ref.current?.abort();
+        },
+        [readyState],
     );
 
     // Only one propagation fetch is ever in flight at a time. A fast drag
@@ -79,8 +89,14 @@ export default function useHistoryPropagation(startTime, endTime) {
     // intermediate position instead of piling up a burst of now-stale
     // requests.
     useEffect(() => {
-        if (start_ms === null || end_ms === null) {
+        if (
+            start_ms === null ||
+            end_ms === null ||
+            readyState === ReadyState.CLOSED ||
+            readyState === ReadyState.CLOSING
+        ) {
             latest_request_ref.current = null;
+            chain_controller_ref.current?.abort();
             return;
         }
 
@@ -103,6 +119,7 @@ export default function useHistoryPropagation(startTime, endTime) {
 
                 try {
                     await ensure_loaded(s, e, controller.signal);
+                    if (controller.signal.aborted) continue;
                     prefetch_chain(bucket_end_ms, bucket_end_ms + BUCKET_MS, 1, controller.signal);
                     prefetch_chain(
                         bucket_start_ms - BUCKET_MS,
@@ -119,7 +136,7 @@ export default function useHistoryPropagation(startTime, endTime) {
             fetch_running_ref.current = false;
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [start_ms, end_ms]);
+    }, [start_ms, end_ms, readyState]);
 
     return {
         propagation_history: snapshot.propagation_history,

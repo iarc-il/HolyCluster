@@ -1,4 +1,4 @@
-import { useWs } from "@/hooks/useWs";
+import { ReadyState, useWs } from "@/hooks/useWs";
 import { ensure_spots_loaded, get_spots, get_version, subscribe } from "@/utils/spot_cache_db.jsx";
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 
@@ -8,7 +8,7 @@ const PREFETCH_RETENTION_MS = 5 * 86_400_000;
 const EMPTY_SNAPSHOT = { spots: [], is_complete: false };
 
 export default function useHistorySpots(startTime, endTime, window_size_ms, step_size_ms) {
-    const { send, subscribe: subscribe_ws, wait_for_open } = useWs();
+    const { send, subscribe: subscribe_ws, wait_for_open, readyState } = useWs();
     const inflight = useRef(new Set());
     const latest_request_ref = useRef(null);
     const fetch_running_ref = useRef(false);
@@ -45,8 +45,6 @@ export default function useHistorySpots(startTime, endTime, window_size_ms, step
             inflight.current.add(key);
 
             ensure_loaded(s, e, signal)
-                .catch(() => {})
-                .finally(() => inflight.current.delete(key))
                 .then(() => {
                     if (signal.aborted) return;
                     const next_s = s + step_ms * direction;
@@ -55,9 +53,21 @@ export default function useHistorySpots(startTime, endTime, window_size_ms, step
                     if (direction > 0 && next_e > now_ms + 60_000) return;
                     if (direction < 0 && next_s < now_ms - PREFETCH_RETENTION_MS) return;
                     prefetch_chain(next_s, next_e, step_ms, direction, signal);
-                });
+                })
+                .catch(() => {})
+                .finally(() => inflight.current.delete(key));
         },
         [ensure_loaded],
+    );
+
+    // Invalidate pending work on connection loss and on unmount. The range
+    // effect below queues the desired window again when the socket reopens.
+    useEffect(
+        () => () => {
+            latest_request_ref.current = null;
+            chain_controller_ref.current?.abort();
+        },
+        [readyState],
     );
 
     // Only one history fetch is ever in flight at a time. A fast drag just
@@ -66,8 +76,14 @@ export default function useHistorySpots(startTime, endTime, window_size_ms, step
     // immediately serves whatever is newest, skipping every intermediate
     // position instead of piling up a burst of now-stale requests.
     useEffect(() => {
-        if (start_ms === null || end_ms === null) {
+        if (
+            start_ms === null ||
+            end_ms === null ||
+            readyState === ReadyState.CLOSED ||
+            readyState === ReadyState.CLOSING
+        ) {
             latest_request_ref.current = null;
+            chain_controller_ref.current?.abort();
             return;
         }
 
@@ -91,6 +107,7 @@ export default function useHistorySpots(startTime, endTime, window_size_ms, step
 
                 try {
                     await ensure_loaded(s, e, controller.signal);
+                    if (controller.signal.aborted) continue;
                     prefetch_chain(s + step, e + step, step, 1, controller.signal);
                     prefetch_chain(s - step, e - step, step, -1, controller.signal);
                 } catch (err) {
@@ -102,7 +119,7 @@ export default function useHistorySpots(startTime, endTime, window_size_ms, step
             fetch_running_ref.current = false;
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [start_ms, end_ms]);
+    }, [start_ms, end_ms, readyState]);
 
     return {
         raw_spots: snapshot.spots,

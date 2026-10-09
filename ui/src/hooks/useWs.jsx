@@ -70,6 +70,7 @@ export function WsProvider({ children }) {
     const subscribers_ref = useRef(new Map());
     const ready_state_ref = useRef(ReadyState.CONNECTING);
     const ready_waiters_ref = useRef([]);
+    const send_state_ref = useRef(null);
 
     const dispatch = useCallback(message => {
         const handlers = subscribers_ref.current.get(message.type);
@@ -161,8 +162,18 @@ export function WsProvider({ children }) {
         return () => clearTimeout(timeout);
     }, [select_transport, transport]);
 
+    ready_state_ref.current = readyState;
+    send_state_ref.current = {
+        transport,
+        compatibility_radio_ready_state,
+        compatibility_ready_state,
+        unified_ready_state,
+        send_compatibility_message,
+        send_compatibility_radio_message,
+        send_unified_message,
+    };
+
     useEffect(() => {
-        ready_state_ref.current = readyState;
         switch (readyState) {
             case ReadyState.CONNECTING:
                 set_network_state("connecting");
@@ -227,42 +238,69 @@ export function WsProvider({ children }) {
         };
     }, []);
 
-    const send = useCallback(
-        (type, data) => {
-            if (transport === "probing") return;
-
-            if (transport === "cat_v1_2") {
-                if (type === "radio") {
-                    if (compatibility_radio_ready_state === ReadyState.OPEN) {
-                        send_compatibility_radio_message(cat_v1_2_message(type, data));
-                    }
-                } else if (compatibility_ready_state === ReadyState.OPEN) {
-                    send_compatibility_message(cat_v1_2_message(type, data));
-                }
-                return;
-            }
-
-            if (unified_ready_state === ReadyState.OPEN) {
-                send_unified_message({ version: 1, type, ...data });
-            }
-        },
-        [
+    const send = useCallback((type, data) => {
+        const {
+            transport,
             compatibility_radio_ready_state,
             compatibility_ready_state,
+            unified_ready_state,
             send_compatibility_message,
             send_compatibility_radio_message,
             send_unified_message,
-            transport,
-            unified_ready_state,
-        ],
-    );
+        } = send_state_ref.current;
+        if (transport === "probing") return false;
 
-    const wait_for_open = useCallback(() => {
+        if (transport === "cat_v1_2") {
+            if (type === "radio") {
+                if (compatibility_radio_ready_state === ReadyState.OPEN) {
+                    send_compatibility_radio_message(cat_v1_2_message(type, data));
+                    return true;
+                }
+            } else if (compatibility_ready_state === ReadyState.OPEN) {
+                send_compatibility_message(cat_v1_2_message(type, data));
+                return true;
+            }
+            return false;
+        }
+
+        if (unified_ready_state === ReadyState.OPEN) {
+            send_unified_message({ version: 1, type, ...data });
+            return true;
+        }
+        return false;
+    }, []);
+
+    const wait_for_open = useCallback(signal => {
+        if (signal?.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
         if (ready_state_ref.current === ReadyState.OPEN) return Promise.resolve();
-        return new Promise(resolve => {
-            ready_waiters_ref.current.push(resolve);
+        return new Promise((resolve, reject) => {
+            const finish = error => {
+                clearTimeout(timer);
+                signal?.removeEventListener("abort", on_abort);
+                ready_waiters_ref.current = ready_waiters_ref.current.filter(
+                    waiter => waiter !== finish,
+                );
+                if (error) reject(error);
+                else resolve();
+            };
+            const on_abort = () => finish(new DOMException("Aborted", "AbortError"));
+            const timer = setTimeout(
+                () => finish(new Error("WebSocket connection timed out")),
+                10_000,
+            );
+            signal?.addEventListener("abort", on_abort);
+            ready_waiters_ref.current.push(finish);
         });
     }, []);
+
+    useEffect(
+        () => () => {
+            for (const finish of ready_waiters_ref.current) {
+                finish(new DOMException("Aborted", "AbortError"));
+            }
+        },
+        [],
+    );
 
     const reconnect = useCallback(() => {
         set_connection_generation(current => current + 1);

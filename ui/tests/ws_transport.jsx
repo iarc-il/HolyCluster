@@ -79,6 +79,48 @@ describe("WebSocket transport", () => {
         vi.useRealTimers();
     });
 
+    it.each(["unified", "legacy"])(
+        "uses current %s readiness from a send captured while probing",
+        async candidate => {
+            const view = render_provider();
+            const captured_send = TestConsumer.context.send;
+            const open = TestConsumer.context.wait_for_open();
+            captured_send("history", { event: "spots" });
+            const path = candidate === "unified" ? "/ws" : "/submit_spot";
+            const connection = websocket_mock.connection_for(path);
+            connection.readyState = websocket_mock.ReadyState.OPEN;
+            if (candidate === "unified") receive(view, "/radio", { status: "unavailable" });
+            else receive(view, "/radio", { status: "connected", version: "catserver-v1.2.0" });
+            await open;
+            captured_send("history", { event: "spots" });
+            expect(connection.sendJsonMessage).toHaveBeenCalledWith({
+                version: 1,
+                type: "history",
+                event: "spots",
+            });
+            connection.readyState = websocket_mock.ReadyState.CLOSED;
+            receive(view, path, null);
+            expect(captured_send("history", { event: "spots" })).toBe(false);
+            expect(connection.sendJsonMessage).toHaveBeenCalledTimes(1);
+        },
+    );
+
+    it.each(["abort", "timeout", "unmount"])("settles an opening waiter on %s", async reason => {
+        vi.useFakeTimers();
+        const view = render_provider();
+        const controller = new AbortController();
+        const pending = TestConsumer.context.wait_for_open(controller.signal);
+        const rejection = expect(pending).rejects.toThrow(
+            reason === "timeout" ? "timed out" : "Aborted",
+        );
+        if (reason === "abort") controller.abort();
+        else if (reason === "unmount") view.unmount();
+        else await vi.advanceTimersByTimeAsync(10_000);
+        await rejection;
+        if (reason !== "unmount") view.unmount();
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
     it("delivers the update handoff before an immediate transport close", () => {
         const view = render_provider();
         receive(view, "/ws", {

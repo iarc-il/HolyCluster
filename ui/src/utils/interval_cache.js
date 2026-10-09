@@ -171,6 +171,9 @@ export function compute_gaps(start_ms, end_ms, covered_intervals) {
 // Requests one [start_unix, end_unix] window over the shared "history" websocket
 // channel, keyed by `event_name` so concurrent spots/propagation requests with the
 // same time bounds never resolve each other's response.
+export const HISTORY_OPEN_TIMEOUT_MS = 10_000;
+export const HISTORY_RESPONSE_TIMEOUT_MS = 30_000;
+
 export function fetch_window(
     send,
     subscribe,
@@ -187,29 +190,56 @@ export function fetch_window(
             return;
         }
 
-        const cleanup = () => {
+        let unsubscribe = () => {};
+        let settled = false;
+        let timer;
+        const opening = new AbortController();
+        const settle = (error, value) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
             unsubscribe();
             signal?.removeEventListener("abort", on_abort);
+            opening.abort();
+            if (error) reject(error);
+            else resolve(value);
         };
-
-        const on_abort = () => {
-            cleanup();
-            reject(new DOMException("Aborted", "AbortError"));
-        };
-
-        const unsubscribe = subscribe("history", data => {
-            if (data.event !== event_name) return;
-            if (data.start_time !== start_unix || data.end_time !== end_unix) return;
-            cleanup();
-            resolve(extract_value(data));
-        });
+        const on_abort = () => settle(new DOMException("Aborted", "AbortError"));
+        const timeout = phase => settle(new Error(`History ${phase} timed out`));
 
         signal?.addEventListener("abort", on_abort);
-
-        wait_for_open().then(() => {
-            if (signal?.aborted) return;
-            send("history", { event: event_name, start_time: start_unix, end_time: end_unix });
-        });
+        timer = setTimeout(() => timeout("connection"), HISTORY_OPEN_TIMEOUT_MS);
+        try {
+            unsubscribe = subscribe("history", data => {
+                if (data.event !== event_name) return;
+                if (data.start_time !== start_unix || data.end_time !== end_unix) return;
+                try {
+                    settle(null, extract_value(data));
+                } catch (error) {
+                    settle(error);
+                }
+            });
+            // Custom transports may ignore the optional signal or return void
+            // from send; only an explicit false means the send was refused.
+            Promise.resolve(wait_for_open(opening.signal))
+                .then(() => {
+                    if (settled) return;
+                    clearTimeout(timer);
+                    timer = setTimeout(() => timeout("response"), HISTORY_RESPONSE_TIMEOUT_MS);
+                    if (
+                        send("history", {
+                            event: event_name,
+                            start_time: start_unix,
+                            end_time: end_unix,
+                        }) === false
+                    ) {
+                        settle(new Error("History connection is not open"));
+                    }
+                })
+                .catch(error => settle(error));
+        } catch (error) {
+            settle(error);
+        }
     });
 }
 
