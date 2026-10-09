@@ -106,15 +106,15 @@ async fn handle_ws_socket(
                 server_sender = Some(sender);
                 server_receiver = Some(receiver);
                 upstream_connection = Some(availability.connection());
-                if let Some(message) = pending_subscription.take() {
-                    if forward_to_server(
+                if let Some(message) = pending_subscription.take()
+                    && forward_to_server(
                         server_sender.as_mut().unwrap(),
                         message,
                         upstream_connection.as_mut().unwrap(),
-                    ).await? {
-                        client_close_code = axum::extract::ws::close_code::RESTART;
-                        break;
-                    }
+                    ).await?
+                {
+                    client_close_code = axum::extract::ws::close_code::RESTART;
+                    break;
                 }
             },
             message = client_receiver.next() => match message {
