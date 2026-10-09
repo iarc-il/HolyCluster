@@ -143,7 +143,7 @@ for library in libayatana-appindicator3.so.1 libappindicator3.so.1 libusb-1.0.so
 done
 # linuxdeploy can add transitive dependencies. Reject any wrong-architecture
 # library before producing an artifact, including files not selected above.
-find "$APPDIR/usr/lib" -type f -name '*.so*' -exec sh -c '
+find "$APPDIR/usr/lib" \( -type f -o -type l \) -name '*.so*' -exec sh -c '
     for library do
         if ! readelf -h "$library" 2>/dev/null | LC_ALL=C awk '\''
             /Class:/ { class = $2 }

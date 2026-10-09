@@ -115,6 +115,15 @@ class AppImageArchitectureTests(unittest.TestCase):
         self.assert_rejected()
         self.assertTrue((self.root / "deployed").exists())
 
+    def test_wrong_architecture_external_library_symlink_is_rejected(self):
+        path = self.root / "outside-appdir.so"
+        path.write_bytes(elf(32))
+        self.env["INJECT_LIBRARY"] = str(path)
+        self.tool("linuxdeploy", 'touch "$DEPLOY_MARKER"\nln -s "$INJECT_LIBRARY" "$CARGO_TARGET_DIR/x86_64-unknown-linux-gnu/release/AppDir/usr/lib/injected.so"')
+        self.assert_rejected()
+        self.assertTrue((self.build / "AppDir/usr/lib/injected.so").is_symlink())
+        self.assertTrue((self.root / "deployed").exists())
+
     def test_wrong_architecture_executable_is_rejected(self):
         (self.build / "catserver").write_bytes(elf(32))
         self.assert_rejected()
