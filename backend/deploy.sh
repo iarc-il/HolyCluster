@@ -10,11 +10,11 @@ REF="$1"
 
 PREVIOUS_HEAD=$(git rev-parse HEAD)
 
-git checkout "$REF" 2>/dev/null || git checkout -b "$REF" "origin/$REF" 2>/dev/null || true
+git checkout "$REF" 2>/dev/null || git checkout -b "$REF" "origin/$REF" 2>/dev/null
 # For branches like origin/dev, detach or reset
 if [[ "$REF" == origin/* ]]; then
     BRANCH="${REF#origin/}"
-    git checkout "$BRANCH" 2>/dev/null || true
+    git checkout "$BRANCH" 2>/dev/null
     git reset --hard "$REF"
 fi
 
@@ -124,14 +124,34 @@ fi
 
 echo "Starting: $SERVICE_LIST"
 
+START_PIDS=()
+START_SERVICES=()
+
 for svc in $SERVICE_LIST; do
     if [ "$svc" = "nginx" ] || [ "$svc" = "migrate" ]; then
         continue
     fi
     docker compose up -d --no-deps "$svc" &
+    START_PIDS+=("$!")
+    START_SERVICES+=("$svc")
 done
 
-wait
+START_STATUS=0
+for i in "${!START_PIDS[@]}"; do
+    if wait "${START_PIDS[$i]}"; then
+        :
+    else
+        status=$?
+        echo "Failed to start ${START_SERVICES[$i]} (exit $status)." >&2
+        if [ "$START_STATUS" -eq 0 ]; then
+            START_STATUS=$status
+        fi
+    fi
+done
+
+if [ "$START_STATUS" -ne 0 ]; then
+    exit "$START_STATUS"
+fi
 
 if [[ -v SERVICES[nginx] ]]; then
     docker compose up -d --no-deps nginx
