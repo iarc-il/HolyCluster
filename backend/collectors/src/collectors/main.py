@@ -342,8 +342,7 @@ async def run_collector():
     tasks = []
 
     try:
-        await qrz_manager.start()
-
+        # QRZ is optional enrichment: sources and processing must start during an outage.
         tasks = [
             asyncio.create_task(qrz_manager.refresh_loop(), name="qrz_refresh_task"),
             asyncio.create_task(refresh_dxpedition_data(valkey_client), name="dxpedition_refresh_task"),

@@ -13,11 +13,17 @@ HTTPX_DEFAULT_MAX_KEEPALIVE_CONNECTIONS = 20
 QRZ_XML_NAMESPACE = {"qrz": "http://xmldata.qrz.com"}
 QRZ_REQUEST_ATTEMPTS = 6
 QRZ_MAX_RETRY_DELAY_SECONDS = 30
+QRZ_LOOKUP_BUDGET_SECONDS = 2.0
+QRZ_AUTH_BUDGET_SECONDS = 10.0
+QRZ_AUTH_RETRY_BASE_SECONDS = 5
+QRZ_AUTH_RETRY_MAX_SECONDS = 60
 
 
-async def _get_with_retries(http_client: httpx.AsyncClient, url: str, timeout: float | None = None):
+async def _get_with_retries(
+    http_client: httpx.AsyncClient, url: str, timeout: float | None = None, attempts: int = QRZ_REQUEST_ATTEMPTS
+):
     last_error = None
-    for attempt in range(QRZ_REQUEST_ATTEMPTS):
+    for attempt in range(attempts):
         try:
             if timeout is None:
                 response = await http_client.get(url)
@@ -28,7 +34,7 @@ async def _get_with_retries(http_client: httpx.AsyncClient, url: str, timeout: f
             response.raise_for_status()
         except (httpx.TransportError, httpx.HTTPStatusError) as e:
             last_error = e
-            if attempt == QRZ_REQUEST_ATTEMPTS - 1:
+            if attempt == attempts - 1:
                 raise
             delay = min(2**attempt, QRZ_MAX_RETRY_DELAY_SECONDS) + random.uniform(0, 1)
             logger.warning(
@@ -78,6 +84,7 @@ class QrzSessionManager:
         self.refresh_interval = refresh_interval
         self.session_key: str = ""
         self._lock = asyncio.Lock()
+        self._retry_after = 0.0
         self.redis_client = redis_client
         self.redis_key = redis_key
         # QRZ's Apache endpoint advertises Keep-Alive timeout=2. Drop idle
@@ -91,15 +98,7 @@ class QrzSessionManager:
         )
 
     async def start(self):
-        self.session_key = await get_qrz_session_key(
-            username=self.username,
-            password=self.password,
-            api_key=self.api_key,
-            http_client=self.http_client,
-        )
-        logger.info("QRZ session initialized")
-        if self.redis_client:
-            await self.redis_client.set(self.redis_key, self.session_key)
+        await self.refresh_if_stale(self.session_key)
 
     async def aclose(self):
         await self.http_client.aclose()
@@ -108,12 +107,21 @@ class QrzSessionManager:
         async with self._lock:
             if self.session_key and self.session_key != stale_key:
                 return self.session_key
-            new_key = await get_qrz_session_key(
-                username=self.username,
-                password=self.password,
-                api_key=self.api_key,
-                http_client=self.http_client,
-            )
+            loop = asyncio.get_running_loop()
+            if loop.time() < self._retry_after:
+                raise RuntimeError("QRZ authentication temporarily unavailable")
+            try:
+                async with asyncio.timeout(QRZ_AUTH_BUDGET_SECONDS):
+                    new_key = await get_qrz_session_key(
+                        username=self.username,
+                        password=self.password,
+                        api_key=self.api_key,
+                        http_client=self.http_client,
+                    )
+            except Exception:
+                self._retry_after = loop.time() + QRZ_AUTH_RETRY_BASE_SECONDS
+                raise
+            self._retry_after = 0.0
             self.session_key = new_key
             if self.redis_client:
                 await self.redis_client.set(self.redis_key, new_key)
@@ -121,29 +129,18 @@ class QrzSessionManager:
             return new_key
 
     async def refresh_loop(self):
-        try:
-            while True:
+        # Authenticate in the background, including the first attempt at startup.
+        retry_delay = QRZ_AUTH_RETRY_BASE_SECONDS
+        while True:
+            try:
+                await self.start()
+            except Exception:
+                logger.warning("QRZ authentication unavailable; keeping collection active")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, QRZ_AUTH_RETRY_MAX_SECONDS)
+            else:
+                retry_delay = QRZ_AUTH_RETRY_BASE_SECONDS
                 await asyncio.sleep(self.refresh_interval)
-                logger.info(f"Refreshing QRZ key (every {self.refresh_interval} seconds)")
-                try:
-                    async with self._lock:
-                        new_key = await get_qrz_session_key(
-                            username=self.username,
-                            password=self.password,
-                            api_key=self.api_key,
-                            http_client=self.http_client,
-                        )
-                        if new_key:
-                            self.session_key = new_key
-                            logger.info("QRZ session refreshed successfully")
-                            if self.redis_client:
-                                await self.redis_client.set(self.redis_key, new_key)
-                        else:
-                            logger.error("QRZ refresh failed (got None), keeping old key")
-                except Exception:
-                    logger.exception("Failed to refresh QRZ key. Keeping old key")
-        except asyncio.CancelledError:
-            logger.info("QRZ refresh task cancelled")
 
     def get_key(self) -> str:
         return self.session_key
@@ -179,6 +176,20 @@ async def get_locator_from_qrz(
     http_client: httpx.AsyncClient,
     refresh_session: Callable[[str], Awaitable[str]] | None = None,
 ) -> dict:
+    # One deadline covers HTTP, lock waiting, authentication and the second lookup.
+    try:
+        async with asyncio.timeout(QRZ_LOOKUP_BUDGET_SECONDS):
+            return await _get_locator_from_qrz(qrz_session_key, callsign, http_client, refresh_session)
+    except (httpx.HTTPError, TimeoutError, RuntimeError) as e:
+        return _lookup_error(f"qrz request unavailable: {type(e).__name__}")
+
+
+async def _get_locator_from_qrz(
+    qrz_session_key: str,
+    callsign: str,
+    http_client: httpx.AsyncClient,
+    refresh_session: Callable[[str], Awaitable[str]] | None = None,
+) -> dict:
     def parse_zone_int(root, ns, tag_name):
         elem = root.find(f".//qrz:{tag_name}", ns)
         if elem is None or elem.text is None:
@@ -201,7 +212,7 @@ async def get_locator_from_qrz(
     url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
 
     try:
-        response = await _get_with_retries(http_client, url, timeout=5)
+        response = await _get_with_retries(http_client, url, timeout=QRZ_LOOKUP_BUDGET_SECONDS, attempts=1)
     except (httpx.TransportError, httpx.HTTPStatusError) as e:
         return _lookup_error(f"qrz request unavailable: {type(e).__name__}")
 
@@ -217,7 +228,7 @@ async def get_locator_from_qrz(
     if xml_error is not None:
         if refresh_session is not None and _is_session_error(xml_error):
             refreshed_key = await refresh_session(qrz_session_key)
-            return await get_locator_from_qrz(refreshed_key, callsign, http_client)
+            return await _get_locator_from_qrz(refreshed_key, callsign, http_client)
         return _lookup_error(xml_error)
 
     geoloc = _xml_text(root, "geoloc")
