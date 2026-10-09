@@ -123,6 +123,29 @@ def mark_websocket_closed(websocket):
 BROADCAST_WEBSOCKET_TIMEOUT = 1.0
 
 
+def get_websocket_close_tasks():
+    tasks = getattr(app.state, "websocket_close_tasks", None)
+    if tasks is None:
+        tasks = set()
+        app.state.websocket_close_tasks = tasks
+    return tasks
+
+
+async def close_broadcast_websocket(websocket):
+    try:
+        await websocket.close()
+    except Exception as e:
+        logger.debug(f"Failed to close websocket: {e}")
+
+
+async def cancel_websocket_close_tasks():
+    tasks = list(get_websocket_close_tasks())
+    for task in tasks:
+        task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
 async def send_json_to_websockets(connections, message):
     for websocket in connections.copy():
         try:
@@ -140,10 +163,16 @@ async def send_json_to_websockets(connections, message):
         mark_websocket_closed(websocket)
         connections.discard(websocket)
         app.state.websocket_send_locks.pop(websocket, None)
+        # Starlette changes its state before the ASGI close send completes.
+        # Keep that send alive after the deadline, and supervise it until shutdown.
+        close_tasks = get_websocket_close_tasks()
+        close_task = asyncio.create_task(close_broadcast_websocket(websocket))
+        close_tasks.add(close_task)
+        close_task.add_done_callback(close_tasks.discard)
         try:
-            await asyncio.wait_for(websocket.close(), timeout=BROADCAST_WEBSOCKET_TIMEOUT)
-        except Exception as e:
-            logger.debug(f"Failed to close websocket: {e}")
+            await asyncio.wait_for(asyncio.shield(close_task), timeout=BROADCAST_WEBSOCKET_TIMEOUT)
+        except TimeoutError:
+            logger.debug("Websocket close continues after broadcast deadline")
 
 
 async def broadcast_spots(app, spots):
@@ -226,6 +255,7 @@ async def lifespan(app: fastapi.FastAPI):
     app.state.active_ws_spot_connections = set()
     app.state.websocket_send_locks = weakref.WeakKeyDictionary()
     app.state.closed_websockets = weakref.WeakSet()
+    app.state.websocket_close_tasks = set()
     app.state.propagation = None
 
     app.state.valkey_client = redis.asyncio.Redis(
@@ -252,6 +282,7 @@ async def lifespan(app: fastapi.FastAPI):
             task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+        await cancel_websocket_close_tasks()
         await asyncio.gather(
             app.state.http_client.aclose(),
             app.state.valkey_client.aclose(),

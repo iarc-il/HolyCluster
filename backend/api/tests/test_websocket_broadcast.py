@@ -56,6 +56,8 @@ class WebSocketBroadcastTest(unittest.IsolatedAsyncioTestCase):
         for name, value in (
             ("websocket_send_locks", self.locks),
             ("closed_websockets", self.closed),
+            ("websocket_close_tasks", set()),
+            ("active_connections", set()),
         ):
             patcher = patch.object(main.app.state, name, value, create=True)
             patcher.start()
@@ -63,6 +65,9 @@ class WebSocketBroadcastTest(unittest.IsolatedAsyncioTestCase):
         patcher = patch.object(main, "BROADCAST_WEBSOCKET_TIMEOUT", 0.01)
         patcher.start()
         self.addCleanup(patcher.stop)
+
+    async def asyncTearDown(self):
+        await main.cancel_websocket_close_tasks()
 
     async def assert_failed_recipient_removed(self, failed, *, held_lock=False):
         healthy = FakeWebSocket()
@@ -98,7 +103,11 @@ class WebSocketBroadcastTest(unittest.IsolatedAsyncioTestCase):
         failed = FakeWebSocket(hang_send=True, hang_close=True)
         await self.assert_failed_recipient_removed(failed)
         self.assertTrue(failed.send_cancelled)
+        self.assertFalse(failed.close_cancelled)
+        self.assertEqual(len(main.get_websocket_close_tasks()), 1)
+        await main.cancel_websocket_close_tasks()
         self.assertTrue(failed.close_cancelled)
+        self.assertFalse(main.get_websocket_close_tasks())
 
     async def test_close_failure_does_not_skip_healthy_recipient(self):
         class CloseFailureWebSocket(FakeWebSocket):
@@ -115,15 +124,26 @@ class WebSocketBroadcastTest(unittest.IsolatedAsyncioTestCase):
         unified_healthy = FakeWebSocket()
         legacy = OrderedRecipients(legacy_failed, legacy_healthy)
         unified = OrderedRecipients(unified_failed, unified_healthy)
-        fake_app = SimpleNamespace(state=SimpleNamespace(
-            active_connections=legacy, active_ws_spot_connections=unified,
-        ))
+        fake_app = SimpleNamespace(
+            state=SimpleNamespace(
+                active_connections=legacy,
+                active_ws_spot_connections=unified,
+            )
+        )
         spots = [{"dx_callsign": "K1ABC"}]
         await main.broadcast_spots(fake_app, spots)
         self.assertEqual(legacy_healthy.messages, [{"type": "update", "spots": spots}])
-        self.assertEqual(unified_healthy.messages, [{
-            "version": 1, "type": "spots", "event": "update", "spots": spots,
-        }])
+        self.assertEqual(
+            unified_healthy.messages,
+            [
+                {
+                    "version": 1,
+                    "type": "spots",
+                    "event": "update",
+                    "spots": spots,
+                }
+            ],
+        )
         self.assertEqual(legacy, {legacy_healthy})
         self.assertEqual(unified, {unified_healthy})
         for failed in (legacy_failed, unified_failed):
@@ -133,17 +153,21 @@ class WebSocketBroadcastTest(unittest.IsolatedAsyncioTestCase):
     async def test_failed_recipient_does_not_strand_stream_batch(self):
         failed = FakeWebSocket(WebSocketDisconnect())
         healthy = FakeWebSocket()
-        fake_app = SimpleNamespace(state=SimpleNamespace(
-            active_connections=OrderedRecipients(failed, healthy),
-            active_ws_spot_connections=set(),
-        ))
+        fake_app = SimpleNamespace(
+            state=SimpleNamespace(
+                active_connections=OrderedRecipients(failed, healthy),
+                active_ws_spot_connections=set(),
+            )
+        )
         spot = {"dx_callsign": "K1ABC"}
         client = AsyncMock()
         client.xreadgroup.side_effect = [
-            [("stream-api", [("1-0", spot)])], asyncio.CancelledError(),
+            [("stream-api", [("1-0", spot)])],
+            asyncio.CancelledError(),
         ]
-        with patch.object(main.redis.asyncio, "Redis", return_value=client), patch.object(
-            main, "cleanup_spot", side_effect=lambda value: value
+        with (
+            patch.object(main.redis.asyncio, "Redis", return_value=client),
+            patch.object(main, "cleanup_spot", side_effect=lambda value: value),
         ):
             with self.assertRaises(asyncio.CancelledError):
                 await main.spots_broadcast_task(fake_app)
@@ -151,6 +175,82 @@ class WebSocketBroadcastTest(unittest.IsolatedAsyncioTestCase):
         client.xack.assert_awaited_once_with("stream-api", "api-group", "1-0")
         client.xdel.assert_awaited_once_with("stream-api", "1-0")
         client.aclose.assert_awaited_once()
+
+    async def test_delayed_asgi_close_completes_and_endpoint_cleans_up(self):
+        incoming = asyncio.Queue()
+        await incoming.put({"type": "websocket.connect"})
+        await incoming.put({"type": "websocket.receive", "text": "{}"})
+        subscribed = asyncio.Event()
+        release_close = asyncio.Event()
+        close_completed = asyncio.Event()
+
+        async def send(message):
+            if message["type"] == "websocket.close":
+                await release_close.wait()
+                close_completed.set()
+                await incoming.put({"type": "websocket.disconnect", "code": 1000})
+
+        async def initial_spots(*_args):
+            subscribed.set()
+
+        websocket = WebSocket({"type": "websocket"}, incoming.get, send)
+        endpoint = None
+        lock = None
+        try:
+            with patch.object(main, "send_spots", side_effect=initial_spots):
+                endpoint = asyncio.create_task(main.spots_ws(websocket))
+                await asyncio.wait_for(subscribed.wait(), 1)
+                lock = main.get_websocket_send_lock(websocket)
+                await lock.acquire()
+                healthy = FakeWebSocket()
+                main.app.state.active_connections.add(healthy)
+                await asyncio.wait_for(
+                    main.broadcast_spots(
+                        SimpleNamespace(
+                            state=SimpleNamespace(
+                                active_connections=main.app.state.active_connections,
+                                active_ws_spot_connections=set(),
+                            )
+                        ),
+                        [],
+                    ),
+                    1,
+                )
+                self.assertEqual(healthy.messages, [{"type": "update", "spots": []}])
+                self.assertFalse(close_completed.is_set())
+                self.assertFalse(endpoint.done())
+                self.assertEqual(len(main.get_websocket_close_tasks()), 1)
+                close_tasks = list(main.get_websocket_close_tasks())
+                release_close.set()
+                await asyncio.wait_for(asyncio.gather(endpoint, *close_tasks), 1)
+                self.assertTrue(close_completed.is_set())
+                self.assertFalse(main.get_websocket_close_tasks())
+                self.assertNotIn(websocket, main.app.state.active_connections)
+                self.assertNotIn(websocket, self.locks)
+        finally:
+            release_close.set()
+            if lock is not None and lock.locked():
+                lock.release()
+            if endpoint is not None and not endpoint.done():
+                endpoint.cancel()
+                await asyncio.gather(endpoint, return_exceptions=True)
+
+    async def test_lifespan_cancels_pending_close_tasks(self):
+        failed = FakeWebSocket(WebSocketDisconnect(), hang_close=True)
+        with (
+            patch.object(main, "ensure_cty_available", new_callable=AsyncMock),
+            patch.object(main, "propagation_data_collector", new_callable=AsyncMock),
+            patch.object(main, "spots_broadcast_task", new_callable=AsyncMock),
+            patch.object(main.redis.asyncio, "Redis", return_value=AsyncMock()),
+            patch.object(main.httpx, "AsyncClient", return_value=AsyncMock()),
+            patch.object(main, "engine", AsyncMock()),
+        ):
+            async with main.lifespan(main.app):
+                await main.send_json_to_websockets({failed}, {})
+                self.assertFalse(failed.close_cancelled)
+                self.assertEqual(len(main.get_websocket_close_tasks()), 1)
+            self.assertTrue(failed.close_cancelled)
+            self.assertFalse(main.get_websocket_close_tasks())
 
     async def test_actual_closed_starlette_websocket_is_removed(self):
         async def receive():
