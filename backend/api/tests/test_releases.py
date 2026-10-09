@@ -6,8 +6,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 from api.main import (
+    app,
     catserver_release,
     download_catserver_artifact,
     download_catserver,
@@ -62,7 +64,7 @@ class ReleaseTest(unittest.TestCase):
 
         response = download_catserver()
         self.assertEqual(response.path, str(self.artifacts_dir / self.windows["artifact"]["name"]))
-        self.assertEqual(response.headers["cache-control"], "public, max-age=31536000, immutable")
+        self.assertEqual(response.headers["cache-control"], "no-store")
 
     def test_platform_download_endpoint_uses_matching_artifact(self):
         windows = download_catserver_release("windows", "x86_64")
@@ -70,6 +72,27 @@ class ReleaseTest(unittest.TestCase):
 
         self.assertEqual(windows.path, str(self.artifacts_dir / self.windows["artifact"]["name"]))
         self.assertEqual(linux.path, str(self.artifacts_dir / self.linux["artifact"]["name"]))
+        self.assertEqual(windows.headers["cache-control"], "no-store")
+        self.assertEqual(linux.headers["cache-control"], "no-store")
+
+    def test_download_cache_policy_preserves_bytes_and_download_headers(self):
+        client = TestClient(app)
+        for release, content in ((self.windows, b"windows installer"), (self.linux, b"linux appimage")):
+            routes = [
+                (f"/catserver/download/{release['platform']}/{release['architecture']}", "no-store"),
+                (release["artifact"]["location"], "public, max-age=31536000, immutable"),
+            ]
+            if release == self.windows:
+                routes.append(("/catserver/download", "no-store"))
+            for route, cache_control in routes:
+                with self.subTest(route=route):
+                    response = client.get(route)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.headers["cache-control"], cache_control)
+                    self.assertEqual(response.content, content)
+                    self.assertEqual(response.headers["content-type"], "application/octet-stream")
+                    filename = release["artifact"]["name"].replace("catserver", "HolyCluster")
+                    self.assertEqual(response.headers["content-disposition"], f'attachment; filename="{filename}"')
 
     def test_download_rejects_unknown_and_traversal_artifacts(self):
         for name in ("missing.msi", "../latest.json"):

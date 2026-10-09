@@ -1266,7 +1266,7 @@ def get_latest_catserver_name():
     return get_release_artifact("windows", "x86_64").name
 
 
-def serve_release_artifact(artifact):
+def serve_release_artifact(artifact, *, immutable=False):
     try:
         path = releases.artifact_path(settings.catserver_msi_dir, artifact.name)
         releases.verify_artifact(path, artifact)
@@ -1277,7 +1277,7 @@ def serve_release_artifact(artifact):
         str(path),
         filename=artifact.name.replace("catserver", "HolyCluster"),
         media_type="application/octet-stream",
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        headers={"Cache-Control": "public, max-age=31536000, immutable" if immutable else "no-store"},
     )
 
 
@@ -1297,7 +1297,7 @@ def download_catserver_artifact(name: str):
     artifact = next((artifact for artifact in manifest.artifacts if artifact.name == name), None)
     if artifact is None:
         raise HTTPException(status_code=404, detail="Artifact not found")
-    return serve_release_artifact(artifact)
+    return serve_release_artifact(artifact, immutable=True)
 
 
 @app.get("/catserver/latest", response_class=PlainTextResponse)
