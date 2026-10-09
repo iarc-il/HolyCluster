@@ -119,20 +119,31 @@ def mark_websocket_closed(websocket):
     get_closed_websockets().add(websocket)
 
 
-async def send_json_to_websockets(websockets, message):
-    disconnected = set()
-    for websocket in websockets.copy():
+# Bound both lock acquisition and socket backpressure for broadcasts only.
+BROADCAST_WEBSOCKET_TIMEOUT = 1.0
+
+
+async def send_json_to_websockets(connections, message):
+    for websocket in connections.copy():
         try:
-            await send_ws_json(websocket, get_websocket_send_lock(websocket), message)
+            await asyncio.wait_for(
+                send_ws_json(websocket, get_websocket_send_lock(websocket), message),
+                timeout=BROADCAST_WEBSOCKET_TIMEOUT,
+            )
+            continue
         except websockets.WebSocketDisconnect:
-            disconnected.add(websocket)
+            pass
         except Exception as e:
             logger.warning(f"Failed to send to websocket: {e}")
-            disconnected.add(websocket)
 
-    for websocket in disconnected:
-        websockets.discard(websocket)
+        # Remove the recipient before closing: close can also fail or stall.
+        mark_websocket_closed(websocket)
+        connections.discard(websocket)
         app.state.websocket_send_locks.pop(websocket, None)
+        try:
+            await asyncio.wait_for(websocket.close(), timeout=BROADCAST_WEBSOCKET_TIMEOUT)
+        except Exception as e:
+            logger.debug(f"Failed to close websocket: {e}")
 
 
 async def broadcast_spots(app, spots):
