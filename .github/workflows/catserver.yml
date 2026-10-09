@@ -87,6 +87,9 @@ jobs:
           python3 tests/test_build_entry.py
           python3 tests/test_native_build_inputs.py
 
+      - name: Test AppImage dependency architecture
+        run: python3 catserver/tests/test_appimage_architecture.py
+
       - name: Test release publisher
         run: python3 catserver/test_publish.py
 

@@ -38,19 +38,32 @@ if [ ! -f "$APPIMAGE_RUNTIME" ]; then
 fi
 export SOURCE_DATE_EPOCH TZ=UTC LC_ALL=C.UTF-8
 
+require_x86_64_elf() {
+    if ! readelf -h "$1" 2>/dev/null | LC_ALL=C awk '
+        /Class:/ { class = $2 }
+        /Machine:/ { machine = $0 }
+        END { exit !(class == "ELF64" && machine ~ /Advanced Micro Devices X86-64/) }
+    '; then
+        printf 'Expected x86_64 ELF file: %s\n' "$1" >&2
+        exit 1
+    fi
+}
+
 find_appindicator_library() {
-    if [ -n "${APPINDICATOR_LIBRARY:-}" ] && [ -f "$APPINDICATOR_LIBRARY" ]; then
+    if [ "${APPINDICATOR_LIBRARY+x}" = x ]; then
+        require_x86_64_elf "$APPINDICATOR_LIBRARY"
         readlink -f "$APPINDICATOR_LIBRARY"
         return
     fi
 
     for candidate in \
-        /usr/lib/*/libayatana-appindicator3.so.1 \
-        /lib/*/libayatana-appindicator3.so.1 \
-        /usr/lib/*/libappindicator3.so.1 \
-        /lib/*/libappindicator3.so.1
+        /usr/lib/x86_64-linux-gnu/libayatana-appindicator3.so.1 \
+        /lib/x86_64-linux-gnu/libayatana-appindicator3.so.1 \
+        /usr/lib/x86_64-linux-gnu/libappindicator3.so.1 \
+        /lib/x86_64-linux-gnu/libappindicator3.so.1
     do
         if [ -f "$candidate" ]; then
+            require_x86_64_elf "$candidate"
             readlink -f "$candidate"
             return
         fi
@@ -58,18 +71,20 @@ find_appindicator_library() {
 }
 
 find_libusb_library() {
-    if [ -n "${LIBUSB_LIBRARY:-}" ] && [ -f "$LIBUSB_LIBRARY" ]; then
+    if [ "${LIBUSB_LIBRARY+x}" = x ]; then
+        require_x86_64_elf "$LIBUSB_LIBRARY"
         readlink -f "$LIBUSB_LIBRARY"
         return
     fi
 
     for candidate in \
-        /usr/lib/*/libusb-1.0.so.0 \
-        /lib/*/libusb-1.0.so.0 \
+        /usr/lib/x86_64-linux-gnu/libusb-1.0.so.0 \
+        /lib/x86_64-linux-gnu/libusb-1.0.so.0 \
         /usr/lib/libusb-1.0.so.0 \
         /lib/libusb-1.0.so.0
     do
         if [ -f "$candidate" ]; then
+            require_x86_64_elf "$candidate"
             readlink -f "$candidate"
             return
         fi
@@ -88,6 +103,8 @@ if [ -z "$LIBUSB_LIBRARY" ]; then
     exit 1
 fi
 LIBUSB_FILENAME=$(basename "$LIBUSB_LIBRARY")
+
+require_x86_64_elf "$BUILD_DIR/catserver"
 
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin"
@@ -124,6 +141,20 @@ for library in libayatana-appindicator3.so.1 libappindicator3.so.1 libusb-1.0.so
         exit 1
     fi
 done
+# linuxdeploy can add transitive dependencies. Reject any wrong-architecture
+# library before producing an artifact, including files not selected above.
+find "$APPDIR/usr/lib" -type f -name '*.so*' -exec sh -c '
+    for library do
+        if ! readelf -h "$library" 2>/dev/null | LC_ALL=C awk '\''
+            /Class:/ { class = $2 }
+            /Machine:/ { machine = $0 }
+            END { exit !(class == "ELF64" && machine ~ /Advanced Micro Devices X86-64/) }
+        '\''; then
+            printf "Expected x86_64 ELF file: %s\\n" "$library" >&2
+            exit 1
+        fi
+    done
+' sh {} +
 find "$APPDIR" -type d -exec chmod 755 {} +
 find "$APPDIR" -type f -exec chmod 644 {} +
 chmod 755 "$APPDIR/AppRun" "$APPDIR/usr/bin/HolyCluster"
