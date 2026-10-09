@@ -72,7 +72,7 @@ test("plays back historical spots and propagation over the canonical WebSocket",
                 type: "radio",
                 event: "status",
                 status: "unavailable",
-                catserver_version: "catserver-v1.2.0",
+                catserver_version: "catserver-v2.0.0",
             }),
         );
         websocket.onMessage(message => {

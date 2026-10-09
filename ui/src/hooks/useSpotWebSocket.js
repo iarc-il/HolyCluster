@@ -72,7 +72,7 @@ export default function useSpotWebSocket() {
     const [new_spot_ids, set_new_spot_ids] = useState(new Set());
     const cached_ids_ref = useRef(new Set(raw_spots.map(spot => spot.id)));
 
-    const started_ref = useRef(false);
+    const subscribed_ref = useRef(false);
     const last_spot_time_ref = useRef(0);
     const is_buffering_spots_ref = useRef(false);
     const buffered_spot_batches_ref = useRef([]);
@@ -156,21 +156,20 @@ export default function useSpotWebSocket() {
     }, []);
 
     useEffect(() => {
-        if (readyState === ReadyState.OPEN && !started_ref.current) {
-            started_ref.current = true;
-            send("spots", { action: "initial" });
+        if (readyState !== ReadyState.OPEN) {
+            subscribed_ref.current = false;
+            return;
         }
-    }, [readyState, send]);
+        if (subscribed_ref.current) return;
 
-    useEffect(() => {
-        if (
-            readyState === ReadyState.OPEN &&
-            started_ref.current &&
+        subscribed_ref.current = true;
+        send(
+            "spots",
             last_spot_time_ref.current > 0
-        ) {
-            send("spots", { action: "catch_up", last_time: last_spot_time_ref.current });
-        }
-    }, [readyState]);
+                ? { action: "catch_up", last_time: last_spot_time_ref.current }
+                : { action: "initial" },
+        );
+    }, [readyState, send]);
 
     useWsMessage("spots", data => {
         if (!Array.isArray(data.spots) || !["initial", "update"].includes(data.event)) return;

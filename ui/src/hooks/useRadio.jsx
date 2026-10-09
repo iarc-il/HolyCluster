@@ -60,10 +60,34 @@ export function RadioProvider({ children }) {
 
     const { settings } = useSettings();
 
-    useEffect(() => {
-        if (radioReadyState !== ReadyState.CONNECTING && radioReadyState !== ReadyState.CLOSED)
-            return;
+    function cancel_pending_configuration(update_state = true) {
+        const action = pending_configuration_action.current;
+        if (!action) return;
+        pending_configuration_action.current = null;
+        const result = {
+            event: "configuration_result",
+            ok: false,
+            failure: "connection",
+            errors: [
+                {
+                    field: "connection",
+                    message: "Radio disconnected before the operation completed.",
+                },
+            ],
+        };
+        action.resolve?.(result);
+        if (update_state) {
+            if (action.type === "retry") set_radio_retry_result(result);
+            else set_radio_configuration_result(result);
+        }
+    }
 
+    useEffect(() => () => cancel_pending_configuration(false), []);
+
+    useEffect(() => {
+        if (radioReadyState === ReadyState.OPEN) return;
+
+        cancel_pending_configuration();
         cat_connected_ref.current = false;
         cat_identity_ref.current = null;
         set_radio_ready(false);
@@ -104,6 +128,9 @@ export function RadioProvider({ children }) {
                 set_raw_local_version(data.catserver_version);
             } else if (data.status === "unavailable") {
                 cat_connected_ref.current = false;
+            }
+            if (data.status === "unavailable" && !data.catserver_version) {
+                cancel_pending_configuration();
             }
             set_radio_status(data.status);
             set_radio_freq(data.freq || 0);
@@ -146,7 +173,8 @@ export function RadioProvider({ children }) {
 
         if (data.event === "configuration_result") {
             const action = pending_configuration_action.current;
-            if (action?.type === "retry") {
+            if (!action) return;
+            if (action.type === "retry") {
                 set_radio_retry_result(data);
             } else {
                 set_radio_configuration_result(data);
@@ -243,6 +271,10 @@ export function RadioProvider({ children }) {
     }
 
     function set_radio_configuration(config) {
+        // The protocol has no request IDs: keep only one operation in flight.
+        if (pending_configuration_action.current || radioReadyState !== ReadyState.OPEN) {
+            return Promise.resolve({ ok: false, failure: "connection" });
+        }
         return new Promise(resolve => {
             pending_configuration_action.current = { type: "apply", config, resolve };
             set_radio_configuration_result(null);
@@ -258,6 +290,7 @@ export function RadioProvider({ children }) {
     }
 
     function retry_radio() {
+        if (pending_configuration_action.current || radioReadyState !== ReadyState.OPEN) return;
         pending_configuration_action.current = { type: "retry" };
         set_radio_retry_result(null);
         send_message_to_radio({ action: "RetryRadio" });

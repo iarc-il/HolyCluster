@@ -95,6 +95,90 @@ describe("radio configuration", () => {
         expect(Consumer.radio.radio_configuration).toEqual({ event: "configuration", ...config });
     });
 
+    it.each([
+        websocket.ReadyState.CLOSING,
+        websocket.ReadyState.CLOSED,
+        websocket.ReadyState.CONNECTING,
+    ])("settles a pending save as failure when the transport becomes %s", async state => {
+        const view = render_radio();
+        let promise;
+        act(() => {
+            promise = Consumer.radio.set_radio_configuration({ rig: null });
+        });
+        websocket.ready_state = state;
+        view.rerender(
+            <RadioProvider>
+                <Consumer />
+            </RadioProvider>,
+        );
+        await expect(promise).resolves.toMatchObject({ ok: false, failure: "connection" });
+        expect(Consumer.radio.radio_configuration_result.ok).toBe(false);
+        emit({ event: "configuration_result", ok: true });
+        expect(Consumer.radio.radio_configuration).toBeNull();
+        expect(Consumer.radio.radio_configuration_result.ok).toBe(false);
+    });
+
+    it("settles a pending save on unmount", async () => {
+        const view = render_radio();
+        let promise;
+        act(() => {
+            promise = Consumer.radio.set_radio_configuration({ rig: null });
+        });
+        view.unmount();
+        await expect(promise).resolves.toMatchObject({ ok: false });
+    });
+
+    it("settles on CAT disconnect even while the transport is open", async () => {
+        render_radio();
+        let promise;
+        act(() => {
+            promise = Consumer.radio.set_radio_configuration({ rig: null });
+        });
+        emit({ event: "status", status: "unavailable" });
+        await expect(promise).resolves.toMatchObject({ ok: false, failure: "connection" });
+    });
+
+    it.each([true, false])("returns the actual save result (ok=%s)", async ok => {
+        render_radio();
+        let promise;
+        act(() => {
+            promise = Consumer.radio.set_radio_configuration({ rig: null });
+        });
+        // An unconfigured rig is not a disconnected CAT server.
+        emit({ event: "status", status: "unavailable", catserver_version: "catserver-v2.0.0" });
+        const result = { event: "configuration_result", ok };
+        emit(result);
+        await expect(promise).resolves.toEqual(result);
+        expect(Consumer.radio.radio_configuration).toEqual(
+            ok ? { event: "configuration", rig: null } : null,
+        );
+    });
+
+    it("does not overwrite an in-flight save with another save or retry", async () => {
+        render_radio();
+        let first;
+        let second;
+        act(() => {
+            first = Consumer.radio.set_radio_configuration({ rig: null });
+            second = Consumer.radio.set_radio_configuration({ rig: { model_id: "other" } });
+            Consumer.radio.retry_radio();
+        });
+        await expect(second).resolves.toMatchObject({ ok: false });
+        expect(websocket.send).toHaveBeenCalledTimes(1);
+        emit({ event: "configuration_result", ok: true });
+        await expect(first).resolves.toMatchObject({ ok: true });
+        expect(Consumer.radio.radio_configuration.rig).toBeNull();
+    });
+
+    it("does not send a save while disconnected", async () => {
+        websocket.ready_state = websocket.ReadyState.CLOSED;
+        render_radio();
+        await expect(Consumer.radio.set_radio_configuration({ rig: null })).resolves.toMatchObject({
+            ok: false,
+        });
+        expect(websocket.send).not.toHaveBeenCalled();
+    });
+
     it("negotiates capabilities and reports unsupported transports", () => {
         const view = render_radio();
         emit({ event: "status", status: "connected", catserver_version: "catserver-v2.0.0" });
