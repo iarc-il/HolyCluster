@@ -288,6 +288,28 @@ impl UpdateService {
         &self,
         is_active: impl FnOnce(&UpdateHelper) -> Option<bool>,
     ) -> Result<()> {
+        // Only startup calls this reconciliation. A download owned by this
+        // process must not be mistaken for an abandoned session.
+        if let Some(session) = self.session()
+            && matches!(session.phase.as_str(), "downloading" | "verifying")
+            && session.installer_outcome.is_none()
+            && session.helper_url.is_none()
+            && self.status().state != UpdateState::Installing
+        {
+            let abandoned = match fs::read(self.helper_path()) {
+                Ok(data) => serde_json::from_slice::<UpdateHelper>(&data)
+                    .ok()
+                    .is_some_and(|helper| is_active(&helper) == Some(false)),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => true,
+                Err(_) => false,
+            };
+            if abandoned {
+                self.record_failure(
+                    "Update download or verification was interrupted; retry the update",
+                )?;
+            }
+            return Ok(());
+        }
         let pending = || {
             self.status().state == UpdateState::Installing
                 || self.session().is_some_and(|session| {
@@ -804,8 +826,14 @@ fn install_linux(plan: &InstallPlan) -> Result<UpdateState> {
             "automatic update is only supported for APPIMAGE-backed executables; update manually"
         );
     }
+    let activation = prepare_linux_activation(plan)?;
+    backup_linux(plan)?;
+    activate_linux(&activation, &plan.current_executable)?;
+    Ok(UpdateState::Installed)
+}
+
+fn prepare_linux_activation(plan: &InstallPlan) -> Result<PathBuf> {
     verify_file(&plan.staged_artifact, &plan.artifact)?;
-    let backup = plan.current_executable.with_extension("AppImage.previous");
     let activation = plan.current_executable.with_extension("AppImage.update");
     if activation.exists() {
         bail!("a previous update activation file exists; update manually");
@@ -817,12 +845,21 @@ fn install_linux(plan: &InstallPlan) -> Result<UpdateState> {
         let _ = fs::remove_file(&activation);
         return Err(error).context("cannot prepare staged AppImage for activation");
     }
-    fs::rename(&plan.current_executable, &backup).context("cannot back up current AppImage")?;
-    if let Err(error) = fs::rename(&activation, &plan.current_executable) {
-        let _ = fs::rename(&backup, &plan.current_executable);
-        return Err(error).context("cannot activate updated AppImage; previous version restored");
-    }
-    Ok(UpdateState::Installed)
+    Ok(activation)
+}
+
+fn backup_linux(plan: &InstallPlan) -> Result<()> {
+    let backup = plan.current_executable.with_extension("AppImage.previous");
+    // The active name stays present while the backup is prepared. These
+    // same-directory renames protect against process interruption, not power
+    // loss: no file or directory synchronization is claimed here.
+    fs::copy(&plan.current_executable, &backup).context("cannot back up current AppImage")?;
+    Ok(())
+}
+
+fn activate_linux(activation: &Path, current: &Path) -> Result<()> {
+    fs::rename(activation, current)
+        .context("cannot activate updated AppImage; previous version remains active")
 }
 
 #[cfg(target_os = "linux")]
@@ -830,11 +867,10 @@ fn exec_linux(plan: &InstallPlan) -> Result<()> {
     let mut command = Command::new(&plan.current_executable);
     command.args(&plan.command_args);
     let error = command.exec();
-    let activation = plan.current_executable.with_extension("AppImage.update");
     let backup = plan.current_executable.with_extension("AppImage.previous");
-    let _ = fs::rename(&plan.current_executable, &activation);
-    let _ = fs::rename(&backup, &plan.current_executable);
-    let _ = fs::remove_file(&activation);
+    fs::rename(&backup, &plan.current_executable).with_context(|| {
+        format!("cannot exec updated AppImage ({error}); cannot restore previous version")
+    })?;
     Err(error).context("cannot exec updated AppImage; previous version restored")
 }
 
@@ -1588,6 +1624,10 @@ mod helper_staging_tests {
         fs::remove_dir_all(root).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "updater_interruption_tests.rs"]
+mod interruption_tests;
 
 #[cfg(all(test, windows))]
 mod helper_process_tests {

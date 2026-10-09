@@ -122,9 +122,12 @@ pub fn run(args: Args) -> Result<()> {
         }
     };
     instance_port::clear(&port_file)?;
-    drop(instance);
     result?;
+    // Keep singleton ownership while Linux prepares and activates the update.
+    // Successful exec releases the close-on-exec lock; failed exec retains it
+    // until rollback has completed. Windows helpers still wait for parent exit.
     crate::updater::exec_pending_update()?;
+    drop(instance);
     Ok(())
 }
 
