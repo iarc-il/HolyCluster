@@ -26,6 +26,10 @@ azimuth_t hamlib_sys_rot_caps_max_az(const struct rot_caps *caps) {
     return caps->max_az;
 }
 
+int hamlib_sys_rot_is_azimuth_only(const ROT *rot) {
+    return rot->caps->rot_type == ROT_TYPE_AZIMUTH;
+}
+
 azimuth_t hamlib_sys_rot_min_az(const ROT *rot) {
     return rot->state.min_az;
 }

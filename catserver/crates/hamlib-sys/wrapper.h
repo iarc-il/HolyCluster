@@ -51,5 +51,6 @@ int hamlib_sys_rot_caps_can_get_position(const struct rot_caps *caps);
 int hamlib_sys_rot_caps_can_set_position(const struct rot_caps *caps);
 azimuth_t hamlib_sys_rot_caps_min_az(const struct rot_caps *caps);
 azimuth_t hamlib_sys_rot_caps_max_az(const struct rot_caps *caps);
+int hamlib_sys_rot_is_azimuth_only(const ROT *rot);
 azimuth_t hamlib_sys_rot_min_az(const ROT *rot);
 azimuth_t hamlib_sys_rot_max_az(const ROT *rot);

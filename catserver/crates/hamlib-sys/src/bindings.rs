@@ -207,6 +207,7 @@ unsafe extern "C" {
     pub fn hamlib_sys_rot_caps_can_set_position(caps: *const rot_caps) -> ::std::os::raw::c_int;
     pub fn hamlib_sys_rot_caps_min_az(caps: *const rot_caps) -> azimuth_t;
     pub fn hamlib_sys_rot_caps_max_az(caps: *const rot_caps) -> azimuth_t;
+    pub fn hamlib_sys_rot_is_azimuth_only(rot: *const ROT) -> ::std::os::raw::c_int;
     pub fn hamlib_sys_rot_min_az(rot: *const ROT) -> azimuth_t;
     pub fn hamlib_sys_rot_max_az(rot: *const ROT) -> azimuth_t;
 }

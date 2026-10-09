@@ -181,14 +181,23 @@ impl Rotator<RotatorOpen> {
         Position::new(f64::from(a), f64::from(e))
     }
     pub fn set_azimuth(&mut self, heading: f64) -> Result<(), HamlibError> {
-        let azimuth = equivalent_azimuth(
+        let handle = self.handle.as_ptr();
+        set_azimuth_preserving_elevation(
             heading,
-            f64::from(unsafe { sys::hamlib_sys_rot_min_az(self.handle.as_ptr()) }),
-            f64::from(unsafe { sys::hamlib_sys_rot_max_az(self.handle.as_ptr()) }),
-        )?;
-        ffi::hamlib_result("rot_set_position", unsafe {
-            sys::rot_set_position(self.handle.as_ptr(), azimuth as f32, 0.0)
-        })
+            f64::from(unsafe { sys::hamlib_sys_rot_min_az(handle) }),
+            f64::from(unsafe { sys::hamlib_sys_rot_max_az(handle) }),
+            unsafe { sys::hamlib_sys_rot_is_azimuth_only(handle) } != 0,
+            || self.position(),
+            |position| {
+                ffi::hamlib_result("rot_set_position", unsafe {
+                    sys::rot_set_position(
+                        handle,
+                        position.azimuth as f32,
+                        position.elevation as f32,
+                    )
+                })
+            },
+        )
     }
     pub fn close(mut self) -> Result<Rotator<RotatorClosed>, HamlibError> {
         ffi::hamlib_result("rot_close", unsafe { sys::rot_close(self.handle.as_ptr()) })?;
@@ -203,6 +212,27 @@ impl Rotator<RotatorOpen> {
             not_send_or_sync: PhantomData,
         })
     }
+}
+
+fn set_azimuth_preserving_elevation(
+    heading: f64,
+    minimum: f64,
+    maximum: f64,
+    azimuth_only: bool,
+    read: impl FnOnce() -> Result<Position, HamlibError>,
+    write: impl FnOnce(Position) -> Result<(), HamlibError>,
+) -> Result<(), HamlibError> {
+    // Validate before reading or moving. A failed read must never cause movement.
+    let azimuth = equivalent_azimuth(heading, minimum, maximum)?;
+    let measured = read()?;
+    // Hamlib documents zero for the unused axis of azimuth-only models.
+    // Only explicit model capability permits zero, never an unknown type or read error.
+    let elevation = if azimuth_only {
+        0.0
+    } else {
+        measured.elevation
+    };
+    write(Position::new(azimuth, elevation)?)
 }
 
 fn equivalent_azimuth(heading: f64, minimum: f64, maximum: f64) -> Result<f64, HamlibError> {
@@ -242,7 +272,79 @@ impl<S> Drop for Rotator<S> {
 
 #[cfg(test)]
 mod tests {
-    use super::equivalent_azimuth;
+    use super::{Position, Rotator, equivalent_azimuth, set_azimuth_preserving_elevation};
+    use crate::{HamlibError, RotatorModelId};
+    use hamlib_sys as sys;
+
+    #[test]
+    fn read_failure_never_writes_even_for_azimuth_only_models() {
+        for azimuth_only in [false, true] {
+            let result = set_azimuth_preserving_elevation(
+                90.0,
+                0.0,
+                360.0,
+                azimuth_only,
+                || Err(HamlibError::InvalidPosition),
+                |_| panic!("must not move after a failed read"),
+            );
+            assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    fn invalid_heading_never_reads_or_writes() {
+        for heading in [f64::NAN, f64::INFINITY, 180.0] {
+            assert!(
+                set_azimuth_preserving_elevation(
+                    heading,
+                    -45.0,
+                    45.0,
+                    false,
+                    || panic!("must validate before reading"),
+                    |_| panic!("must validate before moving"),
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn preserves_measured_elevation_unless_explicitly_azimuth_only() {
+        for azimuth_only in [false, true] {
+            set_azimuth_preserving_elevation(
+                270.0,
+                -180.0,
+                180.0,
+                azimuth_only,
+                || Position::new(12.0, 45.0),
+                |position| {
+                    assert_eq!(position.azimuth, -90.0);
+                    assert_eq!(position.elevation, if azimuth_only { 0.0 } else { 45.0 });
+                    Ok(())
+                },
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn dummy_azimuth_command_preserves_45_degree_elevation() {
+        let mut rotator = Rotator::new(RotatorModelId::DUMMY).unwrap().open().unwrap();
+        assert_eq!(
+            unsafe { sys::hamlib_sys_rot_is_azimuth_only(rotator.handle.as_ptr()) },
+            0
+        );
+        assert_eq!(
+            unsafe { sys::rot_set_position(rotator.handle.as_ptr(), 0.0, 45.0) },
+            0
+        );
+        // The actual Hamlib dummy moves at six degrees per second.
+        std::thread::sleep(std::time::Duration::from_secs(8));
+        assert_eq!(rotator.position().unwrap().elevation, 45.0);
+        rotator.set_azimuth(30.0).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        assert_eq!(rotator.position().unwrap().elevation, 45.0);
+    }
 
     #[test]
     fn maps_headings_into_model_ranges() {
