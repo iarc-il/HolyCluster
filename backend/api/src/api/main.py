@@ -4,6 +4,7 @@ import re
 import time
 import weakref
 from contextlib import asynccontextmanager
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -257,6 +258,7 @@ async def lifespan(app: fastapi.FastAPI):
     app.state.closed_websockets = weakref.WeakSet()
     app.state.websocket_close_tasks = set()
     app.state.propagation = None
+    app.state.spot_snapshot = SpotSnapshot()
 
     app.state.valkey_client = redis.asyncio.Redis(
         host=settings.valkey_effective_host,
@@ -1161,21 +1163,40 @@ async def resolve_missing_queue_worker(queue, result_queue, qrz_session_key):
             queue.task_done()
 
 
-async def get_initial_spots():
-    async with async_session() as session:
-        query = (
-            select(HolySpot)
-            .where(HolySpot.timestamp > (time.time() - 3600))
-            .order_by(desc(HolySpot.timestamp))
-            .limit(500)
-        )
-        return cleanup_spots((await session.execute(query)).scalars())
+SPOT_SNAPSHOT_TTL = 1.0
+
+
+@dataclass
+class SpotSnapshot:
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    spots: tuple[dict, ...] = ()
+    expires_at: float = 0.0
 
 
 async def get_spots_after(last_time):
-    async with async_session() as session:
-        query = select(HolySpot).where(HolySpot.timestamp > last_time).order_by(desc(HolySpot.timestamp)).limit(500)
-        return cleanup_spots((await session.execute(query)).scalars())
+    snapshot = getattr(app.state, "spot_snapshot", None)
+    if snapshot is None:
+        snapshot = app.state.spot_snapshot = SpotSnapshot()
+
+    # The timestamp predicate selects a prefix of descending rows, so filtering
+    # the newest 500 is equivalent to filtering first and then limiting to 500.
+    async with snapshot.lock:
+        if time.monotonic() >= snapshot.expires_at:
+            async with async_session() as session:
+                query = select(HolySpot).order_by(desc(HolySpot.timestamp)).limit(500)
+                spots = tuple(cleanup_spots((await session.execute(query)).scalars()))
+            # Publish only after success. Cancellation/failure releases the lock
+            # without caching a failed refresh; the next caller can retry.
+            snapshot.spots = spots
+            snapshot.expires_at = time.monotonic() + SPOT_SNAPSHOT_TTL
+        spots = snapshot.spots
+
+    # Location lists and dictionaries must not expose the cached snapshot.
+    return [deepcopy(spot) for spot in spots if spot["time"] > last_time]
+
+
+async def get_initial_spots():
+    return await get_spots_after(time.time() - 3600)
 
 
 async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):

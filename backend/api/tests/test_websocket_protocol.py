@@ -88,6 +88,9 @@ def create_geo_data(callsign, *, cached=False, source="qrz"):
 class WebSocketProtocolTest(unittest.TestCase):
     def setUp(self):
         app.state.active_ws_spot_connections = set()
+        patcher = patch.object(app.state, "spot_snapshot", None, create=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.client = TestClient(app)
 
     def test_ws_rejects_malformed_json(self):
@@ -134,11 +137,12 @@ class WebSocketProtocolTest(unittest.TestCase):
             )
 
     def test_ws_returns_spots_initial_response(self):
-        spots = [{"dx_callsign": "K1ABC"}]
+        spots = [{"dx_callsign": "K1ABC", "time": 10000}]
 
         with (
             patch("api.main.async_session", new=lambda: FakeSession(spots)),
             patch("api.main.cleanup_spots", new=lambda raw_spots: list(raw_spots)),
+            patch("api.main.time.time", return_value=10000),
             self.client.websocket_connect("/ws") as websocket,
         ):
             websocket.send_json({"version": 1, "type": "spots", "action": "initial"})
@@ -155,7 +159,7 @@ class WebSocketProtocolTest(unittest.TestCase):
             self.assertEqual(len(app.state.active_ws_spot_connections), 1)
 
     def test_ws_returns_spots_catch_up_response(self):
-        spots = [{"dx_callsign": "K2ABC"}]
+        spots = [{"dx_callsign": "K2ABC", "time": 10000}]
 
         with (
             patch("api.main.async_session", new=lambda: FakeSession(spots)),
