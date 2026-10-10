@@ -37,7 +37,9 @@ fn main() -> io::Result<()> {
 }
 
 fn release_version() -> String {
-    if let Ok(version) = env::var("CATSERVER_VERSION") {
+    if let Ok(version) = env::var("CATSERVER_VERSION")
+        && !version.is_empty()
+    {
         validate_version(&version);
         return version;
     }
