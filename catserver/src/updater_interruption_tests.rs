@@ -257,6 +257,45 @@ fn second_launch_probe() {
 
 #[cfg(target_os = "linux")]
 #[test]
+fn startup_preserves_install_state_when_procfs_or_metadata_is_uncertain() {
+    let fixture = Fixture::new();
+    let service = fixture.service();
+    let mut plan = fixture.plan();
+    plan.parent_pid = u32::MAX;
+    plan.version = None;
+    write_json(&service.plan_path(), &plan).unwrap();
+    service
+        .write_status(&UpdateStatus {
+            state: UpdateState::Installing,
+            available_version: Some("1.2.0".into()),
+            diagnostic: None,
+        })
+        .unwrap();
+    service
+        .reconcile_linux_installing_status_with(&fixture.0.join("missing-proc"))
+        .unwrap();
+    assert_eq!(service.status().state, UpdateState::Installing);
+    // A symlink loop provides an inaccessible-metadata error even as root.
+    std::os::unix::fs::symlink(service.session_path(), service.session_path()).unwrap();
+    service.reconcile_linux_installing_status().unwrap();
+    assert_eq!(service.status().state, UpdateState::Installing);
+    fs::remove_file(service.session_path()).unwrap();
+    plan.version = Some("1.3.0".into());
+    write_json(&service.plan_path(), &plan).unwrap();
+    service.reconcile_linux_installing_status().unwrap();
+    assert_eq!(service.status().state, UpdateState::Installing);
+    plan.version = None;
+    plan.state_path = fixture.0.join("foreign-state.json");
+    write_json(&service.plan_path(), &plan).unwrap();
+    service.reconcile_linux_installing_status().unwrap();
+    assert_eq!(service.status().state, UpdateState::Installing);
+    fs::remove_file(service.plan_path()).unwrap();
+    service.reconcile_linux_installing_status().unwrap();
+    assert_eq!(service.status().state, UpdateState::Installing);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
 fn singleton_does_not_escape_into_browser_child() {
     if exec_test_in_child(
         "updater::interruption_tests::singleton_does_not_escape_into_browser_child",

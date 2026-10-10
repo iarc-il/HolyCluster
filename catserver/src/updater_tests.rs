@@ -192,7 +192,6 @@ fn persists_deferred_status() {
 }
 
 #[test]
-#[ignore]
 fn clears_installed_status_only_when_running_version_matches() {
     let data_dir = std::env::temp_dir().join(format!(
         "catserver-update-installed-{}",
@@ -299,6 +298,88 @@ fn preserves_installing_on_linux_restart() {
     .unwrap();
     assert_eq!(service.status().state, UpdateState::Installing);
     fs::remove_dir_all(data_dir).unwrap();
+}
+
+#[cfg(target_os = "linux")]
+fn linux_install_fixture(dir: &Path, target: &str, parent_pid: u32) -> serde_json::Value {
+    fs::create_dir_all(dir).unwrap();
+    fs::write(
+        dir.join("state.json"),
+        serde_json::json!({"state": "installing", "available_version": target, "diagnostic": null})
+            .to_string(),
+    )
+    .unwrap();
+    // Omit version to reproduce the legacy September install plan.
+    let plan = serde_json::json!({
+        "current_executable": dir.join("HolyCluster.AppImage"),
+        "staged_artifact": dir.join("staged.AppImage"),
+        "artifact": artifact(),
+        "state_path": dir.join("state.json"),
+        "parent_pid": parent_pid,
+    });
+    fs::write(dir.join("install-plan.json"), plan.to_string()).unwrap();
+    plan
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn clears_satisfied_abandoned_linux_install_but_preserves_uncertain_owners() {
+    for (target, owner, extra_file, expected) in [
+        ("1.2.0-1702", u32::MAX, None, UpdateState::Idle),
+        ("1.3.1", u32::MAX, None, UpdateState::Idle),
+        ("1.4.0", u32::MAX, None, UpdateState::Installing),
+        ("invalid", u32::MAX, None, UpdateState::Installing),
+        (
+            "1.2.0-1702",
+            std::process::id(),
+            None,
+            UpdateState::Installing,
+        ),
+        (
+            "1.2.0-1702",
+            u32::MAX,
+            Some("session.json"),
+            UpdateState::Installing,
+        ),
+        (
+            "1.2.0-1702",
+            u32::MAX,
+            Some("update-helper.json"),
+            UpdateState::Installing,
+        ),
+        (
+            "1.2.0-1702",
+            u32::MAX,
+            Some("install-plan.json"),
+            UpdateState::Installing,
+        ),
+    ] {
+        let dir =
+            std::env::temp_dir().join(format!("catserver-linux-recovery-{}", uuid::Uuid::new_v4()));
+        linux_install_fixture(&dir, target, owner);
+        if let Some(name) = extra_file {
+            fs::write(dir.join(name), "unreadable legacy metadata").unwrap();
+        }
+        let service = UpdateService::with_data_dir(
+            Url::parse("https://releases.example/manifest.json").unwrap(),
+            "catserver-v1.3.1",
+            dir.clone(),
+        )
+        .unwrap();
+        assert_eq!(
+            service.status().state,
+            expected,
+            "{target}, {owner}, {extra_file:?}"
+        );
+        if expected == UpdateState::Idle {
+            assert!(service.status().available_version.is_none());
+            service.exclusive(|| Ok(())).unwrap();
+            assert_eq!(service.retry().unwrap().state, UpdateState::Idle);
+        } else {
+            assert!(service.exclusive(|| Ok(())).is_err());
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
 }
 
 #[test]

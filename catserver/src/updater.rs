@@ -213,6 +213,8 @@ impl UpdateService {
             origin: None,
         };
         service.reconcile_installed_status()?;
+        #[cfg(target_os = "linux")]
+        service.reconcile_linux_installing_status()?;
         #[cfg(windows)]
         service.reconcile_installing_status_with(update_helper_active)?;
         Ok(service)
@@ -370,6 +372,59 @@ impl UpdateService {
             })?;
         }
         Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    fn reconcile_linux_installing_status(&self) -> Result<()> {
+        if let Err(error) = self.reconcile_linux_installing_status_with(Path::new("/proc")) {
+            tracing::warn!(
+                ?error,
+                "Preserving uncertain Linux update state during startup"
+            );
+        }
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    fn reconcile_linux_installing_status_with(&self, proc_root: &Path) -> Result<()> {
+        // Normal startup holds the singleton lock. Never clear an install owned
+        // by a live process, or one whose session/plan cannot be established.
+        let status = self.status();
+        if status.state != UpdateState::Installing
+            || !proc_root
+                .join(std::process::id().to_string())
+                .try_exists()?
+            || self.session_path().try_exists()?
+            || self.data_dir.join("update-helper.json").try_exists()?
+        {
+            return Ok(());
+        }
+        let Some(target) = status
+            .available_version
+            .as_deref()
+            .and_then(|version| parse_version(version).ok())
+        else {
+            return Ok(());
+        };
+        if self.current_version < target {
+            return Ok(());
+        }
+        let Ok(data) = fs::read(self.plan_path()) else {
+            return Ok(());
+        };
+        let Ok(plan) = serde_json::from_slice::<InstallPlan>(&data) else {
+            return Ok(());
+        };
+        if plan.state_path != self.state_path()
+            || plan.version.as_deref().is_some_and(|version| {
+                !parse_version(version).is_ok_and(|version| version == target)
+            })
+            || proc_root.join(plan.parent_pid.to_string()).try_exists()?
+        {
+            return Ok(());
+        }
+        tracing::warn!(%target, "Clearing abandoned Linux install state; running version already satisfies its target");
+        self.write_status(&UpdateStatus::default())
     }
 
     fn reconcile_installed_status(&self) -> Result<()> {
