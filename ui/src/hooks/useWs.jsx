@@ -7,7 +7,29 @@ const WS_BASE_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//
 const WS_PROBE_TIMEOUT_MS = 1500;
 const WsContext = createContext(null);
 
-function normalize_legacy_radio_message(message) {
+function is_unified_identity(message) {
+    return (
+        message?.type === "radio" &&
+        message.event === "status" &&
+        (typeof message.catserver_version === "string" ||
+            (message.version === 1 && message.status === "unavailable"))
+    );
+}
+
+function is_cat_v1_2_identity(message) {
+    return (
+        typeof message?.status === "string" &&
+        typeof message.version === "string" &&
+        message.version.startsWith("catserver-v")
+    );
+}
+
+function is_direct_backend_identity(message) {
+    return message?.status === "unavailable" && message.version == null;
+}
+
+/** @deprecated CAT <=1.2 compatibility; remove when the minimum supported CAT version exceeds 1.2. */
+function normalize_cat_v1_2_radio_message(message) {
     const { version: catserver_version, ...data } = message;
     let event = "status";
     if (message.focus) {
@@ -25,20 +47,30 @@ function normalize_legacy_radio_message(message) {
     };
 }
 
-function normalize_legacy_submit_message(message) {
-    const { type: error_type, ...data } = message;
-    return {
-        version: 1,
-        type: "submit",
-        ...data,
-        ...(error_type ? { error_type } : {}),
-    };
+/** @deprecated CAT <=1.2 compatibility; remove when the minimum supported CAT version exceeds 1.2. */
+function cat_v1_2_message(type, data) {
+    if (type === "radio") {
+        const { action, ...message } = data;
+        return { type: action, ...message };
+    }
+    return { version: 1, type, ...data };
 }
+
+const reconnect_options = {
+    reconnectAttempts: Number.POSITIVE_INFINITY,
+    reconnectInterval: attemptNumber => Math.min(5000 * 2 ** (attemptNumber - 1), 30000),
+    shouldReconnect: () => true,
+};
 
 export function WsProvider({ children }) {
     const [transport, set_transport] = useState("probing");
+    const [connection_generation, set_connection_generation] = useState(0);
     const [network_state, set_network_state] = useState("connecting");
+    const transport_ref = useRef("probing");
     const subscribers_ref = useRef(new Map());
+    const ready_state_ref = useRef(ReadyState.CONNECTING);
+    const ready_waiters_ref = useRef([]);
+    const send_state_ref = useRef(null);
 
     const dispatch = useCallback(message => {
         const handlers = subscribers_ref.current.get(message.type);
@@ -49,53 +81,97 @@ export function WsProvider({ children }) {
         }
     }, []);
 
+    const select_transport = useCallback(candidate => {
+        if (transport_ref.current !== "probing") return false;
+        transport_ref.current = candidate;
+        set_transport(candidate);
+        return true;
+    }, []);
+
+    const reset_transport = useCallback(candidate => {
+        if (transport_ref.current !== candidate) return;
+        transport_ref.current = "probing";
+        set_transport("probing");
+    }, []);
+
     const {
         sendJsonMessage: send_unified_message,
         readyState: unified_ready_state,
         lastJsonMessage: unified_message,
     } = useWebSocket(
-        `${WS_BASE_URL}/ws`,
+        `${WS_BASE_URL}/ws${connection_generation ? `?resume=${connection_generation}` : ""}`,
         {
-            onOpen: () => set_transport(current => (current === "probing" ? "unified" : current)),
-            onClose: () => set_transport(current => (current === "probing" ? "legacy" : current)),
-            reconnectAttempts: Number.POSITIVE_INFINITY,
-            reconnectInterval: attemptNumber => Math.min(5000 * 2 ** (attemptNumber - 1), 30000),
-            shouldReconnect: () => transport !== "legacy",
+            ...reconnect_options,
+            onOpen: event => {
+                if (transport_ref.current === "probing") {
+                    event.target.send(
+                        JSON.stringify({ version: 1, type: "radio", action: "GetCapabilities" }),
+                    );
+                }
+            },
+            onClose: () => reset_transport("unified"),
+            onMessage: event => {
+                try {
+                    const message = JSON.parse(event.data);
+                    if (message?.type === "update" && transport_ref.current === "unified") {
+                        dispatch(message);
+                    }
+                } catch {}
+            },
+            shouldReconnect: () => transport_ref.current !== "cat_v1_2",
         },
-        transport !== "legacy",
+        transport !== "cat_v1_2",
     );
 
-    const legacy_options = {
-        reconnectAttempts: Number.POSITIVE_INFINITY,
-        reconnectInterval: attemptNumber => Math.min(5000 * 2 ** (attemptNumber - 1), 30000),
-        shouldReconnect: () => true,
-    };
     const {
-        sendJsonMessage: send_legacy_spots_message,
-        readyState: legacy_spots_ready_state,
-        lastJsonMessage: legacy_spots_message,
-    } = useWebSocket(`${WS_BASE_URL}/spots_ws`, legacy_options, transport === "legacy");
-    const {
-        sendJsonMessage: send_legacy_submit_message,
-        readyState: legacy_submit_ready_state,
-        lastJsonMessage: legacy_submit_message,
-    } = useWebSocket(`${WS_BASE_URL}/submit_spot`, legacy_options, transport === "legacy");
-    const {
-        sendJsonMessage: send_legacy_radio_message,
-        readyState: legacy_radio_ready_state,
-        lastJsonMessage: legacy_radio_message,
-    } = useWebSocket(`${WS_BASE_URL}/radio`, legacy_options, transport === "legacy");
+        sendJsonMessage: send_compatibility_message,
+        readyState: compatibility_ready_state,
+        lastJsonMessage: compatibility_message,
+    } = useWebSocket(`${WS_BASE_URL}/submit_spot`, reconnect_options, transport === "cat_v1_2");
 
-    const readyState = transport === "legacy" ? legacy_spots_ready_state : unified_ready_state;
+    const {
+        sendJsonMessage: send_compatibility_radio_message,
+        readyState: compatibility_radio_ready_state,
+        lastJsonMessage: compatibility_radio_message,
+    } = useWebSocket(
+        `${WS_BASE_URL}/radio`,
+        {
+            ...reconnect_options,
+            onClose: () => reset_transport("cat_v1_2"),
+            shouldReconnect: () => transport_ref.current !== "unified",
+        },
+        transport !== "unified",
+    );
+
+    const readyState =
+        transport === "probing"
+            ? ReadyState.CONNECTING
+            : transport === "cat_v1_2"
+              ? compatibility_ready_state
+              : unified_ready_state;
+    const radioReadyState =
+        transport === "probing"
+            ? ReadyState.CONNECTING
+            : transport === "cat_v1_2"
+              ? compatibility_radio_ready_state
+              : unified_ready_state;
 
     useEffect(() => {
-        if (transport !== "probing") {
-            return;
-        }
-
-        const timeout = setTimeout(() => set_transport("legacy"), WS_PROBE_TIMEOUT_MS);
+        if (transport !== "probing") return;
+        const timeout = setTimeout(() => select_transport("unified"), WS_PROBE_TIMEOUT_MS);
         return () => clearTimeout(timeout);
-    }, [transport]);
+    }, [select_transport, transport]);
+
+    ready_state_ref.current = readyState;
+    send_state_ref.current = {
+        transport,
+        compatibility_radio_ready_state,
+        compatibility_ready_state,
+        unified_ready_state,
+        send_compatibility_message,
+        send_compatibility_radio_message,
+        send_unified_message,
+    };
 
     useEffect(() => {
         switch (readyState) {
@@ -104,6 +180,8 @@ export function WsProvider({ children }) {
                 break;
             case ReadyState.OPEN:
                 set_network_state("connected");
+                for (const resolve of ready_waiters_ref.current) resolve();
+                ready_waiters_ref.current = [];
                 break;
             case ReadyState.CLOSED:
                 set_network_state("disconnected");
@@ -112,29 +190,40 @@ export function WsProvider({ children }) {
     }, [readyState]);
 
     useEffect(() => {
-        if (transport !== "legacy" && unified_message?.type) {
+        if (!unified_message?.type || unified_message.type === "update") return;
+        if (transport_ref.current === "unified") {
+            dispatch(unified_message);
+        } else if (
+            transport_ref.current === "probing" &&
+            is_unified_identity(unified_message) &&
+            select_transport("unified")
+        ) {
             dispatch(unified_message);
         }
-    }, [dispatch, transport, unified_message]);
+    }, [dispatch, select_transport, unified_message]);
 
     useEffect(() => {
-        if (transport === "legacy" && legacy_spots_message) {
-            const { type: event, ...data } = legacy_spots_message;
-            dispatch({ version: 1, type: "spots", event, ...data });
+        if (transport_ref.current === "cat_v1_2" && compatibility_message?.type) {
+            dispatch(compatibility_message);
         }
-    }, [dispatch, legacy_spots_message, transport]);
+    }, [compatibility_message, dispatch]);
 
     useEffect(() => {
-        if (transport === "legacy" && legacy_submit_message) {
-            dispatch(normalize_legacy_submit_message(legacy_submit_message));
+        if (!compatibility_radio_message) return;
+        const message = normalize_cat_v1_2_radio_message(compatibility_radio_message);
+        if (transport_ref.current === "cat_v1_2") {
+            dispatch(message);
+        } else if (transport_ref.current === "probing") {
+            if (is_cat_v1_2_identity(compatibility_radio_message) && select_transport("cat_v1_2")) {
+                dispatch(message);
+            } else if (
+                is_direct_backend_identity(compatibility_radio_message) &&
+                select_transport("unified")
+            ) {
+                dispatch(message);
+            }
         }
-    }, [dispatch, legacy_submit_message, transport]);
-
-    useEffect(() => {
-        if (transport === "legacy" && legacy_radio_message) {
-            dispatch(normalize_legacy_radio_message(legacy_radio_message));
-        }
-    }, [dispatch, legacy_radio_message, transport]);
+    }, [compatibility_radio_message, dispatch, select_transport]);
 
     const subscribe = useCallback((type, handler) => {
         const handlers = subscribers_ref.current.get(type) || [];
@@ -149,46 +238,87 @@ export function WsProvider({ children }) {
         };
     }, []);
 
-    const send = useCallback(
-        (type, data) => {
-            if (transport !== "legacy") {
-                if (unified_ready_state === ReadyState.OPEN) {
-                    send_unified_message({ version: 1, type, ...data });
-                }
-                return;
-            }
+    const send = useCallback((type, data) => {
+        const {
+            transport,
+            compatibility_radio_ready_state,
+            compatibility_ready_state,
+            unified_ready_state,
+            send_compatibility_message,
+            send_compatibility_radio_message,
+            send_unified_message,
+        } = send_state_ref.current;
+        if (transport === "probing") return false;
 
-            if (type === "spots") {
-                if (legacy_spots_ready_state !== ReadyState.OPEN) {
-                    return;
+        if (transport === "cat_v1_2") {
+            if (type === "radio") {
+                if (compatibility_radio_ready_state === ReadyState.OPEN) {
+                    send_compatibility_radio_message(cat_v1_2_message(type, data));
+                    return true;
                 }
-                if (data.action === "initial") {
-                    send_legacy_spots_message({ initial: true });
-                } else if (data.action === "catch_up") {
-                    send_legacy_spots_message({ last_time: data.last_time });
-                }
-            } else if (type === "submit" && legacy_submit_ready_state === ReadyState.OPEN) {
-                send_legacy_submit_message(data);
-            } else if (type === "radio" && legacy_radio_ready_state === ReadyState.OPEN) {
-                const { action, ...message } = data;
-                send_legacy_radio_message({ type: action, ...message });
+            } else if (compatibility_ready_state === ReadyState.OPEN) {
+                send_compatibility_message(cat_v1_2_message(type, data));
+                return true;
+            }
+            return false;
+        }
+
+        if (unified_ready_state === ReadyState.OPEN) {
+            send_unified_message({ version: 1, type, ...data });
+            return true;
+        }
+        return false;
+    }, []);
+
+    const wait_for_open = useCallback(signal => {
+        if (signal?.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
+        if (ready_state_ref.current === ReadyState.OPEN) return Promise.resolve();
+        return new Promise((resolve, reject) => {
+            const finish = error => {
+                clearTimeout(timer);
+                signal?.removeEventListener("abort", on_abort);
+                ready_waiters_ref.current = ready_waiters_ref.current.filter(
+                    waiter => waiter !== finish,
+                );
+                if (error) reject(error);
+                else resolve();
+            };
+            const on_abort = () => finish(new DOMException("Aborted", "AbortError"));
+            const timer = setTimeout(
+                () => finish(new Error("WebSocket connection timed out")),
+                10_000,
+            );
+            signal?.addEventListener("abort", on_abort);
+            ready_waiters_ref.current.push(finish);
+        });
+    }, []);
+
+    useEffect(
+        () => () => {
+            for (const finish of ready_waiters_ref.current) {
+                finish(new DOMException("Aborted", "AbortError"));
             }
         },
-        [
-            send_legacy_radio_message,
-            send_legacy_spots_message,
-            send_legacy_submit_message,
-            send_unified_message,
-            legacy_radio_ready_state,
-            legacy_spots_ready_state,
-            legacy_submit_ready_state,
-            transport,
-            unified_ready_state,
-        ],
+        [],
     );
 
+    const reconnect = useCallback(() => {
+        set_connection_generation(current => current + 1);
+    }, []);
+
     return (
-        <WsContext.Provider value={{ network_state, subscribe, send, readyState }}>
+        <WsContext.Provider
+            value={{
+                network_state,
+                transport,
+                subscribe,
+                send,
+                readyState,
+                radioReadyState,
+                wait_for_open,
+                reconnect,
+            }}
+        >
             {children}
         </WsContext.Provider>
     );

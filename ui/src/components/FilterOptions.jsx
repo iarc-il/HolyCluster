@@ -38,6 +38,17 @@ function FilterOptions({
         set_is_tour_open(false);
     }
 
+    function handle_middle_click(event) {
+        if (event.button !== 1 || disabled || event.target?.closest?.("button") == null) {
+            return;
+        }
+
+        event.preventDefault();
+        setOnlyFilterKeys(filter_key, filter_value);
+        on_only_click?.(filter_value);
+        close_popup();
+    }
+
     useEffect(() => {
         if (is_open && trigger_ref.current) {
             const rect = trigger_ref.current.getBoundingClientRect();
@@ -84,6 +95,7 @@ function FilterOptions({
                 }
             }}
             onMouseLeave={() => set_is_parent_hovered(false)}
+            onAuxClick={handle_middle_click}
         >
             {children}
             {is_open &&

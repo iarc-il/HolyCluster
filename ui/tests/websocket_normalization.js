@@ -133,7 +133,7 @@ describe("flatten_buffered_spot_batches", () => {
     });
 });
 
-import { check_hunter_needed } from "@/hooks/useSpotFiltering.js";
+import { check_missing_needed } from "@/hooks/useSpotFiltering.js";
 
 function make_spot(overrides) {
     return {
@@ -145,7 +145,7 @@ function make_spot(overrides) {
     };
 }
 
-function make_hunter(worked = {}) {
+function make_missing(worked = {}) {
     return {
         worked: {
             dxcc: { global: [] },
@@ -158,19 +158,19 @@ function make_hunter(worked = {}) {
     };
 }
 
-describe("check_hunter_needed", () => {
+describe("check_missing_needed", () => {
     it("returns null when no sections are selected", () => {
-        expect(check_hunter_needed(make_spot(), make_hunter(), [])).toBeNull();
+        expect(check_missing_needed(make_spot(), make_missing(), [])).toBeNull();
     });
 
     it("returns null when all matching features are worked", () => {
-        const hunter = make_hunter({ dxcc: { global: [291] } });
-        expect(check_hunter_needed(make_spot(), hunter, ["dxcc"])).toBeNull();
+        const missing = make_missing({ dxcc: { global: [291] } });
+        expect(check_missing_needed(make_spot(), missing, ["dxcc"])).toBeNull();
     });
 
     it("marks a spot needed when a feature is missing", () => {
-        const hunter = make_hunter({ dxcc: { global: [1] } });
-        const result = check_hunter_needed(make_spot(), hunter, ["dxcc"]);
+        const missing = make_missing({ dxcc: { global: [1] } });
+        const result = check_missing_needed(make_spot(), missing, ["dxcc"]);
         expect(result).not.toBeNull();
         expect(result.is_needed).toBe(true);
         expect(result.reasons).toEqual([
@@ -179,13 +179,13 @@ describe("check_hunter_needed", () => {
     });
 
     it("ignores unselected sections even if features are missing", () => {
-        const hunter = make_hunter({ dxcc: { global: [] } });
-        expect(check_hunter_needed(make_spot(), hunter, [])).toBeNull();
+        const missing = make_missing({ dxcc: { global: [] } });
+        expect(check_missing_needed(make_spot(), missing, [])).toBeNull();
     });
 
     it("matches CQ zone", () => {
-        const hunter = make_hunter({ cq_zone: { global: [3] } });
-        const result = check_hunter_needed(make_spot({ dx_cq_zone: 5 }), hunter, ["cq_zone"]);
+        const missing = make_missing({ cq_zone: { global: [3] } });
+        const result = check_missing_needed(make_spot({ dx_cq_zone: 5 }), missing, ["cq_zone"]);
         expect(result.reasons[0]).toEqual({
             section: "cq_zone",
             value: 5,
@@ -194,8 +194,8 @@ describe("check_hunter_needed", () => {
     });
 
     it("matches ITU zone", () => {
-        const hunter = make_hunter({ itu_zone: { global: [6] } });
-        const result = check_hunter_needed(make_spot({ dx_itu_zone: 8 }), hunter, ["itu_zone"]);
+        const missing = make_missing({ itu_zone: { global: [6] } });
+        const result = check_missing_needed(make_spot({ dx_itu_zone: 8 }), missing, ["itu_zone"]);
         expect(result.reasons[0]).toEqual({
             section: "itu_zone",
             value: 8,
@@ -204,10 +204,10 @@ describe("check_hunter_needed", () => {
     });
 
     it("matches US state", () => {
-        const hunter = make_hunter({ us_state: { global: ["NY"] } });
-        const result = check_hunter_needed(
+        const missing = make_missing({ us_state: { global: ["NY"] } });
+        const result = check_missing_needed(
             make_spot({ dx_dxcc_code: 291, dx_state: "CA" }),
-            hunter,
+            missing,
             ["us_state"],
         );
         expect(result.reasons[0]).toEqual({
@@ -218,19 +218,19 @@ describe("check_hunter_needed", () => {
     });
 
     it("returns null for US state when country is not USA", () => {
-        const hunter = make_hunter({ us_state: { global: [] } });
+        const missing = make_missing({ us_state: { global: [] } });
         expect(
-            check_hunter_needed(make_spot({ dx_dxcc_code: 1, dx_state: "ON" }), hunter, [
+            check_missing_needed(make_spot({ dx_dxcc_code: 1, dx_state: "ON" }), missing, [
                 "us_state",
             ]),
         ).toBeNull();
     });
 
     it("matches Canada province", () => {
-        const hunter = make_hunter({ ca_province: { global: ["QC"] } });
-        const result = check_hunter_needed(
+        const missing = make_missing({ ca_province: { global: ["QC"] } });
+        const result = check_missing_needed(
             make_spot({ dx_dxcc_code: 1, dx_state: "ON", dx_cq_zone: 4, dx_itu_zone: 4 }),
-            hunter,
+            missing,
             ["ca_province"],
         );
         expect(result.reasons[0]).toEqual({
@@ -241,8 +241,8 @@ describe("check_hunter_needed", () => {
     });
 
     it("collects multiple reasons for multiple missing features", () => {
-        const hunter = make_hunter({ dxcc: { global: [1] }, cq_zone: { global: [3] } });
-        const result = check_hunter_needed(make_spot({ dx_cq_zone: 5 }), hunter, [
+        const missing = make_missing({ dxcc: { global: [1] }, cq_zone: { global: [3] } });
+        const result = check_missing_needed(make_spot({ dx_cq_zone: 5 }), missing, [
             "dxcc",
             "cq_zone",
         ]);
@@ -252,14 +252,14 @@ describe("check_hunter_needed", () => {
     });
 
     it("matches Alaska/Hawaii spots for us_state when DXCC is Alaska/Hawaii", () => {
-        const hunter = make_hunter({ us_state: { global: [] } });
+        const missing = make_missing({ us_state: { global: [] } });
         expect(
-            check_hunter_needed(make_spot({ dx_dxcc_code: 6, dx_state: "AK" }), hunter, [
+            check_missing_needed(make_spot({ dx_dxcc_code: 6, dx_state: "AK" }), missing, [
                 "us_state",
             ]).reasons[0].value,
         ).toBe("AK");
         expect(
-            check_hunter_needed(make_spot({ dx_dxcc_code: 110, dx_state: "HI" }), hunter, [
+            check_missing_needed(make_spot({ dx_dxcc_code: 110, dx_state: "HI" }), missing, [
                 "us_state",
             ]).reasons[0].value,
         ).toBe("HI");

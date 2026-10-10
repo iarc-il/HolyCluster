@@ -1,6 +1,7 @@
 import Maidenhead from "maidenhead";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { TOUR_SELECT_SETTINGS_TAB_EVENT } from "@/components/tour/tour_events.js";
 import Modal from "@/components/ui/Modal.jsx";
 import Tabs from "@/components/ui/Tabs";
 import { bands, modes } from "@/data/filters_data.js";
@@ -15,41 +16,12 @@ import General from "./General";
 import ImportExport from "./ImportExport";
 import Layout from "./Layout";
 import Profiles from "./Profiles";
-
-function SettingsIcon({ size }) {
-    const { colors } = useColors();
-
-    return (
-        <svg
-            width={size}
-            height={size}
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-        >
-            <path
-                stroke={colors.buttons.utility}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.723 1.723 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37 1 .608 2.296.07 2.572-1.065Z"
-            />
-            <path
-                stroke={colors.buttons.utility}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z"
-            />
-        </svg>
-    );
-}
+import SettingsIcon from "./SettingsIcon";
 
 const empty_temp_settings = {
     locator: "",
     default_radius: 0,
     theme: "",
-    map_theme: "",
     callsign: "",
     is_miles: false,
     propagation_displayed: true,
@@ -66,11 +38,23 @@ const empty_temp_settings = {
 
 function Settings({ set_map_controls, set_radius_in_km }) {
     const [temp_settings, set_temp_settings] = useState(empty_temp_settings);
+    const radio_config_apply_ref = useRef(null);
     const { colors, setTheme } = useColors();
     const { settings, set_settings } = useSettings();
     const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
-    const { is_radio_available } = use_radio();
+    const { is_cat_available } = use_radio();
     const is_mobile_settings = useMediaQuery("only screen and (max-width : 768px)");
+
+    useEffect(() => {
+        function select_tab(event) {
+            const label = event.detail?.label;
+            if (label == null) return;
+            document.querySelector(`[data-tour='settings-tab-${label}']`)?.click();
+        }
+
+        document.addEventListener(TOUR_SELECT_SETTINGS_TAB_EVENT, select_tab);
+        return () => document.removeEventListener(TOUR_SELECT_SETTINGS_TAB_EVENT, select_tab);
+    }, []);
 
     function disable_settings_filters(current_filters, new_settings) {
         const updated_bands = { ...current_filters.bands };
@@ -170,7 +154,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
         },
     ];
 
-    if (is_radio_available()) {
+    if (is_cat_available()) {
         tabs.splice(1, 0, {
             label: "CAT Control",
             data_tour: "settings-tab-cat-control",
@@ -179,6 +163,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                     temp_settings={temp_settings}
                     set_temp_settings={set_temp_settings}
                     colors={colors}
+                    radio_config_apply_ref={radio_config_apply_ref}
                 />
             ),
         });
@@ -203,17 +188,29 @@ function Settings({ set_map_controls, set_radius_in_km }) {
             data_tour="top-bar-settings"
             dialog_data_tour="settings-modal"
             on_open={() => {
+                radio_config_apply_ref.current = null;
                 set_temp_settings(settings);
             }}
-            on_apply={() => {
-                if (is_settings_valid) {
-                    apply_settings(temp_settings);
-                    reset_temp_settings();
+            on_apply={async () => {
+                if (!is_settings_valid) {
+                    return false;
                 }
 
-                return is_settings_valid;
+                if (radio_config_apply_ref.current) {
+                    const cat_config_applied = await radio_config_apply_ref.current();
+                    if (!cat_config_applied) {
+                        return false;
+                    }
+                }
+
+                apply_settings(temp_settings);
+                reset_temp_settings();
+                return true;
             }}
-            on_cancel={() => reset_temp_settings()}
+            on_cancel={() => {
+                radio_config_apply_ref.current = null;
+                reset_temp_settings();
+            }}
         >
             <div className="h-full w-[21rem] md:w-[42rem]">
                 <Tabs tabs={tabs} data_tour="settings-tabs" />

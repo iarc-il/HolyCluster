@@ -1,0 +1,362 @@
+#![allow(unsafe_code)]
+
+use crate::{
+    CatalogError, ConfigDescriptor, ConfigValue, HamlibError, RigModelStatus, RigPortType,
+    RotatorConfigurationError, RotatorModelId, ffi,
+};
+use hamlib_sys as sys;
+use std::{ffi::CString, marker::PhantomData, ops::RangeInclusive, ptr::NonNull, rc::Rc};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RotatorModel {
+    pub(crate) id: RotatorModelId,
+    pub(crate) manufacturer: String,
+    pub(crate) model: String,
+    pub(crate) version: String,
+    pub(crate) status: RigModelStatus,
+    pub(crate) port_type: RigPortType,
+    pub(crate) minimum_azimuth: f64,
+    pub(crate) maximum_azimuth: f64,
+    pub(crate) can_get_position: bool,
+    pub(crate) can_set_position: bool,
+}
+impl RotatorModel {
+    pub const fn id(&self) -> RotatorModelId {
+        self.id
+    }
+    pub fn manufacturer(&self) -> &str {
+        &self.manufacturer
+    }
+    pub fn model(&self) -> &str {
+        &self.model
+    }
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+    pub const fn status(&self) -> RigModelStatus {
+        self.status
+    }
+    pub const fn port_type(&self) -> RigPortType {
+        self.port_type
+    }
+    pub fn azimuth_range(&self) -> RangeInclusive<f64> {
+        self.minimum_azimuth..=self.maximum_azimuth
+    }
+    pub const fn can_get_position(&self) -> bool {
+        self.can_get_position
+    }
+    pub const fn can_set_position(&self) -> bool {
+        self.can_set_position
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct RotatorCatalog {
+    models: Vec<RotatorModel>,
+}
+impl RotatorCatalog {
+    pub fn load() -> Result<Self, CatalogError> {
+        Ok(Self {
+            models: ffi::rotator_models()?,
+        })
+    }
+    pub fn models(&self) -> &[RotatorModel] {
+        &self.models
+    }
+    pub fn model(&self, id: RotatorModelId) -> Option<&RotatorModel> {
+        self.models.iter().find(|model| model.id == id)
+    }
+    pub fn describe_model(
+        &self,
+        id: RotatorModelId,
+    ) -> Result<Vec<ConfigDescriptor>, CatalogError> {
+        if self.model(id).is_none() {
+            return Err(CatalogError::UnknownRotatorModel { model: id });
+        }
+        ffi::rotator_descriptors(id)
+    }
+}
+
+pub struct RotatorClosed;
+pub struct RotatorOpen;
+
+/// ```compile_fail
+/// use hamlib::{Rotator, RotatorModelId};
+/// let rotator = Rotator::new(RotatorModelId::DUMMY).unwrap();
+/// std::thread::spawn(move || drop(rotator));
+/// ```
+pub struct Rotator<S> {
+    handle: NonNull<sys::ROT>,
+    model: RotatorModelId,
+    open: bool,
+    owned: bool,
+    state: PhantomData<S>,
+    not_send_or_sync: PhantomData<Rc<()>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Position {
+    pub azimuth: f64,
+    pub elevation: f64,
+}
+
+impl Position {
+    pub fn new(azimuth: f64, elevation: f64) -> Result<Self, HamlibError> {
+        if azimuth.is_finite() && elevation.is_finite() {
+            Ok(Self { azimuth, elevation })
+        } else {
+            Err(HamlibError::InvalidPosition)
+        }
+    }
+}
+
+impl Rotator<RotatorClosed> {
+    pub fn new(model: RotatorModelId) -> Result<Self, HamlibError> {
+        ffi::load_rotator_backends()?;
+        let handle = NonNull::new(unsafe { sys::rot_init(model.get()) }).ok_or(
+            HamlibError::NullRotatorHandle {
+                operation: "rot_init",
+                model,
+            },
+        )?;
+        Ok(Self {
+            handle,
+            model,
+            open: false,
+            owned: true,
+            state: PhantomData,
+            not_send_or_sync: PhantomData,
+        })
+    }
+    pub fn configure(
+        &mut self,
+        descriptor: &ConfigDescriptor,
+        value: &ConfigValue,
+    ) -> Result<(), RotatorConfigurationError> {
+        descriptor.validate(value)?;
+        let name = CString::new(descriptor.token().as_str()).map_err(|_| {
+            RotatorConfigurationError::UnknownToken {
+                model: self.model,
+                token: descriptor.token().as_str().to_owned(),
+            }
+        })?;
+        let parameter = unsafe { sys::rot_confparam_lookup(self.handle.as_ptr(), name.as_ptr()) };
+        if parameter.is_null() {
+            return Err(RotatorConfigurationError::UnknownToken {
+                model: self.model,
+                token: descriptor.token().as_str().to_owned(),
+            });
+        }
+        let value =
+            CString::new(value.encoded()).map_err(|_| RotatorConfigurationError::UnknownToken {
+                model: self.model,
+                token: descriptor.token().as_str().to_owned(),
+            })?;
+        ffi::hamlib_result("rot_set_conf", unsafe {
+            sys::rot_set_conf(self.handle.as_ptr(), (*parameter).token, value.as_ptr())
+        })?;
+        Ok(())
+    }
+    pub fn open(mut self) -> Result<Rotator<RotatorOpen>, HamlibError> {
+        ffi::hamlib_result("rot_open", unsafe { sys::rot_open(self.handle.as_ptr()) })?;
+        self.open = true;
+        self.owned = false;
+        Ok(Rotator {
+            handle: self.handle,
+            model: self.model,
+            open: true,
+            owned: true,
+            state: PhantomData,
+            not_send_or_sync: PhantomData,
+        })
+    }
+}
+
+impl Rotator<RotatorOpen> {
+    pub fn position(&mut self) -> Result<Position, HamlibError> {
+        let (mut a, mut e) = (0.0, 0.0);
+        ffi::hamlib_result("rot_get_position", unsafe {
+            sys::rot_get_position(self.handle.as_ptr(), &mut a, &mut e)
+        })?;
+        Position::new(f64::from(a), f64::from(e))
+    }
+    pub fn set_azimuth(&mut self, heading: f64) -> Result<(), HamlibError> {
+        let handle = self.handle.as_ptr();
+        set_azimuth_preserving_elevation(
+            heading,
+            f64::from(unsafe { sys::hamlib_sys_rot_min_az(handle) }),
+            f64::from(unsafe { sys::hamlib_sys_rot_max_az(handle) }),
+            unsafe { sys::hamlib_sys_rot_is_azimuth_only(handle) } != 0,
+            || self.position(),
+            |position| {
+                ffi::hamlib_result("rot_set_position", unsafe {
+                    sys::rot_set_position(
+                        handle,
+                        position.azimuth as f32,
+                        position.elevation as f32,
+                    )
+                })
+            },
+        )
+    }
+    pub fn close(mut self) -> Result<Rotator<RotatorClosed>, HamlibError> {
+        ffi::hamlib_result("rot_close", unsafe { sys::rot_close(self.handle.as_ptr()) })?;
+        self.open = false;
+        self.owned = false;
+        Ok(Rotator {
+            handle: self.handle,
+            model: self.model,
+            open: false,
+            owned: true,
+            state: PhantomData,
+            not_send_or_sync: PhantomData,
+        })
+    }
+}
+
+fn set_azimuth_preserving_elevation(
+    heading: f64,
+    minimum: f64,
+    maximum: f64,
+    azimuth_only: bool,
+    read: impl FnOnce() -> Result<Position, HamlibError>,
+    write: impl FnOnce(Position) -> Result<(), HamlibError>,
+) -> Result<(), HamlibError> {
+    // Validate before reading or moving. A failed read must never cause movement.
+    let azimuth = equivalent_azimuth(heading, minimum, maximum)?;
+    let measured = read()?;
+    // Hamlib documents zero for the unused axis of azimuth-only models.
+    // Only explicit model capability permits zero, never an unknown type or read error.
+    let elevation = if azimuth_only {
+        0.0
+    } else {
+        measured.elevation
+    };
+    write(Position::new(azimuth, elevation)?)
+}
+
+fn equivalent_azimuth(heading: f64, minimum: f64, maximum: f64) -> Result<f64, HamlibError> {
+    if !heading.is_finite() || !minimum.is_finite() || !maximum.is_finite() || minimum > maximum {
+        return Err(HamlibError::InvalidPosition);
+    }
+    let normalized = heading.rem_euclid(360.0);
+    let minimum_turn = ((minimum - normalized) / 360.0).ceil();
+    let maximum_turn = ((maximum - normalized) / 360.0).floor();
+    if minimum_turn > maximum_turn {
+        return Err(HamlibError::InvalidPosition);
+    }
+    let preferred_turn = ((heading - normalized) / 360.0)
+        .round()
+        .clamp(minimum_turn, maximum_turn);
+    let azimuth = normalized + preferred_turn * 360.0;
+    if azimuth < minimum
+        || azimuth > maximum
+        || azimuth < f64::from(f32::MIN)
+        || azimuth > f64::from(f32::MAX)
+    {
+        return Err(HamlibError::InvalidPosition);
+    }
+    Ok(azimuth)
+}
+
+impl<S> Drop for Rotator<S> {
+    fn drop(&mut self) {
+        if self.owned {
+            if self.open {
+                let _ = unsafe { sys::rot_close(self.handle.as_ptr()) };
+            }
+            let _ = unsafe { sys::rot_cleanup(self.handle.as_ptr()) };
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Position, Rotator, equivalent_azimuth, set_azimuth_preserving_elevation};
+    use crate::{HamlibError, RotatorModelId};
+    use hamlib_sys as sys;
+
+    #[test]
+    fn read_failure_never_writes_even_for_azimuth_only_models() {
+        for azimuth_only in [false, true] {
+            let result = set_azimuth_preserving_elevation(
+                90.0,
+                0.0,
+                360.0,
+                azimuth_only,
+                || Err(HamlibError::InvalidPosition),
+                |_| panic!("must not move after a failed read"),
+            );
+            assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    fn invalid_heading_never_reads_or_writes() {
+        for heading in [f64::NAN, f64::INFINITY, 180.0] {
+            assert!(
+                set_azimuth_preserving_elevation(
+                    heading,
+                    -45.0,
+                    45.0,
+                    false,
+                    || panic!("must validate before reading"),
+                    |_| panic!("must validate before moving"),
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn preserves_measured_elevation_unless_explicitly_azimuth_only() {
+        for azimuth_only in [false, true] {
+            set_azimuth_preserving_elevation(
+                270.0,
+                -180.0,
+                180.0,
+                azimuth_only,
+                || Position::new(12.0, 45.0),
+                |position| {
+                    assert_eq!(position.azimuth, -90.0);
+                    assert_eq!(position.elevation, if azimuth_only { 0.0 } else { 45.0 });
+                    Ok(())
+                },
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn dummy_azimuth_command_preserves_45_degree_elevation() {
+        let mut rotator = Rotator::new(RotatorModelId::DUMMY).unwrap().open().unwrap();
+        assert_eq!(
+            unsafe { sys::hamlib_sys_rot_is_azimuth_only(rotator.handle.as_ptr()) },
+            0
+        );
+        assert_eq!(
+            unsafe { sys::rot_set_position(rotator.handle.as_ptr(), 0.0, 45.0) },
+            0
+        );
+        // The actual Hamlib dummy moves at six degrees per second.
+        std::thread::sleep(std::time::Duration::from_secs(8));
+        assert_eq!(rotator.position().unwrap().elevation, 45.0);
+        rotator.set_azimuth(30.0).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        assert_eq!(rotator.position().unwrap().elevation, 45.0);
+    }
+
+    #[test]
+    fn maps_headings_into_model_ranges() {
+        assert_eq!(equivalent_azimuth(270.0, -180.0, 180.0).unwrap(), -90.0);
+        assert_eq!(equivalent_azimuth(-90.0, 0.0, 360.0).unwrap(), 270.0);
+        assert_eq!(equivalent_azimuth(450.0, -180.0, 540.0).unwrap(), 450.0);
+        assert_eq!(equivalent_azimuth(720.0, -180.0, 180.0).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn rejects_headings_without_equivalent_model_position() {
+        assert!(equivalent_azimuth(180.0, -45.0, 45.0).is_err());
+        assert!(equivalent_azimuth(f64::NAN, -180.0, 180.0).is_err());
+    }
+}

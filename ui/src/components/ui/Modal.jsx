@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button.jsx";
 import { useColors } from "@/hooks/useColors";
 
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+const modal_stack = [];
 
 function Modal({
     title = null,
@@ -22,17 +23,32 @@ function Modal({
     data_tour = null,
     dialog_data_tour = null,
     children,
+    footer = null,
 }) {
     const [show_modal, set_show_modal] = useState(false);
+    const [applying, set_applying] = useState(false);
     const { colors } = useColors();
     const trigger_ref = useRef(null);
     const modal_ref = useRef(null);
     const previously_focused_ref = useRef(null);
+    const modal_instance_ref = useRef({});
 
-    function close() {
+    const close = useCallback(() => {
         set_show_modal(false);
         previously_focused_ref.current?.focus();
-    }
+    }, []);
+
+    const apply = useCallback(async () => {
+        if (on_apply == null || apply_disabled || applying) return;
+        set_applying(true);
+        try {
+            if (await on_apply()) {
+                close();
+            }
+        } finally {
+            set_applying(false);
+        }
+    }, [apply_disabled, applying, close, on_apply]);
 
     const on_keydown = useCallback(
         event => {
@@ -44,14 +60,16 @@ function Modal({
                 }
                 close();
             } else if (event.key === "Enter") {
-                if (on_apply && !apply_disabled) {
+                if (on_apply && !apply_disabled && !applying) {
                     event.preventDefault();
-                    set_show_modal(!on_apply());
+                    void apply();
                 }
             }
         },
-        [show_modal, on_apply, apply_disabled, on_cancel],
+        [applying, apply, apply_disabled, on_apply, on_cancel, show_modal],
     );
+    const on_keydown_ref = useRef(on_keydown);
+    on_keydown_ref.current = on_keydown;
 
     useEffect(() => {
         if (external_open) {
@@ -67,14 +85,26 @@ function Modal({
     }, [external_close]);
 
     useEffect(() => {
-        if (show_modal) {
-            previously_focused_ref.current = document.activeElement;
-            document.addEventListener("keydown", on_keydown);
-            return () => {
-                document.removeEventListener("keydown", on_keydown);
-            };
+        if (!show_modal) return;
+
+        previously_focused_ref.current = document.activeElement;
+        const modal_instance = modal_instance_ref.current;
+        modal_stack.push(modal_instance);
+
+        function handle_keydown(event) {
+            if (modal_stack[modal_stack.length - 1] !== modal_instance) return;
+            on_keydown_ref.current(event);
         }
-    }, [show_modal, on_keydown]);
+
+        document.addEventListener("keydown", handle_keydown);
+        return () => {
+            document.removeEventListener("keydown", handle_keydown);
+            const index = modal_stack.indexOf(modal_instance);
+            if (index !== -1) {
+                modal_stack.splice(index, 1);
+            }
+        };
+    }, [show_modal]);
 
     useEffect(() => {
         if (!show_modal) return;
@@ -177,7 +207,11 @@ function Modal({
                                     </div>
                                 ) : null}
                                 <div>{children}</div>
-                                {on_cancel != null && on_apply != null ? (
+                                {footer != null ? (
+                                    <div className="flex items-center justify-around p-3 border-t border-solid border-blueGray-200 rounded-b">
+                                        {footer}
+                                    </div>
+                                ) : on_cancel != null && on_apply != null ? (
                                     <div className="flex items-center justify-around p-3 border-t border-solid border-blueGray-200 rounded-b">
                                         {on_cancel != null ? (
                                             <Button
@@ -195,10 +229,10 @@ function Modal({
                                             <Button
                                                 color="blue"
                                                 data-tour="modal-apply-button"
-                                                disabled={apply_disabled}
-                                                on_click={() => set_show_modal(!on_apply())}
+                                                disabled={apply_disabled || applying}
+                                                on_click={apply}
                                             >
-                                                {apply_text}
+                                                {applying ? "Applying..." : apply_text}
                                             </Button>
                                         ) : null}
                                     </div>

@@ -3,12 +3,14 @@
         Name="Holy Cluster"
         Version="$(var.Version)"
         UpgradeCode="DD2C1F58-D922-4BEF-90BD-C01652EFD082"
+        ProductCode="$(var.ProductCode)"
         Manufacturer="HolyCluster dev team"
         InstallerVersion="450"
         Compressed="yes"
     >
         <MajorUpgrade
             Schedule="afterInstallInitialize"
+            AllowSameVersionUpgrades="yes"
             DowngradeErrorMessage="A newer version of [ProductName] is already installed. Setup will now exit."
         />
 

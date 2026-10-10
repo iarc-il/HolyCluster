@@ -1,7 +1,15 @@
 import Maidenhead from "maidenhead";
 import { useState } from "react";
 
-function GPSButton({ on_location, className, style, aria_label, data_tour = null }) {
+function GPSButton({
+    on_location,
+    className,
+    style,
+    aria_label,
+    data_tour = null,
+    show_title = true,
+    ...props
+}) {
     const [is_locating, set_is_locating] = useState(false);
     const [location_error, set_location_error] = useState(null);
 
@@ -51,9 +59,12 @@ function GPSButton({ on_location, className, style, aria_label, data_tour = null
             style={style}
             aria-label={aria_label}
             data-tour={data_tour}
+            {...props}
             title={
-                location_error ??
-                (is_locating ? "Getting current location" : "Use current location")
+                show_title
+                    ? (location_error ??
+                      (is_locating ? "Getting current location" : "Use current location"))
+                    : undefined
             }
         >
             <svg

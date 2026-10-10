@@ -5,6 +5,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import MapControls from "@/components/MapControls.jsx";
 
 vi.mock("@/hooks/useColors", () => ({
+    MAP_THEME_CONFIGS: {
+        colorful: { palette: { a: "#ff0000", b: "#00ff00", c: "#0000ff", d: "#ffff00" } },
+        earth: { palette: { a: "#aa8866", b: "#886644", c: "#668844", d: "#446633" } },
+        white: { palette: { a: "#ffffff", b: "#ffffff", c: "#ffffff", d: "#ffffff" } },
+    },
+    map_theme_names: ["colorful", "earth", "white"],
     useColors: () => ({
         dev_mode: false,
         colors: {
@@ -14,9 +20,6 @@ vi.mock("@/hooks/useColors", () => ({
                 utility: "#ffffff",
             },
             map_controls: {
-                radio_connected: "#00ff00",
-                radio_disconnected: "#ff0000",
-                radio_unknown: "#777777",
                 zone_label_inactive: "#999999",
             },
             theme: {
@@ -31,12 +34,6 @@ vi.mock("@/hooks/useFilters", () => ({
     useFilters: () => ({
         filters: {},
         setFilters: vi.fn(),
-    }),
-}));
-
-vi.mock("@/hooks/useRadio", () => ({
-    default: () => ({
-        radio_status: "unavailable",
     }),
 }));
 
@@ -65,6 +62,7 @@ function set_geolocation(getCurrentPosition) {
 
 function render_map_controls({ is_mobile }) {
     const map_controls = {
+        map_theme: "colorful",
         location: {
             displayed_locator: "JJ00AA",
             location: [0, 0],
@@ -78,8 +76,6 @@ function render_map_controls({ is_mobile }) {
             set_map_controls={set_map_controls}
             set_radius_in_km={vi.fn()}
             auto_toggle_radius={false}
-            can_undo_cat={false}
-            undo_cat={vi.fn()}
             is_map_fullscreen={false}
             toggle_map_fullscreen={vi.fn()}
             is_mobile={is_mobile}
@@ -125,6 +121,62 @@ describe("MapControls GPS", () => {
         expect(
             screen.queryByRole("button", { name: "Center map on current GPS location" }),
         ).toBeNull();
+    });
+
+    it("changes the map theme from the controls panel", async () => {
+        const user = userEvent.setup();
+        const { map_controls } = render_map_controls({ is_mobile: false });
+
+        await user.click(screen.getByRole("button", { name: "Show map controls" }));
+        expect(
+            screen
+                .getByRole("button", { name: "Use colorful map theme" })
+                .getAttribute("aria-pressed"),
+        ).toBe("true");
+
+        await user.click(screen.getByRole("button", { name: "Use earth map theme" }));
+        expect(map_controls.map_theme).toBe("earth");
+
+        await user.click(screen.getByRole("button", { name: "Use white map theme" }));
+        expect(map_controls.map_theme).toBe("white");
+    });
+
+    it("provides tooltips for non-textual map controls", async () => {
+        const user = userEvent.setup();
+        render_map_controls({ is_mobile: false });
+
+        for (const [name, content] of [
+            ["Reset map", "Reset map"],
+            ["Enter fullscreen", "Enter fullscreen"],
+            ["Show map controls", "Show map controls"],
+        ]) {
+            await user.hover(screen.getByRole("button", { name }));
+            expect(screen.getByRole("tooltip").textContent).toBe(content);
+            await user.unhover(screen.getByRole("button", { name }));
+        }
+
+        await user.click(screen.getByRole("button", { name: "Show map controls" }));
+
+        for (const [name, content] of [
+            ["Show equator", "Show equator"],
+            ["Toggle night mode", "Toggle night mode"],
+            ["Use colorful map theme", "Colorful map theme"],
+        ]) {
+            await user.hover(screen.getByRole("button", { name }));
+            expect(screen.getByRole("tooltip").textContent).toBe(content);
+            await user.unhover(screen.getByRole("button", { name }));
+        }
+
+        const equator_button = screen.getByRole("button", { name: "Show equator" });
+        await user.hover(equator_button);
+        await user.click(equator_button);
+        expect(screen.getByRole("tooltip").textContent).toBe("Hide equator");
+        await user.unhover(equator_button);
+
+        await user.hover(screen.getByRole("button", { name: "Switch to globe projection" }));
+
+        expect(screen.getByRole("tooltip").textContent).toBe("Globe mode");
+        expect(screen.getByRole("tooltip").classList.contains("text-sm")).toBe(true);
     });
 
     it("keeps the controls panel open when clicking the tour tooltip", async () => {

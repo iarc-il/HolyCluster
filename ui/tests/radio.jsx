@@ -1,0 +1,234 @@
+import { act, cleanup, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const websocket = vi.hoisted(() => ({
+    ReadyState: { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 },
+    ready_state: 1,
+    transport: "unified",
+    handlers: new Map(),
+    send: vi.fn(),
+    subscribe: vi.fn((type, handler) => {
+        websocket.handlers.set(type, handler);
+        return () => websocket.handlers.delete(type);
+    }),
+}));
+
+vi.mock("@/hooks/useSettings", () => ({
+    useSettings: () => ({ settings: { callsign: "N0CALL" } }),
+}));
+
+vi.mock("@/hooks/useWs", () => ({
+    ReadyState: websocket.ReadyState,
+    useWs: () => ({
+        send: websocket.send,
+        radioReadyState: websocket.ready_state,
+        transport: websocket.transport,
+    }),
+    useWsMessage: (type, handler) => websocket.subscribe(type, handler),
+}));
+
+import useRadio, { RadioProvider } from "@/hooks/useRadio";
+import { RTTY_TUNING_MIN_VERSION } from "@/utils/cat_features.js";
+
+function Consumer() {
+    Consumer.radio = useRadio();
+    return null;
+}
+
+function emit(message) {
+    act(() => websocket.handlers.get("radio")(message));
+}
+
+function render_radio() {
+    return render(
+        <RadioProvider>
+            <Consumer />
+        </RadioProvider>,
+    );
+}
+
+describe("radio configuration", () => {
+    beforeEach(() => {
+        websocket.ready_state = websocket.ReadyState.OPEN;
+        websocket.transport = "unified";
+        websocket.handlers.clear();
+        websocket.send.mockClear();
+        Consumer.radio = null;
+    });
+
+    afterEach(() => cleanup());
+
+    it("uses radio configuration API 2 protocol messages", async () => {
+        render_radio();
+        const config = {
+            rig: { model_id: "hamlib:2", token_values: { rig_pathname: "/dev/ttyUSB0" } },
+        };
+
+        act(() => {
+            Consumer.radio.list_radio_models();
+            Consumer.radio.describe_radio_model("hamlib:2");
+            Consumer.radio.get_radio_configuration();
+            void Consumer.radio.set_radio_configuration(config);
+        });
+
+        expect(websocket.send).toHaveBeenNthCalledWith(1, "radio", { action: "ListRadioModels" });
+        expect(websocket.send).toHaveBeenNthCalledWith(2, "radio", {
+            action: "DescribeRadioModel",
+            model_id: "hamlib:2",
+        });
+        expect(websocket.send).toHaveBeenNthCalledWith(3, "radio", {
+            action: "GetRadioConfiguration",
+        });
+        expect(websocket.send).toHaveBeenNthCalledWith(4, "radio", {
+            action: "SetRadioConfiguration",
+            configuration: config,
+        });
+
+        emit({ event: "radio_models", models: [{ id: "hamlib:2", model: "Dummy" }] });
+        emit({ event: "radio_model", model_id: "hamlib:1", descriptors: [{ token: "stale" }] });
+        expect(Consumer.radio.radio_model_detail).toBeNull();
+        emit({ event: "radio_model", model_id: "hamlib:2", descriptors: [{ token: "path" }] });
+        emit({ event: "configuration_result", ok: true });
+
+        expect(Consumer.radio.radio_models).toEqual([{ id: "hamlib:2", model: "Dummy" }]);
+        expect(Consumer.radio.radio_model_detail).toEqual([{ token: "path" }]);
+        expect(Consumer.radio.radio_configuration).toEqual({ event: "configuration", ...config });
+    });
+
+    it.each([
+        websocket.ReadyState.CLOSING,
+        websocket.ReadyState.CLOSED,
+        websocket.ReadyState.CONNECTING,
+    ])("settles a pending save as failure when the transport becomes %s", async state => {
+        const view = render_radio();
+        let promise;
+        act(() => {
+            promise = Consumer.radio.set_radio_configuration({ rig: null });
+        });
+        websocket.ready_state = state;
+        view.rerender(
+            <RadioProvider>
+                <Consumer />
+            </RadioProvider>,
+        );
+        await expect(promise).resolves.toMatchObject({ ok: false, failure: "connection" });
+        expect(Consumer.radio.radio_configuration_result.ok).toBe(false);
+        emit({ event: "configuration_result", ok: true });
+        expect(Consumer.radio.radio_configuration).toBeNull();
+        expect(Consumer.radio.radio_configuration_result.ok).toBe(false);
+    });
+
+    it("settles a pending save on unmount", async () => {
+        const view = render_radio();
+        let promise;
+        act(() => {
+            promise = Consumer.radio.set_radio_configuration({ rig: null });
+        });
+        view.unmount();
+        await expect(promise).resolves.toMatchObject({ ok: false });
+    });
+
+    it("settles on CAT disconnect even while the transport is open", async () => {
+        render_radio();
+        let promise;
+        act(() => {
+            promise = Consumer.radio.set_radio_configuration({ rig: null });
+        });
+        emit({ event: "status", status: "unavailable" });
+        await expect(promise).resolves.toMatchObject({ ok: false, failure: "connection" });
+    });
+
+    it.each([true, false])("returns the actual save result (ok=%s)", async ok => {
+        render_radio();
+        let promise;
+        act(() => {
+            promise = Consumer.radio.set_radio_configuration({ rig: null });
+        });
+        // An unconfigured rig is not a disconnected CAT server.
+        emit({ event: "status", status: "unavailable", catserver_version: "catserver-v2.0.0" });
+        const result = { event: "configuration_result", ok };
+        emit(result);
+        await expect(promise).resolves.toEqual(result);
+        expect(Consumer.radio.radio_configuration).toEqual(
+            ok ? { event: "configuration", rig: null } : null,
+        );
+    });
+
+    it("does not overwrite an in-flight save with another save or retry", async () => {
+        render_radio();
+        let first;
+        let second;
+        act(() => {
+            first = Consumer.radio.set_radio_configuration({ rig: null });
+            second = Consumer.radio.set_radio_configuration({ rig: { model_id: "other" } });
+            Consumer.radio.retry_radio();
+        });
+        await expect(second).resolves.toMatchObject({ ok: false });
+        expect(websocket.send).toHaveBeenCalledTimes(1);
+        emit({ event: "configuration_result", ok: true });
+        await expect(first).resolves.toMatchObject({ ok: true });
+        expect(Consumer.radio.radio_configuration.rig).toBeNull();
+    });
+
+    it("does not send a save while disconnected", async () => {
+        websocket.ready_state = websocket.ReadyState.CLOSED;
+        render_radio();
+        await expect(Consumer.radio.set_radio_configuration({ rig: null })).resolves.toMatchObject({
+            ok: false,
+        });
+        expect(websocket.send).not.toHaveBeenCalled();
+    });
+
+    it("negotiates capabilities and reports unsupported transports", () => {
+        const view = render_radio();
+        emit({ event: "status", status: "connected", catserver_version: "catserver-v2.0.0" });
+        expect(websocket.send).toHaveBeenCalledWith("radio", { action: "GetCapabilities" });
+        emit({ event: "capabilities", radio_configuration_api: 2 });
+        expect(Consumer.radio.radio_configuration_support).toBe("supported");
+
+        websocket.transport = "cat_v1_2";
+        view.rerender(
+            <RadioProvider>
+                <Consumer />
+            </RadioProvider>,
+        );
+        expect(Consumer.radio.radio_configuration_support).toBe("update_required");
+    });
+
+    it("reports an unconfigured radio as unavailable", () => {
+        render_radio();
+        emit({ event: "status", status: "connected", catserver_version: "catserver-v2.0.0" });
+        emit({ event: "capabilities", radio_configuration_api: 2 });
+
+        expect(websocket.send).toHaveBeenCalledWith("radio", {
+            action: "GetRadioConfiguration",
+        });
+
+        emit({ event: "configuration", rig: null });
+
+        expect(Consumer.radio.radio_status).toBe("unavailable");
+        expect(Consumer.radio.is_radio_available()).toBe(false);
+        expect(Consumer.radio.is_cat_available()).toBe(true);
+        expect(Consumer.radio.radio_configuration_support).toBe("supported");
+    });
+
+    it("continues tuning without active-rig state", () => {
+        render_radio();
+        const supported_version = `catserver-v${RTTY_TUNING_MIN_VERSION.slice(0, 3).join(".")}`;
+        emit({
+            event: "status",
+            status: "connected",
+            freq: 14_074_000,
+            catserver_version: supported_version,
+        });
+        act(() => Consumer.radio.set_mode_and_freq("RTTY", 14.1));
+
+        expect(Consumer.radio.radio_band).toBe(20);
+        expect(websocket.send).toHaveBeenCalledWith("radio", {
+            action: "SetModeAndFreq",
+            mode: "RTTY",
+            freq: 14.1,
+        });
+        expect(Consumer.radio.set_rig).toBeUndefined();
+    });
+});

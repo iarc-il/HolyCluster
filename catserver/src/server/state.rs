@@ -1,0 +1,67 @@
+use std::path::PathBuf;
+
+use axum::body::Body;
+use hyper_tls::HttpsConnector;
+use hyper_util::{
+    client::legacy::{Client, connect::HttpConnector},
+    rt::TokioExecutor,
+};
+use tokio::sync::broadcast::Sender;
+
+use crate::updater::UpdateService;
+use crate::{radio_manager::RadioManager, rotator_manager::RotatorManager, tray_icon::UserEvent};
+
+use super::{
+    ServerConfig,
+    availability_trace::AvailabilityTrace,
+    radio_configuration::{RadioConfiguration, production},
+    rotator_configuration::RotatorConfiguration,
+};
+
+#[derive(Clone)]
+pub(super) struct AppState {
+    pub(super) server_config: ServerConfig,
+    pub(super) radio: RadioManager,
+    pub(super) rotator: RotatorManager,
+    pub(super) http_client: Client<HttpsConnector<HttpConnector>, Body>,
+    pub(super) upstream_http_trace: AvailabilityTrace,
+    pub(super) upstream_websocket_trace: AvailabilityTrace,
+    pub(super) upstream_upgrade_trace: AvailabilityTrace,
+    pub(super) sender: Sender<UserEvent>,
+    pub(super) ui_dir: Option<PathBuf>,
+    pub(super) radio_configuration: RadioConfiguration,
+    pub(super) rotator_configuration: RotatorConfiguration,
+    pub(super) updater: UpdateService,
+}
+
+impl AppState {
+    pub(super) fn new(
+        server_config: ServerConfig,
+        radio: RadioManager,
+        rotator: RotatorManager,
+        sender: Sender<UserEvent>,
+        ui_dir: Option<PathBuf>,
+    ) -> anyhow::Result<Self> {
+        let manifest_url = reqwest::Url::parse(
+            &server_config
+                .build_uri("http", "/catserver/releases/latest")
+                .to_string(),
+        )?;
+        let updater = UpdateService::new(manifest_url, env!("VERSION"))?
+            .with_local_port(server_config.local_port);
+        Ok(Self {
+            server_config,
+            radio_configuration: production(radio.clone()),
+            rotator_configuration: RotatorConfiguration::new(rotator.clone()),
+            updater,
+            radio,
+            rotator,
+            http_client: Client::builder(TokioExecutor::new()).build(HttpsConnector::new()),
+            upstream_http_trace: AvailabilityTrace::new("http"),
+            upstream_websocket_trace: AvailabilityTrace::new("websocket"),
+            upstream_upgrade_trace: AvailabilityTrace::new("proxy-upgrade"),
+            sender,
+            ui_dir,
+        })
+    }
+}

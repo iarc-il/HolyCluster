@@ -1,8 +1,42 @@
 import Card from "@/components/addons/components/Card";
-import use_radio from "@/hooks/useRadio.jsx";
+import Spinner from "@/components/ui/Spinner.jsx";
+import { useEffect, useState } from "react";
+
+function platform() {
+    return /linux/i.test(navigator.userAgent) ? "linux" : "windows";
+}
 
 export default function Download() {
-    const { filename } = use_radio();
+    const [downloads, set_downloads] = useState({});
+    const [loading, set_loading] = useState(true);
+    const current_platform = platform();
+    const alternate_platform = current_platform === "linux" ? "windows" : "linux";
+    const current_name = current_platform === "linux" ? "Linux" : "Windows";
+    const alternate_name = alternate_platform === "linux" ? "Linux" : "Windows";
+    const current_format = current_platform === "linux" ? "AppImage" : "MSI";
+    const alternate_format = alternate_platform === "linux" ? "AppImage" : "MSI";
+
+    useEffect(() => {
+        Promise.all(
+            ["linux", "windows"].map(async target => {
+                try {
+                    const response = await fetch(`/catserver/releases/${target}/x86_64`);
+                    if (!response.ok) return null;
+
+                    const location = (await response.json())?.artifact?.location;
+                    return typeof location === "string" &&
+                        location.startsWith("/catserver/artifacts/")
+                        ? [target, location]
+                        : null;
+                } catch {
+                    return null;
+                }
+            }),
+        )
+            .then(results => set_downloads(Object.fromEntries(results.filter(Boolean))))
+            .catch(() => set_downloads({}))
+            .finally(() => set_loading(false));
+    }, []);
 
     return (
         <section id="download" className="py-8 px-4 bg-addons-bg">
@@ -12,23 +46,45 @@ export default function Download() {
                         <h2 className="text-3xl font-bold text-center mb-6 text-addons-primary">
                             Download CAT Server
                         </h2>
-                        <div className="text-center mb-4">
-                            <h3 className="text-xl font-bold addons-primary mb-2">{filename}</h3>
-                            <p className="text-gray-600" />
-                        </div>
-
-                        <div className="grid md:grid-cols-3 gap-4 mb-4">
-                            <Card className="p-5 flex flex-col items-center text-center md:col-start-2 hover:shadow-md transition-shadow">
-                                <h4 className="font-medium mb-2">Windows</h4>
-                                <p className="text-sm text-gray-600 mb-3">Windows 10/11 (64-bit)</p>
+                        <div className="mx-auto max-w-2xl text-center">
+                            <p className="text-lg text-gray-700">
+                                Add CAT control to Holy Cluster by installing the companion server
+                                on your computer.
+                            </p>
+                            {downloads[current_platform] ? (
                                 <a
-                                    className="w-full text-white bg-addons-secondary hover:bg-addons-primary p-4 rounded-lg"
-                                    href="/catserver/download"
-                                    download
+                                    className="mt-6 inline-flex rounded-lg bg-addons-primary px-8 py-4 text-xl font-semibold text-white shadow-lg transition-opacity hover:opacity-75"
+                                    href={downloads[current_platform]}
                                 >
-                                    Download .msi
+                                    Download for {current_name}
                                 </a>
-                            </Card>
+                            ) : loading ? (
+                                <span
+                                    className="mt-6 inline-flex items-center justify-center rounded-lg bg-addons-primary px-8 py-4 text-xl font-semibold text-white"
+                                    role="status"
+                                >
+                                    <Spinner size="28" color="currentColor" />
+                                    <span className="sr-only">Loading {current_name} download</span>
+                                </span>
+                            ) : (
+                                <span className="mt-6 inline-flex rounded-lg bg-gray-400 px-8 py-4 text-xl font-semibold text-white">
+                                    {current_name} download unavailable
+                                </span>
+                            )}
+                            <p className="mt-2 text-sm text-gray-600">
+                                {current_format} for 64-bit systems
+                            </p>
+                            {downloads[alternate_platform] ? (
+                                <p className="mt-6 text-sm text-gray-600">
+                                    Need the {alternate_name} version?{" "}
+                                    <a
+                                        className="font-medium text-addons-primary underline underline-offset-2 hover:opacity-75"
+                                        href={downloads[alternate_platform]}
+                                    >
+                                        Download the {alternate_format}
+                                    </a>
+                                </p>
+                            ) : null}
                         </div>
                     </Card>
                 </div>

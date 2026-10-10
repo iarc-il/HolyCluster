@@ -8,6 +8,8 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useRef, useState } from "react";
 
+const SOTA_ENABLED = false;
+
 export default function CallsignSearch({
     className = "hidden md:flex",
     compact = false,
@@ -96,7 +98,7 @@ export default function CallsignSearch({
                 <option value="cluster">Cluster</option>
                 <option value="pota">POTA</option>
                 <option value="wwff">WWFF</option>
-                <option value="sota">SOTA</option>
+                {SOTA_ENABLED && <option value="sota">SOTA</option>}
             </Select>
             <button
                 type="button"

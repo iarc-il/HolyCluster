@@ -3,10 +3,10 @@ import {
     is_filterable_dxcc_entity,
     normalize_dxcc_entity_code,
 } from "@/data/dxcc_entities.js";
-import { create_default_hunter, sanitize_hunter } from "@/utils/profile_data.js";
+import { create_default_missing, sanitize_missing } from "@/utils/profile_data.js";
 import { get_valid_zone_values, normalize_zone_value } from "@/utils/zones.js";
 
-const HUNTER_SECTION_OVERLAYS = {
+const MISSING_SECTION_OVERLAYS = {
     dxcc: {
         type: "dxcc",
         values: () => dxcc_codes,
@@ -83,32 +83,32 @@ function get_overlay_highlights_key(highlights) {
     ].join("|");
 }
 
-function get_worked_values(hunter, section, normalize) {
+function get_worked_values(missing, section, normalize) {
     return new Set(
-        (hunter.worked[section]?.global ?? [])
+        (missing.worked[section]?.global ?? [])
             .map(value => normalize(value))
             .filter(value => value != null),
     );
 }
 
-export function get_active_hunter_filter_actions(callsign_filters) {
+export function get_active_missing_filter_actions(callsign_filters) {
     return (callsign_filters?.filters ?? [])
         .filter(filter => {
             const active_field = FILTER_ACTION_ACTIVE_FIELDS[filter.action];
             return (
-                filter.type === "hunter" &&
+                filter.type === "missing" &&
                 (active_field == null || callsign_filters?.[active_field] !== false)
             );
         })
-        .map(filter => ({ section: filter.hunter_section, action: filter.action }));
+        .map(filter => ({ section: filter.missing_section, action: filter.action }));
 }
 
-export function build_hunter_overlay_highlights(hunter, section_actions = []) {
+export function build_missing_overlay_highlights(missing, section_actions = []) {
     const highlights = create_empty_overlay_highlights();
-    const source = sanitize_hunter(hunter ?? create_default_hunter());
+    const source = sanitize_missing(missing ?? create_default_missing());
 
     for (const { section, action } of section_actions) {
-        const overlay = HUNTER_SECTION_OVERLAYS[section];
+        const overlay = MISSING_SECTION_OVERLAYS[section];
         if (!overlay || !action) continue;
 
         const worked_values = get_worked_values(source, section, overlay.normalize);

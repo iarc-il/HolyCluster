@@ -11,6 +11,7 @@ node_modules
 .vite
 dist
 dist-ssr
+/test-results
 *.local
 
 # Editor directories and files

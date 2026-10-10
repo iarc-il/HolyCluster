@@ -21,15 +21,16 @@ import {
     get_station_location,
 } from "@/utils.js";
 import MapOverlay from "./MapOverlay.jsx";
-import { Dimensions } from "./dimensions.js";
+import { create_dimensions } from "./dimensions.js";
 import {
     MAP_FILTER_ACTIONS,
     build_filter_menu_actions,
     build_map_context_filter,
+    build_spot_context_menu_actions,
 } from "./map_context_menu.js";
 import {
-    build_hunter_overlay_highlights,
-    get_active_hunter_filter_actions,
+    build_missing_overlay_highlights,
+    get_active_missing_filter_actions,
 } from "./overlay_highlights.js";
 import { DPR } from "./render_helpers.js";
 import { useCanvasLayers } from "./useCanvasLayers.js";
@@ -51,15 +52,13 @@ function CanvasMap({
     const { spots, current_freq_spots } = useSpotData();
     const { callsign_filters, get_filter_add_status, add_filter_if_allowed } = useFilters();
     const {
-        active_profile_data: { hunter },
+        active_profile_data: { missing },
     } = useProfiles();
     const { hovered_spot, set_hovered_spot, pinned_spot, set_pinned_spot, hovered_band } =
         useSpotInteraction();
     const { settings } = useSettings();
     const { colors, dev_mode } = useColors();
     const { rotator_azimuth, rotator_target_azimuth } = useRotator();
-    const effective_rotator_azimuth = dev_mode ? rotator_azimuth : null;
-    const effective_rotator_target_azimuth = dev_mode ? rotator_target_azimuth : null;
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
     const [hovered_dxcc, set_hovered_dxcc] = useState(null);
     const [map_context_menu, set_map_context_menu] = useState({
@@ -71,6 +70,7 @@ function CanvasMap({
         number: null,
         entity: null,
         is_filterable_entity: false,
+        spot: null,
     });
 
     const animation_id_ref = useRef(null);
@@ -97,6 +97,11 @@ function CanvasMap({
         get_filter_add_status,
         add_filter_if_allowed,
     );
+    const spot_menu_actions = build_spot_context_menu_actions(
+        map_context_menu.spot,
+        get_filter_add_status,
+        add_filter_if_allowed,
+    );
 
     const [div_ref, { width, height }] = useMeasure();
 
@@ -115,7 +120,7 @@ function CanvasMap({
     const inner_padding = is_sm_device && !effective_map_controls.is_globe ? 45 : 5;
 
     const dims = useMemo(
-        () => (width && height ? new Dimensions(width, height, inner_padding) : null),
+        () => create_dimensions(width, height, inner_padding),
         [width, height, inner_padding],
     );
 
@@ -133,8 +138,8 @@ function CanvasMap({
             : null;
     const home_location = useMemo(() => get_station_location(settings), [settings.locator]);
     const night_time_ms = night_time?.getTime() ?? null;
-    const hunter_overlay_actions = useMemo(
-        () => get_active_hunter_filter_actions(callsign_filters),
+    const missing_overlay_actions = useMemo(
+        () => get_active_missing_filter_actions(callsign_filters),
         [
             callsign_filters.filters,
             callsign_filters.is_alert_filters_active,
@@ -143,8 +148,8 @@ function CanvasMap({
         ],
     );
     const overlay_highlights = useMemo(
-        () => build_hunter_overlay_highlights(hunter, hunter_overlay_actions),
-        [hunter, hunter_overlay_actions],
+        () => build_missing_overlay_highlights(missing, missing_overlay_actions),
+        [missing, missing_overlay_actions],
     );
 
     const render_state_ref = useRef({});
@@ -158,14 +163,13 @@ function CanvasMap({
         map_controls: effective_map_controls,
         settings,
         radius_in_km,
-        show_dev_bearings: dev_mode,
         callsign_filters,
         overlay_highlights,
         hovered_zone,
         hovered_dxcc,
         home_location,
-        rotator_azimuth: effective_rotator_azimuth,
-        rotator_target_azimuth: effective_rotator_target_azimuth,
+        rotator_azimuth,
+        rotator_target_azimuth,
         night_time,
         voacap: voacap_render_state,
     };
@@ -214,9 +218,8 @@ function CanvasMap({
         hovered_zone,
         hovered_dxcc,
         home_location,
-        show_dev_bearings: dev_mode,
-        rotator_azimuth: effective_rotator_azimuth,
-        rotator_target_azimuth: effective_rotator_target_azimuth,
+        rotator_azimuth,
+        rotator_target_azimuth,
         voacap_state,
         animation_id_ref,
     });
@@ -249,6 +252,7 @@ function CanvasMap({
                     number,
                     entity: null,
                     is_filterable_entity: false,
+                    spot: null,
                 });
             },
             open_dxcc_context_menu: (x, y, entity) => {
@@ -261,6 +265,20 @@ function CanvasMap({
                     number: null,
                     entity,
                     is_filterable_entity: is_filterable_dxcc_entity(entity),
+                    spot: null,
+                });
+            },
+            open_spot_context_menu: (x, y, spot) => {
+                set_map_context_menu({
+                    visible: true,
+                    x,
+                    y,
+                    type: "spot",
+                    system: null,
+                    number: null,
+                    entity: null,
+                    is_filterable_entity: false,
+                    spot,
                 });
             },
         },
@@ -399,9 +417,11 @@ function CanvasMap({
                 <SpotContextMenu
                     x={map_context_menu.x}
                     y={map_context_menu.y}
-                    spot={null}
+                    spot={map_context_menu.spot}
                     on_close={() => set_map_context_menu(state => ({ ...state, visible: false }))}
-                    actions={map_menu_actions}
+                    actions={
+                        map_context_menu.type === "spot" ? spot_menu_actions : map_menu_actions
+                    }
                     data_tour="map-context-menu"
                 />
             )}

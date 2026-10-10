@@ -1,0 +1,56 @@
+#include <hamlib/rig.h>
+#include <hamlib/riglist.h>
+#include <hamlib/rotator.h>
+
+enum {
+    HAMLIB_SYS_RIG_MODEL_DUMMY = RIG_MODEL_DUMMY,
+    HAMLIB_SYS_RIG_VFO_A = RIG_VFO_A,
+    HAMLIB_SYS_RIG_VFO_B = RIG_VFO_B,
+    HAMLIB_SYS_RIG_VFO_CURR = RIG_VFO_CURR,
+    HAMLIB_SYS_RIG_MODE_AM = RIG_MODE_AM,
+    HAMLIB_SYS_RIG_MODE_CW = RIG_MODE_CW,
+    HAMLIB_SYS_RIG_MODE_USB = RIG_MODE_USB,
+    HAMLIB_SYS_RIG_MODE_LSB = RIG_MODE_LSB,
+    HAMLIB_SYS_RIG_MODE_FM = RIG_MODE_FM,
+    HAMLIB_SYS_RIG_MODE_PKTUSB = RIG_MODE_PKTUSB,
+    HAMLIB_SYS_RIG_MODE_PKTLSB = RIG_MODE_PKTLSB,
+    HAMLIB_SYS_RIG_MODE_RTTY = RIG_MODE_RTTY,
+    HAMLIB_SYS_RIG_MODE_RTTYR = RIG_MODE_RTTYR,
+};
+
+struct hamlib_sys_rig_caps_metadata {
+    rig_model_t rig_model;
+    const char *model_name;
+    const char *mfg_name;
+    const char *version;
+    const char *copyright;
+    enum rig_status_e status;
+    int rig_type;
+    ptt_type_t ptt_type;
+    dcd_type_t dcd_type;
+    rig_port_t port_type;
+};
+
+const struct hamlib_sys_rig_caps_metadata *hamlib_sys_rig_caps_metadata(
+    const struct rig_caps *caps);
+
+struct hamlib_sys_rot_caps_metadata {
+    rot_model_t rot_model;
+    const char *model_name;
+    const char *mfg_name;
+    const char *version;
+    const char *copyright;
+    enum rig_status_e status;
+    int rot_type;
+    enum rig_port_e port_type;
+};
+
+const struct hamlib_sys_rot_caps_metadata *hamlib_sys_rot_caps_metadata(
+    const struct rot_caps *caps);
+int hamlib_sys_rot_caps_can_get_position(const struct rot_caps *caps);
+int hamlib_sys_rot_caps_can_set_position(const struct rot_caps *caps);
+azimuth_t hamlib_sys_rot_caps_min_az(const struct rot_caps *caps);
+azimuth_t hamlib_sys_rot_caps_max_az(const struct rot_caps *caps);
+int hamlib_sys_rot_is_azimuth_only(const ROT *rot);
+azimuth_t hamlib_sys_rot_min_az(const ROT *rot);
+azimuth_t hamlib_sys_rot_max_az(const ROT *rot);

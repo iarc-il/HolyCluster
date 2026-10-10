@@ -107,8 +107,8 @@ const base_theme = {
     spots: {
         alert_border: "white",
         dxpedition_alert: "#FFD700",
-        hunter_alert_flash: "#ef4444",
-        hunter_alert_flash_border: "#ffffff",
+        missing_alert_flash: "#ef4444",
+        missing_alert_flash_border: "#ffffff",
     },
     map: {
         background: "#b8e8ee",
@@ -149,6 +149,12 @@ const base_theme = {
         radio_connected: "#00DD00",
         radio_disconnected: "#DD0000",
     },
+    rotator: {
+        connected: "#00EE00",
+        disconnected: "#EE0000",
+        moving: "#facc15",
+        moving_flash: "#ffffff",
+    },
 };
 
 function merge_theme(overrides) {
@@ -163,7 +169,7 @@ function merge_theme(overrides) {
     return merged;
 }
 
-const MAP_THEME_CONFIGS = {
+export const MAP_THEME_CONFIGS = {
     colorful: {
         palette: {
             country_0: "#f6e36d",
@@ -265,7 +271,7 @@ const themes = {
             progress_track: "#d1d5db",
         },
         spots: {
-            hunter_alert_flash_border: "#111827",
+            missing_alert_flash_border: "#111827",
         },
         seven_segment: {
             on: "#ef4444",
@@ -370,7 +376,7 @@ const themes = {
             odd_text: "#000000",
         },
         spots: {
-            hunter_alert_flash_border: "#111827",
+            missing_alert_flash_border: "#111827",
         },
         seven_segment: {
             on: "#ef4444",
@@ -384,7 +390,8 @@ export const themes_names = Object.entries(themes).map(([name, theme]) => name);
 export const ColorsProvider = ({ children }) => {
     const {
         active_profile_data: {
-            settings: { theme: profile_theme, map_theme: profile_map_theme },
+            settings: { theme: profile_theme },
+            map_controls: { map_theme: profile_map_theme },
         },
     } = useProfiles();
     const [dev_mode, set_dev_mode] = useLocalStorage("dev_mode", false);

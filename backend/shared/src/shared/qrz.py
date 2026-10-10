@@ -1,5 +1,7 @@
 import asyncio
+import random
 import xml.etree.ElementTree as ET
+from collections.abc import Awaitable, Callable
 
 import httpx
 from loguru import logger
@@ -8,6 +10,62 @@ from loguru import logger
 QRZ_KEEPALIVE_EXPIRY_SECONDS = 1.0
 HTTPX_DEFAULT_MAX_CONNECTIONS = 100
 HTTPX_DEFAULT_MAX_KEEPALIVE_CONNECTIONS = 20
+QRZ_XML_NAMESPACE = {"qrz": "http://xmldata.qrz.com"}
+QRZ_REQUEST_ATTEMPTS = 6
+QRZ_MAX_RETRY_DELAY_SECONDS = 30
+QRZ_LOOKUP_BUDGET_SECONDS = 2.0
+QRZ_AUTH_BUDGET_SECONDS = 10.0
+QRZ_AUTH_RETRY_BASE_SECONDS = 5
+QRZ_AUTH_RETRY_MAX_SECONDS = 60
+
+
+async def _get_with_retries(
+    http_client: httpx.AsyncClient, url: str, timeout: float | None = None, attempts: int = QRZ_REQUEST_ATTEMPTS
+):
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            if timeout is None:
+                response = await http_client.get(url)
+            else:
+                response = await http_client.get(url, timeout=timeout)
+            if response.status_code != 429 and response.status_code < 500:
+                return response
+            response.raise_for_status()
+        except (httpx.TransportError, httpx.HTTPStatusError) as e:
+            last_error = e
+            if attempt == attempts - 1:
+                raise
+            delay = min(2**attempt, QRZ_MAX_RETRY_DELAY_SECONDS) + random.uniform(0, 1)
+            logger.warning(
+                f"QRZ request failed, retrying in {delay:.1f}s "
+                f"({attempt + 1}/{QRZ_REQUEST_ATTEMPTS}): {type(e).__name__}"
+            )
+            await asyncio.sleep(delay)
+    raise RuntimeError("QRZ request failed") from last_error
+
+
+def _xml_text(root: ET.Element, tag_name: str) -> str | None:
+    element = root.find(f".//qrz:{tag_name}", QRZ_XML_NAMESPACE)
+    if element is None or element.text is None:
+        return None
+    value = element.text.strip()
+    return value or None
+
+
+def _lookup_error(message: str) -> dict:
+    return {
+        "locator": None,
+        "state": None,
+        "cq_zone": None,
+        "itu_zone": None,
+        "error": message,
+    }
+
+
+def _is_session_error(message: str) -> bool:
+    normalized = message.lower()
+    return "session" in normalized and any(value in normalized for value in ("expired", "invalid", "timeout"))
 
 
 class QrzSessionManager:
@@ -26,6 +84,7 @@ class QrzSessionManager:
         self.refresh_interval = refresh_interval
         self.session_key: str = ""
         self._lock = asyncio.Lock()
+        self._retry_after = 0.0
         self.redis_client = redis_client
         self.redis_key = redis_key
         # QRZ's Apache endpoint advertises Keep-Alive timeout=2. Drop idle
@@ -39,43 +98,49 @@ class QrzSessionManager:
         )
 
     async def start(self):
-        self.session_key = await get_qrz_session_key(
-            username=self.username,
-            password=self.password,
-            api_key=self.api_key,
-            http_client=self.http_client,
-        )
-        logger.info("QRZ session initialized")
-        if self.redis_client:
-            await self.redis_client.set(self.redis_key, self.session_key)
+        await self.refresh_if_stale(self.session_key)
 
     async def aclose(self):
         await self.http_client.aclose()
 
+    async def refresh_if_stale(self, stale_key: str) -> str:
+        async with self._lock:
+            if self.session_key and self.session_key != stale_key:
+                return self.session_key
+            loop = asyncio.get_running_loop()
+            if loop.time() < self._retry_after:
+                raise RuntimeError("QRZ authentication temporarily unavailable")
+            try:
+                async with asyncio.timeout(QRZ_AUTH_BUDGET_SECONDS):
+                    new_key = await get_qrz_session_key(
+                        username=self.username,
+                        password=self.password,
+                        api_key=self.api_key,
+                        http_client=self.http_client,
+                    )
+            except Exception:
+                self._retry_after = loop.time() + QRZ_AUTH_RETRY_BASE_SECONDS
+                raise
+            self._retry_after = 0.0
+            self.session_key = new_key
+            if self.redis_client:
+                await self.redis_client.set(self.redis_key, new_key)
+            logger.info("QRZ session refreshed after lookup rejection")
+            return new_key
+
     async def refresh_loop(self):
-        try:
-            while True:
+        # Authenticate in the background, including the first attempt at startup.
+        retry_delay = QRZ_AUTH_RETRY_BASE_SECONDS
+        while True:
+            try:
+                await self.start()
+            except Exception:
+                logger.warning("QRZ authentication unavailable; keeping collection active")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, QRZ_AUTH_RETRY_MAX_SECONDS)
+            else:
+                retry_delay = QRZ_AUTH_RETRY_BASE_SECONDS
                 await asyncio.sleep(self.refresh_interval)
-                logger.info(f"Refreshing QRZ key (every {self.refresh_interval} seconds)")
-                try:
-                    async with self._lock:
-                        new_key = await get_qrz_session_key(
-                            username=self.username,
-                            password=self.password,
-                            api_key=self.api_key,
-                            http_client=self.http_client,
-                        )
-                        if new_key:
-                            self.session_key = new_key
-                            logger.info("QRZ session refreshed successfully")
-                            if self.redis_client:
-                                await self.redis_client.set(self.redis_key, new_key)
-                        else:
-                            logger.error("QRZ refresh failed (got None), keeping old key")
-                except Exception:
-                    logger.exception("Failed to refresh QRZ key. Keeping old key")
-        except asyncio.CancelledError:
-            logger.info("QRZ refresh task cancelled")
 
     def get_key(self) -> str:
         return self.session_key
@@ -87,29 +152,44 @@ async def get_qrz_session_key(username: str, password: str, api_key: str, http_c
     if password == "":
         raise ValueError("Password is empty")
 
-    attempts = 0
-    while attempts <= 5:
-        attempts += 1
-        url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
-        try:
-            response = await http_client.get(url)
-        except httpx.TransportError as e:
-            raise type(e)(f"xmldata.qrz.com: {e}") from e
+    url = f"https://xmldata.qrz.com/xml/current/?username={username};password={password};agent=python:{api_key}"
+    response = await _get_with_retries(http_client, url)
+    if response.status_code != 200:
+        raise RuntimeError(f"QRZ session request failed with status {response.status_code}")
 
-        if response.status_code == 200:
-            root = ET.fromstring(response.text)
-            ns = {"qrz": "http://xmldata.qrz.com"}
-            session_key = root.find(".//qrz:Key", ns).text
-            logger.info(f"Received QRZ key in {attempts=}")
-            return session_key
-        else:
-            logger.error(f"**** Error: trying to get qrz session key {attempts=}: {response.status_code=}")
-        await asyncio.sleep(5)
-    logger.error(f"**** Error: stopped attempting to get QRZ key after {attempts=}")
-    return None
+    try:
+        root = ET.fromstring(response.text)
+    except ET.ParseError as e:
+        raise RuntimeError("QRZ session response contained invalid XML") from e
+
+    session_key = _xml_text(root, "Key")
+    if session_key is None:
+        error = _xml_text(root, "Error") or "response did not contain a key"
+        raise RuntimeError(f"QRZ session request failed: {error}")
+    logger.info("Received QRZ key")
+    return session_key
 
 
-async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client: httpx.AsyncClient) -> dict:
+async def get_locator_from_qrz(
+    qrz_session_key: str,
+    callsign: str,
+    http_client: httpx.AsyncClient,
+    refresh_session: Callable[[str], Awaitable[str]] | None = None,
+) -> dict:
+    # One deadline covers HTTP, lock waiting, authentication and the second lookup.
+    try:
+        async with asyncio.timeout(QRZ_LOOKUP_BUDGET_SECONDS):
+            return await _get_locator_from_qrz(qrz_session_key, callsign, http_client, refresh_session)
+    except (httpx.HTTPError, TimeoutError, RuntimeError) as e:
+        return _lookup_error(f"qrz request unavailable: {type(e).__name__}")
+
+
+async def _get_locator_from_qrz(
+    qrz_session_key: str,
+    callsign: str,
+    http_client: httpx.AsyncClient,
+    refresh_session: Callable[[str], Awaitable[str]] | None = None,
+) -> dict:
     def parse_zone_int(root, ns, tag_name):
         elem = root.find(f".//qrz:{tag_name}", ns)
         if elem is None or elem.text is None:
@@ -127,95 +207,41 @@ async def get_locator_from_qrz(qrz_session_key: str, callsign: str, http_client:
         if callsign.upper().endswith(suffix):
             callsign = callsign[: -len(suffix)]
     if not qrz_session_key:
-        return {
-            "locator": None,
-            "state": None,
-            "cq_zone": None,
-            "itu_zone": None,
-            "error": "No qrz_session_key",
-        }
+        return _lookup_error("No qrz_session_key")
 
     url = f"https://xmldata.qrz.com/xml/current/?s={qrz_session_key};callsign={callsign}"
 
-    retries = 0
-    response = None
-    max_retries = 5
-    while response is None:
-        try:
-            response = await http_client.get(url, timeout=5)
-            response.raise_for_status()
-        except httpx.TimeoutException as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com timeout: {e}") from e
-            else:
-                logger.warning("Timeout error, retrying")
-                retries += 1
-        except httpx.NetworkError as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com network: {e}") from e
-            else:
-                logger.warning("Network error, retrying")
-                retries += 1
-        except httpx.ProtocolError as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com protocol: {e}") from e
-            else:
-                logger.warning(f"Protocol error, retrying ({retries + 1}/{max_retries}): {type(e).__name__}: {e}")
-                retries += 1
-        except httpx.ProxyError as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com proxy: {e}") from e
-            else:
-                logger.warning("Proxy error, retrying")
-                retries += 1
-        except httpx.UnsupportedProtocol as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com unsupported protocol: {e}") from e
-            else:
-                logger.warning("Unsupported protocol error, retrying")
-                retries += 1
-        except httpx.TransportError as e:
-            if retries == max_retries:
-                raise type(e)(f"xmldata.qrz.com transport: {e}") from e
-            else:
-                logger.warning("Transport error, retrying")
-                retries += 1
+    try:
+        response = await _get_with_retries(http_client, url, timeout=QRZ_LOOKUP_BUDGET_SECONDS, attempts=1)
+    except (httpx.TransportError, httpx.HTTPStatusError) as e:
+        return _lookup_error(f"qrz request unavailable: {type(e).__name__}")
 
     if response.status_code != 200:
-        return {
-            "locator": None,
-            "state": None,
-            "cq_zone": None,
-            "itu_zone": None,
-            "error": f"qrz response code {response.status_code}",
-        }
+        return _lookup_error(f"qrz response code {response.status_code}")
 
-    ns = {"qrz": "http://xmldata.qrz.com"}
-    root = ET.fromstring(response.text)
-    xml_error = root.find(".//qrz:Error", ns)
+    try:
+        root = ET.fromstring(response.text)
+    except ET.ParseError as e:
+        return _lookup_error(f"invalid qrz response XML: {e}")
+
+    xml_error = _xml_text(root, "Error")
     if xml_error is not None:
-        error = root.find(".//qrz:Error", ns).text
-        return {
-            "locator": None,
-            "state": None,
-            "cq_zone": None,
-            "itu_zone": None,
-            "error": error,
-        }
+        if refresh_session is not None and _is_session_error(xml_error):
+            refreshed_key = await refresh_session(qrz_session_key)
+            return await _get_locator_from_qrz(refreshed_key, callsign, http_client)
+        return _lookup_error(xml_error)
 
-    geoloc = root.find(".//qrz:geoloc", ns).text
-    if geoloc != "none":
-        locator = root.find(".//qrz:grid", ns).text
-        state_elem = root.find(".//qrz:state", ns)
-        state = state_elem.text if state_elem is not None else None
-        cq_zone = parse_zone_int(root, ns, "cqzone")
-        itu_zone = parse_zone_int(root, ns, "ituzone")
-        return {"locator": locator, "state": state, "cq_zone": cq_zone, "itu_zone": itu_zone}
-    else:
-        return {
-            "locator": None,
-            "state": None,
-            "cq_zone": None,
-            "itu_zone": None,
-            "error": "no user supplied grid",
-        }
+    geoloc = _xml_text(root, "geoloc")
+    if geoloc is None:
+        return _lookup_error("qrz response did not contain geoloc")
+    if geoloc == "none":
+        return _lookup_error("no user supplied grid")
+
+    locator = _xml_text(root, "grid")
+    if locator is None:
+        return _lookup_error("qrz response did not contain grid")
+
+    state = _xml_text(root, "state")
+    cq_zone = parse_zone_int(root, QRZ_XML_NAMESPACE, "cqzone")
+    itu_zone = parse_zone_int(root, QRZ_XML_NAMESPACE, "ituzone")
+    return {"locator": locator, "state": state, "cq_zone": cq_zone, "itu_zone": itu_zone}

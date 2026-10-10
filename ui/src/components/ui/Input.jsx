@@ -7,6 +7,7 @@ const Input = forwardRef(function Input(
         type = "text",
         disabled_text_color = null,
         border_color = "",
+        style,
         ...props_without_classes
     },
     ref,
@@ -34,6 +35,7 @@ const Input = forwardRef(function Input(
                 backgroundColor: colors.theme.input_background,
                 borderColor: border_color,
                 color,
+                ...style,
             }}
             className={className}
             type={type}

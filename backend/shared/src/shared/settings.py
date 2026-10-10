@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -86,6 +87,20 @@ class LogSettings(BaseSettings):
     )
 
     log_dir: str = Field(default="/var/log/holy", description="Root directory for all log files")
+    log_max_bytes: int = Field(default=512 * 1024 * 1024, description="Maximum size of each service's log tree")
+
+
+class SentrySettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    sentry_dsn: str | None = Field(default=None, description="Sentry DSN")
+    sentry_environment: Literal["dev", "prod"] = Field(description="Sentry environment")
+    sentry_release: str = Field(min_length=1, description="Sentry release")
 
 
 class QrzSettings(BaseSettings):

@@ -1,11 +1,10 @@
-import CanvasMap from "@/components/CanvasMap/index.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import MapControls from "@/components/MapControls.jsx";
 import SidePanel from "@/components/SidePanel.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
-import HistoryBar from "@/components/history/HistoryBar.jsx";
+import { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
     TOUR_CLOSE_LEFT_PANEL_EVENT,
@@ -25,12 +24,17 @@ import {
     get_bearing_origin,
     get_max_radius,
     get_spots_center,
+    get_station_location,
 } from "@/utils.js";
-import { open_db_and_evict } from "@/utils/spot_cache_db.js";
+import { open_db_and_evict as open_db_and_evict_propagation } from "@/utils/propagation_cache_db.jsx";
+import { open_db_and_evict as open_db_and_evict_spots } from "@/utils/spot_cache_db.jsx";
 import Maidenhead from "maidenhead";
 
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
+
+const CanvasMap = lazy(() => import("@/components/CanvasMap/index.jsx"));
+const HistoryBar = lazy(() => import("@/components/history/HistoryBar.jsx"));
 
 const AUTO_RADIUS_PADDING_KM = 1000;
 const AUTO_RADIUS_RECENTER_ENABLED = false;
@@ -46,6 +50,9 @@ function MainContent({
     set_history_end,
     window_size_ms,
     set_window_size_ms,
+    display_hours,
+    is_dragging,
+    set_is_dragging,
 }) {
     const { dev_mode, set_dev_mode, colors } = useColors();
 
@@ -63,11 +70,64 @@ function MainContent({
         },
         update_active_profile_section,
     } = useProfiles();
-    const { spots, filter_missing_flags, set_filter_missing_flags } = useSpotData();
+    const {
+        spots,
+        filter_missing_flags,
+        set_filter_missing_flags,
+        committed_start: spots_committed_start,
+        committed_end: spots_committed_end,
+    } = useSpotData();
     const { set_pinned_spot } = useSpotInteraction();
+    const is_history_mode = !!(history_start && history_end);
 
-    const [prev_freqs, set_prev_freqs] = useState([]);
-    const prev_freq_limit = 1; // Set the max number of undos a user can do
+    // Bar position and the map's night overlay should never visibly move ahead
+    // of the spots actually drawn on the map. While dragging, track the raw
+    // target instantly (no data needed for that). Otherwise only adopt a new
+    // position once useHistorySpots has committed data for that *exact* range
+    // — comparing against a generic "fetch_state === done" would be unreliable
+    // here (that flag can still read "done" from the previous range for a
+    // moment after a new one is requested), so committed_start/end (only ever
+    // set at the instant their own matching fetch resolves) is what we key off
+    // instead. Never regress to a stale committed value either: keep showing
+    // whatever was last displayed until the new commit lands.
+    const [displayed_window, set_displayed_window] = useState({ start: null, end: null });
+    useLayoutEffect(() => {
+        set_displayed_window(current => {
+            if (!is_history_mode) return { start: null, end: null };
+            if (is_dragging) {
+                return { start: history_start, end: history_end };
+            }
+            const committed_matches_target =
+                spots_committed_start &&
+                spots_committed_end &&
+                history_start &&
+                history_end &&
+                spots_committed_start.getTime() === history_start.getTime() &&
+                spots_committed_end.getTime() === history_end.getTime();
+            if (committed_matches_target) {
+                return { start: spots_committed_start, end: spots_committed_end };
+            }
+            if (!current.end) {
+                return { start: history_start, end: history_end };
+            }
+            return current;
+        });
+    }, [
+        is_history_mode,
+        is_dragging,
+        spots_committed_start,
+        spots_committed_end,
+        history_start,
+        history_end,
+    ]);
+    // Fall back to the raw target on the very first render after toggling
+    // history on, before this component's own layout effect has had a chance
+    // to run once — otherwise HistoryBar briefly receives null.
+    const display_start = displayed_window.start ?? history_start;
+    const display_end = displayed_window.end ?? history_end;
+
+    const [previous_cat_states, set_previous_cat_states] = useState([]);
+    const previous_cat_state_limit = 1;
     const map_wrapper_ref = useRef(null);
     const [is_map_fullscreen, set_is_map_fullscreen] = useState(false);
 
@@ -121,12 +181,28 @@ function MainContent({
                     });
                 }
             }
-            set_radius_in_km(Math.ceil((max_radius + AUTO_RADIUS_PADDING_KM) / 1000) * 1000);
+            const target_radius = Math.ceil((max_radius + AUTO_RADIUS_PADDING_KM) / 1000) * 1000;
+            if (radius_in_km !== target_radius) {
+                set_radius_in_km(target_radius);
+            }
         }
-    }, [max_radius, auto_radius]);
+    }, [max_radius, auto_radius, radius_in_km]);
 
-    const { set_mode_and_freq, radio_freq, rig, radio_mode } = use_radio();
-    const { set_azimuth, is_rotator_available } = useRotator();
+    const { set_mode_and_freq, radio_freq, radio_mode } = use_radio();
+    const { set_azimuth, is_rotator_available, rotator_azimuth, rotator_target_azimuth } =
+        useRotator();
+
+    useEffect(() => {
+        if (rotator_target_azimuth == null) return;
+        const home_location = get_station_location(settings);
+        if (home_location == null) return;
+        set_map_controls(state => {
+            state.location = {
+                displayed_locator: settings.locator,
+                location: home_location,
+            };
+        });
+    }, [rotator_target_azimuth]);
 
     function get_rotator_azimuth(spot) {
         if (!spot?.dx_loc) {
@@ -142,34 +218,37 @@ function MainContent({
     }
 
     function set_cat_to_spot(spot) {
-        set_prev_freqs(
+        const next_rotator_azimuth = is_rotator_available() ? get_rotator_azimuth(spot) : null;
+        set_previous_cat_states(
             [
                 {
                     mode: radio_mode,
                     freq: Math.round((radio_freq / 1000) * 10) / 10,
+                    rotator_azimuth: next_rotator_azimuth == null ? null : rotator_azimuth,
                 },
             ]
-                .concat(prev_freqs)
-                .slice(0, prev_freq_limit),
+                .concat(previous_cat_states)
+                .slice(0, previous_cat_state_limit),
         );
 
         set_mode_and_freq(spot.mode, spot.freq);
 
-        if (dev_mode) {
-            const azimuth = get_rotator_azimuth(spot);
-            if (azimuth != null && is_rotator_available()) {
-                set_azimuth(azimuth);
-            }
+        if (next_rotator_azimuth != null) {
+            set_azimuth(next_rotator_azimuth);
         }
     }
 
-    function undo_freq_change() {
-        if (prev_freqs.length <= 0) {
+    function undo_cat_change() {
+        if (previous_cat_states.length <= 0) {
             return;
         }
 
-        set_mode_and_freq(prev_freqs[0].mode, prev_freqs[0].freq);
-        set_prev_freqs(prev_freqs.slice(1));
+        const previous_cat_state = previous_cat_states[0];
+        set_mode_and_freq(previous_cat_state.mode, previous_cat_state.freq);
+        if (previous_cat_state.rotator_azimuth != null && is_rotator_available()) {
+            set_azimuth(previous_cat_state.rotator_azimuth);
+        }
+        set_previous_cat_states(previous_cat_states.slice(1));
     }
 
     // The view with zero index is the Filters view
@@ -238,19 +317,15 @@ function MainContent({
     }
 
     const is_md_device = useMediaQuery("only screen and (max-width : 768px)");
-    const is_history_mode = dev_mode && !!(history_start && history_end);
 
     function toggle_history() {
-        if (!dev_mode) return;
-
         if (is_history_mode) {
             set_history_start(null);
             set_history_end(null);
         } else {
-            const end = new Date();
-            const start = new Date(end.getTime() - window_size_ms);
-            set_history_start(start);
-            set_history_end(end);
+            const bar_start_ms = Date.now() - display_hours * 3_600_000;
+            set_history_start(new Date(bar_start_ms));
+            set_history_end(new Date(bar_start_ms + window_size_ms));
         }
     }
 
@@ -264,29 +339,29 @@ function MainContent({
                 map_controls={map_controls}
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
-                can_undo_cat={prev_freqs.length > 0}
-                undo_cat={undo_freq_change}
                 is_map_fullscreen={is_map_fullscreen}
                 toggle_map_fullscreen={toggle_map_fullscreen}
                 is_mobile={is_md_device}
                 is_history_mode={is_history_mode}
                 toggle_history={toggle_history}
             />
-            <CanvasMap
-                map_controls={map_controls}
-                set_map_controls={set_map_controls}
-                set_cat_to_spot={set_cat_to_spot}
-                radius_in_km={radius_in_km}
-                set_radius_in_km={set_radius_in_km}
-                auto_radius={auto_radius}
-                set_auto_radius={set_auto_radius}
-                night_time={is_history_mode ? history_end : null}
-            />
+            <Suspense fallback={null}>
+                <CanvasMap
+                    map_controls={map_controls}
+                    set_map_controls={set_map_controls}
+                    set_cat_to_spot={set_cat_to_spot}
+                    radius_in_km={radius_in_km}
+                    set_radius_in_km={set_radius_in_km}
+                    auto_radius={auto_radius}
+                    set_auto_radius={set_auto_radius}
+                    night_time={is_history_mode ? display_end : null}
+                />
+            </Suspense>
         </div>
     );
 
     const table =
-        compare_version(local_version, [1, 0, 0, 0]) > 0 || local_version == null ? (
+        compare_version(local_version, [1, 2, 0, 0]) > 0 || local_version == null ? (
             <SpotsTable
                 set_cat_to_spot={set_cat_to_spot}
                 table_sort={table_sort}
@@ -324,6 +399,7 @@ function MainContent({
         map: {
             label: "Map",
             content: map,
+            data_tour: "mobile-main-tab-map",
             icon: MAP_TAB_ICON,
             viewbox: "0 0 16 16",
             size: "16",
@@ -331,6 +407,7 @@ function MainContent({
         table: {
             label: "Table",
             content: table,
+            data_tour: "mobile-main-tab-table",
             icon: TABLE_TAB_ICON,
             viewbox: "0 0 16 16",
             size: "16",
@@ -341,16 +418,21 @@ function MainContent({
 
     return (
         <div className="flex flex-col h-full" data-tour="app-shell">
+            <UpdateConsentDialog />
             <TopBar
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
                 toggled_ui={toggled_ui}
                 set_toggled_ui={set_toggled_ui}
                 dev_mode={dev_mode}
+                can_undo_cat={previous_cat_states.length > 0}
+                undo_cat={undo_cat_change}
             />
             <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
                 <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
-                    <LeftColumn toggled_ui={toggled_ui}>{dev_mode && <WebsiteTour />}</LeftColumn>
+                    <LeftColumn toggled_ui={toggled_ui}>
+                        <WebsiteTour />
+                    </LeftColumn>
                     {is_md_device ? (
                         <Tabs
                             key={mobile_tabs_key}
@@ -373,20 +455,26 @@ function MainContent({
                     )}
                     <SidePanel
                         toggled_ui={toggled_ui}
+                        set_toggled_ui={set_toggled_ui}
                         set_cat_to_spot={set_cat_to_spot}
                         active_view={active_view}
                         set_active_view={set_active_view}
                     />
                 </div>
                 {is_history_mode && (
-                    <HistoryBar
-                        start={history_start}
-                        end={history_end}
-                        set_start={set_history_start}
-                        set_end={set_history_end}
-                        window_size_ms={window_size_ms}
-                        set_window_size_ms={set_window_size_ms}
-                    />
+                    <Suspense fallback={null}>
+                        <HistoryBar
+                            start={history_start}
+                            end={history_end}
+                            display_start={display_start}
+                            display_end={display_end}
+                            set_start={set_history_start}
+                            set_end={set_history_end}
+                            window_size_ms={window_size_ms}
+                            set_window_size_ms={set_window_size_ms}
+                            set_is_dragging={set_is_dragging}
+                        />
+                    </Suspense>
                 )}
             </div>
         </div>
@@ -397,14 +485,13 @@ function MainContainer() {
     const { dev_mode } = useColors();
     const {
         active_profile_data: {
-            history: { window_size_ms, step_size_ms },
+            history: { window_size_ms, step_size_ms, display_hours },
         },
         update_active_profile_section,
     } = useProfiles();
     const [history_start, set_history_start] = useState(null);
     const [history_end, set_history_end] = useState(null);
-    const effective_history_start = dev_mode ? history_start : null;
-    const effective_history_end = dev_mode ? history_end : null;
+    const [is_dragging, set_is_dragging] = useState(false);
 
     function set_window_size_ms(value_or_setter) {
         update_active_profile_section("history", history => ({
@@ -417,47 +504,50 @@ function MainContainer() {
     }
 
     useEffect(() => {
-        if (!dev_mode) {
-            set_history_start(null);
-            set_history_end(null);
-        }
-    }, [dev_mode]);
-
-    useEffect(() => {
-        if (!dev_mode) return;
+        const evict_all = () => {
+            open_db_and_evict_spots();
+            open_db_and_evict_propagation();
+        };
 
         const handle =
             typeof requestIdleCallback !== "undefined"
-                ? requestIdleCallback(() => open_db_and_evict())
-                : setTimeout(() => open_db_and_evict(), 2000);
-        const timer = setInterval(() => open_db_and_evict(), 3 * 60 * 60_000);
+                ? requestIdleCallback(() => evict_all())
+                : setTimeout(() => evict_all(), 2000);
+        const timer = setInterval(() => evict_all(), 3 * 60 * 60_000);
         return () => {
             typeof requestIdleCallback !== "undefined"
                 ? cancelIdleCallback(handle)
                 : clearTimeout(handle);
             clearInterval(timer);
         };
-    }, [dev_mode]);
+    }, []);
 
+    // Every drag-induced change hits the fetch hooks immediately (no
+    // debounce) — the underlying interval cache only ever fetches the small
+    // gap between what's already cached and the new range, so this stays
+    // cheap even while dragging.
     return (
         <RestDataProvider
-            propagation_range_start={effective_history_start}
-            propagation_range_end={effective_history_end}
-            propagation_time={effective_history_end}
+            propagation_range_start={history_start}
+            propagation_range_end={history_end}
+            propagation_time={history_end}
         >
             <SpotDataProvider
-                startTime={effective_history_start}
-                endTime={effective_history_end}
+                startTime={history_start}
+                endTime={history_end}
                 window_size_ms={window_size_ms}
                 step_size_ms={step_size_ms}
             >
                 <MainContent
-                    history_start={effective_history_start}
-                    history_end={effective_history_end}
+                    history_start={history_start}
+                    history_end={history_end}
                     set_history_start={set_history_start}
                     set_history_end={set_history_end}
                     window_size_ms={window_size_ms}
                     set_window_size_ms={set_window_size_ms}
+                    display_hours={display_hours}
+                    is_dragging={is_dragging}
+                    set_is_dragging={set_is_dragging}
                 />
             </SpotDataProvider>
         </RestDataProvider>

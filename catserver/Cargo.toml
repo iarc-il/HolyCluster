@@ -4,7 +4,13 @@ authors = ["HolyCluster dev team"]
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = ["crates/hamlib", "crates/hamlib-src", "crates/hamlib-sys"]
+resolver = "3"
+
 [profile.release]
+# Optimize for file size without changing panic/unwind behavior.
+opt-level = "z"
 strip = true
 lto = true
 codegen-units = 1
@@ -15,13 +21,18 @@ argh = "0.1.13"
 axum = { version = "0.8.3", features = ["ws"] }
 directories = "6.0.0"
 futures-util = "0.3.31"
+hamlib = { path = "crates/hamlib" }
 hyper = { version = "1.6.0", features = ["client", "http1"] }
 hyper-tls = "0.6.0"
 hyper-util = { version = "0.1.11", features = ["client", "client-legacy", "http1", "tokio"] }
 open = "5.3.2"
 reqwest = { version = "0.12.15", features = ["blocking"] }
+semver = "1.0.26"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
+serialport = "4.7.2"
+sha2 = "0.10.9"
+sentry = { version = "=0.42.0", default-features = false, features = ["backtrace", "contexts", "panic", "tracing", "transport"] }
 single-instance = "0.3.3"
 tokio = { version = "1.44.2", features = ["io-util", "rt", "rt-multi-thread"] }
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
@@ -31,11 +42,19 @@ tracing = "0.1.41"
 tracing-panic = "0.1.2"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tray-icon = { version = "0.20.1", default-features = false }
+uuid = { version = "1.18.1", features = ["v4"] }
 winit = "0.30.10"
 winsafe = { version = "0.0.25", features = ["kernel", "ole", "oleaut"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Registry", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2.172"
+gtk = "0.18.2"
+ico = "0.4.0"
 
 [build-dependencies]
-winresource = "0.1.20"
+semver = "1.0.26"
+winresource = { version = "0.1.31", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1.44.2", features = ["macros"] }

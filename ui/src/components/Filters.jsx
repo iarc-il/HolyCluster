@@ -5,7 +5,7 @@ import Toggle from "@/components/ui/Toggle.jsx";
 import X from "@/components/ui/X.jsx";
 
 import { dxcc_codes, get_dxcc_label } from "@/data/dxcc_entities.js";
-import { HUNTER_SECTION_LABELS } from "@/data/hunter_sections.js";
+import { MISSING_SECTION_LABELS } from "@/data/missing_sections.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
@@ -20,7 +20,7 @@ const FILTER_TYPE_LABELS = {
     entity: "Ent",
     zone: "Zone",
     comment: "Cmt",
-    hunter: "Mis",
+    missing: "Mis",
 };
 
 const SPOTTER_DX_LABELS = {
@@ -33,7 +33,7 @@ const SPECIAL_FILTER_LABELS = {
     dxpeditions: "DXpedition",
 };
 
-const HUNTER_SECTION_TOTALS = {
+const MISSING_SECTION_TOTALS = {
     dxcc: dxcc_codes.length,
     cq_zone: 40,
     itu_zone: 90,
@@ -156,13 +156,13 @@ function ZoneFilterBadge({ filter, listeners, attributes, data_tour = null }) {
     );
 }
 
-function HunterFilterBadge({ filter, listeners, attributes, data_tour = null }) {
+function MissingFilterBadge({ filter, listeners, attributes, data_tour = null }) {
     const {
-        active_profile_data: { hunter },
+        active_profile_data: { missing },
     } = useProfiles();
-    const section_label = HUNTER_SECTION_LABELS[filter.hunter_section] ?? filter.hunter_section;
-    const total_count = HUNTER_SECTION_TOTALS[filter.hunter_section] ?? 0;
-    const worked_count = new Set(hunter.worked[filter.hunter_section]?.global ?? []).size;
+    const section_label = MISSING_SECTION_LABELS[filter.missing_section] ?? filter.missing_section;
+    const total_count = MISSING_SECTION_TOTALS[filter.missing_section] ?? 0;
+    const worked_count = new Set(missing.worked[filter.missing_section]?.global ?? []).size;
     const missing_count = Math.max(total_count - worked_count, 0);
 
     return (
@@ -212,9 +212,9 @@ function FilterContent({ filter, listeners, attributes, colors, data_tour = null
         );
     }
 
-    if (filter.type === "hunter") {
+    if (filter.type === "missing") {
         return (
-            <HunterFilterBadge
+            <MissingFilterBadge
                 filter={filter}
                 listeners={listeners}
                 attributes={attributes}
@@ -312,7 +312,15 @@ function FilterLine({ filter, id, is_dragging, data_tour = null }) {
     );
 }
 
-function FilterSection({ title, filters, action, toggle_field, active_filter_id }) {
+function FilterSection({
+    title,
+    filters,
+    action,
+    toggle_field,
+    active_filter_id,
+    external_initial_data = null,
+    on_external_open = null,
+}) {
     const { colors } = useColors();
     const { callsign_filters, setCallsignFilters } = useFilters();
     const { setNodeRef, isOver } = useDroppable({ id: action });
@@ -356,11 +364,13 @@ function FilterSection({ title, filters, action, toggle_field, active_filter_id 
                             on_click={toggle_active}
                         />
                         <FilterModal
-                            initial_data={{ ...empty_filter_data, action }}
+                            initial_data={external_initial_data ?? { ...empty_filter_data, action }}
                             button={<Button className="h-7 flex items-center">Add</Button>}
                             data_tour={`add-filter-button-${action}`}
                             dialog_data_tour="filter-modal"
                             on_apply={add_filter}
+                            external_open={external_initial_data != null}
+                            on_open={on_external_open}
                         />
                     </div>
                 </div>
@@ -378,7 +388,7 @@ function FilterSection({ title, filters, action, toggle_field, active_filter_id 
     );
 }
 
-function Filters() {
+function Filters({ open_import_filter = false, on_import_filter_open = null }) {
     const { colors } = useColors();
     const { callsign_filters, setCallsignFilters } = useFilters();
     const [active_id, set_active_id] = useState(null);
@@ -437,6 +447,12 @@ function Filters() {
                         filters={filters_by_action.alert}
                         toggle_field="is_alert_filters_active"
                         active_filter_id={active_id}
+                        external_initial_data={
+                            open_import_filter
+                                ? { action: "alert", type: "missing", missing_section: "dxcc" }
+                                : null
+                        }
+                        on_external_open={on_import_filter_open}
                     />
                     <FilterSection
                         title="Show Only"

@@ -77,10 +77,12 @@ export const dxcc_entities = (() => {
     }
     return Array.from(entities).sort((a, b) => a.localeCompare(b));
 })();
-export const dxcc_entity_options = dxcc_codes.map(code => ({
-    value: code,
-    label: dxcc_entities_by_code[code].label,
-}));
+export const dxcc_entity_options = dxcc_codes
+    .map(code => ({
+        value: code,
+        label: dxcc_entities_by_code[code].label,
+    }))
+    .sort((option_a, option_b) => option_a.label.localeCompare(option_b.label));
 
 const dxcc_codes_by_normalized_label = new Map();
 for (const [code, entity] of Object.entries(dxcc_entities_by_code)) {

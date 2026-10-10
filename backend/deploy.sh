@@ -10,11 +10,11 @@ REF="$1"
 
 PREVIOUS_HEAD=$(git rev-parse HEAD)
 
-git checkout "$REF" 2>/dev/null || git checkout -b "$REF" "origin/$REF" 2>/dev/null || true
+git checkout "$REF" 2>/dev/null || git checkout -b "$REF" "origin/$REF" 2>/dev/null
 # For branches like origin/dev, detach or reset
 if [[ "$REF" == origin/* ]]; then
     BRANCH="${REF#origin/}"
-    git checkout "$BRANCH" 2>/dev/null || true
+    git checkout "$BRANCH" 2>/dev/null
     git reset --hard "$REF"
 fi
 
@@ -30,6 +30,12 @@ CHANGED_FILES=$(git diff --name-only --relative "$PREVIOUS_HEAD" "$CURRENT_HEAD"
 if [ -z "$CHANGED_FILES" ]; then
     echo "No files changed in backend/. Nothing to deploy."
     exit 0
+fi
+
+if grep -q '^SENTRY_RELEASE=' .env; then
+    sed -i "s/^SENTRY_RELEASE=.*/SENTRY_RELEASE=$CURRENT_HEAD/" .env
+else
+    printf '\nSENTRY_RELEASE=%s\n' "$CURRENT_HEAD" >> .env
 fi
 
 echo "Changed files:"
@@ -80,7 +86,6 @@ while IFS= read -r file; do
             add_service api
             add_service collector
             add_service migrate
-            add_service monitor
             add_service nginx
             add_service postgres
             add_service valkey
@@ -90,14 +95,12 @@ while IFS= read -r file; do
             add_service api
             add_service collector
             add_service migrate
-            add_service monitor
             run_migrations
             ;;
         pyproject.toml|uv.lock)
             add_service api
             add_service collector
             add_service migrate
-            add_service monitor
             run_migrations
             ;;
         alembic.ini|migrations/*|docker/Dockerfile.migrate)
@@ -111,9 +114,6 @@ while IFS= read -r file; do
         collectors/*|docker/Dockerfile.collector)
             add_service collector
             run_migrations
-            ;;
-        monitor/*|docker/Dockerfile.monitor)
-            add_service monitor
             ;;
         infra/nginx/*)
             add_service nginx
@@ -144,30 +144,44 @@ if [ "$COMPOSE_FILE_CHANGED" = true ]; then
     migrate_legacy_compose_containers
 fi
 
-# Stop monitor before rebuilding api or monitor to avoid health-check failures
-if [[ -v SERVICES[api] || -v SERVICES[monitor] ]]; then
-    echo "Stopping monitor before rebuild..."
-    docker compose stop monitor
-fi
-
 echo "Building: $SERVICE_LIST"
 docker compose build --parallel $SERVICE_LIST
 
 if [ "$RUN_MIGRATIONS" = true ]; then
     echo "Running migrations..."
-    docker compose up migrate
+    docker compose up --abort-on-container-exit --exit-code-from migrate migrate
 fi
 
 echo "Starting: $SERVICE_LIST"
+
+START_PIDS=()
+START_SERVICES=()
 
 for svc in $SERVICE_LIST; do
     if [ "$svc" = "nginx" ] || [ "$svc" = "migrate" ]; then
         continue
     fi
     docker compose up -d --no-deps "$svc" &
+    START_PIDS+=("$!")
+    START_SERVICES+=("$svc")
 done
 
-wait
+START_STATUS=0
+for i in "${!START_PIDS[@]}"; do
+    if wait "${START_PIDS[$i]}"; then
+        :
+    else
+        status=$?
+        echo "Failed to start ${START_SERVICES[$i]} (exit $status)." >&2
+        if [ "$START_STATUS" -eq 0 ]; then
+            START_STATUS=$status
+        fi
+    fi
+done
+
+if [ "$START_STATUS" -ne 0 ]; then
+    exit "$START_STATUS"
+fi
 
 if [[ -v SERVICES[nginx] ]]; then
     docker compose up -d --no-deps nginx

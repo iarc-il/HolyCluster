@@ -1,5 +1,4 @@
 import FilterButton from "@/components/FilterButton.jsx";
-import Toggle from "@/components/ui/Toggle.jsx";
 import { bands, modes } from "@/data/filters_data.js";
 
 function Bands({ temp_settings, set_temp_settings, colors }) {
@@ -26,29 +25,6 @@ function Bands({ temp_settings, set_temp_settings, colors }) {
     return (
         <div className="p-4 grid grid-cols-2 gap-4" data-tour="settings-bands-modes">
             <div className="flex flex-col items-center" data-tour="settings-bands-section">
-                <table
-                    className="table-fixed border-separate border-spacing-y-2 mb-4"
-                    style={{ color: colors.theme.text }}
-                >
-                    <tbody>
-                        <tr>
-                            <td>Show disabled bands:&nbsp;&nbsp;</td>
-                            <td>
-                                <Toggle
-                                    value={temp_settings.show_disabled_bands}
-                                    data_tour="settings-show-disabled-bands"
-                                    on_click={() => {
-                                        set_temp_settings({
-                                            ...temp_settings,
-                                            show_disabled_bands: !temp_settings.show_disabled_bands,
-                                        });
-                                    }}
-                                />
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
                 <div className="flex flex-col gap-2 items-center">
                     {bands.map(band => {
                         const label = Number.isInteger(band) ? `${band}m` : band;
@@ -71,29 +47,6 @@ function Bands({ temp_settings, set_temp_settings, colors }) {
             </div>
 
             <div className="flex flex-col items-center" data-tour="settings-modes-section">
-                <table
-                    className="table-fixed border-separate border-spacing-y-2 mb-4"
-                    style={{ color: colors.theme.text }}
-                >
-                    <tbody>
-                        <tr>
-                            <td>Show disabled modes:&nbsp;&nbsp;</td>
-                            <td>
-                                <Toggle
-                                    value={temp_settings.show_disabled_modes}
-                                    data_tour="settings-show-disabled-modes"
-                                    on_click={() => {
-                                        set_temp_settings({
-                                            ...temp_settings,
-                                            show_disabled_modes: !temp_settings.show_disabled_modes,
-                                        });
-                                    }}
-                                />
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
                 <div className="flex flex-col gap-2 items-center">
                     {modes.map(mode => {
                         const is_enabled = !temp_settings.disabled_modes[mode];

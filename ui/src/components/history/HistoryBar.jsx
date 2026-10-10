@@ -6,15 +6,13 @@ import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const PRESETS = [
+    { label: "1h", hours: 1 },
+    { label: "4h", hours: 4 },
     { label: "8h", hours: 8 },
     { label: "12h", hours: 12 },
     { label: "24h", hours: 24 },
     { label: "48h", hours: 48 },
-    { label: "72h", hours: 72 },
 ];
-
-const MIN_WINDOW_MS = 15 * 60_000;
-const MAX_WINDOW_MS = 8 * 60 * 60_000;
 
 function fmt_utc_hhmm(date) {
     const h = String(date.getUTCHours()).padStart(2, "0");
@@ -27,14 +25,24 @@ function fmt_utc_date(date) {
 }
 
 function tick_interval_hours(range_hours) {
-    if (range_hours <= 8) return 1;
-    if (range_hours <= 12) return 2;
-    if (range_hours <= 24) return 4;
-    if (range_hours <= 48) return 8;
-    return 12;
+    if (range_hours <= 4) return 0.25;
+    if (range_hours <= 8) return 0.5;
+    if (range_hours <= 24) return 1;
+    if (range_hours <= 48) return 2;
+    return 4;
 }
 
-function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window_size_ms }) {
+function HistoryBar({
+    start,
+    end,
+    display_start,
+    display_end,
+    set_start,
+    set_end,
+    window_size_ms,
+    set_window_size_ms,
+    set_is_dragging,
+}) {
     const { colors } = useColors();
     const {
         active_profile_data: {
@@ -79,9 +87,19 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
 
     const window_ms = window_size_ms || end.getTime() - start.getTime();
 
-    // Position of the window within the bar (0–1)
-    const win_left = Math.max(0, Math.min(1, (start.getTime() - bar_start_ms) / display_ms));
-    const win_width = Math.max(0, Math.min(1 - win_left, window_ms / display_ms));
+    // Position of the window within the bar (0–1). Driven by display_start/end
+    // (only updates once data has actually landed for that range) rather than
+    // start/end (the raw drag/step target), so the indicator can't visibly
+    // move ahead of the spots drawn on the map. Falls back to start/end
+    // (nullish, not just undefined
+    const effective_display_start = display_start ?? start;
+    const effective_display_end = display_end ?? end;
+    const win_left = Math.max(
+        0,
+        Math.min(1, (effective_display_start.getTime() - bar_start_ms) / display_ms),
+    );
+    const display_window_ms = effective_display_end.getTime() - effective_display_start.getTime();
+    const win_width = Math.max(0, Math.min(1 - win_left, display_window_ms / display_ms));
 
     // Major tick marks
     const interval_ms = tick_interval_hours(display_hours) * 3_600_000;
@@ -200,8 +218,8 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             set_end(new Date(new_end));
             hover_paused_ref.current = false;
             set_is_playing(false);
+            set_is_dragging(true);
             drag_ref.current = {
-                type: "move",
                 start_x: e.clientX,
                 orig_start_ms: new_start,
                 orig_end_ms: new_end,
@@ -216,24 +234,8 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             e.preventDefault();
             hover_paused_ref.current = false;
             set_is_playing(false);
+            set_is_dragging(true);
             drag_ref.current = {
-                type: "move",
-                start_x: e.clientX,
-                orig_start_ms: start.getTime(),
-                orig_end_ms: end.getTime(),
-            };
-        },
-        [start, end],
-    );
-
-    const on_resize_mouse_down = useCallback(
-        e => {
-            e.stopPropagation();
-            e.preventDefault();
-            hover_paused_ref.current = false;
-            set_is_playing(false);
-            drag_ref.current = {
-                type: "resize",
                 start_x: e.clientX,
                 orig_start_ms: start.getTime(),
                 orig_end_ms: end.getTime(),
@@ -248,33 +250,23 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             const rect = bar_ref.current.getBoundingClientRect();
             const dx_ms = ((e.clientX - drag_ref.current.start_x) / rect.width) * display_ms;
 
-            if (drag_ref.current.type === "move") {
-                let s = drag_ref.current.orig_start_ms + dx_ms;
-                let en = drag_ref.current.orig_end_ms + dx_ms;
-                if (s < bar_start_ms) {
-                    en += bar_start_ms - s;
-                    s = bar_start_ms;
-                }
-                if (en > bar_end_ms) {
-                    s -= en - bar_end_ms;
-                    en = bar_end_ms;
-                }
-                set_start(new Date(s));
-                set_end(new Date(en));
-            } else {
-                let new_end_ms = drag_ref.current.orig_end_ms + dx_ms;
-                const new_win = Math.max(
-                    MIN_WINDOW_MS,
-                    Math.min(MAX_WINDOW_MS, new_end_ms - drag_ref.current.orig_start_ms),
-                );
-                new_end_ms = drag_ref.current.orig_start_ms + new_win;
-                set_end(new Date(Math.min(new_end_ms, bar_end_ms)));
-                set_window_size_ms(new_win);
+            let s = drag_ref.current.orig_start_ms + dx_ms;
+            let en = drag_ref.current.orig_end_ms + dx_ms;
+            if (s < bar_start_ms) {
+                en += bar_start_ms - s;
+                s = bar_start_ms;
             }
+            if (en > bar_end_ms) {
+                s -= en - bar_end_ms;
+                en = bar_end_ms;
+            }
+            set_start(new Date(s));
+            set_end(new Date(en));
         }
 
         function on_mouse_up() {
             drag_ref.current = null;
+            set_is_dragging(false);
         }
 
         window.addEventListener("mousemove", on_mouse_move);
@@ -283,7 +275,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             window.removeEventListener("mousemove", on_mouse_move);
             window.removeEventListener("mouseup", on_mouse_up);
         };
-    }, [bar_start_ms, display_ms, bar_end_ms, set_start, set_end, set_window_size_ms]);
+    }, [bar_start_ms, display_ms, bar_end_ms, set_start, set_end]);
 
     const btn_style = {
         background: colors.theme.background,
@@ -297,12 +289,15 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
             data-tour="history-bar"
             style={{
                 background: colors.theme.modals,
-                borderTop: `1px solid ${colors.theme.borders}`,
+                borderTop: `1px solid ${colors.theme.text}20`,
                 color: colors.theme.text,
             }}
         >
             {/* Controls row */}
-            <div className="flex flex-row items-center gap-2 text-xs" data-tour="history-controls">
+            <div
+                className="relative z-10 flex flex-row items-center gap-2 text-xs"
+                data-tour="history-controls"
+            >
                 <div
                     className="w-px self-stretch mx-1"
                     style={{ background: `${colors.theme.text}30` }}
@@ -371,7 +366,9 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
 
                     {/* Selected window */}
                     <div
-                        className="absolute top-0 bottom-0 rounded cursor-grab active:cursor-grabbing"
+                        className={
+                            "absolute top-0 bottom-0 rounded cursor-grab active:cursor-grabbing"
+                        }
                         data-tour="history-window"
                         style={{
                             left: `${win_left * 100}%`,
@@ -381,16 +378,7 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
                             minWidth: "4px",
                         }}
                         onMouseDown={on_window_mouse_down}
-                    >
-                        <div
-                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center"
-                            data-tour="history-window-resize"
-                            onMouseDown={on_resize_mouse_down}
-                            title="Drag to resize window"
-                        >
-                            <div className="w-0.5 h-3 rounded bg-white opacity-80" />
-                        </div>
-                    </div>
+                    />
 
                     {/* Minor tick lines (1-hour, no label) */}
                     {minor_ticks.map(tick => (
@@ -425,58 +413,39 @@ function HistoryBar({ start, end, set_start, set_end, window_size_ms, set_window
 
                 {/* Labels row — below the track */}
                 <div className="relative w-full" style={{ height: "18px" }}>
-                    {/* Left edge: bar start time */}
-                    <span
-                        className="absolute left-0 top-0 text-[14px] leading-none whitespace-nowrap"
-                        style={{ color: colors.theme.text, opacity: 0.6 }}
-                    >
-                        {fmt_utc_hhmm(new Date(bar_start_ms))}
-                    </span>
-
-                    {/* Major tick labels (hidden if too close to edges) */}
-                    {ticks.map(tick => {
-                        if (tick.frac < 0.08 || tick.frac > 0.92) return null;
-                        return (
-                            <div
-                                key={tick.ms}
-                                className="absolute top-0 flex items-start justify-center pointer-events-none"
-                                style={{
-                                    left: `${tick.frac * 100}%`,
-                                    transform: "translateX(-50%)",
-                                }}
-                            >
-                                {tick.is_midnight && multi_day ? (
-                                    <span
-                                        className="text-[14px] leading-none whitespace-nowrap font-medium"
-                                        style={{ color: colors.theme.text }}
-                                    >
-                                        {fmt_utc_date(tick.date)}
-                                    </span>
-                                ) : (
-                                    <span
-                                        className="text-[14px] leading-none whitespace-nowrap"
-                                        style={{ color: colors.theme.text, opacity: 0.8 }}
-                                    >
-                                        {fmt_utc_hhmm(tick.date)}
-                                    </span>
-                                )}
-                            </div>
-                        );
-                    })}
-
-                    {/* Right edge: NOW */}
-                    <span
-                        className="absolute right-0 top-0 text-[14px] leading-none whitespace-nowrap font-semibold"
-                        style={{ color: colors.theme.text, opacity: 0.85 }}
-                    >
-                        NOW
-                    </span>
+                    {/* Major tick labels */}
+                    {ticks.map(tick => (
+                        <div
+                            key={tick.ms}
+                            className="absolute top-0 flex items-start justify-center pointer-events-none"
+                            style={{
+                                left: `${tick.frac * 100}%`,
+                                transform: "translateX(-50%)",
+                            }}
+                        >
+                            {tick.is_midnight && multi_day ? (
+                                <span
+                                    className="text-[14px] leading-none whitespace-nowrap font-medium"
+                                    style={{ color: colors.theme.text }}
+                                >
+                                    {fmt_utc_date(tick.date)}
+                                </span>
+                            ) : (
+                                <span
+                                    className="text-[14px] leading-none whitespace-nowrap"
+                                    style={{ color: colors.theme.text, opacity: 0.8 }}
+                                >
+                                    {fmt_utc_hhmm(tick.date)}
+                                </span>
+                            )}
+                        </div>
+                    ))}
                 </div>
             </div>
 
             {/* Preset display-range buttons */}
             <Select
-                className="w-min"
+                className="relative z-10 w-min"
                 value={display_hours}
                 data-tour="history-display-range"
                 onChange={e => apply_preset(Number(e.target.value))}

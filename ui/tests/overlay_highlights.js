@@ -13,21 +13,21 @@ vi.mock("virtual:cty-dxcc-entities", () => ({
 }));
 
 import {
-    build_hunter_overlay_highlights,
-    get_active_hunter_filter_actions,
+    build_missing_overlay_highlights,
+    get_active_missing_filter_actions,
 } from "@/components/CanvasMap/overlay_highlights.js";
-import { create_default_hunter } from "@/utils/profile_data.js";
+import { create_default_missing } from "@/utils/profile_data.js";
 
-describe("build_hunter_overlay_highlights", () => {
-    it("builds highlights for selected missing hunter values", () => {
-        const hunter = create_default_hunter();
-        hunter.worked.dxcc.global = [291];
-        hunter.worked.cq_zone.global = [5];
-        hunter.worked.itu_zone.global = [8];
-        hunter.worked.us_state.global = ["CA"];
-        hunter.worked.ca_province.global = ["ON"];
+describe("build_missing_overlay_highlights", () => {
+    it("builds highlights for selected missing missing values", () => {
+        const missing = create_default_missing();
+        missing.worked.dxcc.global = [291];
+        missing.worked.cq_zone.global = [5];
+        missing.worked.itu_zone.global = [8];
+        missing.worked.us_state.global = ["CA"];
+        missing.worked.ca_province.global = ["ON"];
 
-        const highlights = build_hunter_overlay_highlights(hunter, [
+        const highlights = build_missing_overlay_highlights(missing, [
             { section: "dxcc", action: "alert" },
             { section: "cq_zone", action: "show_only" },
             { section: "itu_zone", action: "hide" },
@@ -48,23 +48,23 @@ describe("build_hunter_overlay_highlights", () => {
         expect(highlights.key).toContain("itu=1:hide");
     });
 
-    it("returns empty highlights without selected hunter sections", () => {
-        const hunter = create_default_hunter();
-        const highlights = build_hunter_overlay_highlights(hunter);
+    it("returns empty highlights without selected missing sections", () => {
+        const missing = create_default_missing();
+        const highlights = build_missing_overlay_highlights(missing);
 
         expect(highlights.dxcc.size).toBe(0);
         expect(highlights.zones.itu.size).toBe(0);
     });
 
-    it("returns active hunter filter actions", () => {
-        const actions = get_active_hunter_filter_actions({
+    it("returns active missing filter actions", () => {
+        const actions = get_active_missing_filter_actions({
             is_alert_filters_active: false,
             is_show_only_filters_active: true,
             is_hide_filters_active: true,
             filters: [
-                { action: "alert", type: "hunter", hunter_section: "dxcc" },
-                { action: "show_only", type: "hunter", hunter_section: "cq_zone" },
-                { action: "hide", type: "hunter", hunter_section: "itu_zone" },
+                { action: "alert", type: "missing", missing_section: "dxcc" },
+                { action: "show_only", type: "missing", missing_section: "cq_zone" },
+                { action: "hide", type: "missing", missing_section: "itu_zone" },
                 { action: "hide", type: "prefix", value: "K", spotter_or_dx: "dx" },
             ],
         });

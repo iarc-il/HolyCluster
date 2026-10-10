@@ -1,14 +1,17 @@
 import { normalize_dxcc_entity_code } from "@/data/dxcc_entities.js";
 import { create_initial_callsign_filters, create_initial_filters } from "@/data/filter_defaults.js";
 import { bands, continents, modes } from "@/data/filters_data.js";
-import { HUNTER_SECTION_KEYS } from "@/data/hunter_sections.js";
+import { MISSING_SECTION_KEYS } from "@/data/missing_sections.js";
 import { STATES } from "@/data/states.js";
 import { sanitize_callsign_filters, sanitize_filters } from "@/utils/filter_url_state.js";
 import Maidenhead from "maidenhead";
 
 export const PROFILE_STORE_VERSION = 1;
 export const DEFAULT_PROFILE_NAME = "Default";
-export const PROFILE_STORE_KEY = "profiles";
+// Keep old tabs on their own store: their sanitizer discards the missing section.
+export const PROFILE_STORE_KEY = "profiles_missing";
+export const LEGACY_PROFILE_STORE_KEY = "profiles";
+export const PROFILE_STORE_BACKUP_KEY = "profiles_before_missing";
 
 const MAX_PROFILE_NAME_LENGTH = 60;
 const MAX_TEXT_LENGTH = 160;
@@ -16,16 +19,17 @@ const MIN_DEFAULT_RADIUS_KM = 1000;
 const MAX_RADIUS_KM = 20000;
 const MIN_MAP_RADIUS_KM = 100;
 const DEFAULT_HISTORY_WINDOW_MS = 15 * 60_000;
-const MAX_HISTORY_WINDOW_MS = 8 * 60 * 60_000;
-const HISTORY_DISPLAY_HOURS = new Set([8, 12, 24, 48, 72]);
+const MAX_HISTORY_STEP_MS = 30 * 60_000;
+const HISTORY_DISPLAY_HOURS = new Set([1, 4, 8, 12, 24, 48]);
+const HISTORY_WINDOW_SIZES_MS = new Set([5, 10, 15, 30].map(minutes => minutes * 60_000));
 const MAIN_VIEW_MODES = new Set(["both", "map", "table"]);
 const MAIN_VIEW_ORDERS = new Set(["map_table", "table_map"]);
 const VOACAP_BANDS = new Set(["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"]);
 const DXPEDITION_SORT_KEYS = new Set(["start", "end", "on_air"]);
 const DXPEDITION_FILTER_KEYS = new Set(["all", "active", "upcoming"]);
-const HUNTER_US_STATE_CODES = new Set(Object.keys(STATES.USA));
-const HUNTER_CA_PROVINCE_CODES = new Set(Object.keys(STATES.Canada));
-const HUNTER_IMPORT_COUNT_KEYS = [
+const MISSING_US_STATE_CODES = new Set(Object.keys(STATES.USA));
+const MISSING_CA_PROVINCE_CODES = new Set(Object.keys(STATES.Canada));
+const MISSING_IMPORT_COUNT_KEYS = [
     "qso_count",
     "skipped_count",
     "resolved_count",
@@ -54,13 +58,13 @@ export const PROFILE_SECTION_DEFINITIONS = {
         label: "Callsign Filters",
         description: "Alert, show only, and hide filter rules",
     },
-    hunter: {
+    missing: {
         label: "Missing Progress",
         description: "Worked entities and ADIF import metadata",
     },
     map_controls: {
         label: "Map Controls",
-        description: "Map center, projection, night mode, and overlays",
+        description: "Map theme, center, projection, night mode, and overlays",
     },
     map_view: {
         label: "Map View",
@@ -77,10 +81,6 @@ export const PROFILE_SECTION_DEFINITIONS = {
     panels: {
         label: "Panel Preferences",
         description: "Heatmap, frequency bar, and DXpedition list preferences",
-    },
-    radio: {
-        label: "Radio Preferences",
-        description: "Selected rig preference",
     },
 };
 
@@ -101,7 +101,6 @@ export const LEGACY_PROFILE_STORAGE_KEYS = {
     frequency_bar_band: "freq_bar_selected_freq",
     dxpeditions_sort: "dxpeditions_sort",
     dxpeditions_filter: "dxpeditions_filter",
-    requested_rig: "requested_rig",
 };
 
 function is_plain_object(value) {
@@ -198,6 +197,11 @@ function sanitize_history_display_hours(value, fallback) {
     return HISTORY_DISPLAY_HOURS.has(parsed) ? parsed : fallback;
 }
 
+function sanitize_history_window_size_ms(value, fallback) {
+    const parsed = to_number(value, fallback, { min: 60_000, integer: true });
+    return HISTORY_WINDOW_SIZES_MS.has(parsed) ? parsed : fallback;
+}
+
 function sanitize_frequency_bar_band(value, fallback) {
     if (value === -1 || value === "-1") {
         return -1;
@@ -217,7 +221,7 @@ function sanitize_choice(value, fallback, valid_values) {
     return valid_values.has(value) ? value : fallback;
 }
 
-function sanitize_hunter_zone(value, min, max) {
+function sanitize_missing_zone(value, min, max) {
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
         return null;
@@ -225,32 +229,32 @@ function sanitize_hunter_zone(value, min, max) {
     return parsed;
 }
 
-function sanitize_hunter_state_code(value, valid_codes) {
+function sanitize_missing_state_code(value, valid_codes) {
     const code = (value ?? "").toString().trim().toUpperCase();
     return valid_codes.has(code) ? code : null;
 }
 
-function sanitize_hunter_dxcc(value) {
+function sanitize_missing_dxcc(value) {
     return normalize_dxcc_entity_code(value);
 }
 
-function sanitize_hunter_worked_value(section, value) {
-    if (section === "dxcc") return sanitize_hunter_dxcc(value);
-    if (section === "cq_zone") return sanitize_hunter_zone(value, 1, 40);
-    if (section === "itu_zone") return sanitize_hunter_zone(value, 1, 90);
-    if (section === "us_state") return sanitize_hunter_state_code(value, HUNTER_US_STATE_CODES);
+function sanitize_missing_worked_value(section, value) {
+    if (section === "dxcc") return sanitize_missing_dxcc(value);
+    if (section === "cq_zone") return sanitize_missing_zone(value, 1, 40);
+    if (section === "itu_zone") return sanitize_missing_zone(value, 1, 90);
+    if (section === "us_state") return sanitize_missing_state_code(value, MISSING_US_STATE_CODES);
     if (section === "ca_province")
-        return sanitize_hunter_state_code(value, HUNTER_CA_PROVINCE_CODES);
+        return sanitize_missing_state_code(value, MISSING_CA_PROVINCE_CODES);
     return null;
 }
 
-function sanitize_hunter_worked_values(section, values) {
+function sanitize_missing_worked_values(section, values) {
     const source = Array.isArray(values) ? values : [];
     const seen = new Set();
     const result = [];
 
     for (const value of source) {
-        const normalized = sanitize_hunter_worked_value(section, value);
+        const normalized = sanitize_missing_worked_value(section, value);
         if (normalized == null) continue;
 
         const key = `${typeof normalized}:${normalized}`;
@@ -263,52 +267,52 @@ function sanitize_hunter_worked_values(section, values) {
     return result;
 }
 
-function sanitize_hunter_worked(value) {
+function sanitize_missing_worked(value) {
     const source = is_plain_object(value) ? value : {};
 
     return Object.fromEntries(
-        HUNTER_SECTION_KEYS.map(section => {
+        MISSING_SECTION_KEYS.map(section => {
             const section_source = is_plain_object(source[section]) ? source[section] : {};
             return [
                 section,
                 {
-                    global: sanitize_hunter_worked_values(section, section_source.global),
+                    global: sanitize_missing_worked_values(section, section_source.global),
                 },
             ];
         }),
     );
 }
 
-function sanitize_hunter_added_counts(value) {
+function sanitize_missing_added_counts(value) {
     const source = is_plain_object(value) ? value : {};
 
     return Object.fromEntries(
-        HUNTER_SECTION_KEYS.map(section => [
+        MISSING_SECTION_KEYS.map(section => [
             section,
             to_number(source[section], 0, { min: 0, integer: true }),
         ]),
     );
 }
 
-function sanitize_hunter_import(value) {
+function sanitize_missing_import(value) {
     if (!is_plain_object(value)) return null;
 
     return {
         file_name: to_limited_text(value.file_name, "ADIF import", 120),
         imported_at: to_number(value.imported_at, 0, { min: 0, integer: true }),
         ...Object.fromEntries(
-            HUNTER_IMPORT_COUNT_KEYS.map(key => [
+            MISSING_IMPORT_COUNT_KEYS.map(key => [
                 key,
                 to_number(value[key], 0, { min: 0, integer: true }),
             ]),
         ),
-        added_counts: sanitize_hunter_added_counts(value.added_counts),
+        added_counts: sanitize_missing_added_counts(value.added_counts),
     };
 }
 
-function sanitize_hunter_imports(value) {
+function sanitize_missing_imports(value) {
     if (!Array.isArray(value)) return [];
-    return value.map(sanitize_hunter_import).filter(Boolean);
+    return value.map(sanitize_missing_import).filter(Boolean);
 }
 
 function read_storage_value(storage, key) {
@@ -341,7 +345,6 @@ export function create_default_settings() {
         locator: "",
         default_radius: 20000,
         theme: "Dark",
-        map_theme: "colorful",
         callsign: "",
         is_miles: false,
         propagation_displayed: true,
@@ -361,6 +364,7 @@ export function create_default_settings() {
 
 export function create_default_map_controls() {
     return {
+        map_theme: "colorful",
         night: false,
         is_globe: false,
         show_cq_zones: false,
@@ -412,16 +416,10 @@ export function create_default_panels() {
     };
 }
 
-export function create_default_radio() {
-    return {
-        requested_rig: 1,
-    };
-}
-
-export function create_default_hunter() {
+export function create_default_missing() {
     return {
         worked: Object.fromEntries(
-            HUNTER_SECTION_KEYS.map(section => [
+            MISSING_SECTION_KEYS.map(section => [
                 section,
                 {
                     global: [],
@@ -439,13 +437,12 @@ export function create_default_profile_data() {
         settings,
         filters: create_initial_filters(),
         callsign_filters: create_initial_callsign_filters(),
-        hunter: create_default_hunter(),
+        missing: create_default_missing(),
         map_controls: create_default_map_controls(),
         map_view: create_default_map_view(settings.default_radius),
         table_sort: create_default_table_sort(),
         history: create_default_history(),
         panels: create_default_panels(),
-        radio: create_default_radio(),
     };
 }
 
@@ -456,7 +453,6 @@ export function sanitize_settings(value, defaults = create_default_settings()) {
         locator: sanitize_locator(source.locator, defaults.locator),
         default_radius: sanitize_default_radius(source.default_radius, defaults.default_radius),
         theme: sanitize_theme(source.theme, defaults.theme),
-        map_theme: sanitize_map_theme(source.map_theme, defaults.map_theme),
         callsign: sanitize_callsign(source.callsign, defaults.callsign),
         is_miles: to_boolean(source.is_miles, defaults.is_miles),
         propagation_displayed: to_boolean(
@@ -497,6 +493,7 @@ export function sanitize_map_controls(value, defaults = create_default_map_contr
     const source_location = is_plain_object(source.location) ? source.location : {};
 
     return {
+        map_theme: sanitize_map_theme(source.map_theme, defaults.map_theme),
         night: to_boolean(source.night, defaults.night),
         is_globe: to_boolean(source.is_globe, defaults.is_globe),
         show_cq_zones: to_boolean(source.show_cq_zones, defaults.show_cq_zones),
@@ -553,14 +550,13 @@ export function sanitize_history(value, defaults = create_default_history()) {
     const source = is_plain_object(value) ? value : {};
 
     return {
-        window_size_ms: to_number(source.window_size_ms, defaults.window_size_ms, {
-            min: 60_000,
-            max: MAX_HISTORY_WINDOW_MS,
-            integer: true,
-        }),
+        window_size_ms: sanitize_history_window_size_ms(
+            source.window_size_ms,
+            defaults.window_size_ms,
+        ),
         step_size_ms: to_number(source.step_size_ms, defaults.step_size_ms, {
             min: 60_000,
-            max: MAX_HISTORY_WINDOW_MS,
+            max: MAX_HISTORY_STEP_MS,
             integer: true,
         }),
         display_hours: sanitize_history_display_hours(source.display_hours, defaults.display_hours),
@@ -596,24 +592,12 @@ export function sanitize_panels(value, defaults = create_default_panels()) {
     };
 }
 
-export function sanitize_radio(value, defaults = create_default_radio()) {
+export function sanitize_missing(value, defaults = create_default_missing()) {
     const source = is_plain_object(value) ? value : {};
 
     return {
-        requested_rig: to_number(source.requested_rig, defaults.requested_rig, {
-            min: 1,
-            max: 2,
-            integer: true,
-        }),
-    };
-}
-
-export function sanitize_hunter(value, defaults = create_default_hunter()) {
-    const source = is_plain_object(value) ? value : {};
-
-    return {
-        worked: sanitize_hunter_worked(source.worked),
-        imports: sanitize_hunter_imports(source.imports),
+        worked: sanitize_missing_worked(source.worked),
+        imports: sanitize_missing_imports(source.imports),
     };
 }
 
@@ -630,13 +614,12 @@ export function sanitize_profile_data(value, defaults = create_default_profile_d
         callsign_filters: sanitize_callsign_filters(
             source.callsign_filters ?? defaults.callsign_filters,
         ),
-        hunter: sanitize_hunter(source.hunter, defaults.hunter),
+        missing: sanitize_missing(source.missing ?? source.hunter, defaults.missing),
         map_controls: sanitize_map_controls(source.map_controls, defaults.map_controls),
         map_view: sanitize_map_view(source.map_view, map_view_defaults),
         table_sort: sanitize_table_sort(source.table_sort, defaults.table_sort),
         history: sanitize_history(source.history, defaults.history),
         panels: sanitize_panels(source.panels, defaults.panels),
-        radio: sanitize_radio(source.radio, defaults.radio),
     };
 }
 
@@ -753,6 +736,28 @@ export function sanitize_profile_store(value, fallback_profile_data = null) {
     };
 }
 
+export function initialize_profile_store(storage = get_browser_local_storage()) {
+    // Presence, not progress content, decides precedence. Never re-import cleared data.
+    if (storage?.getItem(PROFILE_STORE_KEY) != null) {
+        return sanitize_profile_store(read_storage_value(storage, PROFILE_STORE_KEY));
+    }
+
+    const original_store = storage?.getItem(LEGACY_PROFILE_STORE_KEY);
+    const migrated_store = sanitize_profile_store(
+        read_storage_value(storage, LEGACY_PROFILE_STORE_KEY),
+        read_legacy_profile_data(storage),
+    );
+
+    if (storage) {
+        // Save the exact original before writing the new store. Leave all old keys intact.
+        if (original_store != null && storage.getItem(PROFILE_STORE_BACKUP_KEY) == null) {
+            storage.setItem(PROFILE_STORE_BACKUP_KEY, original_store);
+        }
+        storage.setItem(PROFILE_STORE_KEY, JSON.stringify(migrated_store));
+    }
+    return migrated_store;
+}
+
 export function read_legacy_profile_data(storage = get_browser_local_storage()) {
     const defaults = create_default_profile_data();
     const legacy = key => read_storage_value(storage, LEGACY_PROFILE_STORAGE_KEYS[key]);
@@ -785,9 +790,6 @@ export function read_legacy_profile_data(storage = get_browser_local_storage()) 
                 frequency_bar_band: legacy("frequency_bar_band"),
                 dxpeditions_sort: legacy("dxpeditions_sort"),
                 dxpeditions_filter: legacy("dxpeditions_filter"),
-            },
-            radio: {
-                requested_rig: legacy("requested_rig"),
             },
         },
         defaults,

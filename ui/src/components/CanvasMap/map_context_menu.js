@@ -39,6 +39,37 @@ export function build_map_context_filter(action, menu_type, entity, number, syst
     };
 }
 
+function get_filterable_callsign(spot) {
+    const callsign = spot?.dx_callsign;
+    return typeof callsign === "string" && callsign.trim() ? callsign.trim() : null;
+}
+
+export function build_spot_context_filter(action, spot) {
+    return {
+        action,
+        type: "prefix",
+        value: get_filterable_callsign(spot),
+        spotter_or_dx: "dx",
+    };
+}
+
+export function build_spot_context_menu_actions(
+    spot,
+    get_filter_add_status,
+    add_filter_if_allowed,
+) {
+    const callsign = get_filterable_callsign(spot);
+    return build_filter_menu_actions(
+        MAP_FILTER_ACTIONS,
+        action => build_spot_context_filter(action, spot),
+        callsign,
+        callsign == null,
+        callsign == null ? "Missing DX callsign" : null,
+        get_filter_add_status,
+        add_filter_if_allowed,
+    );
+}
+
 export function build_filter_menu_actions(
     MAP_FILTER_ACTIONS,
     build_candidate_filter,

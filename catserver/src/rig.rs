@@ -1,19 +1,20 @@
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::{fmt, io};
 
 use serde::Serialize;
 
 use crate::freq::Freq;
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Mode {
     USB,
     LSB,
     Data,
+    Rtty,
     CW,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[repr(u8)]
 pub enum Slot {
     A = 1,
@@ -21,58 +22,142 @@ pub enum Slot {
     B = 2,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Status {
-    // value in hertz
     pub freq: u32,
     pub status: String,
     pub mode: String,
     pub current_rig: u8,
 }
 
-pub trait Radio: Send + Sync {
-    fn init(&mut self);
-    fn get_name(&self) -> &str;
-    fn set_mode(&mut self, mode: Mode);
-    fn set_rig(&mut self, rig: u8);
-    fn set_frequency(&mut self, slot: Slot, freq: Freq);
-    fn get_status(&mut self) -> Status;
-    fn is_available(&self) -> bool;
+impl Status {
+    pub fn disconnected(current_rig: u8) -> Self {
+        Self {
+            freq: 0,
+            status: "disconnected".into(),
+            mode: "unknown".into(),
+            current_rig,
+        }
+    }
 }
 
-#[derive(Clone)]
-pub struct AnyRadio(Arc<RwLock<Box<dyn Radio + 'static>>>);
-unsafe impl Send for AnyRadio {}
-unsafe impl Sync for AnyRadio {}
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum RadioInitError {
+    Hamlib {
+        rig: u8,
+        error: String,
+        details: Option<String>,
+    },
+    Io {
+        backend: &'static str,
+        kind: io::ErrorKind,
+    },
+    Backend {
+        backend: &'static str,
+        message: String,
+    },
+}
 
-impl AnyRadio {
-    pub fn new<R: Radio + 'static>(radio: R) -> Self {
-        AnyRadio(Arc::new(RwLock::new(Box::new(radio))))
-    }
-
-    pub fn write(&self) -> RwLockWriteGuard<'_, Box<dyn Radio>> {
-        match self.0.write() {
-            Ok(guard) => guard,
-            Err(error) => {
-                tracing::error!("Radio write lock was poisoned; recovering");
-                self.0.clear_poison();
-                error.into_inner()
+impl fmt::Display for RadioInitError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Hamlib { rig, error, .. } => {
+                write!(formatter, "Hamlib rig {rig} initialization failed: {error}")
+            }
+            Self::Io { backend, kind } => {
+                write!(formatter, "{backend} initialization failed: {kind}")
+            }
+            Self::Backend { backend, message } => {
+                write!(formatter, "{backend} initialization failed: {message}")
             }
         }
     }
+}
 
-    pub fn read(&self) -> RwLockReadGuard<'_, Box<dyn Radio>> {
-        match self.0.read() {
-            Ok(guard) => guard,
-            Err(error) => {
-                tracing::error!("Radio read lock was poisoned; recovering");
-                self.0.clear_poison();
-                error.into_inner()
-            }
+impl std::error::Error for RadioInitError {}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct RadioOperationError {
+    pub rig: u8,
+    pub operation: &'static str,
+    pub message: String,
+    pub details: Option<String>,
+}
+
+impl RadioOperationError {
+    pub fn new(rig: u8, operation: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            rig,
+            operation,
+            message: message.into(),
+            details: None,
         }
     }
 
-    pub fn is_available(&self) -> bool {
-        self.read().is_available()
+    pub fn with_rig(mut self, rig: u8) -> Self {
+        self.rig = rig;
+        self
+    }
+}
+
+impl fmt::Display for RadioOperationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "radio {} failed for rig {}: {}",
+            self.operation, self.rig, self.message
+        )
+    }
+}
+
+impl std::error::Error for RadioOperationError {}
+
+pub trait Radio {
+    fn init(&mut self) -> Result<(), RadioInitError>;
+    /// Tune a spot with frequency on A. Hamlib selects A before both writes.
+    /// The default preserves the existing backend-specific mode targeting
+    /// and mode/frequency sequence.
+    fn tune_spot(&mut self, mode: Mode, frequency: Freq) -> Result<(), RadioOperationError> {
+        self.set_mode(mode)?;
+        self.set_frequency(Slot::A, frequency)
+    }
+    fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError>;
+    fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError>;
+    fn get_status(&mut self) -> Result<Status, RadioOperationError>;
+}
+
+pub struct UnavailableRadio {
+    backend: &'static str,
+}
+
+impl UnavailableRadio {
+    pub fn new(backend: &'static str) -> Self {
+        Self { backend }
+    }
+}
+
+impl Radio for UnavailableRadio {
+    fn init(&mut self) -> Result<(), RadioInitError> {
+        Err(RadioInitError::Io {
+            backend: self.backend,
+            kind: io::ErrorKind::NotFound,
+        })
+    }
+    fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
+        Err(RadioOperationError::new(1, "set mode", "radio unavailable"))
+    }
+    fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
+        Err(RadioOperationError::new(
+            1,
+            "set frequency",
+            "radio unavailable",
+        ))
+    }
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+        Err(RadioOperationError::new(
+            1,
+            "read status",
+            "radio unavailable",
+        ))
     }
 }

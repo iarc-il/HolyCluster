@@ -1,66 +1,145 @@
-# HolyCluster <img src="https://github.com/4Z1KD/HolyCluster/assets/24712835/9f4846ae-ac57-4169-9c6f-2c2b506707ab" height="40px">
+# HolyCluster
 
-### An ongoing effort to visualize the ham radio cluster
+HolyCluster is a live amateur radio DX cluster with modern interface and CAT integration. 
 
-## Prerequisites ⚙️
+## Features
 
-* A computer running Linux, macOS, or Windows
-* `git`
-* `python3`
-* `node`, `npm`
+- Live DX spots from several sources
+- Map, spot list, filters, and alerts
+- Band activity and propagation information
+- Optional local radio control through the CAT server
 
-## Installation 🛠
+## Use HolyCluster
 
-1. Clone the repository and enter its directory
-    ```bash
-    git clone https://github.com/4Z1KD/HolyCluster
-    cd HolyCluster
-    ```
-2. Create a virtual environment (https://docs.python.org/3/library/venv.html)
-    ```bash
-    python -m venv venv_HolyCluster
-    ```
-3. Activate the virtual environment
-    * Windows: `.\venv_HolyCluster\Scripts\activate.bat`
-    * Linux and macOS: `source venv_HolyCluster/bin/activate`
-4. Install the project (`-e` is for development mode)
-    ```bash
-    pip install -e '.[omnirig]'
-    ```
-    For linux systems, install without omnirig:
-    ```bash
-    pip install -e .
-    ```
-5. Build the frontend
-    ```bash
-    cd ui
-    npm install
-    npm run build
-    ```
+Open [holycluster.iarc.org](https://holycluster.iarc.org) in a modern web browser.
+No installation is needed for normal use.
 
-To deactivate the virtual environment, run `deactivate`.
+Send feedback or report a problem through the [feedback form](https://forms.gle/jak7KnvwCnBRN6QU7).
 
-## Usage 💾
+## Development
 
-For developing frontend related features:
-```bash
+The project has three parts: the web interface in `ui/`, the server in
+`backend/`, and the optional radio-control application in `catserver/`.
+
+### Web interface
+
+Requires Node.js and npm.
+
+```sh
 cd ui
+npm install
 npm run dev
 ```
 
-For development of CAT control related features, execute in the virtualenv:
-```bash
-python src/ClientSideServer.py
+To route the development server's API and WebSocket traffic through a local
+CAT server on port 3000, run:
+
+```sh
+npm run dev -- --catserver
 ```
 
-For systems without `omnirig` installed, execute
-```bash
-DUMMY=1 python src/ClientSideServer.py
+The development server requires network access. It sends API and WebSocket
+traffic to the shared `https://holycluster-dev.iarc.org` environment, so it is
+not isolated from shared development data. Run the checks with:
+
+```sh
+npm run check
 ```
 
-In the future, the application will be compiled into an executable 💾
+### Backend
 
-## Progress 📈
+Requires Python 3.13 or later, `uv`, and Docker Compose.
 
-Since this project is a work in progress, you may experience poor performance, bugs, runtime issues, and maybe more.
-We are working on fixing these issues.
+```sh
+cd backend
+cp .env.example .env
+```
+
+Set the database credentials, Telnet username, QRZ credentials, `DOMAIN`, and
+`EMAIL` in `.env`. The following values must be absolute paths on the host:
+
+```dotenv
+LOG_DIR=/absolute/path/to/logs
+UI_DIST_PATH=/absolute/path/to/HolyCluster/ui/dist
+CATSERVER_MSI_DIR=/absolute/path/to/catserver-releases
+```
+
+Create the log and release directories. Build the web interface before starting
+the backend:
+
+```sh
+mkdir -p /absolute/path/to/logs /absolute/path/to/catserver-releases
+cd ../ui
+npm install
+npm run build
+cd ../backend
+```
+
+`CATSERVER_MSI_DIR` must contain `latest.json` and an `artifacts/` directory
+with the CAT server release files named in that manifest. The API serves these
+files to CAT server users.
+
+These files are created and updated by the CI/CD pipeline.
+
+For a new public deployment, point `DOMAIN` at this host and allow inbound
+ports 80 and 443. Then run the first-time TLS setup. It creates a temporary
+certificate, starts the stack, and requests a Let's Encrypt certificate:
+
+```sh
+./setup.sh
+```
+
+For an existing deployment, start the stack with:
+
+```sh
+docker compose up
+```
+
+Run backend tests with:
+
+```sh
+uv run pytest
+```
+
+### CAT server
+
+The CAT server is an optional local application. It runs on
+`http://127.0.0.1:3000`, proxies HolyCluster, and lets the web interface tune a
+connected radio.
+
+It requires Rust and Cargo for building. On Windows it supports OmniRig.
+Hamlib is also available on all supported systems, including the `NET rigctl`
+model for network-connected radios. The selected backend and its settings are
+saved in the user's HolyCluster configuration directory.
+
+Both the Linux and Windows versions are built on Linux. No other operating
+system has been tested as a CAT server development machine.
+
+Run the CAT server normally with:
+
+```sh
+cd catserver
+cargo run
+```
+
+Use `--port` to choose a different local port. `--backend` selects a different
+HolyCluster server, `--dev-server` uses the shared development server, and
+`--local-ui` serves a local `ui/dist` build.
+
+Run it with a dummy radio for development:
+
+```sh
+cd catserver
+cargo run -- --dummy
+```
+
+When running the Linux ELF binary directly, the tray icon needs GTK3 and
+AppIndicator packages:
+
+```sh
+sudo apt install libgtk-3-0 libappindicator3-1
+```
+
+## Contributing
+
+Bug reports, ideas, and pull requests are welcome. Use the feedback form for user feedback and problem reports.

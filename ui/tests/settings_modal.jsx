@@ -12,7 +12,7 @@ import { PROFILE_STORE_KEY } from "@/utils/profile_data.js";
 
 vi.mock("@/hooks/useRadio", () => ({
     default: () => ({
-        is_radio_available: () => false,
+        is_cat_available: () => false,
     }),
 }));
 
@@ -99,7 +99,10 @@ describe("settings modal", () => {
         await user.type(locator_input, "FN20");
         await user.clear(radius_input);
         await user.type(radius_input, "12000");
-        await user.selectOptions(document.body.querySelectorAll("select")[2], "true");
+        await user.selectOptions(
+            document.body.querySelector("[data-tour='settings-distance-units']"),
+            "true",
+        );
         await user.click(screen.getByText("Apply"));
 
         await waitFor(() => {

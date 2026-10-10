@@ -1,0 +1,360 @@
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const cat = vi.hoisted(() => ({ current: null }));
+
+vi.mock("@/hooks/useRadio", () => ({
+    default: () => cat.current,
+}));
+
+import About from "@/components/About.jsx";
+import UpdateControls, { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
+import {
+    UpdateProvider,
+    compare_update_versions,
+    normalize_update_status,
+} from "@/hooks/useUpdate.jsx";
+import { NATIVE_UPDATER_MIN_VERSION } from "@/utils/cat_features.js";
+
+vi.mock("@/hooks/useColors", () => ({
+    useColors: () => ({
+        colors: {
+            buttons: { utility: "#fff" },
+            theme: { text: "#fff", modals: "#111", borders: "#333" },
+        },
+    }),
+}));
+
+function response(payload, ok = true) {
+    return {
+        ok,
+        status: ok ? 200 : 500,
+        text: async () => JSON.stringify(payload),
+    };
+}
+
+function render_updates() {
+    return render(
+        <UpdateProvider>
+            <UpdateConsentDialog />
+            <UpdateControls />
+        </UpdateProvider>,
+    );
+}
+
+afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+});
+
+beforeEach(() => {
+    cat.current = {
+        local_version: [...NATIVE_UPDATER_MIN_VERSION],
+        is_cat_available: () => true,
+    };
+});
+
+describe("CAT Control updates", () => {
+    it("does not poll or render native controls without a CAT connection", async () => {
+        const fetch = vi.fn();
+        vi.stubGlobal("fetch", fetch);
+        cat.current = {
+            local_version: null,
+            is_cat_available: () => false,
+        };
+
+        render_updates();
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        expect(fetch).not.toHaveBeenCalled();
+        expect(screen.queryByRole("heading", { name: "CAT Control updates" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
+    });
+
+    it("only treats a newer remote version as an update", () => {
+        expect(compare_update_versions("1.2.0", "1.3.0")).toBeGreaterThan(0);
+        expect(compare_update_versions("1.3.0", "1.3.0")).toBe(0);
+        expect(compare_update_versions("1.4.0", "1.3.0")).toBeLessThan(0);
+        expect(
+            normalize_update_status({
+                status: "available",
+                version: { local_version: "1.4.0", remote_version: "1.3.0" },
+            }).status,
+        ).toBe("newer_local");
+        expect(
+            normalize_update_status({
+                status: "available",
+                version: { local: "bad", remote: "bad" },
+            }).status,
+        ).toBe("malformed");
+        expect(
+            normalize_update_status({
+                state: "idle",
+                available_version: null,
+                diagnostic: null,
+            }).status,
+        ).toBe("current");
+        expect(normalize_update_status({ state: "reboot_required" }).status).toBe(
+            "reboot_required",
+        );
+    });
+
+    it("handles an empty update response", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue({ ok: true, status: 200, text: async () => "" }),
+        );
+
+        render_updates();
+
+        expect(
+            await screen.findByText("CAT Control update information is unavailable."),
+        ).not.toBeNull();
+    });
+
+    it("checks automatically when update status is idle", async () => {
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(response({ state: "idle" }))
+            .mockResolvedValueOnce(response({ state: "available", available_version: "1.2.0-2" }));
+        vi.stubGlobal("fetch", fetch);
+
+        render_updates();
+
+        expect(
+            await screen.findByRole("button", { name: "Update" }, { timeout: 5000 }),
+        ).not.toBeNull();
+        expect(fetch).toHaveBeenNthCalledWith(
+            1,
+            "/api/update",
+            expect.objectContaining({
+                cache: "no-store",
+                signal: expect.any(AbortSignal),
+            }),
+        );
+        expect(fetch).toHaveBeenNthCalledWith(2, "/api/update/check", expect.any(Object));
+    });
+
+    it("checks automatically after a previous update was installed", async () => {
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(response({ state: "installed" }))
+            .mockResolvedValueOnce(response({ state: "available", available_version: "1.2.0-3" }));
+        vi.stubGlobal("fetch", fetch);
+
+        render_updates();
+
+        expect(await screen.findByRole("button", { name: "Update" })).not.toBeNull();
+        expect(fetch).toHaveBeenNthCalledWith(2, "/api/update/check", expect.any(Object));
+    });
+
+    it("periodically checks idle status without reopening deferred updates", async () => {
+        vi.useFakeTimers();
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(response({ state: "idle" }))
+            .mockResolvedValueOnce(response({ state: "idle" }))
+            .mockResolvedValue(response({ state: "deferred", available_version: "1.2.0-2" }));
+        vi.stubGlobal("fetch", fetch);
+
+        render_updates();
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000);
+        });
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000);
+        });
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
+
+        expect(fetch.mock.calls.filter(([path]) => path === "/api/update/check")).toHaveLength(1);
+        expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
+    });
+
+    it("installs after accepting the update prompt", async () => {
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(
+                response({ state: "available", available_version: "1.1.0", diagnostic: null }),
+            )
+            .mockResolvedValueOnce(response({ state: "installing", available_version: "1.1.0" }));
+        vi.stubGlobal("fetch", fetch);
+
+        render_updates();
+        await userEvent.click(await screen.findByRole("button", { name: "Update" }));
+        await waitFor(() =>
+            expect(fetch).toHaveBeenLastCalledWith("/api/update/install", expect.any(Object)),
+        );
+    });
+
+    it("keeps compact installation progress inside the update modal", async () => {
+        const session = {
+            id: "compact",
+            phase: "downloading",
+            expected_version: "1.3.0",
+            downloaded: 32,
+            total: 128,
+            log_path: "C:/private/msi-install.log",
+        };
+        let installing = false;
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(path => {
+                if (path.endsWith("/install")) installing = true;
+                return Promise.resolve(
+                    response(
+                        installing
+                            ? { state: "installing", session }
+                            : { state: "available", available_version: "1.3.0" },
+                    ),
+                );
+            }),
+        );
+        render_updates();
+        await userEvent.click(await screen.findByRole("button", { name: "Update" }));
+        const dialog = screen.getByRole("dialog");
+        const progress = await within(dialog).findByRole("progressbar", {
+            name: "Download progress",
+        });
+        expect(progress.value).toBe(32);
+        expect(screen.getAllByRole("progressbar")).toHaveLength(1);
+        expect(within(dialog).getByRole("status").className).not.toContain("z-40");
+        expect(
+            screen.queryByText(/current view is retained|Installer log:|private\/msi-install/i),
+        ).toBeNull();
+        expect(within(dialog).queryByRole("button", { name: "Update", exact: true })).toBeNull();
+        session.phase = "failed";
+        session.installer_outcome = "failed";
+        await within(dialog).findByText("Update failed");
+        const dismiss = within(dialog).getByRole("button", { name: "Dismiss" });
+        expect(dismiss.className).toContain("bg-red-600");
+        expect(dismiss.parentElement.className).toContain("justify-around");
+        expect(dismiss.closest('[role="status"]')).toBeNull();
+        expect(
+            screen.queryByText(/current view is retained|Installer log:|private\/msi-install/i),
+        ).toBeNull();
+    });
+
+    it("keeps a declined update visible and installable later", async () => {
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(response({ state: "available", available_version: "1.1.0" }))
+            .mockResolvedValueOnce(
+                response({ status: "deferred", version: { local: "1.0.0", remote: "1.1.0" } }),
+            )
+            .mockResolvedValueOnce(
+                response({ status: "deferred", version: { local: "1.0.0", remote: "1.1.0" } }),
+            )
+            .mockResolvedValueOnce(
+                response({ status: "installing", version: { local: "1.0.0", remote: "1.1.0" } }),
+            );
+        vi.stubGlobal("fetch", fetch);
+
+        render_updates();
+        await userEvent.click(await screen.findByRole("button", { name: "Later" }));
+        expect(await screen.findByText("CAT Control update available.")).not.toBeNull();
+        expect(screen.queryByRole("button", { name: "Install update" })).toBeNull();
+        await userEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+        await userEvent.click(
+            await within(screen.getByRole("dialog")).findByRole("button", {
+                name: "Update",
+                exact: true,
+            }),
+        );
+        await waitFor(() =>
+            expect(fetch).toHaveBeenLastCalledWith("/api/update/install", expect.any(Object)),
+        );
+    });
+
+    it("replaces About with the update dialog while a manual check is pending", async () => {
+        window.localStorage.clear();
+        let finish;
+        let manual = false;
+        const fetch = vi.fn(path =>
+            path.endsWith("/check") && manual
+                ? new Promise(resolve => {
+                      finish = resolve;
+                  })
+                : Promise.resolve(response({ state: "idle" })),
+        );
+        vi.stubGlobal("fetch", fetch);
+        render(
+            <UpdateProvider>
+                <UpdateConsentDialog />
+                <About />
+            </UpdateProvider>,
+        );
+        await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+        await userEvent.click(screen.getByTitle("About us!"));
+        manual = true;
+        await userEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+        expect(screen.getAllByRole("dialog")).toHaveLength(1);
+        const dialog = screen.getByRole("dialog");
+        expect(dialog.getAttribute("data-tour")).not.toBe("about-modal");
+        expect(within(dialog).getByText("Checking for CAT Control updates…")).not.toBeNull();
+        await act(async () => finish(response({ state: "idle" })));
+        expect(within(dialog).getByText("CAT Control is up to date.")).not.toBeNull();
+        await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+        expect(screen.queryByRole("dialog")).toBeNull();
+        await userEvent.click(screen.getByTitle("About us!"));
+        expect(screen.getByRole("dialog").getAttribute("data-tour")).toBe("about-modal");
+    });
+
+    it("retries installation from the UAC cancellation dialog", async () => {
+        let attempts = 0;
+        const fetch = vi.fn(path => {
+            if (path.endsWith("/install")) {
+                attempts += 1;
+                return Promise.resolve(
+                    response({
+                        state: attempts === 1 ? "failed" : "installing",
+                        session: {
+                            id: `uac-${attempts}`,
+                            phase: attempts === 1 ? "permission_cancelled" : "downloading",
+                            expected_version: "1.3.0",
+                            installer_outcome: attempts === 1 ? "failed" : null,
+                            diagnostic:
+                                attempts === 1 ? "The user dismissed the installation" : null,
+                        },
+                    }),
+                );
+            }
+            return Promise.resolve(response({ state: "available", available_version: "1.3.0" }));
+        });
+        vi.stubGlobal("fetch", fetch);
+        render_updates();
+        await userEvent.click(await screen.findByRole("button", { name: "Update", exact: true }));
+        const dialog = screen.getByRole("dialog");
+        const retry = await within(dialog).findByRole("button", { name: "Retry update" });
+        expect(within(dialog).getByText("The user dismissed the installation")).not.toBeNull();
+        expect(retry.parentElement).toBe(
+            within(dialog).getByRole("button", { name: "Dismiss" }).parentElement,
+        );
+        await userEvent.click(retry);
+        expect(attempts).toBe(2);
+        expect(fetch).toHaveBeenLastCalledWith("/api/update/install", expect.any(Object));
+        expect(within(dialog).queryByRole("button", { name: "Retry update" })).toBeNull();
+    });
+
+    it("offers retry after a failed update check", async () => {
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(response({ state: "idle" }))
+            .mockResolvedValueOnce(response({ state: "idle" }))
+            .mockResolvedValueOnce(response({}, false))
+            .mockResolvedValueOnce(response({ state: "idle" }));
+        vi.stubGlobal("fetch", fetch);
+
+        render_updates();
+        await screen.findByText("CAT Control is up to date.");
+        await userEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+        expect(await screen.findByRole("button", { name: "Retry update" })).not.toBeNull();
+        await userEvent.click(screen.getByRole("button", { name: "Retry update" }));
+        await waitFor(() =>
+            expect(fetch).toHaveBeenLastCalledWith("/api/update/retry", expect.any(Object)),
+        );
+    });
+});

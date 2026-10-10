@@ -1,86 +1,51 @@
 use crate::freq::Freq;
-use crate::rig::{Mode, Radio, Slot, Status};
+use crate::rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status};
 
 #[derive(Clone)]
 pub struct DummyRadio {
     mode: Mode,
-    freq_a1: Freq,
-    freq_b1: Freq,
-    freq_a2: Freq,
-    freq_b2: Freq,
-    current_rig: u8,
+    freq_a: Freq,
+    freq_b: Freq,
 }
 
 impl DummyRadio {
     pub fn new() -> Self {
         Self {
             mode: Mode::USB,
-            freq_a1: Freq::from_u32_hz(0),
-            freq_b1: Freq::from_u32_hz(0),
-            freq_a2: Freq::from_u32_hz(0),
-            freq_b2: Freq::from_u32_hz(0),
-            current_rig: 1,
+            freq_a: Freq::from_u32_hz(0),
+            freq_b: Freq::from_u32_hz(0),
         }
     }
 }
 
 impl Radio for DummyRadio {
-    fn init(&mut self) {}
-
-    fn get_name(&self) -> &str {
-        "dummy"
+    fn init(&mut self) -> Result<(), RadioInitError> {
+        Ok(())
     }
 
-    fn set_mode(&mut self, mode: Mode) {
+    fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
         self.mode = mode;
+        Ok(())
     }
 
-    fn set_rig(&mut self, rig: u8) {
-        if rig != 1 && rig != 2 {
-            tracing::error!(rig, "Ignoring invalid dummy rig");
-            return;
-        }
-        self.current_rig = rig;
-    }
-
-    fn set_frequency(&mut self, slot: Slot, freq: Freq) {
-        match (slot, self.current_rig) {
-            (Slot::A, 1) => {
-                self.freq_a1 = freq;
+    fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError> {
+        match slot {
+            Slot::A => {
+                self.freq_a = freq;
             }
-            (Slot::B, 1) => {
-                self.freq_b1 = freq;
-            }
-            (Slot::A, 2) => {
-                self.freq_a2 = freq;
-            }
-            (Slot::B, 2) => {
-                self.freq_b2 = freq;
-            }
-            (_, rig) => {
-                tracing::error!(rig, "Ignoring frequency update for invalid dummy rig");
+            Slot::B => {
+                self.freq_b = freq;
             }
         }
+        Ok(())
     }
 
-    fn get_status(&mut self) -> Status {
-        Status {
-            // Currently slot b is not in the status message
-            freq: match self.current_rig {
-                1 => self.freq_a1.as_u32_hz(),
-                2 => self.freq_a2.as_u32_hz(),
-                rig => {
-                    tracing::error!(rig, "Invalid dummy rig in status request");
-                    0
-                }
-            },
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+        Ok(Status {
+            freq: self.freq_a.as_u32_hz(),
             mode: "SSB".into(),
             status: "connected".into(),
-            current_rig: self.current_rig,
-        }
-    }
-
-    fn is_available(&self) -> bool {
-        true
+            current_rig: 1,
+        })
     }
 }

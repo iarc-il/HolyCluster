@@ -1,10 +1,14 @@
 import asyncio
+import errno
 import json
 import os
 import re
+import socket
+import time
+from collections import Counter
 
 from loguru import logger
-from shared.metrics import push_drop_event, push_exception_event, set_value
+from shared.telemetry import capture_exception
 
 from collectors.db.valkey_config import get_valkey_client
 from collectors.logging_setup import open_task_log_file
@@ -13,6 +17,29 @@ from collectors.utils import build_spot_key
 
 DX_CC_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
 DX_AR_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\d+Z)")
+TRANSIENT_CONNECTION_ERRNOS = {
+    errno.EHOSTUNREACH,
+    errno.ENETDOWN,
+    errno.ENETUNREACH,
+    socket.EAI_AGAIN,
+}
+OUTAGE_WARNING_INTERVAL_SECONDS = 3600
+reconnect_failure_counts: Counter[tuple[str, int, str]] = Counter()
+
+
+def record_reconnect_failure(host: str, port: int, error: OSError, level: str) -> int:
+    reason = error.__class__.__name__
+    key = (host, port, reason)
+    reconnect_failure_counts[key] += 1
+    count = reconnect_failure_counts[key]
+    logger.bind(
+        metric="telnet_reconnect_failures_total",
+        metric_value=count,
+        host=host,
+        port=port,
+        reason=reason,
+    ).log(level, f"Connection failed: {host}:{port}  {error} (reason={reason}, total={count})")
+    return count
 
 
 def parse_cc_dx_cluster_line(line: str) -> dict | None:
@@ -76,11 +103,29 @@ async def telnet_and_collect(
     INITIAL_BACKOFF = 60
     MAX_BACKOFF = 86400  # 1 day
 
-    log_filename_prefix = os.path.join(telnet_log_dir, host)
+    log_filename_prefix = os.path.join(telnet_log_dir, "cluster")
     task_logger = open_task_log_file(log_filename_prefix=log_filename_prefix)
 
     task_logger.info(f"Start of telnet_and_collect for {host}")
     valkey_client = get_valkey_client()
+    outage_started_at = None
+    next_outage_warning_at = None
+
+    def log_reconnect_failure(error: OSError) -> None:
+        nonlocal outage_started_at, next_outage_warning_at
+        now = time.monotonic()
+        if outage_started_at is None:
+            outage_started_at = now
+            next_outage_warning_at = now + OUTAGE_WARNING_INTERVAL_SECONDS
+            level = "WARNING"
+        elif next_outage_warning_at is not None and now >= next_outage_warning_at:
+            next_outage_warning_at = now + OUTAGE_WARNING_INTERVAL_SECONDS
+            level = "WARNING"
+        else:
+            level = "INFO"
+
+        failure_count = record_reconnect_failure(host, port, error, level)
+        task_logger.log(level, f"Connection failed: {host}:{port}  {error} (total {failure_count})")
 
     while True:
         reader, writer = None, None
@@ -90,9 +135,18 @@ async def telnet_and_collect(
             reader, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), timeout=10)
 
             logger.info(f"{host}:{port}  Successfully connected")
+            if outage_started_at is not None:
+                outage_duration = time.monotonic() - outage_started_at
+                logger.bind(
+                    metric="telnet_outage_duration_seconds",
+                    metric_value=outage_duration,
+                    host=host,
+                    port=port,
+                ).info(f"{host}:{port} Recovered after {outage_duration:.0f} seconds")
+                task_logger.info(f"Connection recovered after {outage_duration:.0f} seconds")
+                outage_started_at = None
+                next_outage_warning_at = None
             reconnect_attempts = 0
-            await set_value(valkey_client, f"collector:telnet:{host}:connected", 1)
-
             if username:
                 await asyncio.sleep(2)
                 writer.write(f"{username}\n".encode("utf-8"))
@@ -104,11 +158,11 @@ async def telnet_and_collect(
                 except asyncio.TimeoutError:
                     # This is just universal command that is used as kind of "ping"
                     writer.write(b"help\n")
+                    await writer.drain()
                     data = await asyncio.wait_for(reader.read(4096), timeout=5)
 
                 if not data:
-                    task_logger.error("Connection closed by remote host.")
-                    await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
+                    task_logger.info("Connection closed by remote host.")
                     break
 
                 lines = (line_buffer + data).split(b"\n")
@@ -123,9 +177,8 @@ async def telnet_and_collect(
 
                     spot = parse_dx_line(line)
                     if spot is None:
-                        task_logger.error(f"Could not parse spot line: {line}")
-                        logger.error(f"Could not parse spot line: {line}")
-                        await push_drop_event(valkey_client, "parse_error", line)
+                        task_logger.warning(f"Could not parse spot line: {line}")
+                        logger.warning(f"Could not parse spot line: {line}")
                         continue
 
                     # W3LPL is a spammer and J9AQ is a pirate
@@ -149,23 +202,33 @@ async def telnet_and_collect(
                         task_logger.debug(f"Duplicate spot not queued: {spot_data}")
                         logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
-        except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
-            task_logger.exception(f"Connection failed: {host}:{port}  {e}")
-            logger.exception(f"Connection failed: {host}:{port}  {e}")
-            await set_value(valkey_client, f"collector:telnet:{host}:connected", 0)
-            await push_exception_event(valkey_client, "collector", f"telnet {host}:{port}: {e}")
+        except (asyncio.TimeoutError, ConnectionError) as e:
+            log_reconnect_failure(e)
+
+        except OSError as e:
+            if e.errno in TRANSIENT_CONNECTION_ERRNOS:
+                log_reconnect_failure(e)
+            else:
+                task_logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
+                logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
+                capture_exception(e, operation="collector.telnet.unexpected")
 
         except asyncio.CancelledError:
             logger.info(f"{host}:{port} Task cancelled, shutting down.")
             break
 
+        except Exception as e:
+            task_logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
+            logger.opt(exception=e).warning(f"Unexpected collector failure: {host}:{port}")
+            capture_exception(e, operation="collector.telnet.unexpected")
+
         finally:
             if writer:
-                writer.close()
                 try:
+                    writer.close()
                     await asyncio.wait_for(writer.wait_closed(), timeout=5.0)
-                except asyncio.TimeoutError:
-                    logger.warning(f"{host}:{port} Timeout waiting for writer to close")
+                except (asyncio.TimeoutError, ConnectionError, OSError) as e:
+                    logger.warning(f"{host}:{port} Failed to close connection cleanly: {e}")
 
         delay = min(INITIAL_BACKOFF * (2**reconnect_attempts), MAX_BACKOFF)
 

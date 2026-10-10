@@ -5,6 +5,7 @@ from typing import Any
 
 from collectors.utils import as_text, run_json_spot_collector
 
+SOTA_ENABLED = False
 SOTA_CLUSTER = "sota"
 SOTA_TYPE = "sota"
 SOTA_SPOTS_URL = "https://api-db2.sota.org.uk/api/spots/100/all"

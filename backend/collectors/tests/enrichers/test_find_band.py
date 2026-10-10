@@ -3,13 +3,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[3]))
 
-from collectors.enrichers.frequencies import find_band, load_bands_from_file
+from collectors.enrichers.frequencies import find_band, load_band_plans
 
 
 def test_find_band():
-    # Path to the bands.csv file
-    csv_path = Path(__file__).parent / "../../src/enrichers/bands.csv"
-    bands = load_bands_from_file(csv_path)
+    band_plans_path = Path(__file__).parents[4] / "shared" / "band_plans.json"
+    bands, _ = load_band_plans(band_plans_path)
 
     # Test find_band for each band
     for band, start, end in bands:

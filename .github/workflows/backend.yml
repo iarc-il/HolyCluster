@@ -7,14 +7,22 @@ on:
       - ".github/workflows/backend.yml"
     branches:
       - "dev"
+      - "int"
     tags:
       - "backend-v*"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+    branches:
+      - "dev"
+      - "int"
 
 jobs:
   build-and-deploy-backend:
     name: Lint and Deploy Backend
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/backend-v')
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/backend-v')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -37,12 +45,30 @@ jobs:
         working-directory: backend
         run: uv run ruff format --check .
 
+      - name: Verify migration history
+        working-directory: backend
+        run: test "$(uv run alembic heads | wc -l)" -eq 1
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          LOG_DIR: ${{ runner.temp }}/holy
+          UI_DIST_PATH: ${{ runner.temp }}/ui
+          SENTRY_ENVIRONMENT: dev
+          SENTRY_RELEASE: test
+        run: |
+          cp .env.example .env
+          mkdir -p "$UI_DIST_PATH/assets"
+          uv run pytest
+
       - name: Setup SSH
+        if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/backend-v')
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST_DEV }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST_INT }} >> ~/.ssh/known_hosts
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST_PROD }} >> ~/.ssh/known_hosts
 
       - name: Deploy to Development Server
@@ -50,6 +76,12 @@ jobs:
         run: |
           ssh ${{ secrets.DEPLOY_USER_DEV }}@${{ secrets.DEPLOY_HOST_DEV }} \
             "cd ${{ secrets.REPO_ROOT_DEV }} && git fetch && git checkout origin/dev -- backend/deploy.sh && cd backend && bash deploy.sh origin/dev"
+
+      - name: Deploy to Integration Server
+        if: github.ref == 'refs/heads/int'
+        run: |
+          ssh ${{ secrets.DEPLOY_USER_INT }}@${{ secrets.DEPLOY_HOST_INT }} \
+            "cd ${{ secrets.REPO_ROOT_INT }} && git fetch && git checkout origin/int -- backend/deploy.sh && cd backend && bash deploy.sh origin/int"
 
       - name: Deploy to Production Server
         if: startsWith(github.ref, 'refs/tags/backend-v')

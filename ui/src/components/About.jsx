@@ -1,23 +1,35 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect, useState } from "react";
 
-import Button from "@/components/ui/Button.jsx";
+import UpdateControls from "@/components/UpdateControls.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors.jsx";
-import use_radio from "@/hooks/useRadio.jsx";
 
 const RELEASES = [
     [
+        "9/10/2026",
+        [
+            "▶️ playback mode to explore past spots and propagation conditions",
+            "🐧 CAT Control is now available as a Linux AppImage download",
+            "🧭 Added rotator control: click a spot to rotate the antenna",
+            "Added Hamlib radio support, see the new settings interface",
+            "The CAT Control executable can now be auto-updated",
+            "New guided website tour",
+            "Added LoTW activity indicators in the table",
+            "The band bar can be zoomed and dragged",
+            "New re-spot with right click on the DX callsign in the table",
+        ],
+    ],
+    [
         "18/07/2026",
         [
-            // "New guided website tour with quick start, map, table, filters, side panel, and settings chapters",
             "New spot sources for POTA, SOTA and WWFF",
             "Mobile GPS support for centering the map and filling your locator in settings",
             "Layout settings now allowing configuration of the view: map only, table only and view order",
             "Added profiles to quickly switch between setttings and filters",
             "Added sharing filter state using a URL",
-            "ADIF panel now support larger 50 MB files",
+            "Missing panel now supports larger 50 MB files",
             "Added map maidenhead locator grid overlay",
             "Added 3 map color themes in settings",
         ],
@@ -27,9 +39,9 @@ const RELEASES = [
         [
             "We had a vote in Friedrichshafen on the next feature to release!",
             <>
-                The winner is <b key="hunter-panel">hunter panel 🏹</b>
+                The winner is <b key="missing-panel">Missing panel 🏹</b>
             </>,
-            "Hunter panel is for tracking needed DXCC entities, CQ zones, ITU zones, US states and Canada provinces",
+            "Missing panel tracks needed DXCC entities, CQ zones, ITU zones, US states and Canada provinces",
             "Import ADIF logs to update missing progress, with progress display and clearer invalid-file errors",
         ],
     ],
@@ -183,29 +195,14 @@ function Info({ size }) {
 
 function About() {
     const { colors } = useColors();
-    const { raw_local_version, raw_remote_version, new_version_available } = use_radio();
+    const [about_closed, set_about_closed] = useState(false);
 
     const about = (
         <div className="p-2">
             <p>
-                The Holy Cluster is being developed by a group of Israeli amateur radio enthusiasts,
-                <br />
-                with the support of the Israeli Association of Radio Communication ({}
-                <a
-                    className="text-blue-500 underline"
-                    href="https://www.iarc.org/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    IARC
-                </a>
-                ).
-                <br />
-                <br />
-                We hope this platform will serve as a valuable tool for radio operators worldwide,
-                <br />
+                The Holy Cluster is developed by a group of Israeli amateur radio enthusiasts. We
+                hope this platform will serve as a valuable tool for radio operators worldwide,
                 fostering collaboration and enhancing the global radio communication experience.
-                <br />
             </p>
             <br />
             <p>
@@ -255,13 +252,7 @@ function About() {
                 </a>
             </p>
             Contact us at: <strong>holycluster@iarc.org</strong>
-            {raw_local_version != null ? (
-                <p>
-                    CAT Version: <code>{raw_local_version}</code>
-                </p>
-            ) : (
-                ""
-            )}
+            <UpdateControls on_check={() => set_about_closed(true)} />
         </div>
     );
 
@@ -283,28 +274,11 @@ function About() {
 
     const release_notes = (
         <div className="p-2">
-            {new_version_available && (
-                <div className="mb-4 p-4 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                    <div className="flex flex-col items-center space-y-2">
-                        <p className="text-lg font-semibold">New version available!</p>
-                        <p>Current version: {raw_local_version}</p>
-                        <p>Latest version: {raw_remote_version}</p>
-                        <Button
-                            className="px-4 py-2"
-                            on_click={() => {
-                                window.location.href = "/catserver/download";
-                            }}
-                        >
-                            Download Update
-                        </Button>
-                    </div>
-                </div>
-            )}
             {RELEASES.map(([date, changes]) => {
                 return (
                     <div className="pb-4" key={date}>
                         <h1 className="text-xl font-bold">{date}</h1>
-                        <ul className="list-disc pl-4">
+                        <ul className="list-disc pl-4 space-y-2">
                             {changes.map((change, index) => {
                                 const key =
                                     typeof change === "string"
@@ -319,6 +293,31 @@ function About() {
         </div>
     );
 
+    const credits = (
+        <div className="max-h-[60vh] overflow-y-auto w-[38rem] p-6 flex flex-col items-center text-center gap-5">
+            <a
+                href="https://www.iarc.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Visit the Israeli Association of Radio Communication website"
+                className="rounded-lg p-4 bg-slate-800 hover:bg-slate-700 transition-colors"
+            >
+                <img
+                    src="https://www.iarc.org/wp-content/uploads/2024/05/White_logo.svg"
+                    alt="Israeli Association of Radio Communication logo"
+                    className="h-32 w-auto"
+                />
+            </a>
+            <div className="space-y-2">
+                <h2 className="text-2xl font-semibold">Supported by IARC</h2>
+                <p>
+                    Holy Cluster gratefully acknowledges the support of the Israeli Association of
+                    Radio Communication.
+                </p>
+            </div>
+        </div>
+    );
+
     return (
         <Modal
             button={<Info size="36" />}
@@ -327,6 +326,8 @@ function About() {
             on_cancel={() => true}
             cancel_text="close"
             external_open={should_display_release_notes}
+            external_close={!about_closed}
+            on_open={() => set_about_closed(false)}
         >
             <div className="text-left w-full" style={{ color: colors.theme.text }}>
                 <Tabs
@@ -350,6 +351,12 @@ function About() {
                                     {release_notes}
                                 </div>
                             ),
+                        },
+                        {
+                            label: <h1 className="text-xl">Credits</h1>,
+                            data_tour: "about-tab-credits",
+                            text_color: colors.theme.text,
+                            content: credits,
                         },
                     ]}
                     data_tour="about-tabs"

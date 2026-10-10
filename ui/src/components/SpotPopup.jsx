@@ -76,13 +76,13 @@ function SpotPopup({
                 ) : (
                     <p>Azimuth: {map_azimuth_label}</p>
                 )}
-                {spot_data.hunterNeeded?.is_needed && (
+                {spot_data.missingNeeded?.is_needed && (
                     <p className="mt-1">
-                        {spot_data.hunterNeeded.reasons
+                        {spot_data.missingNeeded.reasons
                             .slice(0, 3)
                             .map(r => r.label)
                             .join(", ")}
-                        {spot_data.hunterNeeded.reasons.length > 3 && "..."}
+                        {spot_data.missingNeeded.reasons.length > 3 && "..."}
                     </p>
                 )}
             </div>

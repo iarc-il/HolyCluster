@@ -1,3 +1,4 @@
+import dxcc_map from "virtual:dxcc-map";
 import {
     get_dxcc_label,
     is_filterable_dxcc_entity,
@@ -5,7 +6,6 @@ import {
     normalize_dxcc_entity_code,
 } from "@/data/dxcc_entities.js";
 import { normalize_dxcc_label } from "@/data/dxcc_labels.js";
-import dxcc_map from "@/maps/dxcc_map.json";
 import lakes from "@/maps/lakes.json";
 import {
     ZONE_CONFIG,

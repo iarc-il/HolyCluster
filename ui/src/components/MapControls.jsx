@@ -2,12 +2,9 @@ import GPSButton from "@/components/GPSButton.jsx";
 import Night from "@/components/Night.jsx";
 import PropagationBar from "@/components/PropagationBar.jsx";
 import { TOUR_CLOSE_MAP_CONTROLS_EVENT } from "@/components/tour/tour_events.js";
-import Button from "@/components/ui/Button.jsx";
 import Popup from "@/components/ui/Popup.jsx";
-import Radio from "@/components/ui/Radio.jsx";
-import { useColors } from "@/hooks/useColors";
+import { MAP_THEME_CONFIGS, map_theme_names, useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
-import use_radio from "@/hooks/useRadio";
 import { useRestData } from "@/hooks/useRestData";
 import { useSettings } from "@/hooks/useSettings";
 import Maidenhead from "maidenhead";
@@ -20,6 +17,18 @@ const EXCLUSIVE_OVERLAY_CONTROL_KEYS = [
     "show_maidenhead_grid",
 ];
 const JOYRIDE_PORTAL_SELECTOR = "#react-joyride-portal";
+const MAP_THEME_LABELS = {
+    colorful: "Colorful",
+    earth: "Earth",
+    white: "White",
+};
+const MAP_THEME_QUADRANTS = [
+    "M16 16V0a16 16 0 0 1 16 16H16Z",
+    "M16 16h16a16 16 0 0 1-16 16V16Z",
+    "M16 16v16A16 16 0 0 1 0 16h16Z",
+    "M16 16H0A16 16 0 0 1 16 0v16Z",
+];
+const COLORFUL_THEME_PREVIEW_INDICES = [0, 3, 4, 5];
 const VOACAP_BANDS = ["160", "80", "60", "40", "30", "20", "17", "15", "12", "10"];
 
 function clear_exclusive_overlays(state) {
@@ -33,8 +42,6 @@ function MapControls({
     set_map_controls,
     set_radius_in_km,
     auto_toggle_radius,
-    can_undo_cat,
-    undo_cat,
     is_map_fullscreen,
     toggle_map_fullscreen,
     is_mobile,
@@ -43,13 +50,12 @@ function MapControls({
 }) {
     const { colors, dev_mode } = useColors();
     const { propagation } = useRestData();
-    const { radio_status } = use_radio();
     const { settings } = useSettings();
     const { filters, setFilters } = useFilters();
-    const mode_button_ref = useRef(null);
     const controls_panel_ref = useRef(null);
-    const [show_mode_popup, set_show_mode_popup] = useState(false);
+    const tooltip_anchor_ref = useRef(null);
     const [show_controls_panel, set_show_controls_panel] = useState(false);
+    const [tooltip, set_tooltip] = useState(null);
 
     const zone_filters = filters.zone_filters ?? {};
     const disabled_by_system = zone_filters.disabled_by_system ?? {};
@@ -133,14 +139,36 @@ function MapControls({
 
     function close_controls_panel() {
         set_show_controls_panel(false);
-        set_show_mode_popup(false);
     }
 
     function toggle_controls_panel() {
-        if (show_controls_panel) {
-            set_show_mode_popup(false);
-        }
+        set_tooltip(tooltip =>
+            tooltip
+                ? {
+                      ...tooltip,
+                      content: show_controls_panel ? "Show map controls" : "Hide map controls",
+                  }
+                : null,
+        );
         set_show_controls_panel(!show_controls_panel);
+    }
+
+    function show_tooltip(event, content, className = "text-xs") {
+        tooltip_anchor_ref.current = event.currentTarget;
+        set_tooltip({ content, className });
+    }
+
+    function hide_tooltip() {
+        set_tooltip(null);
+    }
+
+    function tooltip_trigger(content, className) {
+        return {
+            onMouseEnter: event => show_tooltip(event, content, className),
+            onMouseLeave: hide_tooltip,
+            onFocus: event => show_tooltip(event, content, className),
+            onBlur: hide_tooltip,
+        };
     }
 
     useEffect(() => {
@@ -192,15 +220,6 @@ function MapControls({
         });
     }
 
-    const radio_status_to_color = {
-        // Probably rig is not configured
-        unknown: colors.map_controls.radio_unknown,
-        // CAT control is working
-        connected: colors.map_controls.radio_connected,
-        // Radio or omnirig is disconnected
-        disconnected: colors.map_controls.radio_disconnected,
-    };
-
     function set_exclusive_overlay(map_control_key, show_overlay) {
         set_map_controls(state => {
             if (!show_overlay) {
@@ -225,9 +244,45 @@ function MapControls({
     }
 
     function toggle_equator() {
+        set_tooltip(tooltip =>
+            tooltip ? { ...tooltip, content: equator_on ? "Show equator" : "Hide equator" } : null,
+        );
         set_map_controls(state => {
             state.show_equator = !state.show_equator;
         });
+    }
+
+    function toggle_projection() {
+        set_tooltip(tooltip =>
+            tooltip
+                ? { ...tooltip, content: map_controls.is_globe ? "Globe mode" : "Azimuthal mode" }
+                : null,
+        );
+        set_map_controls(state => (state.is_globe = !state.is_globe));
+    }
+
+    function toggle_fullscreen() {
+        set_tooltip(tooltip =>
+            tooltip
+                ? {
+                      ...tooltip,
+                      content: is_map_fullscreen ? "Enter fullscreen" : "Exit fullscreen",
+                  }
+                : null,
+        );
+        toggle_map_fullscreen();
+    }
+
+    function toggle_playback() {
+        set_tooltip(tooltip =>
+            tooltip
+                ? {
+                      ...tooltip,
+                      content: is_history_mode ? "Enter playback mode" : "Exit playback mode",
+                  }
+                : null,
+        );
+        toggle_history();
     }
 
     function toggle_voacap() {
@@ -338,6 +393,8 @@ function MapControls({
                             style={control_button_style}
                             aria_label="Center map on current GPS location"
                             data_tour="map-gps"
+                            show_title={false}
+                            {...tooltip_trigger("Use current location")}
                         />
                     )}
                     <button
@@ -346,8 +403,8 @@ function MapControls({
                         className="flex h-10 w-10 items-center justify-center rounded-lg"
                         style={control_button_style}
                         aria-label="Reset map"
-                        title="Reset map"
                         data-tour="map-reset"
+                        {...tooltip_trigger("Reset map")}
                     >
                         <svg
                             height="24"
@@ -362,12 +419,14 @@ function MapControls({
                     {!is_mobile && (
                         <button
                             type="button"
-                            onClick={toggle_map_fullscreen}
+                            onClick={toggle_fullscreen}
                             className="flex h-10 w-10 items-center justify-center rounded-lg"
                             style={control_button_style}
                             aria-label={is_map_fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                            title={is_map_fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
                             data-tour="map-fullscreen"
+                            {...tooltip_trigger(
+                                is_map_fullscreen ? "Exit fullscreen" : "Enter fullscreen",
+                            )}
                         >
                             <svg
                                 height="24"
@@ -384,35 +443,33 @@ function MapControls({
                             </svg>
                         </button>
                     )}
-                    {dev_mode && (
-                        <button
-                            type="button"
-                            onClick={toggle_history}
-                            className="flex h-10 w-10 items-center justify-center rounded-lg"
-                            style={{
-                                ...control_button_style,
-                                ...(is_history_mode
-                                    ? { color: colors.buttons.active ?? "#3b82f6" }
-                                    : {}),
-                            }}
-                            aria-label={
-                                is_history_mode ? "Exit playback mode" : "Enter playback mode"
-                            }
-                            title={is_history_mode ? "Exit playback mode" : "Enter playback mode"}
-                            data-tour="map-history-toggle"
+                    <button
+                        type="button"
+                        onClick={toggle_playback}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg"
+                        style={{
+                            ...control_button_style,
+                            ...(is_history_mode
+                                ? { color: colors.buttons.active ?? "#3b82f6" }
+                                : {}),
+                        }}
+                        aria-label={is_history_mode ? "Exit playback mode" : "Enter playback mode"}
+                        data-tour="map-history-toggle"
+                        {...tooltip_trigger(
+                            is_history_mode ? "Exit playback mode" : "Enter playback mode",
+                        )}
+                    >
+                        <svg
+                            height="24"
+                            width="24"
+                            viewBox="0 0 16 16"
+                            fill="currentColor"
+                            aria-hidden="true"
                         >
-                            <svg
-                                height="24"
-                                width="24"
-                                viewBox="0 0 16 16"
-                                fill="currentColor"
-                                aria-hidden="true"
-                            >
-                                <path d="M6.79 5.093A.5.5 0 0 0 6 5.5v5a.5.5 0 0 0 .79.407l3.5-2.5a.5.5 0 0 0 0-.814z" />
-                                <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z" />
-                            </svg>
-                        </button>
-                    )}
+                            <path d="M6.79 5.093A.5.5 0 0 0 6 5.5v5a.5.5 0 0 0 .79.407l3.5-2.5a.5.5 0 0 0 0-.814z" />
+                            <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z" />
+                        </svg>
+                    </button>
                     <button
                         type="button"
                         onClick={toggle_controls_panel}
@@ -420,8 +477,10 @@ function MapControls({
                         style={control_button_style}
                         aria-label={show_controls_panel ? "Hide map controls" : "Show map controls"}
                         aria-expanded={show_controls_panel}
-                        title={show_controls_panel ? "Hide map controls" : "Show map controls"}
                         data-tour="map-controls-toggle"
+                        {...tooltip_trigger(
+                            show_controls_panel ? "Hide map controls" : "Show map controls",
+                        )}
                     >
                         <svg
                             width="24"
@@ -457,33 +516,6 @@ function MapControls({
                         }}
                     >
                         <div className="flex items-center gap-3">
-                            {radio_status !== "unavailable" && can_undo_cat ? (
-                                <Button
-                                    color="utility"
-                                    className="p-1"
-                                    data-tour="map-cat-undo"
-                                    on_click={() => {
-                                        if (!can_undo_cat) return;
-                                        undo_cat();
-                                    }}
-                                >
-                                    <svg
-                                        fill="currentColor"
-                                        width="24"
-                                        height="24"
-                                        viewBox="0 0 512 512"
-                                    >
-                                        <path d="M255.545 8c-66.269.119-126.438 26.233-170.86 68.685L48.971 40.971C33.851 25.851 8 36.559 8 57.941V192c0 13.255 10.745 24 24 24h134.059c21.382 0 32.09-25.851 16.971-40.971l-41.75-41.75c30.864-28.899 70.801-44.907 113.23-45.273 92.398-.798 170.283 73.977 169.484 169.442C423.236 348.009 349.816 424 256 424c-41.127 0-79.997-14.678-110.63-41.556-4.743-4.161-11.906-3.908-16.368.553L89.34 422.659c-4.872 4.872-4.631 12.815.482 17.433C133.798 479.813 192.074 504 256 504c136.966 0 247.999-111.033 248-247.998C504.001 119.193 392.354 7.755 255.545 8z" />
-                                    </svg>
-                                </Button>
-                            ) : (
-                                ""
-                            )}
-                            {radio_status !== "unavailable" ? (
-                                <span data-tour="map-radio-status">
-                                    <Radio color={radio_status_to_color[radio_status]} size="40" />
-                                </span>
-                            ) : null}
                             <button
                                 type="button"
                                 onClick={toggle_equator}
@@ -495,9 +527,9 @@ function MapControls({
                                 }}
                                 aria-label={equator_on ? "Hide equator" : "Show equator"}
                                 aria-pressed={equator_on}
-                                title={equator_on ? "Hide equator" : "Show equator"}
                                 data-tour="map-equator-toggle"
                                 data-tour-state={equator_on ? "on" : "off"}
+                                {...tooltip_trigger(equator_on ? "Hide equator" : "Show equator")}
                             >
                                 <svg
                                     width="40"
@@ -527,12 +559,7 @@ function MapControls({
                             </button>
                             <button
                                 type="button"
-                                ref={mode_button_ref}
-                                onClick={() =>
-                                    set_map_controls(state => (state.is_globe = !state.is_globe))
-                                }
-                                onMouseEnter={() => set_show_mode_popup(true)}
-                                onMouseLeave={() => set_show_mode_popup(false)}
+                                onClick={toggle_projection}
                                 className="flex items-center justify-center relative"
                                 aria-label={
                                     map_controls.is_globe
@@ -542,6 +569,10 @@ function MapControls({
                                 aria-pressed={map_controls.is_globe}
                                 data-tour="map-projection-toggle"
                                 data-tour-state={map_controls.is_globe ? "globe" : "azimuthal"}
+                                {...tooltip_trigger(
+                                    map_controls.is_globe ? "Azimuthal mode" : "Globe mode",
+                                    "text-sm",
+                                )}
                             >
                                 {map_controls.is_globe ? (
                                     <svg
@@ -569,19 +600,6 @@ function MapControls({
                                     </svg>
                                 )}
                             </button>
-                            {show_mode_popup && (
-                                <Popup anchor_ref={mode_button_ref}>
-                                    <div
-                                        className="py-1 px-2 rounded shadow-lg text-xs"
-                                        style={{
-                                            color: colors.theme.text,
-                                            background: colors.theme.background,
-                                        }}
-                                    >
-                                        {map_controls.is_globe ? "Azimuthal mode" : "Globe mode"}
-                                    </div>
-                                </Popup>
-                            )}
                             <Night
                                 is_active={map_controls.night}
                                 size="40"
@@ -589,9 +607,75 @@ function MapControls({
                                 on_click={event =>
                                     set_map_controls(state => (state.night = !state.night))
                                 }
+                                {...tooltip_trigger("Toggle night mode")}
                             />
                         </div>
-                        <div className="flex items-center gap-3" data-tour="map-overlays">
+                        <div
+                            className="flex w-full items-center justify-end gap-2"
+                            data-tour="map-theme-buttons"
+                            data-tour-state={map_controls.map_theme}
+                        >
+                            {map_theme_names.map(map_theme => {
+                                const palette_colors = Object.values(
+                                    MAP_THEME_CONFIGS[map_theme].palette,
+                                );
+                                const preview_colors =
+                                    map_theme === "colorful"
+                                        ? COLORFUL_THEME_PREVIEW_INDICES.map(
+                                              index => palette_colors[index],
+                                          )
+                                        : palette_colors.slice(0, 4);
+                                const is_active = map_controls.map_theme === map_theme;
+                                const label = MAP_THEME_LABELS[map_theme];
+
+                                return (
+                                    <button
+                                        key={map_theme}
+                                        type="button"
+                                        onClick={() =>
+                                            set_map_controls(state => {
+                                                state.map_theme = map_theme;
+                                            })
+                                        }
+                                        className="flex h-10 w-10 items-center justify-center rounded-full focus-visible:outline-none"
+                                        aria-label={`Use ${label.toLowerCase()} map theme`}
+                                        aria-pressed={is_active}
+                                        {...tooltip_trigger(`${label} map theme`)}
+                                    >
+                                        <span
+                                            className="block h-8 w-8 overflow-hidden rounded-full"
+                                            style={{
+                                                border: `2px solid ${colors.theme.text}66`,
+                                                boxShadow: is_active
+                                                    ? `0 0 0 2px ${colors.theme.background}, 0 0 0 4px ${colors.buttons.utility}`
+                                                    : "none",
+                                            }}
+                                        >
+                                            <svg
+                                                className="block h-full w-full"
+                                                viewBox="0 0 32 32"
+                                                aria-hidden="true"
+                                            >
+                                                {preview_colors.map((color, index) => (
+                                                    <path
+                                                        key={MAP_THEME_QUADRANTS[index]}
+                                                        d={MAP_THEME_QUADRANTS[index]}
+                                                        fill={color}
+                                                    />
+                                                ))}
+                                            </svg>
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div
+                            className="flex items-center gap-3"
+                            data-tour="map-overlays"
+                            data-tour-state={overlay_buttons
+                                .map(overlay => (overlay.active ? "1" : "0"))
+                                .join("")}
+                        >
                             {overlay_buttons.map(render_overlay_button)}
                         </div>
                         {dev_mode ? (
@@ -654,6 +738,9 @@ function MapControls({
                         <div
                             className="flex w-full flex-wrap justify-end gap-2"
                             data-tour="map-region-overlays"
+                            data-tour-state={country_zone_overlays
+                                .map(overlay => (map_controls[overlay.map_control_key] ? "1" : "0"))
+                                .join("")}
                         >
                             {country_zone_overlays.map(overlay => {
                                 const active = map_controls[overlay.map_control_key] ?? false;
@@ -728,6 +815,20 @@ function MapControls({
                     </div>
                 )}
             </div>
+            {tooltip && (
+                <Popup anchor_ref={tooltip_anchor_ref}>
+                    <div
+                        role="tooltip"
+                        className={`py-1 px-2 rounded shadow-lg ${tooltip.className}`}
+                        style={{
+                            color: colors.theme.text,
+                            background: colors.theme.background,
+                        }}
+                    >
+                        {tooltip.content}
+                    </div>
+                </Popup>
+            )}
             {propagation && settings.propagation_displayed && (
                 <div
                     className="fixed md:absolute bottom-0 md:bottom-2 right-2 z-40 flex justify-end md:justify-center gap-2"

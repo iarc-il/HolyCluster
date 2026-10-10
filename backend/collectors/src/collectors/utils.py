@@ -1,13 +1,24 @@
 import asyncio
-import json
+import random
 from collections.abc import Callable
 from typing import Any
 
 import aiohttp
 from loguru import logger
-from shared.metrics import push_drop_event, push_exception_event, set_value
+from shared.telemetry import capture_exception
 
 USER_AGENT = "HolyCluster collector (https://holycluster.iarc.org/)"
+MAX_RETRY_DELAY_SECONDS = 300
+
+
+class UpstreamResponseError(Exception):
+    pass
+
+
+def retry_delay(poll_interval: int, failure_count: int) -> float:
+    exponent = min(failure_count - 1, 10)
+    base_delay = min(poll_interval * 2**exponent, MAX_RETRY_DELAY_SECONDS)
+    return min(base_delay + random.uniform(0, base_delay * 0.2), MAX_RETRY_DELAY_SECONDS)
 
 
 def as_text(value: Any) -> str:
@@ -26,7 +37,7 @@ async def fetch_json_list(session: aiohttp.ClientSession, url: str, source_label
         data = await response.json()
 
     if not isinstance(data, list):
-        raise ValueError(f"{source_label} spots response is {type(data).__name__}, expected list")
+        raise UpstreamResponseError(f"{source_label} spots response is {type(data).__name__}, expected list")
     return data
 
 
@@ -50,27 +61,24 @@ async def run_json_spot_collector(
     valkey_client = get_valkey_client()
     timeout = aiohttp.ClientTimeout(total=request_timeout)
     headers = {"User-Agent": USER_AGENT}
-    connected_key = f"collector:{metric_name}:connected"
-
+    failure_count = 0
     async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
         while True:
             try:
                 raw_spots = await fetch_json_list(session, url, source_label)
-                await set_value(valkey_client, connected_key, 1)
+                valid_raw_spots = [spot for spot in raw_spots if isinstance(spot, dict)]
+                invalid_count = len(raw_spots) - len(valid_raw_spots)
+                if invalid_count:
+                    logger.info(f"Dropping {invalid_count} malformed {source_label} spot records")
 
                 queued_count = 0
-                for raw_spot in sorted(raw_spots, key=sort_key):
+                for raw_spot in sorted(valid_raw_spots, key=sort_key):
                     try:
                         source_spot_key = get_spot_key(raw_spot)
                         spot = parse_spot(raw_spot)
                         content_spot_key = build_spot_key(spot)
-                    except (KeyError, ValueError) as e:
-                        logger.info(f"Dropping {source_label} spot due to parse error: {e}: {raw_spot}")
-                        await push_drop_event(
-                            valkey_client,
-                            f"{metric_name}_parse_error",
-                            json.dumps(raw_spot, default=str),
-                        )
+                    except (KeyError, TypeError, ValueError) as e:
+                        logger.info(f"Dropping {source_label} spot due to parse error: {e}")
                         continue
 
                     source_added = await valkey_client.set(source_spot_key, 1, ex=spot_expiration, nx=True)
@@ -85,12 +93,23 @@ async def run_json_spot_collector(
                         queued_count += 1
 
                 logger.debug(f"Fetched {len(raw_spots)} {source_label} spots, queued {queued_count} new spots")
+                failure_count = 0
                 await asyncio.sleep(poll_interval)
             except asyncio.CancelledError:
                 logger.info(f"{source_label} collector cancelled")
                 break
+            except UpstreamResponseError as e:
+                failure_count += 1
+                delay = retry_delay(poll_interval, failure_count)
+                logger.warning(f"{source_label} upstream response unavailable; retrying in {delay:.1f}s: {e}")
+                await asyncio.sleep(delay)
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                failure_count += 1
+                delay = retry_delay(poll_interval, failure_count)
+                logger.warning(f"{source_label} endpoint unavailable; retrying in {delay:.1f}s: {type(e).__name__}")
+                await asyncio.sleep(delay)
             except Exception as e:
+                failure_count += 1
                 logger.exception(f"{source_label} collector failed")
-                await set_value(valkey_client, connected_key, 0)
-                await push_exception_event(valkey_client, "collector", f"{metric_name}: {e}")
-                await asyncio.sleep(min(poll_interval, 300))
+                capture_exception(e, operation=f"collector.poll.{metric_name}")
+                await asyncio.sleep(retry_delay(poll_interval, failure_count))

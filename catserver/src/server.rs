@@ -1,49 +1,44 @@
-use std::{
-    convert::Infallible,
-    net::{Ipv4Addr, SocketAddrV4},
-    path::PathBuf,
-    time::Duration,
-};
+mod availability_trace;
+mod http_proxy;
+pub(crate) mod listener;
+mod radio;
+mod radio_actions;
+mod radio_configuration;
+mod radio_control;
+mod rotator;
+mod rotator_configuration;
+mod session;
+mod state;
+mod update;
 
-use anyhow::{Context, Result, bail};
+#[cfg(test)]
+mod radio_actions_tests;
+#[cfg(test)]
+mod rotator_tests;
+#[cfg(test)]
+mod tests;
+
+use std::path::PathBuf;
+
+use anyhow::{Context, Result};
 use axum::{
     Router,
-    body::Body,
-    extract::{
-        Request, State, WebSocketUpgrade,
-        ws::{Message, WebSocket},
-    },
-    http::{HeaderMap, HeaderName, Method, StatusCode, header},
-    response::{IntoResponse, Response},
-    routing::{any, post},
+    http::Uri,
+    routing::{any, get, post},
 };
-use futures_util::{SinkExt, StreamExt};
-use hyper::upgrade::OnUpgrade;
-use hyper_tls::HttpsConnector;
-use hyper_util::{
-    client::legacy::{Client, connect::HttpConnector},
-    rt::{TokioExecutor, TokioIo},
-};
-use serde::{Deserialize, Serialize};
-use tokio::net::UdpSocket;
 use tokio::{
     net::TcpListener,
     sync::broadcast::{Receiver, Sender},
 };
-use tokio_tungstenite::connect_async;
-use tower::{ServiceExt, service_fn};
-use tower_http::services::ServeDir;
 
-use crate::{
-    freq::Freq,
-    rig::{AnyRadio, Mode, Slot},
-    rotator::AnyRotator,
-    tray_icon::UserEvent,
-    utils,
+use crate::{radio_manager::RadioManager, rotator_manager::RotatorManager, tray_icon::UserEvent};
+
+use self::{
+    http_proxy::{local_ui, proxy},
+    listener::{bind_startup_listener, bind_update_listener, protect_listener},
+    session::ws_handler,
+    state::AppState,
 };
-
-#[cfg(test)]
-mod tests;
 
 #[derive(Clone)]
 pub struct ServerConfig {
@@ -53,25 +48,14 @@ pub struct ServerConfig {
 }
 
 impl ServerConfig {
-    pub fn build_uri(&self, schema: &str, path_and_query: &str) -> String {
-        format!(
-            "{}{}://{}{}",
-            schema,
-            if self.is_using_ssl { "s" } else { "" },
-            self.dns,
-            path_and_query,
-        )
+    pub fn build_uri(&self, schema: &str, path_and_query: &str) -> Uri {
+        Uri::builder()
+            .scheme(format!("{schema}{}", if self.is_using_ssl { "s" } else { "" }).as_str())
+            .authority(self.dns.as_str())
+            .path_and_query(path_and_query)
+            .build()
+            .expect("valid URI from config")
     }
-}
-
-#[derive(Clone)]
-struct AppState {
-    server_config: ServerConfig,
-    radio: AnyRadio,
-    rotator: AnyRotator,
-    http_client: Client<HttpsConnector<HttpConnector>, Body>,
-    sender: Sender<UserEvent>,
-    ui_dir: Option<PathBuf>,
 }
 
 pub struct Server {
@@ -81,44 +65,71 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn build_server(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn build_server(
         sender: Sender<UserEvent>,
-        radio: AnyRadio,
-        rotator: AnyRotator,
-        server_config: ServerConfig,
+        radio: RadioManager,
+        rotator: RotatorManager,
+        mut server_config: ServerConfig,
         use_local_ui: bool,
+        restart: Option<crate::updater::RestartContext>,
     ) -> Result<Self> {
-        let http_client = Client::builder(TokioExecutor::new()).build(HttpsConnector::new());
-
+        let listener = if let Some(context) = &restart {
+            let marker = context.state_path.with_file_name("restart-startup.json");
+            if !context.state_path.as_os_str().is_empty() {
+                crate::update_restart::startup_signal(context, &marker, None)?;
+            }
+            match bind_update_listener(context.port, std::time::Duration::from_secs(180)).await {
+                Ok(listener) => {
+                    if !context.state_path.as_os_str().is_empty() {
+                        crate::updater::write_json(
+                            &marker,
+                            &serde_json::json!({ "id": context.id, "phase": "reconnecting" }),
+                        )?;
+                    }
+                    listener
+                }
+                Err(error) => {
+                    if !context.state_path.as_os_str().is_empty() {
+                        crate::update_restart::startup_signal(
+                            context,
+                            &marker,
+                            Some(error.to_string()),
+                        )?;
+                    }
+                    return Err(error);
+                }
+            }
+        } else {
+            bind_startup_listener(server_config.local_port, std::time::Duration::from_secs(10))
+                .await?
+        };
+        server_config.local_port = listener.local_addr()?.port();
+        let ui_dir = use_local_ui.then(find_ui_dir).transpose()?;
+        let mut state = AppState::new(server_config, radio, rotator, sender.clone(), ui_dir)?;
+        state.updater = state.updater.with_restart(restart);
         let app = Router::new()
             .route("/ws", any(ws_handler))
-            .route("/radio", any(cat_control_handler))
             .route("/exit", post(exit_server_handler))
-            .route("/open", post(open_tab_handler));
-
-        let ui_dir = if use_local_ui {
-            Some(find_ui_dir()?)
-        } else {
-            None
-        };
-        let app_state = AppState {
-            server_config,
-            radio,
-            rotator,
-            http_client,
-            sender: sender.clone(),
-            ui_dir,
-        };
+            .route("/open", post(open_tab_handler))
+            .route("/api/ready", get(update::ready))
+            .route("/api/update", get(update::status))
+            .route("/api/update/check", post(update::check))
+            .route("/api/update/install", post(update::install))
+            .route(
+                "/api/update/defer",
+                post(|axum::extract::State(state)| update::run(state, |updater| updater.defer())),
+            )
+            .route(
+                "/api/update/retry",
+                post(|axum::extract::State(state)| update::run(state, |updater| updater.retry())),
+            );
         let app = if use_local_ui {
             app.fallback(any(local_ui))
         } else {
             app.fallback(any(proxy))
-        };
-        let local_port = app_state.server_config.local_port;
-        let app = app.with_state(app_state);
-
-        let address = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), local_port);
-        let listener = TcpListener::bind(address).await?;
+        }
+        .with_state(state.clone());
         Ok(Self {
             app,
             listener,
@@ -126,16 +137,37 @@ impl Server {
         })
     }
 
+    pub fn local_port(&self) -> Result<u16> {
+        Ok(self.listener.local_addr()?.port())
+    }
+
     pub async fn run_server(self) -> Result<()> {
-        axum::serve(self.listener, self.app)
+        axum::serve(protect_listener(self.listener), self.app)
             .with_graceful_shutdown(shutdown(self.sender.subscribe()))
             .await?;
         Ok(())
     }
 }
 
+async fn exit_server_handler(
+    axum::extract::State(state): axum::extract::State<AppState>,
+) -> axum::http::StatusCode {
+    let _ = state.sender.send(UserEvent::Quit);
+    axum::http::StatusCode::OK
+}
+
+async fn open_tab_handler(
+    axum::extract::State(state): axum::extract::State<AppState>,
+) -> axum::http::StatusCode {
+    let _ = state.sender.send(UserEvent::OpenBrowser);
+    axum::http::StatusCode::OK
+}
+
 fn find_ui_dir() -> Result<PathBuf> {
-    let mut path = std::env::current_exe()?;
+    let mut path = std::env::var("APPIMAGE")
+        .map(PathBuf::from)
+        .or_else(|_| std::env::current_exe())?;
+
     loop {
         let ui_dir = path.join("ui/dist");
         if ui_dir.exists() {
@@ -150,626 +182,6 @@ fn find_ui_dir() -> Result<PathBuf> {
 
 async fn shutdown(mut receiver: Receiver<UserEvent>) {
     while let Ok(message) = receiver.recv().await
-        && message != UserEvent::Quit
-    {
-        // Waiting
-    }
-}
-
-async fn proxy(State(state): State<AppState>, mut request: Request<Body>) -> Response<Body> {
-    let uri = state.server_config.build_uri(
-        "http",
-        request
-            .uri()
-            .path_and_query()
-            .map(|x| x.as_str())
-            .unwrap_or(""),
-    );
-
-    let uri = match uri.parse() {
-        Ok(uri) => uri,
-        Err(error) => {
-            tracing::error!(?error, "Failed to build upstream URI");
-            return (StatusCode::BAD_REQUEST, Body::empty()).into_response();
-        }
-    };
-    let is_upgrade = is_upgrade_request(&request);
-    let downstream_upgrade = is_upgrade.then(|| hyper::upgrade::on(&mut request));
-    *request.uri_mut() = uri;
-    if !is_upgrade {
-        remove_hop_by_hop_headers(request.headers_mut());
-    }
-    request.headers_mut().remove(header::HOST);
-
-    match state.http_client.request(request).await {
-        Ok(mut response) => {
-            if response.status() == StatusCode::SWITCHING_PROTOCOLS
-                && let Some(downstream_upgrade) = downstream_upgrade
-            {
-                let upstream_upgrade = hyper::upgrade::on(&mut response);
-                tokio::spawn(tunnel_upgrades(downstream_upgrade, upstream_upgrade));
-                return response.map(Body::new);
-            }
-            remove_hop_by_hop_headers(response.headers_mut());
-            response.map(Body::new)
-        }
-        Err(error) => {
-            tracing::error!(?error, "Upstream request failed");
-            (StatusCode::BAD_GATEWAY, Body::empty()).into_response()
-        }
-    }
-}
-
-async fn local_ui(State(state): State<AppState>, request: Request<Body>) -> Response<Body> {
-    if matches!(*request.method(), Method::GET | Method::HEAD) && !is_upgrade_request(&request) {
-        let ui_dir = state.ui_dir.clone().expect("local UI directory is missing");
-        let fallback_state = state.clone();
-        let service = ServeDir::new(ui_dir).fallback(service_fn(move |request| {
-            let state = fallback_state.clone();
-            async move { Ok::<_, Infallible>(proxy(State(state), request).await) }
-        }));
-        return match service.oneshot(request).await {
-            Ok(response) => response.map(Body::new),
-            Err(error) => match error {},
-        };
-    }
-
-    proxy(State(state), request).await
-}
-
-fn is_upgrade_request(request: &Request<Body>) -> bool {
-    request.headers().contains_key(header::UPGRADE)
-        && request
-            .headers()
-            .get_all(header::CONNECTION)
-            .iter()
-            .filter_map(|value| value.to_str().ok())
-            .flat_map(|value| value.split(','))
-            .any(|value| value.trim().eq_ignore_ascii_case("upgrade"))
-}
-
-async fn tunnel_upgrades(downstream: OnUpgrade, upstream: OnUpgrade) {
-    let (downstream, upstream) = match tokio::try_join!(downstream, upstream) {
-        Ok(upgrades) => upgrades,
-        Err(error) => {
-            tracing::error!(?error, "Failed to establish proxy upgrade");
-            return;
-        }
-    };
-    let mut downstream = TokioIo::new(downstream);
-    let mut upstream = TokioIo::new(upstream);
-    if let Err(error) = tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await {
-        tracing::error!(?error, "Upgraded proxy connection failed");
-    }
-}
-
-fn remove_hop_by_hop_headers(headers: &mut HeaderMap) {
-    let connection_headers = headers
-        .get_all(header::CONNECTION)
-        .iter()
-        .filter_map(|value| value.to_str().ok())
-        .flat_map(|value| value.split(','))
-        .filter_map(|name| HeaderName::from_bytes(name.trim().as_bytes()).ok())
-        .collect::<Vec<_>>();
-
-    for name in connection_headers {
-        headers.remove(name);
-    }
-    for name in [
-        header::CONNECTION,
-        HeaderName::from_static("keep-alive"),
-        header::PROXY_AUTHENTICATE,
-        header::PROXY_AUTHORIZATION,
-        header::TE,
-        header::TRAILER,
-        header::TRANSFER_ENCODING,
-        header::UPGRADE,
-    ] {
-        headers.remove(name);
-    }
-}
-
-async fn exit_server_handler(State(state): State<AppState>) -> impl IntoResponse {
-    let _ = state.sender.send(UserEvent::Quit);
-    StatusCode::OK
-}
-
-async fn open_tab_handler(State(state): State<AppState>) -> impl IntoResponse {
-    let _ = state.sender.send(UserEvent::OpenBrowser);
-    StatusCode::OK
-}
-
-async fn cat_control_handler(
-    websocket: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
-    let radio = state.radio;
-    let rotator = state.rotator;
-    let receiver = state.sender.subscribe();
-
-    websocket
-        .write_buffer_size(0)
-        .read_buffer_size(0)
-        .accept_unmasked_frames(true)
-        .on_upgrade(async move |websocket: WebSocket| {
-            let result = handle_cat_control_socket(websocket, radio, rotator, receiver).await;
-            if let Err(error) = result {
-                tracing::error!(?error, "CAT control WebSocket handler failed");
-            }
-        })
-}
-
-async fn ws_handler(
-    websocket: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
-    let receiver = state.sender.subscribe();
-    let radio = state.radio;
-    let rotator = state.rotator;
-    let server_config = state.server_config;
-
-    websocket
-        .write_buffer_size(0)
-        .read_buffer_size(0)
-        .accept_unmasked_frames(true)
-        .on_upgrade(async move |websocket: WebSocket| {
-            let result = handle_ws_socket(websocket, server_config, radio, rotator, receiver).await;
-            if let Err(error) = result {
-                tracing::error!(?error, "Unified WebSocket handler failed");
-            }
-        })
-}
-
-async fn handle_ws_socket(
-    socket: WebSocket,
-    server_config: ServerConfig,
-    radio: AnyRadio,
-    rotator: AnyRotator,
-    mut receiver: Receiver<UserEvent>,
-) -> Result<()> {
-    let (mut client_sender, mut client_receiver) = socket.split();
-    let (stream, _response) = connect_async(server_config.build_uri("ws", "/ws")).await?;
-    let (mut server_sender, mut server_receiver) = stream.split();
-
-    let message = RadioInitMessage {
-        status: "connected".into(),
-        catserver_version: env!("VERSION").into(),
-    };
-    client_sender
-        .send(ws_radio_message(WS_RADIO_EVENT_STATUS, &message)?)
-        .await?;
-
-    let rotator_status = rotator.write().get_status();
-    client_sender
-        .send(ws_rotator_message(
-            WS_ROTATOR_EVENT_STATUS,
-            &rotator_status,
-        )?)
-        .await?;
-
-    let mut radio_interval = tokio::time::interval(Duration::from_millis(500));
-    let mut rotator_interval = tokio::time::interval(Duration::from_millis(1000));
-    let mut previous_radio_data = None;
-    let mut previous_rotator_data = None;
-
-    use tokio_tungstenite::tungstenite;
-
-    loop {
-        tokio::select! {
-            Some(message) = client_receiver.next() => {
-                match message? {
-                    Message::Text(text) => {
-                        if is_ws_radio_message(text.as_ref()) {
-                            process_ws_radio_message(text.to_string(), &radio).await?;
-                            let status = radio.write().get_status();
-                            client_sender
-                                .send(ws_radio_message(WS_RADIO_EVENT_STATUS, &status)?)
-                                .await?;
-                        } else if is_ws_rotator_message(text.as_ref()) {
-                            process_ws_rotator_message(text.to_string(), &rotator).await?;
-                        } else {
-                            let result = server_sender
-                                .send(utils::axum_to_tungstenite_message(Message::Text(text)))
-                                .await;
-                            if let Err(error) = &result {
-                                use tungstenite::Error;
-                                match error {
-                                    Error::ConnectionClosed => {
-                                        break;
-                                    }
-                                    _ => {
-                                        result?;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Message::Close(_) => {
-                        break;
-                    }
-                    message => {
-                        let result = server_sender
-                            .send(utils::axum_to_tungstenite_message(message))
-                            .await;
-                        if let Err(error) = &result {
-                            use tungstenite::Error;
-                            match error {
-                                Error::ConnectionClosed => {
-                                    break;
-                                }
-                                _ => {
-                                    result?;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Some(Ok(message)) = server_receiver.next() => {
-                let Some(message) = utils::tungstenite_to_axum_message(message) else {
-                    continue;
-                };
-                let result = client_sender
-                    .send(message)
-                    .await;
-                if result.is_err() {
-                    break;
-                }
-            }
-            event = receiver.recv() => {
-                match event? {
-                    UserEvent::Quit => {
-                        let message = CloseMessage { close: true };
-                        let message = ws_radio_message(WS_RADIO_EVENT_CLOSE, &message)?;
-                        let _ = client_sender.send(message).await;
-                        break;
-                    },
-                    UserEvent::OpenBrowser => {
-                        let message = FocusMessage { focus: true };
-                        let message = ws_radio_message(WS_RADIO_EVENT_FOCUS, &message)?;
-                        client_sender.send(message).await?;
-                    },
-                }
-            },
-            _ = radio_interval.tick() => {
-                let data = radio.write().get_status();
-                if previous_radio_data.as_ref() != Some(&data) {
-                    let message = ws_radio_message(WS_RADIO_EVENT_STATUS, &data)?;
-                    client_sender.send(message).await?;
-                    previous_radio_data = Some(data);
-                }
-            },
-            _ = rotator_interval.tick() => {
-                let data = rotator.write().get_status();
-                if previous_rotator_data.as_ref() != Some(&data) {
-                    let message = ws_rotator_message(WS_ROTATOR_EVENT_STATUS, &data)?;
-                    client_sender.send(message).await?;
-                    previous_rotator_data = Some(data);
-                }
-            }
-        }
-    }
-
-    let _ = server_sender
-        .send(tungstenite::Message::Close(Some(
-            tungstenite::protocol::CloseFrame {
-                code: tungstenite::protocol::frame::coding::CloseCode::Normal,
-                reason: tungstenite::Utf8Bytes::from_static("Goodbye"),
-            },
-        )))
-        .await;
-    let _ = client_sender
-        .send(Message::Close(Some(axum::extract::ws::CloseFrame {
-            code: axum::extract::ws::close_code::NORMAL,
-            reason: axum::extract::ws::Utf8Bytes::from_static("Goodbye"),
-        })))
-        .await;
-
-    Ok(())
-}
-
-async fn handle_cat_control_socket(
-    socket: WebSocket,
-    radio: AnyRadio,
-    _rotator: AnyRotator,
-    mut receiver: Receiver<UserEvent>,
-) -> Result<()> {
-    let (mut client_sender, mut client_receiver) = socket.split();
-
-    let message = InitMessage {
-        status: "connected".into(),
-        version: env!("VERSION").into(),
-    };
-    let message = Message::Text(serde_json::to_string(&message)?.into());
-    client_sender.send(message).await?;
-
-    let mut interval = tokio::time::interval(Duration::from_millis(500));
-    let mut previous_data = None;
-
-    loop {
-        tokio::select! {
-            Some(message) = client_receiver.next() => {
-                match message? {
-                    Message::Text(text) => {
-                        process_message(text.to_string(), &radio).await?;
-                        let status = radio.write().get_status();
-                        let message = Message::Text(serde_json::to_string(&status)?.into());
-                        client_sender.send(message).await?;
-                    }
-                    Message::Binary(data) => {
-                        tracing::warn!("Ignoring binary data: {data:?}");
-                    }
-                    Message::Close(_) => {
-                        break;
-                    }
-                    message => {
-                        tracing::warn!("Ignoring message: {message:?}");
-                    }
-                }
-            },
-            event = receiver.recv() => {
-                match event? {
-                    UserEvent::Quit => {
-                        #[derive(Serialize)]
-                        struct CloseMessage {
-                            close: bool,
-                        }
-
-                        let message = CloseMessage { close: true };
-                        let message = Message::Text(serde_json::to_string(&message)?.into());
-                        let _ = client_sender.send(message).await;
-                        break;
-                    },
-                    UserEvent::OpenBrowser => {
-                        #[derive(Serialize)]
-                        struct FocusMessage {
-                            focus: bool,
-                        }
-                        let message = FocusMessage { focus: true };
-                        let message = Message::Text(serde_json::to_string(&message)?.into());
-                        client_sender.send(message).await?;
-                    },
-                }
-            },
-            _ = interval.tick() => {
-                let data = radio.write().get_status();
-                if previous_data.as_ref() != Some(&data) {
-                    let message = Message::Text(serde_json::to_string(&data)?.into());
-                    client_sender.send(message).await?;
-                    previous_data = Some(data);
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-#[derive(Serialize)]
-struct InitMessage {
-    status: String,
-    version: String,
-}
-
-const WS_PROTOCOL_VERSION: u8 = 1;
-const WS_MESSAGE_TYPE_RADIO: &str = "radio";
-const WS_MESSAGE_TYPE_ROTATOR: &str = "rotator";
-const WS_RADIO_EVENT_STATUS: &str = "status";
-const WS_RADIO_EVENT_FOCUS: &str = "focus";
-const WS_RADIO_EVENT_CLOSE: &str = "close";
-const WS_ROTATOR_EVENT_STATUS: &str = "status";
-
-#[derive(Serialize)]
-struct WsServerMessage<'a, T: Serialize> {
-    version: u8,
-    #[serde(rename = "type")]
-    message_type: &'static str,
-    event: &'static str,
-    #[serde(flatten)]
-    data: &'a T,
-}
-
-#[derive(Serialize)]
-struct RadioInitMessage {
-    status: String,
-    catserver_version: String,
-}
-
-#[derive(Serialize)]
-struct CloseMessage {
-    close: bool,
-}
-
-#[derive(Serialize)]
-struct FocusMessage {
-    focus: bool,
-}
-
-#[derive(Deserialize)]
-struct WsEnvelope {
-    version: u8,
-    #[serde(rename = "type")]
-    message_type: String,
-}
-
-fn ws_radio_message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
-    let message = WsServerMessage {
-        version: WS_PROTOCOL_VERSION,
-        message_type: WS_MESSAGE_TYPE_RADIO,
-        event,
-        data,
-    };
-    Ok(Message::Text(serde_json::to_string(&message)?.into()))
-}
-
-fn ws_rotator_message<T: Serialize>(event: &'static str, data: &T) -> Result<Message> {
-    let message = WsServerMessage {
-        version: WS_PROTOCOL_VERSION,
-        message_type: WS_MESSAGE_TYPE_ROTATOR,
-        event,
-        data,
-    };
-    Ok(Message::Text(serde_json::to_string(&message)?.into()))
-}
-
-fn is_ws_radio_message(message: &str) -> bool {
-    let Ok(message) = serde_json::from_str::<WsEnvelope>(message) else {
-        return false;
-    };
-
-    message.version == WS_PROTOCOL_VERSION && message.message_type == WS_MESSAGE_TYPE_RADIO
-}
-
-fn is_ws_rotator_message(message: &str) -> bool {
-    let Ok(message) = serde_json::from_str::<WsEnvelope>(message) else {
-        return false;
-    };
-
-    message.version == WS_PROTOCOL_VERSION && message.message_type == WS_MESSAGE_TYPE_ROTATOR
-}
-
-#[derive(Deserialize)]
-struct SetModeAndFreq {
-    mode: String,
-    freq: f32,
-}
-
-#[derive(Deserialize)]
-struct SetRig {
-    rig: u8,
-}
-
-#[derive(Deserialize)]
-struct HighlightSpot {
-    dx_callsign: String,
-    de_callsign: String,
-    freq: u64,
-    mode: String,
-    udp_port: u16,
-}
-
-#[derive(Deserialize)]
-struct SetAzimuth {
-    azimuth: f64,
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "type")]
-enum ClientMessage {
-    SetRig(SetRig),
-    SetModeAndFreq(SetModeAndFreq),
-    HighlightSpot(HighlightSpot),
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "action")]
-enum WsRadioClientMessage {
-    SetRig(SetRig),
-    SetModeAndFreq(SetModeAndFreq),
-    HighlightSpot(HighlightSpot),
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "action")]
-enum WsRotatorClientMessage {
-    SetAzimuth(SetAzimuth),
-}
-
-fn is_upper_sideband(freq: f32) -> bool {
-    !(1800.0..=2000.0).contains(&freq)
-        && !(3500.0..=4000.0).contains(&freq)
-        && !(7000.0..=7300.0).contains(&freq)
-}
-
-async fn process_message(message: String, radio: &AnyRadio) -> Result<()> {
-    let Ok(message) = serde_json::from_str::<ClientMessage>(&message) else {
-        tracing::error!("Failed to parse message: {message}");
-        return Ok(());
-    };
-    process_client_message(message, radio).await
-}
-
-async fn process_ws_radio_message(message: String, radio: &AnyRadio) -> Result<()> {
-    let Ok(message) = serde_json::from_str::<WsRadioClientMessage>(&message) else {
-        tracing::error!("Failed to parse radio message: {message}");
-        return Ok(());
-    };
-    let message = match message {
-        WsRadioClientMessage::SetRig(message) => ClientMessage::SetRig(message),
-        WsRadioClientMessage::SetModeAndFreq(message) => ClientMessage::SetModeAndFreq(message),
-        WsRadioClientMessage::HighlightSpot(message) => ClientMessage::HighlightSpot(message),
-    };
-    process_client_message(message, radio).await
-}
-
-async fn process_ws_rotator_message(message: String, rotator: &AnyRotator) -> Result<()> {
-    let Ok(message) = serde_json::from_str::<WsRotatorClientMessage>(&message) else {
-        tracing::error!("Failed to parse rotator message: {message}");
-        return Ok(());
-    };
-    match message {
-        WsRotatorClientMessage::SetAzimuth(set_azimuth) => {
-            tracing::debug!("Setting azimuth to {}", set_azimuth.azimuth);
-            rotator.write().set_azimuth(set_azimuth.azimuth);
-        }
-    }
-    Ok(())
-}
-
-async fn process_client_message(message: ClientMessage, radio: &AnyRadio) -> Result<()> {
-    match message {
-        ClientMessage::SetRig(set_rig) => {
-            tracing::debug!("Setting rig to {}", set_rig.rig);
-            radio.write().set_rig(set_rig.rig);
-        }
-        ClientMessage::SetModeAndFreq(set_mode_and_freq) => {
-            let is_upper = is_upper_sideband(set_mode_and_freq.freq);
-            let mode = match (set_mode_and_freq.mode.as_str(), is_upper) {
-                ("SSB", true) => Mode::USB,
-                ("SSB", false) => Mode::LSB,
-                ("DIGI" | "FT8" | "FT4", _) => Mode::Data,
-                ("CW", _) => Mode::CW,
-                (mode, is_upper) => {
-                    bail!("Unknown mode: {mode}, is upper: {is_upper}");
-                }
-            };
-            tracing::debug!("Setting mode to {mode:?}");
-            let freq = Freq::from_f32_khz(set_mode_and_freq.freq);
-            tracing::debug!("Setting freq to {freq:?}");
-            radio.write().set_mode(mode);
-            radio.write().set_frequency(Slot::A, freq);
-        }
-        ClientMessage::HighlightSpot(message) => {
-            let mode = match message.mode.as_str() {
-                "FT8" => crate::reporting::Mode::FT8,
-                "FT4" => crate::reporting::Mode::FT4,
-                "CW" => crate::reporting::Mode::CW,
-                "SSB" => crate::reporting::Mode::Ssb,
-                "DIGI" => crate::reporting::Mode::Rtty,
-                mode => {
-                    tracing::error!("Unknown mode: {mode}");
-                    return Ok(());
-                }
-            };
-
-            let packet = crate::reporting::build_status_packet(
-                &message.dx_callsign,
-                &message.de_callsign,
-                message.freq,
-                mode,
-                "0",
-                "",
-                "",
-            );
-
-            let socket = UdpSocket::bind("127.0.0.1:0").await?;
-            socket
-                .send_to(&packet, format!("127.0.0.1:{}", message.udp_port))
-                .await
-                .with_context(|| {
-                    format!("Failed to send UDP packet to port {}", message.udp_port)
-                })?;
-        }
-    }
-    Ok(())
+        && !message.is_shutdown()
+    {}
 }

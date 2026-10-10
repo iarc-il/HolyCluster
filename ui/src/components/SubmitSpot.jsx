@@ -1,5 +1,5 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ToastContainer, toast } from "react-toastify";
 
 import CallsignInput from "@/components/CallsignInput.jsx";
@@ -12,6 +12,8 @@ import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { ReadyState, useWs, useWsMessage } from "@/hooks/useWs";
+
+export const QUICK_SPOT_EVENT = "quick-spot";
 
 function SubmitIcon({ size }) {
     const { colors } = useColors();
@@ -30,6 +32,7 @@ function SubmitIcon({ size }) {
 }
 
 const empty_temp_data = {
+    spotter_callsign: "",
     callsign: "",
     freq: 0,
     comment: "",
@@ -46,6 +49,8 @@ function SubmitSpot({ dev_mode }) {
     const { settings } = useSettings();
 
     const [external_close, set_external_close] = useState(true);
+    const [external_open, set_external_open] = useState(0);
+    const quick_spot_ref = useRef(null);
     const [is_open, set_is_open] = useState(false);
     const [is_testing, set_is_testing] = useState(false);
     let { radio_freq } = use_radio();
@@ -61,6 +66,17 @@ function SubmitSpot({ dev_mode }) {
             freq: Math.round((radio_freq / 1000 || 0) * 10) / 10,
         }));
     }, [radio_freq, is_open]);
+
+    useEffect(() => {
+        function open_quick_spot(event) {
+            quick_spot_ref.current = event.detail;
+            set_external_close(true);
+            set_external_open(value => value + 1);
+        }
+
+        document.addEventListener(QUICK_SPOT_EVENT, open_quick_spot);
+        return () => document.removeEventListener(QUICK_SPOT_EVENT, open_quick_spot);
+    }, []);
 
     useWsMessage("submit", response => {
         if (response.status === "success") {
@@ -81,10 +97,6 @@ function SubmitSpot({ dev_mode }) {
 
     const readyState = network_state === "connected" ? ReadyState.OPEN : ReadyState.CLOSED;
 
-    function reset_temp_data() {
-        set_temp_data(empty_temp_data);
-    }
-
     function is_freq_in_band_plan(freq) {
         const freq_khz = Number.parseFloat(freq);
         if (Number.isNaN(freq_khz) || freq_khz <= 0) return false;
@@ -99,7 +111,7 @@ function SubmitSpot({ dev_mode }) {
             }
             set_submit_status({ status: "sending", reason: "" });
             const message = {
-                spotter_callsign: settings.callsign,
+                spotter_callsign: temp_data.spotter_callsign,
                 dx_callsign: temp_data.callsign,
                 freq: temp_data.freq,
                 comment: temp_data.comment,
@@ -186,10 +198,16 @@ function SubmitSpot({ dev_mode }) {
                 button={<SubmitIcon size="32" />}
                 data_tour="top-bar-submit-spot"
                 dialog_data_tour="submit-spot-modal"
+                external_open={external_open}
                 on_open={() => {
                     set_is_open(true);
                     set_external_close(true);
-                    reset_temp_data();
+                    set_temp_data({
+                        ...empty_temp_data,
+                        ...(quick_spot_ref.current ?? {}),
+                        spotter_callsign: settings.callsign || "",
+                    });
+                    quick_spot_ref.current = null;
                 }}
                 on_apply={() => {
                     try_to_submit_spot();
@@ -226,12 +244,18 @@ function SubmitSpot({ dev_mode }) {
                         <tr>
                             <td>Spotter callsign:</td>
                             <td>
-                                <span
-                                    className="inline-block w-32 uppercase font-bold text-lg text-center"
+                                <CallsignInput
+                                    value={temp_data.spotter_callsign}
+                                    className="w-32"
+                                    maxLength={11}
                                     data-tour="submit-spot-spotter-callsign"
-                                >
-                                    {settings.callsign}
-                                </span>
+                                    onChange={event => {
+                                        set_temp_data({
+                                            ...temp_data,
+                                            spotter_callsign: event.target.value,
+                                        });
+                                    }}
+                                />
                             </td>
                         </tr>
                         <tr>

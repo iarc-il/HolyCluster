@@ -1,4 +1,5 @@
 import CallsignSearch from "@/components/CallsignSearch.jsx";
+import { QUICK_SPOT_EVENT } from "@/components/SubmitSpot.jsx";
 import X from "@/components/ui/X.jsx";
 import { forwardRef, useEffect, useRef, useState } from "react";
 import SpotContextMenu from "./SpotContextMenu";
@@ -20,7 +21,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
-import { get_hunter_alert_flash_phase } from "@/utils.js";
+import { get_missing_alert_flash_phase } from "@/utils.js";
 
 const cell_classes = {
     time: "w-[15%] md:w-[11%] xl:w-[8%]",
@@ -33,19 +34,19 @@ const cell_classes = {
     comment: "w-[24%] text-left hidden whitespace-normal [overflow-wrap:anywhere] xl:table-cell",
 };
 
-const HUNTER_ALERT_FLASH_COLOR_VAR = "--hunter-alert-flash-color";
-const HUNTER_ALERT_FLASH_BORDER_COLOR_VAR = "--hunter-alert-flash-border-color";
-const HUNTER_ALERT_FLASH_BG_ALPHA_VAR = "--hunter-alert-flash-bg-alpha";
-const HUNTER_ALERT_FLASH_OUTLINE_ALPHA_VAR = "--hunter-alert-flash-outline-alpha";
-const HUNTER_ALERT_FLASH_GLOW_ALPHA_VAR = "--hunter-alert-flash-glow-alpha";
-const HUNTER_ALERT_FLASH_GLOW_RADIUS_VAR = "--hunter-alert-flash-glow-radius";
-const HUNTER_ALERT_FLASH_CSS_VAR_NAMES = [
-    HUNTER_ALERT_FLASH_COLOR_VAR,
-    HUNTER_ALERT_FLASH_BORDER_COLOR_VAR,
-    HUNTER_ALERT_FLASH_BG_ALPHA_VAR,
-    HUNTER_ALERT_FLASH_OUTLINE_ALPHA_VAR,
-    HUNTER_ALERT_FLASH_GLOW_ALPHA_VAR,
-    HUNTER_ALERT_FLASH_GLOW_RADIUS_VAR,
+const MISSING_ALERT_FLASH_COLOR_VAR = "--missing-alert-flash-color";
+const MISSING_ALERT_FLASH_BORDER_COLOR_VAR = "--missing-alert-flash-border-color";
+const MISSING_ALERT_FLASH_BG_ALPHA_VAR = "--missing-alert-flash-bg-alpha";
+const MISSING_ALERT_FLASH_OUTLINE_ALPHA_VAR = "--missing-alert-flash-outline-alpha";
+const MISSING_ALERT_FLASH_GLOW_ALPHA_VAR = "--missing-alert-flash-glow-alpha";
+const MISSING_ALERT_FLASH_GLOW_RADIUS_VAR = "--missing-alert-flash-glow-radius";
+const MISSING_ALERT_FLASH_CSS_VAR_NAMES = [
+    MISSING_ALERT_FLASH_COLOR_VAR,
+    MISSING_ALERT_FLASH_BORDER_COLOR_VAR,
+    MISSING_ALERT_FLASH_BG_ALPHA_VAR,
+    MISSING_ALERT_FLASH_OUTLINE_ALPHA_VAR,
+    MISSING_ALERT_FLASH_GLOW_ALPHA_VAR,
+    MISSING_ALERT_FLASH_GLOW_RADIUS_VAR,
 ];
 const tour_table_header_height = 32;
 const tour_table_row_height = 28;
@@ -58,9 +59,9 @@ export function get_tour_row_index(spots_count, table_height) {
     return Math.min(spots_count - 1, Math.floor((visible_rows - 1) / 2));
 }
 
-const hunter_alert_callsign_style = {
-    backgroundColor: `rgb(var(${HUNTER_ALERT_FLASH_COLOR_VAR}, 239 68 68) / var(${HUNTER_ALERT_FLASH_BG_ALPHA_VAR}, 0))`,
-    boxShadow: `0 0 0 2px rgb(var(${HUNTER_ALERT_FLASH_BORDER_COLOR_VAR}, 255 255 255) / var(${HUNTER_ALERT_FLASH_OUTLINE_ALPHA_VAR}, 0)), 0 0 var(${HUNTER_ALERT_FLASH_GLOW_RADIUS_VAR}, 0) rgb(var(${HUNTER_ALERT_FLASH_COLOR_VAR}, 239 68 68) / var(${HUNTER_ALERT_FLASH_GLOW_ALPHA_VAR}, 0))`,
+const missing_alert_callsign_style = {
+    backgroundColor: `rgb(var(${MISSING_ALERT_FLASH_COLOR_VAR}, 239 68 68) / var(${MISSING_ALERT_FLASH_BG_ALPHA_VAR}, 0))`,
+    boxShadow: `0 0 0 2px rgb(var(${MISSING_ALERT_FLASH_BORDER_COLOR_VAR}, 255 255 255) / var(${MISSING_ALERT_FLASH_OUTLINE_ALPHA_VAR}, 0)), 0 0 var(${MISSING_ALERT_FLASH_GLOW_RADIUS_VAR}, 0) rgb(var(${MISSING_ALERT_FLASH_COLOR_VAR}, 239 68 68) / var(${MISSING_ALERT_FLASH_GLOW_ALPHA_VAR}, 0))`,
 };
 
 function get_rgb_channels(color, fallback) {
@@ -80,21 +81,21 @@ function get_rgb_channels(color, fallback) {
     return [r, g, b].map(channel => Number.parseInt(channel, 16)).join(" ");
 }
 
-function get_hunter_alert_flash_css_vars(colors) {
-    const phase = get_hunter_alert_flash_phase();
+function get_missing_alert_flash_css_vars(colors) {
+    const phase = get_missing_alert_flash_phase();
     return {
-        [HUNTER_ALERT_FLASH_COLOR_VAR]: get_rgb_channels(
-            colors.spots.hunter_alert_flash,
+        [MISSING_ALERT_FLASH_COLOR_VAR]: get_rgb_channels(
+            colors.spots.missing_alert_flash,
             "239 68 68",
         ),
-        [HUNTER_ALERT_FLASH_BORDER_COLOR_VAR]: get_rgb_channels(
-            colors.spots.hunter_alert_flash_border,
+        [MISSING_ALERT_FLASH_BORDER_COLOR_VAR]: get_rgb_channels(
+            colors.spots.missing_alert_flash_border,
             "255 255 255",
         ),
-        [HUNTER_ALERT_FLASH_BG_ALPHA_VAR]: String(0.12 + phase * 0.82),
-        [HUNTER_ALERT_FLASH_OUTLINE_ALPHA_VAR]: String(phase * 0.7),
-        [HUNTER_ALERT_FLASH_GLOW_ALPHA_VAR]: String(0.2 + phase * 0.7),
-        [HUNTER_ALERT_FLASH_GLOW_RADIUS_VAR]: `${2 + phase * 10}px`,
+        [MISSING_ALERT_FLASH_BG_ALPHA_VAR]: String(0.12 + phase * 0.82),
+        [MISSING_ALERT_FLASH_OUTLINE_ALPHA_VAR]: String(phase * 0.7),
+        [MISSING_ALERT_FLASH_GLOW_ALPHA_VAR]: String(0.2 + phase * 0.7),
+        [MISSING_ALERT_FLASH_GLOW_RADIUS_VAR]: `${2 + phase * 10}px`,
     };
 }
 
@@ -132,6 +133,69 @@ const columns = [
     { title: "Mode", field: "mode" },
     { title: "Comment", field: "comment", sorting: false },
 ];
+
+const lotw_status_details = {
+    frequent: {
+        label: "LoTW: active (last upload within 180 days)",
+        symbol: "✓",
+        className: "bg-emerald-700 text-white",
+    },
+    infrequent: {
+        label: "LoTW: user, last upload over 180 days ago",
+        symbol: "~",
+        className: "bg-amber-500 text-slate-950",
+    },
+    non_user: {
+        label: "LoTW: no user activity found",
+        symbol: "—",
+        className: "bg-slate-500 text-white",
+    },
+};
+
+export function get_lotw_status_details(status) {
+    return (
+        lotw_status_details[status] ?? {
+            label: "LoTW status unavailable",
+            symbol: "?",
+            className: "bg-slate-400 text-slate-950",
+        }
+    );
+}
+
+export function LoTWStatus({ status, tooltip_style }) {
+    const popup_anchor = useRef(null);
+    const [is_hovered, set_is_hovered] = useState(false);
+
+    if (status === "non_user") return null;
+
+    const { label, symbol, className } = get_lotw_status_details(status);
+
+    return (
+        <>
+            <span
+                ref={popup_anchor}
+                className={`inline-flex size-3 items-center justify-center rounded-full text-[9px] leading-none ${className}`}
+                role="img"
+                aria-label={label}
+                onMouseEnter={() => set_is_hovered(true)}
+                onMouseLeave={() => set_is_hovered(false)}
+            >
+                {symbol}
+            </span>
+            {is_hovered && (
+                <Popup anchor_ref={popup_anchor} keep_in_view={true}>
+                    <div
+                        className="py-1 px-2 rounded shadow-lg text-xs whitespace-nowrap"
+                        role="tooltip"
+                        style={tooltip_style}
+                    >
+                        {label}
+                    </div>
+                </Popup>
+            )}
+        </>
+    );
+}
 
 const pota_columns = [
     { title: "Time", field: "time" },
@@ -209,7 +273,7 @@ const Spot = forwardRef(function Spot(
     const { colors, dev_mode } = useColors();
     let row_classes;
 
-    const is_hunter_alerted = Boolean(spot.hunterNeeded?.is_needed);
+    const is_missing_alerted = Boolean(spot.missingNeeded?.is_needed);
     const is_regular_alerted = spot.is_alerted && !spot.is_dxpedition;
     const is_dxpedition_alerted = spot.is_alerted && spot.is_dxpedition;
 
@@ -244,7 +308,7 @@ const Spot = forwardRef(function Spot(
 
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
     const [is_reference_hovered, set_is_reference_hovered] = useState(false);
-    const [is_hunter_hovered, set_is_hunter_hovered] = useState(false);
+    const [is_missing_hovered, set_is_missing_hovered] = useState(false);
     const dx_label = get_dxcc_label(spot.dx_dxcc_code) || spot.dx_country || "";
     const is_us_state_entity = is_us_state_dxcc_code(spot.dx_dxcc_code);
     const is_canada_entity = is_canada_dxcc_code(spot.dx_dxcc_code);
@@ -272,7 +336,9 @@ const Spot = forwardRef(function Spot(
                 <img
                     className="m-auto"
                     width="16"
-                    src={`data:image/webp;base64, ${flag}`}
+                    src={flag}
+                    loading="lazy"
+                    decoding="async"
                     alt={`${dx_label} flag`}
                 />
                 {dx_state}
@@ -290,7 +356,7 @@ const Spot = forwardRef(function Spot(
 
     const popup_anchor = useRef(null);
     const reference_popup_anchor = useRef(null);
-    const hunter_popup_anchor = useRef(null);
+    const missing_popup_anchor = useRef(null);
     const comment = (spot.comment ?? "").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 
     return (
@@ -378,18 +444,27 @@ const Spot = forwardRef(function Spot(
                 }}
             >
                 <span
-                    ref={hunter_popup_anchor}
+                    ref={missing_popup_anchor}
                     className="relative"
                     onMouseEnter={() => {
-                        if (spot.hunterNeeded?.is_needed) set_is_hunter_hovered(true);
+                        if (spot.missingNeeded?.is_needed) set_is_missing_hovered(true);
                     }}
-                    onMouseLeave={() => set_is_hunter_hovered(false)}
+                    onMouseLeave={() => set_is_missing_hovered(false)}
                 >
-                    <span
-                        className={is_hunter_alerted ? "inline-block rounded px-1" : ""}
-                        style={is_hunter_alerted ? hunter_alert_callsign_style : undefined}
-                    >
-                        <Callsign callsign={spot.dx_callsign} />
+                    <span className="inline-flex items-center gap-1">
+                        <span
+                            className={is_missing_alerted ? "inline-block rounded px-1" : ""}
+                            style={is_missing_alerted ? missing_alert_callsign_style : undefined}
+                        >
+                            <Callsign callsign={spot.dx_callsign} />
+                        </span>
+                        <LoTWStatus
+                            status={spot.dx_lotw_status}
+                            tooltip_style={{
+                                color: colors.theme.text,
+                                background: colors.theme.background,
+                            }}
+                        />
                     </span>
                     {is_dxpedition_alerted && (
                         <span className="ml-1" title="DXpedition">
@@ -397,8 +472,8 @@ const Spot = forwardRef(function Spot(
                         </span>
                     )}
                 </span>
-                {is_hunter_hovered && spot.hunterNeeded?.is_needed && (
-                    <Popup anchor_ref={hunter_popup_anchor}>
+                {is_missing_hovered && spot.missingNeeded?.is_needed && (
+                    <Popup anchor_ref={missing_popup_anchor}>
                         <div
                             className="py-1 px-2 rounded shadow-lg max-w-xs whitespace-normal"
                             style={{
@@ -406,14 +481,14 @@ const Spot = forwardRef(function Spot(
                                 background: colors.theme.background,
                             }}
                         >
-                            {spot.hunterNeeded.reasons.slice(0, 5).map((reason, index) => (
+                            {spot.missingNeeded.reasons.slice(0, 5).map((reason, index) => (
                                 <div key={index} className="text-xs">
                                     {reason.label}
                                 </div>
                             ))}
-                            {spot.hunterNeeded.reasons.length > 5 && (
+                            {spot.missingNeeded.reasons.length > 5 && (
                                 <div className="text-xs opacity-75 mt-1">
-                                    +{spot.hunterNeeded.reasons.length - 5} more
+                                    +{spot.missingNeeded.reasons.length - 5} more
                                 </div>
                             )}
                         </div>
@@ -618,14 +693,14 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const row_refs = useRef({});
     const table_flash_ref = useRef(null);
     const [tour_row_index, set_tour_row_index] = useState(4);
-    const has_hunter_alerted_spots = spots.some(spot => spot.hunterNeeded?.is_needed);
+    const has_missing_alerted_spots = spots.some(spot => spot.missingNeeded?.is_needed);
 
     useEffect(() => {
         const element = table_flash_ref.current;
         if (!element) return;
 
-        if (!has_hunter_alerted_spots) {
-            for (const name of HUNTER_ALERT_FLASH_CSS_VAR_NAMES) {
+        if (!has_missing_alerted_spots) {
+            for (const name of MISSING_ALERT_FLASH_CSS_VAR_NAMES) {
                 element.style.removeProperty(name);
             }
             return;
@@ -637,7 +712,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         let animation_id = null;
 
         function animate() {
-            const flash_vars = get_hunter_alert_flash_css_vars(colors);
+            const flash_vars = get_missing_alert_flash_css_vars(colors);
             for (const [name, value] of Object.entries(flash_vars)) {
                 element.style.setProperty(name, value);
             }
@@ -651,7 +726,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                 cancel_frame(animation_id);
             }
         };
-    }, [has_hunter_alerted_spots, colors.spots]);
+    }, [has_missing_alerted_spots, colors.spots]);
 
     useEffect(() => {
         const element = table_flash_ref.current;
@@ -756,6 +831,24 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     window.open(`https://www.qrz.com/db/${callsign}`, "_blank");
                 },
             },
+            ...(context_menu.is_spotter
+                ? []
+                : [
+                      {
+                          label: spot => "Quick Spot",
+                          onClick: spot => {
+                              document.dispatchEvent(
+                                  new CustomEvent(QUICK_SPOT_EVENT, {
+                                      detail: {
+                                          callsign: spot.dx_callsign,
+                                          freq: spot.freq,
+                                          comment: "",
+                                      },
+                                  }),
+                              );
+                          },
+                      },
+                  ]),
             {
                 label: spot => (spot.id === pinned_spot ? "Unpin Spot" : "Pin Spot"),
                 onClick: spot => {

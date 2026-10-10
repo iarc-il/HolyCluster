@@ -1,96 +1,130 @@
-import {
-    compute_gaps,
-    fetch_gaps,
-    find_overlapping_intervals,
-    merge_and_store,
-    open_db,
-} from "@/utils/spot_cache_db.js";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ReadyState, useWs } from "@/hooks/useWs";
+import { ensure_spots_loaded, get_spots, get_version, subscribe } from "@/utils/spot_cache_db.jsx";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+
+// Matches the cache eviction cutoff in spot_cache_db.jsx — no point buffering
+// data that would just be evicted the moment it lands.
+const PREFETCH_RETENTION_MS = 5 * 86_400_000;
+const EMPTY_SNAPSHOT = { spots: [], is_complete: false };
 
 export default function useHistorySpots(startTime, endTime, window_size_ms, step_size_ms) {
-    const [raw_spots, set_raw_spots] = useState([]);
-    const [fetch_state, set_fetch_state] = useState("idle");
-    const prefetch_controllers = useRef(new Map());
+    const { send, subscribe: subscribe_ws, wait_for_open, readyState } = useWs();
+    const inflight = useRef(new Set());
+    const latest_request_ref = useRef(null);
+    const fetch_running_ref = useRef(false);
+    const chain_controller_ref = useRef(null);
 
-    const fetch_window_with_cache = useCallback(async (start_ms, end_ms, signal) => {
-        const db = await open_db();
-        const covered = await find_overlapping_intervals(db, start_ms, end_ms);
-        const gaps = compute_gaps(start_ms, end_ms, covered);
+    const start_ms = startTime ? startTime.getTime() : null;
+    const end_ms = endTime ? endTime.getTime() : null;
 
-        let all_spots;
-        if (gaps.length === 0) {
-            all_spots = covered.flatMap(r => r.spots);
-        } else {
-            const gap_results = await fetch_gaps(gaps, signal);
-            all_spots = await merge_and_store(db, covered, gap_results);
-        }
+    // Reactive sync read: version is a cheap primitive from the store, so
+    // useSyncExternalStore is happy; the actual (non-trivial) snapshot
+    // computation is memoized off it instead of recomputed every render.
+    const version = useSyncExternalStore(subscribe, get_version);
+    const snapshot = useMemo(() => {
+        if (start_ms === null || end_ms === null) return EMPTY_SNAPSHOT;
+        return get_spots(start_ms, end_ms);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [version, start_ms, end_ms]);
 
-        return all_spots.filter(s => s.time * 1000 >= start_ms && s.time * 1000 <= end_ms);
-    }, []);
-
-    const prefetch = useCallback(
-        (start_ms, end_ms) => {
-            const key = `${start_ms}:${end_ms}`;
-            if (prefetch_controllers.current.has(key)) return;
-
-            const controller = new AbortController();
-            prefetch_controllers.current.set(key, controller);
-
-            open_db()
-                .then(db => find_overlapping_intervals(db, start_ms, end_ms))
-                .then(covered => {
-                    const gaps = compute_gaps(start_ms, end_ms, covered);
-                    if (gaps.length === 0) return;
-                    return fetch_window_with_cache(start_ms, end_ms, controller.signal);
-                })
-                .catch(() => {})
-                .finally(() => {
-                    prefetch_controllers.current.delete(key);
-                });
-        },
-        [fetch_window_with_cache],
+    const ensure_loaded = useCallback(
+        (s, e, signal) => ensure_spots_loaded(send, subscribe_ws, wait_for_open, s, e, signal),
+        [send, subscribe_ws, wait_for_open],
     );
 
+    // Buffers one window at a time in a given direction — like a video
+    // player filling its buffer ahead of the playhead, each fetch only kicks
+    // off the next window once it lands, walking outward until it hits "now"
+    // (forward) or the retention cutoff (backward). No fixed window count:
+    // it keeps going, deduped against in-flight ranges, until the effect
+    // below aborts it (the range moved on) or it runs out of bound.
+    const prefetch_chain = useCallback(
+        (s, e, step_ms, direction, signal) => {
+            const key = `${s}:${e}`;
+            if (inflight.current.has(key)) return;
+            inflight.current.add(key);
+
+            ensure_loaded(s, e, signal)
+                .then(() => {
+                    if (signal.aborted) return;
+                    const next_s = s + step_ms * direction;
+                    const next_e = e + step_ms * direction;
+                    const now_ms = Date.now();
+                    if (direction > 0 && next_e > now_ms + 60_000) return;
+                    if (direction < 0 && next_s < now_ms - PREFETCH_RETENTION_MS) return;
+                    prefetch_chain(next_s, next_e, step_ms, direction, signal);
+                })
+                .catch(() => {})
+                .finally(() => inflight.current.delete(key));
+        },
+        [ensure_loaded],
+    );
+
+    // Invalidate pending work on connection loss and on unmount. The range
+    // effect below queues the desired window again when the socket reopens.
+    useEffect(
+        () => () => {
+            latest_request_ref.current = null;
+            chain_controller_ref.current?.abort();
+        },
+        [readyState],
+    );
+
+    // Only one history fetch is ever in flight at a time. A fast drag just
+    // keeps overwriting "the range we actually want" instead of firing a new
+    // WebSocket request per mousemove — when the in-flight one resolves, it
+    // immediately serves whatever is newest, skipping every intermediate
+    // position instead of piling up a burst of now-stale requests.
     useEffect(() => {
-        if (!startTime || !endTime) {
-            set_raw_spots([]);
-            set_fetch_state("idle");
+        if (
+            start_ms === null ||
+            end_ms === null ||
+            readyState === ReadyState.CLOSED ||
+            readyState === ReadyState.CLOSING
+        ) {
+            latest_request_ref.current = null;
+            chain_controller_ref.current?.abort();
             return;
         }
 
-        const start_ms = startTime.getTime();
-        const end_ms = endTime.getTime();
-        const step_ms = step_size_ms || window_size_ms || end_ms - start_ms;
+        latest_request_ref.current = {
+            start_ms,
+            end_ms,
+            step_ms: step_size_ms || window_size_ms || end_ms - start_ms,
+        };
 
-        const controller = new AbortController();
-        set_fetch_state("loading");
+        if (fetch_running_ref.current) return;
+        fetch_running_ref.current = true;
 
-        fetch_window_with_cache(start_ms, end_ms, controller.signal)
-            .then(spots => {
-                set_raw_spots(spots);
-                set_fetch_state("done");
+        (async () => {
+            while (latest_request_ref.current) {
+                const { start_ms: s, end_ms: e, step_ms: step } = latest_request_ref.current;
+                latest_request_ref.current = null;
 
-                const now_ms = Date.now();
-                const next_start = start_ms + step_ms;
-                const next_end = end_ms + step_ms;
-                const prev_start = start_ms - step_ms;
-                const prev_end = end_ms - step_ms;
+                chain_controller_ref.current?.abort();
+                const controller = new AbortController();
+                chain_controller_ref.current = controller;
 
-                if (next_end <= now_ms + 60_000) {
-                    prefetch(next_start, next_end);
+                try {
+                    await ensure_loaded(s, e, controller.signal);
+                    if (controller.signal.aborted) continue;
+                    prefetch_chain(s + step, e + step, step, 1, controller.signal);
+                    prefetch_chain(s - step, e - step, step, -1, controller.signal);
+                } catch (err) {
+                    if (err.name !== "AbortError") {
+                        console.error("Failed to fetch history spots:", err);
+                    }
                 }
-                if (prev_start >= 0) {
-                    prefetch(prev_start, prev_end);
-                }
-            })
-            .catch(err => {
-                if (err.name === "AbortError") return;
-                console.error("Failed to fetch history spots:", err);
-                set_fetch_state("error");
-            });
+            }
+            fetch_running_ref.current = false;
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [start_ms, end_ms, readyState]);
 
-        return () => controller.abort();
-    }, [startTime, endTime]);
-
-    return { raw_spots, fetch_state };
+    return {
+        raw_spots: snapshot.spots,
+        fetch_state: start_ms === null ? "idle" : snapshot.is_complete ? "done" : "loading",
+        committed_start: snapshot.is_complete ? startTime : null,
+        committed_end: snapshot.is_complete ? endTime : null,
+    };
 }

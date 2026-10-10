@@ -58,6 +58,11 @@ def test_find_band_and_mode(debug: bool = False):
     expected = ("15", "FT8", "range")
     assert result == expected, f"Expected {expected} for {test_frequency}, got {result}"
 
+    test_frequency = "7053.0"
+    result = find_band_and_mode(test_frequency, "FT2")
+    expected = ("40", "DIGI", "range")
+    assert result == expected, f"Expected {expected} for {test_frequency}, got {result}"
+
     # test for 7048.0
     test_frequency = "7048.0"
     result = find_band_and_mode(test_frequency, "")

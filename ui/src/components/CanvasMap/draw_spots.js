@@ -70,16 +70,16 @@ function draw_spot_dx(
     dx_x,
     dx_y,
     dx_size,
-    hunter_flash_phase,
-    hunter_flash_color,
+    missing_flash_phase,
+    missing_flash_color,
 ) {
-    const is_hunter_alerted = Boolean(spot.hunterNeeded?.is_needed);
+    const is_missing_alerted = Boolean(spot.missingNeeded?.is_needed);
 
-    if (is_hunter_alerted) {
+    if (is_missing_alerted) {
         context.beginPath();
-        draw_dx_shape_path(context, spot, dx_x, dx_y, dx_size + 5 + hunter_flash_phase * 5);
-        context.strokeStyle = with_alpha(hunter_flash_color, 0.45 + hunter_flash_phase * 0.45);
-        context.lineWidth = 2 + hunter_flash_phase * 2;
+        draw_dx_shape_path(context, spot, dx_x, dx_y, dx_size + 5 + missing_flash_phase * 5);
+        context.strokeStyle = with_alpha(missing_flash_color, 0.45 + missing_flash_phase * 0.45);
+        context.lineWidth = 2 + missing_flash_phase * 2;
         context.stroke();
     }
 
@@ -89,10 +89,10 @@ function draw_spot_dx(
     context.lineWidth = 1;
     draw_dx_shape_path(context, spot, dx_x, dx_y, dx_size);
     context.fill();
-    if (is_hunter_alerted) {
-        context.fillStyle = with_alpha(hunter_flash_color, 0.2 + hunter_flash_phase * 0.65);
+    if (is_missing_alerted) {
+        context.fillStyle = with_alpha(missing_flash_color, 0.2 + missing_flash_phase * 0.65);
         context.fill();
-        context.strokeStyle = with_alpha(hunter_flash_color, 0.85);
+        context.strokeStyle = with_alpha(missing_flash_color, 0.85);
         context.lineWidth = 1.5;
     }
     context.stroke();
@@ -103,7 +103,7 @@ function draw_spot(
     spot,
     colors,
     dash_offset,
-    hunter_flash_phase,
+    missing_flash_phase,
     { is_bold, path_generator, projection, is_visible },
 ) {
     const line = build_geojson_line(spot);
@@ -141,8 +141,8 @@ function draw_spot(
             dx_x,
             dx_y,
             dx_size,
-            hunter_flash_phase,
-            colors.spots?.hunter_alert_flash ?? "#ef4444",
+            missing_flash_phase,
+            colors.spots?.missing_alert_flash ?? "#ef4444",
         );
     }
 
@@ -158,6 +158,15 @@ function draw_spot(
         context.fill();
         context.stroke();
     }
+}
+
+function is_centered_on_location(projection, location) {
+    if (location == null) return false;
+    const [center_lon, center_lat] = projection.rotate().map(value => -value);
+    return (
+        Math.abs(center_lon - location[0]) < 0.000001 &&
+        Math.abs(center_lat - location[1]) < 0.000001
+    );
 }
 
 function draw_rotator_azimuth(context, dims, azimuth, color, line_width) {
@@ -206,59 +215,6 @@ function draw_rotator_azimuth(context, dims, azimuth, color, line_width) {
     context.restore();
 }
 
-function draw_home_bearing_line(context, projection, dims, colors, home_location, dx_location) {
-    if (!home_location || !dx_location) return;
-
-    const home_pos = projection(home_location);
-    const dx_pos = projection(dx_location);
-    if (!home_pos || !dx_pos) return;
-
-    const azimuth = calculate_geographic_azimuth(
-        home_location[1],
-        home_location[0],
-        dx_location[1],
-        dx_location[0],
-    );
-    const angle = (90 - azimuth) * (Math.PI / 180);
-    const direction_x = Math.cos(angle);
-    const direction_y = -Math.sin(angle);
-    const color = colors.map.home_marker || "#2563eb";
-    const head_size = 12 * dims.scale;
-    const head_angle = Math.PI / 7;
-    const tip_x = dims.center_x + dims.radius * direction_x;
-    const tip_y = dims.center_y + dims.radius * direction_y;
-    const shaft_end_x = tip_x - head_size * Math.cos(head_angle) * direction_x;
-    const shaft_end_y = tip_y - head_size * Math.cos(head_angle) * direction_y;
-    const control_x = 2 * dx_pos[0] - (home_pos[0] + shaft_end_x) / 2;
-    const control_y = 2 * dx_pos[1] - (home_pos[1] + shaft_end_y) / 2;
-    const left_angle = angle + Math.PI - head_angle;
-    const right_angle = angle + Math.PI + head_angle;
-
-    context.save();
-    context.beginPath();
-    context.moveTo(home_pos[0], home_pos[1]);
-    context.quadraticCurveTo(control_x, control_y, shaft_end_x, shaft_end_y);
-    context.strokeStyle = with_alpha(color, 0.9);
-    context.lineWidth = 2.5;
-    context.lineCap = "round";
-    context.stroke();
-
-    context.beginPath();
-    context.moveTo(tip_x, tip_y);
-    context.lineTo(
-        tip_x + head_size * Math.cos(left_angle),
-        tip_y - head_size * Math.sin(left_angle),
-    );
-    context.lineTo(
-        tip_x + head_size * Math.cos(right_angle),
-        tip_y - head_size * Math.sin(right_angle),
-    );
-    context.closePath();
-    context.fillStyle = with_alpha(color, 0.9);
-    context.fill();
-    context.restore();
-}
-
 export function draw_spots(
     context,
     spots,
@@ -272,10 +228,9 @@ export function draw_spots(
     projection,
     is_globe,
     home_location,
-    show_dev_bearings,
     rotator_azimuth,
     rotator_target_azimuth,
-    hunter_flash_phase = 0,
+    missing_flash_phase = 0,
 ) {
     const path_generator = d3.geoPath().projection(projection).context(context);
     const is_visible = is_globe ? make_visibility_check(projection) : () => true;
@@ -293,14 +248,14 @@ export function draw_spots(
         if (hovered_spot.id === spot.id || pinned_spot === spot.id) {
             bold_spots.push(spot);
         } else if (is_band_highlighted || is_freq_highlighted) {
-            draw_spot(context, spot, colors, dash_offset, hunter_flash_phase, {
+            draw_spot(context, spot, colors, dash_offset, missing_flash_phase, {
                 is_bold: true,
                 path_generator,
                 projection,
                 is_visible,
             });
         } else {
-            draw_spot(context, spot, colors, dash_offset, hunter_flash_phase, {
+            draw_spot(context, spot, colors, dash_offset, missing_flash_phase, {
                 is_bold: false,
                 path_generator,
                 projection,
@@ -343,22 +298,11 @@ export function draw_spots(
         context.setLineDash([5, 5]);
         context.stroke();
         context.setLineDash([]);
-
-        if (show_dev_bearings) {
-            draw_home_bearing_line(
-                context,
-                projection,
-                dims,
-                colors,
-                home_location,
-                azimuth_spot.dx_loc,
-            );
-        }
     }
 
     // Bold spot drawn last (on top)
     for (const spot of bold_spots) {
-        draw_spot(context, spot, colors, dash_offset, hunter_flash_phase, {
+        draw_spot(context, spot, colors, dash_offset, missing_flash_phase, {
             is_bold: true,
             path_generator,
             projection,
@@ -366,7 +310,7 @@ export function draw_spots(
         });
     }
 
-    if (!is_globe) {
+    if (!is_globe && is_centered_on_location(projection, home_location)) {
         draw_rotator_azimuth(context, dims, rotator_target_azimuth, "#facc15", 3);
         draw_rotator_azimuth(context, dims, rotator_azimuth, "#ef4444", 4);
     }

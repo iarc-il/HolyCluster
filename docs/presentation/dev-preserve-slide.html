@@ -1,0 +1,28 @@
+<script>
+(function () {
+  var key = "reveal-dev-state:" + window.location.pathname;
+
+  function save() {
+    if (window.Reveal && Reveal.getState) {
+      sessionStorage.setItem(key, JSON.stringify(Reveal.getState()));
+    }
+  }
+
+  function restore() {
+    var state = sessionStorage.getItem(key);
+    if (!state) return;
+
+    if (!window.Reveal || !Reveal.isReady || !Reveal.isReady()) {
+      setTimeout(restore, 50);
+      return;
+    }
+
+    try {
+      Reveal.setState(JSON.parse(state));
+    } catch (_) {}
+  }
+
+  window.addEventListener("beforeunload", save);
+  restore();
+}());
+</script>

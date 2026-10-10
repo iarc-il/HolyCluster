@@ -1,4 +1,4 @@
-import flags from "@/assets/flags.json";
+import flags from "virtual:flags";
 import {
     dxcc_entities_by_code,
     get_dxcc_label,

@@ -1,11 +1,12 @@
 import asyncio
 import re
+from pathlib import Path
 
-import redis.asyncio
 from loguru import logger
 
 from api.settings import settings
-from shared.metrics import push_exception_event
+from shared.logging import add_bounded_file_sink, prune_rotated_logs
+from shared.telemetry import capture_exception
 
 CLUSTER_HOST = "dxc.ai9t.com"
 CLUSTER_PORT = 7300
@@ -17,7 +18,9 @@ SUBMIT_MAX_ATTEMPTS = 5
 INITIAL_RETRY_BACKOFF_SECONDS = 0.5
 MAX_RETRY_BACKOFF_SECONDS = 4
 
-logger.add(settings.spots_log_path, level="DEBUG")
+spots_log_path = Path(settings.spots_log_path)
+prune_rotated_logs(spots_log_path.parent, max_bytes=settings.log_max_bytes, active_paths=[spots_log_path])
+add_bounded_file_sink(spots_log_path, level="INFO")
 
 
 class UserInputError(Exception):
@@ -255,7 +258,7 @@ async def submit_spot_with_retries(data):
     raise ClusterConnectionFailed()
 
 
-async def handle_spot(data, valkey: redis.asyncio.Redis):
+async def handle_spot(data):
     try:
         attempts = await submit_spot_with_retries(data)
         response = {"status": "success", "attempts": attempts}
@@ -279,12 +282,12 @@ async def handle_spot(data, valkey: redis.asyncio.Redis):
             response["phase"] = e.phase
         if should_alert_submit_failure(e):
             logger.exception(f"Failed to submit spot: {data}, Response: {response}")
-            await push_exception_event(valkey, "submit_spot", f"{e.__class__.__name__}: {e}, Spot: {data}")
+            capture_exception(e, operation="api.submit_spot")
         else:
-            logger.warning(f"Spot submit failure not alerting monitor: {data}, Response: {response}")
+            logger.warning(f"Spot submit failure: {data}, Response: {response}")
         return response
 
 
-async def handle_one_spot(websocket, valkey: redis.asyncio.Redis):
+async def handle_one_spot(websocket):
     data = await websocket.receive_json()
-    await websocket.send_json(await handle_spot(data, valkey))
+    await websocket.send_json(await handle_spot(data))

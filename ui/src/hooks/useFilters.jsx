@@ -30,8 +30,8 @@ function normalize_filter_criteria(filter) {
     } else if (type === "zone") {
         normalized.zone_system = filter.zone_system || "cq";
         normalized.value = normalize_zone_value(normalized.zone_system, filter.value);
-    } else if (type === "hunter") {
-        normalized.hunter_section = filter.hunter_section;
+    } else if (type === "missing") {
+        normalized.missing_section = filter.missing_section;
     } else if (type === "comment") {
         normalized.value = normalize_filter_text(filter.value);
     }
@@ -69,8 +69,8 @@ function is_same_filter_criteria(filter_a, filter_b) {
         return normalized_a.value === normalized_b.value;
     }
 
-    if (normalized_a.type === "hunter") {
-        return normalized_a.hunter_section === normalized_b.hunter_section;
+    if (normalized_a.type === "missing") {
+        return normalized_a.missing_section === normalized_b.missing_section;
     }
 
     return true;
@@ -128,6 +128,7 @@ export const FiltersProvider = ({ children }) => {
             filters: profile_filters,
             callsign_filters: profile_callsign_filters,
         },
+        is_temporary_profile,
         update_active_profile_data,
         update_active_profile_section,
     } = useProfiles();
@@ -141,7 +142,7 @@ export const FiltersProvider = ({ children }) => {
         set_shared_filter_state(decode_filter_state(filter_url_value));
     }, [filter_url_value]);
 
-    const is_shared_filter_state = shared_filter_state != null;
+    const is_shared_filter_state = shared_filter_state != null && !is_temporary_profile;
     const filters = is_shared_filter_state ? shared_filter_state.filters : profile_filters;
     const callsign_filters = is_shared_filter_state
         ? shared_filter_state.callsign_filters

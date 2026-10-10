@@ -1,33 +1,32 @@
-import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const websocket_mock = vi.hoisted(() => {
+    const ReadyState = { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3, UNINSTANTIATED: -1 };
     const connections = new Map();
-    const ReadyState = {
-        CONNECTING: 0,
-        OPEN: 1,
-        CLOSING: 2,
-        CLOSED: 3,
-        UNINSTANTIATED: -1,
-    };
+
+    function connection_for(url) {
+        const path = url.startsWith("/") ? url : new URL(url).pathname;
+        if (!connections.has(path)) {
+            connections.set(path, {
+                lastJsonMessage: null,
+                readyState: ReadyState.CONNECTING,
+                sendJsonMessage: vi.fn(),
+                options: null,
+                connect: false,
+            });
+        }
+        return connections.get(path);
+    }
 
     return {
         ReadyState,
         connections,
-        useWebSocket: vi.fn((url, options, connect = true) => {
-            let connection = connections.get(url);
-            if (!connection) {
-                connection = {
-                    connect,
-                    lastJsonMessage: null,
-                    options,
-                    readyState: ReadyState.CONNECTING,
-                    sendJsonMessage: vi.fn(),
-                };
-                connections.set(url, connection);
-            }
-            connection.connect = connect;
+        connection_for,
+        useWebSocket: vi.fn((url, options, connect) => {
+            const connection = connection_for(url);
             connection.options = options;
+            connection.connect = connect;
             return connection;
         }),
     };
@@ -40,26 +39,32 @@ vi.mock("react-use-websocket", () => ({
 
 import { WsProvider, useWs, useWsMessage } from "@/hooks/useWs";
 
-function connection_for(path) {
-    return [...websocket_mock.connections.entries()].find(([url]) => url.endsWith(path))?.[1];
-}
-
 function TestConsumer({ messages }) {
     const context = useWs();
-    useWsMessage("spots", message => messages.spots.push(message));
-    useWsMessage("submit", message => messages.submit.push(message));
-    useWsMessage("radio", message => messages.radio.push(message));
+    useWsMessage("radio", message => messages.push(message));
+    useWsMessage("update", message => messages.push(message));
     TestConsumer.context = context;
     return null;
 }
 
-function render_provider(messages = { radio: [], spots: [], submit: [] }) {
-    const result = render(
+function render_provider(messages = []) {
+    const view = render(
         <WsProvider>
             <TestConsumer messages={messages} />
         </WsProvider>,
     );
-    return { ...result, messages };
+    return { ...view, messages };
+}
+
+function receive(view, path, message) {
+    act(() => {
+        websocket_mock.connection_for(path).lastJsonMessage = message;
+        view.rerender(
+            <WsProvider>
+                <TestConsumer messages={view.messages} />
+            </WsProvider>,
+        );
+    });
 }
 
 describe("WebSocket transport", () => {
@@ -69,135 +74,189 @@ describe("WebSocket transport", () => {
         TestConsumer.context = null;
     });
 
-    afterEach(() => cleanup());
+    afterEach(() => {
+        cleanup();
+        vi.useRealTimers();
+    });
 
-    it("uses the unified endpoint when its handshake succeeds", () => {
-        const { rerender } = render_provider();
-        const unified = connection_for("/ws");
+    it.each(["unified", "legacy"])(
+        "uses current %s readiness from a send captured while probing",
+        async candidate => {
+            const view = render_provider();
+            const captured_send = TestConsumer.context.send;
+            const open = TestConsumer.context.wait_for_open();
+            captured_send("history", { event: "spots" });
+            const path = candidate === "unified" ? "/ws" : "/submit_spot";
+            const connection = websocket_mock.connection_for(path);
+            connection.readyState = websocket_mock.ReadyState.OPEN;
+            if (candidate === "unified") receive(view, "/radio", { status: "unavailable" });
+            else receive(view, "/radio", { status: "connected", version: "catserver-v1.2.0" });
+            await open;
+            captured_send("history", { event: "spots" });
+            expect(connection.sendJsonMessage).toHaveBeenCalledWith({
+                version: 1,
+                type: "history",
+                event: "spots",
+            });
+            connection.readyState = websocket_mock.ReadyState.CLOSED;
+            receive(view, path, null);
+            expect(captured_send("history", { event: "spots" })).toBe(false);
+            expect(connection.sendJsonMessage).toHaveBeenCalledTimes(1);
+        },
+    );
+
+    it.each(["abort", "timeout", "unmount"])("settles an opening waiter on %s", async reason => {
+        vi.useFakeTimers();
+        const view = render_provider();
+        const controller = new AbortController();
+        const pending = TestConsumer.context.wait_for_open(controller.signal);
+        const rejection = expect(pending).rejects.toThrow(
+            reason === "timeout" ? "timed out" : "Aborted",
+        );
+        if (reason === "abort") controller.abort();
+        else if (reason === "unmount") view.unmount();
+        else await vi.advanceTimersByTimeAsync(10_000);
+        await rejection;
+        if (reason !== "unmount") view.unmount();
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("delivers the update handoff before an immediate transport close", () => {
+        const view = render_provider();
+        receive(view, "/ws", {
+            type: "radio",
+            event: "status",
+            catserver_version: "catserver-v1.3.0",
+        });
+        const connection = websocket_mock.connection_for("/ws");
+        const handoff = {
+            version: 1,
+            type: "update",
+            event: "restarting",
+            session: { id: "transaction" },
+        };
+        act(() => {
+            connection.options.onMessage?.({ data: JSON.stringify(handoff) });
+            connection.options.onClose();
+        });
+        receive(view, "/ws", handoff);
+        expect(view.messages.filter(message => message.type === "update")).toEqual([handoff]);
+    });
+
+    it("selects unified transport for the direct backend identity", () => {
+        const view = render_provider();
+        const unified = websocket_mock.connection_for("/ws");
+        const legacy_radio = websocket_mock.connection_for("/radio");
+        const legacy_spots = websocket_mock.connection_for("/submit_spot");
+
+        expect(TestConsumer.context.transport).toBe("probing");
+        expect(unified.connect).toBe(true);
+        expect(legacy_radio.connect).toBe(true);
+        expect(legacy_spots.connect).toBe(false);
 
         unified.readyState = websocket_mock.ReadyState.OPEN;
-        act(() => unified.options.onOpen());
-        rerender(
-            <WsProvider>
-                <TestConsumer messages={{ radio: [], spots: [], submit: [] }} />
-            </WsProvider>,
-        );
+        receive(view, "/radio", { status: "unavailable" });
 
-        act(() => TestConsumer.context.send("spots", { action: "initial" }));
+        expect(TestConsumer.context.transport).toBe("unified");
+        expect(legacy_radio.connect).toBe(false);
+        expect(view.messages).toEqual([
+            {
+                version: 1,
+                type: "radio",
+                event: "status",
+                status: "unavailable",
+            },
+        ]);
 
+        act(() => TestConsumer.context.send("radio", { action: "GetCapabilities" }));
         expect(unified.sendJsonMessage).toHaveBeenCalledWith({
             version: 1,
-            type: "spots",
-            action: "initial",
+            type: "radio",
+            action: "GetCapabilities",
         });
-        expect(connection_for("/spots_ws").connect).toBe(false);
-        expect(connection_for("/submit_spot").connect).toBe(false);
-        expect(connection_for("/radio").connect).toBe(false);
     });
 
-    it("does not downgrade an established unified connection", () => {
-        const { messages, rerender } = render_provider();
-        const unified = connection_for("/ws");
+    it("selects unified transport for a current CAT identity", () => {
+        const view = render_provider();
+        const unified = websocket_mock.connection_for("/ws");
+        const legacy_radio = websocket_mock.connection_for("/radio");
 
         unified.readyState = websocket_mock.ReadyState.OPEN;
-        act(() => unified.options.onOpen());
-        rerender(
-            <WsProvider>
-                <TestConsumer messages={messages} />
-            </WsProvider>,
-        );
-
-        unified.readyState = websocket_mock.ReadyState.CLOSED;
-        act(() => unified.options.onClose());
-        rerender(
-            <WsProvider>
-                <TestConsumer messages={messages} />
-            </WsProvider>,
-        );
-
-        expect(unified.connect).toBe(true);
-        expect(connection_for("/spots_ws").connect).toBe(false);
-        expect(connection_for("/submit_spot").connect).toBe(false);
-        expect(connection_for("/radio").connect).toBe(false);
-    });
-
-    it("falls back when the unified handshake stalls", async () => {
-        render_provider();
-
-        await waitFor(
-            () => {
-                expect(connection_for("/ws").connect).toBe(false);
-            },
-            { timeout: 2000 },
-        );
-
-        expect(connection_for("/spots_ws").connect).toBe(true);
-        expect(connection_for("/submit_spot").connect).toBe(true);
-        expect(connection_for("/radio").connect).toBe(true);
-    });
-
-    it("falls back to and translates the catserver v1.2.0 endpoints", () => {
-        const { messages, rerender } = render_provider();
-        const unified = connection_for("/ws");
-
-        act(() => unified.options.onClose());
-        rerender(
-            <WsProvider>
-                <TestConsumer messages={messages} />
-            </WsProvider>,
-        );
-
-        const spots = connection_for("/spots_ws");
-        const submit = connection_for("/submit_spot");
-        const radio = connection_for("/radio");
-        spots.readyState = websocket_mock.ReadyState.OPEN;
-        submit.readyState = websocket_mock.ReadyState.OPEN;
-        radio.readyState = websocket_mock.ReadyState.OPEN;
-        rerender(
-            <WsProvider>
-                <TestConsumer messages={messages} />
-            </WsProvider>,
-        );
-
-        act(() => {
-            TestConsumer.context.send("spots", { action: "initial" });
-            TestConsumer.context.send("spots", { action: "catch_up", last_time: 123 });
-            TestConsumer.context.send("submit", { dx_callsign: "K1ABC", freq: 14074 });
-            TestConsumer.context.send("radio", { action: "SetRig", rig: 2 });
-        });
-
-        expect(spots.sendJsonMessage).toHaveBeenNthCalledWith(1, { initial: true });
-        expect(spots.sendJsonMessage).toHaveBeenNthCalledWith(2, { last_time: 123 });
-        expect(submit.sendJsonMessage).toHaveBeenCalledWith({ dx_callsign: "K1ABC", freq: 14074 });
-        expect(radio.sendJsonMessage).toHaveBeenCalledWith({ type: "SetRig", rig: 2 });
-
-        spots.lastJsonMessage = { type: "update", spots: [{ dx_callsign: "K1ABC" }] };
-        submit.lastJsonMessage = { status: "failure", type: "InvalidFrequency" };
-        radio.lastJsonMessage = { status: "connected", version: "catserver-v1.2.0" };
-        rerender(
-            <WsProvider>
-                <TestConsumer messages={messages} />
-            </WsProvider>,
-        );
-
-        expect(messages.spots).toContainEqual({
-            version: 1,
-            type: "spots",
-            event: "update",
-            spots: [{ dx_callsign: "K1ABC" }],
-        });
-        expect(messages.submit).toContainEqual({
-            version: 1,
-            type: "submit",
-            status: "failure",
-            error_type: "InvalidFrequency",
-        });
-        expect(messages.radio).toContainEqual({
+        receive(view, "/ws", {
             version: 1,
             type: "radio",
             event: "status",
             status: "connected",
-            catserver_version: "catserver-v1.2.0",
+            catserver_version: "catserver-v1.2.0-1848-gabcdef",
         });
+
+        expect(TestConsumer.context.transport).toBe("unified");
+        expect(legacy_radio.connect).toBe(false);
+        expect(view.messages).toHaveLength(1);
+    });
+
+    it("falls back to unified transport when neither probe identifies itself", () => {
+        vi.useFakeTimers();
+        const view = render_provider();
+        const unified = websocket_mock.connection_for("/ws");
+        const legacy_radio = websocket_mock.connection_for("/radio");
+
+        act(() => vi.advanceTimersByTime(1500));
+
+        expect(TestConsumer.context.transport).toBe("unified");
+        expect(unified.connect).toBe(true);
+        expect(legacy_radio.connect).toBe(false);
+        view.unmount();
+    });
+
+    it("selects legacy CAT only after receiving its versioned identity", () => {
+        const view = render_provider();
+        const unified = websocket_mock.connection_for("/ws");
+        const legacy_radio = websocket_mock.connection_for("/radio");
+        const legacy_spots = websocket_mock.connection_for("/submit_spot");
+
+        legacy_radio.readyState = websocket_mock.ReadyState.OPEN;
+        receive(view, "/radio", {
+            status: "connected",
+            version: "catserver-v1.2.0",
+        });
+
+        expect(TestConsumer.context.transport).toBe("cat_v1_2");
+        expect(unified.connect).toBe(false);
+        expect(legacy_spots.connect).toBe(true);
+        expect(view.messages).toEqual([
+            {
+                version: 1,
+                type: "radio",
+                event: "status",
+                status: "connected",
+                catserver_version: "catserver-v1.2.0",
+            },
+        ]);
+
+        act(() => TestConsumer.context.send("radio", { action: "SetRig", rig: 2 }));
+        expect(legacy_radio.sendJsonMessage).toHaveBeenCalledWith({ type: "SetRig", rig: 2 });
+    });
+
+    it("returns to parallel probing when the selected transport closes", () => {
+        const view = render_provider();
+        const unified = websocket_mock.connection_for("/ws");
+        const legacy_radio = websocket_mock.connection_for("/radio");
+
+        unified.readyState = websocket_mock.ReadyState.OPEN;
+        receive(view, "/ws", {
+            version: 1,
+            type: "radio",
+            event: "status",
+            status: "connected",
+            catserver_version: "catserver-v1.2.1",
+        });
+        expect(TestConsumer.context.transport).toBe("unified");
+
+        act(() => unified.options.onClose());
+
+        expect(TestConsumer.context.transport).toBe("probing");
+        expect(unified.connect).toBe(true);
+        expect(legacy_radio.connect).toBe(true);
     });
 });

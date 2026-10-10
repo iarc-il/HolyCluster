@@ -27,7 +27,7 @@ class PropagationMeasurement(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     metric: str
-    timestamp: int = Field(index=True)
+    timestamp: int
     value: float
     collected_at: datetime
 
@@ -64,6 +64,7 @@ class HolySpot(SQLModel, table=True):
     dx_state: str
     dx_cq_zone: Optional[int] = None
     dx_itu_zone: Optional[int] = None
+    dx_lotw_status: Optional[str] = None
     pota_reference: Optional[str] = None
     pota_name: Optional[str] = None
     pota_description: Optional[str] = None
