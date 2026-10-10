@@ -141,6 +141,12 @@ fi
 echo "Services to rebuild: $SERVICE_LIST"
 
 if [ "$COMPOSE_FILE_CHANGED" = true ]; then
+    docker compose config --quiet
+    COMPOSE_ENVIRONMENT=$(docker compose config --environment)
+    PROXY_NETWORK_NAME=$(printf '%s\n' "$COMPOSE_ENVIRONMENT" | sed -n 's/^PROXY_NETWORK=//p')
+    # Match the proxy network's ${PROXY_NETWORK:-holycluster-proxy} Compose expression.
+    PROXY_NETWORK_NAME="${PROXY_NETWORK_NAME:-holycluster-proxy}"
+    docker network inspect "$PROXY_NETWORK_NAME" >/dev/null
     migrate_legacy_compose_containers
 fi
 
