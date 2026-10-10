@@ -143,6 +143,18 @@ function TemporaryProfileHarness() {
             <button type="button" onClick={stop_temporary_profile}>
                 Stop Temporary Profile
             </button>
+            <button
+                type="button"
+                onClick={() => {
+                    stop_temporary_profile();
+                    update_active_profile_section("settings", settings => ({
+                        ...settings,
+                        callsign: "LATE-TOUR-CALL",
+                    }));
+                }}
+            >
+                Stop And Update Temporary Profile
+            </button>
         </div>
     );
 }
@@ -291,6 +303,34 @@ describe("profile provider integration", () => {
         const stored_profiles = JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY));
         expect(stored_profiles.profiles).toHaveLength(1);
         expect(stored_profiles.profiles[0].data.settings.callsign).toBe("USER-CALL");
+    });
+
+    it("discards a temporary profile update queued after stopping the tour", async () => {
+        const user = userEvent.setup();
+        write_profile_store({
+            profiles: [
+                {
+                    name: "Default",
+                    data: create_profile_data({ settings: { callsign: "USER-CALL" } }),
+                },
+            ],
+        });
+
+        render_with_router(
+            <ProfilesProvider>
+                <TemporaryProfileHarness />
+            </ProfilesProvider>,
+        );
+        const saved_store = window.localStorage.getItem(PROFILE_STORE_KEY);
+
+        await user.click(screen.getByText("Start Temporary Profile"));
+        expect(screen.getByTestId("active-name").textContent).toBe("Tour");
+
+        await user.click(screen.getByText("Stop And Update Temporary Profile"));
+
+        expect(screen.getByTestId("active-name").textContent).toBe("Default");
+        expect(screen.getByTestId("callsign").textContent).toBe("USER-CALL");
+        expect(window.localStorage.getItem(PROFILE_STORE_KEY)).toBe(saved_store);
     });
 
     it("clears shared filter URLs only when the active profile actually switches", async () => {

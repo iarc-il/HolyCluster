@@ -144,12 +144,17 @@ function PersistentProfilesProvider({ children, initial_profile_store }) {
 
     function update_profile_store(value_or_setter) {
         if (temporary_profile_store != null) {
-            set_temporary_profile_store(current_store =>
-                sanitize_profile_store(
+            set_temporary_profile_store(current_store => {
+                // The tour can end before this queued update runs.
+                if (current_store == null) {
+                    return current_store;
+                }
+
+                return sanitize_profile_store(
                     apply_setter_value(current_store, value_or_setter),
                     fallback_profile_data,
-                ),
-            );
+                );
+            });
             return;
         }
 
