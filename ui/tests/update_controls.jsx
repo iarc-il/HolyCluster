@@ -172,6 +172,27 @@ describe("CAT Control updates", () => {
         },
     );
 
+    it("refreshes availability when the connected CAT version changes", async () => {
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(response({ state: "available", available_version: "1.3.1" }))
+            .mockResolvedValue(response({ state: "idle" }));
+        vi.stubGlobal("fetch", fetch);
+        const view = render_updates();
+        expect(await screen.findByRole("dialog")).not.toBeNull();
+        cat.current = { ...cat.current, local_version: [1, 3, 1, 0] };
+        view.rerender(
+            <UpdateProvider>
+                <UpdateConsentDialog />
+                <UpdateControls />
+                <UtilityButtons />
+            </UpdateProvider>,
+        );
+        await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+        expect(within(screen.getByRole("link", { name: "CAT" })).queryByText("!")).toBeNull();
+        expect(fetch).toHaveBeenCalledTimes(3);
+    });
+
     it("checks automatically after a previous update was installed", async () => {
         const fetch = vi
             .fn()

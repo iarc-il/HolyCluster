@@ -202,6 +202,7 @@ export function UpdateProvider({ children }) {
     const [dialog_open, set_dialog_open] = useState(false);
     const update_dev_mode = Boolean(dev_mode && allow_same_version);
     const supported = supports_cat_feature(local_version, NATIVE_UPDATER_MIN_VERSION);
+    const local_version_key = local_version?.join(".") ?? null;
     const [session, set_session_state] = useState(null);
     const session_ref = useRef(null);
     const dismissed_sessions_ref = useRef(new Set());
@@ -326,7 +327,7 @@ export function UpdateProvider({ children }) {
         refresh();
         const interval = window.setInterval(refresh, UPDATE_CHECK_INTERVAL_MS);
         return () => window.clearInterval(interval);
-    }, [supported, refresh]);
+    }, [supported, local_version_key, refresh]);
 
     useEffect(() => {
         if (!session?.started || terminal_session(session)) return;
