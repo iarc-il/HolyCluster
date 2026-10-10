@@ -49,11 +49,7 @@ impl UserEvent {
     }
 
     pub(crate) fn update_shutdown() -> Self {
-        if cfg!(windows) {
-            Self::RestartForUpdate
-        } else {
-            Self::Quit
-        }
+        Self::RestartForUpdate
     }
 }
 

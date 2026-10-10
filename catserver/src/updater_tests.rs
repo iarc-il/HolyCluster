@@ -382,6 +382,45 @@ fn clears_satisfied_abandoned_linux_install_but_preserves_uncertain_owners() {
     }
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_shutdown_requires_a_new_matching_non_downgrade_install_request() {
+    use crate::{tray_icon::UserEvent, updater::pending_linux_plan};
+    let dir =
+        std::env::temp_dir().join(format!("catserver-linux-shutdown-{}", uuid::Uuid::new_v4()));
+    let mut plan = linux_install_fixture(&dir, "1.3.1", std::process::id());
+    assert!(
+        pending_linux_plan(&dir, "1.2.0", UserEvent::Quit)
+            .unwrap()
+            .is_none()
+    );
+    assert!(pending_linux_plan(&dir, "1.2.0", UserEvent::RestartForUpdate).is_err()); // Legacy plan lacks version.
+    plan["version"] = "1.3.1".into();
+    fs::write(dir.join("install-plan.json"), plan.to_string()).unwrap();
+    assert!(
+        pending_linux_plan(&dir, "1.2.0", UserEvent::RestartForUpdate)
+            .unwrap()
+            .is_some()
+    );
+    assert!(pending_linux_plan(&dir, "1.4.0", UserEvent::RestartForUpdate).is_err());
+    assert!(pending_linux_plan(&dir, "1.3.1", UserEvent::RestartForUpdate).is_err());
+    plan["reinstall"] = true.into();
+    fs::write(dir.join("install-plan.json"), plan.to_string()).unwrap();
+    assert!(
+        pending_linux_plan(&dir, "1.3.1", UserEvent::RestartForUpdate)
+            .unwrap()
+            .is_some()
+    );
+    plan["parent_pid"] = u32::MAX.into();
+    fs::write(dir.join("install-plan.json"), plan.to_string()).unwrap();
+    assert!(pending_linux_plan(&dir, "1.2.0", UserEvent::RestartForUpdate).is_err());
+    plan["parent_pid"] = std::process::id().into();
+    plan["version"] = "1.3.2".into();
+    fs::write(dir.join("install-plan.json"), plan.to_string()).unwrap();
+    assert!(pending_linux_plan(&dir, "1.2.0", UserEvent::RestartForUpdate).is_err());
+    fs::remove_dir_all(dir).unwrap();
+}
+
 #[test]
 fn quotes_windows_arguments_only_when_needed() {
     let quote = |value: &str| {

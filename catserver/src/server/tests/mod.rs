@@ -21,7 +21,7 @@ use axum::Router;
 
 struct TestServer {
     address: SocketAddr,
-    task: tokio::task::JoinHandle<()>,
+    task: tokio::task::JoinHandle<Option<UserEvent>>,
 }
 
 impl Drop for TestServer {
@@ -106,6 +106,7 @@ async fn spawn_app(app: Router) -> TestServer {
     let address = listener.local_addr().unwrap();
     let task = tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
+        None
     });
     TestServer { address, task }
 }
@@ -141,8 +142,6 @@ async fn spawn_catserver_with_restart(
     .await
     .unwrap();
     let address = server.listener.local_addr().unwrap();
-    let task = tokio::spawn(async move {
-        server.run_server().await.unwrap();
-    });
+    let task = tokio::spawn(async move { Some(server.run_server().await.unwrap()) });
     (TestServer { address, task }, sender)
 }

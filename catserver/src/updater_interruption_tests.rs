@@ -296,6 +296,40 @@ fn startup_preserves_install_state_when_procfs_or_metadata_is_uncertain() {
 
 #[cfg(target_os = "linux")]
 #[test]
+fn linux_install_preparation_does_not_authorize_ordinary_shutdown() {
+    if exec_test_in_child(
+        "updater::interruption_tests::linux_install_preparation_does_not_authorize_ordinary_shutdown",
+    ) {
+        return;
+    }
+    use crate::tray_icon::UserEvent;
+    let fixture = Fixture::new();
+    let service = fixture.service();
+    write_json(&service.plan_path(), &fixture.plan()).unwrap();
+    assert!(service.start_install().is_err());
+    service
+        .write_status(&UpdateStatus {
+            state: UpdateState::Downloaded,
+            available_version: Some("1.3.0".into()),
+            diagnostic: None,
+        })
+        .unwrap();
+    service.start_install().unwrap();
+    assert_eq!(service.status().state, UpdateState::Installing);
+    assert!(
+        pending_linux_plan(&fixture.0, "1.2.0", UserEvent::Quit)
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        pending_linux_plan(&fixture.0, "1.2.0", UserEvent::update_shutdown())
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[cfg(target_os = "linux")]
+#[test]
 fn singleton_does_not_escape_into_browser_child() {
     if exec_test_in_child(
         "updater::interruption_tests::singleton_does_not_escape_into_browser_child",

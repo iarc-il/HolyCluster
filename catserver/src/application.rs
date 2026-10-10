@@ -125,11 +125,11 @@ pub fn run(args: Args) -> Result<()> {
         }
     };
     instance_port::clear(&port_file)?;
-    result?;
+    let shutdown_reason = result?;
     // Keep singleton ownership while Linux prepares and activates the update.
     // Successful exec releases the close-on-exec lock; failed exec retains it
     // until rollback has completed. Windows helpers still wait for parent exit.
-    crate::updater::exec_pending_update()?;
+    crate::updater::exec_pending_update(shutdown_reason)?;
     drop(instance);
     Ok(())
 }
@@ -197,7 +197,7 @@ async fn run_singleton(
     use_local_ui: bool,
     use_dummy_rotator: bool,
     restart: Option<crate::updater::RestartContext>,
-) -> Result<()> {
+) -> Result<UserEvent> {
     let snapshot = radio.snapshot();
     let selected = snapshot.selected.clone();
     let factory = radio_factory::factory(snapshot.config.clone(), selected.clone());
@@ -241,7 +241,7 @@ async fn run_singleton(
             result = &mut building => break result?,
             event = receiver.recv() => {
                 if matches!(event, Ok(event) if event.is_shutdown()) {
-                    return Ok(());
+                    return Ok(UserEvent::Quit);
                 }
             }
         }

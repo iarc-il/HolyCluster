@@ -10,15 +10,18 @@ use tokio_tungstenite::{
 use super::{UserEvent, spawn_app, spawn_catserver_with_events};
 
 #[tokio::test]
+async fn shutdown_returns_the_explicit_reason() {
+    for reason in [UserEvent::Quit, UserEvent::RestartForUpdate] {
+        let (sender, receiver) = tokio::sync::broadcast::channel(10);
+        sender.send(UserEvent::OpenBrowser).unwrap();
+        sender.send(reason.clone()).unwrap();
+        assert_eq!(super::super::shutdown(receiver).await, reason);
+    }
+}
+
+#[tokio::test]
 async fn shutdown_distinguishes_update_restart_from_user_quit() {
-    assert_eq!(
-        UserEvent::update_shutdown(),
-        if cfg!(windows) {
-            UserEvent::RestartForUpdate
-        } else {
-            UserEvent::Quit
-        }
-    );
+    assert_eq!(UserEvent::update_shutdown(), UserEvent::RestartForUpdate);
     let upstream = spawn_app(Router::new().route(
         "/ws",
         get(|websocket: WebSocketUpgrade| async move {
@@ -102,9 +105,10 @@ async fn shutdown_distinguishes_update_restart_from_user_quit() {
             assert!(closes_page, "ordinary Quit did not close the browser page");
             assert_eq!(close_code, CloseCode::Normal);
         }
-        tokio::time::timeout(Duration::from_secs(3), &mut catserver.task)
+        let reason = tokio::time::timeout(Duration::from_secs(3), &mut catserver.task)
             .await
             .expect("shutdown did not stop the local HTTP server")
             .unwrap();
+        assert_eq!(reason, Some(intent));
     }
 }

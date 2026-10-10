@@ -141,11 +141,16 @@ impl Server {
         Ok(self.listener.local_addr()?.port())
     }
 
-    pub async fn run_server(self) -> Result<()> {
+    pub async fn run_server(self) -> Result<UserEvent> {
+        let receiver = self.sender.subscribe();
+        let (reason_sender, reason_receiver) = tokio::sync::oneshot::channel();
         axum::serve(protect_listener(self.listener), self.app)
-            .with_graceful_shutdown(shutdown(self.sender.subscribe()))
+            .with_graceful_shutdown(async move {
+                let reason = shutdown(receiver).await;
+                let _ = reason_sender.send(reason);
+            })
             .await?;
-        Ok(())
+        Ok(reason_receiver.await.unwrap_or(UserEvent::Quit))
     }
 }
 
@@ -180,8 +185,11 @@ fn find_ui_dir() -> Result<PathBuf> {
     }
 }
 
-async fn shutdown(mut receiver: Receiver<UserEvent>) {
-    while let Ok(message) = receiver.recv().await
-        && !message.is_shutdown()
-    {}
+async fn shutdown(mut receiver: Receiver<UserEvent>) -> UserEvent {
+    while let Ok(message) = receiver.recv().await {
+        if message.is_shutdown() {
+            return message;
+        }
+    }
+    UserEvent::Quit
 }

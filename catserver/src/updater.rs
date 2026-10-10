@@ -1022,19 +1022,62 @@ pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn exec_pending_update() -> Result<()> {
+pub fn exec_pending_update(reason: crate::tray_icon::UserEvent) -> Result<()> {
     let project_dirs = ProjectDirs::from("org", "IARC", "HolyCluster")
         .context("cannot determine update data directory")?;
     let data_dir = project_dirs.data_local_dir().join("updates");
-    let state_path = data_dir.join("state.json");
-    if read_status(&state_path).unwrap_or_default().state != UpdateState::Installing {
-        return Ok(());
+    if let Some(plan) = pending_linux_plan(&data_dir, env!("VERSION"), reason)? {
+        run_helper(&plan)?;
     }
-    run_helper(&data_dir.join("install-plan.json"))
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn pending_linux_plan(
+    data_dir: &Path,
+    current_version: &str,
+    reason: crate::tray_icon::UserEvent,
+) -> Result<Option<PathBuf>> {
+    // Persisted status alone must never authorize activation on normal exit.
+    if reason != crate::tray_icon::UserEvent::RestartForUpdate {
+        return Ok(None);
+    }
+    let state_path = data_dir.join("state.json");
+    let status = read_status(&state_path)?;
+    anyhow::ensure!(
+        status.state == UpdateState::Installing,
+        "install request lost its state"
+    );
+    let plan_path = data_dir.join("install-plan.json");
+    let plan: InstallPlan = serde_json::from_slice(&fs::read(&plan_path)?)?;
+    let target = parse_version(
+        plan.version
+            .as_deref()
+            .context("install plan has no version")?,
+    )?;
+    let current = parse_version(current_version)?;
+    anyhow::ensure!(
+        plan.parent_pid == std::process::id() && plan.state_path == state_path,
+        "install plan does not belong to this process"
+    );
+    anyhow::ensure!(
+        status
+            .available_version
+            .as_deref()
+            .map(parse_version)
+            .transpose()?
+            == Some(target.clone()),
+        "install plan and status target versions differ"
+    );
+    anyhow::ensure!(
+        target > current || (target == current && plan.reinstall),
+        "install plan would downgrade or reinstall without consent"
+    );
+    Ok(Some(plan_path))
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn exec_pending_update() -> Result<()> {
+pub fn exec_pending_update(_reason: crate::tray_icon::UserEvent) -> Result<()> {
     Ok(())
 }
 
