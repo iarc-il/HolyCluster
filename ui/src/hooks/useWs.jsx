@@ -1,3 +1,4 @@
+import { recordDiagnosticAction } from "@/sentry";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 
@@ -239,6 +240,7 @@ export function WsProvider({ children }) {
     }, []);
 
     const send = useCallback((type, data) => {
+        if (type === "radio" || type === "rotator") recordDiagnosticAction(data?.action);
         const {
             transport,
             compatibility_radio_ready_state,

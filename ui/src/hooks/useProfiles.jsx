@@ -1,3 +1,4 @@
+import { recordDiagnosticAction } from "@/sentry";
 import { FILTER_URL_PARAM } from "@/utils/filter_url_state.js";
 import {
     PROFILE_STORE_KEY,
@@ -169,6 +170,7 @@ function PersistentProfilesProvider({ children, initial_profile_store }) {
     }
 
     function start_temporary_profile() {
+        recordDiagnosticAction("tour_started");
         set_temporary_profile_store({
             version: PROFILE_STORE_VERSION,
             active_profile_name: TOUR_PROFILE_NAME,
@@ -182,6 +184,7 @@ function PersistentProfilesProvider({ children, initial_profile_store }) {
     }
 
     function stop_temporary_profile() {
+        recordDiagnosticAction("tour_stopped");
         set_temporary_profile_store(null);
     }
 
@@ -191,6 +194,7 @@ function PersistentProfilesProvider({ children, initial_profile_store }) {
             profile_store.profiles.some(profile => profile.name === name)
         ) {
             should_clear_filter_url_ref.current = true;
+            recordDiagnosticAction("profile_switched");
         }
 
         update_profile_store(store => {
