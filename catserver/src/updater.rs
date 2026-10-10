@@ -531,6 +531,7 @@ impl UpdateService {
         return self.start_windows_helper(&installing);
         #[cfg(not(windows))]
         {
+            #[cfg(target_os = "linux")]
             close_inherited_descriptors_on_exec()?;
             self.write_status(&installing)
         }
@@ -962,11 +963,6 @@ pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
             return Err(io::Error::last_os_error().into());
         }
     }
-    Ok(())
-}
-
-#[cfg(all(not(target_os = "linux"), not(windows)))]
-pub(crate) fn close_inherited_descriptors_on_exec() -> Result<()> {
     Ok(())
 }
 

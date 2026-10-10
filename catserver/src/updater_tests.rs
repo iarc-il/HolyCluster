@@ -6,7 +6,7 @@ use std::{fs, io, io::Cursor, path::Path};
 
 use reqwest::Url;
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 use crate::updater::close_inherited_descriptors_on_exec;
 #[cfg(unix)]
 use crate::updater::make_executable;

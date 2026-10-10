@@ -257,6 +257,58 @@ fn second_launch_probe() {
 
 #[cfg(target_os = "linux")]
 #[test]
+fn singleton_does_not_escape_into_browser_child() {
+    if exec_test_in_child(
+        "updater::interruption_tests::singleton_does_not_escape_into_browser_child",
+    ) {
+        return;
+    }
+    let name = format!("HolyCluster-child-test-{}", uuid::Uuid::new_v4());
+    let owner = single_instance::SingleInstance::new(&name).unwrap();
+    assert!(owner.is_single());
+    close_inherited_descriptors_on_exec().unwrap();
+    let mut child = Command::new("/bin/sh")
+        .args(["-c", "read line"])
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(owner);
+    let released = single_instance::SingleInstance::new(&name)
+        .unwrap()
+        .is_single();
+    let _ = child.kill();
+    child.wait().unwrap();
+    assert!(released);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn singleton_is_released_on_successful_exec() {
+    const TEST: &str = "updater::interruption_tests::singleton_is_released_on_successful_exec";
+    if let Ok(name) = std::env::var("HOLY_UPDATE_EXEC_RELEASE_PROBE") {
+        assert!(
+            single_instance::SingleInstance::new(&name)
+                .unwrap()
+                .is_single()
+        );
+        return;
+    }
+    if exec_test_in_child(TEST) {
+        return;
+    }
+    let name = format!("HolyCluster-exec-test-{}", uuid::Uuid::new_v4());
+    let owner = single_instance::SingleInstance::new(&name).unwrap();
+    assert!(owner.is_single());
+    close_inherited_descriptors_on_exec().unwrap();
+    let error = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", TEST])
+        .env("HOLY_UPDATE_EXEC_RELEASE_PROBE", name)
+        .exec();
+    panic!("exec failed: {error}");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
 fn failed_preparation_backup_and_activation_leave_old_launcher() {
     let fixture = Fixture::new();
     let plan = fixture.plan();

@@ -36,6 +36,9 @@ pub fn run(args: Args) -> Result<()> {
         return crate::updater::run_helper(plan);
     }
     let instance = SingleInstance::new(INSTANCE_NAME)?;
+    // single-instance's Linux socket must not escape into the browser process.
+    #[cfg(target_os = "linux")]
+    crate::updater::close_inherited_descriptors_on_exec()?;
     tracing::info!("Version tag: {}", env!("VERSION"));
     let port_file = instance_port::path()?;
     if !instance.is_single() {
