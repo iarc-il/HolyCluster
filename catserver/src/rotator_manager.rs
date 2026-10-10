@@ -66,7 +66,16 @@ impl std::fmt::Display for RotatorManagerError {
     }
 }
 
-impl std::error::Error for RotatorManagerError {}
+impl std::error::Error for RotatorManagerError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::InvalidConfig(error) => Some(error),
+            Self::Operation(error) => Some(error),
+            Self::WorkerStart(error) => Some(error),
+            Self::InvalidAzimuth | Self::WorkerStopped => None,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct RotatorManager {

@@ -45,7 +45,9 @@ fn log_file_filter() -> EnvFilter {
 }
 
 fn sentry_event_filter(metadata: &tracing::Metadata<'_>) -> EventFilter {
-    if *metadata.level() == tracing::Level::ERROR {
+    if metadata.target() == "catserver::diagnostic" {
+        EventFilter::Breadcrumb
+    } else if *metadata.level() == tracing::Level::ERROR {
         EventFilter::Event
     } else {
         EventFilter::Ignore
@@ -115,7 +117,7 @@ fn sentry_options(dsn: Option<&str>) -> Option<ClientOptions> {
         release: Some(Cow::Borrowed(env!("VERSION"))),
         environment: Some(Cow::Borrowed(SENTRY_ENVIRONMENT)),
         attach_stacktrace: true,
-        max_breadcrumbs: 0,
+        max_breadcrumbs: 20,
         send_default_pii: false,
         before_breadcrumb: Some(Arc::new(scrub_breadcrumb)),
         before_send: Some(Arc::new(scrub_event)),
@@ -151,8 +153,272 @@ fn sentry_options(dsn: Option<&str>) -> Option<ClientOptions> {
     })
 }
 
-fn scrub_breadcrumb(_: Breadcrumb) -> Option<Breadcrumb> {
-    None
+pub(crate) fn safe_action(action: &str) -> &'static str {
+    match action {
+        "SetModeAndFreq" => "SetModeAndFreq",
+        "HighlightSpot" => "HighlightSpot",
+        "GetCapabilities" => "GetCapabilities",
+        "ListRadioModels" => "ListRadioModels",
+        "ListSerialPorts" => "ListSerialPorts",
+        "DescribeRadioModel" => "DescribeRadioModel",
+        "GetRadioConfiguration" => "GetRadioConfiguration",
+        "SetRadioConfiguration" => "SetRadioConfiguration",
+        "TestRadioConnection" => "TestRadioConnection",
+        "RetryRadio" => "RetryRadio",
+        "SetAzimuth" => "SetAzimuth",
+        "ListRotatorModels" => "ListRotatorModels",
+        "DescribeRotatorModel" => "DescribeRotatorModel",
+        "GetRotatorConfiguration" => "GetRotatorConfiguration",
+        "SetRotatorConfiguration" => "SetRotatorConfiguration",
+        "TestRotatorConnection" => "TestRotatorConnection",
+        "RetryRotator" => "RetryRotator",
+        _ => "UnknownAction",
+    }
+}
+
+pub(crate) fn websocket_action(message: &str) -> &'static str {
+    serde_json::from_str::<serde_json::Value>(message)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("action")
+                .and_then(|action| action.as_str())
+                .map(safe_action)
+        })
+        .unwrap_or("UnknownAction")
+}
+
+// Reconstruct known error templates rather than sending arbitrary library text.
+fn safe_error_text(message: &str) -> String {
+    if message.len() > 1024 {
+        return "Error details redacted".to_owned();
+    }
+    if let Some(rest) = message.strip_prefix("rotator ")
+        && let Some((operation, message)) = rest.split_once(" failed: ")
+        && [
+            "set azimuth",
+            "read status",
+            "open",
+            "initialize",
+            "configure",
+        ]
+        .contains(&operation)
+    {
+        return format!(
+            "Rotator operation {operation}: {}",
+            safe_error_text(message)
+        );
+    }
+    if let Some(rest) = message.strip_prefix("Rotator operation ")
+        && let Some((operation, message)) = rest.split_once(": ")
+        && [
+            "set azimuth",
+            "read status",
+            "open",
+            "initialize",
+            "configure",
+        ]
+        .contains(&operation)
+    {
+        return format!(
+            "Rotator operation {operation}: {}",
+            safe_error_text(message)
+        );
+    }
+    if let Some(rest) = message.strip_prefix("Radio operation ")
+        && let Some((operation, message)) = rest.split_once(": ")
+        && [
+            "set mode",
+            "set frequency",
+            "read frequency",
+            "read mode",
+            "read status",
+            "validate frequency",
+            "select VFO",
+        ]
+        .contains(&operation)
+    {
+        return format!("Radio operation {operation}: {}", safe_error_text(message));
+    }
+    for text in [
+        "radio unavailable",
+        "not initialized",
+        "frequency must be finite and non-negative",
+        "invalid rotator position",
+        "radio worker stopped",
+        "rotator worker stopped",
+        "rotator azimuth must be finite",
+    ] {
+        if message == text {
+            return text.to_owned();
+        }
+    }
+    if message.starts_with("Unknown mode:") {
+        return "Unsupported radio mode".to_owned();
+    }
+    if message == "Unsupported radio mode" || message == "Error details redacted" {
+        return message.to_owned();
+    }
+    if let Some(rest) = message.strip_prefix("Hamlib ")
+        && let Some((operation, rest)) = rest.split_once(" failed with code ")
+        && [
+            "rig_set_mode",
+            "rig_set_freq",
+            "rig_get_mode",
+            "rig_get_freq",
+            "rig_get_vfo",
+            "rig_set_vfo",
+            "rig_open",
+            "rot_set_position",
+            "rot_get_position",
+            "rot_open",
+        ]
+        .contains(&operation)
+        && let Ok(code) = rest.split(':').next().unwrap_or("").parse::<i32>()
+    {
+        return format!("Hamlib {operation} failed with code {code}");
+    }
+    "Error details redacted".to_owned()
+}
+
+fn canonical_model_id(model: &str) -> Option<String> {
+    if model.len() > 64 {
+        return None;
+    }
+    use crate::radio_config::{OmniRigSlot, ResolvedRadioModel, resolve_model_id};
+    match resolve_model_id(model).ok()? {
+        ResolvedRadioModel::Hamlib(id) => Some(format!("hamlib:{id}")),
+        ResolvedRadioModel::Omnirig(OmniRigSlot::Rig1) => Some("omnirig:1".to_owned()),
+        ResolvedRadioModel::Omnirig(OmniRigSlot::Rig2) => Some("omnirig:2".to_owned()),
+    }
+}
+
+pub(crate) fn rotator_model_id(rotator: &crate::rotator_manager::RotatorManager) -> String {
+    match rotator.snapshot().config {
+        crate::rotator_config::RotatorConfig::Hamlib { hamlib } => {
+            format!("hamlib:{}", hamlib.model_id)
+        }
+        crate::rotator_config::RotatorConfig::Unconfigured => String::new(),
+    }
+}
+
+fn safe_os(context: Option<sentry::protocol::Context>) -> Option<sentry::protocol::Context> {
+    let sentry::protocol::Context::Os(os) = context? else {
+        return None;
+    };
+    let name = os.name.filter(|name| {
+        [
+            "Windows",
+            "Linux",
+            "macOS",
+            "Mac OS X",
+            "Ubuntu",
+            "Debian",
+            "Fedora",
+            "Arch Linux",
+        ]
+        .contains(&name.as_str())
+    })?;
+    let version = os.version.filter(|version| {
+        version.len() <= 32
+            && !version.is_empty()
+            && version
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || byte == b'.')
+    });
+    Some(sentry::protocol::Context::Os(Box::new(
+        sentry::protocol::OsContext {
+            name: Some(name),
+            version,
+            ..Default::default()
+        },
+    )))
+}
+
+pub(crate) fn error_summary(error: &anyhow::Error) -> String {
+    error
+        .chain()
+        .take(8)
+        .filter_map(|cause| {
+            if (cause.is::<crate::radio_manager::RadioManagerError>()
+                || cause.is::<crate::rotator_manager::RotatorManagerError>())
+                && cause.source().is_some()
+            {
+                return None;
+            }
+            if let Some(io) = cause.downcast_ref::<std::io::Error>() {
+                // ErrorKind and OS codes contain no user-supplied text.
+                return Some(format!(
+                    "IO {:?} (OS code {})",
+                    io.kind(),
+                    io.raw_os_error().unwrap_or(0)
+                ));
+            }
+            if let Some(radio) = cause.downcast_ref::<crate::rig::RadioOperationError>() {
+                return Some(safe_error_text(&format!(
+                    "Radio operation {}: {}",
+                    radio.operation, radio.message
+                )));
+            }
+            Some(safe_error_text(&cause.to_string()))
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+fn safe_summary(summary: &str) -> String {
+    summary
+        .split("; ")
+        .take(8)
+        .map(|text| {
+            if let Some(rest) = text.strip_prefix("IO ")
+                && let Some((kind, code)) = rest.split_once(" (OS code ")
+                && [
+                    "NotFound",
+                    "PermissionDenied",
+                    "ConnectionRefused",
+                    "ConnectionReset",
+                    "ConnectionAborted",
+                    "NotConnected",
+                    "AddrInUse",
+                    "AddrNotAvailable",
+                    "BrokenPipe",
+                    "AlreadyExists",
+                    "WouldBlock",
+                    "InvalidInput",
+                    "InvalidData",
+                    "TimedOut",
+                    "WriteZero",
+                    "Interrupted",
+                    "UnexpectedEof",
+                    "Unsupported",
+                    "Other",
+                ]
+                .contains(&kind)
+                && let Some(code) = code
+                    .strip_suffix(')')
+                    .and_then(|code| code.parse::<i32>().ok())
+            {
+                return format!("IO {kind} (OS code {code})");
+            }
+            safe_error_text(text)
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+fn scrub_breadcrumb(mut breadcrumb: Breadcrumb) -> Option<Breadcrumb> {
+    let action = safe_action(breadcrumb.data.get("action")?.as_str()?);
+    if action == "UnknownAction" {
+        return None;
+    }
+    breadcrumb = Breadcrumb {
+        timestamp: breadcrumb.timestamp,
+        ..Default::default()
+    };
+    breadcrumb.category = Some("cat.command".to_owned());
+    breadcrumb.message = Some(action.to_owned());
+    Some(breadcrumb)
 }
 
 fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
@@ -171,6 +437,25 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
         .filter(|ty| !ty.is_empty())
         .unwrap_or_else(|| "Error".to_owned());
     let tracing_location = event.contexts.remove("Rust Tracing Location");
+    let os = safe_os(event.contexts.remove("os"));
+    let diagnostics = event
+        .contexts
+        .get("Rust Tracing Fields")
+        .and_then(|context| {
+            let sentry::protocol::Context::Other(fields) = context else {
+                return None;
+            };
+            let action = safe_action(fields.get("action")?.as_str()?);
+            let summary = safe_summary(fields.get("error_summary")?.as_str()?);
+            let connected = fields
+                .get("device_connected")
+                .and_then(|value| value.as_bool());
+            let model = fields
+                .get("model_id")
+                .and_then(|value| value.as_str())
+                .and_then(canonical_model_id);
+            Some((action, summary, connected, model))
+        });
     let update_failure = event
         .contexts
         .remove("Rust Tracing Fields")
@@ -217,6 +502,9 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
     event.request = None;
     event.server_name = None;
     event.contexts.clear();
+    if let Some(os) = os {
+        event.contexts.insert("os".to_owned(), os);
+    }
     if let Some(location) = tracing_location {
         event
             .contexts
@@ -233,6 +521,29 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
         Cow::Owned(error_type.clone()),
     ]);
     event.message = Some(format!("{error_type} in {operation}"));
+    if let Some((action, summary, connected, model)) = diagnostics {
+        event.tags.insert("action".to_owned(), action.to_owned());
+        event.message = Some(format!("{action}: {summary}"));
+        let mut fields = std::collections::BTreeMap::from([
+            ("action".to_owned(), action.into()),
+            ("error_chain".to_owned(), summary.clone().into()),
+        ]);
+        if let Some(connected) = connected {
+            fields.insert("device_connected".to_owned(), connected.into());
+        }
+        if let Some(model) = model {
+            fields.insert("model_id".to_owned(), model.into());
+        }
+        event.contexts.insert(
+            "CAT Failure".to_owned(),
+            sentry::protocol::Context::Other(fields),
+        );
+        event.fingerprint = Cow::Owned(vec![
+            Cow::Owned(operation),
+            Cow::Owned(action.to_owned()),
+            Cow::Owned(summary),
+        ]);
+    }
     event.logentry = None;
     for exception in &mut event.exception {
         exception.value = None;
@@ -398,6 +709,155 @@ mod tests {
             panic!("missing safe diagnostics")
         };
         assert_eq!(fields.len(), 1);
+    }
+
+    #[test]
+    fn retains_safe_cat_diagnostics_and_rejects_sensitive_values() {
+        let error = anyhow::Error::new(crate::rig::RadioOperationError::new(
+            1,
+            "set mode",
+            "Hamlib rig_set_mode failed with code -8: /dev/private token=secret K1ABC",
+        ));
+        let summary = super::error_summary(&error);
+        assert_eq!(
+            summary,
+            "Radio operation set mode: Hamlib rig_set_mode failed with code -8"
+        );
+        let event = Event {
+            logger: Some("catserver::server::session".into()),
+            contexts: BTreeMap::from([(
+                "Rust Tracing Fields".into(),
+                Context::Other(BTreeMap::from([
+                    ("action".into(), "SetModeAndFreq".into()),
+                    ("error_summary".into(), summary.into()),
+                    ("device_connected".into(), true.into()),
+                    ("model_id".into(), "hamlib:3073".into()),
+                    ("error".into(), "secret K1ABC".into()),
+                ])),
+            )]),
+            ..Default::default()
+        };
+        let event = scrub_event(event).unwrap();
+        assert_eq!(event.tags["action"], "SetModeAndFreq");
+        assert_eq!(
+            event.message.as_deref(),
+            Some(
+                "SetModeAndFreq: Radio operation set mode: Hamlib rig_set_mode failed with code -8"
+            )
+        );
+        let Context::Other(fields) = &event.contexts["CAT Failure"] else {
+            panic!("missing diagnostics")
+        };
+        assert_eq!(fields["model_id"], "hamlib:3073");
+        assert_eq!(fields["device_connected"], true);
+        let serialized = serde_json::to_string(&event).unwrap();
+        assert!(!serialized.contains("secret"));
+        assert!(!serialized.contains("K1ABC"));
+        assert!(!serialized.contains("private"));
+        assert_eq!(
+            super::safe_summary("IO PermissionDenied (OS code 5)"),
+            "IO PermissionDenied (OS code 5)"
+        );
+        assert_eq!(
+            super::safe_summary("IO secret (OS code 5)"),
+            "Error details redacted"
+        );
+        assert_eq!(
+            super::safe_summary("Hamlib secret failed with code -8: token"),
+            "Error details redacted"
+        );
+        assert_eq!(super::safe_action("K1ABC"), "UnknownAction");
+        assert_eq!(
+            super::websocket_action(r#"{"action":"SetModeAndFreq","token":"secret"}"#),
+            "SetModeAndFreq"
+        );
+    }
+
+    #[test]
+    fn bounds_model_ids_and_preserves_only_safe_os_metadata() {
+        assert_eq!(
+            super::canonical_model_id("hamlib:0003073"),
+            Some("hamlib:3073".into())
+        );
+        assert!(super::canonical_model_id(&format!("hamlib:{}1", "0".repeat(100))).is_none());
+        assert!(super::canonical_model_id("secret").is_none());
+        let os = sentry::protocol::OsContext {
+            name: Some("Windows".into()),
+            version: Some("10.0".into()),
+            build: Some("private".into()),
+            kernel_version: Some("secret".into()),
+            other: BTreeMap::from([("token".into(), "secret".into())]),
+            ..Default::default()
+        };
+        let event = scrub_event(Event {
+            contexts: BTreeMap::from([("os".into(), Context::Os(Box::new(os)))]),
+            ..Default::default()
+        })
+        .unwrap();
+        let Context::Os(os) = &event.contexts["os"] else {
+            panic!("missing OS")
+        };
+        assert_eq!(os.name.as_deref(), Some("Windows"));
+        assert_eq!(os.version.as_deref(), Some("10.0"));
+        assert!(!serde_json::to_string(&event).unwrap().contains("secret"));
+        assert!(!serde_json::to_string(&event).unwrap().contains("private"));
+        let error = anyhow::Error::new(crate::rotator_manager::RotatorManagerError::Operation(
+            crate::rotator::RotatorError::new(
+                "set azimuth",
+                "Hamlib rot_set_position failed with code -6: private",
+            ),
+        ));
+        assert_eq!(
+            super::error_summary(&error),
+            "Rotator operation set azimuth: Hamlib rot_set_position failed with code -6"
+        );
+    }
+
+    #[test]
+    fn records_safe_command_breadcrumbs_and_preserves_tracing_diagnostics() {
+        let transport = Arc::new(MemoryTransport::default());
+        let client = Arc::new(Client::from(ClientOptions {
+            transport: Some(Arc::new(transport.clone())),
+            ..sentry_options(Some("http://public@127.0.0.1:1/1")).unwrap()
+        }));
+        let hub = sentry::Hub::new(Some(client), Arc::new(sentry::Scope::default()));
+        let subscriber = tracing_subscriber::Registry::default()
+            .with(sentry::integrations::tracing::layer().event_filter(sentry_event_filter));
+        sentry::Hub::run(Arc::new(hub), || {
+            tracing::subscriber::with_default(subscriber, || {
+                tracing::info!(target: "catserver::diagnostic", action = "SetModeAndFreq", token = "secret", "CAT command");
+                let error = anyhow::Error::new(crate::radio_manager::RadioManagerError::Command(
+                    crate::rig::RadioOperationError::new(
+                        1,
+                        "set mode",
+                        "Hamlib rig_set_mode failed with code -8: /dev/private secret K1ABC",
+                    ),
+                ));
+                tracing::error!(
+                    action = "SetModeAndFreq",
+                    error_summary = %super::error_summary(&error),
+                    device_connected = false,
+                    model_id = "hamlib:3073",
+                    error = "secret",
+                    "Failed to process radio WebSocket message"
+                );
+            });
+        });
+        let events = transport.0.lock().unwrap();
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+        assert_eq!(
+            event.message.as_deref(),
+            Some(
+                "SetModeAndFreq: Radio operation set mode: Hamlib rig_set_mode failed with code -8"
+            )
+        );
+        assert_eq!(event.breadcrumbs.len(), 1);
+        assert_eq!(
+            event.breadcrumbs[0].message.as_deref(),
+            Some("SetModeAndFreq")
+        );
+        assert!(!serde_json::to_string(event).unwrap().contains("secret"));
     }
 
     #[test]

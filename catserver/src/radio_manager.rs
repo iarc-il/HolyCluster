@@ -45,7 +45,17 @@ impl std::fmt::Display for RadioManagerError {
     }
 }
 
-impl std::error::Error for RadioManagerError {}
+impl std::error::Error for RadioManagerError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::InvalidConfig(error) => Some(error),
+            Self::Operation(error) => Some(error),
+            Self::Command(error) => Some(error),
+            Self::WorkerStart(error) => Some(error),
+            Self::WorkerStopped => None,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct RadioManager {

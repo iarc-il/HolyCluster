@@ -121,18 +121,26 @@ async fn handle_ws_socket(
                 None => break,
                 Some(message) => match message? {
                 Message::Text(text) if radio_actions::is_message(text.as_ref()) => {
+                    let action = crate::tracing_setup::websocket_action(text.as_ref());
+                    tracing::info!(target: "catserver::diagnostic", action, "CAT command");
                     match radio_actions::process_ws(text.to_string(), &radio_manager, &radio_configuration).await {
                         Ok(Some(response)) => client_sender.send(response).await?,
                         Ok(None) => {}
-                        Err(error) => tracing::error!(%error, "Failed to process radio WebSocket message"),
+                        Err(error) => {
+                            let snapshot = radio_manager.snapshot();
+                            let model_id = snapshot.config.rig.as_ref().map(|rig| rig.model_id.as_str()).unwrap_or("");
+                            tracing::error!(%error, action, model_id, device_connected = snapshot.last_status.status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), "Failed to process radio WebSocket message");
+                        }
                     }
                     client_sender.send(radio::status_message(&radio_manager.status(), &radio_manager)?).await?;
                 }
                 Message::Text(text) if rotator::is_message(text.as_ref()) => {
+                    let action = crate::tracing_setup::websocket_action(text.as_ref());
+                    tracing::info!(target: "catserver::diagnostic", action, "CAT command");
                     match rotator::process(text.to_string(), &rotator_manager, &rotator_configuration).await {
                         Ok(Some(response)) => client_sender.send(response).await?,
                         Ok(None) => {}
-                        Err(error) => tracing::error!(%error, "Failed to process rotator WebSocket message"),
+                        Err(error) => tracing::error!(%error, action, model_id = %crate::tracing_setup::rotator_model_id(&rotator_manager), device_connected = rotator_manager.status().status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), "Failed to process rotator WebSocket message"),
                     }
                     client_sender.send(rotator::status_message(&rotator_manager.status())?).await?;
                 },
