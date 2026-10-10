@@ -34,7 +34,10 @@ export function RotatorProvider({ children }) {
 
     useEffect(() => {
         if (network_state !== "connected") {
+            set_rotator_azimuth(null);
             set_rotator_target_azimuth(null);
+            set_rotator_status("unavailable");
+            set_rotator_ready(false);
         }
     }, [network_state]);
 
@@ -75,7 +78,8 @@ export function RotatorProvider({ children }) {
             return;
         }
 
-        const next_azimuth = data.azimuth ?? null;
+        const next_azimuth =
+            data.status === "connected" && Number.isFinite(data.azimuth) ? data.azimuth : null;
         set_rotator_status(data.status || "unavailable");
         set_rotator_azimuth(next_azimuth);
         set_rotator_target_azimuth(target => {
@@ -159,6 +163,9 @@ export function RotatorProvider({ children }) {
         );
     }
 
+    const show_bearings =
+        rotator_supported && network_state === "connected" && rotator_status === "connected";
+
     return (
         <RotatorContext.Provider
             value={{
@@ -166,8 +173,8 @@ export function RotatorProvider({ children }) {
                 is_rotator_available,
                 rotator_supported,
                 rotator_status: rotator_supported ? rotator_status : "unavailable",
-                rotator_azimuth: rotator_supported ? rotator_azimuth : null,
-                rotator_target_azimuth: rotator_supported ? rotator_target_azimuth : null,
+                rotator_azimuth: show_bearings ? rotator_azimuth : null,
+                rotator_target_azimuth: show_bearings ? rotator_target_azimuth : null,
                 rotator_name: rotator_supported ? rotator_name : "",
                 rotator_models: rotator_supported ? rotator_models : [],
                 rotator_models_error: rotator_supported ? rotator_models_error : null,
