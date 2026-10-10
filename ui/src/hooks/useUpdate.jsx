@@ -459,12 +459,21 @@ export function UpdateProvider({ children }) {
         [supported, update_dev_mode, update.remote_version, adopt, set_session],
     );
 
+    const update_available =
+        enabled && !session && (update.status === "available" || update.status === "deferred");
+    const consent_required = update_available && (update.status === "available" || dialog_open);
+    const show_dialog = consent_required || session != null || (enabled && dialog_open);
+
     const value = useMemo(
         () => ({
             ...update,
             enabled,
+            update_available,
+            consent_required,
+            show_dialog,
             session,
             dialog_open,
+            open_dialog: () => set_dialog_open(true),
             close_dialog: () => set_dialog_open(false),
             active: session != null && !terminal_session(session),
             allow_same_version,
@@ -495,6 +504,9 @@ export function UpdateProvider({ children }) {
         [
             update,
             enabled,
+            update_available,
+            consent_required,
+            show_dialog,
             session,
             dialog_open,
             allow_same_version,

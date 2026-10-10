@@ -10,6 +10,7 @@ vi.mock("@/hooks/useRadio", () => ({
 
 import About from "@/components/About.jsx";
 import UpdateControls, { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
+import UtilityButtons from "@/components/UtilityButtons.jsx";
 import {
     UpdateProvider,
     compare_update_versions,
@@ -39,6 +40,7 @@ function render_updates() {
         <UpdateProvider>
             <UpdateConsentDialog />
             <UpdateControls />
+            <UtilityButtons />
         </UpdateProvider>,
     );
 }
@@ -136,6 +138,39 @@ describe("CAT Control updates", () => {
         );
         expect(fetch).toHaveBeenNthCalledWith(2, "/api/update/check", expect.any(Object));
     });
+
+    it("shares available and deferred state between the badge and consent dialog", async () => {
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(response({ state: "available", available_version: "1.3.1" }))
+            .mockResolvedValueOnce(response({ state: "deferred", available_version: "1.3.1" }));
+        vi.stubGlobal("fetch", fetch);
+        render_updates();
+
+        const dialog = await screen.findByRole("dialog");
+        const cat_link = screen.getByRole("link", { name: /CAT/ });
+        expect(within(cat_link).getByText("!")).not.toBeNull();
+        expect(within(dialog).getByText("Version 1.3.1 is ready to install.")).not.toBeNull();
+        await userEvent.click(within(dialog).getByRole("button", { name: "Later" }));
+        await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+        expect(within(cat_link).getByText("!")).not.toBeNull();
+        await userEvent.click(cat_link);
+        expect(await screen.findByRole("button", { name: "Update", exact: true })).not.toBeNull();
+        expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it.each(["idle", "installing", "unavailable"])(
+        "does not show an update badge or automatic consent for %s without a session",
+        async state => {
+            vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ state })));
+            render_updates();
+            await waitFor(() =>
+                expect(screen.queryByText("Checking for CAT Control updates…")).toBeNull(),
+            );
+            expect(within(screen.getByRole("link", { name: "CAT" })).queryByText("!")).toBeNull();
+            expect(screen.queryByRole("dialog")).toBeNull();
+        },
+    );
 
     it("checks automatically after a previous update was installed", async () => {
         const fetch = vi

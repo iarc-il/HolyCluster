@@ -23,12 +23,22 @@ function FeedbackButton({ size }) {
     );
 }
 
-function CatserverDownload({ size, update_available }) {
+function CatserverDownload({ size, update_available, open_dialog }) {
     const { colors } = useColors();
 
     return (
         <div data-tour="cat-download-link">
-            <a href="/addons" target="_blank" rel="noreferrer">
+            <a
+                href="/addons"
+                target="_blank"
+                rel="noreferrer"
+                onClick={event => {
+                    if (update_available) {
+                        event.preventDefault();
+                        open_dialog();
+                    }
+                }}
+            >
                 {update_available ? (
                     <span className="absolute right-16 flex w-5 -translate-y-1 translate-x-1 z-10">
                         <span className="relative inline-flex border border-gray-900 bg-orange-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
@@ -47,13 +57,14 @@ function CatserverDownload({ size, update_available }) {
 }
 
 function UtilityButtons() {
-    const { enabled, status } = useUpdate();
+    const { update_available, open_dialog } = useUpdate();
 
     return (
         <div className="space-y-3" data-tour="utility-buttons">
             <CatserverDownload
                 size="36"
-                update_available={enabled && (status === "available" || status === "deferred")}
+                update_available={update_available}
+                open_dialog={open_dialog}
             />
             <FeedbackButton size="36" />
             <About />

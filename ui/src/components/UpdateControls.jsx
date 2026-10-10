@@ -6,7 +6,8 @@ import { useUpdate } from "@/hooks/useUpdate.jsx";
 
 export function UpdateConsentDialog() {
     const {
-        enabled,
+        consent_required: is_available,
+        show_dialog: show_update,
         status,
         remote_version,
         error,
@@ -15,12 +16,8 @@ export function UpdateConsentDialog() {
         session,
         active,
         dismiss,
-        dialog_open,
         close_dialog,
     } = useUpdate();
-    const is_available =
-        enabled && !session && (status === "available" || (dialog_open && status === "deferred"));
-    const show_update = is_available || session != null || (enabled && dialog_open);
 
     return (
         <Modal
