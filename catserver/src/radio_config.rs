@@ -111,7 +111,16 @@ pub fn resolve_model_id(model_id: &str) -> Result<ResolvedRadioModel, RadioConfi
 
 impl RadioConfig {
     pub fn platform_default() -> Self {
-        Self { rig: None }
+        Self {
+            rig: if cfg!(windows) {
+                Some(RadioRigConfig {
+                    model_id: "omnirig:1".into(),
+                    token_values: BTreeMap::new(),
+                })
+            } else {
+                None
+            },
+        }
     }
 
     pub fn config_path() -> Result<PathBuf, RadioConfigError> {

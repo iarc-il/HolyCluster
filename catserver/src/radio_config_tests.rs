@@ -57,6 +57,7 @@ fn returns_platform_default_when_config_file_is_missing() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn defaults_to_an_unconfigured_rig_without_connecting_to_hardware() {
     let config = RadioConfig::platform_default();
 
@@ -85,7 +86,7 @@ fn round_trips_single_optional_rig() {
 #[test]
 fn round_trips_unconfigured_rig_as_null() {
     let directory = TestDir::new();
-    let config = RadioConfig::platform_default();
+    let config = RadioConfig { rig: None };
 
     config.save_to_path(&directory.file()).unwrap();
 
@@ -98,7 +99,7 @@ fn round_trips_unconfigured_rig_as_null() {
 }
 
 #[test]
-fn treats_development_schema_versions_as_unconfigured() {
+fn treats_development_schema_versions_as_platform_default() {
     for version in [1, 2] {
         let directory = TestDir::new();
         fs::write(
