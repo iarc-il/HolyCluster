@@ -1,3 +1,4 @@
+import { annotateDiagnosticError } from "@/sentry";
 import { openDB } from "idb";
 
 // A store backing one IndexedDB object store of merged time-interval records
@@ -68,10 +69,24 @@ export function create_interval_db(db_name, db_version, store_name) {
 
     function hydrate() {
         hydrate_promise = (async () => {
-            const db = await open_db();
-            const all = await db.getAll(store_name);
-            records_map = new Map(all.map(r => [r.id, r]));
-            notify();
+            let stage = "open";
+            try {
+                const db = await open_db();
+                stage = "get_all";
+                const all = await db.getAll(store_name);
+                stage = "mirror";
+                records_map = new Map(all.map(r => [r.id, r]));
+                notify();
+            } catch (error) {
+                // Keep the same rejection, including the existing unhandled
+                // hydration failure. No retry, recovery or payload collection.
+                throw annotateDiagnosticError(error, {
+                    operation: "cache_hydration",
+                    database: db_name,
+                    store: store_name,
+                    stage,
+                });
+            }
         })();
         return hydrate_promise;
     }

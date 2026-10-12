@@ -1,3 +1,4 @@
+import { recordBoundaryDiagnostics } from "@/sentry";
 import * as Sentry from "@sentry/react";
 import React from "react";
 
@@ -30,6 +31,7 @@ function RouteErrorBoundary({ children }) {
     return (
         <Sentry.ErrorBoundary
             fallback={ErrorFallback}
+            beforeCapture={recordBoundaryDiagnostics}
             onReset={() => set_retry_key(current_key => current_key + 1)}
         >
             <React.Fragment key={retry_key}>{children}</React.Fragment>

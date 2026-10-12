@@ -8,6 +8,82 @@ const default_options = {
 
 const sanitized_message = "Application error (message redacted)";
 
+// Error-local evidence: never keep payloads or a global "last operation" that
+// could be incorrectly attached to an unrelated failure.
+const error_diagnostics = new WeakMap();
+const dom_errors = new Set([
+    "AbortError",
+    "InvalidStateError",
+    "TransactionInactiveError",
+    "NotFoundError",
+    "NotAllowedError",
+    "SecurityError",
+    "QuotaExceededError",
+    "UnknownError",
+    "VersionError",
+    "ConstraintError",
+    "DataError",
+    "ReadOnlyError",
+    "OperationError",
+]);
+
+export function annotateDiagnosticError(error, evidence) {
+    if (error && (typeof error === "object" || typeof error === "function")) {
+        error_diagnostics.set(error, { ...error_diagnostics.get(error), ...evidence });
+    }
+    return error;
+}
+
+export function recordBoundaryDiagnostics(_scope, error) {
+    annotateDiagnosticError(error, { operation: "react_boundary" });
+}
+
+function errorCategory(message, name) {
+    if (dom_errors.has(name)) return name;
+    if (typeof message !== "string") return "unknown";
+    if (
+        /Failed to execute '(insertBefore|appendChild|removeChild)'|not a child of this node/.test(
+            message,
+        )
+    )
+        return "dom_tree_mutation";
+    if (/dynamically imported module|Loading (chunk|CSS chunk)/.test(message)) return "module_load";
+    if (/fullscreen/i.test(message)) return "fullscreen";
+    if (/^Minified React error #\d+;/.test(message)) return "react_invariant";
+    const safe = sanitizeErrorMessage(message);
+    return safe === sanitized_message ? "unknown" : safe;
+}
+
+function safeEvidence(evidence) {
+    if (!evidence) return {};
+    const result = {};
+    if (["react_boundary", "cache_hydration"].includes(evidence.operation))
+        result.operation = evidence.operation;
+    if (["holycluster_spot_cache", "holycluster_propagation_cache"].includes(evidence.database))
+        result.database = evidence.database;
+    if (evidence.store === "intervals") result.store = "intervals";
+    if (["open", "get_all", "mirror"].includes(evidence.stage)) result.stage = evidence.stage;
+    return result;
+}
+
+function sourceClass(filename) {
+    if (sanitizeSourceUrl(filename)) {
+        try {
+            const url = new URL(filename);
+            return url.origin === globalThis.location?.origin
+                ? "same_origin_asset"
+                : "external_asset_path";
+        } catch {
+            return "shipped_source";
+        }
+    }
+    if (typeof filename !== "string") return "unknown";
+    if (/^(chrome|moz|safari-web)-extension:/.test(filename)) return "extension";
+    if (/^https?:/.test(filename)) return "external_or_unrecognized";
+    if (/^(?:file:|[A-Z]:\\|\/)/.test(filename)) return "local_or_unrecognized";
+    return "inline_or_unrecognized";
+}
+
 const diagnostic_actions = new Set([
     "tour_started",
     "tour_stopped",
@@ -255,31 +331,89 @@ export function sanitizeSentryEvent(event, hint = {}) {
         sanitized_event.extra = sanitizeExtra(event.extra);
     }
 
-    // Recover an original stack when the SDK supplied only the React component stack.
     let exception = event.exception;
     const original = hint.originalException;
+    const evidence = safeEvidence(error_diagnostics.get(original));
+    const primary_index =
+        exception?.values?.findIndex(value => !value.type?.startsWith("React ErrorBoundary ")) ??
+        -1;
+    const boundary =
+        evidence.operation === "react_boundary" ||
+        exception?.values?.some(value => value.type?.startsWith("React ErrorBoundary "));
+    let original_frames;
+    // Parse at most once. Ordinary exceptions already carrying a stack need
+    // no duplicate payload. Keep a second stack only for a boundary whose SDK
+    // representation does not already contain the underlying stack.
     if (
         original instanceof Error &&
         typeof original.stack === "string" &&
-        exception?.values?.length
+        exception?.values?.length &&
+        (boundary || !exception.values[primary_index]?.stacktrace?.frames?.length)
     ) {
-        const last = exception.values.length - 1;
-        if (!exception.values[last].stacktrace?.frames?.length) {
-            const frames = Sentry.defaultStackParser(original.stack);
-            if (frames.length) {
-                exception = {
-                    ...exception,
-                    values: exception.values.map((value, index) =>
-                        index === last ? { ...value, stacktrace: { frames } } : value,
-                    ),
-                };
-            }
+        const frames = Sentry.defaultStackParser(original.stack);
+        if (
+            frames.length &&
+            primary_index >= 0 &&
+            !exception.values[primary_index].stacktrace?.frames?.length
+        ) {
+            exception = {
+                ...exception,
+                values: exception.values.map((value, index) =>
+                    index === primary_index ? { ...value, stacktrace: { frames } } : value,
+                ),
+            };
+        } else if (frames.length && boundary) {
+            const recovered = sanitizeException({
+                values: [{ stacktrace: { frames } }],
+            }).values[0].stacktrace.frames.slice(-50);
+            const already_present = sanitizeException(exception).values.some(
+                value =>
+                    JSON.stringify(value.stacktrace?.frames?.slice(-50)) ===
+                    JSON.stringify(recovered),
+            );
+            if (!already_present) original_frames = recovered;
         }
     }
     const breadcrumbs = event.breadcrumbs?.map(sanitizeBreadcrumb).filter(Boolean).slice(-20);
     if (breadcrumbs?.length) sanitized_event.breadcrumbs = breadcrumbs;
-    const contexts = sanitizeContexts(event.contexts);
-    if (contexts) sanitized_event.contexts = contexts;
+    const contexts = sanitizeContexts(event.contexts) ?? {};
+    const primary = exception?.values?.[primary_index] ?? exception?.values?.[0];
+    const frames = exception?.values?.flatMap(value => value.stacktrace?.frames ?? []) ?? [];
+    const diagnostic = {
+        ...evidence,
+        category: errorCategory(
+            original?.message ?? primary?.value,
+            original?.name ?? primary?.type,
+        ),
+        script_origins: [...new Set(frames.map(frame => sourceClass(frame.filename)))].slice(0, 5),
+    };
+    diagnostic.native_bridge_frames = frames.some(frame =>
+        ["sendDataToNative", "sendBeforeUnloadMessage"].includes(frame.function),
+    );
+    if (original_frames) diagnostic.original_frames = original_frames;
+    if (diagnostic.category === "react_invariant") {
+        const code = Number(
+            (original?.message ?? primary?.value)?.match(/^Minified React error #(\d+);/)?.[1],
+        );
+        if (Number.isInteger(code) && code > 0 && code <= 1000) diagnostic.react_code = code;
+    }
+    // Inspect an import URL locally, but send only an already-allowed bundled
+    // filename. Never send its host, query, fragment, or arbitrary path.
+    const message = original?.message ?? primary?.value;
+    if (diagnostic.category === "module_load" && typeof message === "string") {
+        const import_url = message.match(/https?:\/\/\S+/)?.[0];
+        const asset = sanitizeSourceUrl(import_url);
+        if (asset?.startsWith("/assets/")) {
+            diagnostic.asset = asset;
+            diagnostic.asset_origin = sourceClass(import_url);
+        }
+        diagnostic.online =
+            typeof globalThis.navigator?.onLine === "boolean"
+                ? globalThis.navigator.onLine
+                : undefined;
+    }
+    if (exception?.values?.length || original) contexts.diagnostic = diagnostic;
+    if (Object.keys(contexts).length) sanitized_event.contexts = contexts;
     sanitized_event.exception = sanitizeException(exception);
     sanitized_event.logentry = event.logentry && { message: sanitized_message };
     sanitized_event.message = event.message && sanitized_message;

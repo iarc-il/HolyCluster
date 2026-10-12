@@ -111,7 +111,10 @@ describe("Sentry error reporting", () => {
         });
 
         expect(event).not.toHaveProperty("breadcrumbs");
-        expect(event).not.toHaveProperty("contexts");
+        expect(event.contexts.diagnostic).toMatchObject({
+            category: "unknown",
+        });
+        expect(event.contexts).not.toHaveProperty("profile");
         expect(event).not.toHaveProperty("request");
         expect(event).not.toHaveProperty("tags");
         expect(event).not.toHaveProperty("user");
