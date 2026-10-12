@@ -129,7 +129,7 @@ async fn handle_ws_socket(
                         Err(error) => {
                             let snapshot = radio_manager.snapshot();
                             let model_id = snapshot.config.rig.as_ref().map(|rig| rig.model_id.as_str()).unwrap_or("");
-                            tracing::error!(%error, action, model_id, device_connected = snapshot.last_status.status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), "Failed to process radio WebSocket message");
+                            tracing::error!(%error, action, model_id, device_connected = snapshot.last_status.status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::radio_evidence(&error, &snapshot, text.as_ref())), "Failed to process radio WebSocket message");
                         }
                     }
                     client_sender.send(radio::status_message(&radio_manager.status(), &radio_manager)?).await?;

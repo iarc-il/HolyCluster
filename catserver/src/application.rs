@@ -249,7 +249,7 @@ async fn run_singleton(
     let local_port = server.local_port()?;
     instance_port::publish(&instance_port::path()?, local_port)?;
     if !silent && let Err(error) = open_browser(local_port) {
-        tracing::error!(?error, "Failed to open browser on startup");
+        tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "browser_startup")), "Failed to open browser on startup");
     }
     tokio::spawn(async move {
         while let Ok(event) = receiver.recv().await {
@@ -257,7 +257,7 @@ async fn run_singleton(
                 UserEvent::Quit | UserEvent::RestartForUpdate => break,
                 UserEvent::OpenBrowser => {
                     if let Err(error) = open_browser(local_port) {
-                        tracing::error!(?error, "Failed to open browser from user event");
+                        tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "browser_user_event")), "Failed to open browser from user event");
                     }
                 }
             }

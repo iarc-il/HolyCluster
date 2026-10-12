@@ -153,6 +153,7 @@ fn failed_status(
     tracing::error!(
         ?error,
         error_stage,
+        failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "update_request")),
         io_error_kind,
         os_error_code,
         "Update request failed"

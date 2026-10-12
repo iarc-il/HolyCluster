@@ -407,6 +407,133 @@ fn safe_summary(summary: &str) -> String {
         .join("; ")
 }
 
+// New evidence is context only: do not change existing messages/fingerprints.
+type Evidence = std::collections::BTreeMap<String, serde_json::Value>;
+
+fn diagnostic_io_summary(kind: std::io::ErrorKind, code: i32) -> String {
+    let summary = format!("IO {kind:?} (OS code {code})");
+    // ErrorKind has platform-specific/non-exhaustive variants (for example
+    // Uncategorized on Linux for a Windows DNS code). Preserve the numeric
+    // evidence even when the existing grouping sanitizer cannot name the kind.
+    if safe_summary(&summary) == "Error details redacted" {
+        format!("IO Other (OS code {code})")
+    } else {
+        summary
+    }
+}
+
+fn hresult(message: &str) -> Option<u32> {
+    let code = message.strip_prefix("[0x")?.split_once(']')?.0;
+    if !(4..=8).contains(&code.len()) || !code.bytes().all(|b| b.is_ascii_hexdigit()) { return None; }
+    u32::from_str_radix(code, 16).ok()
+}
+
+fn init_evidence(error: &crate::rig::RadioInitError) -> String {
+    use crate::rig::RadioInitError;
+    match error {
+        RadioInitError::Io { kind, .. } => diagnostic_io_summary(*kind, 0),
+        RadioInitError::Hamlib { error, .. } => safe_error_text(error),
+        RadioInitError::Backend { message, .. } => safe_error_text(message),
+    }
+}
+
+pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Evidence {
+    let mut fields = Evidence::from([("stage".into(), stage.into())]);
+    let mut categories = Vec::new();
+    for cause in error.chain().take(8) {
+        let category = if let Some(io) = cause.downcast_ref::<std::io::Error>() {
+            fields.insert("io_summary".into(), diagnostic_io_summary(io.kind(), io.raw_os_error().unwrap_or(0)).into());
+            "io"
+        } else if let Some(request) = cause.downcast_ref::<reqwest::Error>() {
+            let category = if request.is_timeout() { "network_timeout" }
+                else if request.is_connect() { "network_connect" }
+                else if request.is_redirect() { "network_redirect" }
+                else if request.is_status() { "http_status" }
+                else if request.is_decode() { "network_decode" }
+                else if request.is_body() { "network_body" }
+                else if request.is_builder() { "network_builder" }
+                else { "network_request" };
+            if let Some(status) = request.status() { fields.insert("http_status".into(), status.as_u16().into()); }
+            // No URL, host, address, or query leaves this process.
+            let destination = request.url().map(|url| {
+                if matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "::1")) { "local_service" }
+                else if url.path() == "/catserver/releases/latest" { "release_manifest" }
+                else if stage == "update_request" { "release_artifact_or_other" }
+                else { "unclassified_endpoint" }
+            }).unwrap_or("unclassified_endpoint");
+            fields.insert("destination".into(), destination.into());
+            category
+        } else if cause.is::<serde_json::Error>() { "json" }
+        else if let Some(init) = cause.downcast_ref::<crate::rig::RadioInitError>() {
+            fields.insert("initialization".into(), init_evidence(init).into());
+            "radio_initialization"
+        } else if let Some(operation) = cause.downcast_ref::<crate::rig::RadioOperationError>() {
+            if let Some(code) = hresult(&operation.message) { fields.insert("hresult".into(), code.into()); }
+            "radio_operation"
+        } else if let Some(tray) = cause.downcast_ref::<tray_icon::Error>() {
+            match tray {
+                tray_icon::Error::OsError(io) => {
+                    fields.insert("io_summary".into(), diagnostic_io_summary(io.kind(), io.raw_os_error().unwrap_or(0)).into());
+                    "tray_os"
+                }
+                tray_icon::Error::NotMainThread => "tray_not_main_thread",
+                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                tray_icon::Error::PngEncodingError(_) => "tray_png_encoding",
+                _ => "tray_other",
+            }
+        } else if cause.is::<crate::radio_config::RadioConfigError>() { "radio_configuration" }
+        else if cause.is::<crate::radio_manager::RadioManagerError>() { "radio_manager" }
+        else { "unclassified" };
+        categories.push(category);
+    }
+    fields.insert("cause_categories".into(), serde_json::json!(categories));
+    fields
+}
+
+pub(crate) fn radio_evidence(error: &anyhow::Error, snapshot: &crate::radio_manager::RadioSnapshot, message: &str) -> Evidence {
+    use crate::radio_manager::ConnectionState;
+    let mut fields = failure_evidence(error, "radio_command");
+    fields.insert("connection_state".into(), match snapshot.connection { ConnectionState::Connected => "connected", ConnectionState::Disconnected => "disconnected" }.into());
+    fields.insert("configuration_present".into(), snapshot.config.rig.is_some().into());
+    if let Some(init) = &snapshot.last_error { fields.insert("initialization".into(), init_evidence(init).into()); }
+    if let Some(last) = &snapshot.last_operation_error {
+        fields.insert("previous_operation".into(), safe_error_text(&format!("Radio operation {}: {}", last.operation, last.message)).into());
+    }
+    // Read only the mode enum; never retain spot data, frequency or identifiers.
+    if let Ok(request) = serde_json::from_str::<serde_json::Value>(message) {
+        if request.get("action").and_then(|v| v.as_str()) == Some("SetModeAndFreq") {
+            let mode = request.get("mode").and_then(|v| v.as_str()).unwrap_or("");
+            fields.insert("requested_mode".into(), if ["SSB", "DIGI", "FT8", "FT4", "RTTY", "CW"].contains(&mode) { mode } else { "unsupported" }.into());
+        }
+    }
+    fields
+}
+
+fn safe_evidence(raw: &str) -> Option<sentry::protocol::Context> {
+    if raw.len() > 4096 { return None; }
+    let input: Evidence = serde_json::from_str(raw).ok()?;
+    let mut safe = Evidence::new();
+    for (key, value) in input {
+        let allowed = match key.as_str() {
+            "stage" => matches!(value.as_str(), Some("tray_creation" | "tray_event_loop" | "browser_startup" | "browser_user_event" | "termination" | "update_request" | "radio_command")),
+            "cause_categories" => value.as_array().is_some_and(|values| values.len() <= 8 && values.iter().all(|v| matches!(v.as_str(), Some("io" | "network_timeout" | "network_connect" | "network_redirect" | "http_status" | "network_decode" | "network_body" | "network_builder" | "network_request" | "json" | "radio_initialization" | "radio_operation" | "radio_configuration" | "radio_manager" | "tray_os" | "tray_not_main_thread" | "tray_png_encoding" | "tray_other" | "unclassified")))),
+            "destination" => matches!(value.as_str(), Some("local_service" | "release_manifest" | "release_artifact_or_other" | "unclassified_endpoint")),
+            "hresult" => value.as_u64().is_some_and(|v| v <= u32::MAX as u64),
+            "http_status" => value.as_u64().is_some_and(|v| (100..=599).contains(&v)),
+            "connection_state" => matches!(value.as_str(), Some("connected" | "disconnected")),
+            "configuration_present" => value.is_boolean(),
+            "requested_mode" => matches!(value.as_str(), Some("SSB" | "DIGI" | "FT8" | "FT4" | "RTTY" | "CW" | "unsupported")),
+            "initialization" | "io_summary" | "previous_operation" => {
+                if let Some(text) = value.as_str() { safe.insert(key, safe_summary(text).into()); }
+                continue;
+            }
+            _ => false,
+        };
+        if allowed { safe.insert(key, value); }
+    }
+    (!safe.is_empty()).then_some(sentry::protocol::Context::Other(safe))
+}
+
 fn scrub_breadcrumb(mut breadcrumb: Breadcrumb) -> Option<Breadcrumb> {
     let action = safe_action(breadcrumb.data.get("action")?.as_str()?);
     if action == "UnknownAction" {
@@ -456,6 +583,10 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
                 .and_then(canonical_model_id);
             Some((action, summary, connected, model))
         });
+    let evidence = event.contexts.get("Rust Tracing Fields").and_then(|context| {
+        let sentry::protocol::Context::Other(fields) = context else { return None; };
+        safe_evidence(fields.get("failure_evidence")?.as_str()?)
+    });
     let update_failure = event
         .contexts
         .remove("Rust Tracing Fields")
@@ -509,6 +640,9 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
         event
             .contexts
             .insert("Rust Tracing Location".to_owned(), location);
+    }
+    if let Some(evidence) = evidence {
+        event.contexts.insert("Failure Evidence".to_owned(), evidence);
     }
     if let Some(failure) = update_failure {
         event.contexts.insert("Update Failure".to_owned(), failure);
@@ -773,6 +907,92 @@ mod tests {
         );
     }
 
+    fn evidence_event(raw: String) -> Event<'static> {
+        scrub_event(Event {
+            logger: Some("catserver::server::session".into()),
+            contexts: BTreeMap::from([("Rust Tracing Fields".into(), Context::Other(BTreeMap::from([
+                ("failure_evidence".into(), raw.into()),
+                ("action".into(), "SetModeAndFreq".into()),
+                ("error_summary".into(), "Radio operation set mode: radio unavailable".into()),
+            ])))]),
+            ..Default::default()
+        }).unwrap()
+    }
+
+    #[test]
+    fn captures_generic_failures_without_changing_grouping_or_sending_text() {
+        for stage in ["tray_creation", "browser_startup", "termination", "update_request"] {
+            let error = anyhow::Error::new(std::io::Error::from_raw_os_error(11001))
+                .context("https://192.0.2.1/private?token=secret K1ABC");
+            let evidence = super::failure_evidence(&error, stage);
+            let event = evidence_event(serde_json::json!(evidence).to_string());
+            let Context::Other(fields) = &event.contexts["Failure Evidence"] else { panic!("missing evidence") };
+            assert_eq!(fields["stage"], stage);
+            assert!(fields["io_summary"].as_str().unwrap().contains("11001"));
+            assert_eq!(fields["cause_categories"], serde_json::json!(["unclassified", "io"]));
+            let base = evidence_event("{}".into());
+            assert_eq!(event.message, base.message);
+            assert_eq!(event.fingerprint, base.fingerprint);
+            let serialized = serde_json::to_string(&event).unwrap();
+            for private in ["192.0.2.1", "private", "secret", "K1ABC"] { assert!(!serialized.contains(private)); }
+        }
+        let tray = anyhow::Error::new(tray_icon::Error::NotMainThread);
+        assert!(super::failure_evidence(&tray, "tray_creation")["cause_categories"].as_array().unwrap().contains(&"tray_not_main_thread".into()));
+        let network = reqwest::blocking::Client::new().get("http://private.example:bad/secret?K1ABC").build().unwrap_err();
+        let event = evidence_event(serde_json::json!(super::failure_evidence(&network.into(), "update_request")).to_string());
+        let Context::Other(fields) = &event.contexts["Failure Evidence"] else { panic!("missing evidence") };
+        assert_eq!(fields["destination"], "unclassified_endpoint");
+        assert!(fields["cause_categories"].as_array().unwrap().contains(&"network_builder".into()));
+        assert!(!serde_json::to_string(&event).unwrap().contains("private.example"));
+    }
+
+    #[test]
+    fn captures_radio_connection_reason_requested_mode_and_com_code() {
+        use crate::{radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig}, radio_manager::{ConnectionState, RadioSnapshot}, rig::{RadioInitError, RadioOperationError, Status}};
+        let snapshot = RadioSnapshot {
+            selected: ActiveRadioBackend::Configured(RadioBackendKind::Hamlib),
+            connection: ConnectionState::Disconnected,
+            last_error: Some(RadioInitError::Io { backend: "hamlib", kind: std::io::ErrorKind::PermissionDenied }),
+            last_operation_error: Some(RadioOperationError::new(1, "select VFO", "Hamlib rig_set_vfo failed with code -8: /dev/private secret")),
+            config: RadioConfig { rig: None }, last_status: Status::disconnected(1),
+        };
+        for (mode, expected) in [("RTTY", "RTTY"), ("K1ABC secret", "unsupported")] {
+            let error = anyhow::Error::new(RadioOperationError::new(1, "set mode", "[0x80070057] private K1ABC secret"));
+            let request = serde_json::json!({"action": "SetModeAndFreq", "mode": mode, "freq": 14074, "dx_callsign": "K1ABC", "token": "secret"});
+            let event = evidence_event(serde_json::json!(super::radio_evidence(&error, &snapshot, &request.to_string())).to_string());
+            let Context::Other(fields) = &event.contexts["Failure Evidence"] else { panic!("missing evidence") };
+            assert_eq!(fields["requested_mode"], expected);
+            assert!(!fields.contains_key("requested_vfo"));
+            assert_eq!(fields["connection_state"], "disconnected");
+            assert_eq!(fields["configuration_present"], false);
+            assert_eq!(fields["initialization"], "IO PermissionDenied (OS code 0)");
+            assert!(!fields.contains_key("command_category"));
+            assert_eq!(fields["hresult"], 0x80070057u32);
+            assert_eq!(fields["previous_operation"], "Radio operation select VFO: Hamlib rig_set_vfo failed with code -8");
+            let serialized = serde_json::to_string(&event).unwrap();
+            for private in ["K1ABC", "secret", "private", "14074"] { assert!(!serialized.contains(private)); }
+        }
+        assert!(super::hresult("[0xsecret] private").is_none());
+        assert!(super::hresult("[0x8007005700] private").is_none());
+    }
+
+    #[test]
+    fn rejects_untrusted_and_oversized_evidence() {
+        let event = evidence_event(serde_json::json!({
+            "stage": "secret", "destination": "https://private.example", "requested_mode": "K1ABC",
+            "requested_vfo": "A", "configuration_present": "secret", "hresult": -1,
+            "http_status": 999, "cause_categories": ["secret"], "command_category": "secret",
+            "initialization": "secret /dev/private", "io_summary": "IO secret (OS code 5)",
+            "previous_operation": "secret", "token": "secret",
+        }).to_string());
+        let Context::Other(fields) = &event.contexts["Failure Evidence"] else { panic!("missing evidence") };
+        assert_eq!(fields.len(), 3);
+        assert!(fields.values().all(|value| value == "Error details redacted"));
+        let serialized = serde_json::to_string(&event).unwrap();
+        for private in ["secret", "private.example", "K1ABC", "/dev/"] { assert!(!serialized.contains(private)); }
+        assert!(super::safe_evidence(&"x".repeat(4097)).is_none());
+    }
+
     #[test]
     fn bounds_model_ids_and_preserves_only_safe_os_metadata() {
         assert_eq!(
@@ -836,6 +1056,7 @@ mod tests {
                 tracing::error!(
                     action = "SetModeAndFreq",
                     error_summary = %super::error_summary(&error),
+                    failure_evidence = %serde_json::json!(super::failure_evidence(&error, "radio_command")),
                     device_connected = false,
                     model_id = "hamlib:3073",
                     error = "secret",
@@ -852,6 +1073,9 @@ mod tests {
                 "SetModeAndFreq: Radio operation set mode: Hamlib rig_set_mode failed with code -8"
             )
         );
+        let Context::Other(evidence) = &event.contexts["Failure Evidence"] else { panic!("missing evidence") };
+        assert_eq!(evidence["stage"], "radio_command");
+        assert_eq!(evidence["cause_categories"], serde_json::json!(["radio_manager", "radio_operation"]));
         assert_eq!(event.breadcrumbs.len(), 1);
         assert_eq!(
             event.breadcrumbs[0].message.as_deref(),

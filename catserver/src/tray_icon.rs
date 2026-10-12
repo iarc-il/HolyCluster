@@ -74,7 +74,8 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
     let event_loop = match winit::event_loop::EventLoop::<UserEvent>::with_user_event().build() {
         Ok(event_loop) => event_loop,
         Err(error) => {
-            tracing::error!(?error, "Failed to create tray event loop");
+            let error = anyhow::Error::new(error);
+            tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "tray_event_loop")), "Failed to create tray event loop");
             return;
         }
     };
@@ -105,7 +106,7 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
             let (tray_icon, open_menu_item, quit_menu_item) = match create_tray_icon() {
                 Ok(tray_icon) => tray_icon,
                 Err(error) => {
-                    tracing::error!(?error, "Failed to create tray icon");
+                    tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "tray_creation")), "Failed to create tray icon");
                     event_loop.exit();
                     return;
                 }
@@ -164,7 +165,7 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
     let (tray_icon, open_menu_item, quit_menu_item) = match create_tray_icon() {
         Ok(tray_icon) => tray_icon,
         Err(error) => {
-            tracing::error!(?error, "Failed to create tray icon");
+            tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "tray_creation")), "Failed to create tray icon");
             return;
         }
     };
