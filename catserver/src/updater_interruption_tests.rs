@@ -1,5 +1,9 @@
 use super::*;
 
+#[cfg(target_os = "linux")]
+const VALID_APPIMAGE: &[u8] =
+    include_bytes!("../../backend/shared/artifact-validator/fixtures/valid-linux.AppImage");
+
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
@@ -35,19 +39,20 @@ impl Fixture {
         let staged_artifact = self.0.join("download");
         fs::write(&current_executable, b"old").unwrap();
         make_executable(&current_executable).unwrap();
-        fs::write(&staged_artifact, b"abc").unwrap();
+        fs::write(&staged_artifact, VALID_APPIMAGE).unwrap();
         InstallPlan {
             current_executable,
             staged_artifact,
             artifact: Artifact {
                 url: "https://releases.example/HolyCluster.AppImage".into(),
                 name: "HolyCluster.AppImage".into(),
-                sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".into(),
-                size: 3,
+                sha256: format!("{:x}", Sha256::digest(VALID_APPIMAGE)),
+                size: VALID_APPIMAGE.len() as u64,
             },
             state_path: self.0.join("state.json"),
             parent_pid: std::process::id(),
-            version: Some("1.3.0".into()),
+            version: Some("1.2.3".into()),
+            release_version: Some("catserver-v1.2.3".into()),
             reinstall: false,
             command_args: vec![],
             restart: None,
@@ -58,6 +63,59 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+#[test]
+fn package_verification_rejects_wrong_formats_even_with_matching_hashes() {
+    let fixture = Fixture::new();
+    let cases: [(&str, &[u8]); 2] = [
+        (
+            PLATFORM_LINUX,
+            include_bytes!("../../backend/shared/artifact-validator/fixtures/valid-linux.AppImage"),
+        ),
+        (
+            PLATFORM_WINDOWS,
+            include_bytes!("../../backend/shared/artifact-validator/fixtures/valid-windows.msi"),
+        ),
+    ];
+    for (platform, bytes) in cases {
+        let path = fixture.0.join("package");
+        fs::write(&path, bytes).unwrap();
+        let artifact = Artifact {
+            url: "https://releases.example/package".into(),
+            name: "package".into(),
+            sha256: format!("{:x}", Sha256::digest(bytes)),
+            size: bytes.len() as u64,
+        };
+        verify_file(&path, &artifact, platform, "catserver-v1.2.3").unwrap();
+        let other = if platform == PLATFORM_LINUX {
+            PLATFORM_WINDOWS
+        } else {
+            PLATFORM_LINUX
+        };
+        assert!(verify_file(&path, &artifact, other, "catserver-v1.2.3").is_err());
+        assert!(verify_file(&path, &artifact, platform, "catserver-v1.2.4").is_err());
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn activation_rejects_an_msi_with_matching_manifest_hash() {
+    let fixture = Fixture::new();
+    let mut plan = fixture.plan();
+    let bytes =
+        include_bytes!("../../backend/shared/artifact-validator/fixtures/valid-windows.msi");
+    fs::write(&plan.staged_artifact, bytes).unwrap();
+    plan.artifact.sha256 = format!("{:x}", Sha256::digest(bytes));
+    plan.artifact.size = bytes.len() as u64;
+    assert!(prepare_linux_activation(&plan).is_err());
+    assert_eq!(fs::read(&plan.current_executable).unwrap(), b"old");
+    assert!(
+        !plan
+            .current_executable
+            .with_extension("AppImage.update")
+            .exists()
+    );
 }
 
 #[test]
@@ -225,7 +283,7 @@ fn activation_boundaries_keep_complete_launcher_and_singleton_owner() {
         b"old"
     );
     activate_linux(&activation, &plan.current_executable).unwrap();
-    check(b"abc");
+    check(VALID_APPIMAGE);
     // Force EACCES, rather than ENOEXEC (execvp can run a shell fallback).
     fs::set_permissions(&plan.current_executable, fs::Permissions::from_mode(0o644)).unwrap();
     assert!(
@@ -310,7 +368,7 @@ fn linux_install_preparation_does_not_authorize_ordinary_shutdown() {
     service
         .write_status(&UpdateStatus {
             state: UpdateState::Downloaded,
-            available_version: Some("1.3.0".into()),
+            available_version: Some("1.2.3".into()),
             diagnostic: None,
         })
         .unwrap();
@@ -388,7 +446,7 @@ fn failed_preparation_backup_and_activation_leave_old_launcher() {
     fs::write(&plan.staged_artifact, b"bad").unwrap();
     assert!(prepare_linux_activation(&plan).is_err());
     assert_eq!(fs::read(&plan.current_executable).unwrap(), b"old");
-    fs::write(&plan.staged_artifact, b"abc").unwrap();
+    fs::write(&plan.staged_artifact, VALID_APPIMAGE).unwrap();
     let activation = prepare_linux_activation(&plan).unwrap();
     let backup = plan.current_executable.with_extension("AppImage.previous");
     fs::create_dir(&backup).unwrap();
@@ -422,5 +480,5 @@ fn failed_rollback_does_not_unlink_updated_launcher() {
             .to_string()
             .contains("cannot restore previous version")
     );
-    assert_eq!(fs::read(&plan.current_executable).unwrap(), b"abc");
+    assert_eq!(fs::read(&plan.current_executable).unwrap(), VALID_APPIMAGE);
 }

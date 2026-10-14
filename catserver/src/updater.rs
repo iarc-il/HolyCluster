@@ -166,6 +166,9 @@ struct InstallPlan {
     parent_pid: u32,
     #[serde(default)]
     version: Option<String>,
+    // Preserve the full release tag separately from the normalized comparison version.
+    #[serde(default)]
+    release_version: Option<String>,
     #[serde(default)]
     reinstall: bool,
     #[serde(default)]
@@ -501,11 +504,12 @@ impl UpdateService {
 
     fn download_inner(&self) -> Result<UpdateStatus> {
         let manifest = self.fetch_manifest()?;
-        let Some((version, artifact)) = self.accept_manifest(manifest)? else {
+        let Some((version, release)) = self.accept_manifest(manifest)? else {
             let status = UpdateStatus::default();
             self.write_status(&status)?;
             return Ok(status);
         };
+        let artifact = release.artifact;
         fs::create_dir_all(self.staging_dir())?;
         let staged = self
             .staging_dir()
@@ -538,7 +542,7 @@ impl UpdateService {
         if let Some(progress) = &progress {
             progress.phase("verifying")?;
         }
-        verify_file(&staged, &artifact)?;
+        verify_file(&staged, &artifact, self.platform, &release.version)?;
         fs::rename(&staged, &final_path)?;
         let status = UpdateStatus {
             state: UpdateState::Downloaded,
@@ -565,6 +569,7 @@ impl UpdateService {
                 parent_pid: std::process::id(),
                 reinstall: self.dev_mode && version == self.current_version,
                 version: Some(version.to_string()),
+                release_version: Some(release.version),
                 command_args: original_arguments(&std::env::args().skip(1).collect::<Vec<_>>()),
                 restart,
             })?,
@@ -657,7 +662,7 @@ impl UpdateService {
     pub(crate) fn accept_manifest(
         &self,
         manifest: ReleaseManifest,
-    ) -> Result<Option<(Version, Artifact)>> {
+    ) -> Result<Option<(Version, AppRelease)>> {
         fn map_platform(backend: &str) -> Option<&'static str> {
             match backend {
                 "linux" => Some(PLATFORM_LINUX),
@@ -666,19 +671,22 @@ impl UpdateService {
             }
         }
 
-        let release = manifest
+        let mut release = manifest
             .releases
-            .iter()
+            .into_iter()
             .find(|r| map_platform(&r.platform) == Some(self.platform))
             .context("release does not contain an artifact for this platform")?;
         let version = parse_version(&release.version)?;
         if version < self.current_version || (version == self.current_version && !self.dev_mode) {
             return Ok(None);
         }
-        let mut artifact = release.artifact.clone();
-        artifact.url = self.manifest_url.join(&artifact.url)?.to_string();
-        validate_artifact(&artifact, self.platform)?;
-        Ok(Some((version, artifact)))
+        anyhow::ensure!(
+            release.architecture == "x86_64",
+            "unsupported release architecture"
+        );
+        release.artifact.url = self.manifest_url.join(&release.artifact.url)?.to_string();
+        validate_artifact(&release.artifact, self.platform)?;
+        Ok(Some((version, release)))
     }
 
     fn fail<T>(&self, error: anyhow::Error) -> Result<T> {
@@ -889,14 +897,14 @@ fn install_linux(plan: &InstallPlan) -> Result<UpdateState> {
 }
 
 fn prepare_linux_activation(plan: &InstallPlan) -> Result<PathBuf> {
-    verify_file(&plan.staged_artifact, &plan.artifact)?;
+    verify_plan_file(&plan.staged_artifact, plan, PLATFORM_LINUX)?;
     let activation = plan.current_executable.with_extension("AppImage.update");
     if activation.exists() {
         bail!("a previous update activation file exists; update manually");
     }
     fs::copy(&plan.staged_artifact, &activation)?;
-    if let Err(error) =
-        make_executable(&activation).and_then(|()| verify_file(&activation, &plan.artifact))
+    if let Err(error) = make_executable(&activation)
+        .and_then(|()| verify_plan_file(&activation, plan, PLATFORM_LINUX))
     {
         let _ = fs::remove_file(&activation);
         return Err(error).context("cannot prepare staged AppImage for activation");
@@ -974,7 +982,7 @@ fn install_windows(
     if let Some(store) = progress {
         store.phase("verifying")?;
     }
-    verify_file(&plan.staged_artifact, &plan.artifact)?;
+    verify_plan_file(&plan.staged_artifact, plan, PLATFORM_WINDOWS)?;
     if let Some(store) = progress {
         store.phase("awaiting_permission")?;
     }
@@ -1158,7 +1166,7 @@ fn execute_installer_broker(
     event_path: &Path,
     id: Option<String>,
 ) -> Result<u32> {
-    verify_file(&plan.staged_artifact, &plan.artifact)?;
+    verify_plan_file(&plan.staged_artifact, plan, PLATFORM_WINDOWS)?;
     windows_elevation::run(
         "msiexec.exe",
         &windows_installer_arguments(
@@ -1393,8 +1401,41 @@ pub(crate) fn copy_verified(
     Ok(())
 }
 
-fn verify_file(path: &Path, artifact: &Artifact) -> Result<()> {
-    copy_verified(&mut File::open(path)?, io::sink(), artifact)
+fn verify_file(path: &Path, artifact: &Artifact, platform: &str, version: &str) -> Result<()> {
+    copy_verified(&mut File::open(path)?, io::sink(), artifact)?;
+    let platform = match platform {
+        PLATFORM_LINUX => "linux",
+        PLATFORM_WINDOWS => "windows",
+        _ => bail!("unsupported package platform"),
+    };
+    holy_artifact_validator::validate_package(path, platform, version)
+}
+
+fn verify_plan_file(path: &Path, plan: &InstallPlan, platform: &str) -> Result<()> {
+    // Older plans did not retain the full tag. Versioned filenames can recover it.
+    let name_version = plan
+        .artifact
+        .name
+        .strip_suffix(match platform {
+            PLATFORM_LINUX => "-linux-x86_64.AppImage",
+            PLATFORM_WINDOWS => "-windows-x86_64.msi",
+            _ => bail!("unsupported package platform"),
+        })
+        .filter(|name| name.starts_with("catserver-v"));
+    let comparison = plan
+        .version
+        .as_deref()
+        .context("install plan has no version")?;
+    let release = plan
+        .release_version
+        .as_deref()
+        .or(name_version)
+        .unwrap_or(comparison);
+    anyhow::ensure!(
+        parse_version(release)? == parse_version(comparison)?,
+        "install plan package version differs from its target"
+    );
+    verify_file(path, &plan.artifact, platform, release)
 }
 
 pub(crate) fn validate_artifact(artifact: &Artifact, platform: &str) -> Result<()> {
