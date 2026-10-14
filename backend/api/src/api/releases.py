@@ -2,6 +2,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from shared.artifact_validation import validate_package
 from shared.release_manifest import ARTIFACT_NAME_PATTERN, ReleaseArtifact, ReleaseManifestError, parse_release_manifest
 
 
@@ -35,3 +36,4 @@ def verify_artifact(path: Path, artifact: ReleaseArtifact):
         digest = hashlib.file_digest(file, "sha256").hexdigest()
     if digest != artifact.sha256:
         raise ReleaseManifestError("Artifact does not match release manifest")
+    validate_package(path, artifact.platform, artifact.architecture, artifact.version)

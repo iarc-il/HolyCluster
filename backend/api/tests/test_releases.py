@@ -19,14 +19,19 @@ from api.main import (
 )
 
 
+FIXTURES = Path(__file__).resolve().parents[2] / "shared/artifact-validator/fixtures"
+
+
 class ReleaseTest(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.release_dir = Path(self.temp_dir.name)
         self.artifacts_dir = self.release_dir / "artifacts"
         self.artifacts_dir.mkdir()
-        self.windows = self.write_artifact("catserver-v1.2.3-windows-x86_64.msi", b"windows installer")
-        self.linux = self.write_artifact("catserver-v1.2.3-linux-x86_64.AppImage", b"linux appimage")
+        self.windows_content = (FIXTURES / "valid-windows.msi").read_bytes()
+        self.linux_content = (FIXTURES / "valid-linux.AppImage").read_bytes()
+        self.windows = self.write_artifact("catserver-v1.2.3-windows-x86_64.msi", self.windows_content)
+        self.linux = self.write_artifact("catserver-v1.2.3-linux-x86_64.AppImage", self.linux_content)
         self.write_manifest([self.windows, self.linux])
         self.settings_patch = patch("api.main.settings.catserver_msi_dir", self.release_dir)
         self.settings_patch.start()
@@ -77,7 +82,7 @@ class ReleaseTest(unittest.TestCase):
 
     def test_download_cache_policy_preserves_bytes_and_download_headers(self):
         client = TestClient(app)
-        for release, content in ((self.windows, b"windows installer"), (self.linux, b"linux appimage")):
+        for release, content in ((self.windows, self.windows_content), (self.linux, self.linux_content)):
             routes = [
                 (f"/catserver/download/{release['platform']}/{release['architecture']}", "no-store"),
                 (release["artifact"]["location"], "no-store"),
@@ -127,6 +132,20 @@ class ReleaseTest(unittest.TestCase):
         response = client.get("/catserver/releases/latest")
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.headers["cache-control"], "no-store")
+
+    def test_matching_checksum_cannot_disguise_an_appimage_as_an_msi(self):
+        self.windows = self.write_artifact(self.windows["artifact"]["name"], self.linux_content)
+        self.write_manifest([self.windows, self.linux])
+        response = TestClient(app).get(self.windows["artifact"]["location"])
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertNotEqual(response.content, self.linux_content)
+
+    def test_package_version_must_match_the_manifest(self):
+        self.windows["version"] = "catserver-v1.2.4"
+        self.write_manifest([self.windows, self.linux])
+        with self.assertRaises(HTTPException):
+            download_catserver()
 
     def test_malformed_manifest_is_unavailable(self):
         self.write_manifest([{"version": "catserver-v1.2.3", "platform": "windows"}])

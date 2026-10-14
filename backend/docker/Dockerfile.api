@@ -1,4 +1,10 @@
+FROM rust:1.98.1-slim-bookworm AS artifact-validator
+WORKDIR /validator
+COPY shared/artifact-validator/ ./
+RUN cargo build --release --locked --bin holy-artifact-validator
+
 FROM python:3.13-slim-bookworm
+COPY --from=artifact-validator /validator/target/release/holy-artifact-validator /usr/local/bin/holy-artifact-validator
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
