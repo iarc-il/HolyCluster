@@ -15,7 +15,16 @@ const MAX_PAYLOAD_SIZE: u64 = 128 * 1024 * 1024;
 const UPGRADE_CODE: &str = "DD2C1F58-D922-4BEF-90BD-C01652EFD082";
 
 pub fn validate_package(path: &Path, platform: &str, version: &str) -> Result<()> {
-    let file = File::open(path).context("cannot open package")?;
+    validate_open_package(
+        File::open(path).context("cannot open package")?,
+        platform,
+        version,
+    )
+}
+
+/// Inspect an open snapshot without reopening a mutable pathname.
+pub fn validate_open_package(mut file: File, platform: &str, version: &str) -> Result<()> {
+    file.rewind()?;
     let size = file.metadata()?.len();
     ensure!(
         size > 0 && size <= MAX_PACKAGE_SIZE,

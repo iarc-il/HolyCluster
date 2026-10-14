@@ -5,6 +5,7 @@ mod radio;
 mod radio_actions;
 mod radio_configuration;
 mod radio_control;
+mod release_download;
 mod rotator;
 mod rotator_configuration;
 mod session;

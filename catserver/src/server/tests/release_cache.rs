@@ -38,8 +38,7 @@ async fn release_proxy_overrides_upstream_cache_policy_and_conditional_requests(
     let catserver = spawn_catserver(upstream.address).await;
     for path in [
         "/catserver/releases/latest",
-        "/catserver/artifacts/test.msi",
-        "/catserver/download",
+        "/catserver/releases/windows/x86_64",
         "/catserver/missing",
     ] {
         let response = reqwest::Client::new()

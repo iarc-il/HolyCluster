@@ -2,6 +2,7 @@ mod local_ui;
 mod proxy;
 mod readiness;
 mod release_cache;
+mod release_download;
 mod session;
 mod shutdown;
 mod update;

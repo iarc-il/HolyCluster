@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use axum::body::Body;
 use hyper_tls::HttpsConnector;
@@ -6,7 +6,7 @@ use hyper_util::{
     client::legacy::{Client, connect::HttpConnector},
     rt::TokioExecutor,
 };
-use tokio::sync::broadcast::Sender;
+use tokio::sync::{Semaphore, broadcast::Sender};
 
 use crate::updater::UpdateService;
 use crate::{radio_manager::RadioManager, rotator_manager::RotatorManager, tray_icon::UserEvent};
@@ -32,6 +32,7 @@ pub(super) struct AppState {
     pub(super) radio_configuration: RadioConfiguration,
     pub(super) rotator_configuration: RotatorConfiguration,
     pub(super) updater: UpdateService,
+    pub(super) release_downloads: Arc<Semaphore>,
 }
 
 impl AppState {
@@ -54,6 +55,7 @@ impl AppState {
             radio_configuration: production(radio.clone()),
             rotator_configuration: RotatorConfiguration::new(rotator.clone()),
             updater,
+            release_downloads: Arc::new(Semaphore::new(2)),
             radio,
             rotator,
             http_client: Client::builder(TokioExecutor::new()).build(HttpsConnector::new()),

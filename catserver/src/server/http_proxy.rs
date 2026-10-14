@@ -18,6 +18,11 @@ pub(super) async fn proxy(
     State(state): State<AppState>,
     mut request: Request<Body>,
 ) -> Response<Body> {
+    if super::release_download::is_artifact_path(request.uri().path()) {
+        let mut response = super::release_download::download(&state, request).await;
+        prevent_release_caching(response.headers_mut(), &state.server_config);
+        return response;
+    }
     let release_request = is_release_path(request.uri().path());
     if release_request {
         // A localhost URL can outlive the upstream that originally answered it.
