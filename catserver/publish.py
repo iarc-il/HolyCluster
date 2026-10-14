@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend" / "shared" / "src"))
 
+from shared.artifact_validation import validate_package
 from shared.release_manifest import (
     ReleaseManifestError,
     create_release_artifact,
@@ -124,6 +125,8 @@ def parse_arguments():
 
 
 def write_publish_files(directory: Path, version: str, artifacts: list[Artifact]):
+    for artifact in artifacts:
+        validate_package(artifact.path, artifact.platform, artifact.architecture, version)
     manifest = {
         "schema_version": 1,
         "releases": [artifact.release_artifact(version).as_dict() for artifact in artifacts],
@@ -144,10 +147,22 @@ def publish(arguments):
 
     with tempfile.TemporaryDirectory() as temporary_directory:
         staging_directory = Path(temporary_directory)
-        write_publish_files(staging_directory, arguments.version, arguments.artifact)
+        # Inspect, hash, and upload the same private snapshots, not mutable build paths.
+        artifacts = []
+        for artifact in arguments.artifact:
+            snapshot = staging_directory / artifact.name
+            with artifact.path.open("rb") as source, snapshot.open("wb") as destination:
+                size = 0
+                while chunk := source.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > 512 * 1024 * 1024:
+                        raise ReleaseManifestError("Package exceeds allowed size")
+                    destination.write(chunk)
+            artifacts.append(Artifact(artifact.platform, artifact.architecture, snapshot, artifact.name))
+        write_publish_files(staging_directory, arguments.version, artifacts)
         run(["ssh", remote, "mkdir", "-p", "--", remote_stage])
 
-        for artifact in arguments.artifact:
+        for artifact in artifacts:
             run(["scp", str(artifact.path), f"{remote}:{remote_stage}/{artifact.name}"])
             run(
                 [
@@ -166,7 +181,7 @@ def publish(arguments):
                 "--",
                 arguments.remote_artifact_dir,
                 run_id,
-                *[a.name for a in arguments.artifact],
+                *[a.name for a in artifacts],
             ],
             input=REMOTE_PUBLISH_SCRIPT,
             text=True,

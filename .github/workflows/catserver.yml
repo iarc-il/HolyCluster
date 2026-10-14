@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - "catserver/**"
+      - "backend/shared/artifact-validator/**"
+      - "backend/shared/src/shared/artifact_validation.py"
       - ".github/workflows/catserver.yml"
     branches:
       - "dev"
@@ -12,6 +14,8 @@ on:
   pull_request:
     paths:
       - "catserver/**"
+      - "backend/shared/artifact-validator/**"
+      - "backend/shared/src/shared/artifact_validation.py"
       - ".github/workflows/catserver.yml"
     branches:
       - "dev"
@@ -82,6 +86,13 @@ jobs:
       - name: Run host workspace tests
         working-directory: catserver
         run: cargo test --workspace
+
+      - name: Test and build package inspector
+        working-directory: backend/shared/artifact-validator
+        run: |
+          cargo test --locked
+          cargo build --release --locked
+          echo "$PWD/target/release" >> "$GITHUB_PATH"
 
       - name: Run Python tests
         working-directory: catserver
@@ -291,6 +302,22 @@ jobs:
         with:
           name: HolyCluster-windows-x86_64
           path: catserver/target/${{ env.TARGET }}/release
+
+      - name: Build package inspector
+        working-directory: backend/shared/artifact-validator
+        env:
+          RUSTC_WRAPPER: ""
+        run: |
+          cargo build --release --locked
+          echo "$PWD/target/release" >> "$GITHUB_PATH"
+
+      - name: Inspect candidate packages before deployment access
+        env:
+          RUSTC_WRAPPER: ""
+        run: |
+          VERSION="${CATSERVER_VERSION:-$(git describe --match 'catserver-v*')}"
+          holy-artifact-validator windows "$VERSION" "catserver/target/$TARGET/release/HolyCluster.msi"
+          holy-artifact-validator linux "$VERSION" "catserver/target/x86_64-unknown-linux-gnu/release/$VERSION-linux-x86_64.AppImage"
 
       - name: Setup SSH
         run: |

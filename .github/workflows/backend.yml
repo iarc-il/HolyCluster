@@ -49,6 +49,14 @@ jobs:
         working-directory: backend
         run: test "$(uv run alembic heads | wc -l)" -eq 1
 
+      - name: Test and build package inspector
+        working-directory: backend/shared/artifact-validator
+        run: |
+          cargo fmt --check
+          cargo test --locked
+          cargo build --release --locked
+          echo "$PWD/target/release" >> "$GITHUB_PATH"
+
       - name: Run tests
         working-directory: backend
         env:
