@@ -70,6 +70,7 @@ venv.bak/
 
 # Windows stuff:
 *.msi
+!backend/shared/artifact-validator/fixtures/valid-windows.msi
 *.cab
 *.spec
 *.wixpdb
