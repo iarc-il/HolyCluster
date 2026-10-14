@@ -31,6 +31,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
 
 from . import propagation, releases, submit_spot, voacap
+from .release_cache import ReleaseCacheMiddleware
 from .settings import settings
 
 initialize_sentry(settings, "api")
@@ -305,6 +306,7 @@ async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False
 
 app = fastapi.FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(ReleaseCacheMiddleware)
 
 MISSING_RESOLVE_RESULT_BATCH_SIZE = 50
 MISSING_RESOLVE_WORKER_COUNT = 4
@@ -1287,7 +1289,7 @@ def get_latest_catserver_name():
     return get_release_artifact("windows", "x86_64").name
 
 
-def serve_release_artifact(artifact, *, immutable=False):
+def serve_release_artifact(artifact):
     try:
         path = releases.artifact_path(settings.catserver_msi_dir, artifact.name)
         releases.verify_artifact(path, artifact)
@@ -1298,7 +1300,7 @@ def serve_release_artifact(artifact, *, immutable=False):
         str(path),
         filename=artifact.name.replace("catserver", "HolyCluster"),
         media_type="application/octet-stream",
-        headers={"Cache-Control": "public, max-age=31536000, immutable" if immutable else "no-store"},
+        headers={"Cache-Control": "no-store"},
     )
 
 
@@ -1318,7 +1320,7 @@ def download_catserver_artifact(name: str):
     artifact = next((artifact for artifact in manifest.artifacts if artifact.name == name), None)
     if artifact is None:
         raise HTTPException(status_code=404, detail="Artifact not found")
-    return serve_release_artifact(artifact, immutable=True)
+    return serve_release_artifact(artifact)
 
 
 @app.get("/catserver/latest", response_class=PlainTextResponse)

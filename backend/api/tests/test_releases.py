@@ -80,7 +80,7 @@ class ReleaseTest(unittest.TestCase):
         for release, content in ((self.windows, b"windows installer"), (self.linux, b"linux appimage")):
             routes = [
                 (f"/catserver/download/{release['platform']}/{release['architecture']}", "no-store"),
-                (release["artifact"]["location"], "public, max-age=31536000, immutable"),
+                (release["artifact"]["location"], "no-store"),
             ]
             if release == self.windows:
                 routes.append(("/catserver/download", "no-store"))
@@ -107,6 +107,26 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaises(HTTPException) as raised:
             download_catserver()
         self.assertEqual(raised.exception.status_code, 404)
+
+    def test_release_metadata_and_errors_cannot_be_cached(self):
+        client = TestClient(app)
+        for route, status in (
+            ("/catserver/releases/latest", 200),
+            ("/catserver/releases/windows/x86_64", 200),
+            ("/catserver/latest", 200),
+            ("/catserver/artifacts/missing.msi", 404),
+            ("/catserver/releases/missing/x86_64", 404),
+        ):
+            with self.subTest(route=route):
+                response = client.get(route, headers={"If-None-Match": '"stale"'})
+                self.assertEqual(response.status_code, status)
+                self.assertEqual(response.headers["cache-control"], "no-store")
+                self.assertNotIn("etag", response.headers)
+                self.assertNotIn("last-modified", response.headers)
+        self.write_manifest([{"version": "broken"}])
+        response = client.get("/catserver/releases/latest")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers["cache-control"], "no-store")
 
     def test_malformed_manifest_is_unavailable(self):
         self.write_manifest([{"version": "catserver-v1.2.3", "platform": "windows"}])
