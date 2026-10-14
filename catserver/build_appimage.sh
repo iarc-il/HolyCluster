@@ -15,13 +15,10 @@ SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct HEAD)}
 OUTPUT=$BUILD_DIR/$VERSION-linux-x86_64.AppImage
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 
-case "$VERSION" in
-    catserver-v*) ;;
-    *)
-        printf 'Invalid catserver version: %s\n' "$VERSION" >&2
-        exit 1
-        ;;
-esac
+if ! printf '%s\n' "$VERSION" | grep -Eq '^catserver-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+-g[0-9a-f]+)?$'; then
+    printf 'Invalid catserver version: %s\n' "$VERSION" >&2
+    exit 1
+fi
 case "$SOURCE_DATE_EPOCH" in
     ''|*[!0-9]*)
         printf 'Invalid SOURCE_DATE_EPOCH: %s\n' "$SOURCE_DATE_EPOCH" >&2
@@ -110,6 +107,7 @@ rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin"
 install -m 755 "$BUILD_DIR/catserver" "$APPDIR/usr/bin/HolyCluster"
 install -m 644 "$SCRIPT_DIR/appimage/HolyCluster.desktop" "$APPDIR/HolyCluster.desktop"
+printf '{"version":"%s","platform":"linux","architecture":"x86_64"}\n' "$VERSION" > "$APPDIR/holy-release.json"
 convert "$SCRIPT_DIR/../ui/src/assets/icon.png" -resize '128x128!' -strip "$APPDIR/HolyCluster.png"
 chmod 644 "$APPDIR/HolyCluster.png"
 cat > "$APPDIR/AppRun" <<'EOF'

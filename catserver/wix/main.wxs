@@ -33,6 +33,7 @@
 
         <Media Id="1" Cabinet="media1.cab" EmbedCab="yes" DiskPrompt="CD-ROM #1" />
         <Property Id="DiskPrompt" Value="Holy Cluster Installation" />
+        <Property Id="CATSERVER_RELEASE_VERSION" Value="$(var.ReleaseVersion)" />
 
         <DirectoryRef Id="ApplicationProgramsFolder">
             <Component Id="StartMenuShortcut" Guid="E504755C-11A2-43E1-8E42-A65A121E4F50">

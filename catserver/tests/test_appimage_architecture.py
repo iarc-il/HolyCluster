@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise the packaging shell script with isolated libraries and stub packagers."""
+import json
 import os
 from pathlib import Path
 import re
@@ -47,7 +48,7 @@ class AppImageArchitectureTests(unittest.TestCase):
             self.env.pop(key, None)
         self.env.update(PATH=str(self.bin) + ":" + os.environ["PATH"],
                         CARGO_TARGET_DIR=str(self.root / "target"),
-                        CATSERVER_VERSION="catserver-vtest", SOURCE_DATE_EPOCH="1",
+                        CATSERVER_VERSION="catserver-v1.2.3", SOURCE_DATE_EPOCH="1",
                         APPIMAGETOOL=str(self.bin / "appimagetool"),
                         LINUXDEPLOY=str(self.bin / "linuxdeploy"),
                         APPIMAGE_RUNTIME=str(self.root / "runtime"),
@@ -87,6 +88,8 @@ class AppImageArchitectureTests(unittest.TestCase):
         for name in ("libusb-1.0.so.0", "libayatana-appindicator3.so.1"):
             self.assertEqual((self.build / "AppDir/usr/lib" / name).read_bytes(), elf())
         self.assertEqual(len(list(self.build.glob("*.AppImage"))), 1)
+        self.assertEqual(json.loads((self.build / "AppDir/holy-release.json").read_text()),
+                         {"version": "catserver-v1.2.3", "platform": "linux", "architecture": "x86_64"})
 
     def test_invalid_explicit_overrides_fail_before_deploy(self):
         for variable, name in (("LIBUSB_LIBRARY", "libusb-1.0.so.0"),

@@ -51,7 +51,7 @@ run_wix() {
     touch -d "@$SOURCE_DATE_EPOCH" "$executable"
     product_identity=$(
         {
-            printf '%s\0' 'HolyCluster' "$VERSION" "$DEFAULT_SHORTCUT_ARGUMENTS"
+            printf '%s\0' 'HolyCluster' "$VERSION" "$GIT_TAG" "$DEFAULT_SHORTCUT_ARGUMENTS"
             sha256sum "$executable" "wix/$WIX_NAME.wxs" wix/icon.ico wix/eula.rtf | cut -d ' ' -f 1
         } | sha256sum | cut -d ' ' -f 1
     )
@@ -60,6 +60,7 @@ run_wix() {
     mkdir -p -- "$intermediate"
     wix build \
         -d Version="$VERSION" \
+        -d ReleaseVersion="$GIT_TAG" \
         -d ProductCode="$product_code" \
         -d CargoTargetBinDir="$BUILD_DIR" \
         -d DefaultShortcutArguments="$DEFAULT_SHORTCUT_ARGUMENTS" \
