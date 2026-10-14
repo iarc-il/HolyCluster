@@ -22,7 +22,7 @@ class ReleaseVersionTests(unittest.TestCase):
             for line in workflow.splitlines()
             if line.strip().startswith(('echo "CATSERVER_VERSION=', 'VERSION='))
         ]
-        self.assertEqual(len(selectors), 4)
+        self.assertEqual(len(selectors), 6)
         with tempfile.TemporaryDirectory() as directory:
             def git(*args):
                 return subprocess.check_output(

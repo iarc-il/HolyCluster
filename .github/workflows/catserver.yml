@@ -280,10 +280,131 @@ jobs:
           name: HolyCluster-windows-x86_64
           path: catserver/target/${{ env.TARGET }}/release/HolyCluster.msi
 
+  inspect-candidate-packages:
+    name: Inspect staged release packages
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: ""
+    outputs:
+      version: ${{ steps.inspect.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: HolyCluster-linux-x86_64
+          path: candidate/linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: HolyCluster-windows-x86_64
+          path: candidate/windows
+      - name: Build read-only package inspector
+        working-directory: backend/shared/artifact-validator
+        run: cargo build --release --locked
+      - name: Inspect exact candidate bytes before installation
+        id: inspect
+        run: |
+          VERSION="${CATSERVER_VERSION:-$(git describe --match 'catserver-v*')}"
+          VALIDATOR=backend/shared/artifact-validator/target/release/holy-artifact-validator
+          "$VALIDATOR" windows "$VERSION" candidate/windows/HolyCluster.msi
+          "$VALIDATOR" linux "$VERSION" "candidate/linux/$VERSION-linux-x86_64.AppImage"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          printf 'commit=%s run=%s version=%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$VERSION" | tee candidate/inspection.txt
+          sha256sum candidate/windows/HolyCluster.msi "candidate/linux/$VERSION-linux-x86_64.AppImage" | tee -a candidate/inspection.txt
+          wc -c candidate/windows/HolyCluster.msi "candidate/linux/$VERSION-linux-x86_64.AppImage" | tee -a candidate/inspection.txt
+      - name: Preserve candidate inspection results
+        uses: actions/upload-artifact@v4
+        with:
+          name: Candidate-package-inspection
+          path: candidate/inspection.txt
+
+  smoke-windows-release:
+    name: Install candidate MSI and verify browser downloads
+    needs: inspect-candidate-packages
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: HolyCluster-linux-x86_64
+          path: candidate/linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: HolyCluster-windows-x86_64
+          path: candidate/windows
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install browser test tools
+        working-directory: ui
+        run: |
+          npm ci
+          npx playwright install chromium firefox
+      - name: Install and exercise the actual MSI
+        shell: pwsh
+        run: |
+          ./.github/scripts/catserver_windows_smoke.ps1 `
+            -Msi candidate/windows/HolyCluster.msi `
+            -AppImage "candidate/linux/${{ needs.inspect-candidate-packages.outputs.version }}-linux-x86_64.AppImage" `
+            -Version "${{ needs.inspect-candidate-packages.outputs.version }}"
+      - name: Preserve installer logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-release-guardrail-logs
+          path: ${{ runner.temp }}/HolyCluster-release-smoke/*.log
+          if-no-files-found: ignore
+
+  smoke-linux-release:
+    name: Start candidate AppImage and verify browser downloads
+    needs: inspect-candidate-packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CATSERVER_SMOKE_VERSION: ${{ needs.inspect-candidate-packages.outputs.version }}
+      CATSERVER_SMOKE_MSI: ${{ github.workspace }}/candidate/windows/HolyCluster.msi
+      CATSERVER_SMOKE_APPIMAGE: ${{ github.workspace }}/candidate/linux/${{ needs.inspect-candidate-packages.outputs.version }}-linux-x86_64.AppImage
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: HolyCluster-linux-x86_64
+          path: candidate/linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: HolyCluster-windows-x86_64
+          path: candidate/windows
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install browser test tools
+        working-directory: ui
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox
+      - name: Extract the inspected AppImage without FUSE
+        run: |
+          mkdir -p "$RUNNER_TEMP/holy-appimage-smoke"
+          cd "$RUNNER_TEMP/holy-appimage-smoke"
+          chmod +x "$CATSERVER_SMOKE_APPIMAGE"
+          "$CATSERVER_SMOKE_APPIMAGE" --appimage-extract
+          echo "CATSERVER_SMOKE_EXE=$PWD/squashfs-root/AppRun" >> "$GITHUB_ENV"
+          echo "CATSERVER_SMOKE_EXPECT_VERSION=$(printf '%s' "$CATSERVER_SMOKE_VERSION" | sed -E 's/^catserver-v//; s/-g[0-9a-f]+$//')" >> "$GITHUB_ENV"
+      - name: Exercise the actual AppImage payload
+        run: xvfb-run -a node ui/scripts/release_browser_smoke.mjs
+
   publish-catserver:
     name: Publish Catserver
     if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
-    needs: [test-catserver, lint-catserver, build-linux, build-windows]
+    needs: [test-catserver, lint-catserver, build-linux, build-windows, inspect-candidate-packages, smoke-windows-release, smoke-linux-release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -352,3 +473,25 @@ jobs:
             --version "$VERSION" \
             --artifact "windows:x86_64:catserver/target/$TARGET/release/HolyCluster.msi:$VERSION-windows-x86_64.msi" \
             --artifact "linux:x86_64:catserver/target/x86_64-unknown-linux-gnu/release/$VERSION-linux-x86_64.AppImage:$VERSION-linux-x86_64.AppImage"
+
+      - name: Verify promoted public downloads
+        env:
+          RELEASE_VERSION: ${{ needs.inspect-candidate-packages.outputs.version }}
+          RELEASE_ORIGIN: ${{ github.ref == 'refs/heads/dev' && 'https://holycluster-dev.iarc.org' || 'https://holycluster.iarc.org' }}
+        run: |
+          for platform in windows linux; do
+            if [ "$platform" = windows ]; then
+              name="$RELEASE_VERSION-windows-x86_64.msi"
+              source="catserver/target/$TARGET/release/HolyCluster.msi"
+            else
+              name="$RELEASE_VERSION-linux-x86_64.AppImage"
+              source="catserver/target/x86_64-unknown-linux-gnu/release/$name"
+            fi
+            expected=$(sha256sum "$source" | cut -d ' ' -f 1)
+            downloaded="$RUNNER_TEMP/verified-$name"
+            curl --fail --proto '=https' --connect-timeout 10 --max-time 120 --max-filesize 536870912 \
+              --header 'Cache-Control: no-cache' --header 'Accept-Encoding: identity' \
+              "$RELEASE_ORIGIN/catserver/artifacts/$name?download_policy=2&sha256=$expected" --output "$downloaded"
+            printf '%s  %s\n' "$expected" "$downloaded" | sha256sum --check -
+            holy-artifact-validator "$platform" "$RELEASE_VERSION" "$downloaded"
+          done
