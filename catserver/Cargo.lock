@@ -459,6 +459,7 @@ dependencies = [
  "ico",
  "libc",
  "open",
+ "percent-encoding",
  "reqwest",
  "semver",
  "sentry",

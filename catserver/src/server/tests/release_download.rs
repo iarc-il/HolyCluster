@@ -80,6 +80,87 @@ async fn backend_response(
 }
 
 #[tokio::test]
+async fn encoded_and_normalized_release_paths_are_rejected_without_contacting_upstream() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let requests = Arc::new(AtomicUsize::new(0));
+    let received = requests.clone();
+    let upstream = spawn_app(Router::new().fallback(any(move || {
+        received.fetch_add(1, Ordering::SeqCst);
+        async { "NOT AN INSTALLER" }
+    })))
+    .await;
+    let catserver = spawn_catserver(upstream.address).await;
+    let paths = [
+        "/catserver/%61rtifacts/catserver-v1.2.3-windows-x86_64.msi",
+        "/%63atserver/artifacts/catserver-v1.2.3-windows-x86_64.msi",
+        "/catserver/download%2Flinux%2Fx86_64",
+        "/%2563atserver/artifacts/catserver-v1.2.3-windows-x86_64.msi",
+        "/catserver/%2561rtifacts/catserver-v1.2.3-windows-x86_64.msi",
+        "/catserver/download%2fwindows%2fx86_64",
+        "/%2Fcatserver/artifacts/test.msi",
+        "/unused/../catserver/artifacts/test.msi",
+        "/unused/%2e%2e/catserver/artifacts/test.msi",
+        "//catserver/artifacts/test.msi",
+        "/%5ccatserver%5cartifacts%5ctest.msi",
+        "/%252525252525252563atserver/artifacts/test.msi",
+        "/%63atserver/releases/latest",
+    ];
+    // Raw HTTP preserves dot segments and encoded separators that URL clients
+    // sometimes normalize before transmission. The fake upstream has no guard.
+    for path in paths {
+        let mut socket = tokio::net::TcpStream::connect(catserver.address)
+            .await
+            .unwrap();
+        socket
+            .write_all(
+                format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                    .as_bytes(),
+            )
+            .await
+            .unwrap();
+        let mut reply = Vec::new();
+        tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            socket.read_to_end(&mut reply),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let reply = String::from_utf8(reply).unwrap();
+        assert!(reply.starts_with("HTTP/1.1 400"), "{path}: {reply}");
+        assert!(
+            reply
+                .to_ascii_lowercase()
+                .contains("cache-control: no-store\r\n"),
+            "{path}: {reply}"
+        );
+        assert!(!reply.contains("NOT AN INSTALLER"), "{path}: {reply}");
+    }
+    assert_eq!(requests.load(Ordering::SeqCst), 0);
+    // The canonical artifact URL still invokes inspection, not raw proxying.
+    let response = reqwest::get(format!(
+        "http://{}/catserver/artifacts/test.msi",
+        catserver.address
+    ))
+    .await
+    .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    assert_eq!(requests.load(Ordering::SeqCst), 1);
+    // Encoded unrelated paths retain ordinary proxy behavior.
+    let response = reqwest::get(format!("http://{}/ordinary/%61", catserver.address))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.text().await.unwrap(), "NOT AN INSTALLER");
+}
+
+#[tokio::test]
 async fn valid_packages_are_inspected_before_serving_including_aliases_range_and_head() {
     for (platform, bytes) in [("windows", MSI), ("linux", APPIMAGE)] {
         let (upstream, location) = backend(platform, bytes, "catserver-v1.2.3", |_| {}).await;

@@ -18,6 +18,13 @@ pub(super) async fn proxy(
     State(state): State<AppState>,
     mut request: Request<Body>,
 ) -> Response<Body> {
+    // Classify before forwarding: upstream HTTP servers can decode and normalize
+    // paths that do not look like release routes in their raw URI form.
+    if noncanonical_release_path(request.uri().path()) {
+        let mut response = (StatusCode::BAD_REQUEST, "Non-canonical release path").into_response();
+        prevent_release_caching(response.headers_mut(), &state.server_config);
+        return response;
+    }
     if super::release_download::is_artifact_path(request.uri().path()) {
         let mut response = super::release_download::download(&state, request).await;
         prevent_release_caching(response.headers_mut(), &state.server_config);
@@ -98,6 +105,33 @@ pub(super) async fn local_ui(
         };
     }
     proxy(State(state), request).await
+}
+
+fn noncanonical_release_path(path: &str) -> bool {
+    let mut decoded = path.to_owned();
+    // Bound work for nested encoding. Ambiguous deeper paths fail closed.
+    for _ in 0..8 {
+        let Ok(next) = percent_encoding::percent_decode_str(&decoded).decode_utf8() else {
+            return true;
+        };
+        if next == decoded {
+            let separators = decoded.replace('\\', "/");
+            let mut segments = Vec::new();
+            for segment in separators.split('/') {
+                match segment {
+                    "" | "." => {}
+                    ".." => {
+                        segments.pop();
+                    }
+                    _ => segments.push(segment),
+                }
+            }
+            let canonical = format!("/{}", segments.join("/"));
+            return is_release_path(&canonical) && canonical != path;
+        }
+        decoded = next.into_owned();
+    }
+    true
 }
 
 fn is_release_path(path: &str) -> bool {
