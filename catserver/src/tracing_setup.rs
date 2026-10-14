@@ -490,13 +490,15 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
     fields
 }
 
-pub(crate) fn radio_evidence(error: &anyhow::Error, snapshot: &crate::radio_manager::RadioSnapshot, message: &str) -> Evidence {
+pub(crate) fn radio_evidence(error: &anyhow::Error, before_command: &crate::radio_manager::RadioSnapshot, snapshot: &crate::radio_manager::RadioSnapshot, message: &str) -> Evidence {
     use crate::radio_manager::ConnectionState;
     let mut fields = failure_evidence(error, "radio_command");
     fields.insert("connection_state".into(), match snapshot.connection { ConnectionState::Connected => "connected", ConnectionState::Disconnected => "disconnected" }.into());
     fields.insert("configuration_present".into(), snapshot.config.rig.is_some().into());
-    if let Some(init) = &snapshot.last_error { fields.insert("initialization".into(), init_evidence(init).into()); }
-    if let Some(last) = &snapshot.last_operation_error {
+    // Historical causes must come from before execution; the current snapshot
+    // can already contain this command's failure instead.
+    if let Some(init) = &before_command.last_error { fields.insert("initialization".into(), init_evidence(init).into()); }
+    if let Some(last) = &before_command.last_operation_error {
         fields.insert("previous_operation".into(), safe_error_text(&format!("Radio operation {}: {}", last.operation, last.message)).into());
     }
     // Read only the mode enum; never retain spot data, frequency or identifiers.
@@ -959,7 +961,14 @@ mod tests {
         for (mode, expected) in [("RTTY", "RTTY"), ("K1ABC secret", "unsupported")] {
             let error = anyhow::Error::new(RadioOperationError::new(1, "set mode", "[0x80070057] private K1ABC secret"));
             let request = serde_json::json!({"action": "SetModeAndFreq", "mode": mode, "freq": 14074, "dx_callsign": "K1ABC", "token": "secret"});
-            let event = evidence_event(serde_json::json!(super::radio_evidence(&error, &snapshot, &request.to_string())).to_string());
+            // Model the actor clearing the initialization cause and replacing
+            // the previous operation before the command returns its error.
+            let after_command = RadioSnapshot {
+                last_error: None,
+                last_operation_error: Some(RadioOperationError::new(1, "set mode", "radio unavailable")),
+                ..snapshot.clone()
+            };
+            let event = evidence_event(serde_json::json!(super::radio_evidence(&error, &snapshot, &after_command, &request.to_string())).to_string());
             let Context::Other(fields) = &event.contexts["Failure Evidence"] else { panic!("missing evidence") };
             assert_eq!(fields["requested_mode"], expected);
             assert!(!fields.contains_key("requested_vfo"));
@@ -972,6 +981,25 @@ mod tests {
             let serialized = serde_json::to_string(&event).unwrap();
             for private in ["K1ABC", "secret", "private", "14074"] { assert!(!serialized.contains(private)); }
         }
+        // A first command failure is not a previous operation. Current state
+        // still comes from after execution, independently of the history.
+        let before_command = RadioSnapshot {
+            last_error: None,
+            last_operation_error: None,
+            connection: ConnectionState::Connected,
+            ..snapshot.clone()
+        };
+        let error = anyhow::Error::new(RadioOperationError::new(1, "set mode", "radio unavailable"));
+        let after_command = RadioSnapshot {
+            last_error: None,
+            last_operation_error: Some(RadioOperationError::new(1, "set mode", "radio unavailable")),
+            ..snapshot
+        };
+        let event = evidence_event(serde_json::json!(super::radio_evidence(&error, &before_command, &after_command, "{}")).to_string());
+        let Context::Other(fields) = &event.contexts["Failure Evidence"] else { panic!("missing evidence") };
+        assert_eq!(fields["connection_state"], "disconnected");
+        assert!(!fields.contains_key("initialization"));
+        assert!(!fields.contains_key("previous_operation"));
         assert!(super::hresult("[0xsecret] private").is_none());
         assert!(super::hresult("[0x8007005700] private").is_none());
     }

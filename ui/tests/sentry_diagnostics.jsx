@@ -70,6 +70,71 @@ describe("error-local diagnostics", () => {
         privateFree(event);
     });
 
+    it.each([false, true])(
+        "recovers the original stack without changing its cause (cause stack: %s)",
+        cause_has_stack => {
+            const cause = new Error("K1ABC secret");
+            const error = new TypeError("secret", { cause });
+            error.stack =
+                "TypeError: secret\n at wrapper (https://private.example/assets/app.js?secret:24:8)";
+            const cause_frames = cause_has_stack
+                ? [{ filename: "/assets/app.js", function: "causeFrame", lineno: 12 }]
+                : [];
+            const parser = vi.spyOn(Sentry, "defaultStackParser");
+            const event = sanitizeSentryEvent(
+                {
+                    exception: {
+                        values: [
+                            {
+                                type: "Error",
+                                value: cause.message,
+                                stacktrace: { frames: cause_frames },
+                            },
+                            { type: "TypeError", value: error.message },
+                        ],
+                    },
+                },
+                { originalException: error },
+            );
+            expect(parser).toHaveBeenCalledOnce();
+            expect(event.exception.values[0].stacktrace.frames).toHaveLength(cause_frames.length);
+            if (cause_has_stack)
+                expect(event.exception.values[0].stacktrace.frames[0].function).toBe("causeFrame");
+            expect(event.exception.values[1].stacktrace.frames[0]).toMatchObject({
+                function: "wrapper",
+                lineno: 24,
+            });
+            expect(event.contexts.diagnostic).not.toHaveProperty("original_frames");
+            privateFree(event);
+        },
+    );
+
+    it("does not recover a stack onto a stackless cause when the original has frames", () => {
+        const error = new TypeError("secret", { cause: new Error("K1ABC") });
+        const parser = vi.spyOn(Sentry, "defaultStackParser");
+        const event = sanitizeSentryEvent(
+            {
+                exception: {
+                    values: [
+                        { type: "Error", value: "K1ABC" },
+                        {
+                            type: "TypeError",
+                            value: "secret",
+                            stacktrace: {
+                                frames: [{ filename: "/assets/app.js", function: "wrapper" }],
+                            },
+                        },
+                    ],
+                },
+            },
+            { originalException: error },
+        );
+        expect(parser).not.toHaveBeenCalled();
+        expect(event.exception.values[0].stacktrace).toBeUndefined();
+        expect(event.exception.values[1].stacktrace.frames[0].function).toBe("wrapper");
+        privateFree(event);
+    });
+
     it("does not parse or duplicate an ordinary exception's existing stack", () => {
         const parser = vi.spyOn(Sentry, "defaultStackParser");
         const event = report(new Error("secret"), [

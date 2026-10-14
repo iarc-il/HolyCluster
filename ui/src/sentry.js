@@ -334,9 +334,15 @@ export function sanitizeSentryEvent(event, hint = {}) {
     let exception = event.exception;
     const original = hint.originalException;
     const evidence = safeEvidence(error_diagnostics.get(original));
-    const primary_index =
-        exception?.values?.findIndex(value => !value.type?.startsWith("React ErrorBoundary ")) ??
-        -1;
+    // Sentry prepends causes (including the React component stack). The
+    // original exception is the last non-boundary value, not the first.
+    let primary_index = (exception?.values?.length ?? 0) - 1;
+    while (
+        primary_index >= 0 &&
+        exception.values[primary_index].type?.startsWith("React ErrorBoundary ")
+    ) {
+        primary_index -= 1;
+    }
     const boundary =
         evidence.operation === "react_boundary" ||
         exception?.values?.some(value => value.type?.startsWith("React ErrorBoundary "));
