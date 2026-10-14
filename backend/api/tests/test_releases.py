@@ -146,6 +146,13 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(client.get("/").content, self.windows_content)
         self.assertFalse(snapshot.exists())
 
+    def test_unexpected_release_errors_are_not_cacheable(self):
+        with patch("api.main.validated_response", side_effect=OSError("storage unavailable")):
+            response = TestClient(app, raise_server_exceptions=False).get(self.windows["artifact"]["location"])
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertNotIn("etag", response.headers)
+
     def test_snapshot_is_removed_when_sending_the_response_fails(self):
         response = download_catserver()
         snapshot = Path(response.path)
