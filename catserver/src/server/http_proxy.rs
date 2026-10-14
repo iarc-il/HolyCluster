@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use axum::{
     body::Body,
     extract::{Request, State},
-    http::{HeaderMap, HeaderName, Method, StatusCode, header},
+    http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use hyper::upgrade::OnUpgrade;
@@ -17,6 +17,20 @@ pub(super) async fn proxy(
     State(state): State<AppState>,
     mut request: Request<Body>,
 ) -> Response<Body> {
+    let release_request = is_release_path(request.uri().path());
+    if release_request {
+        // A localhost URL can outlive the upstream that originally answered it.
+        for name in [
+            header::IF_NONE_MATCH,
+            header::IF_MODIFIED_SINCE,
+            header::IF_RANGE,
+        ] {
+            request.headers_mut().remove(name);
+        }
+        request
+            .headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    }
     let uri = state.server_config.build_uri(
         "http",
         request
@@ -45,11 +59,18 @@ pub(super) async fn proxy(
                 return response.map(Body::new);
             }
             remove_hop_by_hop_headers(response.headers_mut());
+            if release_request {
+                prevent_release_caching(response.headers_mut());
+            }
             response.map(Body::new)
         }
         Err(error) => {
             state.upstream_http_trace.unavailable(&error);
-            (StatusCode::BAD_GATEWAY, Body::empty()).into_response()
+            let mut response = (StatusCode::BAD_GATEWAY, Body::empty()).into_response();
+            if release_request {
+                prevent_release_caching(response.headers_mut());
+            }
+            response
         }
     }
 }
@@ -71,6 +92,17 @@ pub(super) async fn local_ui(
         };
     }
     proxy(State(state), request).await
+}
+
+fn is_release_path(path: &str) -> bool {
+    path == "/catserver" || path.starts_with("/catserver/")
+}
+
+fn prevent_release_caching(headers: &mut HeaderMap) {
+    for name in [header::ETAG, header::LAST_MODIFIED, header::EXPIRES] {
+        headers.remove(name);
+    }
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
 }
 
 fn is_upgrade_request(request: &Request<Body>) -> bool {
