@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import tempfile
@@ -7,6 +8,8 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from starlette.applications import Starlette
+from starlette.routing import Route
 
 from api.main import (
     app,
@@ -68,15 +71,15 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(latest_catserver(), self.windows["artifact"]["name"])
 
         response = download_catserver()
-        self.assertEqual(response.path, str(self.artifacts_dir / self.windows["artifact"]["name"]))
+        self.assertEqual(Path(response.path).read_bytes(), self.windows_content)
         self.assertEqual(response.headers["cache-control"], "no-store")
 
     def test_platform_download_endpoint_uses_matching_artifact(self):
         windows = download_catserver_release("windows", "x86_64")
         linux = download_catserver_release("linux", "x86_64")
 
-        self.assertEqual(windows.path, str(self.artifacts_dir / self.windows["artifact"]["name"]))
-        self.assertEqual(linux.path, str(self.artifacts_dir / self.linux["artifact"]["name"]))
+        self.assertEqual(Path(windows.path).read_bytes(), self.windows_content)
+        self.assertEqual(Path(linux.path).read_bytes(), self.linux_content)
         self.assertEqual(windows.headers["cache-control"], "no-store")
         self.assertEqual(linux.headers["cache-control"], "no-store")
 
@@ -132,6 +135,30 @@ class ReleaseTest(unittest.TestCase):
         response = client.get("/catserver/releases/latest")
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.headers["cache-control"], "no-store")
+
+    def test_serves_the_validated_snapshot_even_if_the_original_is_replaced(self):
+        response = download_catserver()
+        snapshot = Path(response.path)
+        source = self.release_dir / "artifacts" / self.windows["artifact"]["name"]
+        self.assertNotEqual(snapshot, source)
+        source.write_bytes(self.linux_content)
+        client = TestClient(Starlette(routes=[Route("/", lambda request: response)]))
+        self.assertEqual(client.get("/").content, self.windows_content)
+        self.assertFalse(snapshot.exists())
+
+    def test_snapshot_is_removed_when_sending_the_response_fails(self):
+        response = download_catserver()
+        snapshot = Path(response.path)
+
+        async def receive():
+            return {"type": "http.disconnect"}
+
+        async def send(message):
+            raise ConnectionError("client disconnected")
+
+        with self.assertRaises(ConnectionError):
+            asyncio.run(response({"type": "http", "method": "GET", "headers": []}, receive, send))
+        self.assertFalse(snapshot.exists())
 
     def test_matching_checksum_cannot_disguise_an_appimage_as_an_msi(self):
         self.windows = self.write_artifact(self.windows["artifact"]["name"], self.linux_content)

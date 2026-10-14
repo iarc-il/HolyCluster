@@ -32,6 +32,7 @@ from sqlmodel import select
 
 from . import propagation, releases, submit_spot, voacap
 from .release_cache import ReleaseCacheMiddleware
+from .release_response import validated_response
 from .settings import settings
 
 initialize_sentry(settings, "api")
@@ -1292,16 +1293,9 @@ def get_latest_catserver_name():
 def serve_release_artifact(artifact):
     try:
         path = releases.artifact_path(settings.catserver_msi_dir, artifact.name)
-        releases.verify_artifact(path, artifact)
+        return validated_response(path, artifact)
     except releases.ReleaseManifestError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-
-    return FileResponse(
-        str(path),
-        filename=artifact.name.replace("catserver", "HolyCluster"),
-        media_type="application/octet-stream",
-        headers={"Cache-Control": "no-store"},
-    )
 
 
 @app.get("/catserver/releases/latest")
