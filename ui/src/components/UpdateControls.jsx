@@ -151,8 +151,7 @@ export default function UpdateControls({ on_check = null }) {
                 {status === "unsupported" && (
                     <a
                         className="rounded-lg bg-blue-600 p-2 text-sm font-medium text-white"
-                        href="/catserver/download"
-                        download
+                        href="/addons#download"
                     >
                         Download manually
                     </a>

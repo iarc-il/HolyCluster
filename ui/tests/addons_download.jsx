@@ -2,6 +2,21 @@ import Download from "@/components/addons/Download.jsx";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
+function release(target) {
+    const name = `catserver-v1.3.1-${target}-x86_64${target === "windows" ? ".msi" : ".AppImage"}`;
+    return {
+        version: "catserver-v1.3.1",
+        platform: target,
+        architecture: "x86_64",
+        artifact: {
+            location: `/catserver/artifacts/${name}`,
+            name,
+            sha256: "a".repeat(64),
+            size: 100,
+        },
+    };
+}
+
 afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
@@ -20,7 +35,8 @@ it.each(["Linux", "Windows"])("shows a spinner until %s downloads load", async p
             const target = url.includes("/linux/") ? "linux" : "windows";
             return {
                 ok: true,
-                json: async () => ({ artifact: { location: `/catserver/artifacts/${target}` } }),
+                headers: new Headers({ "x-catserver-upstream": "b".repeat(64) }),
+                json: async () => release(target),
             };
         }),
     );
@@ -29,7 +45,12 @@ it.each(["Linux", "Windows"])("shows a spinner until %s downloads load", async p
     expect(screen.queryByText(/upcoming/i)).toBeNull();
     finish();
     const link = await screen.findByRole("link", { name: `Download for ${platform}` });
-    expect(link.getAttribute("href")).toBe(`/catserver/artifacts/${platform.toLowerCase()}`);
+    const url = new URL(link.getAttribute("href"), window.location.origin);
+    expect(url.pathname).toBe(release(platform.toLowerCase()).artifact.location);
+    expect(url.searchParams.get("download_policy")).toBe("2");
+    expect(url.searchParams.get("sha256")).toBe("a".repeat(64));
+    expect(url.searchParams.get("upstream")).toBe("b".repeat(64));
+    for (const [, options] of fetch.mock.calls) expect(options).toEqual({ cache: "no-store" });
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.getAllByRole("link")).toHaveLength(2);
 });

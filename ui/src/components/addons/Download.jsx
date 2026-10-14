@@ -1,5 +1,6 @@
 import Card from "@/components/addons/components/Card";
 import Spinner from "@/components/ui/Spinner.jsx";
+import { release_download_url } from "@/utils/release_download.js";
 import { useEffect, useState } from "react";
 
 function platform() {
@@ -20,14 +21,18 @@ export default function Download() {
         Promise.all(
             ["linux", "windows"].map(async target => {
                 try {
-                    const response = await fetch(`/catserver/releases/${target}/x86_64`);
+                    const response = await fetch(`/catserver/releases/${target}/x86_64`, {
+                        cache: "no-store",
+                    });
                     if (!response.ok) return null;
 
-                    const location = (await response.json())?.artifact?.location;
-                    return typeof location === "string" &&
-                        location.startsWith("/catserver/artifacts/")
-                        ? [target, location]
-                        : null;
+                    const upstream = response.headers?.get("x-catserver-upstream");
+                    const location = release_download_url(
+                        await response.json(),
+                        target,
+                        /^[0-9a-f]{64}$/.test(upstream) ? upstream : window.location.origin,
+                    );
+                    return location ? [target, location] : null;
                 } catch {
                     return null;
                 }

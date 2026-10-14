@@ -8,6 +8,7 @@ use axum::{
 };
 use hyper::upgrade::OnUpgrade;
 use hyper_util::rt::TokioIo;
+use sha2::{Digest, Sha256};
 use tower::{ServiceExt, service_fn};
 use tower_http::services::ServeDir;
 
@@ -60,7 +61,7 @@ pub(super) async fn proxy(
             }
             remove_hop_by_hop_headers(response.headers_mut());
             if release_request {
-                prevent_release_caching(response.headers_mut());
+                prevent_release_caching(response.headers_mut(), &state.server_config);
             }
             response.map(Body::new)
         }
@@ -68,7 +69,7 @@ pub(super) async fn proxy(
             state.upstream_http_trace.unavailable(&error);
             let mut response = (StatusCode::BAD_GATEWAY, Body::empty()).into_response();
             if release_request {
-                prevent_release_caching(response.headers_mut());
+                prevent_release_caching(response.headers_mut(), &state.server_config);
             }
             response
         }
@@ -98,11 +99,19 @@ fn is_release_path(path: &str) -> bool {
     path == "/catserver" || path.starts_with("/catserver/")
 }
 
-fn prevent_release_caching(headers: &mut HeaderMap) {
+fn prevent_release_caching(headers: &mut HeaderMap, config: &super::ServerConfig) {
     for name in [header::ETAG, header::LAST_MODIFIED, header::EXPIRES] {
         headers.remove(name);
     }
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    // Separate browser download identities when a localhost port changes upstreams.
+    // Hash the origin so credentials or operator-specific hosts are not exposed.
+    let origin = config.build_uri("http", "/").to_string();
+    let identity = format!("{:x}", Sha256::digest(origin.as_bytes()));
+    headers.insert(
+        "x-catserver-upstream",
+        identity.parse().expect("SHA-256 is a valid header"),
+    );
 }
 
 fn is_upgrade_request(request: &Request<Body>) -> bool {

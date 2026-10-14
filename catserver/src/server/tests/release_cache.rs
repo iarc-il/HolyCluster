@@ -8,6 +8,7 @@ use axum::{
 };
 
 use super::{spawn_app, spawn_catserver};
+use sha2::{Digest, Sha256};
 
 #[tokio::test]
 async fn release_proxy_overrides_upstream_cache_policy_and_conditional_requests() {
@@ -20,6 +21,7 @@ async fn release_proxy_overrides_upstream_cache_policy_and_conditional_requests(
         for (name, value) in [
             ("cache-control", "public, max-age=31536000, immutable"),
             ("etag", "\"old-backend\""),
+            ("x-catserver-upstream", "untrusted-upstream-value"),
             ("last-modified", "Sat, 10 Oct 2026 16:19:13 GMT"),
             ("expires", "Wed, 14 Oct 2027 11:05:25 GMT"),
         ] {
@@ -49,6 +51,13 @@ async fn release_proxy_overrides_upstream_cache_policy_and_conditional_requests(
             .await
             .unwrap();
         assert_eq!(response.headers()["cache-control"], "no-store");
+        assert_eq!(
+            response.headers()["x-catserver-upstream"],
+            format!(
+                "{:x}",
+                Sha256::digest(format!("http://{}/", upstream.address).as_bytes())
+            )
+        );
         for header in ["etag", "last-modified", "expires"] {
             assert!(!response.headers().contains_key(header));
         }
