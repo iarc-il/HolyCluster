@@ -274,7 +274,6 @@ jobs:
           DEFAULT_SHORTCUT_ARGUMENTS: ${{ github.ref == 'refs/heads/dev' && '--dev-server' || '' }}
 
       - name: Upload Windows MSI
-        if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
           name: HolyCluster-windows-x86_64

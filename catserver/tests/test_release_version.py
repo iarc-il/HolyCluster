@@ -11,6 +11,14 @@ WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/catserver.ym
 
 
 class ReleaseVersionTests(unittest.TestCase):
+    def test_candidate_artifact_uploads_are_not_skipped_for_pull_requests(self):
+        workflow = WORKFLOW.read_text()
+        for step in ("Upload Linux AppImage", "Upload Windows MSI"):
+            with self.subTest(step=step):
+                upload = workflow.split(f"      - name: {step}\n", 1)[1].split("\n\n", 1)[0]
+                self.assertIn("actions/upload-artifact@", upload)
+                self.assertNotIn("\n        if:", "\n" + upload)
+
     def test_tagged_and_development_versions_match_in_all_jobs(self):
         workflow = WORKFLOW.read_text()
         self.assertIn(
