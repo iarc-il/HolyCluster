@@ -163,7 +163,7 @@ fn net_rigctl_covers_control_disconnect_and_restart_recovery() {
     restarted.stop();
 }
 
-fn net_config(address: SocketAddr) -> HamlibRigConfig {
+pub(crate) fn net_config(address: SocketAddr) -> HamlibRigConfig {
     let model_id = hamlib::Catalog::load()
         .expect("Hamlib catalog loads")
         .models()
@@ -198,7 +198,8 @@ fn invalid_rig_reports_slot_one_and_can_retry() {
     ));
 }
 
-struct FakeRigctld {
+pub(crate) struct FakeRigctld {
+    state: Arc<Mutex<FakeRigState>>,
     address: SocketAddr,
     stop: Arc<AtomicBool>,
     commands: Arc<Mutex<Vec<String>>>,
@@ -207,7 +208,7 @@ struct FakeRigctld {
 }
 
 impl FakeRigctld {
-    fn start(address: SocketAddr, frequency: u32, mode: &str) -> Self {
+    pub(crate) fn start(address: SocketAddr, frequency: u32, mode: &str) -> Self {
         let listener = TcpListener::bind(address).expect("fake rigctld binds");
         listener
             .set_nonblocking(true)
@@ -259,6 +260,7 @@ impl FakeRigctld {
         });
 
         Self {
+            state,
             address,
             stop,
             commands,
@@ -267,11 +269,29 @@ impl FakeRigctld {
         }
     }
 
-    fn address(&self) -> SocketAddr {
+    pub(crate) fn fail_mode(&self, code: i32) {
+        self.state.lock().unwrap().mode_error = Some(code);
+    }
+
+    pub(crate) fn pause_next_mode(
+        &self,
+    ) -> (
+        tokio::sync::oneshot::Receiver<()>,
+        std::sync::mpsc::Sender<()>,
+        tokio::sync::oneshot::Receiver<()>,
+    ) {
+        let (entered, received) = tokio::sync::oneshot::channel();
+        let (release, released) = std::sync::mpsc::channel();
+        let (acknowledge, acknowledged) = tokio::sync::oneshot::channel();
+        self.state.lock().unwrap().mode_pause = Some((entered, released, acknowledge));
+        (received, release, acknowledged)
+    }
+
+    pub(crate) fn address(&self) -> SocketAddr {
         self.address
     }
 
-    fn commands(&self) -> Vec<String> {
+    pub(crate) fn commands(&self) -> Vec<String> {
         self.commands.lock().unwrap().clone()
     }
 
@@ -305,6 +325,12 @@ impl Drop for FakeRigctld {
 }
 
 struct FakeRigState {
+    mode_error: Option<i32>,
+    mode_pause: Option<(
+        tokio::sync::oneshot::Sender<()>,
+        std::sync::mpsc::Receiver<()>,
+        tokio::sync::oneshot::Sender<()>,
+    )>,
     frequency_a: u32,
     frequency_b: u32,
     current_vfo: String,
@@ -314,6 +340,8 @@ struct FakeRigState {
 impl FakeRigState {
     fn new(frequency: u32, mode: &str) -> Self {
         Self {
+            mode_error: None,
+            mode_pause: None,
             frequency_a: frequency,
             frequency_b: frequency,
             current_vfo: "VFOA".into(),
@@ -400,8 +428,22 @@ fn fake_response(command: &str, state: &Mutex<FakeRigState>) -> String {
             "RPRT 0\n".into()
         }
         command if command.starts_with("M ") => {
+            let pause = state.lock().unwrap().mode_pause.take();
+            if let Some((entered, released, acknowledge)) = pause {
+                entered
+                    .send(())
+                    .expect("paused mode command has a receiver");
+                released
+                    .recv_timeout(Duration::from_secs(3))
+                    .expect("paused mode command requires explicit release");
+                acknowledge.send(()).expect("mode release has a receiver");
+            }
+            let mut state = state.lock().unwrap();
+            if let Some(code) = state.mode_error {
+                return format!("RPRT {code}\n");
+            }
             if let Some(mode) = command.split_whitespace().nth(1) {
-                state.lock().unwrap().mode = mode.into();
+                state.mode = mode.into();
             }
             "RPRT 0\n".into()
         }

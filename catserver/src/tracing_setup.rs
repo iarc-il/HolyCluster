@@ -40,7 +40,7 @@ fn log_file_filter() -> EnvFilter {
     }
 }
 
-fn sentry_event_filter(metadata: &tracing::Metadata<'_>) -> EventFilter {
+pub(crate) fn sentry_event_filter(metadata: &tracing::Metadata<'_>) -> EventFilter {
     if metadata.target() == "catserver::diagnostic" {
         EventFilter::Breadcrumb
     } else if *metadata.level() == tracing::Level::ERROR {
@@ -86,7 +86,7 @@ fn configure_sentry(dsn: Option<&str>) -> Option<ClientInitGuard> {
     sentry_options(dsn).map(sentry::init)
 }
 
-fn sentry_options(dsn: Option<&str>) -> Option<ClientOptions> {
+pub(crate) fn sentry_options(dsn: Option<&str>) -> Option<ClientOptions> {
     let dsn = dsn.filter(|dsn| !dsn.trim().is_empty())?;
     let dsn = match dsn.parse() {
         Ok(dsn) => dsn,
@@ -253,6 +253,19 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
             initialization_evidence(&mut fields, init);
             "radio_initialization"
         } else if let Some(operation) = cause.downcast_ref::<crate::rig::RadioOperationError>() {
+            if let Some(context) = &operation.actor_context {
+                fields.insert(
+                    "pre_operation".into(),
+                    serde_json::json!({
+                        "application_connection_state": context.application_connection_state,
+                        "configuration_present": context.configuration_present,
+                        "selected_backend": context.selected_backend,
+                        "model_id": context.model_id,
+                        "backend_object_present": context.backend_object_present,
+                        "initialization_failed": context.initialization_failed,
+                    }),
+                );
+            }
             if let Some(code) = hresult(&operation.message) {
                 fields.insert("hresult".into(), code.into());
             }

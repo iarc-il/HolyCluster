@@ -6,9 +6,9 @@ use std::{
 use crate::{
     device_actor::{DeviceFactory, Worker},
     freq::Freq,
-    radio_config::{ActiveRadioBackend, RadioConfig},
+    radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig},
     radio_manager::{ConnectionState, RadioManagerError, RadioSnapshot},
-    rig::{Mode, Radio, RadioInitError, RadioOperationError, Status},
+    rig::{Mode, Radio, RadioActorContext, RadioInitError, RadioOperationError, Status},
 };
 use tokio::sync::oneshot;
 
@@ -207,16 +207,44 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 let _ = reply.send(());
             }
             Command::SetModeAndFrequency(mode, frequency, reply) => {
-                let result = radio.as_mut().map_or_else(
-                    || {
-                        Err(RadioOperationError::new(
-                            1,
-                            "set mode and frequency",
-                            "radio unavailable",
-                        ))
-                    },
-                    |radio| radio.tune_spot(mode, frequency),
-                );
+                let actor_context = {
+                    let state = snapshot.read().unwrap_or_else(|error| error.into_inner());
+                    RadioActorContext {
+                        application_connection_state: match state.connection {
+                            ConnectionState::Connected => "connected",
+                            ConnectionState::Disconnected => "disconnected",
+                        },
+                        configuration_present: state.config.rig.is_some(),
+                        selected_backend: match state.selected {
+                            ActiveRadioBackend::Dummy => "dummy",
+                            ActiveRadioBackend::Configured(RadioBackendKind::Unconfigured) => {
+                                "unconfigured"
+                            }
+                            ActiveRadioBackend::Configured(RadioBackendKind::Hamlib) => "hamlib",
+                            ActiveRadioBackend::Configured(RadioBackendKind::Omnirig) => "omnirig",
+                        },
+                        model_id: state.config.rig.as_ref().map(|rig| rig.model_id.clone()),
+                        backend_object_present: radio.is_some(),
+                        initialization_failed: state.last_error.is_some(),
+                    }
+                };
+                let result = radio
+                    .as_mut()
+                    .map_or_else(
+                        || {
+                            Err(RadioOperationError::new(
+                                1,
+                                "set mode and frequency",
+                                "radio unavailable",
+                            ))
+                        },
+                        |radio| radio.tune_spot(mode, frequency),
+                    )
+                    .map_err(|mut error| {
+                        // Publishing the failure overwrites the application connection state.
+                        error.actor_context = Some(Box::new(actor_context));
+                        error
+                    });
                 let connected = publish_operation_result(
                     &snapshot,
                     radio.as_mut(),

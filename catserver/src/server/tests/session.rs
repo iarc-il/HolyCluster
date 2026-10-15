@@ -9,10 +9,10 @@ use tokio_tungstenite::{
 
 use super::{UserEvent, spawn_app, spawn_catserver_with_events};
 
-type Socket =
+pub(super) type Socket =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
-async fn event(socket: &mut Socket, name: &str) -> serde_json::Value {
+pub(super) async fn event(socket: &mut Socket, name: &str) -> serde_json::Value {
     tokio::time::timeout(Duration::from_secs(3), async {
         loop {
             if let Message::Text(text) = socket.next().await.unwrap().unwrap() {

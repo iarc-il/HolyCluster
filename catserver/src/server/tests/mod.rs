@@ -1,3 +1,5 @@
+mod actor_context_reporting;
+mod hamlib_reporting;
 mod local_ui;
 mod proxy;
 mod readiness;
@@ -127,11 +129,20 @@ async fn spawn_catserver_with_restart(
     upstream: SocketAddr,
     restart: Option<crate::updater::RestartContext>,
 ) -> (TestServer, tokio::sync::broadcast::Sender<UserEvent>) {
-    let (sender, _) = tokio::sync::broadcast::channel::<UserEvent>(10);
     let config = RadioConfig::platform_default();
+    let radio = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    spawn_catserver_with_radio(upstream, restart, radio).await
+}
+
+async fn spawn_catserver_with_radio(
+    upstream: SocketAddr,
+    restart: Option<crate::updater::RestartContext>,
+    radio: RadioManager,
+) -> (TestServer, tokio::sync::broadcast::Sender<UserEvent>) {
+    let (sender, _) = tokio::sync::broadcast::channel::<UserEvent>(10);
     let server = Server::build_server(
         sender.clone(),
-        RadioManager::new(config.clone(), config.effective_backend(false)).unwrap(),
+        radio,
         RotatorManager::new(RotatorConfig::unconfigured()).unwrap(),
         ServerConfig {
             dns: upstream.to_string(),

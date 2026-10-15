@@ -77,11 +77,22 @@ impl fmt::Display for RadioInitError {
 impl std::error::Error for RadioInitError {}
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub struct RadioActorContext {
+    pub application_connection_state: &'static str,
+    pub configuration_present: bool,
+    pub selected_backend: &'static str,
+    pub model_id: Option<String>,
+    pub backend_object_present: bool,
+    pub initialization_failed: bool,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RadioOperationError {
     pub rig: u8,
     pub operation: &'static str,
     pub message: String,
     pub details: Option<String>,
+    pub actor_context: Option<Box<RadioActorContext>>,
 }
 
 impl RadioOperationError {
@@ -91,6 +102,7 @@ impl RadioOperationError {
             operation,
             message: message.into(),
             details: None,
+            actor_context: None,
         }
     }
 
