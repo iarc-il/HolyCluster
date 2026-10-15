@@ -124,7 +124,8 @@ cargo run
 
 Use `--port` to choose a different local port. `--backend` selects a different
 HolyCluster server, `--dev-server` uses the shared development server, and
-`--local-ui` serves a local `ui/dist` build.
+`--local-ui` serves a local `ui/dist` build. Use `--no-browser` to start the
+server without opening a browser, for example in automated tests.
 
 Run it with a dummy radio for development:
 

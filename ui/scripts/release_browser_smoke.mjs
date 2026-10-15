@@ -135,6 +135,7 @@ try {
         [
             "--dummy",
             "--dummy-rotator",
+            "--no-browser",
             "--backend",
             `127.0.0.1:${backendPort}`,
             "--port",

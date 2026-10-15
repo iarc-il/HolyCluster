@@ -49,6 +49,9 @@ pub fn run(args: Args) -> Result<()> {
         let path = if args.close { "exit" } else { "open" };
         if !args.close {
             tracing::info!("Server is already running");
+            if args.no_browser {
+                return Ok(());
+            }
         }
         return contact_existing_instance(&port_file, path);
     }
@@ -87,6 +90,7 @@ pub fn run(args: Args) -> Result<()> {
         });
     let rotator = RotatorManager::new(rotator_config)?;
     let use_dummy_rotator = args.dummy_rotator;
+    let no_browser = args.no_browser;
     let (sender, _) = broadcast::channel::<UserEvent>(10);
     let event_sender = sender.clone();
     let use_local_ui = args.local_ui;
@@ -102,6 +106,7 @@ pub fn run(args: Args) -> Result<()> {
                 server_config,
                 use_local_ui,
                 use_dummy_rotator,
+                no_browser,
                 restart,
             );
             if let Err(error) = &result {
@@ -196,6 +201,7 @@ async fn run_singleton(
     server_config: ServerConfig,
     use_local_ui: bool,
     use_dummy_rotator: bool,
+    no_browser: bool,
     restart: Option<crate::updater::RestartContext>,
 ) -> Result<UserEvent> {
     let snapshot = radio.snapshot();
@@ -232,7 +238,7 @@ async fn run_singleton(
     let mut receiver = sender.subscribe();
     let shutdown_radio = radio.clone();
     let shutdown_rotator = rotator.clone();
-    let silent = restart.is_some();
+    let silent = restart.is_some() || no_browser;
     let building =
         Server::build_server(sender, radio, rotator, server_config, use_local_ui, restart);
     tokio::pin!(building);

@@ -22,6 +22,9 @@ pub struct Args {
     /// run with dummy rotator instead of real rotator
     #[argh(switch)]
     pub dummy_rotator: bool,
+    /// do not open a browser automatically on startup
+    #[argh(switch)]
+    pub no_browser: bool,
     /// search for local ui dist dir instead of using remote server
     #[argh(switch)]
     pub local_ui: bool,
@@ -56,5 +59,29 @@ pub fn server_config(args: &Args) -> ServerConfig {
         dns,
         is_using_ssl,
         local_port,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn browser_startup_is_enabled_unless_explicitly_disabled() {
+        assert!(!Args::from_args(&["catserver"], &[]).unwrap().no_browser);
+        let args = Args::from_args(
+            &["catserver"],
+            &[
+                "--dummy",
+                "--dummy-rotator",
+                "--no-browser",
+                "--port",
+                "41234",
+            ],
+        )
+        .unwrap();
+        assert!(args.no_browser);
+        assert!(args.dummy && args.dummy_rotator);
+        assert_eq!(args.port, Some(41234));
     }
 }
