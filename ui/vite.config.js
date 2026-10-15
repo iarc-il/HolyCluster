@@ -116,7 +116,7 @@ export default defineConfig(({ mode }) => ({
                     if (id === "\0virtual:flags") return "flag-urls";
 
                     const dependency_path = id.split("node_modules/")[1];
-                    if (dependency_path?.startsWith("@sentry/")) {
+                    if (id.endsWith("/src/sentry.js") || dependency_path?.startsWith("@sentry/")) {
                         return "vendor-sentry";
                     }
                     if (/^d3(?:-|\/)/.test(dependency_path)) {
