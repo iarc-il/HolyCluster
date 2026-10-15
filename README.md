@@ -141,6 +141,10 @@ AppIndicator packages:
 sudo apt install libgtk-3-0 libappindicator3-1
 ```
 
+CATServer sends error reports to Sentry. Reports keep error messages, cause
+chains, stack traces, and diagnostic context. They omit the computer-name field
+and replace the local home-directory prefix in paths with `~`.
+
 ## Contributing
 
 Bug reports, ideas, and pull requests are welcome. Use the feedback form for user feedback and problem reports.
