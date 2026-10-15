@@ -27,7 +27,9 @@ impl Redactions {
         if let Some(home) = home {
             let home = home.trim_end_matches(['/', '\\']);
             // Never replace a filesystem root or an empty directory.
-            if !home.is_empty() && home != "/" && !home.ends_with(':') {
+            if std::path::Path::new(home).parent().is_some()
+                && !(home.len() == 2 && home.ends_with(':'))
+            {
                 case_insensitive = home.starts_with(r"\\") || home.as_bytes().get(1) == Some(&b':');
                 let mut roots = vec![home.to_owned()];
                 if home.as_bytes().get(1) == Some(&b':') {
@@ -45,37 +47,30 @@ impl Redactions {
                             value: root.replace('\\', "/"),
                             url_encoded: false,
                         });
-                        // Debug output and JSON tracing fields escape backslashes.
-                        let mut escaped = root;
-                        for _ in 0..3 {
-                            escaped = escaped.replace('\\', "\\\\");
-                            home_prefixes.push(HomePrefix {
-                                value: escaped.clone(),
-                                url_encoded: false,
-                            });
-                        }
+                    }
+                    // Reuse JSON's escaping rules for nested tracing fields,
+                    // including quotes and control characters, not just slashes.
+                    let mut escaped = root;
+                    for _ in 0..3 {
+                        let quoted = serde_json::to_string(&escaped).expect("strings serialize");
+                        escaped = quoted[1..quoted.len() - 1].to_owned();
+                        home_prefixes.push(HomePrefix {
+                            value: escaped.clone(),
+                            url_encoded: false,
+                        });
                     }
                 }
-                // Encode the actual home, not arbitrary URLs or query strings.
-                const PATH: percent_encoding::AsciiSet = percent_encoding::NON_ALPHANUMERIC
-                    .remove(b'/')
-                    .remove(b':')
-                    .remove(b'-')
-                    .remove(b'.')
-                    .remove(b'_')
-                    .remove(b'~');
+                // Encode only the actual home; leave unrelated URL text alone.
                 let path = if case_insensitive {
                     home.replace('\\', "/")
                 } else {
                     home.to_owned()
                 };
-                let encoded = percent_encoding::utf8_percent_encode(&path, &PATH).to_string();
-                if encoded != path {
-                    home_prefixes.push(HomePrefix {
-                        value: encoded,
-                        url_encoded: true,
-                    });
-                }
+                let encoded = encoded_path(&path);
+                home_prefixes.push(HomePrefix {
+                    value: encoded,
+                    url_encoded: true,
+                });
             }
         }
         home_prefixes.sort_by_key(|prefix| std::cmp::Reverse(prefix.value.len()));
@@ -119,7 +114,13 @@ impl Redactions {
                             '/' | '\\' | '\'' | '"' | ')' | ']' | '}' | ',' | ';' | ':' | '?' | '#'
                         )
                 });
-                if starts_path && ends_directory {
+                // A literal '%' in a filesystem name is not an escape.
+                // Match URL-encoded spellings only inside file URLs, and raw
+                // spellings outside them, so another account is not redacted.
+                if starts_path
+                    && ends_directory
+                    && prefix.url_encoded == follows_file_scheme(&result[..start])
+                {
                     output.push_str(&result[cursor..start]);
                     output.push('~');
                     cursor = end;
@@ -175,6 +176,42 @@ impl Redactions {
     pub(crate) fn breadcrumb(&self, breadcrumb: Breadcrumb) -> Option<Breadcrumb> {
         self.redact(breadcrumb)
     }
+}
+
+fn follows_file_scheme(text: &str) -> bool {
+    let text = text.trim_end_matches('/');
+    let Some(start) = text.len().checked_sub("file:".len()) else {
+        return false;
+    };
+    text.get(start..)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("file:"))
+        && text[..start]
+            .chars()
+            .next_back()
+            .is_none_or(|ch| !ch.is_alphanumeric() && !matches!(ch, '_' | '-' | '.'))
+}
+
+fn encoded_path(path: &str) -> String {
+    // from_directory_path uses the host OS's path syntax. These diagnostic
+    // spellings can use either OS, so encode their segments with the same URL
+    // library instead. Supplying segments also escapes literal '%' correctly.
+    // A hierarchical URL supplies the encoder only; it is never requested.
+    let mut url = reqwest::Url::parse("https://redaction.invalid/").expect("valid static URL");
+    path.split('/')
+        .map(|segment| {
+            // This is text encoding, not path resolution. The URL setter skips
+            // dot segments, so retain their literal spelling instead.
+            if matches!(segment, "." | "..") {
+                return segment.to_owned();
+            }
+            url.path_segments_mut()
+                .expect("hierarchical URLs support path segments")
+                .clear()
+                .push(segment);
+            url.path()[1..].to_owned()
+        })
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 // URL escapes are case-insensitive, but Unix path components are not.
@@ -284,6 +321,54 @@ mod tests {
             windows.text("file:///C:/Users/Alice%20Smith/radio.json"),
             "file:///~/radio.json"
         );
+    }
+
+    #[test]
+    fn url_encoding_preserves_literal_percent_and_path_separators() {
+        assert_eq!(encoded_path("/home/Alice Smith"), "/home/Alice%20Smith");
+        assert_eq!(
+            encoded_path("C:/Users/Alice Smith"),
+            "C:/Users/Alice%20Smith"
+        );
+        assert_eq!(
+            encoded_path("//server/profiles/Alice Smith"),
+            "//server/profiles/Alice%20Smith"
+        );
+        assert_eq!(
+            encoded_path("/home/a/../Alice Smith/"),
+            "/home/a/../Alice%20Smith/"
+        );
+        let redactions = Redactions::new(Some("/home/Alice%20Smith".into()));
+        assert_eq!(
+            redactions.text("file:///home/Alice%2520Smith/radio.json"),
+            "file://~/radio.json"
+        );
+        let other = "file:///home/Alice%20Smith/radio.json";
+        assert_eq!(redactions.text(other), other);
+        assert_eq!(
+            redactions.text("cannot open /home/Alice%20Smith/radio.json"),
+            "cannot open ~/radio.json"
+        );
+        let spaces = Redactions::new(Some("/home/Alice Smith".into()));
+        let literal_percent = "/home/Alice%20Smith/radio.json";
+        assert_eq!(spaces.text(literal_percent), literal_percent);
+        assert_eq!(
+            spaces.text("FILE:///home/Alice%20Smith/radio.json"),
+            "FILE://~/radio.json"
+        );
+    }
+
+    #[test]
+    fn json_escaping_handles_quotes_in_home_names() {
+        let home = "/home/Alice\"Smith";
+        let redactions = Redactions::new(Some(home.into()));
+        let debug = format!("{:?}", format!("{home}/radio.json"));
+        assert_eq!(redactions.text(&debug), "\"~/radio.json\"");
+        let nested = serde_json::json!({"error": debug}).to_string();
+        let redacted = redactions.text(&nested);
+        assert!(!redacted.contains("Alice"));
+        assert!(redacted.contains("radio.json"));
+        assert!(serde_json::from_str::<Value>(&redacted).is_ok());
     }
 
     #[test]
