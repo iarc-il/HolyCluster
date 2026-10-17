@@ -262,14 +262,7 @@ function MapControls({
     }
 
     function toggle_fullscreen() {
-        set_tooltip(tooltip =>
-            tooltip
-                ? {
-                      ...tooltip,
-                      content: is_map_fullscreen ? "Enter fullscreen" : "Exit fullscreen",
-                  }
-                : null,
-        );
+        set_tooltip(null);
         toggle_map_fullscreen();
     }
 

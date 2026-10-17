@@ -33,7 +33,7 @@ import Maidenhead from "maidenhead";
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ToastContainer } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
 
 const CanvasMap = lazy(() => import("@/components/CanvasMap/index.jsx"));
 const HistoryBar = lazy(() => import("@/components/history/HistoryBar.jsx"));
@@ -305,17 +305,27 @@ function MainContent({
         };
     }, []);
 
-    function toggle_map_fullscreen() {
+    async function toggle_map_fullscreen() {
         if (!map_wrapper_ref.current) {
             return;
         }
 
-        if (document.fullscreenElement === map_wrapper_ref.current) {
-            document.exitFullscreen();
-            return;
+        const exiting = document.fullscreenElement === map_wrapper_ref.current;
+        toast.dismiss("map-fullscreen");
+        try {
+            if (exiting) {
+                await document.exitFullscreen();
+            } else {
+                await map_wrapper_ref.current.requestFullscreen();
+            }
+        } catch {
+            toast.warn(
+                exiting
+                    ? "Fullscreen could not close. Press Escape to leave fullscreen."
+                    : "Fullscreen is not available",
+                { toastId: "map-fullscreen" },
+            );
         }
-
-        map_wrapper_ref.current.requestFullscreen();
     }
 
     const is_md_device = useMediaQuery("only screen and (max-width : 768px)");
