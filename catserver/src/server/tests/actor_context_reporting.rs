@@ -364,10 +364,60 @@ fn actor_context_distinguishes_preexisting_and_operation_caused_disconnect() {
 }
 
 #[test]
+fn recovery_clears_the_previous_disconnect_origin() {
+    let reports = capture(async {
+        let backend = FakeRigctld::start(SocketAddr::from(([127, 0, 0, 1], 0)), 7_100_000, "USB");
+        let native = net_config(backend.address());
+        let config = configured(&native);
+        let radio = RadioManager::new(config.clone(), selected()).unwrap();
+        radio
+            .replace(config, selected(), move || {
+                Box::new(HamlibRadio::new(native.clone()))
+            })
+            .await
+            .unwrap();
+        let upstream = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let (server, _) =
+            super::spawn_catserver_with_radio(upstream.local_addr().unwrap(), None, radio.clone())
+                .await;
+        let (mut socket, _) = connect_async(format!("ws://{}/ws", server.address))
+            .await
+            .unwrap();
+        super::session::event(&mut socket, "status").await;
+        backend.fail_mode(-8);
+        tune(&mut socket).await;
+        assert_eq!(radio.status().status, "disconnected");
+        radio.retry().await.unwrap();
+        assert_eq!(radio.status().status, "connected");
+        backend.fail_mode(-5);
+        tune(&mut socket).await;
+        socket.close(None).await.unwrap();
+        drop(server);
+        radio.shutdown().await.unwrap();
+    });
+    assert_eq!(reports.len(), 2);
+    for report in &reports {
+        let evidence = evidence(report);
+        assert!(
+            evidence["pre_operation"]["disconnect"].is_null(),
+            "{evidence}"
+        );
+        assert_eq!(
+            evidence["pre_operation"]["initialization"]["outcome"],
+            "succeeded"
+        );
+        assert_eq!(
+            evidence["pre_operation"]["application_connection_state"],
+            "connected"
+        );
+    }
+}
+
+#[test]
 fn unavailable_reports_keep_initialization_and_disconnect_origins() {
     let reports = capture(async {
-        for case in 0..3 {
-            let backend =
+        for case in 0..4 {
+            let mut backend =
                 FakeRigctld::start(SocketAddr::from(([127, 0, 0, 1], 0)), 7_100_000, "USB");
             let mut native = net_config(backend.address());
             if case == 1 {
@@ -385,7 +435,7 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
                 .replace(config, selected, move || factory())
                 .await
                 .unwrap();
-            if case == 2 {
+            if case >= 2 {
                 assert_eq!(radio.status().status, "connected");
                 backend.disconnect();
                 tokio::time::timeout(Duration::from_secs(3), async {
@@ -395,6 +445,11 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
                 })
                 .await
                 .expect("status read detects the closed connection");
+                if case == 3 {
+                    backend.stop();
+                    radio.retry().await.unwrap();
+                    assert!(radio.snapshot().last_error.is_some());
+                }
             }
             let upstream = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let (server, _) = super::spawn_catserver_with_radio(
@@ -416,7 +471,22 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
             radio.shutdown().await.unwrap();
         }
     });
-    assert_eq!(reports.len(), 4);
+    assert_eq!(reports.len(), 5);
+    let retry = evidence(&reports[4]);
+    assert_eq!(
+        retry["pre_operation"]["initialization"]["outcome"],
+        "failed"
+    );
+    assert_eq!(
+        retry["pre_operation"]["disconnect"]["origin"], "status_read",
+        "{retry}"
+    );
+    assert!(
+        retry["pre_operation"]["disconnect"]["error"]
+            .as_str()
+            .unwrap()
+            .contains("read frequency")
+    );
     let unconfigured = evidence(&reports[0]);
     assert_eq!(
         unconfigured["pre_operation"]["configuration_present"],

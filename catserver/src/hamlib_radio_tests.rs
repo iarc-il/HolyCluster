@@ -314,7 +314,7 @@ impl FakeRigctld {
         }
     }
 
-    fn stop(&mut self) {
+    pub(crate) fn stop(&mut self) {
         if self.thread.is_none() {
             return;
         }

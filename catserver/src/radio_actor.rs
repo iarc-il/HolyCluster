@@ -374,7 +374,6 @@ fn publish(
             _ => None,
         }),
     });
-    connection_trace.disconnect = None;
     match init {
         Ok(()) => publish_status(
             snapshot,
@@ -387,14 +386,16 @@ fn publish(
             snapshot.last_error = Some(error.clone());
             snapshot.last_status = Status::disconnected(1);
             drop(snapshot);
-            connection_trace.disconnect = Some(RadioDisconnectContext {
-                origin: "initialization",
-                error: error.to_string(),
-                backend_call: connection_trace
-                    .initialization
-                    .as_ref()
-                    .and_then(|init| init.backend_call.clone()),
-            });
+            if connection_trace.disconnect.is_none() {
+                connection_trace.disconnect = Some(RadioDisconnectContext {
+                    origin: "initialization",
+                    error: error.to_string(),
+                    backend_call: connection_trace
+                        .initialization
+                        .as_ref()
+                        .and_then(|init| init.backend_call.clone()),
+                });
+            }
             connection_trace.disconnected(&selected, &error);
             false
         }
