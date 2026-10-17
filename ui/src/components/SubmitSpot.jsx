@@ -1,6 +1,6 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect, useRef, useState } from "react";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 
 import CallsignInput from "@/components/CallsignInput.jsx";
 import Button from "@/components/ui/Button.jsx";
@@ -358,7 +358,6 @@ function SubmitSpot({ dev_mode }) {
                     ""
                 )}
             </Modal>
-            <ToastContainer />
         </>
     );
 }

@@ -32,6 +32,8 @@ import Maidenhead from "maidenhead";
 
 import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { ToastContainer } from "react-toastify";
 
 const CanvasMap = lazy(() => import("@/components/CanvasMap/index.jsx"));
 const HistoryBar = lazy(() => import("@/components/history/HistoryBar.jsx"));
@@ -419,6 +421,13 @@ function MainContent({
     return (
         <div className="flex flex-col h-full" data-tour="app-shell">
             <UpdateConsentDialog />
+            {createPortal(
+                <ToastContainer
+                    position="bottom-right"
+                    theme={settings.theme === "Light" ? "light" : "dark"}
+                />,
+                is_map_fullscreen ? map_wrapper_ref.current : document.body,
+            )}
             <TopBar
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
