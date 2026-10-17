@@ -3,7 +3,7 @@ use std::fmt;
 use crate::{
     freq::Freq,
     radio_config::HamlibRigConfig,
-    rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status},
+    rig::{Mode, Radio, RadioBackendContext, RadioInitError, RadioOperationError, Slot, Status},
 };
 
 pub(crate) struct HamlibRadio {
@@ -32,42 +32,62 @@ impl Radio for HamlibRadio {
     }
 
     fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
+        let mut context = RadioBackendContext::new("hamlib", "rig_set_mode", self.rig.is_some());
+        context.target = Some("Current");
+        context.resolved_mode = Some(match mode {
+            Mode::USB => "USB",
+            Mode::LSB => "LSB",
+            Mode::Data => "PKTUSB",
+            Mode::Rtty => "RTTY",
+            Mode::CW => "CW",
+        });
         self.rig
             .as_mut()
-            .ok_or_else(|| unavailable("set mode"))?
+            .ok_or_else(|| unavailable("set mode").with_backend_context(context.clone()))?
             .set_mode(
                 hamlib::Vfo::Current,
                 hamlib_mode(mode),
                 hamlib::PassbandWidth::new(0),
             )
-            .map_err(|error| operation_error("set mode", error))
+            .map_err(|error| operation_error("set mode", error).with_backend_context(context))
     }
 
     fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError> {
         let frequency = hamlib::Frequency::new(f64::from(freq.as_u32_hz()))
             .map_err(|error| operation_error("validate frequency", error))?;
+        let mut selection = RadioBackendContext::new("hamlib", "rig_set_vfo", self.rig.is_some());
+        selection.target = Some(match slot {
+            Slot::A => "A",
+            Slot::B => "B",
+        });
         let rig = self
             .rig
             .as_mut()
-            .ok_or_else(|| unavailable("set frequency"))?;
-        rig.set_vfo(vfo(slot))
-            .map_err(|error| operation_error("select VFO", error))?;
+            .ok_or_else(|| unavailable("set frequency").with_backend_context(selection.clone()))?;
+        rig.set_vfo(vfo(slot)).map_err(|error| {
+            operation_error("select VFO", error).with_backend_context(selection)
+        })?;
+        let mut write = RadioBackendContext::new("hamlib", "rig_set_freq", true);
+        write.target = Some("Current");
         rig.set_frequency(hamlib::Vfo::Current, frequency)
-            .map_err(|error| operation_error("set frequency", error))
+            .map_err(|error| operation_error("set frequency", error).with_backend_context(write))
     }
 
     fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+        let mut context = RadioBackendContext::new("hamlib", "rig_get_freq", self.rig.is_some());
+        context.target = Some("Current");
         let result = self
             .rig
             .as_mut()
-            .ok_or_else(|| unavailable("read status"))
+            .ok_or_else(|| unavailable("read status").with_backend_context(context.clone()))
             .and_then(|rig| {
-                let frequency = rig
-                    .frequency(hamlib::Vfo::Current)
-                    .map_err(|error| operation_error("read frequency", error))?;
-                let (mode, _) = rig
-                    .mode(hamlib::Vfo::Current)
-                    .map_err(|error| operation_error("read mode", error))?;
+                let frequency = rig.frequency(hamlib::Vfo::Current).map_err(|error| {
+                    operation_error("read frequency", error).with_backend_context(context.clone())
+                })?;
+                let (mode, _) = rig.mode(hamlib::Vfo::Current).map_err(|error| {
+                    context.operation = "rig_get_mode";
+                    operation_error("read mode", error).with_backend_context(context)
+                })?;
                 Ok(Status {
                     freq: frequency.hertz() as u32,
                     status: "connected".into(),

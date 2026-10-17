@@ -81,10 +81,14 @@ fn selected() -> ActiveRadioBackend {
 }
 
 async fn tune(socket: &mut super::session::Socket) {
+    tune_mode(socket, "CW", 7050).await;
+}
+
+async fn tune_mode(socket: &mut super::session::Socket, mode: &str, freq: u32) {
     socket
         .send(Message::Text(
-            r#"{"version":1,"type":"radio","action":"SetModeAndFreq","mode":"CW","freq":7050}"#
-                .into(),
+            serde_json::json!({"version":1,"type":"radio","action":"SetModeAndFreq","mode":mode,"freq":freq})
+                .to_string().into(),
         ))
         .await
         .unwrap();
@@ -109,6 +113,88 @@ fn evidence(event: &serde_json::Value) -> serde_json::Value {
             .unwrap(),
     )
     .unwrap()
+}
+
+#[test]
+fn backend_call_evidence_distinguishes_targets_and_resolved_modes() {
+    let cases = [
+        ("rig_set_vfo", "A", "CW", 7050, "CW", -8),
+        ("rig_set_vfo", "A", "CW", 7050, "CW", -5),
+        ("rig_set_vfo", "A", "CW", 7050, "CW", -9),
+        ("rig_set_vfo", "A", "CW", 7050, "CW", -11),
+        ("rig_set_freq", "Current", "CW", 7050, "CW", -8),
+        ("rig_set_mode", "Current", "DIGI", 14074, "PKTUSB", -5),
+        ("rig_set_mode", "Current", "SSB", 7050, "LSB", -5),
+        ("rig_set_mode", "Current", "SSB", 14200, "USB", -5),
+    ];
+    let reports = capture(async {
+        for (operation, _, mode, freq, _, code) in cases {
+            let backend =
+                FakeRigctld::start(SocketAddr::from(([127, 0, 0, 1], 0)), 7_100_000, "USB");
+            backend.select_b();
+            let native = net_config(backend.address());
+            let config = configured(&native);
+            let radio = RadioManager::new(config.clone(), selected()).unwrap();
+            radio
+                .replace(config, selected(), move || {
+                    Box::new(HamlibRadio::new(native.clone()))
+                })
+                .await
+                .unwrap();
+            match operation {
+                "rig_set_vfo" => backend.fail_vfo(code),
+                "rig_set_freq" => backend.fail_frequency(code),
+                "rig_set_mode" => backend.fail_mode(code),
+                _ => unreachable!(),
+            }
+            let upstream = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let (server, _) = super::spawn_catserver_with_radio(
+                upstream.local_addr().unwrap(),
+                None,
+                radio.clone(),
+            )
+            .await;
+            let (mut socket, _) = connect_async(format!("ws://{}/ws", server.address))
+                .await
+                .unwrap();
+            super::session::event(&mut socket, "status").await;
+            tune_mode(&mut socket, mode, freq).await;
+            let commands = backend.commands();
+            if operation == "rig_set_vfo" {
+                assert!(
+                    !commands
+                        .iter()
+                        .any(|command| command.starts_with("F ") || command.starts_with("M ")),
+                    "{commands:?}"
+                );
+            }
+            socket.close(None).await.unwrap();
+            drop(server);
+            radio.shutdown().await.unwrap();
+        }
+    });
+    assert_eq!(reports.len(), cases.len());
+    for (report, (operation, target, _, _, mode, code)) in reports.iter().zip(cases) {
+        let evidence = evidence(report);
+        assert_eq!(
+            evidence["backend_call"]["operation"], operation,
+            "{evidence}"
+        );
+        assert_eq!(evidence["backend_call"]["target"], target);
+        if operation == "rig_set_mode" {
+            assert_eq!(evidence["backend_call"]["resolved_mode"], mode);
+        } else {
+            assert!(evidence["backend_call"]["resolved_mode"].is_null());
+        }
+        assert_eq!(evidence["backend_call"]["backend"], "hamlib");
+        assert_eq!(evidence["backend_call"]["handle_present"], true);
+        assert!(
+            report["contexts"]["Rust Tracing Fields"]["error_summary"]
+                .as_str()
+                .unwrap()
+                .contains(&format!("{operation} failed with code {code}:"))
+        );
+    }
 }
 
 #[test]
@@ -158,7 +244,107 @@ fn actor_context_distinguishes_preexisting_and_operation_caused_disconnect() {
         assert_eq!(pre["model_id"], fields["model_id"]);
         assert_eq!(pre["backend_object_present"], true);
         assert_eq!(pre["initialization_failed"], false);
+        assert_eq!(pre["initialization"]["outcome"], "succeeded");
+        if before == "connected" {
+            assert!(pre["disconnect"].is_null());
+        } else {
+            assert_eq!(pre["disconnect"]["origin"], "command");
+            assert_eq!(
+                pre["disconnect"]["backend_call"]["operation"],
+                "rig_set_mode"
+            );
+            assert_eq!(pre["disconnect"]["backend_call"]["resolved_mode"], "CW");
+        }
     }
+}
+
+#[test]
+fn unavailable_reports_keep_initialization_and_disconnect_origins() {
+    let reports = capture(async {
+        for case in 0..3 {
+            let backend =
+                FakeRigctld::start(SocketAddr::from(([127, 0, 0, 1], 0)), 7_100_000, "USB");
+            let mut native = net_config(backend.address());
+            if case == 1 {
+                native.model_id = "999999".into();
+            }
+            let config = if case == 0 {
+                RadioConfig { rig: None }
+            } else {
+                configured(&native)
+            };
+            let selected = config.effective_backend(false);
+            let radio = RadioManager::new(config.clone(), selected.clone()).unwrap();
+            let factory = crate::radio_factory::factory(config.clone(), selected.clone());
+            radio
+                .replace(config, selected, move || factory())
+                .await
+                .unwrap();
+            if case == 2 {
+                assert_eq!(radio.status().status, "connected");
+                backend.disconnect();
+                tokio::time::timeout(Duration::from_secs(3), async {
+                    while radio.poll_status().await.status == "connected" {
+                        tokio::task::yield_now().await;
+                    }
+                })
+                .await
+                .expect("status read detects the closed connection");
+            }
+            let upstream = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let (server, _) = super::spawn_catserver_with_radio(
+                upstream.local_addr().unwrap(),
+                None,
+                radio.clone(),
+            )
+            .await;
+            let (mut socket, _) = connect_async(format!("ws://{}/ws", server.address))
+                .await
+                .unwrap();
+            super::session::event(&mut socket, "status").await;
+            tune(&mut socket).await;
+            if case == 1 {
+                tune(&mut socket).await;
+            }
+            socket.close(None).await.unwrap();
+            drop(server);
+            radio.shutdown().await.unwrap();
+        }
+    });
+    assert_eq!(reports.len(), 4);
+    let unconfigured = evidence(&reports[0]);
+    assert_eq!(
+        unconfigured["pre_operation"]["configuration_present"],
+        false
+    );
+    for report in &reports[1..3] {
+        let evidence = evidence(report);
+        let pre = &evidence["pre_operation"];
+        assert_eq!(pre["initialization"]["outcome"], "failed", "{evidence}");
+        assert!(
+            pre["initialization"]["error"]
+                .as_str()
+                .unwrap()
+                .contains("initialization failed")
+        );
+        assert_eq!(pre["disconnect"]["origin"], "initialization");
+        assert_eq!(pre["configuration_present"], true);
+        assert_eq!(pre["model_id"], "hamlib:999999");
+    }
+    let disconnected = evidence(&reports[3]);
+    let pre = &disconnected["pre_operation"];
+    assert_eq!(
+        pre["initialization"]["outcome"], "succeeded",
+        "{disconnected}"
+    );
+    assert_eq!(pre["disconnect"]["origin"], "status_read");
+    assert!(
+        pre["disconnect"]["error"]
+            .as_str()
+            .unwrap()
+            .contains("read frequency")
+    );
+    assert_eq!(disconnected["backend_call"]["handle_present"], false);
 }
 
 #[test]
@@ -270,6 +456,10 @@ async fn actor_context_stays_with_result_across_queued_replacement() {
     assert_eq!(pre["configuration_present"], true);
     assert_eq!(pre["backend_object_present"], true);
     assert_eq!(pre["initialization_failed"], false);
+    assert_eq!(pre["initialization"]["outcome"], "succeeded");
+    assert!(pre["disconnect"].is_null());
+    assert_eq!(evidence["backend_call"]["operation"], "rig_set_mode");
+    assert_eq!(evidence["backend_call"]["resolved_mode"], "CW");
 }
 
 #[tokio::test]
@@ -326,4 +516,6 @@ async fn actor_context_uses_execution_state_for_tune_queued_behind_replacement()
     assert!(pre["model_id"].is_null());
     assert_eq!(pre["backend_object_present"], true);
     assert_eq!(pre["initialization_failed"], true);
+    assert_eq!(pre["initialization"]["outcome"], "failed");
+    assert_eq!(pre["disconnect"]["origin"], "initialization");
 }

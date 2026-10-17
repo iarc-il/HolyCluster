@@ -269,6 +269,18 @@ impl FakeRigctld {
         }
     }
 
+    pub(crate) fn select_b(&self) {
+        self.state.lock().unwrap().current_vfo = "VFOB".into();
+    }
+
+    pub(crate) fn fail_vfo(&self, code: i32) {
+        self.state.lock().unwrap().vfo_error = Some(code);
+    }
+
+    pub(crate) fn fail_frequency(&self, code: i32) {
+        self.state.lock().unwrap().frequency_error = Some(code);
+    }
+
     pub(crate) fn fail_mode(&self, code: i32) {
         self.state.lock().unwrap().mode_error = Some(code);
     }
@@ -295,7 +307,7 @@ impl FakeRigctld {
         self.commands.lock().unwrap().clone()
     }
 
-    fn disconnect(&self) {
+    pub(crate) fn disconnect(&self) {
         let streams = self.active_streams.lock().unwrap();
         for stream in streams.iter() {
             let _ = stream.shutdown(Shutdown::Both);
@@ -325,6 +337,8 @@ impl Drop for FakeRigctld {
 }
 
 struct FakeRigState {
+    vfo_error: Option<i32>,
+    frequency_error: Option<i32>,
     mode_error: Option<i32>,
     mode_pause: Option<(
         tokio::sync::oneshot::Sender<()>,
@@ -340,6 +354,8 @@ struct FakeRigState {
 impl FakeRigState {
     fn new(frequency: u32, mode: &str) -> Self {
         Self {
+            vfo_error: None,
+            frequency_error: None,
             mode_error: None,
             mode_pause: None,
             frequency_a: frequency,
@@ -410,10 +426,17 @@ fn fake_response(command: &str, state: &Mutex<FakeRigState>) -> String {
             format!("{}\n2400\n", state.lock().unwrap().mode)
         }
         command if command.starts_with("V ") => {
-            state.lock().unwrap().current_vfo = command[2..].trim().into();
+            let mut state = state.lock().unwrap();
+            if let Some(code) = state.vfo_error {
+                return format!("RPRT {code}\n");
+            }
+            state.current_vfo = command[2..].trim().into();
             "RPRT 0\n".into()
         }
         command if command.starts_with("F") => {
+            if let Some(code) = state.lock().unwrap().frequency_error {
+                return format!("RPRT {code}\n");
+            }
             if let Ok(frequency) = command
                 .split_whitespace()
                 .last()

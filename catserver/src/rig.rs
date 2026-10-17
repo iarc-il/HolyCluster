@@ -76,6 +76,20 @@ impl fmt::Display for RadioInitError {
 
 impl std::error::Error for RadioInitError {}
 
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
+pub struct RadioInitializationContext {
+    pub outcome: &'static str,
+    pub error: Option<String>,
+    pub details: Option<String>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
+pub struct RadioDisconnectContext {
+    pub origin: &'static str,
+    pub error: String,
+    pub backend_call: Option<Box<RadioBackendContext>>,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RadioActorContext {
     pub application_connection_state: &'static str,
@@ -84,6 +98,29 @@ pub struct RadioActorContext {
     pub model_id: Option<String>,
     pub backend_object_present: bool,
     pub initialization_failed: bool,
+    pub initialization: Option<RadioInitializationContext>,
+    pub disconnect: Option<RadioDisconnectContext>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
+pub struct RadioBackendContext {
+    pub backend: &'static str,
+    pub operation: &'static str,
+    pub target: Option<&'static str>,
+    pub resolved_mode: Option<&'static str>,
+    pub handle_present: bool,
+}
+
+impl RadioBackendContext {
+    pub fn new(backend: &'static str, operation: &'static str, handle_present: bool) -> Self {
+        Self {
+            backend,
+            operation,
+            target: None,
+            resolved_mode: None,
+            handle_present,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -93,6 +130,7 @@ pub struct RadioOperationError {
     pub message: String,
     pub details: Option<String>,
     pub actor_context: Option<Box<RadioActorContext>>,
+    pub backend_context: Option<Box<RadioBackendContext>>,
 }
 
 impl RadioOperationError {
@@ -103,7 +141,13 @@ impl RadioOperationError {
             message: message.into(),
             details: None,
             actor_context: None,
+            backend_context: None,
         }
+    }
+
+    pub fn with_backend_context(mut self, context: RadioBackendContext) -> Self {
+        self.backend_context = Some(Box::new(context));
+        self
     }
 
     pub fn with_rig(mut self, rig: u8) -> Self {

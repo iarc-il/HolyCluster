@@ -8,7 +8,10 @@ use crate::{
     freq::Freq,
     radio_config::{ActiveRadioBackend, RadioBackendKind, RadioConfig},
     radio_manager::{ConnectionState, RadioManagerError, RadioSnapshot},
-    rig::{Mode, Radio, RadioActorContext, RadioInitError, RadioOperationError, Status},
+    rig::{
+        Mode, Radio, RadioActorContext, RadioDisconnectContext, RadioInitError,
+        RadioInitializationContext, RadioOperationError, Status,
+    },
 };
 use tokio::sync::oneshot;
 
@@ -18,6 +21,8 @@ pub(crate) type RadioFactory = DeviceFactory<Box<dyn Radio>>;
 struct ConnectionTrace {
     outage_started: Option<Instant>,
     failed_attempts: u32,
+    initialization: Option<RadioInitializationContext>,
+    disconnect: Option<RadioDisconnectContext>,
 }
 
 impl ConnectionTrace {
@@ -47,6 +52,8 @@ impl ConnectionTrace {
     fn reset(&mut self) {
         self.outage_started = None;
         self.failed_attempts = 0;
+        self.initialization = None;
+        self.disconnect = None;
     }
 }
 
@@ -226,6 +233,8 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                         model_id: state.config.rig.as_ref().map(|rig| rig.model_id.clone()),
                         backend_object_present: radio.is_some(),
                         initialization_failed: state.last_error.is_some(),
+                        initialization: connection_trace.initialization.clone(),
+                        disconnect: connection_trace.disconnect.clone(),
                     }
                 };
                 let result = radio
@@ -353,6 +362,15 @@ fn publish(
         snapshot.selected = selected.clone();
         snapshot.last_operation_error = None;
     }
+    connection_trace.initialization = Some(RadioInitializationContext {
+        outcome: if init.is_ok() { "succeeded" } else { "failed" },
+        error: init.as_ref().err().map(ToString::to_string),
+        details: init.as_ref().err().and_then(|error| match error {
+            RadioInitError::Hamlib { details, .. } => details.clone(),
+            _ => None,
+        }),
+    });
+    connection_trace.disconnect = None;
     match init {
         Ok(()) => publish_status(
             snapshot,
@@ -365,6 +383,11 @@ fn publish(
             snapshot.last_error = Some(error.clone());
             snapshot.last_status = Status::disconnected(1);
             drop(snapshot);
+            connection_trace.disconnect = Some(RadioDisconnectContext {
+                origin: "initialization",
+                error: error.to_string(),
+                backend_call: None,
+            });
             connection_trace.disconnected(&selected, &error);
             false
         }
@@ -385,16 +408,17 @@ fn publish_status(
             snapshot.last_operation_error = None;
             snapshot.last_status = status;
             drop(snapshot);
+            connection_trace.disconnect = None;
             connection_trace.connected(&selected);
             true
         }
         Ok(status) => {
             let error = RadioOperationError::new(1, "read status", status.status.clone());
-            publish_status_error(snapshot, status, error, connection_trace)
+            publish_status_error(snapshot, status, error, "status_read", connection_trace)
         }
         Err(error) => {
             let status = Status::disconnected(error.rig);
-            publish_status_error(snapshot, status, error, connection_trace)
+            publish_status_error(snapshot, status, error, "status_read", connection_trace)
         }
     }
 }
@@ -403,10 +427,19 @@ fn publish_status_error(
     snapshot: &RwLock<RadioSnapshot>,
     status: Status,
     error: RadioOperationError,
+    origin: &'static str,
     connection_trace: &mut ConnectionTrace,
 ) -> bool {
     let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());
     let selected = snapshot.selected.clone();
+    // Keep the first failure until recovery instead of replacing it with "unavailable".
+    if snapshot.connection == ConnectionState::Connected || connection_trace.disconnect.is_none() {
+        connection_trace.disconnect = Some(RadioDisconnectContext {
+            origin,
+            error: error.to_string(),
+            backend_call: error.backend_context.clone(),
+        });
+    }
     snapshot.connection = ConnectionState::Disconnected;
     snapshot.last_status = status;
     snapshot.last_error = None;
@@ -429,6 +462,7 @@ fn publish_operation_result(
             snapshot,
             Status::disconnected(error.rig),
             error.clone(),
+            "command",
             connection_trace,
         ),
     }

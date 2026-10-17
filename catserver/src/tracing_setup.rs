@@ -263,8 +263,13 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
                         "model_id": context.model_id,
                         "backend_object_present": context.backend_object_present,
                         "initialization_failed": context.initialization_failed,
+                        "initialization": context.initialization,
+                        "disconnect": context.disconnect,
                     }),
                 );
+            }
+            if let Some(context) = &operation.backend_context {
+                fields.insert("backend_call".into(), serde_json::json!(context));
             }
             if let Some(code) = hresult(&operation.message) {
                 fields.insert("hresult".into(), code.into());
