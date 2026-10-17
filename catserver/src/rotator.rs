@@ -48,5 +48,6 @@ pub trait Rotator {
     fn init(&mut self) -> Result<(), RotatorError>;
     fn name(&self) -> &str;
     fn set_azimuth(&mut self, azimuth: f64) -> Result<(), RotatorError>;
+    fn stop(&mut self) -> Result<(), RotatorError>;
     fn status(&mut self) -> Result<RotatorStatus, RotatorError>;
 }

@@ -99,6 +99,7 @@ const diagnostic_actions = new Set([
     "TestRadioConnection",
     "RetryRadio",
     "SetAzimuth",
+    "Stop",
     "ListRotatorModels",
     "DescribeRotatorModel",
     "GetRotatorConfiguration",

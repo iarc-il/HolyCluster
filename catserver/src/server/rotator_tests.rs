@@ -4,6 +4,7 @@ use axum::extract::ws::Message;
 
 use super::{rotator::process, rotator_configuration::RotatorConfiguration};
 use crate::{
+    dummy_rotator::DummyRotator,
     hamlib_device_config::HamlibDeviceConfig,
     rotator_config::RotatorConfig,
     rotator_manager::{ActiveRotatorBackend, RotatorManager},
@@ -38,6 +39,33 @@ async fn lists_rotator_models_with_compatibility() {
     assert!(models.iter().any(|model| {
         model["id"] == "701" && model["enabled"] == false && model["disabled_reason"].is_string()
     }));
+    manager.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn stops_rotator_movement() {
+    let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
+    manager
+        .replace(
+            RotatorConfig::unconfigured(),
+            ActiveRotatorBackend::DummyOverride,
+            || Box::new(DummyRotator::new()),
+        )
+        .await
+        .unwrap();
+    manager.set_azimuth(180.0).await.unwrap();
+    let service = RotatorConfiguration::new(manager.clone());
+
+    let response = process(
+        r#"{"version":1,"type":"rotator","action":"Stop"}"#.into(),
+        &manager,
+        &service,
+    )
+    .await
+    .unwrap();
+
+    assert!(response.is_none());
+    assert_eq!(manager.snapshot().target_azimuth, None);
     manager.shutdown().await.unwrap();
 }
 

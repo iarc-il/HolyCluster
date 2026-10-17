@@ -22,6 +22,7 @@ export function RotatorProvider({ children }) {
     const [rotator_target_azimuth, set_rotator_target_azimuth] = useState(null);
     const [rotator_name, set_rotator_name] = useState("");
     const [rotator_ready, set_rotator_ready] = useState(false);
+    const [rotator_tuning_enabled, set_rotator_tuning_enabled] = useState(true);
     const [rotator_models, set_rotator_models] = useState([]);
     const [rotator_models_error, set_rotator_models_error] = useState(null);
     const [rotator_model_details, set_rotator_model_details] = useState({});
@@ -96,7 +97,7 @@ export function RotatorProvider({ children }) {
     });
 
     function set_azimuth(azimuth) {
-        if (!rotator_supported) return;
+        if (!rotator_supported || !rotator_tuning_enabled) return;
 
         const next_azimuth = Number(azimuth);
         if (!Number.isFinite(next_azimuth)) {
@@ -155,8 +156,19 @@ export function RotatorProvider({ children }) {
         if (rotator_supported) send("rotator", { action: "RetryRotator" });
     }
 
+    function toggle_rotator_tuning() {
+        if (!rotator_supported) return;
+
+        if (rotator_tuning_enabled && rotator_status === "connected") {
+            send("rotator", { action: "Stop" });
+            set_rotator_target_azimuth(null);
+        }
+        set_rotator_tuning_enabled(enabled => !enabled);
+    }
+
     function is_rotator_available() {
         return (
+            rotator_tuning_enabled &&
             rotator_supported &&
             rotator_ready &&
             !["unavailable", "disconnected"].includes(rotator_status)
@@ -164,15 +176,21 @@ export function RotatorProvider({ children }) {
     }
 
     const show_bearings =
-        rotator_supported && network_state === "connected" && rotator_status === "connected";
+        rotator_tuning_enabled &&
+        rotator_supported &&
+        network_state === "connected" &&
+        rotator_status === "connected";
 
     return (
         <RotatorContext.Provider
             value={{
                 set_azimuth,
                 is_rotator_available,
+                toggle_rotator_tuning,
+                rotator_tuning_enabled,
                 rotator_supported,
                 rotator_status: rotator_supported ? rotator_status : "unavailable",
+                rotator_heading: rotator_supported ? rotator_azimuth : null,
                 rotator_azimuth: show_bearings ? rotator_azimuth : null,
                 rotator_target_azimuth: show_bearings ? rotator_target_azimuth : null,
                 rotator_name: rotator_supported ? rotator_name : "",

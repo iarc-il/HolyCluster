@@ -57,6 +57,12 @@ impl Rotator for DummyRotator {
         Ok(())
     }
 
+    fn stop(&mut self) -> Result<(), RotatorError> {
+        self.update_azimuth();
+        self.target_azimuth = self.azimuth;
+        Ok(())
+    }
+
     fn status(&mut self) -> Result<RotatorStatus, RotatorError> {
         self.update_azimuth();
         Ok(RotatorStatus {

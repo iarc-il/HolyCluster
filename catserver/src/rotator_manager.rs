@@ -167,6 +167,14 @@ impl RotatorManager {
             .map_err(RotatorManagerError::Operation)
     }
 
+    pub async fn stop(&self) -> Result<(), RotatorManagerError> {
+        self.worker
+            .request(Command::Stop)
+            .await
+            .map_err(map_worker_stopped)?
+            .map_err(RotatorManagerError::Operation)
+    }
+
     pub async fn poll_status(&self) -> Result<(), RotatorManagerError> {
         self.call(Command::Poll).await
     }

@@ -55,6 +55,11 @@ impl Rotator for RecordingRotator {
         Ok(())
     }
 
+    fn stop(&mut self) -> Result<(), RotatorError> {
+        self.record("stop");
+        Ok(())
+    }
+
     fn status(&mut self) -> Result<RotatorStatus, RotatorError> {
         self.record("status");
         Ok(RotatorStatus {
@@ -83,6 +88,10 @@ impl Rotator for RetryRotator {
     }
 
     fn set_azimuth(&mut self, _: f64) -> Result<(), RotatorError> {
+        Ok(())
+    }
+
+    fn stop(&mut self) -> Result<(), RotatorError> {
         Ok(())
     }
 
@@ -126,6 +135,10 @@ impl Rotator for ExclusiveRotator {
     }
 
     fn set_azimuth(&mut self, _: f64) -> Result<(), RotatorError> {
+        Ok(())
+    }
+
+    fn stop(&mut self) -> Result<(), RotatorError> {
         Ok(())
     }
 
@@ -196,6 +209,39 @@ async fn publishes_dummy_status_and_target() {
     assert_eq!(snapshot.connection, RotatorConnectionState::Connected);
     assert_eq!(snapshot.target_azimuth, Some(90.0));
     assert_eq!(snapshot.last_status.name, "dummy_rotator");
+    manager.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn stops_the_rotator_and_clears_its_target() {
+    let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let factory_events = Arc::clone(&events);
+    manager
+        .replace(
+            RotatorConfig::unconfigured(),
+            ActiveRotatorBackend::DummyOverride,
+            move || {
+                Box::new(RecordingRotator {
+                    events: Arc::clone(&factory_events),
+                    marker: Rc::new(()),
+                })
+            },
+        )
+        .await
+        .unwrap();
+    manager.set_azimuth(90.0).await.unwrap();
+
+    manager.stop().await.unwrap();
+
+    assert_eq!(manager.snapshot().target_azimuth, None);
+    assert!(
+        events
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(event, _)| *event == "stop")
+    );
     manager.shutdown().await.unwrap();
 }
 

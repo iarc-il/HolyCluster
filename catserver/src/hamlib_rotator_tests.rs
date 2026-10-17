@@ -83,6 +83,8 @@ impl FakeRotctld {
                     azimuth = values.next().unwrap().parse().unwrap();
                     assert_eq!(values.next(), Some("0.000000"));
                     writeln!(stream, "RPRT 0").unwrap();
+                } else if command == "S" {
+                    writeln!(stream, "RPRT 0").unwrap();
                 } else if command == "q" {
                     break;
                 }
@@ -132,6 +134,7 @@ async fn net_rotctl_runs_through_hamlib_and_manager() {
     manager.set_azimuth(270.0).await.unwrap();
     manager.poll_status().await.unwrap();
     assert_eq!(manager.status().azimuth, -90.0);
+    manager.stop().await.unwrap();
     manager.shutdown().await.unwrap();
 
     let commands = server.commands.lock().unwrap();
@@ -141,6 +144,7 @@ async fn net_rotctl_runs_through_hamlib_and_manager() {
             .iter()
             .any(|command| command == "P -90.000000 0.000000")
     );
+    assert!(commands.iter().any(|command| command == "S"));
 }
 
 #[tokio::test]

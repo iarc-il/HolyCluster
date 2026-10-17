@@ -199,6 +199,9 @@ impl Rotator<RotatorOpen> {
             },
         )
     }
+    pub fn stop(&mut self) -> Result<(), HamlibError> {
+        ffi::hamlib_result("rot_stop", unsafe { sys::rot_stop(self.handle.as_ptr()) })
+    }
     pub fn close(mut self) -> Result<Rotator<RotatorClosed>, HamlibError> {
         ffi::hamlib_result("rot_close", unsafe { sys::rot_close(self.handle.as_ptr()) })?;
         self.open = false;

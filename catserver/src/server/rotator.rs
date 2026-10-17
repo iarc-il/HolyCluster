@@ -30,6 +30,7 @@ struct Envelope {
 #[serde(tag = "action")]
 enum ClientMessage {
     SetAzimuth { azimuth: f64 },
+    Stop,
     ListRotatorModels,
     DescribeRotatorModel { model_id: String },
     GetRotatorConfiguration,
@@ -73,6 +74,13 @@ pub(super) async fn process(
             if let Err(error) = rotator.set_azimuth(azimuth).await {
                 let error = anyhow::Error::new(error);
                 tracing::error!(%error, action = "SetAzimuth", model_id = %crate::tracing_setup::rotator_model_id(rotator), device_connected = rotator.status().status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), "Failed to set rotator azimuth");
+            }
+            return Ok(None);
+        }
+        ClientMessage::Stop => {
+            if let Err(error) = rotator.stop().await {
+                let error = anyhow::Error::new(error);
+                tracing::error!(%error, action = "Stop", model_id = %crate::tracing_setup::rotator_model_id(rotator), device_connected = rotator.status().status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), "Failed to stop rotator");
             }
             return Ok(None);
         }

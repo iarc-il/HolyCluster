@@ -96,6 +96,19 @@ impl Rotator for HamlibRotator {
         result
     }
 
+    fn stop(&mut self) -> Result<(), RotatorError> {
+        let result = self
+            .handle
+            .as_mut()
+            .ok_or_else(|| RotatorError::new("stop", "not initialized"))?
+            .stop()
+            .map_err(|error| operation_error("stop", error));
+        if result.is_err() {
+            self.handle = None;
+        }
+        result
+    }
+
     fn status(&mut self) -> Result<RotatorStatus, RotatorError> {
         let result = self
             .handle

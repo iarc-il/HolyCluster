@@ -143,6 +143,9 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn rot_stop(rot: *mut ROT) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn rot_confparam_lookup(
         rot: *mut ROT,
         name: *const ::std::os::raw::c_char,

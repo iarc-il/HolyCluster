@@ -73,6 +73,7 @@ pub(crate) enum Command {
     },
     Retry(oneshot::Sender<()>),
     SetAzimuth(f64, oneshot::Sender<Result<(), RotatorError>>),
+    Stop(oneshot::Sender<Result<(), RotatorError>>),
     Poll(oneshot::Sender<()>),
     Shutdown(oneshot::Sender<()>),
 }
@@ -255,6 +256,22 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                 } else {
                     let mut state = snapshot.write().unwrap_or_else(|error| error.into_inner());
                     state.target_azimuth = Some(azimuth);
+                }
+                let _ = reply.send(result);
+            }
+            Command::Stop(reply) => {
+                let result = rotator.as_mut().map_or_else(
+                    || Err(RotatorError::new("stop", "not configured")),
+                    |rotator| rotator.stop(),
+                );
+                if let Err(error) = &result {
+                    publish_error(&snapshot, error.clone(), &mut connection_trace);
+                    next_action = Some(schedule_after_attempt(false, &mut retry_delay));
+                } else {
+                    snapshot
+                        .write()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .target_azimuth = None;
                 }
                 let _ = reply.send(result);
             }

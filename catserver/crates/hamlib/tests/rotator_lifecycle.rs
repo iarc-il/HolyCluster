@@ -6,6 +6,7 @@ fn dummy_opens_controls_closes_and_reopens() {
     let mut open = closed.open().expect("dummy rotator opens");
     open.set_azimuth(450.0)
         .expect("dummy sets extended azimuth");
+    open.stop().expect("dummy rotator stops");
     assert!(
         open.position()
             .expect("dummy reads position")

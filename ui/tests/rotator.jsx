@@ -90,6 +90,38 @@ describe("rotator map bearings", () => {
         },
     );
 
+    it("disables tuning, stops movement, and hides bearings", () => {
+        render(<App />);
+        status("connected", 90);
+        act(() => Consumer.rotator.set_azimuth(180));
+        state.send.mockClear();
+
+        act(() => Consumer.rotator.toggle_rotator_tuning());
+
+        expect(Consumer.rotator.rotator_tuning_enabled).toBe(false);
+        expect(Consumer.rotator.rotator_heading).toBe(90);
+        expect(Consumer.rotator.rotator_azimuth).toBeNull();
+        expect(Consumer.rotator.rotator_target_azimuth).toBeNull();
+        expect(state.send).toHaveBeenCalledWith("rotator", { action: "Stop" });
+    });
+
+    it("does not tune while disabled and resumes tuning when enabled", () => {
+        render(<App />);
+        status("connected", 90);
+        act(() => Consumer.rotator.toggle_rotator_tuning());
+        state.send.mockClear();
+
+        act(() => Consumer.rotator.set_azimuth(180));
+        expect(state.send).not.toHaveBeenCalled();
+
+        act(() => Consumer.rotator.toggle_rotator_tuning());
+        act(() => Consumer.rotator.set_azimuth(180));
+        expect(state.send).toHaveBeenCalledWith("rotator", {
+            action: "SetAzimuth",
+            azimuth: 180,
+        });
+    });
+
     it("hides bearings for unsupported CAT versions", () => {
         state.local_version = [1, 2, 0, 0];
         render(<App />);

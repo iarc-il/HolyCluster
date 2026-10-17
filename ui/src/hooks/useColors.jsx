@@ -152,6 +152,7 @@ const base_theme = {
     rotator: {
         connected: "#00EE00",
         disconnected: "#EE0000",
+        inactive: "#9ca3af",
         moving: "#facc15",
         moving_flash: "#ffffff",
     },
