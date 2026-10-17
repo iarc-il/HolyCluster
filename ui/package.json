@@ -9,6 +9,7 @@
         "check:build": "node scripts/check_build_output.js",
         "test": "vitest run",
         "test:e2e": "playwright test",
+        "test:diagnostics": "playwright test --config playwright.diagnostics.config.js",
         "fmt": "biome check --write .",
         "check": "biome check . && vitest run"
     },
@@ -35,6 +36,7 @@
     },
     "devDependencies": {
         "@biomejs/biome": "1.9.4",
+        "@jridgewell/trace-mapping": "0.3.25",
         "@playwright/test": "^1.63.0",
         "@sentry/vite-plugin": "^5.1.1",
         "@testing-library/react": "^16.3.2",
