@@ -132,7 +132,21 @@ async fn handle_ws_socket(
                         Err(error) => {
                             let snapshot = radio_manager.snapshot();
                             let model_id = snapshot.config.rig.as_ref().map(|rig| rig.model_id.as_str()).unwrap_or("");
-                            tracing::error!(%error, action, model_id, device_connected = snapshot.last_status.status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::radio_evidence(&error, &before_command, &snapshot, text.as_ref())), "Failed to process radio WebSocket message");
+                            let unsupported = error.chain().any(|cause| {
+                                cause.downcast_ref::<crate::rig::RadioOperationError>().is_some_and(|error| {
+                                    error.kind == crate::rig::RadioOperationErrorKind::UnsupportedMode
+                                })
+                            });
+                            if unsupported {
+                                let evidence = crate::tracing_setup::radio_evidence(&error, &before_command, &snapshot, text.as_ref());
+                                tracing::warn!(target: "catserver::diagnostic", %error, action, model_id, failure_evidence = %serde_json::json!(evidence), "Radio mode rejected");
+                                client_sender.send(radio::message("command_result", &serde_json::json!({
+                                    "action": action, "ok": false, "reason": "unsupported_mode",
+                                    "mode": evidence.get("requested_mode")
+                                }))?).await?;
+                            } else {
+                                tracing::error!(%error, action, model_id, device_connected = snapshot.last_status.status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::radio_evidence(&error, &before_command, &snapshot, text.as_ref())), "Failed to process radio WebSocket message");
+                            }
                         }
                     }
                     client_sender.send(radio::status_message(&radio_manager.status(), &radio_manager)?).await?;

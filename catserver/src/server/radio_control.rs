@@ -2,7 +2,11 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use tokio::net::UdpSocket;
 
-use crate::{freq::Freq, radio_manager::RadioManager, rig::Mode};
+use crate::{
+    freq::Freq,
+    radio_manager::RadioManager,
+    rig::{Mode, RadioOperationError},
+};
 
 #[derive(Deserialize)]
 #[serde(tag = "action")]
@@ -29,7 +33,14 @@ pub(super) async fn process_control(message: ControlMessage, radio: &RadioManage
                 ("DIGI" | "FT8" | "FT4", _) => Mode::Data,
                 ("RTTY", _) => Mode::Rtty,
                 ("CW", _) => Mode::CW,
-                (mode, upper) => bail!("Unknown mode: {mode}, is upper: {upper}"),
+                (mode, upper) => {
+                    radio.set_frequency(Freq::from_f32_khz(freq)).await?;
+                    return Err(RadioOperationError::unsupported_mode(
+                        1,
+                        format!("Unknown mode: {mode}, is upper: {upper}"),
+                    )
+                    .into());
+                }
             };
             radio
                 .set_mode_and_frequency(mode, Freq::from_f32_khz(freq))

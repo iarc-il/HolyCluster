@@ -149,6 +149,15 @@ impl OrderedRadio {
 }
 
 impl Radio for OrderedRadio {
+    fn validate_mode(&self, mode: Mode) -> Result<(), RadioOperationError> {
+        if matches!(mode, Mode::Rtty) {
+            return Err(RadioOperationError::unsupported_mode(
+                self.rig,
+                "Test radio does not support Rtty mode",
+            ));
+        }
+        Ok(())
+    }
     fn init(&mut self) -> Result<(), RadioInitError> {
         self.event("init");
         Ok(())
@@ -172,6 +181,97 @@ impl Radio for OrderedRadio {
             current_rig: self.rig,
         })
     }
+}
+
+#[tokio::test]
+async fn unsupported_mode_keeps_mode_but_changes_frequency() {
+    let config = RadioConfig::platform_default();
+    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let recorded = Arc::clone(&events);
+    manager
+        .replace(config.clone(), config.effective_backend(false), move || {
+            Box::new(OrderedRadio {
+                events: Arc::clone(&recorded),
+                rig: 1,
+                mode: "SSB",
+                frequency: 7_100_000,
+            })
+        })
+        .await
+        .unwrap();
+    events.lock().unwrap().clear();
+    let error = manager
+        .set_mode_and_frequency(Mode::Rtty, Freq::from_u32_hz(14_080_000))
+        .await
+        .expect_err("unsupported mode was sent");
+    assert!(error.to_string().contains("does not support Rtty"));
+    assert_eq!(*events.lock().unwrap(), ["frequency", "status"]);
+    assert_eq!(manager.status().freq, 14_080_000);
+    assert_eq!(manager.status().mode, "SSB");
+    assert_eq!(manager.snapshot().connection, ConnectionState::Connected);
+    manager
+        .set_mode_and_frequency(Mode::CW, Freq::from_u32_hz(7_050_000))
+        .await
+        .unwrap();
+    assert_eq!(manager.status().freq, 7_050_000);
+    assert_eq!(manager.snapshot().connection, ConnectionState::Connected);
+    manager.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn unsupported_mode_does_not_hide_a_frequency_failure() {
+    struct FrequencyFailureRadio;
+    impl Radio for FrequencyFailureRadio {
+        fn init(&mut self) -> Result<(), RadioInitError> {
+            Ok(())
+        }
+        fn validate_mode(&self, _: Mode) -> Result<(), RadioOperationError> {
+            Err(RadioOperationError::unsupported_mode(
+                1,
+                "RTTY is unsupported",
+            ))
+        }
+        fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
+            panic!("unsupported mode must not be sent")
+        }
+        fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
+            Err(RadioOperationError::new(
+                1,
+                "set frequency",
+                "frequency write failed",
+            ))
+        }
+        fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+            Ok(Status {
+                freq: 7_100_000,
+                status: "connected".into(),
+                mode: "SSB".into(),
+                current_rig: 1,
+            })
+        }
+    }
+    let config = RadioConfig::platform_default();
+    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    manager
+        .replace(config.clone(), config.effective_backend(false), || {
+            Box::new(FrequencyFailureRadio)
+        })
+        .await
+        .unwrap();
+    let error = manager
+        .set_mode_and_frequency(Mode::Rtty, Freq::from_u32_hz(14_080_000))
+        .await
+        .unwrap_err();
+    let crate::radio_manager::RadioManagerError::Command(error) = error else {
+        panic!("lost command failure")
+    };
+    assert_eq!(error.kind, crate::rig::RadioOperationErrorKind::Failure);
+    assert_eq!(error.operation, "set frequency");
+    assert!(error.message.contains("frequency write failed"));
+    assert!(error.details.unwrap().contains("RTTY is unsupported"));
+    assert_eq!(manager.snapshot().connection, ConnectionState::Disconnected);
+    manager.shutdown().await.unwrap();
 }
 
 #[tokio::test(flavor = "current_thread")]

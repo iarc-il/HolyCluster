@@ -140,10 +140,17 @@ impl RadioBackendContext {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum RadioOperationErrorKind {
+    Failure,
+    UnsupportedMode,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RadioOperationError {
     pub rig: u8,
     pub operation: &'static str,
+    pub kind: RadioOperationErrorKind,
     pub message: String,
     pub details: Option<String>,
     pub actor_context: Option<Box<RadioActorContext>>,
@@ -155,10 +162,18 @@ impl RadioOperationError {
         Self {
             rig,
             operation,
+            kind: RadioOperationErrorKind::Failure,
             message: message.into(),
             details: None,
             actor_context: None,
             backend_context: None,
+        }
+    }
+
+    pub fn unsupported_mode(rig: u8, message: impl Into<String>) -> Self {
+        Self {
+            kind: RadioOperationErrorKind::UnsupportedMode,
+            ..Self::new(rig, "set mode", message)
         }
     }
 
@@ -187,6 +202,9 @@ impl std::error::Error for RadioOperationError {}
 
 pub trait Radio {
     fn init(&mut self) -> Result<(), RadioInitError>;
+    fn validate_mode(&self, _: Mode) -> Result<(), RadioOperationError> {
+        Ok(())
+    }
     /// Tune a spot with frequency on A. Hamlib selects A before both writes.
     /// The default preserves the existing backend-specific mode targeting
     /// and mode/frequency sequence.

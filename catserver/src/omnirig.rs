@@ -135,6 +135,21 @@ impl Radio for OmnirigRadio {
         Ok(())
     }
 
+    fn validate_mode(&self, mode: Mode) -> Result<(), RadioOperationError> {
+        if matches!(mode, Mode::Rtty) {
+            return Err(RadioOperationError::unsupported_mode(
+                self.rig_number(),
+                "OmniRig does not support RTTY mode",
+            )
+            .with_backend_context(context(
+                "resolve_mode",
+                Some("Mode"),
+                self.inner.is_some(),
+            )));
+        }
+        Ok(())
+    }
+
     fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
         let mut context = context("invoke_put", Some("Mode"), self.inner.is_some());
         let (mode, resolved) = match mode {
@@ -144,9 +159,8 @@ impl Radio for OmnirigRadio {
             Mode::Data => (0x08000000, "DIG_U"),
             Mode::Rtty => {
                 context.operation = "resolve_mode";
-                return Err(RadioOperationError::new(
+                return Err(RadioOperationError::unsupported_mode(
                     self.rig_number(),
-                    "set mode",
                     "OmniRig does not support RTTY mode",
                 )
                 .with_backend_context(context));

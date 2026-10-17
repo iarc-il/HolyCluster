@@ -70,7 +70,11 @@ pub(crate) enum Command {
         reply: oneshot::Sender<Result<(), RadioInitError>>,
     },
     Retry(oneshot::Sender<()>),
-    SetModeAndFrequency(Mode, Freq, oneshot::Sender<Result<(), RadioOperationError>>),
+    Tune(
+        Option<Mode>,
+        Freq,
+        oneshot::Sender<Result<(), RadioOperationError>>,
+    ),
     Poll(oneshot::Sender<Status>),
     Shutdown(oneshot::Sender<()>),
 }
@@ -213,7 +217,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 }
                 let _ = reply.send(());
             }
-            Command::SetModeAndFrequency(mode, frequency, reply) => {
+            Command::Tune(mode, frequency, reply) => {
                 let actor_context = {
                     let state = snapshot.read().unwrap_or_else(|error| error.into_inner());
                     RadioActorContext {
@@ -237,6 +241,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                         disconnect: connection_trace.disconnect.clone(),
                     }
                 };
+                let mut mode_warning = None;
                 let result = radio
                     .as_mut()
                     .map_or_else(
@@ -247,11 +252,34 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                                 "radio unavailable",
                             ))
                         },
-                        |radio| radio.tune_spot(mode, frequency),
+                        |radio| {
+                            let Some(mode) = mode else {
+                                return radio.set_frequency(crate::rig::Slot::A, frequency);
+                            };
+                            match radio.validate_mode(mode) {
+                                Ok(()) => radio.tune_spot(mode, frequency),
+                                Err(mut error)
+                                    if error.kind
+                                        == crate::rig::RadioOperationErrorKind::UnsupportedMode =>
+                                {
+                                    error.actor_context = Some(Box::new(actor_context.clone()));
+                                    mode_warning = Some(error);
+                                    radio.set_frequency(crate::rig::Slot::A, frequency)
+                                }
+                                Err(error) => Err(error),
+                            }
+                        },
                     )
                     .map_err(|mut error| {
                         // Publishing the failure overwrites the application connection state.
                         error.actor_context = Some(Box::new(actor_context));
+                        if let Some(warning) = &mode_warning {
+                            let details = error.details.get_or_insert_with(String::new);
+                            if !details.is_empty() {
+                                details.push('\n');
+                            }
+                            details.push_str(&warning.to_string());
+                        }
                         error
                     });
                 let connected = publish_operation_result(
@@ -263,7 +291,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 next_action = factory
                     .as_ref()
                     .map(|_| schedule_after_attempt(connected, &mut retry_delay));
-                let _ = reply.send(result);
+                let _ = reply.send(result.and_then(|()| mode_warning.map_or(Ok(()), Err)));
             }
             Command::Poll(reply) => {
                 if let Some(radio) = radio.as_mut() {

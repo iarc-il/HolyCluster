@@ -128,7 +128,12 @@ impl RadioManager {
         mode: Mode,
         frequency: Freq,
     ) -> Result<(), RadioManagerError> {
-        self.call(|reply| Command::SetModeAndFrequency(mode, frequency, reply))
+        self.call(|reply| Command::Tune(Some(mode), frequency, reply))
+            .await
+    }
+
+    pub async fn set_frequency(&self, frequency: Freq) -> Result<(), RadioManagerError> {
+        self.call(|reply| Command::Tune(None, frequency, reply))
             .await
     }
 

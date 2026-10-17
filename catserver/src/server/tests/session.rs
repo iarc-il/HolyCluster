@@ -57,6 +57,41 @@ async fn local_controls(socket: &mut Socket) {
 }
 
 #[tokio::test]
+async fn unsupported_mode_returns_feedback_and_still_tunes_frequency() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let config = crate::radio_config::RadioConfig::platform_default();
+    let selected = crate::radio_config::ActiveRadioBackend::Dummy;
+    let radio = crate::radio_manager::RadioManager::new(config.clone(), selected.clone()).unwrap();
+    radio
+        .replace(config, selected, || {
+            Box::new(crate::dummy::DummyRadio::new())
+        })
+        .await
+        .unwrap();
+    let (server, _) =
+        super::spawn_catserver_with_radio(listener.local_addr().unwrap(), None, radio.clone())
+            .await;
+    let (mut socket, _) = connect_async(format!("ws://{}/ws", server.address))
+        .await
+        .unwrap();
+    socket.send(Message::Text(
+        r#"{"version":1,"type":"radio","action":"SetModeAndFreq","mode":"UNKNOWN","freq":14074}"#.into(),
+    )).await.unwrap();
+    let result = event(&mut socket, "command_result").await;
+    assert_eq!(result["action"], "SetModeAndFreq");
+    assert_eq!(result["ok"], false);
+    assert_eq!(result["reason"], "unsupported_mode");
+    assert_eq!(result["mode"], "UNKNOWN");
+    let status = event(&mut socket, "status").await;
+    assert_eq!(status["freq"], 14_074_000);
+    assert_eq!(status["mode"], "SSB");
+    assert_eq!(status["status"], "connected");
+    local_controls(&mut socket).await;
+    socket.close(None).await.unwrap();
+    radio.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn refused_upstream_keeps_local_controls_and_rejects_submit() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
