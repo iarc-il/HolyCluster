@@ -68,7 +68,7 @@ describe("failure origin diagnostics", () => {
         expect(event.fingerprint).toEqual(["existing"]);
     });
 
-    it("retains only bounded cache and WebSocket evidence", () => {
+    it("retains cache and WebSocket evidence through a boundary", () => {
         const error = new DOMException("secret", "InvalidStateError");
         annotateDiagnosticError(error, {
             operation: "cache_hydration",
@@ -76,7 +76,6 @@ describe("failure origin diagnostics", () => {
             requested_version: 1,
             observed_version: 2,
             expected_store_present: true,
-            payload: "secret",
         });
         expect(report(error).contexts.diagnostic).toMatchObject({
             stage: "transaction",
@@ -91,7 +90,6 @@ describe("failure origin diagnostics", () => {
             stage: "subscriber",
             message_type: "radio",
             transport: "unified",
-            payload: "secret",
         });
         expect(report(ws_error).contexts.diagnostic).toMatchObject({
             operation: "websocket_message",

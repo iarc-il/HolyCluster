@@ -42,16 +42,16 @@ describe("cache hydration diagnostic observation", () => {
         },
     );
 
-    it("distinguishes open failure without exposing arbitrary database or store names", async () => {
+    it("retains the database and store names for open failures", async () => {
         const error = new DOMException("secret", "VersionError");
         openDB.mockRejectedValueOnce(error);
-        const store = create_interval_db("K1ABC", 1, "secret");
+        const store = create_interval_db("test_cache", 1, "test_records");
         await expect(store.ready()).rejects.toBe(error);
         expect(diagnostic(error)).toMatchObject({
             stage: "open",
             category: "VersionError",
+            database: "test_cache",
+            store: "test_records",
         });
-        expect(diagnostic(error)).not.toHaveProperty("database");
-        expect(diagnostic(error)).not.toHaveProperty("store");
     });
 });

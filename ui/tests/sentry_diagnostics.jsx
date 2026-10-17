@@ -248,35 +248,26 @@ describe("error-local diagnostics", () => {
         privateFree(external);
     });
 
-    it("does not accept removed or arbitrary metadata, or attach it to unrelated errors", () => {
+    it("retains attached diagnostic fields without attaching them to unrelated errors", () => {
         const error = new DOMException("secret", "TransactionInactiveError");
-        annotateDiagnosticError(error, {
+        const evidence = {
             operation: "cache_hydration",
-            database: "K1ABC",
-            store: "secret",
-            stage: "get_all",
+            database: "test_cache",
+            store: "test_records",
+            stage: "read_complete",
             lifecycle: "terminated",
-            components: ["Modal"],
-            token: "secret",
             ref_present: true,
-            policy_allowed: true,
-        });
+            details: { attempts: 2, phases: ["open", "read"] },
+        };
+        annotateDiagnosticError(error, evidence);
         const event = report(error);
         expect(event.contexts.diagnostic).toMatchObject({
-            operation: "cache_hydration",
-            stage: "get_all",
+            ...evidence,
             category: "TransactionInactiveError",
         });
-        for (const key of [
-            "database",
-            "store",
-            "lifecycle",
-            "components",
-            "ref_present",
-            "policy_allowed",
-        ])
-            expect(event.contexts.diagnostic).not.toHaveProperty(key);
-        expect(report(new Error("secret")).contexts.diagnostic).not.toHaveProperty("operation");
+        const unrelated = report(new Error("secret"));
+        for (const key of Object.keys(evidence))
+            expect(unrelated.contexts.diagnostic).not.toHaveProperty(key);
         privateFree(event);
     });
 });

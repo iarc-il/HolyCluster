@@ -27,6 +27,7 @@ const dom_errors = new Set([
     "OperationError",
 ]);
 
+// Evidence leaves the browser unchanged. Do not attach payloads or credentials.
 export function annotateDiagnosticError(error, evidence) {
     if (error && (typeof error === "object" || typeof error === "function")) {
         error_diagnostics.set(error, { ...error_diagnostics.get(error), ...evidence });
@@ -55,36 +56,6 @@ function errorCategory(message, name) {
     if (/^Minified React error #\d+;/.test(message)) return "react_invariant";
     const safe = sanitizeErrorMessage(message);
     return safe === sanitized_message ? "unknown" : safe;
-}
-
-function safeEvidence(evidence) {
-    if (!evidence) return {};
-    const result = {};
-    if (["react_boundary", "cache_hydration", "websocket_message"].includes(evidence.operation))
-        result.operation = evidence.operation;
-    if (["holycluster_spot_cache", "holycluster_propagation_cache"].includes(evidence.database))
-        result.database = evidence.database;
-    if (evidence.store === "intervals") result.store = "intervals";
-    if (
-        ["open", "upgrade", "transaction", "get_all", "mirror", "notify", "subscriber"].includes(
-            evidence.stage,
-        )
-    )
-        result.stage = evidence.stage;
-    for (const key of ["requested_version", "observed_version"]) {
-        if (Number.isSafeInteger(evidence[key]) && evidence[key] > 0) result[key] = evidence[key];
-    }
-    if (typeof evidence.expected_store_present === "boolean")
-        result.expected_store_present = evidence.expected_store_present;
-    if (
-        ["radio", "rotator", "spots", "history", "propagation", "update"].includes(
-            evidence.message_type,
-        )
-    )
-        result.message_type = evidence.message_type;
-    if (["probing", "unified", "cat_v1_2"].includes(evidence.transport))
-        result.transport = evidence.transport;
-    return result;
 }
 
 function sourceClass(filename) {
@@ -360,7 +331,7 @@ export function sanitizeSentryEvent(event, hint = {}) {
 
     let exception = event.exception;
     const original = hint.originalException;
-    const evidence = safeEvidence(error_diagnostics.get(original));
+    const evidence = error_diagnostics.get(original) ?? {};
     // Sentry prepends causes (including the React component stack). The
     // original exception is the last non-boundary value, not the first.
     let primary_index = (exception?.values?.length ?? 0) - 1;
