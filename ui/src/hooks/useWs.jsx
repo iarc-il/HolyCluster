@@ -1,4 +1,5 @@
-import { recordDiagnosticAction } from "@/sentry";
+import { annotateDiagnosticError, recordDiagnosticAction } from "@/sentry";
+import { captureException } from "@sentry/react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 
@@ -77,7 +78,16 @@ export function WsProvider({ children }) {
         const handlers = subscribers_ref.current.get(message.type);
         if (handlers) {
             for (const handler of handlers) {
-                handler(message);
+                try {
+                    handler(message);
+                } catch (error) {
+                    throw annotateDiagnosticError(error, {
+                        operation: "websocket_message",
+                        stage: "subscriber",
+                        message_type: message.type,
+                        transport: transport_ref.current,
+                    });
+                }
             }
         }
     }, []);
@@ -112,12 +122,21 @@ export function WsProvider({ children }) {
             },
             onClose: () => reset_transport("unified"),
             onMessage: event => {
+                let message;
                 try {
-                    const message = JSON.parse(event.data);
-                    if (message?.type === "update" && transport_ref.current === "unified") {
+                    message = JSON.parse(event.data);
+                } catch {
+                    return;
+                }
+                if (message?.type === "update" && transport_ref.current === "unified") {
+                    try {
                         dispatch(message);
+                    } catch (error) {
+                        // The old parse catch also swallowed subscriber failures.
+                        // Keep callback behavior unchanged, but report the failure.
+                        captureException(error);
                     }
-                } catch {}
+                }
             },
             shouldReconnect: () => transport_ref.current !== "cat_v1_2",
         },

@@ -38,6 +38,7 @@ vi.mock("react-use-websocket", () => ({
 }));
 
 import { WsProvider, useWs, useWsMessage } from "@/hooks/useWs";
+import { sanitizeSentryEvent } from "@/sentry";
 
 function TestConsumer({ messages }) {
     const context = useWs();
@@ -119,6 +120,34 @@ describe("WebSocket transport", () => {
         await rejection;
         if (reason !== "unmount") view.unmount();
         expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("annotates a subscriber failure without replacing or suppressing it", () => {
+        const view = render_provider();
+        const error = new TypeError("private secret message");
+        const unsubscribe = TestConsumer.context.subscribe("radio", () => {
+            throw error;
+        });
+        const console_error = vi.spyOn(console, "error").mockImplementation(() => {});
+        try {
+            expect(() =>
+                receive(view, "/radio", { status: "unavailable", secret: "payload" }),
+            ).toThrow(error);
+            const event = sanitizeSentryEvent(
+                { exception: { values: [{ type: "TypeError", value: error.message }] } },
+                { originalException: error },
+            );
+            expect(event.contexts.diagnostic).toMatchObject({
+                operation: "websocket_message",
+                stage: "subscriber",
+                message_type: "radio",
+                transport: "unified",
+            });
+            expect(JSON.stringify(event)).not.toMatch(/secret|payload/);
+        } finally {
+            unsubscribe();
+            console_error.mockRestore();
+        }
     });
 
     it("delivers the update handoff before an immediate transport close", () => {
