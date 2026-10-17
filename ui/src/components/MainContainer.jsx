@@ -220,6 +220,7 @@ function MainContent({
     }
 
     function set_cat_to_spot(spot) {
+        if (set_mode_and_freq(spot.mode, spot.freq) === false) return;
         const next_rotator_azimuth = is_rotator_available() ? get_rotator_azimuth(spot) : null;
         set_previous_cat_states(
             [
@@ -233,8 +234,6 @@ function MainContent({
                 .slice(0, previous_cat_state_limit),
         );
 
-        set_mode_and_freq(spot.mode, spot.freq);
-
         if (next_rotator_azimuth != null) {
             set_azimuth(next_rotator_azimuth);
         }
@@ -246,7 +245,7 @@ function MainContent({
         }
 
         const previous_cat_state = previous_cat_states[0];
-        set_mode_and_freq(previous_cat_state.mode, previous_cat_state.freq);
+        if (set_mode_and_freq(previous_cat_state.mode, previous_cat_state.freq) === false) return;
         if (previous_cat_state.rotator_azimuth != null && is_rotator_available()) {
             set_azimuth(previous_cat_state.rotator_azimuth);
         }

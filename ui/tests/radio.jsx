@@ -1,5 +1,8 @@
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "react-toastify";
+
+vi.mock("react-toastify", () => ({ toast: { warn: vi.fn(), dismiss: vi.fn() } }));
 
 const websocket = vi.hoisted(() => ({
     ReadyState: { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 },
@@ -53,6 +56,8 @@ describe("radio configuration", () => {
         websocket.transport = "unified";
         websocket.handlers.clear();
         websocket.send.mockClear();
+        toast.warn.mockClear();
+        toast.dismiss.mockClear();
         Consumer.radio = null;
     });
 
@@ -210,6 +215,43 @@ describe("radio configuration", () => {
         expect(Consumer.radio.is_radio_available()).toBe(false);
         expect(Consumer.radio.is_cat_available()).toBe(true);
         expect(Consumer.radio.radio_configuration_support).toBe("supported");
+    });
+
+    it("warns about an unsupported mode and still sends the tune command", () => {
+        render_radio();
+        emit({ event: "status", status: "connected", catserver_version: "catserver-v2.0.0" });
+        emit({ event: "configuration", rig: { model_id: "omnirig:1" } });
+        websocket.send.mockClear();
+        act(() => Consumer.radio.set_mode_and_freq("RTTY", 14080));
+        expect(websocket.send).toHaveBeenCalledWith("radio", {
+            action: "SetModeAndFreq",
+            mode: "RTTY",
+            freq: 14080,
+        });
+        expect(toast.warn).toHaveBeenCalledWith("This radio doesn't support RTTY", {
+            theme: "dark",
+            toastId: "radio-mode",
+        });
+    });
+
+    it("shows a server mode rejection without losing radio status", () => {
+        render_radio();
+        emit({ event: "status", status: "connected", catserver_version: "catserver-v2.0.0" });
+        emit({
+            event: "command_result",
+            action: "SetModeAndFreq",
+            ok: false,
+            reason: "unsupported_mode",
+            mode: "FT8",
+        });
+        expect(toast.warn).toHaveBeenCalledWith("This radio doesn't support FT8", {
+            theme: "dark",
+            toastId: "radio-mode",
+        });
+        expect(Consumer.radio.radio_status).toBe("connected");
+        emit({ event: "status", status: "connected", freq: 14_080_000, mode: "SSB" });
+        expect(Consumer.radio.radio_freq).toBe(14_080_000);
+        expect(Consumer.radio.radio_mode).toBe("SSB");
     });
 
     it("continues tuning without active-rig state", () => {

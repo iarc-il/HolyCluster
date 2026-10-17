@@ -1,6 +1,7 @@
 import { compare_version } from "@/utils.js";
 import { RTTY_TUNING_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { toast } from "react-toastify";
 import raw_band_plans from "../../../shared/band_plans.json";
 import { useSettings } from "./useSettings";
 import { ReadyState, useWs, useWsMessage } from "./useWs";
@@ -59,6 +60,13 @@ export function RadioProvider({ children }) {
     const cat_connected_ref = useRef(false);
 
     const { settings } = useSettings();
+
+    function warn_unsupported_mode(message) {
+        toast.warn(message, {
+            theme: settings.theme === "Light" ? "light" : "dark",
+            toastId: "radio-mode",
+        });
+    }
 
     function cancel_pending_configuration(update_state = true) {
         const action = pending_configuration_action.current;
@@ -189,6 +197,15 @@ export function RadioProvider({ children }) {
             pending_configuration_action.current = null;
         }
 
+        if (
+            data.event === "command_result" &&
+            data.action === "SetModeAndFreq" &&
+            data.ok === false &&
+            data.reason === "unsupported_mode"
+        ) {
+            warn_unsupported_mode(`This radio doesn't support ${data.mode || "this mode"}`);
+        }
+
         if (data.event === "radio_connection_result") {
             set_radio_connection_result(data);
         }
@@ -236,15 +253,23 @@ export function RadioProvider({ children }) {
     }
 
     function set_mode_and_freq(mode, freq) {
+        const mode_warning =
+            mode === "RTTY" && radio_configuration?.rig?.model_id?.startsWith("omnirig:");
+        if (mode_warning) {
+            warn_unsupported_mode(`This radio doesn't support ${mode}`);
+        }
         if (mode === "RTTY" && !supports_cat_feature(local_version, RTTY_TUNING_MIN_VERSION)) {
-            return;
+            warn_unsupported_mode("Update CATServer to use RTTY mode. The radio was not changed.");
+            return false;
         }
 
+        if (!mode_warning) toast.dismiss("radio-mode");
         send_message_to_radio({
             action: "SetModeAndFreq",
             mode,
             freq,
         });
+        return true;
     }
 
     function list_radio_models() {
