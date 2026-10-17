@@ -369,6 +369,10 @@ fn publish(
             RadioInitError::Hamlib { details, .. } => details.clone(),
             _ => None,
         }),
+        backend_call: init.as_ref().err().and_then(|error| match error {
+            RadioInitError::Com { context, .. } => Some(context.clone()),
+            _ => None,
+        }),
     });
     connection_trace.disconnect = None;
     match init {
@@ -386,7 +390,10 @@ fn publish(
             connection_trace.disconnect = Some(RadioDisconnectContext {
                 origin: "initialization",
                 error: error.to_string(),
-                backend_call: None,
+                backend_call: connection_trace
+                    .initialization
+                    .as_ref()
+                    .and_then(|init| init.backend_call.clone()),
             });
             connection_trace.disconnected(&selected, &error);
             false

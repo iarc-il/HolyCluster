@@ -198,6 +198,9 @@ fn hresult(message: &str) -> Option<u32> {
 
 fn initialization_evidence(fields: &mut Evidence, error: &crate::rig::RadioInitError) {
     fields.insert("initialization".into(), error.to_string().into());
+    if let crate::rig::RadioInitError::Com { context, .. } = error {
+        fields.insert("initialization_call".into(), serde_json::json!(context));
+    }
     if let crate::rig::RadioInitError::Hamlib {
         details: Some(details),
         ..
@@ -271,7 +274,11 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
             if let Some(context) = &operation.backend_context {
                 fields.insert("backend_call".into(), serde_json::json!(context));
             }
-            if let Some(code) = hresult(&operation.message) {
+            let code = match &operation.backend_context {
+                Some(context) => context.hresult,
+                None => hresult(&operation.message),
+            };
+            if let Some(code) = code {
                 fields.insert("hresult".into(), code.into());
             }
             if let Some(details) = &operation.details {

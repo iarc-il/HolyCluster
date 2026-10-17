@@ -56,6 +56,10 @@ pub enum RadioInitError {
         backend: &'static str,
         message: String,
     },
+    Com {
+        message: String,
+        context: Box<RadioBackendContext>,
+    },
 }
 
 impl fmt::Display for RadioInitError {
@@ -70,6 +74,9 @@ impl fmt::Display for RadioInitError {
             Self::Backend { backend, message } => {
                 write!(formatter, "{backend} initialization failed: {message}")
             }
+            Self::Com { message, .. } => {
+                write!(formatter, "omnirig initialization failed: {message}")
+            }
         }
     }
 }
@@ -81,6 +88,7 @@ pub struct RadioInitializationContext {
     pub outcome: &'static str,
     pub error: Option<String>,
     pub details: Option<String>,
+    pub backend_call: Option<Box<RadioBackendContext>>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
@@ -109,6 +117,12 @@ pub struct RadioBackendContext {
     pub target: Option<&'static str>,
     pub resolved_mode: Option<&'static str>,
     pub handle_present: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hresult: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exception_code: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exception_wcode: Option<u16>,
 }
 
 impl RadioBackendContext {
@@ -119,6 +133,9 @@ impl RadioBackendContext {
             target: None,
             resolved_mode: None,
             handle_present,
+            hresult: None,
+            exception_code: None,
+            exception_wcode: None,
         }
     }
 }

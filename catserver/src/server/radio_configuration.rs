@@ -323,7 +323,9 @@ fn catalog_error(error: impl std::fmt::Display) -> FieldError {
 fn connection_error(error: RadioInitError) -> FieldError {
     let details = match &error {
         RadioInitError::Hamlib { details, .. } => details.clone(),
-        RadioInitError::Io { .. } | RadioInitError::Backend { .. } => None,
+        RadioInitError::Io { .. } | RadioInitError::Backend { .. } | RadioInitError::Com { .. } => {
+            None
+        }
     };
     FieldError {
         field: "connection".into(),

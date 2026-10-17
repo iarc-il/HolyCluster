@@ -4,7 +4,9 @@ use winsafe::{CLSIDFromProgID, CoInitializeEx, IDispatch, co};
 
 use crate::freq::Freq;
 use crate::radio_config::OmniRigSlot;
-use crate::rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status};
+use crate::rig::{
+    Mode, Radio, RadioBackendContext, RadioInitError, RadioOperationError, Slot, Status,
+};
 
 struct OmnirigInner {
     com_guard: CoUninitializeGuard,
@@ -35,14 +37,20 @@ impl OmnirigRadio {
         }
     }
 
-    fn get_rig_dispatch(omnirig: &IDispatch, property_name: &str) -> Result<IDispatch, String> {
+    fn get_rig_dispatch(
+        omnirig: &IDispatch,
+        property_name: &'static str,
+    ) -> Result<IDispatch, RadioInitError> {
+        let context = context("invoke_get", Some(property_name), true);
         match omnirig.invoke_get(property_name, &[]) {
             Ok(winsafe::Variant::Dispatch(dispatch)) => Ok(dispatch),
-            Ok(_) => Err(format!(
-                "OmniRig property {property_name} did not return a dispatch object"
+            Ok(_) => Err(init_error(
+                format!("OmniRig property {property_name} did not return a dispatch object"),
+                context,
             )),
-            Err(error) => Err(format!(
-                "failed to get OmniRig property {property_name}: {error}"
+            Err(error) => Err(init_error(
+                format!("failed to get OmniRig property {property_name}: {error}"),
+                native_context(context, error.as_ref()),
             )),
         }
     }
@@ -52,54 +60,73 @@ impl OmnirigRadio {
     }
 }
 
+fn context(
+    operation: &'static str,
+    target: Option<&'static str>,
+    handle_present: bool,
+) -> RadioBackendContext {
+    let mut context = RadioBackendContext::new("omnirig", operation, handle_present);
+    context.target = target;
+    context
+}
+
+fn native_context(
+    mut context: RadioBackendContext,
+    error: &(dyn std::error::Error + 'static),
+) -> RadioBackendContext {
+    if let Some(code) = error.downcast_ref::<co::HRESULT>() {
+        context.hresult = Some(code.raw());
+    } else if let Some(exception) = error.downcast_ref::<winsafe::EXCEPINFO>() {
+        // WinSafe replaces DISP_E_EXCEPTION with EXCEPINFO at the Invoke boundary.
+        context.hresult = Some(co::HRESULT::DISP_E_EXCEPTION.raw());
+        context.exception_code = (exception.scode != 0).then_some(exception.scode);
+        context.exception_wcode = (exception.wCode != 0).then_some(exception.wCode);
+    }
+    context
+}
+
+fn init_error(message: impl Into<String>, context: RadioBackendContext) -> RadioInitError {
+    RadioInitError::Com {
+        message: message.into(),
+        context: Box::new(context),
+    }
+}
+
 impl Radio for OmnirigRadio {
     fn init(&mut self) -> Result<(), RadioInitError> {
         let com_guard = if let Some(inner) = std::mem::take(&mut self.inner) {
             inner.com_guard
         } else {
-            match CoInitializeEx(co::COINIT::MULTITHREADED | co::COINIT::DISABLE_OLE1DDE) {
-                Ok(guard) => guard,
-                Err(error) => {
-                    return Err(RadioInitError::Backend {
-                        backend: "omnirig",
-                        message: format!("failed to initialize COM: {error}"),
-                    });
-                }
-            }
+            CoInitializeEx(co::COINIT::MULTITHREADED | co::COINIT::DISABLE_OLE1DDE).map_err(
+                |error| {
+                    init_error(
+                        format!("failed to initialize COM: {error}"),
+                        native_context(context("CoInitializeEx", None, false), &error),
+                    )
+                },
+            )?
         };
 
-        let clsid = match CLSIDFromProgID("Omnirig.OmnirigX") {
-            Ok(clsid) => clsid,
-            Err(error) => {
-                return Err(RadioInitError::Backend {
-                    backend: "omnirig",
-                    message: format!("OmniRig is not installed or registered: {error}"),
-                });
-            }
-        };
+        let clsid = CLSIDFromProgID("Omnirig.OmnirigX").map_err(|error| {
+            init_error(
+                format!("OmniRig is not installed or registered: {error}"),
+                native_context(context("CLSIDFromProgID", None, false), &error),
+            )
+        })?;
 
-        let omnirig = match winsafe::CoCreateInstance::<IDispatch>(
+        let omnirig = winsafe::CoCreateInstance::<IDispatch>(
             &clsid,
             None::<&winsafe::IUnknown>,
             co::CLSCTX::LOCAL_SERVER,
-        ) {
-            Ok(omnirig) => omnirig,
-            Err(error) => {
-                return Err(RadioInitError::Backend {
-                    backend: "omnirig",
-                    message: format!("failed to create OmniRig instance: {error}"),
-                });
-            }
-        };
-
-        let property_name = self.property_name();
-        let rig = Self::get_rig_dispatch(&omnirig, property_name).map_err(|message| {
-            RadioInitError::Backend {
-                backend: "omnirig",
-                message,
-            }
+        )
+        .map_err(|error| {
+            init_error(
+                format!("failed to create OmniRig instance: {error}"),
+                native_context(context("CoCreateInstance", None, false), &error),
+            )
         })?;
 
+        let rig = Self::get_rig_dispatch(&omnirig, self.property_name())?;
         self.inner = Some(OmnirigInner {
             com_guard,
             _omnirig: omnirig,
@@ -109,33 +136,37 @@ impl Radio for OmnirigRadio {
     }
 
     fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
-        let mode = match mode {
-            Mode::LSB => 0x04000000,
-            Mode::USB => 0x02000000,
-            Mode::CW => 0x00800000,
-            Mode::Data => 0x08000000,
+        let mut context = context("invoke_put", Some("Mode"), self.inner.is_some());
+        let (mode, resolved) = match mode {
+            Mode::LSB => (0x04000000, "LSB"),
+            Mode::USB => (0x02000000, "USB"),
+            Mode::CW => (0x00800000, "CW"),
+            Mode::Data => (0x08000000, "DIG_U"),
             Mode::Rtty => {
+                context.operation = "resolve_mode";
                 return Err(RadioOperationError::new(
                     self.rig_number(),
                     "set mode",
                     "OmniRig does not support RTTY mode",
-                ));
+                )
+                .with_backend_context(context));
             }
         };
-
+        context.resolved_mode = Some(resolved);
         let Some(rig) = self.current_rig() else {
             return Err(RadioOperationError::new(
                 self.rig_number(),
                 "set mode",
                 "OmniRig unavailable",
-            ));
+            )
+            .with_backend_context(context));
         };
-
         rig.invoke_put("Mode", &winsafe::Variant::I4(mode))
             .map(|_| ())
             .map_err(|error| {
                 self.inner = None;
                 RadioOperationError::new(self.rig_number(), "set mode", error.to_string())
+                    .with_backend_context(native_context(context, error.as_ref()))
             })
     }
 
@@ -144,20 +175,22 @@ impl Radio for OmnirigRadio {
             Slot::A => "FreqA",
             Slot::B => "FreqB",
         };
+        let context = context("invoke_put", Some(vfo), self.inner.is_some());
         let freq = freq.as_u32_hz();
         let Some(rig) = self.current_rig() else {
             return Err(RadioOperationError::new(
                 self.rig_number(),
                 "set frequency",
                 "OmniRig unavailable",
-            ));
+            )
+            .with_backend_context(context));
         };
-
         rig.invoke_put(vfo, &winsafe::Variant::I4(freq as i32))
             .map(|_| ())
             .map_err(|error| {
                 self.inner = None;
                 RadioOperationError::new(self.rig_number(), "set frequency", error.to_string())
+                    .with_backend_context(native_context(context, error.as_ref()))
             })
     }
 
@@ -167,7 +200,8 @@ impl Radio for OmnirigRadio {
                 self.rig_number(),
                 "read status",
                 "OmniRig unavailable",
-            ));
+            )
+            .with_backend_context(context("invoke_get", Some("FreqA"), false)));
         };
 
         let freq = match rig.invoke_get("FreqA", &[]) {
@@ -177,14 +211,19 @@ impl Radio for OmnirigRadio {
                     self.rig_number(),
                     "read frequency",
                     "FreqA did not return an integer",
-                ));
+                )
+                .with_backend_context(context("invoke_get", Some("FreqA"), true)));
             }
             Err(error) => {
                 return Err(RadioOperationError::new(
                     self.rig_number(),
                     "read frequency",
                     error.to_string(),
-                ));
+                )
+                .with_backend_context(native_context(
+                    context("invoke_get", Some("FreqA"), true),
+                    error.as_ref(),
+                )));
             }
         };
 
@@ -195,23 +234,31 @@ impl Radio for OmnirigRadio {
                     self.rig_number(),
                     "read status",
                     "StatusStr did not return a string",
-                ));
+                )
+                .with_backend_context(context(
+                    "invoke_get",
+                    Some("StatusStr"),
+                    true,
+                )));
             }
             Err(error) => {
                 return Err(RadioOperationError::new(
                     self.rig_number(),
                     "read status",
                     error.to_string(),
-                ));
+                )
+                .with_backend_context(native_context(
+                    context("invoke_get", Some("StatusStr"), true),
+                    error.as_ref(),
+                )));
             }
         };
 
         if status_str != "On-line" {
-            return Err(RadioOperationError::new(
-                self.rig_number(),
-                "read status",
-                status_str,
-            ));
+            return Err(
+                RadioOperationError::new(self.rig_number(), "read status", status_str)
+                    .with_backend_context(context("invoke_get", Some("StatusStr"), true)),
+            );
         }
 
         let mode = match rig.invoke_get("Mode", &[]) {
@@ -239,5 +286,49 @@ impl Radio for OmnirigRadio {
             mode: mode.into(),
             current_rig: self.rig_number(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_com_context_preserves_hresult_and_exception_domains() {
+        let code = co::HRESULT::E_INVALIDARG;
+        let context = native_context(context("CoInitializeEx", None, false), &code);
+        assert_eq!(context.hresult, Some(code.raw()));
+        assert_eq!(context.operation, "CoInitializeEx");
+        let mut exception = winsafe::EXCEPINFO::default();
+        exception.scode = -123;
+        exception.wCode = 42;
+        let context = native_context(super::context("invoke_put", Some("Mode"), true), &exception);
+        assert_eq!(context.hresult, Some(co::HRESULT::DISP_E_EXCEPTION.raw()));
+        assert_eq!(context.exception_code, Some(-123));
+        assert_eq!(context.exception_wcode, Some(42));
+        let unknown = std::io::Error::other("[0x80070057] not a COM error");
+        let context = native_context(
+            super::context("invoke_get", Some("StatusStr"), true),
+            &unknown,
+        );
+        assert_eq!(context.hresult, None);
+    }
+
+    #[test]
+    fn unsupported_mode_and_missing_dispatch_are_distinct_without_com_calls() {
+        let mut radio = OmnirigRadio::new(OmniRigSlot::Rig2);
+        let unsupported = radio.set_mode(Mode::Rtty).unwrap_err();
+        let unavailable = radio.set_mode(Mode::CW).unwrap_err();
+        assert_eq!(unsupported.rig, 2);
+        assert_eq!(
+            unsupported.backend_context.unwrap().operation,
+            "resolve_mode"
+        );
+        let context = unavailable.backend_context.unwrap();
+        assert_eq!(context.operation, "invoke_put");
+        assert_eq!(context.target, Some("Mode"));
+        assert_eq!(context.resolved_mode, Some("CW"));
+        assert!(!context.handle_present);
+        assert!(context.hresult.is_none());
     }
 }

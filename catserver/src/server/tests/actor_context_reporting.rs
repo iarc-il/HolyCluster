@@ -18,7 +18,10 @@ use crate::{
         ActiveRadioBackend, HamlibRigConfig, RadioBackendKind, RadioConfig, RadioRigConfig,
     },
     radio_manager::RadioManager,
-    rig::{Mode, UnavailableRadio},
+    rig::{
+        Mode, Radio, RadioBackendContext, RadioInitError, RadioOperationError, Slot, Status,
+        UnavailableRadio,
+    },
     tracing_setup::{radio_evidence, sentry_event_filter, sentry_options},
 };
 
@@ -113,6 +116,108 @@ fn evidence(event: &serde_json::Value) -> serde_json::Value {
             .unwrap(),
     )
     .unwrap()
+}
+
+struct ComFailureRadio {
+    fail_init: bool,
+    untyped_error: bool,
+}
+
+impl Radio for ComFailureRadio {
+    fn init(&mut self) -> Result<(), RadioInitError> {
+        if !self.fail_init {
+            return Ok(());
+        }
+        let mut context = RadioBackendContext::new("omnirig", "CLSIDFromProgID", false);
+        context.hresult = Some(0x80070057);
+        Err(RadioInitError::Com {
+            message: "setup failed without a hexadecimal text prefix".into(),
+            context: Box::new(context),
+        })
+    }
+
+    fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
+        let mut context = RadioBackendContext::new("omnirig", "invoke_put", !self.fail_init);
+        context.target = Some("Mode");
+        context.resolved_mode = Some("CW");
+        if !self.fail_init && !self.untyped_error {
+            context.hresult = Some(0x80070057);
+        }
+        Err(RadioOperationError::new(
+            1,
+            "set mode",
+            if self.untyped_error {
+                "[0x80070057] unknown library error"
+            } else {
+                "property failure without a hexadecimal text prefix"
+            },
+        )
+        .with_backend_context(context))
+    }
+
+    fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
+        unreachable!()
+    }
+
+    fn get_status(&mut self) -> Result<Status, RadioOperationError> {
+        Ok(Status {
+            freq: 7_100_000,
+            status: "connected".into(),
+            mode: "SSB".into(),
+            current_rig: 1,
+        })
+    }
+}
+
+#[test]
+fn typed_com_codes_keep_setup_and_property_failures_distinct() {
+    let reports = capture(async {
+        for (fail_init, untyped_error) in [(true, false), (false, false), (false, true)] {
+            let config = RadioConfig { rig: None };
+            let selected = ActiveRadioBackend::Configured(RadioBackendKind::Omnirig);
+            let radio = RadioManager::new(config.clone(), selected.clone()).unwrap();
+            radio
+                .replace(config, selected, move || {
+                    Box::new(ComFailureRadio {
+                        fail_init,
+                        untyped_error,
+                    })
+                })
+                .await
+                .unwrap();
+            let upstream = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let (server, _) = super::spawn_catserver_with_radio(
+                upstream.local_addr().unwrap(),
+                None,
+                radio.clone(),
+            )
+            .await;
+            let (mut socket, _) = connect_async(format!("ws://{}/ws", server.address))
+                .await
+                .unwrap();
+            super::session::event(&mut socket, "status").await;
+            tune(&mut socket).await;
+            socket.close(None).await.unwrap();
+            drop(server);
+            radio.shutdown().await.unwrap();
+        }
+    });
+    assert_eq!(reports.len(), 3);
+    let unknown = evidence(&reports[2]);
+    assert!(unknown["hresult"].is_null(), "{unknown}");
+    assert!(unknown["backend_call"]["hresult"].is_null());
+    let setup = evidence(&reports[0]);
+    let call = &setup["pre_operation"]["initialization"]["backend_call"];
+    assert_eq!(call["hresult"], 0x80070057u32);
+    assert_eq!(call["operation"], "CLSIDFromProgID");
+    assert!(setup["backend_call"]["hresult"].is_null());
+    assert!(setup["hresult"].is_null());
+    let property = evidence(&reports[1]);
+    assert_eq!(property["hresult"], 0x80070057u32);
+    assert_eq!(property["backend_call"]["operation"], "invoke_put");
+    assert_eq!(property["backend_call"]["target"], "Mode");
+    assert_eq!(property["backend_call"]["resolved_mode"], "CW");
+    assert!(property["pre_operation"]["initialization"]["backend_call"].is_null());
 }
 
 #[test]
