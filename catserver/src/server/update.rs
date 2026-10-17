@@ -131,11 +131,9 @@ fn failed_status(
     }
     let error_stage = error
         .chain()
-        .find_map(|cause| match cause.to_string().as_str() {
-            "cannot stage update helper" => Some("stage_update_helper"),
-            "cannot start detached update helper" => Some("start_update_helper"),
-            _ => None,
-        })
+        .filter_map(|cause| cause.downcast_ref::<crate::updater::UpdateFailure>())
+        .last()
+        .map(|failure| failure.stage.name())
         .unwrap_or("update_request");
     let io_error = error
         .chain()
@@ -153,7 +151,7 @@ fn failed_status(
     tracing::error!(
         ?error,
         error_stage,
-        failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "update_request")),
+        failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, error_stage)),
         io_error_kind,
         os_error_code,
         "Update request failed"

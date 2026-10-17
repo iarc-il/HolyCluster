@@ -8,6 +8,7 @@ mod release_download;
 mod session;
 mod shutdown;
 mod update;
+mod update_reporting;
 
 use std::{
     fs,

@@ -119,6 +119,38 @@ fn activation_rejects_an_msi_with_matching_manifest_hash() {
 }
 
 #[test]
+fn progress_write_failure_retains_its_stage_and_native_source() {
+    let fixture = Fixture::new();
+    let store = fixture.session("downloading");
+    fs::create_dir(fixture.0.join("session.tmp")).unwrap();
+    let mut reader = ProgressReader {
+        reader: io::Cursor::new(b"abc"),
+        progress: Some(&store),
+        downloaded: 0,
+        reported: 0,
+    };
+    let artifact = Artifact {
+        url: "https://releases.example/package".into(),
+        name: "package".into(),
+        sha256: format!("{:x}", Sha256::digest(b"abc")),
+        size: 3,
+    };
+    let error = copy_verified(&mut reader, io::sink(), &artifact).unwrap_err();
+    let stages = error
+        .chain()
+        .filter_map(|cause| cause.downcast_ref::<UpdateFailure>())
+        .map(|failure| failure.stage.name())
+        .collect::<Vec<_>>();
+    assert_eq!(stages, ["artifact_read", "session_write"]);
+    assert!(
+        error
+            .chain()
+            .filter_map(|cause| cause.downcast_ref::<io::Error>())
+            .any(|error| error.raw_os_error().is_some())
+    );
+}
+
+#[test]
 fn abandoned_download_and_verification_allow_retry() {
     for phase in ["downloading", "verifying"] {
         for dead_helper in [false, true] {

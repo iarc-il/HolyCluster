@@ -21,6 +21,104 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum UpdateStage {
+    ManifestRequest,
+    ManifestHttpStatus,
+    ManifestDecode,
+    ManifestAcceptance,
+    StagingCreate,
+    StagingFileCreate,
+    SessionWrite,
+    ArtifactRequest,
+    ArtifactHttpStatus,
+    ArtifactContentLength,
+    ArtifactRead,
+    StagingWrite,
+    ArtifactSize,
+    ArtifactChecksum,
+    StagedArtifactRead,
+    PackageValidation,
+    StagedArtifactRename,
+    StatusWrite,
+    UpdateTarget,
+    PlanWrite,
+    #[cfg(windows)]
+    StageUpdateHelper,
+    #[cfg(windows)]
+    StartUpdateHelper,
+    #[cfg(windows)]
+    HelperHandoff,
+}
+
+impl UpdateStage {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::ManifestRequest => "manifest_request",
+            Self::ManifestHttpStatus => "manifest_http_status",
+            Self::ManifestDecode => "manifest_decode",
+            Self::ManifestAcceptance => "manifest_acceptance",
+            Self::StagingCreate => "staging_create",
+            Self::StagingFileCreate => "staging_file_create",
+            Self::SessionWrite => "session_write",
+            Self::ArtifactRequest => "artifact_request",
+            Self::ArtifactHttpStatus => "artifact_http_status",
+            Self::ArtifactContentLength => "artifact_content_length",
+            Self::ArtifactRead => "artifact_read",
+            Self::StagingWrite => "staging_write",
+            Self::ArtifactSize => "artifact_size",
+            Self::ArtifactChecksum => "artifact_checksum",
+            Self::StagedArtifactRead => "staged_artifact_read",
+            Self::PackageValidation => "package_validation",
+            Self::StagedArtifactRename => "staged_artifact_rename",
+            Self::StatusWrite => "status_write",
+            Self::UpdateTarget => "update_target",
+            Self::PlanWrite => "plan_write",
+            #[cfg(windows)]
+            Self::StageUpdateHelper => "stage_update_helper",
+            #[cfg(windows)]
+            Self::StartUpdateHelper => "start_update_helper",
+            #[cfg(windows)]
+            Self::HelperHandoff => "helper_handoff",
+        }
+    }
+}
+
+// Keep the stage visible through source chains, including I/O wrappers.
+#[derive(Debug)]
+pub(crate) struct UpdateFailure {
+    pub(crate) stage: UpdateStage,
+    error: anyhow::Error,
+}
+
+impl std::fmt::Display for UpdateFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.error, formatter)
+    }
+}
+
+impl std::error::Error for UpdateFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.error.as_ref())
+    }
+}
+
+trait UpdateResultExt<T> {
+    fn at_stage(self, stage: UpdateStage) -> Result<T>;
+}
+
+impl<T, E: Into<anyhow::Error>> UpdateResultExt<T> for std::result::Result<T, E> {
+    fn at_stage(self, stage: UpdateStage) -> Result<T> {
+        self.map_err(|error| {
+            UpdateFailure {
+                stage,
+                error: error.into(),
+            }
+            .into()
+        })
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct UpdateBusy;
 impl std::fmt::Display for UpdateBusy {
@@ -482,9 +580,10 @@ impl UpdateService {
     }
 
     pub fn check(&self) -> Result<UpdateStatus> {
-        let result = self
-            .fetch_manifest()
-            .and_then(|manifest| self.accept_manifest(manifest));
+        let result = self.fetch_manifest().and_then(|manifest| {
+            self.accept_manifest(manifest)
+                .at_stage(UpdateStage::ManifestAcceptance)
+        });
         match result {
             Ok(Some((version, _))) => {
                 let status = UpdateStatus {
@@ -510,13 +609,16 @@ impl UpdateService {
 
     fn download_inner(&self) -> Result<UpdateStatus> {
         let manifest = self.fetch_manifest()?;
-        let Some((version, release)) = self.accept_manifest(manifest)? else {
+        let Some((version, release)) = self
+            .accept_manifest(manifest)
+            .at_stage(UpdateStage::ManifestAcceptance)?
+        else {
             let status = UpdateStatus::default();
             self.write_status(&status)?;
             return Ok(status);
         };
         let artifact = release.artifact;
-        fs::create_dir_all(self.staging_dir())?;
+        fs::create_dir_all(self.staging_dir()).at_stage(UpdateStage::StagingCreate)?;
         let staged = self
             .staging_dir()
             .join(format!("{}-{}.part", version, self.platform));
@@ -543,26 +645,31 @@ impl UpdateService {
                     artifact.size,
                 )
             })
-            .transpose()?;
+            .transpose()
+            .at_stage(UpdateStage::SessionWrite)?;
         download_artifact(&artifact, &staged, progress.as_ref())?;
         if let Some(progress) = &progress {
-            progress.phase("verifying")?;
+            progress
+                .phase("verifying")
+                .at_stage(UpdateStage::SessionWrite)?;
         }
         verify_file(&staged, &artifact, self.platform, &release.version)?;
-        fs::rename(&staged, &final_path)?;
+        fs::rename(&staged, &final_path).at_stage(UpdateStage::StagedArtifactRename)?;
         let status = UpdateStatus {
             state: UpdateState::Downloaded,
             available_version: Some(version.to_string()),
             diagnostic: None,
         };
         self.write_status(&status)?;
-        let current_executable = update_target()?;
+        let current_executable = update_target().at_stage(UpdateStage::UpdateTarget)?;
         #[cfg(not(windows))]
         {
             let activation = current_executable.with_extension("AppImage.update");
             if activation.exists() {
                 tracing::warn!(path = ?activation, "Removing stale AppImage activation");
-                fs::remove_file(&activation).context("cannot remove stale AppImage activation")?;
+                fs::remove_file(&activation)
+                    .context("cannot remove stale AppImage activation")
+                    .at_stage(UpdateStage::UpdateTarget)?;
             }
         }
         fs::write(
@@ -578,8 +685,10 @@ impl UpdateService {
                 release_version: Some(release.version),
                 command_args: original_arguments(&std::env::args().skip(1).collect::<Vec<_>>()),
                 restart,
-            })?,
-        )?;
+            })
+            .at_stage(UpdateStage::PlanWrite)?,
+        )
+        .at_stage(UpdateStage::PlanWrite)?;
         Ok(status)
     }
 
@@ -605,14 +714,12 @@ impl UpdateService {
 
     #[cfg(windows)]
     fn start_windows_helper(&self, installing: &UpdateStatus) -> Result<()> {
-        let executable = std::env::current_exe()?;
+        let executable = std::env::current_exe().at_stage(UpdateStage::StageUpdateHelper)?;
         cleanup_update_helpers(&self.data_dir);
         let helper_path = stage_update_helper(&executable, &self.data_dir)
-            .context("cannot stage update helper")?;
-        let mut command = Command::new(helper_path);
-        command.arg("--apply-update").arg(self.plan_path());
-        let mut helper = crate::windows_sockets::spawn(&mut command)
-            .context("cannot start detached update helper")?;
+            .context("cannot stage update helper")
+            .at_stage(UpdateStage::StageUpdateHelper)?;
+        let mut helper = spawn_update_helper(&helper_path, &self.plan_path())?;
         let result = (|| {
             let identity = UpdateHelper {
                 pid: helper.id(),
@@ -651,7 +758,7 @@ impl UpdateService {
         if let Err(error) = result {
             let _ = helper.kill();
             let _ = helper.wait();
-            return Err(error);
+            return Err(error).at_stage(UpdateStage::HelperHandoff);
         }
         tracing::info!(pid = helper.id(), "Detached update helper started");
         Ok(())
@@ -660,9 +767,11 @@ impl UpdateService {
     fn fetch_manifest(&self) -> Result<ReleaseManifest> {
         let response = secure_client()
             .get(self.manifest_url.clone())
-            .send()?
-            .error_for_status()?;
-        Ok(serde_json::from_reader(response)?)
+            .send()
+            .at_stage(UpdateStage::ManifestRequest)?
+            .error_for_status()
+            .at_stage(UpdateStage::ManifestHttpStatus)?;
+        serde_json::from_reader(response).at_stage(UpdateStage::ManifestDecode)
     }
 
     pub(crate) fn accept_manifest(
@@ -719,7 +828,7 @@ impl UpdateService {
     }
 
     fn write_status(&self, status: &UpdateStatus) -> Result<()> {
-        write_json(&self.state_path(), status)
+        write_json(&self.state_path(), status).at_stage(UpdateStage::StatusWrite)
     }
 }
 
@@ -1342,12 +1451,20 @@ fn download_artifact(
     if !is_secure_url(&url) {
         bail!("artifact URL must use HTTPS");
     }
-    let response = secure_client().get(url).send()?.error_for_status()?;
+    let response = secure_client()
+        .get(url)
+        .send()
+        .at_stage(UpdateStage::ArtifactRequest)?
+        .error_for_status()
+        .at_stage(UpdateStage::ArtifactHttpStatus)?;
     if response
         .content_length()
         .is_some_and(|length| length != artifact.size)
     {
-        bail!("artifact Content-Length does not match manifest");
+        return Err(anyhow::anyhow!(
+            "artifact Content-Length does not match manifest"
+        ))
+        .at_stage(UpdateStage::ArtifactContentLength);
     }
     let mut reader = ProgressReader {
         reader: response,
@@ -1355,7 +1472,7 @@ fn download_artifact(
         downloaded: 0,
         reported: 0,
     };
-    let file = File::create(destination)?;
+    let file = File::create(destination).at_stage(UpdateStage::StagingFileCreate)?;
     copy_verified(&mut reader, file, artifact)
 }
 
@@ -1374,7 +1491,16 @@ impl<R: Read> Read for ProgressReader<'_, R> {
             if let Some(progress) = self.progress {
                 progress
                     .change(|session| session.downloaded = self.downloaded)
-                    .map_err(|error| io::Error::other(error.to_string()))?;
+                    .map_err(|error| {
+                        // The I/O wrapper exposes its payload's source, not the payload.
+                        io::Error::other(
+                            anyhow::Error::new(UpdateFailure {
+                                stage: UpdateStage::SessionWrite,
+                                error,
+                            })
+                            .context("cannot persist update progress"),
+                        )
+                    })?;
             }
             self.reported = self.downloaded;
         }
@@ -1384,41 +1510,60 @@ impl<R: Read> Read for ProgressReader<'_, R> {
 
 pub(crate) fn copy_verified(
     reader: &mut impl Read,
+    file: impl Write,
+    artifact: &Artifact,
+) -> Result<()> {
+    copy_verified_inner(reader, file, artifact, UpdateStage::ArtifactRead)
+}
+
+fn copy_verified_inner(
+    reader: &mut impl Read,
     mut file: impl Write,
     artifact: &Artifact,
+    read_stage: UpdateStage,
 ) -> Result<()> {
     let mut hash = Sha256::new();
     let mut total = 0u64;
     let mut buffer = [0u8; 8192];
     loop {
-        let count = reader.read(&mut buffer)?;
+        let count = reader.read(&mut buffer).at_stage(read_stage)?;
         if count == 0 {
             break;
         }
         total += count as u64;
         if total > artifact.size || total > MAX_ARTIFACT_SIZE {
-            bail!("artifact exceeds allowed size");
+            return Err(anyhow::anyhow!("artifact exceeds allowed size"))
+                .at_stage(UpdateStage::ArtifactSize);
         }
-        file.write_all(&buffer[..count])?;
+        file.write_all(&buffer[..count])
+            .at_stage(UpdateStage::StagingWrite)?;
         hash.update(&buffer[..count]);
     }
     if total != artifact.size {
-        bail!("artifact size does not match manifest");
+        return Err(anyhow::anyhow!("artifact size does not match manifest"))
+            .at_stage(UpdateStage::ArtifactSize);
     }
     if format!("{:x}", hash.finalize()) != artifact.sha256.to_ascii_lowercase() {
-        bail!("artifact SHA-256 does not match manifest");
+        return Err(anyhow::anyhow!("artifact SHA-256 does not match manifest"))
+            .at_stage(UpdateStage::ArtifactChecksum);
     }
     Ok(())
 }
 
 fn verify_file(path: &Path, artifact: &Artifact, platform: &str, version: &str) -> Result<()> {
-    copy_verified(&mut File::open(path)?, io::sink(), artifact)?;
+    copy_verified_inner(
+        &mut File::open(path).at_stage(UpdateStage::StagedArtifactRead)?,
+        io::sink(),
+        artifact,
+        UpdateStage::StagedArtifactRead,
+    )?;
     let platform = match platform {
         PLATFORM_LINUX => "linux",
         PLATFORM_WINDOWS => "windows",
         _ => bail!("unsupported package platform"),
     };
     holy_artifact_validator::validate_package(path, platform, version)
+        .at_stage(UpdateStage::PackageValidation)
 }
 
 fn verify_plan_file(path: &Path, plan: &InstallPlan, platform: &str) -> Result<()> {
@@ -1597,6 +1742,15 @@ fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
 #[cfg(not(windows))]
 fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
     fs::rename(source, destination)
+}
+
+#[cfg(windows)]
+pub(crate) fn spawn_update_helper(executable: &Path, plan: &Path) -> Result<std::process::Child> {
+    let mut command = Command::new(executable);
+    command.arg("--apply-update").arg(plan);
+    crate::windows_sockets::spawn(&mut command)
+        .context("cannot start detached update helper")
+        .at_stage(UpdateStage::StartUpdateHelper)
 }
 
 #[cfg(any(test, windows))]
