@@ -299,7 +299,12 @@ function DescriptorInput({ descriptor, value, on_change, error_tokens, colors, s
     if (label === "Serial port") {
         const options = serial_port_options(serial_ports ?? [], value);
         return (
-            <label className="flex flex-col gap-1" title={descriptor.tooltip} htmlFor={input_id}>
+            <label
+                className="flex flex-col gap-1"
+                title={descriptor.tooltip}
+                htmlFor={input_id}
+                translate="no"
+            >
                 <span>{label}</span>
                 <SearchSelect
                     inputId={input_id}
@@ -729,7 +734,11 @@ function CatControl({
                         {serial_ports_error ? (
                             <p role="alert">{serial_ports_error.message}</p>
                         ) : null}
-                        <label className="flex flex-col gap-1" htmlFor="hamlib-model">
+                        <label
+                            className="flex flex-col gap-1"
+                            htmlFor="hamlib-model"
+                            translate="no"
+                        >
                             <span>Model</span>
                             <SearchSelect
                                 inputId="hamlib-model"
@@ -918,7 +927,7 @@ function CatControl({
                         <p role="alert">{rotator_models_error.message}</p>
                     ) : null}
                     {rotator_model_error ? <p role="alert">{rotator_model_error.message}</p> : null}
-                    <label className="flex flex-col gap-1" htmlFor="rotator-model">
+                    <label className="flex flex-col gap-1" htmlFor="rotator-model" translate="no">
                         <span>Model</span>
                         <SearchSelect
                             inputId="rotator-model"

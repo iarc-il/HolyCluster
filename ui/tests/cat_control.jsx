@@ -129,7 +129,9 @@ describe("CAT control settings", () => {
     it("shows one unified model selector without rig or backend controls", () => {
         render_cat();
 
-        expect(screen.getByRole("combobox", { name: "Model" })).not.toBeNull();
+        const model = screen.getByRole("combobox", { name: "Model" });
+        expect(model).not.toBeNull();
+        expect(model.closest("[translate='no']")).not.toBeNull();
         expect(screen.queryByLabelText("Rig")).toBeNull();
         expect(screen.queryByLabelText("Backend")).toBeNull();
         expect(screen.queryByLabelText("Enable Rig 2")).toBeNull();
