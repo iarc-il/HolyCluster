@@ -76,4 +76,32 @@ describe("DXpeditions", () => {
         expect(container.querySelector("[data-tour='dxpeditions-filter']")).not.toBeNull();
         expect(container.querySelector("[data-tour='dxpeditions-sort']")).not.toBeNull();
     });
+
+    it("inserts the on-air marker after browser translation changes the callsign text", () => {
+        test_state.dxpeditions = [
+            {
+                id: 1,
+                callsign: "K1ABC",
+                start_date: "2026-01-01T00:00:00Z",
+                end_date: "2099-01-01T00:00:00Z",
+            },
+        ];
+        const { rerender } = render(<DXpeditions />);
+        const callsign = screen.getByText("K1ABC");
+        const text = [...callsign.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
+        const translated = document.createElement("font");
+        translated.textContent = text.textContent;
+        callsign.replaceChild(translated, text);
+        test_state.spots = [
+            {
+                id: 2,
+                dx_callsign: "K1ABC",
+                is_dxpedition: true,
+                time: "2026-10-17T00:00:00Z",
+            },
+        ];
+
+        expect(() => rerender(<DXpeditions />)).not.toThrow();
+        expect(screen.getByText("⭐")).not.toBeNull();
+    });
 });

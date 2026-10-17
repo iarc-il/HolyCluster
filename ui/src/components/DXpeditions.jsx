@@ -133,7 +133,7 @@ function DXpeditionCard({
                     style={{ color: is_highlighted ? "white" : colors.theme.text }}
                 >
                     {is_spotted && <OnAirStar colors={colors} />}
-                    {dxpedition.callsign}
+                    <span>{dxpedition.callsign}</span>
                 </span>
                 <span
                     className="text-md font-medium px-1.5 py-0.5 rounded"
