@@ -35,7 +35,10 @@ export function annotateDiagnosticError(error, evidence) {
 }
 
 export function recordBoundaryDiagnostics(_scope, error) {
-    annotateDiagnosticError(error, { operation: "react_boundary" });
+    annotateDiagnosticError(error, {
+        operation: error_diagnostics.get(error)?.operation ?? "react_boundary",
+        boundary: true,
+    });
 }
 
 function errorCategory(message, name) {
@@ -57,12 +60,30 @@ function errorCategory(message, name) {
 function safeEvidence(evidence) {
     if (!evidence) return {};
     const result = {};
-    if (["react_boundary", "cache_hydration"].includes(evidence.operation))
+    if (["react_boundary", "cache_hydration", "websocket_message"].includes(evidence.operation))
         result.operation = evidence.operation;
     if (["holycluster_spot_cache", "holycluster_propagation_cache"].includes(evidence.database))
         result.database = evidence.database;
     if (evidence.store === "intervals") result.store = "intervals";
-    if (["open", "get_all", "mirror"].includes(evidence.stage)) result.stage = evidence.stage;
+    if (
+        ["open", "upgrade", "transaction", "get_all", "mirror", "notify", "subscriber"].includes(
+            evidence.stage,
+        )
+    )
+        result.stage = evidence.stage;
+    for (const key of ["requested_version", "observed_version"]) {
+        if (Number.isSafeInteger(evidence[key]) && evidence[key] > 0) result[key] = evidence[key];
+    }
+    if (typeof evidence.expected_store_present === "boolean")
+        result.expected_store_present = evidence.expected_store_present;
+    if (
+        ["radio", "rotator", "spots", "history", "propagation", "update"].includes(
+            evidence.message_type,
+        )
+    )
+        result.message_type = evidence.message_type;
+    if (["probing", "unified", "cat_v1_2"].includes(evidence.transport))
+        result.transport = evidence.transport;
     return result;
 }
 
@@ -318,6 +339,11 @@ function sanitizeException(exception) {
     };
 }
 
+function isNativeError(value) {
+    const tag = Object.prototype.toString.call(value);
+    return ["[object Error]", "[object DOMException]"].includes(tag);
+}
+
 export function sanitizeSentryEvent(event, hint = {}) {
     const {
         breadcrumbs: _breadcrumbs,
@@ -345,6 +371,7 @@ export function sanitizeSentryEvent(event, hint = {}) {
         primary_index -= 1;
     }
     const boundary =
+        error_diagnostics.get(original)?.boundary === true ||
         evidence.operation === "react_boundary" ||
         exception?.values?.some(value => value.type?.startsWith("React ErrorBoundary "));
     let original_frames;
@@ -352,7 +379,7 @@ export function sanitizeSentryEvent(event, hint = {}) {
     // no duplicate payload. Keep a second stack only for a boundary whose SDK
     // representation does not already contain the underlying stack.
     if (
-        original instanceof Error &&
+        isNativeError(original) &&
         typeof original.stack === "string" &&
         exception?.values?.length &&
         (boundary || !exception.values[primary_index]?.stacktrace?.frames?.length)
@@ -386,14 +413,39 @@ export function sanitizeSentryEvent(event, hint = {}) {
     const contexts = sanitizeContexts(event.contexts) ?? {};
     const primary = exception?.values?.[primary_index] ?? exception?.values?.[0];
     const frames = exception?.values?.flatMap(value => value.stacktrace?.frames ?? []) ?? [];
+    const mechanism = primary?.mechanism?.type;
+    const capture_path = boundary
+        ? "react_boundary"
+        : mechanism === "auto.browser.global_handlers.onunhandledrejection"
+          ? "unhandled_rejection"
+          : mechanism === "auto.browser.global_handlers.onerror"
+            ? "global_error"
+            : "other";
     const diagnostic = {
         ...evidence,
+        capture_path,
+        original_kind: isNativeError(original)
+            ? "error"
+            : original === null
+              ? "null"
+              : typeof original,
+        original_stack:
+            isNativeError(original) && typeof original.stack === "string" && original.stack.length
+                ? "present"
+                : "absent",
         category: errorCategory(
             original?.message ?? primary?.value,
             original?.name ?? primary?.type,
         ),
         script_origins: [...new Set(frames.map(frame => sourceClass(frame.filename)))].slice(0, 5),
     };
+    const native_name = original?.name ?? primary?.type;
+    if (dom_errors.has(native_name)) diagnostic.native_name = native_name;
+    // Keep normal stack-based grouping, but do not combine boundary failures
+    // with rejections that need a different investigation.
+    if (!event.fingerprint && ["react_boundary", "unhandled_rejection"].includes(capture_path)) {
+        sanitized_event.fingerprint = ["{{ default }}", capture_path];
+    }
     diagnostic.native_bridge_frames = frames.some(frame =>
         ["sendDataToNative", "sendBeforeUnloadMessage"].includes(frame.function),
     );
