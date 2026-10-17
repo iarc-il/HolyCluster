@@ -217,7 +217,7 @@ describe("error-local diagnostics", () => {
             { filename: "file:///Users/private/secret.js" },
         ]);
         expect(event.contexts.diagnostic.script_origins).toEqual([
-            "external_or_unrecognized",
+            "cross_origin_url",
             "extension",
             "local_or_unrecognized",
         ]);

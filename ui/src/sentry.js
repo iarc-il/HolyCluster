@@ -63,17 +63,50 @@ function sourceClass(filename) {
         try {
             const url = new URL(filename);
             return url.origin === globalThis.location?.origin
-                ? "same_origin_asset"
+                ? "same_origin_asset_path"
                 : "external_asset_path";
         } catch {
-            return "shipped_source";
+            return "relative_source_path";
         }
     }
     if (typeof filename !== "string") return "unknown";
     if (/^(chrome|moz|safari-web)-extension:/.test(filename)) return "extension";
-    if (/^https?:/.test(filename)) return "external_or_unrecognized";
+    if (/^https?:/.test(filename)) {
+        try {
+            return new URL(filename).origin === globalThis.location?.origin
+                ? "same_origin_url"
+                : "cross_origin_url";
+        } catch {
+            return "inline_or_unrecognized";
+        }
+    }
     if (/^(?:file:|[A-Z]:\\|\/)/.test(filename)) return "local_or_unrecognized";
     return "inline_or_unrecognized";
+}
+
+function frameSourceEvidence(exception) {
+    const sources = [];
+    const values = exception?.values ?? [];
+    // Keep indices because causes and frames can have no stack or filename.
+    for (let exception_index = values.length - 1; exception_index >= 0; exception_index -= 1) {
+        const frames = values[exception_index].stacktrace?.frames ?? [];
+        for (let frame_index = frames.length - 1; frame_index >= 0; frame_index -= 1) {
+            const filename = frames[frame_index].filename;
+            sources.push({
+                exception_index,
+                frame_index,
+                source_class: sourceClass(filename),
+                filename_state:
+                    typeof filename !== "string"
+                        ? "absent"
+                        : sanitizeSourceUrl(filename)
+                          ? "retained"
+                          : "removed",
+            });
+            if (sources.length === 50) return sources.reverse();
+        }
+    }
+    return sources.reverse();
 }
 
 const diagnostic_actions = new Set([
@@ -179,7 +212,7 @@ function sanitizeSourceUrl(url) {
     } catch {
         path = url.split(/[?#]/)[0];
     }
-    // Only shipped assets and repository source paths are diagnostic filenames.
+    // These path shapes do not prove that a file belongs to this build.
     if (/^\/assets\/[A-Za-z0-9_-]{1,128}\.(?:js|css)$/.test(path)) return path;
     if (
         /^(?:\.\.\/){0,3}(?:src|node_modules)\/[A-Za-z0-9_@./-]{1,200}\.[cm]?[jt]sx?$/.test(path) &&
@@ -409,6 +442,7 @@ export function sanitizeSentryEvent(event, hint = {}) {
             original?.name ?? primary?.type,
         ),
         script_origins: [...new Set(frames.map(frame => sourceClass(frame.filename)))].slice(0, 5),
+        frame_sources: frameSourceEvidence(exception),
     };
     const native_name = original?.name ?? primary?.type;
     if (dom_errors.has(native_name)) diagnostic.native_name = native_name;
