@@ -159,11 +159,11 @@ fn failed_status(
         "Update request failed"
     );
     let status = updater
-        .record_failure(error.to_string())
+        .record_failure(format!("{error:#}"))
         .unwrap_or(UpdateStatus {
             state: UpdateState::Failed,
             available_version: None,
-            diagnostic: Some(error.to_string()),
+            diagnostic: Some(format!("{error:#}")),
         });
     (StatusCode::BAD_GATEWAY, response(updater, status))
 }

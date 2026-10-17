@@ -696,8 +696,12 @@ impl UpdateService {
     }
 
     fn fail<T>(&self, error: anyhow::Error) -> Result<T> {
-        self.record_failure(error.to_string())?;
-        Err(error)
+        match self.record_failure(format!("{error:#}")) {
+            Ok(_) => Err(error),
+            Err(status_error) => Err(error.context(format!(
+                "cannot persist update failure status: {status_error:#}"
+            ))),
+        }
     }
 
     fn state_path(&self) -> PathBuf {
