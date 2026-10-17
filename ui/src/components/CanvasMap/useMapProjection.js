@@ -1,8 +1,6 @@
 import * as d3 from "d3";
 import { useMemo, useRef } from "react";
 
-import { dxcc_map } from "./draw_map.js";
-
 const MAX_RADIUS = 20000;
 
 export function useMapProjection(
@@ -32,8 +30,9 @@ export function useMapProjection(
             ? d3.geoOrthographic().precision(0.1).clipAngle(90)
             : d3.geoAzimuthalEquidistant().precision(0.1);
 
-        proj.fitSize(dims.padded_size, dxcc_map)
-            .rotate([-center_lon, -center_lat, 0])
+        const diameter = dims.radius * 2;
+        proj.rotate([-center_lon, -center_lat, 0])
+            .fitSize([diameter, diameter], { type: "Sphere" })
             .translate([dims.center_x, dims.center_y]);
 
         base_scale_ref.current = proj.scale();
