@@ -219,7 +219,13 @@ impl UpdateService {
         #[cfg(target_os = "linux")]
         service.reconcile_linux_installing_status()?;
         #[cfg(windows)]
-        service.reconcile_installing_status_with(update_helper_active)?;
+        if let Err(error) = service.reconcile_installing_status_with(update_helper_active) {
+            // Keep uncertain state intact. A stale file lock must not prevent the app from starting.
+            tracing::warn!(
+                ?error,
+                "Preserving uncertain Windows update state during startup"
+            );
+        }
         Ok(service)
     }
 
@@ -1801,6 +1807,54 @@ mod helper_process_tests {
             serde_json::from_slice::<serde_json::Value>(&fs::read(&path).unwrap()).unwrap(),
             serde_json::json!({ "state": "new" })
         );
+        fs::remove_dir_all(data_dir).unwrap();
+    }
+
+    #[test]
+    fn starts_when_abandoned_update_metadata_remains_locked() {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_SHARE_READ;
+
+        let data_dir = std::env::temp_dir().join(format!(
+            "catserver-locked-startup-metadata-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&data_dir).unwrap();
+        let state_path = data_dir.join("state.json");
+        fs::write(
+            &state_path,
+            serde_json::to_vec(&UpdateStatus {
+                state: UpdateState::Installing,
+                available_version: Some("1.3.2".into()),
+                diagnostic: None,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            data_dir.join("update-helper.json"),
+            serde_json::to_vec(&UpdateHelper {
+                pid: u32::MAX,
+                started_at: 0,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let lock = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ)
+            .open(&state_path)
+            .unwrap();
+
+        let service = UpdateService::with_data_dir(
+            Url::parse("https://releases.example/manifest.json").unwrap(),
+            "catserver-v1.3.1",
+            data_dir.clone(),
+        )
+        .expect("locked recovery metadata must not prevent startup");
+
+        assert_eq!(service.status().state, UpdateState::Installing);
+        drop(lock);
         fs::remove_dir_all(data_dir).unwrap();
     }
 
