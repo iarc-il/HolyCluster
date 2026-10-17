@@ -24,6 +24,23 @@ fn artifact() -> Artifact {
     }
 }
 
+fn release(version: &str) -> AppRelease {
+    let mut artifact = artifact();
+    let platform = if cfg!(windows) {
+        artifact.name = "HolyCluster.msi".into();
+        artifact.url = "https://releases.example/HolyCluster.msi".into();
+        "windows"
+    } else {
+        "linux"
+    };
+    AppRelease {
+        version: version.into(),
+        platform: platform.into(),
+        architecture: "x86_64".into(),
+        artifact,
+    }
+}
+
 #[test]
 fn restart_arguments_preserve_options_without_duplicate_internal_flags() {
     use argh::FromArgs;
@@ -78,12 +95,7 @@ fn rejects_equal_and_downgrade_versions() {
     .unwrap();
     let manifest = ReleaseManifest {
         schema_version: 1,
-        releases: vec![AppRelease {
-            version: "1.2.0".into(),
-            platform: "linux".into(),
-            architecture: "x86_64".into(),
-            artifact: artifact(),
-        }],
+        releases: vec![release("1.2.0")],
     };
     assert!(service.accept_manifest(manifest).unwrap().is_none());
 }
@@ -92,13 +104,14 @@ fn rejects_equal_and_downgrade_versions() {
 fn reports_equal_release_as_current() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
+    let release = release("1.2.0");
     let body = serde_json::json!({
         "schema_version": 1,
         "releases": [{
-            "version": "1.2.0",
-            "platform": "linux",
-            "architecture": "x86_64",
-            "artifact": artifact()
+            "version": release.version,
+            "platform": release.platform,
+            "architecture": release.architecture,
+            "artifact": release.artifact
         }]
     })
     .to_string();
@@ -143,12 +156,7 @@ fn compares_development_commit_numbers() {
     .unwrap();
     let manifest = |version: &str| ReleaseManifest {
         schema_version: 1,
-        releases: vec![AppRelease {
-            version: version.into(),
-            platform: "linux".into(),
-            architecture: "x86_64".into(),
-            artifact: artifact(),
-        }],
+        releases: vec![release(version)],
     };
 
     assert!(
