@@ -52,12 +52,24 @@ export function create_interval_db(db_name, db_version, store_name) {
         if (!db_promise) {
             db_promise = openDB(db_name, db_version, {
                 upgrade(db) {
-                    const store = db.createObjectStore(store_name, {
-                        keyPath: "id",
-                        autoIncrement: true,
-                    });
-                    store.createIndex("idx_start", "start");
-                    store.createIndex("idx_end", "end");
+                    try {
+                        const store = db.createObjectStore(store_name, {
+                            keyPath: "id",
+                            autoIncrement: true,
+                        });
+                        store.createIndex("idx_start", "start");
+                        store.createIndex("idx_end", "end");
+                    } catch (error) {
+                        throw annotateDiagnosticError(error, {
+                            operation: "cache_hydration",
+                            database: db_name,
+                            store: store_name,
+                            stage: "upgrade",
+                            requested_version: db_version,
+                            observed_version: db.version,
+                            expected_store_present: db.objectStoreNames.contains(store_name),
+                        });
+                    }
                 },
                 blocked() {
                     db_promise = null;
@@ -70,12 +82,19 @@ export function create_interval_db(db_name, db_version, store_name) {
     function hydrate() {
         hydrate_promise = (async () => {
             let stage = "open";
+            let observed_version;
+            let expected_store_present;
             try {
                 const db = await open_db();
+                observed_version = db.version;
+                expected_store_present = db.objectStoreNames.contains(store_name);
+                stage = "transaction";
+                const tx = db.transaction(store_name, "readonly");
                 stage = "get_all";
-                const all = await db.getAll(store_name);
+                const all = await tx.store.getAll();
                 stage = "mirror";
                 records_map = new Map(all.map(r => [r.id, r]));
+                stage = "notify";
                 notify();
             } catch (error) {
                 // Keep the same rejection, including the existing unhandled
@@ -85,6 +104,9 @@ export function create_interval_db(db_name, db_version, store_name) {
                     database: db_name,
                     store: store_name,
                     stage,
+                    requested_version: db_version,
+                    observed_version,
+                    expected_store_present,
                 });
             }
         })();

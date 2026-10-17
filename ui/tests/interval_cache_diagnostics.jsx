@@ -17,9 +17,16 @@ describe("cache hydration diagnostic observation", () => {
         async database => {
             const error = new DOMException("K1ABC secret record", "TransactionInactiveError");
             openDB.mockImplementationOnce(async () => ({
-                getAll: async () => {
-                    throw error;
-                },
+                version: 1,
+                objectStoreNames: { contains: () => true },
+                transaction: () => ({
+                    store: {
+                        getAll: async () => {
+                            throw error;
+                        },
+                    },
+                    done: Promise.resolve(),
+                }),
             }));
             const store = create_interval_db(database, 1, "intervals");
             await expect(store.ready()).rejects.toBe(error);
