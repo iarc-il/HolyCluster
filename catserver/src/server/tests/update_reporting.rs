@@ -204,14 +204,16 @@ async fn exercise_failure(case: &'static str) {
         .with_state(state);
     let server = spawn_app(app).await;
     drop(refused);
+    // Allow the helper's two ten-second handoff waits to finish.
+    let timeout = if case == "helper_handoff" { 30 } else { 5 };
     let response = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(timeout))
         .build()
         .unwrap()
         .post(format!("http://{}/operation", server.address))
         .send()
         .await
-        .unwrap();
+        .unwrap_or_else(|error| panic!("{case}: {error:?}"));
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY, "{case}");
     let payload: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
     assert_eq!(payload["state"], "failed", "{case}");
