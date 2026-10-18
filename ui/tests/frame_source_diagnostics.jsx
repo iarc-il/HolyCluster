@@ -1,8 +1,8 @@
-import { sanitizeSentryEvent } from "@/sentry";
+import { prepareSentryEvent } from "@/sentry";
 import { describe, expect, it } from "vitest";
 
 function report(values) {
-    return sanitizeSentryEvent({ exception: { values } });
+    return prepareSentryEvent({ exception: { values } });
 }
 
 function exception(frames) {
@@ -10,7 +10,7 @@ function exception(frames) {
 }
 
 describe("frame source diagnostics", () => {
-    it("distinguishes missing filenames from removed filenames at each frame", () => {
+    it("classifies each frame without changing its filename", () => {
         const event = report([
             exception([
                 { function: "sendDataToNative", lineno: 1 },
@@ -20,35 +20,17 @@ describe("frame source diagnostics", () => {
             ]),
         ]);
         expect(event.contexts.diagnostic.frame_sources).toEqual([
-            {
-                exception_index: 0,
-                frame_index: 0,
-                source_class: "unknown",
-                filename_state: "absent",
-            },
-            {
-                exception_index: 0,
-                frame_index: 1,
-                source_class: "cross_origin_url",
-                filename_state: "removed",
-            },
-            {
-                exception_index: 0,
-                frame_index: 2,
-                source_class: "inline_or_unrecognized",
-                filename_state: "removed",
-            },
-            {
-                exception_index: 0,
-                frame_index: 3,
-                source_class: "relative_source_path",
-                filename_state: "retained",
-            },
+            { exception_index: 0, frame_index: 0, source_class: "unknown" },
+            { exception_index: 0, frame_index: 1, source_class: "cross_origin_url" },
+            { exception_index: 0, frame_index: 2, source_class: "inline_or_unrecognized" },
+            { exception_index: 0, frame_index: 3, source_class: "same_origin_asset_path" },
         ]);
         expect(event.exception.values[0].stacktrace.frames).toHaveLength(4);
         expect(event.exception.values[0].stacktrace.frames[0].filename).toBeUndefined();
-        expect(event.exception.values[0].stacktrace.frames[1].filename).toBeUndefined();
-        expect(JSON.stringify(event)).not.toMatch(/private\.example|secret/);
+        expect(event.exception.values[0].stacktrace.frames[1].filename).toBe(
+            "https://private.example/users/secret.js?secret",
+        );
+        expect(JSON.stringify(event)).toMatch(/private\.example|secret/);
         expect(event.fingerprint).toBeUndefined();
     });
 
@@ -72,7 +54,7 @@ describe("frame source diagnostics", () => {
             "extension",
             "local_or_unrecognized",
         ]);
-        expect(JSON.stringify(event)).not.toMatch(/shipped_source|private\.example|secret/);
+        expect(JSON.stringify(event)).toMatch(/private\.example|secret/);
     });
 
     it("retains exception and frame indices across stackless causes and bounds added evidence", () => {

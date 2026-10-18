@@ -38,7 +38,7 @@ vi.mock("react-use-websocket", () => ({
 }));
 
 import { WsProvider, useWs, useWsMessage } from "@/hooks/useWs";
-import { sanitizeSentryEvent } from "@/sentry";
+import { prepareSentryEvent } from "@/sentry";
 
 function TestConsumer({ messages }) {
     const context = useWs();
@@ -133,7 +133,7 @@ describe("WebSocket transport", () => {
             expect(() =>
                 receive(view, "/radio", { status: "unavailable", secret: "payload" }),
             ).toThrow(error);
-            const event = sanitizeSentryEvent(
+            const event = prepareSentryEvent(
                 { exception: { values: [{ type: "TypeError", value: error.message }] } },
                 { originalException: error },
             );
@@ -143,7 +143,7 @@ describe("WebSocket transport", () => {
                 message_type: "radio",
                 transport: "unified",
             });
-            expect(JSON.stringify(event)).not.toMatch(/secret|payload/);
+            expect(JSON.stringify(event)).toContain("private secret message");
         } finally {
             unsubscribe();
             console_error.mockRestore();

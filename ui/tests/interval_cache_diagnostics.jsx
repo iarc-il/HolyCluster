@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 const { openDB } = vi.hoisted(() => ({ openDB: vi.fn() }));
 vi.mock("idb", () => ({ openDB }));
-import { sanitizeSentryEvent } from "@/sentry";
+import { prepareSentryEvent } from "@/sentry";
 import { create_interval_db } from "@/utils/interval_cache.js";
 
 function diagnostic(error) {
-    return sanitizeSentryEvent(
+    return prepareSentryEvent(
         { exception: { values: [{ type: error.name, value: error.message }] } },
         { originalException: error },
     ).contexts.diagnostic;

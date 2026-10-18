@@ -32,22 +32,22 @@ for (const source of ["same_origin", "cross_origin"]) {
         await expect.poll(() => events.length).toBe(1);
         const event = events[0];
         expect(event.exception.values).toHaveLength(1);
-        expect(event.exception.values[0].mechanism).toEqual({
+        expect(event.exception.values[0].mechanism).toMatchObject({
             type: "auto.browser.browserapierrors.addEventListener",
             handled: false,
         });
         const frames = event.exception.values[0].stacktrace.frames;
         const index = frames.findIndex(frame => frame.function?.endsWith("sendDataToNative"));
         expect(index).toBeGreaterThanOrEqual(0);
-        expect(frames[index].filename).toBeUndefined();
+        expect(frames[index].filename).toBe(url);
         expect(event.contexts.diagnostic.frame_sources).toContainEqual({
             exception_index: 0,
             frame_index: index,
             source_class: source === "same_origin" ? "same_origin_url" : "cross_origin_url",
-            filename_state: "removed",
         });
         expect(event.fingerprint).toBeUndefined();
-        expect(JSON.stringify(event)).not.toMatch(/external\.invalid|private\/|secret/);
+        expect(JSON.stringify(event)).toMatch(/private\/|secret/);
+        if (source === "cross_origin") expect(JSON.stringify(event)).toContain("external.invalid");
         expect(JSON.stringify(event).length).toBeLessThan(16000);
         await expect.poll(() => page_errors.length).toBe(1);
     });

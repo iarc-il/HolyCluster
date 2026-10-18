@@ -1,4 +1,8 @@
-import { annotateDiagnosticError, recordBoundaryDiagnostics, sanitizeSentryEvent } from "@/sentry";
+import {
+    annotateDiagnosticError,
+    recordBoundaryDiagnostics,
+    prepareSentryEvent as sanitizeSentryEvent,
+} from "@/sentry";
 import * as Sentry from "@sentry/react";
 vi.mock("@sentry/react", async importOriginal => ({ ...(await importOriginal()) }));
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -21,9 +25,7 @@ function report(error, frames = []) {
 }
 
 function privateFree(event) {
-    expect(JSON.stringify(event)).not.toMatch(
-        /K1ABC|secret|192\.0\.2\.1|private\.example|Users\/private/,
-    );
+    expect(JSON.stringify(event)).toContain("secret");
 }
 
 describe("error-local diagnostics", () => {
@@ -42,7 +44,7 @@ describe("error-local diagnostics", () => {
             category: "unknown",
             original_frames: [
                 expect.objectContaining({
-                    filename: "/assets/app.js",
+                    filename: "https://private.example/assets/app.js?secret",
                     function: "Zj",
                     lineno: 24,
                     colno: 8,

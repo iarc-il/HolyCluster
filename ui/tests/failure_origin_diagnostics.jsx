@@ -1,4 +1,8 @@
-import { annotateDiagnosticError, recordBoundaryDiagnostics, sanitizeSentryEvent } from "@/sentry";
+import {
+    annotateDiagnosticError,
+    recordBoundaryDiagnostics,
+    prepareSentryEvent as sanitizeSentryEvent,
+} from "@/sentry";
 import { describe, expect, it } from "vitest";
 
 function report(error, mechanism = "auto.browser.global_handlers.onunhandledrejection") {
@@ -41,7 +45,7 @@ describe("failure origin diagnostics", () => {
             expect(event.contexts.diagnostic.original_kind).toBe("error");
             expect(event.contexts.diagnostic.original_stack).toBe("present");
             expect(event.exception.values[0].stacktrace.frames[0]).toMatchObject({
-                filename: "/assets/app.js",
+                filename: "https://private.example/assets/app.js",
                 lineno: 12,
             });
             expect(report("secret").contexts.diagnostic).toMatchObject({
@@ -102,6 +106,6 @@ describe("failure origin diagnostics", () => {
             operation: "websocket_message",
             capture_path: "react_boundary",
         });
-        expect(JSON.stringify(report(ws_error))).not.toContain("secret");
+        expect(JSON.stringify(report(ws_error))).toContain("secret");
     });
 });

@@ -12,7 +12,11 @@ vi.mock("@sentry/react", async importOriginal => ({
 }));
 
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
-import { initializeSentry, recordDiagnosticAction, sanitizeSentryEvent } from "@/sentry";
+import {
+    initializeSentry,
+    recordDiagnosticAction,
+    prepareSentryEvent as sanitizeSentryEvent,
+} from "@/sentry";
 
 function ThrowError() {
     throw new Error("sensitive callsign data");
@@ -68,22 +72,19 @@ describe("Sentry error reporting", () => {
         );
     });
 
-    it("adds browser diagnostics without sending the raw user agent", () => {
+    it("does not collect the user agent in the event adapter", () => {
         vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
             "Mozilla/5.0 (Windows NT 10.0; private) Chrome/144.0.0.0 token=secret",
         );
         initializeSentry({ dsn: "https://public@example.com/1" });
         const event = init.mock.calls[0][0].beforeSend({ exception: { values: [] } });
-        expect(event.contexts).toEqual({
-            browser: { name: "Chrome", version: "144.0.0.0" },
-            os: { name: "Windows" },
-        });
-        expect(JSON.stringify(event)).not.toMatch(/secret|private|token/);
+        expect(event.contexts).toBeUndefined();
+        expect(JSON.stringify(event)).not.toContain(window.navigator.userAgent);
     });
 
-    it("removes sensitive event data before sending", () => {
-        const event = sanitizeSentryEvent({
-            breadcrumbs: [{ message: "K1ABC" }],
+    it("preserves complete SDK event data", () => {
+        const input = {
+            breadcrumbs: [{ message: "diagnostic breadcrumb" }],
             contexts: { profile: { callsign: "K1ABC" } },
             exception: {
                 values: [
@@ -91,44 +92,31 @@ describe("Sentry error reporting", () => {
                         stacktrace: {
                             frames: [
                                 {
-                                    context_line: "K1ABC",
-                                    filename: "https://example.com/assets/app.js?callsign=K1ABC",
-                                    function: "operatorK1ABC",
+                                    context_line: "diagnostic context",
+                                    filename: "https://example.com/assets/app.js?build=diagnostic",
+                                    function: "diagnosticFunction",
                                     lineno: 12,
                                 },
                             ],
                         },
-                        value: "K1ABC failed",
+                        value: "diagnostic failure",
                     },
                 ],
             },
-            extra: { callsign: "K1ABC", nested: { token: "secret" } },
-            logentry: { message: "K1ABC failed" },
-            message: "K1ABC failed",
-            request: { headers: { authorization: "secret" }, url: "https://example.com/?K1ABC" },
-            tags: { callsign: "K1ABC" },
-            user: { email: "operator@example.com" },
-        });
+            extra: { nested: { marker: "diagnostic extra" } },
+            logentry: { message: "diagnostic log entry" },
+            message: "diagnostic message",
+            request: { headers: { authorization: "diagnostic authorization" } },
+            tags: { marker: "diagnostic tag" },
+            user: { email: "diagnostic@example.com" },
+        };
+        const event = sanitizeSentryEvent(input);
 
-        expect(event).not.toHaveProperty("breadcrumbs");
-        expect(event.contexts.diagnostic).toMatchObject({
-            category: "unknown",
-        });
-        expect(event.contexts).not.toHaveProperty("profile");
-        expect(event).not.toHaveProperty("request");
-        expect(event).not.toHaveProperty("tags");
-        expect(event).not.toHaveProperty("user");
-        expect(event.exception.values[0].value).toBe("Application error (message redacted)");
-        expect(event.exception.values[0].stacktrace.frames[0]).toEqual({
-            filename: "/assets/app.js",
-            lineno: 12,
-        });
-        expect(event.extra).toEqual({
-            callsign: "[redacted]",
-            nested: { token: "[redacted]" },
-        });
-        expect(event.logentry).toEqual({ message: "Application error (message redacted)" });
-        expect(event.message).toBe("Application error (message redacted)");
+        expect(event).toMatchObject(input);
+        expect(event.contexts.diagnostic.category).toBe("unknown");
+        expect(event.exception.values[0].stacktrace.frames[0]).toEqual(
+            input.exception.values[0].stacktrace.frames[0],
+        );
     });
 
     it("preserves native error categories and recovers a missing original stack", () => {
@@ -143,17 +131,15 @@ describe("Sentry error reporting", () => {
             },
             { originalException: original },
         );
-        expect(event.exception.values[0].value).toBe("Cannot destructure property of null");
+        expect(event.exception.values[0].value).toBe(original.message);
         expect(event.exception.values[0].stacktrace.frames[0]).toMatchObject({
-            filename: "/assets/app.js",
+            filename: "https://example.com/assets/app.js?token=secret",
             lineno: 42,
             colno: 7,
         });
-        expect(JSON.stringify(event)).not.toContain("secret");
-        expect(JSON.stringify(event)).not.toContain("token");
     });
 
-    it("redacts custom error names and local filenames in recovered stacks", () => {
+    it("preserves custom error names and local filenames in recovered stacks", () => {
         for (const filename of [
             "file:///home/private/secret.js",
             "C:\\Users\\private\\secret.js",
@@ -168,8 +154,8 @@ describe("Sentry error reporting", () => {
                 },
                 { originalException: original },
             );
-            expect(event.exception.values[0].type).toBe("Error");
-            expect(JSON.stringify(event)).not.toMatch(/secret|private|K1ABC|Users/);
+            expect(event.exception.values[0].type).toBe("token-secret-K1ABC");
+            expect(event.exception.values[0].stacktrace.frames[0].filename).toContain(filename);
         }
     });
 
@@ -197,8 +183,8 @@ describe("Sentry error reporting", () => {
         expect(event.exception.values[1].value).toBe("Cannot convert undefined or null to object");
     });
 
-    it("retains only approved action history and browser context", () => {
-        const event = sanitizeSentryEvent({
+    it("preserves breadcrumbs and contexts", () => {
+        const input = {
             breadcrumbs: [
                 { category: "app.action", message: "tour_stopped", data: { callsign: "K1ABC" } },
                 { category: "console", message: "secret" },
@@ -209,15 +195,10 @@ describe("Sentry error reporting", () => {
                 os: { name: "Windows", version: "10" },
                 profile: { callsign: "K1ABC" },
             },
-        });
-        expect(event.breadcrumbs).toEqual([
-            { category: "app.action", message: "tour_stopped", level: "info" },
-        ]);
-        expect(event.contexts).toEqual({
-            browser: { name: "Firefox", version: "144.0" },
-            os: { name: "Windows", version: "10" },
-        });
-        expect(JSON.stringify(event)).not.toMatch(/secret|K1ABC|token/);
+        };
+        const event = sanitizeSentryEvent(input);
+        expect(event.breadcrumbs).toEqual(input.breadcrumbs);
+        expect(event.contexts).toMatchObject(input.contexts);
         expect(() => recordDiagnosticAction("tour_stopped")).not.toThrow();
         expect(() => recordDiagnosticAction("secret")).not.toThrow();
     });
