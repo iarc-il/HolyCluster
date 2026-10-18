@@ -1,6 +1,6 @@
 import { act, cleanup, render } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "react-toastify";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-toastify", () => ({ toast: { warn: vi.fn(), dismiss: vi.fn() } }));
 
