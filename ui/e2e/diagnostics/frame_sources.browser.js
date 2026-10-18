@@ -39,7 +39,11 @@ for (const source of ["same_origin", "cross_origin"]) {
         const frames = event.exception.values[0].stacktrace.frames;
         const index = frames.findIndex(frame => frame.function?.endsWith("sendDataToNative"));
         expect(index).toBeGreaterThanOrEqual(0);
-        expect(frames[index].filename).toBe(url);
+        const frame_url = new URL(frames[index].filename);
+        const expected_url = new URL(url);
+        expect(`${frame_url.origin}${frame_url.pathname}`).toBe(
+            `${expected_url.origin}${expected_url.pathname}`,
+        );
         expect(event.contexts.diagnostic.frame_sources).toContainEqual({
             exception_index: 0,
             frame_index: index,

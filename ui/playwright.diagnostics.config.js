@@ -4,8 +4,8 @@ export default defineConfig({
     testDir: "./e2e/diagnostics",
     testMatch: "**/*.browser.js",
     timeout: 15000,
-    fullyParallel: true,
-    workers: 3,
+    fullyParallel: false,
+    workers: 1,
     reporter: "list",
     use: { baseURL: "http://127.0.0.1:5187" },
     webServer: {
