@@ -2,12 +2,23 @@ import { readFile } from "node:fs/promises";
 import { TraceMap, originalPositionFor } from "@jridgewell/trace-mapping";
 import { expect, test } from "@playwright/test";
 
+function assetPath(filename) {
+    if (!filename) return null;
+    try {
+        const path = new URL(filename, "http://127.0.0.1").pathname;
+        return path.startsWith("/assets/") ? path : null;
+    } catch {
+        return null;
+    }
+}
+
 async function mappedSources(event) {
     const sources = [];
     for (const value of event.exception.values) {
         for (const frame of value.stacktrace?.frames ?? []) {
-            if (!frame.filename?.startsWith("/assets/") || !frame.lineno || !frame.colno) continue;
-            const map = JSON.parse(await readFile(`dist/diagnostics${frame.filename}.map`, "utf8"));
+            const path = assetPath(frame.filename);
+            if (!path || !frame.lineno || !frame.colno) continue;
+            const map = JSON.parse(await readFile(`dist/diagnostics${path}.map`, "utf8"));
             const original = originalPositionFor(new TraceMap(map), {
                 line: frame.lineno,
                 column: frame.colno - 1,
@@ -80,10 +91,7 @@ test("reports the original failure through the production React boundary and SDK
             value =>
                 value.type === "TypeError" &&
                 value.stacktrace?.frames?.some(
-                    frame =>
-                        frame.filename?.startsWith("/assets/") &&
-                        frame.lineno > 0 &&
-                        frame.colno > 0,
+                    frame => assetPath(frame.filename) && frame.lineno > 0 && frame.colno > 0,
                 ),
         ),
     ).toBe(true);

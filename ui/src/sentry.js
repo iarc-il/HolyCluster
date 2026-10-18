@@ -31,11 +31,73 @@ export function annotateDiagnosticError(value, evidence) {
     return error;
 }
 
-export function recordBoundaryDiagnostics(_scope, error) {
-    annotateDiagnosticError(error, {
+function originalKind(value) {
+    return isError(value) ? "error" : value === null ? "null" : typeof value;
+}
+
+function addPrimitiveBoundaryStacks(event, error, component_stack) {
+    const values = event.exception?.values ?? [];
+    const primary = values.at(-1) ?? {};
+    const capture_frames = Sentry.defaultStackParser(error.stack ?? "").slice(-50);
+    const component_frames = Sentry.defaultStackParser(component_stack ?? "").slice(-50);
+    const capture = {
+        ...primary,
+        type: error.name,
+        value: error.message,
+        stacktrace: { frames: capture_frames },
+    };
+    const component = {
+        type: `React ErrorBoundary ${error.name}`,
+        value: error.message,
+        stacktrace: { frames: component_frames },
+    };
+    return {
+        ...event,
+        exception: {
+            ...event.exception,
+            values: [component, ...values.slice(0, -1), capture],
+        },
+    };
+}
+
+export function recordBoundaryDiagnostics(scope, value, component_stack) {
+    const error = toError(value);
+    const evidence = {
+        ...error_diagnostics.get(error),
         operation: error_diagnostics.get(error)?.operation ?? "react_boundary",
         boundary: true,
+    };
+    error_diagnostics.set(error, evidence);
+    if (!scope?.addEventProcessor) return error;
+
+    scope.addEventProcessor(event => {
+        const prepared = isError(value)
+            ? event
+            : addPrimitiveBoundaryStacks(event, error, component_stack);
+        return {
+            ...prepared,
+            contexts: {
+                ...prepared.contexts,
+                diagnostic: {
+                    ...prepared.contexts?.diagnostic,
+                    ...evidence,
+                    original_kind: originalKind(value),
+                    original_value: value,
+                    original_stack:
+                        isError(value) && typeof value.stack === "string" && value.stack.length
+                            ? "present"
+                            : "absent",
+                    javascript_stack_origin: isError(value)
+                        ? typeof value.stack === "string" && value.stack.length
+                            ? "original"
+                            : "absent"
+                        : "synthetic_capture",
+                    component_stack: component_stack ? "present" : "absent",
+                },
+            },
+        };
     });
+    return error;
 }
 
 function errorCategory(message, name) {
@@ -141,7 +203,8 @@ export function prepareSentryEvent(event, hint = {}) {
     const prepared_event = { ...event };
     let exception = event.exception;
     const original = hint.originalException;
-    const evidence = error_diagnostics.get(original) ?? {};
+    const boundary_evidence = event.contexts?.diagnostic ?? {};
+    const evidence = { ...error_diagnostics.get(original), ...boundary_evidence };
     // Sentry prepends causes. The original exception is the last non-boundary value.
     let primary_index = (exception?.values?.length ?? 0) - 1;
     while (
@@ -151,7 +214,7 @@ export function prepareSentryEvent(event, hint = {}) {
         primary_index -= 1;
     }
     const boundary =
-        error_diagnostics.get(original)?.boundary === true ||
+        evidence.boundary === true ||
         evidence.operation === "react_boundary" ||
         exception?.values?.some(value => value.type?.startsWith("React ErrorBoundary "));
     let original_frames;
@@ -198,11 +261,12 @@ export function prepareSentryEvent(event, hint = {}) {
     const diagnostic = {
         ...evidence,
         capture_path,
-        original_kind: isError(original) ? "error" : original === null ? "null" : typeof original,
+        original_kind: evidence.original_kind ?? originalKind(original),
         original_stack:
-            isError(original) && typeof original.stack === "string" && original.stack.length
+            evidence.original_stack ??
+            (isError(original) && typeof original.stack === "string" && original.stack.length
                 ? "present"
-                : "absent",
+                : "absent"),
         category: errorCategory(
             original?.message ?? primary?.value,
             original?.name ?? primary?.type,

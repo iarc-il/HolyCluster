@@ -23,6 +23,58 @@ function report(error, mechanism = "auto.browser.global_handlers.onunhandledreje
 }
 
 describe("failure origin diagnostics", () => {
+    it("adds synthetic and component stacks for a primitive boundary failure", () => {
+        let processor;
+        const scope = { addEventProcessor: callback => (processor = callback) };
+        const component_stack = "\n at PrimitiveComponent (https://example.com/assets/app.js:12:7)";
+        recordBoundaryDiagnostics(scope, "diagnostic primitive failure", component_stack);
+        const boundary_event = processor({
+            exception: {
+                values: [
+                    {
+                        type: "Error",
+                        value: "diagnostic primitive failure",
+                        mechanism: {
+                            type: "auto.function.react.error_boundary",
+                            handled: true,
+                        },
+                    },
+                ],
+            },
+        });
+        const event = sanitizeSentryEvent(boundary_event, {
+            originalException: "diagnostic primitive failure",
+        });
+
+        expect(event.contexts.diagnostic).toMatchObject({
+            capture_path: "react_boundary",
+            original_kind: "string",
+            original_stack: "absent",
+            javascript_stack_origin: "synthetic_capture",
+            component_stack: "present",
+        });
+        expect(event.exception.values).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    type: "React ErrorBoundary NonErrorThrown",
+                    stacktrace: { frames: expect.any(Array) },
+                }),
+                expect.objectContaining({
+                    type: "NonErrorThrown",
+                    value: "diagnostic primitive failure",
+                    mechanism: {
+                        type: "auto.function.react.error_boundary",
+                        handled: true,
+                    },
+                    stacktrace: { frames: expect.any(Array) },
+                }),
+            ]),
+        );
+        for (const value of event.exception.values) {
+            expect(value.stacktrace.frames.length).toBeGreaterThan(0);
+        }
+    });
+
     it("separates boundary captures from unhandled rejections without merging default groups", () => {
         const error = new Error("secret");
         const rejection = report(error);
