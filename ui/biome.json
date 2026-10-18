@@ -37,7 +37,8 @@
             },
             "style": {
                 "noCommaOperator": "off",
-                "noParameterAssign": "off"
+                "noParameterAssign": "off",
+                "useThrowOnlyError": "error"
             },
             "complexity": {
                 "noForEach": "off"

@@ -1,4 +1,5 @@
 import { annotateDiagnosticError } from "@/sentry";
+import { toError } from "@/utils/errors.js";
 import { openDB } from "idb";
 
 // A store backing one IndexedDB object store of merged time-interval records
@@ -238,7 +239,7 @@ export function fetch_window(
             unsubscribe();
             signal?.removeEventListener("abort", on_abort);
             opening.abort();
-            if (error) reject(error);
+            if (error) reject(toError(error));
             else resolve(value);
         };
         const on_abort = () => settle(new DOMException("Aborted", "AbortError"));

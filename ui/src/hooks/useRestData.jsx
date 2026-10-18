@@ -36,6 +36,13 @@ function is_same_propagation(left, right) {
     });
 }
 
+function read_json_response(response) {
+    if (response.ok) return response.json();
+    const error = new Error(`Request failed (${response.status})`);
+    error.http_status = response.status;
+    throw error;
+}
+
 export const RestDataProvider = ({
     children,
     propagation_range_start = null,
@@ -61,7 +68,7 @@ export const RestDataProvider = ({
             if (!navigator.onLine) return;
 
             fetch("/propagation")
-                .then(response => (response.ok ? response.json() : Promise.reject(response)))
+                .then(read_json_response)
                 .then(data => data && set_live_propagation(data))
                 .catch(() => {});
         };
@@ -81,7 +88,7 @@ export const RestDataProvider = ({
             if (!navigator.onLine) return;
 
             fetch("/dxpeditions")
-                .then(response => (response.ok ? response.json() : Promise.reject(response)))
+                .then(read_json_response)
                 .then(
                     data => data && set_dxpeditions(data.map((item, id) => ({ id: id, ...item }))),
                 )

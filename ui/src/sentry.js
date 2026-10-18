@@ -1,3 +1,4 @@
+import { isError, toError } from "@/utils/errors.js";
 import * as Sentry from "@sentry/react";
 
 const default_options = {
@@ -24,10 +25,9 @@ const dom_errors = new Set([
     "OperationError",
 ]);
 
-export function annotateDiagnosticError(error, evidence) {
-    if (error && (typeof error === "object" || typeof error === "function")) {
-        error_diagnostics.set(error, { ...error_diagnostics.get(error), ...evidence });
-    }
+export function annotateDiagnosticError(value, evidence) {
+    const error = toError(value);
+    error_diagnostics.set(error, { ...error_diagnostics.get(error), ...evidence });
     return error;
 }
 
@@ -124,11 +124,6 @@ export function recordDiagnosticAction(action) {
     }
 }
 
-function isNativeError(value) {
-    const tag = Object.prototype.toString.call(value);
-    return ["[object Error]", "[object DOMException]"].includes(tag);
-}
-
 function moduleAsset(message) {
     if (typeof message !== "string") return undefined;
     const raw_url = message.match(/https?:\/\/\S+/)?.[0];
@@ -161,7 +156,7 @@ export function prepareSentryEvent(event, hint = {}) {
         exception?.values?.some(value => value.type?.startsWith("React ErrorBoundary "));
     let original_frames;
     if (
-        isNativeError(original) &&
+        isError(original) &&
         typeof original.stack === "string" &&
         exception?.values?.length &&
         (boundary || !exception.values[primary_index]?.stacktrace?.frames?.length)
@@ -203,13 +198,9 @@ export function prepareSentryEvent(event, hint = {}) {
     const diagnostic = {
         ...evidence,
         capture_path,
-        original_kind: isNativeError(original)
-            ? "error"
-            : original === null
-              ? "null"
-              : typeof original,
+        original_kind: isError(original) ? "error" : original === null ? "null" : typeof original,
         original_stack:
-            isNativeError(original) && typeof original.stack === "string" && original.stack.length
+            isError(original) && typeof original.stack === "string" && original.stack.length
                 ? "present"
                 : "absent",
         category: errorCategory(

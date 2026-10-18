@@ -5,6 +5,7 @@ import {
     normalize_dxcc_entity_code,
 } from "@/data/dxcc_entities.js";
 import { MISSING_SECTION_KEYS } from "@/data/missing_sections.js";
+import { toError } from "@/utils/errors.js";
 import { create_default_missing, sanitize_missing } from "@/utils/profile_data.js";
 import { find_zone_number, is_valid_zone_number, normalize_zone_value } from "@/utils/zones.js";
 import { AdifParser } from "adif-parser-ts";
@@ -283,7 +284,7 @@ function resolve_missing_callsigns_once(callsigns, pending, results, errors, on_
             completed = true;
             clear_probe_timeout();
             socket.close();
-            reject(error);
+            reject(toError(error));
         }
 
         function connect(path, allow_fallback) {
