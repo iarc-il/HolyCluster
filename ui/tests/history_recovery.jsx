@@ -142,6 +142,21 @@ describe("bounded history requests", () => {
         expect(state.ws.handlers.size).toBe(0);
         expect(vi.getTimerCount()).toBe(0);
     });
+    it("rejects a falsy value thrown by an extractor as an Error", async () => {
+        const result = request(undefined, () => {
+            const thrown_value = false;
+            throw thrown_value;
+        });
+        const rejected = expect(result).rejects.toMatchObject({
+            name: "NonErrorThrown",
+            original_value: false,
+        });
+        await flush();
+        state.ws.receive({ event: "spots", start_time: 10, end_time: 20 });
+        await rejected;
+        expect(state.ws.handlers.size).toBe(0);
+        expect(vi.getTimerCount()).toBe(0);
+    });
     it("aborts an opening wait and removes its subscriber", async () => {
         state.ws.wait_for_open.mockImplementation(() => new Promise(() => {}));
         const controller = new AbortController();

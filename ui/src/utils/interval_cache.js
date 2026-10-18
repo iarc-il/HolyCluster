@@ -37,7 +37,13 @@ export function create_interval_db(db_name, db_version, store_name) {
 
     function notify() {
         version += 1;
-        for (const listener of listeners) listener();
+        for (const listener of listeners) {
+            try {
+                listener();
+            } catch (error) {
+                throw toError(error);
+            }
+        }
     }
 
     function subscribe(listener) {
@@ -232,18 +238,23 @@ export function fetch_window(
         let settled = false;
         let timer;
         const opening = new AbortController();
-        const settle = (error, value) => {
-            if (settled) return;
+        const cleanup = () => {
+            if (settled) return false;
             settled = true;
             clearTimeout(timer);
             unsubscribe();
             signal?.removeEventListener("abort", on_abort);
             opening.abort();
-            if (error) reject(toError(error));
-            else resolve(value);
+            return true;
         };
-        const on_abort = () => settle(new DOMException("Aborted", "AbortError"));
-        const timeout = phase => settle(new Error(`History ${phase} timed out`));
+        const succeed = value => {
+            if (cleanup()) resolve(value);
+        };
+        const fail = error => {
+            if (cleanup()) reject(toError(error));
+        };
+        const on_abort = () => fail(new DOMException("Aborted", "AbortError"));
+        const timeout = phase => fail(new Error(`History ${phase} timed out`));
 
         signal?.addEventListener("abort", on_abort);
         timer = setTimeout(() => timeout("connection"), HISTORY_OPEN_TIMEOUT_MS);
@@ -252,9 +263,9 @@ export function fetch_window(
                 if (data.event !== event_name) return;
                 if (data.start_time !== start_unix || data.end_time !== end_unix) return;
                 try {
-                    settle(null, extract_value(data));
+                    succeed(extract_value(data));
                 } catch (error) {
-                    settle(error);
+                    fail(error);
                 }
             });
             // Custom transports may ignore the optional signal or return void
@@ -271,12 +282,12 @@ export function fetch_window(
                             end_time: end_unix,
                         }) === false
                     ) {
-                        settle(new Error("History connection is not open"));
+                        fail(new Error("History connection is not open"));
                     }
                 })
-                .catch(error => settle(error));
+                .catch(fail);
         } catch (error) {
-            settle(error);
+            fail(error);
         }
     });
 }
