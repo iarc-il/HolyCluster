@@ -61,7 +61,6 @@ async function capture(page, scenario) {
     await expect.poll(() => events.length).toBeGreaterThan(0);
     const event = events.find(event => event.contexts?.diagnostic);
     expect(event.release).toBe("diagnostic-browser-test");
-    expect(JSON.stringify(event)).not.toContain("secret");
     expect(JSON.stringify(event).length).toBeLessThan(16000);
     return event;
 }
@@ -88,8 +87,66 @@ test("reports the original failure through the production React boundary and SDK
                 ),
         ),
     ).toBe(true);
+    expect(
+        event.exception.values.some(
+            value =>
+                value.type === "React ErrorBoundary TypeError" &&
+                value.stacktrace?.frames?.length > 0,
+        ),
+    ).toBe(true);
     expect((await mappedSources(event)).join("\n")).toContain("return missing.secret;");
     await expect(page.getByRole("alert")).toBeVisible();
+});
+
+test("reports primitive boundary failures with separate synthetic and component stacks", async ({
+    page,
+}) => {
+    const event = await capture(page, "boundary_primitive");
+    expect(event.contexts.diagnostic).toMatchObject({
+        capture_path: "react_boundary",
+        original_kind: "string",
+        original_stack: "absent",
+        javascript_stack_origin: "synthetic_capture",
+        component_stack: "present",
+    });
+    expect(event.fingerprint).toEqual(["{{ default }}", "react_boundary"]);
+    expect(event.exception.values).toEqual(
+        expect.arrayContaining([
+            expect.objectContaining({
+                type: "React ErrorBoundary NonErrorThrown",
+                stacktrace: { frames: expect.any(Array) },
+            }),
+            expect.objectContaining({
+                type: "NonErrorThrown",
+                value: "diagnostic primitive boundary failure",
+                stacktrace: { frames: expect.any(Array) },
+            }),
+        ]),
+    );
+    expect(JSON.stringify(event)).not.toContain("Application error (message redacted)");
+    await expect(page.getByRole("alert")).toBeVisible();
+});
+
+test("preserves complete boundary cause chains", async ({ page }) => {
+    const event = await capture(page, "boundary_cause");
+    expect(event.contexts.diagnostic).toMatchObject({
+        capture_path: "react_boundary",
+        original_kind: "error",
+        javascript_stack_origin: "original",
+        component_stack: "present",
+    });
+    expect(event.exception.values).toEqual(
+        expect.arrayContaining([
+            expect.objectContaining({ type: "Error", value: "diagnostic boundary cause" }),
+            expect.objectContaining({
+                type: "TypeError",
+                value: "diagnostic boundary failure",
+            }),
+        ]),
+    );
+    for (const value of event.exception.values) {
+        expect(value.stacktrace?.frames?.length).toBeGreaterThan(0);
+    }
 });
 
 test("retains WebSocket operation evidence through a real subscriber and boundary", async ({

@@ -20,6 +20,16 @@ function FailingComponent() {
     return fail_render();
 }
 
+function PrimitiveFailingComponent() {
+    const thrown_value = "diagnostic primitive boundary failure";
+    throw thrown_value;
+}
+
+function CauseFailingComponent() {
+    const cause = new Error("diagnostic boundary cause");
+    throw new TypeError("diagnostic boundary failure", { cause });
+}
+
 function FailingSubscriber() {
     useWsMessage("radio", message => {
         if (message.event === "diagnostic_failure") return message.missing.secret;
@@ -39,10 +49,16 @@ window.run_diagnostic = async scenario => {
         );
         return;
     }
-    if (scenario === "boundary") {
+    if (["boundary", "boundary_primitive", "boundary_cause"].includes(scenario)) {
+        const Component =
+            scenario === "boundary_primitive"
+                ? PrimitiveFailingComponent
+                : scenario === "boundary_cause"
+                  ? CauseFailingComponent
+                  : FailingComponent;
         createRoot(document.getElementById("root")).render(
             <RouteErrorBoundary>
-                <FailingComponent />
+                <Component />
             </RouteErrorBoundary>,
         );
     } else if (scenario === "cross_realm") {
