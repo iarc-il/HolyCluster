@@ -123,6 +123,28 @@ describe("MapControls GPS", () => {
         ).toBeNull();
     });
 
+    it("shows playback only on desktop", () => {
+        const { rerender } = render_map_controls({ is_mobile: false });
+
+        expect(screen.getByRole("button", { name: "Enter playback mode" })).toBeTruthy();
+
+        rerender(
+            <MapControls
+                map_controls={{ map_theme: "colorful" }}
+                set_map_controls={vi.fn()}
+                set_radius_in_km={vi.fn()}
+                auto_toggle_radius={false}
+                is_map_fullscreen={false}
+                toggle_map_fullscreen={vi.fn()}
+                is_mobile={true}
+                is_history_mode={false}
+                toggle_history={vi.fn()}
+            />,
+        );
+
+        expect(screen.queryByRole("button", { name: "Enter playback mode" })).toBeNull();
+    });
+
     it("changes the map theme from the controls panel", async () => {
         const user = userEvent.setup();
         const { map_controls } = render_map_controls({ is_mobile: false });
