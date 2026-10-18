@@ -213,10 +213,34 @@ export function prepareSentryEvent(event, hint = {}) {
     ) {
         primary_index -= 1;
     }
+    const mechanisms = exception?.values?.map(value => value.mechanism?.type) ?? [];
     const boundary =
         evidence.boundary === true ||
         evidence.operation === "react_boundary" ||
+        mechanisms.includes("auto.function.react.error_boundary") ||
         exception?.values?.some(value => value.type?.startsWith("React ErrorBoundary "));
+    const has_original = Object.hasOwn(hint, "originalException");
+    const needs_synthetic_stack =
+        has_original &&
+        !isError(original) &&
+        !exception?.values?.some(value => value.type === "NonErrorThrown");
+    if (needs_synthetic_stack && primary_index >= 0) {
+        const normalized = toError(original);
+        const frames = Sentry.defaultStackParser(normalized.stack ?? "").slice(-50);
+        exception = {
+            ...exception,
+            values: exception.values.map((value, index) =>
+                index === primary_index
+                    ? {
+                          ...value,
+                          type: normalized.name,
+                          value: normalized.message,
+                          stacktrace: { frames },
+                      }
+                    : value,
+            ),
+        };
+    }
     let original_frames;
     if (
         isError(original) &&
@@ -250,23 +274,32 @@ export function prepareSentryEvent(event, hint = {}) {
     const contexts = { ...event.contexts };
     const primary = exception?.values?.[primary_index] ?? exception?.values?.[0];
     const frames = exception?.values?.flatMap(value => value.stacktrace?.frames ?? []) ?? [];
-    const mechanism = primary?.mechanism?.type;
     const capture_path = boundary
         ? "react_boundary"
-        : mechanism === "auto.browser.global_handlers.onunhandledrejection"
+        : mechanisms.includes("auto.browser.global_handlers.onunhandledrejection")
           ? "unhandled_rejection"
-          : mechanism === "auto.browser.global_handlers.onerror"
+          : mechanisms.includes("auto.browser.global_handlers.onerror")
             ? "global_error"
             : "other";
     const diagnostic = {
         ...evidence,
         capture_path,
         original_kind: evidence.original_kind ?? originalKind(original),
+        original_value: evidence.original_value ?? (has_original ? original : undefined),
         original_stack:
             evidence.original_stack ??
             (isError(original) && typeof original.stack === "string" && original.stack.length
                 ? "present"
                 : "absent"),
+        javascript_stack_origin:
+            evidence.javascript_stack_origin ??
+            (isError(original)
+                ? typeof original.stack === "string" && original.stack.length
+                    ? "original"
+                    : "absent"
+                : needs_synthetic_stack
+                  ? "synthetic_capture"
+                  : "absent"),
         category: errorCategory(
             original?.message ?? primary?.value,
             original?.name ?? primary?.type,

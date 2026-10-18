@@ -86,6 +86,25 @@ describe("failure origin diagnostics", () => {
         expect(boundary.fingerprint).toEqual(["{{ default }}", "react_boundary"]);
     });
 
+    it("classifies the SDK boundary mechanism for a primitive without annotation", () => {
+        const event = report("diagnostic primitive failure", "auto.function.react.error_boundary");
+
+        expect(event.contexts.diagnostic).toMatchObject({
+            capture_path: "react_boundary",
+            original_kind: "string",
+            original_value: "diagnostic primitive failure",
+            original_stack: "absent",
+            javascript_stack_origin: "synthetic_capture",
+        });
+        expect(event.exception.values[0]).toMatchObject({
+            type: "NonErrorThrown",
+            value: "diagnostic primitive failure",
+            mechanism: { type: "auto.function.react.error_boundary", handled: false },
+        });
+        expect(event.exception.values[0].stacktrace.frames.length).toBeGreaterThan(0);
+        expect(event.fingerprint).toEqual(["{{ default }}", "react_boundary"]);
+    });
+
     it("retains cross-realm error stacks without treating objects or primitive rejections as Errors", () => {
         const frame = document.createElement("iframe");
         document.body.append(frame);
