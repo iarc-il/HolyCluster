@@ -3,6 +3,8 @@ name: Build and Deploy the UI
 on:
   push:
     paths:
+      - "scripts/deploy_ui.sh"
+      - "scripts/tests/test_deploy_ui.py"
       - "ui/**"
       - ".github/workflows/ui.yml"
     branches:
@@ -12,11 +14,17 @@ on:
       - "v*"
   pull_request:
     paths:
+      - "scripts/deploy_ui.sh"
+      - "scripts/tests/test_deploy_ui.py"
       - "ui/**"
       - ".github/workflows/ui.yml"
     branches:
       - "dev"
       - "int"
+
+concurrency:
+  group: ui-${{ startsWith(github.ref, 'refs/tags/') && 'production' || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy-ui:
@@ -43,6 +51,9 @@ jobs:
         run: |
           cd ui
           npx biome check .
+
+      - name: Test UI deployment
+        run: python3 -m unittest discover -s scripts/tests -v
 
       - name: Run tests
         run: |
@@ -97,6 +108,11 @@ jobs:
         run: |
           cd ui
           npm run test:e2e
+
+      - name: Run production module integrity tests
+        run: |
+          cd ui
+          npm run test:integrity
 
       - name: Run error reporting tests
         run: |
