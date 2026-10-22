@@ -1,5 +1,5 @@
+import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import sys
@@ -9,16 +9,13 @@ RELEASE = re.compile(r"[0-9a-f]{40}")
 ASSET = re.compile(r"assets/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_.-]+")
 
 
-def asset_path(root, name, required=True):
+def asset_name(name):
     if not isinstance(name, str) or not ASSET.fullmatch(name):
         raise ValueError("Invalid asset path")
-    path = root / name
-    if path.resolve() != path.absolute() or (required and not path.is_file()):
-        raise ValueError("Missing asset or symbolic link")
-    return path
+    return name
 
 
-def manifest(root, data, required=True):
+def manifest(data):
     if data["release"] != "legacy" and not RELEASE.fullmatch(data["release"]):
         raise ValueError("Invalid release")
     if (
@@ -29,100 +26,121 @@ def manifest(root, data, required=True):
     if not isinstance(data["assets"], list):
         raise ValueError("Invalid assets")
     for name in data["assets"]:
-        asset_path(root, name, required=required)
+        asset_name(name)
+    if not isinstance(data.get("published", True), bool):
+        raise ValueError("Invalid publication state")
+    if "index_sha256" in data and not re.fullmatch(r"[0-9a-f]{64}", data["index_sha256"]):
+        raise ValueError("Invalid index digest")
     return data
 
 
+def shell_script(path, lines):
+    path.write_text("set -eu\n" + "\n".join(lines) + "\n")
+
+
 def main():
-    mode, directory, release, minimum, days = sys.argv[1:]
+    mode, directory, release, minimum, days = sys.argv[1:6]
     if not RELEASE.fullmatch(release):
         raise ValueError("Invalid release ID")
     minimum, days = int(minimum), int(days)
     if minimum < 1 or days < 1:
         raise ValueError("Invalid retention policy")
     root = Path(directory).absolute()
-    if root.resolve() != root:
-        raise ValueError("Symbolic deployment path")
     if mode == "manifest":
-        if any(path.is_symlink() for path in (root / "assets").rglob("*")):
-            raise ValueError("Symbolic build asset")
-        assets = sorted(
-            str(path.relative_to(root))
-            for path in (root / "assets").rglob("*") if path.is_file()
-        )
-        data = manifest(root, {"release": release, "published_at": time.time(), "assets": assets})
+        assets = []
+        for path in (root / "assets").rglob("*"):
+            if path.is_symlink():
+                raise ValueError("Symbolic build asset")
+            if path.is_file():
+                assets.append(asset_name(str(path.relative_to(root))))
+        data = manifest({
+            "release": release, "published_at": time.time(), "assets": sorted(assets),
+            "index_sha256": hashlib.sha256((root / "index.html").read_bytes()).hexdigest(),
+            "published": False,
+        })
         print(json.dumps(data))
         return
-    store = root / ".ui-releases"
-    if store.is_symlink():
-        raise ValueError("Symbolic metadata directory")
-    if mode == "preflight":
-        for name in [
-            "assets", ".ui-index.html", "index.html", ".ui-deploy.lock",
-            f".ui-releases/{release}.json.tmp",
-        ]:
-            path = root / name
-            if path.resolve() != path:
-                raise ValueError("Symbolic deployment target")
-        for name in incoming["assets"]:
-            asset_path(root, name, required=False)
-        return
-    store.mkdir(exist_ok=True)
+
+    remote_root = sys.argv[6]
+    if not re.fullmatch(r"(?:/[A-Za-z0-9_-]+)+", remote_root):
+        raise ValueError("Invalid deployment path")
     records = []
-    for path in store.glob("*.json"):
-        if path.is_symlink():
-            raise ValueError("Symbolic manifest")
-        data = manifest(root, json.loads(path.read_text()), required=False)
-        if path.name != data["release"] + ".json":
-            raise ValueError("Invalid manifest name")
-        records.append((path, data))
     abandoned = []
-    for path in store.glob("*.json.tmp"):
-        if path.is_symlink():
-            raise ValueError("Symbolic pending manifest")
-        data = manifest(root, json.loads(path.read_text()), required=False)
-        if path.name != data["release"] + ".json.tmp":
-            raise ValueError("Invalid pending manifest name")
-        abandoned.append((path, data))
-    pending_path = store / f"{release}.json.tmp"
-    pending = manifest(root, json.loads(pending_path.read_text()))
-    if pending["release"] != release:
-        raise ValueError("Release mismatch")
+    active_digest = hashlib.sha256((root / "active.html").read_bytes()).hexdigest()
+    metadata = root / "metadata"
+    metadata.mkdir()
+    updates = []
+    remote_files = set()
+    for path in (root / "remote").iterdir():
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("Invalid manifest file")
+        data = manifest(json.loads(path.read_text()))
+        name = data["release"] + ".json"
+        if path.name not in (name, name + ".tmp"):
+            raise ValueError("Invalid manifest name")
+        remote_files.add(path.name)
+        if path.name.endswith(".tmp"):
+            abandoned.append(data)
+            continue
+        # Recover a publication interrupted after the index commit.
+        if data.get("index_sha256") == active_digest and not data.get("published", True):
+            data["published"] = True
+            (metadata / (name + ".tmp")).write_text(json.dumps(data))
+            updates.append(name)
+        records.append(data)
+
+    pending = manifest(json.loads((root / "pending.json").read_text()))
     if not records:
         # Snapshot legacy assets once; the same release policy expires this baseline.
-        legacy = sorted(
-            str(path.relative_to(root))
-            for path in (root / "assets").rglob("*") if path.is_file()
-        )
-        data = manifest(root, {"release": "legacy", "published_at": time.time(), "assets": legacy})
-        path = store / "legacy.json"
-        path.write_text(json.dumps(data))
-        records.append((path, data))
+        names = (root / "legacy.list").read_bytes().split(b"\0")
+        if names[-1] != b"":
+            raise ValueError("Invalid legacy asset list")
+        legacy = manifest({
+            "release": "legacy", "published_at": time.time(),
+            "assets": sorted(asset_name(name.decode()) for name in names[:-1]),
+        })
+        records.append(legacy)
+        (metadata / "legacy.json.tmp").write_text(json.dumps(legacy))
+        updates.append("legacy.json")
+    previous = next((data for data in records if data["release"] == release), None)
+    if previous and previous["assets"] != pending["assets"]:
+        raise ValueError("Release ID reused for different assets")
     pending["published_at"] = time.time()
-    pending_path.write_text(json.dumps(pending))
-    records = [(path, data) for path, data in records if data["release"] != release]
-    records.append((store / f"{release}.json", pending))
-    records.sort(key=lambda record: record[1]["published_at"], reverse=True)
+    name = release + ".json"
+    (metadata / (name + ".tmp")).write_text(json.dumps(pending))
+    updates = [item for item in updates if item != name] + [name]
+    records = [data for data in records if data["release"] != release]
+    # The plan runs only after the new index commits; failed stages do not displace releases.
+    records.append({**pending, "published": True})
+    records.sort(key=lambda data: data["published_at"], reverse=True)
+    successful = [data for data in records if data["release"] != "legacy" and data.get("published", True)]
     cutoff = time.time() - days * 86400
-    successful = [record for record in records if record[1]["release"] != "legacy"]
-    retained = [
-        record for record in records
-        if record in successful[:minimum]
-        or record[1]["published_at"] >= cutoff
-        or (record[1]["release"] == "legacy" and len(successful) < minimum)
-    ]
-    for _, data in retained:
-        manifest(root, data)
-    os.replace(root / ".ui-index.html", root / "index.html")
-    os.replace(pending_path, store / f"{release}.json")
-    expired = [record for record in records if record not in retained]
-    abandoned = [record for record in abandoned if record[0] != pending_path]
-    keep = {name for _, data in retained for name in data["assets"]}
-    candidates = {name for _, data in expired + abandoned for name in data["assets"]} - keep
-    for name in candidates:
-        asset_path(root, name, required=False).unlink(missing_ok=True)
-    for path, _ in expired + abandoned:
-        path.unlink()
+    retained = [data for data in records if (
+        data in successful[:minimum]
+        or data["published_at"] >= cutoff
+        or (data["release"] == "legacy" and len(successful) < minimum)
+    )]
+    expired = [data for data in records if data not in retained]
+    keep = {name for data in retained for name in data["assets"]}
+    candidates = {name for data in expired + abandoned for name in data["assets"]} - keep
+    assets = {name for data in records + abandoned for name in data["assets"]}
+    checks = []
+    targets = {"assets", ".ui-releases", "index.html", ".ui-index.html"}
+    for name in assets:
+        targets.update(str(parent) for parent in Path(name).parents if str(parent) != ".")
+        targets.add(name)
+    targets.update(".ui-releases/" + name for name in remote_files)
+    targets.update(".ui-releases/" + name + suffix for name in updates for suffix in ("", ".tmp"))
+    for name in sorted(targets):
+        checks.append(f"test ! -L '{remote_root}/{name}'")
+    shell_script(root / "validate.sh", checks)
+    publish = [f"mv '{remote_root}/.ui-releases/{name}.tmp' '{remote_root}/.ui-releases/{name}'" for name in updates]
+    publish.append(f"mv '{remote_root}/.ui-index.html' '{remote_root}/index.html'")
+    shell_script(root / "publish.sh", publish)
+    cleanup = [f"rm -f '{remote_root}/{name}'" for name in sorted(candidates)]
+    cleanup += [f"rm -f '{remote_root}/.ui-releases/{data['release']}.json'" for data in expired]
+    cleanup += [f"rm -f '{remote_root}/.ui-releases/{name}'" for name in sorted(remote_files) if name.endswith(".tmp")]
+    shell_script(root / "cleanup.sh", cleanup)
 
 
 if __name__ == "__main__":
