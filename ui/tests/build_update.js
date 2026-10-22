@@ -35,7 +35,7 @@ it("notifies once without automatic reload across interval and visibility checks
     document.dispatchEvent(new Event("visibilitychange"));
     await vi.advanceTimersByTimeAsync(0);
     expect(notify).toHaveBeenCalledTimes(1);
-    expect(fetch).toHaveBeenCalledTimes(4);
+    expect(fetch).toHaveBeenCalledTimes(1);
     expect(reload).not.toHaveBeenCalled();
     notify.mock.calls[0][0]();
     expect(reload).toHaveBeenCalledTimes(1);

@@ -51,7 +51,8 @@ for (const [state, path] of [
         else await expect(update).toHaveCount(0);
         await page.clock.fastForward(300000);
         await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-        await expect.poll(() => probes).toBeGreaterThanOrEqual(2);
+        if (state === "new") expect(probes).toBe(1);
+        else await expect.poll(() => probes).toBeGreaterThanOrEqual(2);
         expect(documents).toBe(1);
         if (state === "new") {
             await expect(update).toHaveCount(1);

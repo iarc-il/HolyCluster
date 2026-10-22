@@ -40,7 +40,7 @@ export function install_module_load_recovery({
                 message,
             );
         if (!notify && !initial_failure && !import_failure) return;
-        if (pending || stopped || !navigator.onLine) return;
+        if (pending || stopped || notified || !navigator.onLine) return;
         pending = true;
         const marker = "holycluster_module_reload_target";
         const controller = new AbortController();
@@ -84,6 +84,8 @@ export function install_module_load_recovery({
             if (notify) {
                 if (!notified) {
                     notified = true;
+                    clearInterval(interval);
+                    document.removeEventListener("visibilitychange", visible);
                     notify(reload);
                 }
             } else {
