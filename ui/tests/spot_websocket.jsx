@@ -58,11 +58,13 @@ function connect(view, epoch = 1) {
     websocket.epoch = epoch;
     view.rerender();
 }
-function ack(spots = []) {
-    receive(spots, {
+function ack(spots) {
+    receive(undefined, {
+        event: "subscribed",
         subscription_ack: true,
         subscription_id: websocket.send.mock.lastCall[1].subscription_id,
     });
+    if (spots) receive(spots);
 }
 
 describe("spot subscriptions", () => {
@@ -100,6 +102,7 @@ describe("spot subscriptions", () => {
     it("merges delayed and duplicate initial responses without erasing live data", () => {
         const view = renderHook(useSpotWebSocket);
         connect(view);
+        ack();
         const newer = { ...spot, time: spot.time + 1, dx_callsign: "K3ABC" };
         receive([newer, newer, { ...spot, comment: "Live value" }], { event: "update" });
         ack([spot, spot]);
@@ -118,15 +121,33 @@ describe("spot subscriptions", () => {
         connect(view, 2);
         const request = websocket.send.mock.lastCall[1];
         expect(request).toMatchObject({ action: "catch_up", last_time: spot.time });
-        receive([{ ...spot, time: spot.time + 1 }], { event: "update" });
         act(() => vi.advanceTimersByTime(120000));
         expect(websocket.send.mock.calls.length).toBeGreaterThan(2);
-        expect(websocket.send.mock.calls.length).toBeLessThanOrEqual(8);
+        expect(websocket.send.mock.calls.length).toBeLessThanOrEqual(10);
+        receive([{ ...spot, time: spot.time + 1 }], { event: "update" });
+        expect(request.last_time).toBe(spot.time);
         for (const call of websocket.send.mock.calls.slice(1)) expect(call[1]).toEqual(request);
         ack([]);
         const count = websocket.send.mock.calls.length;
         act(() => vi.advanceTimersByTime(120000));
         expect(websocket.send).toHaveBeenCalledTimes(count);
+    });
+
+    it.each(["initial", "update"])("stops retries after an empty legacy %s response", event => {
+        const view = renderHook(useSpotWebSocket);
+        connect(view);
+        receive([], { event });
+        act(() => vi.advanceTimersByTime(120000));
+        expect(websocket.send).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not establish a subscription from malformed traffic", () => {
+        const view = renderHook(useSpotWebSocket);
+        connect(view);
+        receive(undefined, { event: "update" });
+        receive([], { event: "unknown" });
+        act(() => vi.advanceTimersByTime(1200));
+        expect(websocket.send).toHaveBeenCalledTimes(2);
     });
 
     it("cancels old epochs and ignores their acknowledgements", () => {
@@ -137,7 +158,7 @@ describe("spot subscriptions", () => {
         act(() => vi.advanceTimersByTime(60000));
         expect(websocket.send).toHaveBeenCalledTimes(1);
         connect(view, 2);
-        receive([], { subscription_ack: true, subscription_id: old });
+        receive(undefined, { event: "subscribed", subscription_ack: true, subscription_id: old });
         act(() => vi.advanceTimersByTime(1200));
         expect(websocket.send).toHaveBeenCalledTimes(3);
         expect(websocket.send.mock.lastCall[2]).toBe(2);
@@ -178,23 +199,29 @@ describe("spot subscriptions", () => {
         expect(websocket.send.mock.lastCall[1].subscription_id).not.toBe(first);
     });
 
-    it("handles synchronous empty acknowledgements without scheduling a retry", () => {
-        websocket.send.mockImplementation((_type, request) => {
-            for (const handler of websocket.handlers)
-                handler({
-                    event: "initial",
-                    spots: [],
-                    subscription_ack: true,
-                    subscription_id: request.subscription_id,
-                });
-            return true;
-        });
-        websocket.readyState = 1;
-        websocket.epoch = 1;
-        renderHook(useSpotWebSocket, { wrapper: StrictMode });
-        act(() => vi.advanceTimersByTime(120000));
-        expect(websocket.send).toHaveBeenCalledTimes(1);
-    });
+    it.each(["explicit", "legacy"])(
+        "handles synchronous %s registration through StrictMode cleanup",
+        protocol => {
+            websocket.send.mockImplementation((_type, request) => {
+                for (const handler of websocket.handlers)
+                    handler(
+                        protocol === "explicit"
+                            ? {
+                                  event: "subscribed",
+                                  subscription_ack: true,
+                                  subscription_id: request.subscription_id,
+                              }
+                            : { event: "initial", spots: [] },
+                    );
+                return true;
+            });
+            websocket.readyState = 1;
+            websocket.epoch = 1;
+            renderHook(useSpotWebSocket, { wrapper: StrictMode });
+            act(() => vi.advanceTimersByTime(120000));
+            expect(websocket.send).toHaveBeenCalledTimes(1);
+        },
+    );
 
     it("keeps the cached snapshot and tour buffer while merging an initial batch", () => {
         websocket.snapshot = [

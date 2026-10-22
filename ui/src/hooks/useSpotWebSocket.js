@@ -166,16 +166,27 @@ export default function useSpotWebSocket() {
 
     const receive_spots = useCallback(
         data => {
-            if (!Array.isArray(data.spots) || !["initial", "update"].includes(data.event)) return;
             const pending = subscription_ref.current;
-            if (pending?.active) {
+            if (data.event === "subscribed") {
                 if (
+                    pending?.active &&
                     data.subscription_ack === true &&
                     data.subscription_id === pending.request.subscription_id
                 ) {
                     pending.acknowledged = true;
                     pending.cancel();
                 }
+                return;
+            }
+            if (!Array.isArray(data.spots) || !["initial", "update"].includes(data.event)) return;
+            if (
+                pending?.active &&
+                data.subscription_id === undefined &&
+                data.subscription_ack === undefined
+            ) {
+                // Old responses prove registration, not correlated catch-up completion.
+                pending.delivered = true;
+                pending.cancel();
             }
             const observed_at = Date.now();
             let new_spots = data.spots
@@ -218,10 +229,6 @@ export default function useSpotWebSocket() {
                 });
 
             new_spots = trim_spots_to_last_hour(new_spots);
-            if (pending?.active && data.subscription_id == null && new_spots.length > 0) {
-                // Live traffic proves delivery, not completion of the frozen catch-up.
-                pending.delivered = true;
-            }
             void write_live_spot_snapshot(new_spots, observed_at);
             const cached_ids = new Set(cached_ids_ref.current);
             for (const spot of new_spots) cached_ids_ref.current.delete(spot.id);
@@ -276,7 +283,7 @@ export default function useSpotWebSocket() {
         pending.active = true;
         pending.cancel = () => clearTimeout(timer);
         const attempt = () => {
-            if (!pending.active || pending.acknowledged) return;
+            if (!pending.active || pending.acknowledged || pending.delivered) return;
             const sent = send_now("spots", pending.request, pending.epoch);
             pending.attempts += 1;
             if ([1, 2, 5].includes(pending.attempts)) {
@@ -291,10 +298,8 @@ export default function useSpotWebSocket() {
                     },
                 });
             }
-            if (!pending.active || pending.acknowledged) return;
-            const delay = pending.delivered
-                ? 30000
-                : Math.min(1000 * 2 ** Math.min(pending.attempts - 1, 5), 30000);
+            if (!pending.active || pending.acknowledged || pending.delivered) return;
+            const delay = Math.min(1000 * 2 ** Math.min(pending.attempts - 1, 5), 30000);
             timer = setTimeout(attempt, Math.min(30000, delay * (0.8 + Math.random() * 0.4)));
         };
         attempt();
