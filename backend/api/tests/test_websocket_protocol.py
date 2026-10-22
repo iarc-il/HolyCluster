@@ -88,6 +88,7 @@ def create_geo_data(callsign, *, cached=False, source="qrz"):
 class WebSocketProtocolTest(unittest.TestCase):
     def setUp(self):
         app.state.active_ws_spot_connections = set()
+        app.state.active_connections = set()
         patcher = patch.object(app.state, "spot_snapshot", None, create=True)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -178,6 +179,36 @@ class WebSocketProtocolTest(unittest.TestCase):
                 },
             )
             self.assertEqual(len(app.state.active_ws_spot_connections), 1)
+
+    def test_subscription_registers_before_query_and_acknowledges_empty_result(self):
+        for path in ("/ws", "/submit_spot"):
+            for action in ("initial", "catch_up"):
+
+                async def query(*_args):
+                    self.assertEqual(len(app.state.active_ws_spot_connections), 1)
+                    await broadcast_spots(app, [{"dx_callsign": "LIVE", "time": 10000}])
+                    return []
+
+                with (
+                    patch("api.main.get_initial_spots", new=query),
+                    patch("api.main.get_spots_after", new=query),
+                    self.client.websocket_connect(path) as websocket,
+                ):
+                    websocket.send_json(
+                        {
+                            "version": 1,
+                            "type": "spots",
+                            "action": action,
+                            "last_time": 123,
+                            "subscription_id": "epoch-1",
+                        }
+                    )
+                    self.assertEqual(websocket.receive_json()["spots"][0]["dx_callsign"], "LIVE")
+                    response = websocket.receive_json()
+                    self.assertEqual(response["spots"], [])
+                    self.assertEqual(response["subscription_id"], "epoch-1")
+                    self.assertIs(response["subscription_ack"], True)
+                    self.assertEqual(response["event"], "initial" if action == "initial" else "update")
 
     def test_ws_rejects_spots_catch_up_without_last_time(self):
         with self.client.websocket_connect("/ws") as websocket:
