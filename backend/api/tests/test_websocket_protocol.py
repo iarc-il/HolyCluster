@@ -1,4 +1,5 @@
 import asyncio
+import threading
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -180,12 +181,18 @@ class WebSocketProtocolTest(unittest.TestCase):
             )
             self.assertEqual(len(app.state.active_ws_spot_connections), 1)
 
-    def test_subscription_registers_before_query_and_acknowledges_empty_result(self):
+    def test_subscription_acknowledges_before_blocked_query(self):
         for path in ("/ws", "/submit_spot"):
             for action in ("initial", "catch_up"):
+                release_query = threading.Event()
+                query_started = threading.Event()
+                query_finished = threading.Event()
 
                 async def query(*_args):
                     self.assertEqual(len(app.state.active_ws_spot_connections), 1)
+                    query_started.set()
+                    await asyncio.to_thread(release_query.wait, 5)
+                    query_finished.set()
                     await broadcast_spots(app, [{"dx_callsign": "LIVE", "time": 10000}])
                     return []
 
@@ -203,11 +210,25 @@ class WebSocketProtocolTest(unittest.TestCase):
                             "subscription_id": "epoch-1",
                         }
                     )
+                    acknowledgement = websocket.receive_json()
+                    self.assertEqual(
+                        acknowledgement,
+                        {
+                            "version": 1,
+                            "type": "spots",
+                            "event": "subscribed",
+                            "subscription_id": "epoch-1",
+                            "subscription_ack": True,
+                        },
+                    )
+                    self.assertTrue(query_started.wait(2))
+                    self.assertFalse(query_finished.is_set())
+                    release_query.set()
                     self.assertEqual(websocket.receive_json()["spots"][0]["dx_callsign"], "LIVE")
                     response = websocket.receive_json()
                     self.assertEqual(response["spots"], [])
-                    self.assertEqual(response["subscription_id"], "epoch-1")
-                    self.assertIs(response["subscription_ack"], True)
+                    self.assertNotIn("subscription_id", response)
+                    self.assertNotIn("subscription_ack", response)
                     self.assertEqual(response["event"], "initial" if action == "initial" else "update")
 
     def test_ws_rejects_spots_catch_up_without_last_time(self):

@@ -342,6 +342,7 @@ class WsSpotAction(StrEnum):
 
 
 class WsSpotEvent(StrEnum):
+    SUBSCRIBED = "subscribed"
     INITIAL = "initial"
     UPDATE = "update"
 
@@ -1204,35 +1205,7 @@ async def get_initial_spots():
 
 async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
     action = message.get("action")
-    acknowledgement = {}
-    if isinstance(message.get("subscription_id"), str):
-        acknowledgement = {"subscription_id": message["subscription_id"], "subscription_ack": True}
-    if action == WsSpotAction.INITIAL.value:
-        # Register before the query so broadcasts cannot fall into the query gap.
-        app.state.active_ws_spot_connections.add(websocket)
-        spots = await get_initial_spots()
-        await send_ws_json(
-            websocket,
-            send_lock,
-            build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.INITIAL.value, spots=spots, **acknowledgement),
-        )
-    elif action == WsSpotAction.CATCH_UP.value:
-        if "last_time" not in message:
-            await send_ws_json(
-                websocket,
-                send_lock,
-                build_ws_error(WsErrorType.MISSING_FIELD, "Missing last_time", field="last_time"),
-            )
-            return
-
-        app.state.active_ws_spot_connections.add(websocket)
-        spots = await get_spots_after(message["last_time"])
-        await send_ws_json(
-            websocket,
-            send_lock,
-            build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots, **acknowledgement),
-        )
-    else:
+    if action not in (WsSpotAction.INITIAL.value, WsSpotAction.CATCH_UP.value):
         await send_ws_json(
             websocket,
             send_lock,
@@ -1242,6 +1215,35 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
                 received_action=action,
             ),
         )
+        return
+    if action == WsSpotAction.CATCH_UP.value and "last_time" not in message:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(WsErrorType.MISSING_FIELD, "Missing last_time", field="last_time"),
+        )
+        return
+
+    # Registration must not depend on the duration of the snapshot query.
+    app.state.active_ws_spot_connections.add(websocket)
+    if isinstance(message.get("subscription_id"), str):
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_message(
+                WsMessageType.SPOTS,
+                event=WsSpotEvent.SUBSCRIBED.value,
+                subscription_id=message["subscription_id"],
+                subscription_ack=True,
+            ),
+        )
+    if action == WsSpotAction.INITIAL.value:
+        spots = await get_initial_spots()
+        event = WsSpotEvent.INITIAL.value
+    else:
+        spots = await get_spots_after(message["last_time"])
+        event = WsSpotEvent.UPDATE.value
+    await send_ws_json(websocket, send_lock, build_ws_message(WsMessageType.SPOTS, event=event, spots=spots))
 
 
 async def send_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
