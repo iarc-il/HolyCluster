@@ -190,6 +190,51 @@ test("reports direct update subscriber failures without changing callback behavi
     await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
+test("uses network history after a real upgrade abort without unhandled errors", async ({
+    page,
+}) => {
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.addInitScript(() => {
+        window.cache_opens = 0;
+        window.cache_aborts = 0;
+        window.cache_rejections = [];
+        window.addEventListener("unhandledrejection", event => {
+            window.cache_rejections.push(event.reason?.name);
+        });
+        const open = IDBFactory.prototype.open;
+        IDBFactory.prototype.open = function (...args) {
+            const request = open.apply(this, args);
+            if (args[0] === "holycluster_propagation_cache") {
+                window.cache_opens++;
+                // Register after idb's synchronous listener so schema creation
+                // succeeds before the controlled native transaction abort.
+                queueMicrotask(() =>
+                    request.addEventListener("upgradeneeded", () => {
+                        window.cache_aborts++;
+                        request.transaction.abort();
+                    }),
+                );
+            }
+            return request;
+        };
+    });
+    await page.goto("/e2e/diagnostics/index.html");
+    await page.waitForFunction(() => window.diagnostics_ready);
+    const result = await page.evaluate(() => window.run_diagnostic("cache_abort"));
+    expect(result).toMatchObject({ is_complete: true, requests: 1, updates: 1, handlers: 0 });
+    expect(result.propagation_history.metrics.sfi).toHaveLength(1);
+    expect(result.propagation_history.metrics.sfi[0].value).toBe(123);
+    expect(
+        await page.evaluate(() => ({ opens: window.cache_opens, aborts: window.cache_aborts })),
+    ).toEqual({ opens: 1, aborts: 1 });
+    // Cross an event-loop boundary so rejected upgrade completion promises
+    // have time to dispatch unhandledrejection.
+    await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 0)));
+    expect(await page.evaluate(() => window.cache_rejections)).toEqual([]);
+    expect(errors).toEqual([]);
+});
+
 test("retains native version rejection at the open boundary", async ({ page }) => {
     const event = await capture(page, "version");
     expect(event.contexts.diagnostic).toMatchObject({

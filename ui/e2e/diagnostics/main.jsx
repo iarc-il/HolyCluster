@@ -74,6 +74,32 @@ window.run_diagnostic = async scenario => {
         const error = new TypeError("Cannot read properties of undefined (reading 'secret')");
         error.stack = undefined;
         Promise.reject(error);
+    } else if (scenario === "cache_abort") {
+        const cache = await import("@/utils/propagation_cache_db.jsx");
+        const handlers = new Set();
+        let requests = 0;
+        let updates = 0;
+        cache.subscribe(() => updates++);
+        const send = (_, request) => {
+            requests++;
+            queueMicrotask(() => {
+                for (const handler of handlers)
+                    handler({
+                        ...request,
+                        metrics: { sfi: [{ timestamp: request.start_time, value: 123 }] },
+                    });
+            });
+        };
+        const subscribe = (_, handler) => {
+            handlers.add(handler);
+            return () => handlers.delete(handler);
+        };
+        const start = Date.now();
+        const end = start + 3_600_000;
+        await cache.ensure_propagation_loaded(send, subscribe, async () => {}, start, end);
+        await cache.ensure_propagation_loaded(send, subscribe, async () => {}, start, end);
+        await cache.evict_old_records();
+        return { ...cache.get_propagation(start, end), requests, updates, handlers: handlers.size };
     } else if (["missing_store", "closed_database", "subscriber", "version"].includes(scenario)) {
         const database = "holycluster_spot_cache";
         await new Promise((resolve, reject) => {
