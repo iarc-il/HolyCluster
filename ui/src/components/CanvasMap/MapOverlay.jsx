@@ -19,6 +19,8 @@ export default function MapOverlay({
     const text_x = is_max_xs_device ? 10 : 20;
     const text_y = is_max_xs_device ? 20 : 30;
 
+    const radius = settings.is_miles ? km_to_miles(radius_in_km) : radius_in_km;
+    const radius_label = `Radius: ${radius} ${settings.is_miles ? "Miles" : "KM"}${map_controls.is_globe ? "" : " | Auto"}`;
     const show_voacap_legend = map_controls.voacap_enabled ?? false;
     const voacap_band_label = `${map_controls.voacap_band ?? "20"}m`;
     const voacap_frequency_mhz = Number(voacap_state.data?.frequency_mhz);
@@ -45,9 +47,7 @@ export default function MapOverlay({
                 <title>Map overlay</title>
                 <g className="font-medium text-lg select-none">
                     <text x={text_x} y={text_y} fill={colors.theme.text}>
-                        Radius: {settings.is_miles ? km_to_miles(radius_in_km) : radius_in_km}{" "}
-                        {settings.is_miles ? "Miles" : "KM"}
-                        {!map_controls.is_globe ? " | Auto" : ""}
+                        {radius_label}
                     </text>
 
                     {!map_controls.is_globe && (
