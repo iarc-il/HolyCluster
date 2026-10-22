@@ -50,8 +50,13 @@ class CtyResolver:
         if entity is not None:
             return entity
 
+        base_callsign = normalized.partition("/")[0]
         for end in range(len(normalized), 0, -1):
-            entity = self.prefixes.get(normalized[:end])
+            prefix = normalized[:end]
+            # Only the KG4 2x2 block is reserved for Guantanamo Bay.
+            if prefix == "KG4" and re.fullmatch(r"KG4[A-Z]{2}", base_callsign) is None:
+                continue
+            entity = self.prefixes.get(prefix)
             if entity is not None:
                 return entity
 
