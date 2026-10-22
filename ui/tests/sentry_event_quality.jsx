@@ -165,6 +165,32 @@ describe("event quality", () => {
             expect(result.fingerprint).toEqual(["{{ default }}", "global_error"]);
         }
     });
+    it("does not copy private thrown-object fields into diagnostic contexts", () => {
+        const original = { token: "private-object-token", profile: { email: "private-email" } };
+        const input = event("[object Object]", [], boundary_mechanism);
+        expect(
+            JSON.stringify(prepareSentryEvent(input, { originalException: original })),
+        ).not.toMatch(/private-object-token|private-email/);
+        let processor;
+        recordBoundaryDiagnostics(
+            {
+                addEventProcessor: callback => {
+                    processor = callback;
+                },
+            },
+            original,
+            "\n at Tabs",
+        );
+        const processed = processor(input);
+        expect(
+            JSON.stringify(prepareSentryEvent(processed, { originalException: original })),
+        ).not.toMatch(/private-object-token|private-email/);
+        const error = new TypeError("failure");
+        error.private_data = original;
+        expect(
+            JSON.stringify(prepareSentryEvent(event(error.message), { originalException: error })),
+        ).not.toMatch(/private-object-token|private-email/);
+    });
     it("sends original boundary errors through the SDK with their evidence intact", async () => {
         const envelopes = [];
         const client = Sentry.init({

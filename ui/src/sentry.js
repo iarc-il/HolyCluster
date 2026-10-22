@@ -35,6 +35,13 @@ function originalKind(value) {
     return isError(value) ? "error" : value === null ? "null" : typeof value;
 }
 
+function diagnosticPrimitive(value) {
+    if (value === null || typeof value === "boolean") return value;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") return value.slice(0, 200);
+    return undefined;
+}
+
 function addPrimitiveBoundaryStacks(event, error, component_stack) {
     const values = event.exception?.values ?? [];
     const primary = values.at(-1) ?? {};
@@ -83,7 +90,7 @@ export function recordBoundaryDiagnostics(scope, value, component_stack) {
                     ...prepared.contexts?.diagnostic,
                     ...evidence,
                     original_kind: originalKind(value),
-                    original_value: value,
+                    original_value: diagnosticPrimitive(value),
                     original_stack:
                         isError(value) && typeof value.stack === "string" && value.stack.length
                             ? "present"
@@ -364,7 +371,9 @@ export function prepareSentryEvent(event, hint = {}) {
         ...evidence,
         capture_path,
         original_kind: evidence.original_kind ?? originalKind(original),
-        original_value: evidence.original_value ?? (has_original ? original : undefined),
+        original_value: diagnosticPrimitive(
+            evidence.original_value ?? (has_original ? original : undefined),
+        ),
         original_stack:
             evidence.original_stack ??
             (isError(original) && typeof original.stack === "string" && original.stack.length
