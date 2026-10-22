@@ -125,14 +125,7 @@ export function WsProvider({ children }) {
         `${WS_BASE_URL}/ws${connection_generation ? `?resume=${connection_generation}` : ""}`,
         {
             ...reconnect_options,
-            onOpen: event => {
-                open_spot_socket("unified");
-                if (transport_ref.current === "probing") {
-                    event.target.send(
-                        JSON.stringify({ version: 1, type: "radio", action: "GetCapabilities" }),
-                    );
-                }
-            },
+            onOpen: () => open_spot_socket("unified"),
             onClose: () => {
                 close_spot_socket("unified");
                 reset_transport("unified");
@@ -158,6 +151,12 @@ export function WsProvider({ children }) {
         },
         transport !== "cat_v1_2",
     );
+
+    useEffect(() => {
+        if (transport_ref.current === "probing" && unified_ready_state === ReadyState.OPEN) {
+            send_unified_message({ version: 1, type: "radio", action: "GetCapabilities" }, false);
+        }
+    }, [send_unified_message, unified_ready_state]);
 
     const {
         sendJsonMessage: send_compatibility_message,

@@ -102,7 +102,9 @@ describe("WebSocket transport", () => {
             connection.readyState = websocket_mock.ReadyState.CLOSED;
             receive(view, path, null);
             expect(captured_send("history", { event: "spots" })).toBe(false);
-            expect(connection.sendJsonMessage).toHaveBeenCalledTimes(1);
+            expect(connection.sendJsonMessage).toHaveBeenCalledTimes(
+                candidate === "unified" ? 2 : 1,
+            );
         },
     );
 
@@ -170,6 +172,26 @@ describe("WebSocket transport", () => {
         });
         receive(view, "/ws", handoff);
         expect(view.messages.filter(message => message.type === "update")).toEqual([handoff]);
+    });
+
+    it("sends the unified identity probe through the guarded hook sender", () => {
+        const view = render_provider();
+        const connection = websocket_mock.connection_for("/ws");
+        const raw_send = vi.fn(() => {
+            throw new Error("raw socket send");
+        });
+        connection.readyState = websocket_mock.ReadyState.OPEN;
+
+        expect(() =>
+            act(() => connection.options.onOpen({ target: { send: raw_send } })),
+        ).not.toThrow();
+
+        expect(raw_send).not.toHaveBeenCalled();
+        expect(connection.sendJsonMessage).toHaveBeenCalledWith(
+            { version: 1, type: "radio", action: "GetCapabilities" },
+            false,
+        );
+        view.unmount();
     });
 
     it("selects unified transport for the direct backend identity", () => {
