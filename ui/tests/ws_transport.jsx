@@ -267,6 +267,46 @@ describe("WebSocket transport", () => {
         expect(legacy_radio.sendJsonMessage).toHaveBeenCalledWith({ type: "SetRig", rig: 2 });
     });
 
+    it.each(["unified", "legacy"])("scopes passive epochs to %s spot socket opens", candidate => {
+        const view = render_provider();
+        const path = candidate === "unified" ? "/ws" : "/submit_spot";
+        const connection = websocket_mock.connection_for(path);
+        connection.readyState = websocket_mock.ReadyState.OPEN;
+        act(() => connection.options.onOpen({ target: { send: vi.fn() } }));
+        expect(TestConsumer.context.spot_socket_epoch).toBeNull();
+        receive(
+            view,
+            "/radio",
+            candidate === "unified"
+                ? { status: "unavailable" }
+                : { status: "connected", version: "catserver-v1.2.0" },
+        );
+        const first = TestConsumer.context.spot_socket_epoch;
+        expect(first).toBeGreaterThan(0);
+        const send_now = TestConsumer.context.send_now;
+        expect(send_now("spots", { action: "initial" }, first)).toBe(true);
+        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(
+            {
+                version: 1,
+                type: "spots",
+                action: "initial",
+            },
+            false,
+        );
+        receive(view, "/radio", { status: "connected", version: "catserver-v1.2.0" });
+        expect(TestConsumer.context.spot_socket_epoch).toBe(first);
+        act(() => connection.options.onOpen({ target: { send: vi.fn() } }));
+        const second = TestConsumer.context.spot_socket_epoch;
+        expect(second).toBeGreaterThan(first);
+        expect(send_now("spots", {}, first)).toBe(false);
+        expect(send_now("spots", {}, second)).toBe(true);
+        expect(
+            websocket_mock.useWebSocket.mock.calls.every(([url]) => !url.includes("resume=")),
+        ).toBe(true);
+        act(() => connection.options.onClose());
+        expect(send_now("spots", {}, second)).toBe(false);
+    });
+
     it("returns to parallel probing when the selected transport closes", () => {
         const view = render_provider();
         const unified = websocket_mock.connection_for("/ws");

@@ -67,6 +67,18 @@ const reconnect_options = {
 export function WsProvider({ children }) {
     const [transport, set_transport] = useState("probing");
     const [connection_generation, set_connection_generation] = useState(0);
+    const [spot_socket_epochs, set_spot_socket_epochs] = useState({});
+    const spot_socket_epochs_ref = useRef({});
+    const next_spot_socket_epoch_ref = useRef(0);
+    const open_spot_socket = candidate => {
+        const epoch = ++next_spot_socket_epoch_ref.current;
+        spot_socket_epochs_ref.current[candidate] = epoch;
+        set_spot_socket_epochs({ ...spot_socket_epochs_ref.current });
+    };
+    const close_spot_socket = candidate => {
+        delete spot_socket_epochs_ref.current[candidate];
+        set_spot_socket_epochs({ ...spot_socket_epochs_ref.current });
+    };
     const [network_state, set_network_state] = useState("connecting");
     const transport_ref = useRef("probing");
     const subscribers_ref = useRef(new Map());
@@ -114,13 +126,17 @@ export function WsProvider({ children }) {
         {
             ...reconnect_options,
             onOpen: event => {
+                open_spot_socket("unified");
                 if (transport_ref.current === "probing") {
                     event.target.send(
                         JSON.stringify({ version: 1, type: "radio", action: "GetCapabilities" }),
                     );
                 }
             },
-            onClose: () => reset_transport("unified"),
+            onClose: () => {
+                close_spot_socket("unified");
+                reset_transport("unified");
+            },
             onMessage: event => {
                 let message;
                 try {
@@ -147,7 +163,15 @@ export function WsProvider({ children }) {
         sendJsonMessage: send_compatibility_message,
         readyState: compatibility_ready_state,
         lastJsonMessage: compatibility_message,
-    } = useWebSocket(`${WS_BASE_URL}/submit_spot`, reconnect_options, transport === "cat_v1_2");
+    } = useWebSocket(
+        `${WS_BASE_URL}/submit_spot`,
+        {
+            ...reconnect_options,
+            onOpen: () => open_spot_socket("cat_v1_2"),
+            onClose: () => close_spot_socket("cat_v1_2"),
+        },
+        transport === "cat_v1_2",
+    );
 
     const {
         sendJsonMessage: send_compatibility_radio_message,
@@ -291,6 +315,24 @@ export function WsProvider({ children }) {
         return false;
     }, []);
 
+    const spot_socket_epoch =
+        readyState === ReadyState.OPEN ? (spot_socket_epochs[transport] ?? null) : null;
+
+    const send_now = useCallback((type, data, epoch) => {
+        const state = send_state_ref.current;
+        const candidate = transport_ref.current;
+        if (epoch == null || spot_socket_epochs_ref.current[candidate] !== epoch) return false;
+        if (candidate === "unified" && state.unified_ready_state === ReadyState.OPEN) {
+            state.send_unified_message({ version: 1, type, ...data }, false);
+            return true;
+        }
+        if (candidate === "cat_v1_2" && state.compatibility_ready_state === ReadyState.OPEN) {
+            state.send_compatibility_message(cat_v1_2_message(type, data), false);
+            return true;
+        }
+        return false;
+    }, []);
+
     const wait_for_open = useCallback(signal => {
         if (signal?.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
         if (ready_state_ref.current === ReadyState.OPEN) return Promise.resolve();
@@ -334,6 +376,8 @@ export function WsProvider({ children }) {
                 transport,
                 subscribe,
                 send,
+                send_now,
+                spot_socket_epoch,
                 readyState,
                 radioReadyState,
                 wait_for_open,
