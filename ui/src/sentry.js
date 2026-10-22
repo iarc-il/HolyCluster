@@ -110,7 +110,12 @@ function errorCategory(message, name) {
         )
     )
         return "dom_tree_mutation";
-    if (/dynamically imported module|Loading (chunk|CSS chunk)|^Importing a module script failed\.$/.test(message)) return "module_load";
+    if (
+        /dynamically imported module|Loading (chunk|CSS chunk)|^Importing a module script failed\.$/.test(
+            message,
+        )
+    )
+        return "module_load";
     if (/fullscreen/i.test(message)) return "fullscreen";
     if (/^Minified React error #\d+;/.test(message)) return "react_invariant";
     return "unknown";
@@ -212,6 +217,22 @@ function moduleAsset(message) {
         }
     } catch {}
     return undefined;
+}
+
+function isLazySecondary(primary, boundary, original_frames) {
+    if (!boundary || primary?.type !== "TypeError" || original_frames?.length) return false;
+    const message = primary.value ?? "";
+    if (
+        !/^undefined is not an object \(evaluating '[A-Za-z_$][\w$]*\._result\.default'\)$/.test(
+            message,
+        ) &&
+        !/^can't access property "default", [A-Za-z_$][\w$]*\._result is undefined$/.test(message)
+    )
+        return false;
+    const frame = primary.stacktrace?.frames?.at(-1);
+    return (
+        frame?.function === "T" && /(?:^|\/)react\.production\.min\.js$/.test(frame.filename ?? "")
+    );
 }
 
 export function prepareSentryEvent(event, hint = {}) {
@@ -323,9 +344,18 @@ export function prepareSentryEvent(event, hint = {}) {
         frame_sources: frameSourceEvidence(exception),
         provenance: frameProvenance(frames),
     };
+    if (isLazySecondary(primary, boundary, original_frames)) {
+        diagnostic.category = "react_lazy_secondary";
+        if (!event.fingerprint) {
+            prepared_event.fingerprint = ["react_lazy_secondary", capture_path];
+        }
+    }
     const native_name = original?.name ?? primary?.type;
     if (dom_errors.has(native_name)) diagnostic.native_name = native_name;
-    if (!event.fingerprint && ["react_boundary", "unhandled_rejection", "global_error"].includes(capture_path)) {
+    if (
+        !prepared_event.fingerprint &&
+        ["react_boundary", "unhandled_rejection", "global_error"].includes(capture_path)
+    ) {
         prepared_event.fingerprint = ["{{ default }}", capture_path];
     }
     diagnostic.native_bridge_frames = frames.some(frame =>
