@@ -1,5 +1,6 @@
 import { annotateDiagnosticError } from "@/sentry";
 import { toError } from "@/utils/errors.js";
+import { captureException } from "@sentry/react";
 import { openDB } from "idb";
 
 // A store backing one IndexedDB object store of merged time-interval records
@@ -11,6 +12,9 @@ import { openDB } from "idb";
 // (via useSyncExternalStore in the hooks) when they change the mirror.
 export function create_interval_db(db_name, db_version, store_name) {
     let db_promise = null;
+    let upgrade_error = null;
+    let memory_only = false;
+    let memory_id = 0;
     let records_map = new Map();
     let hydrate_promise = null;
     let version = 0;
@@ -58,7 +62,10 @@ export function create_interval_db(db_name, db_version, store_name) {
     function open_db() {
         if (!db_promise) {
             db_promise = openDB(db_name, db_version, {
-                upgrade(db) {
+                upgrade(db, _old_version, _new_version, tx) {
+                    // idb creates a separate completion promise for the upgrade.
+                    // The open request below owns failure handling.
+                    tx.done.catch(() => {});
                     try {
                         const store = db.createObjectStore(store_name, {
                             keyPath: "id",
@@ -67,7 +74,7 @@ export function create_interval_db(db_name, db_version, store_name) {
                         store.createIndex("idx_start", "start");
                         store.createIndex("idx_end", "end");
                     } catch (error) {
-                        throw annotateDiagnosticError(error, {
+                        upgrade_error = annotateDiagnosticError(error, {
                             operation: "cache_hydration",
                             database: db_name,
                             store: store_name,
@@ -76,10 +83,8 @@ export function create_interval_db(db_name, db_version, store_name) {
                             observed_version: db.version,
                             expected_store_present: db.objectStoreNames.contains(store_name),
                         });
+                        tx.abort();
                     }
-                },
-                blocked() {
-                    db_promise = null;
                 },
             });
         }
@@ -98,14 +103,19 @@ export function create_interval_db(db_name, db_version, store_name) {
                 stage = "transaction";
                 const tx = db.transaction(store_name, "readonly");
                 stage = "get_all";
-                const all = await tx.store.getAll();
+                const [all] = await Promise.all([tx.store.getAll(), tx.done]);
                 stage = "mirror";
                 records_map = new Map(all.map(r => [r.id, r]));
                 stage = "notify";
                 notify();
             } catch (error) {
-                // Keep the same rejection, including the existing unhandled
-                // hydration failure. No retry, recovery or payload collection.
+                // An open abort leaves no trusted disk snapshot. Keep this
+                // instance in memory-only mode; never overwrite unknown disk data.
+                if (stage === "open" && !upgrade_error && error?.name === "AbortError") {
+                    memory_only = true;
+                    return;
+                }
+                if (upgrade_error) throw upgrade_error;
                 throw annotateDiagnosticError(error, {
                     operation: "cache_hydration",
                     database: db_name,
@@ -117,6 +127,9 @@ export function create_interval_db(db_name, db_version, store_name) {
                 });
             }
         })();
+        // Eager hydration can fail before a consumer calls ready(). Keep fatal
+        // failures observable without creating a global unhandled rejection.
+        hydrate_promise.catch(captureException);
         return hydrate_promise;
     }
 
@@ -141,15 +154,21 @@ export function create_interval_db(db_name, db_version, store_name) {
     // Callers must hold the write lock — see with_lock above — since this
     // blindly trusts covered_intervals to still be exactly what's stored.
     async function commit(covered_intervals, new_record) {
-        const db = await open_db();
-        const tx = db.transaction(store_name, "readwrite");
-        const add_promise = tx.store.add(new_record);
-        await Promise.all([
-            ...covered_intervals.map(r => tx.store.delete(r.id)),
-            add_promise,
-            tx.done,
-        ]);
-        const id = await add_promise;
+        await ready();
+        let id;
+        if (memory_only) {
+            id = ++memory_id;
+        } else {
+            const db = await open_db();
+            const tx = db.transaction(store_name, "readwrite");
+            const add_promise = tx.store.add(new_record);
+            await Promise.all([
+                ...covered_intervals.map(r => tx.store.delete(r.id)),
+                add_promise,
+                tx.done,
+            ]);
+            id = await add_promise;
+        }
 
         for (const r of covered_intervals) records_map.delete(r.id);
         records_map.set(id, { ...new_record, id });
@@ -162,25 +181,34 @@ export function create_interval_db(db_name, db_version, store_name) {
     // mutates every record, and must not interleave with a commit().
     async function evict(cutoff_ms, trim_record) {
         return with_lock(async () => {
-            const db = await open_db();
-            const tx = db.transaction(store_name, "readwrite");
-            let changed = false;
+            await ready();
+            const next_records = new Map(records_map);
+            const changes = [];
 
             for (const record of records_map.values()) {
                 const trimmed = trim_record(record, cutoff_ms);
                 if (trimmed === null) {
-                    tx.store.delete(record.id);
-                    records_map.delete(record.id);
-                    changed = true;
+                    next_records.delete(record.id);
+                    changes.push({ id: record.id, trimmed });
                 } else if (trimmed !== record) {
-                    tx.store.put(trimmed);
-                    records_map.set(record.id, trimmed);
-                    changed = true;
+                    next_records.set(record.id, trimmed);
+                    changes.push({ id: record.id, trimmed });
                 }
             }
 
-            await tx.done;
-            if (changed) notify();
+            if (changes.length === 0) return;
+            if (!memory_only) {
+                const db = await open_db();
+                const tx = db.transaction(store_name, "readwrite");
+                await Promise.all([
+                    ...changes.map(({ id, trimmed }) =>
+                        trimmed === null ? tx.store.delete(id) : tx.store.put(trimmed),
+                    ),
+                    tx.done,
+                ]);
+            }
+            records_map = next_records;
+            notify();
         });
     }
 
