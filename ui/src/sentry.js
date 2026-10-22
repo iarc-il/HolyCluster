@@ -235,6 +235,41 @@ function isLazySecondary(primary, boundary, original_frames) {
     );
 }
 
+function isExternalCrawlerNoise(event, primary, frames, capture_path, original_frames, original) {
+    if (
+        event.contexts?.browser?.name !== "Bytespider" ||
+        capture_path !== "global_error" ||
+        primary?.mechanism?.handled !== false ||
+        primary.type !== "ReferenceError" ||
+        primary.value !== "globalData is not defined" ||
+        original_frames?.length
+    )
+        return false;
+    // A relative /gtm.js or an unknown filename does not prove external origin.
+    const external_gtm = frame => {
+        if (sourceClass(frame.filename) !== "cross_origin_url") return false;
+        try {
+            return new URL(frame.filename).pathname === "/gtm.js";
+        } catch {
+            return false;
+        }
+    };
+    const external_stack = stack =>
+        stack.some(external_gtm) &&
+        stack.every(frame => external_gtm(frame) || frame.filename === "<anonymous>");
+    if (!external_stack(frames)) return false;
+    if (original !== undefined) {
+        if (
+            !isError(original) ||
+            original.name !== primary.type ||
+            original.message !== primary.value
+        )
+            return false;
+        return external_stack(Sentry.defaultStackParser(original.stack ?? ""));
+    }
+    return true;
+}
+
 export function prepareSentryEvent(event, hint = {}) {
     const prepared_event = { ...event };
     let exception = event.exception;
@@ -350,6 +385,8 @@ export function prepareSentryEvent(event, hint = {}) {
             prepared_event.fingerprint = ["react_lazy_secondary", capture_path];
         }
     }
+    if (isExternalCrawlerNoise(event, primary, frames, capture_path, original_frames, original))
+        return null;
     const native_name = original?.name ?? primary?.type;
     if (dom_errors.has(native_name)) diagnostic.native_name = native_name;
     if (
