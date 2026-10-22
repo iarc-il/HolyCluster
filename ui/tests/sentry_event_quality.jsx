@@ -165,6 +165,11 @@ describe("event quality", () => {
             expect(result.fingerprint).toEqual(["{{ default }}", "global_error"]);
         }
     });
+    it("retains complete thrown strings in diagnostic contexts", () => {
+        const original = "diagnostic detail ".repeat(100);
+        const result = prepareSentryEvent(event(original), { originalException: original });
+        expect(result.contexts.diagnostic.original_value).toBe(original);
+    });
     it("does not copy private thrown-object fields into diagnostic contexts", () => {
         const original = { token: "private-object-token", profile: { email: "private-email" } };
         const input = event("[object Object]", [], boundary_mechanism);

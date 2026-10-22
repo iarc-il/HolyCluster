@@ -38,7 +38,7 @@ function originalKind(value) {
 function diagnosticPrimitive(value) {
     if (value === null || typeof value === "boolean") return value;
     if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string") return value.slice(0, 200);
+    if (typeof value === "string") return value;
     return undefined;
 }
 
