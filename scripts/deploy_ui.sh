@@ -8,6 +8,6 @@ remote="$user@$host"
 destination="$remote:$path"
 
 rsync -avz ui/dist/assets/ "$destination/assets/"
-rsync -avz --delete --exclude assets/ ui/dist/ "$destination/"
-printf -v assets_path "%q" "$path/assets"
-ssh "$remote" "find $assets_path -type f -mtime +14 -delete"
+# An open tab can request an old lazy chunk at any time.
+rsync -avz --delete --exclude assets/ --exclude index.html ui/dist/ "$destination/"
+rsync -avzc ui/dist/index.html "$destination/index.html"
