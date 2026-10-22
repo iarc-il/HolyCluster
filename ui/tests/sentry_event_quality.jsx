@@ -34,6 +34,25 @@ describe("event quality", () => {
         expect(result.fingerprint).toEqual(["react_lazy_secondary", "react_boundary"]);
         expect(result.exception.values[0].value).toBe(message);
     });
+    it("recognizes the deployed React vendor chunk before server symbolication", () => {
+        const frames = [
+            { filename: `${location.origin}/assets/vendor-react-abc123.js`, function: "r" },
+        ];
+        expect(
+            prepareSentryEvent(event(secondary[0], frames, boundary_mechanism)).contexts.diagnostic
+                .category,
+        ).toBe("react_lazy_secondary");
+        const external = [
+            {
+                filename: "https://third-party.example/assets/vendor-react-abc123.js",
+                function: "r",
+            },
+        ];
+        expect(
+            prepareSentryEvent(event(secondary[0], external, boundary_mechanism)).contexts
+                .diagnostic.category,
+        ).toBe("unknown");
+    });
     it("does not classify arbitrary _result errors or app throws as lazy secondaries", () => {
         for (const input of [
             event(secondary[0], [react]),

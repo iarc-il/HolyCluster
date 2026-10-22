@@ -230,9 +230,17 @@ function isLazySecondary(primary, boundary, original_frames) {
     )
         return false;
     const frame = primary.stacktrace?.frames?.at(-1);
-    return (
-        frame?.function === "T" && /(?:^|\/)react\.production\.min\.js$/.test(frame.filename ?? "")
-    );
+    if (frame?.function === "T" && /(?:^|\/)react\.production\.min\.js$/.test(frame.filename ?? ""))
+        return true;
+    // beforeSend runs before server-side source map lookup.
+    if (sourceClass(frame?.filename) !== "same_origin_asset_path") return false;
+    try {
+        return /^\/assets\/vendor-react-[A-Za-z0-9_-]{1,128}\.js$/.test(
+            new URL(frame.filename, globalThis.location?.origin).pathname,
+        );
+    } catch {
+        return false;
+    }
 }
 
 function isExternalCrawlerNoise(event, primary, frames, capture_path, original_frames, original) {
