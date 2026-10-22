@@ -101,13 +101,14 @@ describe("spot subscriptions", () => {
         const view = renderHook(useSpotWebSocket);
         connect(view);
         const newer = { ...spot, time: spot.time + 1, dx_callsign: "K3ABC" };
-        receive([newer, newer], { event: "update" });
+        receive([newer, newer, { ...spot, comment: "Live value" }], { event: "update" });
         ack([spot, spot]);
         ack([spot]);
         expect(view.result.current.raw_spots.map(row => row.dx_callsign)).toEqual([
             "K3ABC",
             "K2ABC",
         ]);
+        expect(view.result.current.raw_spots[1].comment).toBe("Live value");
     });
 
     it("freezes the catch-up cursor while live updates arrive and retries remain bounded", () => {
@@ -196,7 +197,13 @@ describe("spot subscriptions", () => {
     });
 
     it("keeps the cached snapshot and tour buffer while merging an initial batch", () => {
-        websocket.snapshot = [{ ...spot, id: "cached" }];
+        websocket.snapshot = [
+            {
+                ...spot,
+                id: `${spot.time}|${spot.spotter_callsign}|${spot.dx_callsign}`,
+                comment: "Cached value",
+            },
+        ];
         const view = renderHook(useSpotWebSocket);
         connect(view);
         expect(websocket.send.mock.lastCall[1].action).toBe("initial");
@@ -204,6 +211,7 @@ describe("spot subscriptions", () => {
         receive([{ ...spot, dx_callsign: "K3ABC" }], { event: "update" });
         ack([spot]);
         expect(view.result.current.raw_spots).toHaveLength(1);
+        expect(view.result.current.raw_spots[0].comment).toBeUndefined();
         expect(view.result.current.raw_spots.some(row => row.dx_callsign === "K3ABC")).toBe(false);
         act(() => view.result.current.set_spot_buffering(false));
         expect(view.result.current.raw_spots.some(row => row.dx_callsign === "K3ABC")).toBe(true);

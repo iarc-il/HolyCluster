@@ -223,6 +223,7 @@ export default function useSpotWebSocket() {
                 pending.delivered = true;
             }
             void write_live_spot_snapshot(new_spots, observed_at);
+            const cached_ids = new Set(cached_ids_ref.current);
             for (const spot of new_spots) cached_ids_ref.current.delete(spot.id);
 
             if (data.event === "update") {
@@ -234,12 +235,11 @@ export default function useSpotWebSocket() {
 
                 apply_spot_update(new_spots);
             } else {
-                const cached_ids = new Set(cached_ids_ref.current);
                 cached_ids_ref.current.clear();
                 set_spots(previous =>
                     merge_spot_batches(
-                        new_spots,
                         previous.filter(spot => !cached_ids.has(spot.id)),
+                        new_spots,
                     ),
                 );
                 track_latest_spot_time(new_spots);
