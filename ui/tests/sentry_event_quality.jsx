@@ -35,13 +35,16 @@ describe("event quality", () => {
         expect(result.exception.values[0].value).toBe(message);
     });
     it("recognizes the deployed React vendor chunk before server symbolication", () => {
-        const frames = [
-            { filename: `${location.origin}/assets/vendor-react-abc123.js`, function: "r" },
-        ];
-        expect(
-            prepareSentryEvent(event(secondary[0], frames, boundary_mechanism)).contexts.diagnostic
-                .category,
-        ).toBe("react_lazy_secondary");
+        for (const filename of [
+            "/assets/vendor-react-abc123.js",
+            `${location.origin}/assets/vendor-react-abc123.js`,
+        ]) {
+            const frames = [{ filename, function: "r" }];
+            expect(
+                prepareSentryEvent(event(secondary[0], frames, boundary_mechanism)).contexts
+                    .diagnostic.category,
+            ).toBe("react_lazy_secondary");
+        }
         const external = [
             {
                 filename: "https://third-party.example/assets/vendor-react-abc123.js",
@@ -59,6 +62,11 @@ describe("event quality", () => {
             event(secondary[0], [react, app], boundary_mechanism),
             event("_result.default failed", [react], boundary_mechanism),
             event(secondary[0], [], boundary_mechanism),
+            event(
+                secondary[0],
+                [{ filename: "/assets/vendor-other-abc123.js", function: "T" }],
+                boundary_mechanism,
+            ),
         ]) {
             expect(prepareSentryEvent(input).contexts.diagnostic.category).not.toBe(
                 "react_lazy_secondary",
@@ -122,6 +130,23 @@ describe("event quality", () => {
         expect(prepareSentryEvent(input, { originalException: original })).not.toBeNull();
         original.stack = undefined;
         expect(prepareSentryEvent(input, { originalException: original })).not.toBeNull();
+    });
+    it("retains the mixed-source Bytespider incident without claiming external provenance", () => {
+        const input = event(
+            "globalData is not defined",
+            [app, gtm, { filename: "<anonymous>", lineno: 1 }],
+            global_mechanism,
+            { contexts: { browser: { name: "Bytespider" } } },
+        );
+        input.exception.values[0].type = "ReferenceError";
+        const result = prepareSentryEvent(input);
+        expect(result.contexts.diagnostic.provenance).toBe("mixed");
+        expect(result.contexts.diagnostic.script_origins).toEqual([
+            "same_origin_asset_path",
+            "cross_origin_url",
+            "inline_or_unrecognized",
+        ]);
+        expect(result.exception).toEqual(input.exception);
     });
     it("retains filename-less iOS incidents and separates global capture paths", () => {
         for (const message of [
