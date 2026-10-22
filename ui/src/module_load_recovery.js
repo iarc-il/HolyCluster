@@ -35,6 +35,8 @@ export function install_module_load_recovery({
         if (pending || !navigator.onLine) return;
         pending = true;
         const marker = "holycluster_module_reload_target";
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
         try {
             // Storage must work before a navigation can be safe.
             const storage = window.sessionStorage;
@@ -44,7 +46,7 @@ export function install_module_load_recovery({
                 cache: "no-store",
                 credentials: "same-origin",
                 redirect: "error",
-                signal: AbortSignal.timeout(5000),
+                signal: controller.signal,
                 headers: { Accept: "text/html" },
             });
             if (!response.ok || !response.headers.get("content-type")?.includes("text/html"))
@@ -60,6 +62,7 @@ export function install_module_load_recovery({
         } catch {
             // An outage is not evidence that a new build exists.
         } finally {
+            clearTimeout(timeout);
             pending = false;
         }
     }
