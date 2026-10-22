@@ -66,6 +66,7 @@ export function recordBoundaryDiagnostics(scope, value, component_stack) {
         ...error_diagnostics.get(error),
         operation: error_diagnostics.get(error)?.operation ?? "react_boundary",
         boundary: true,
+        component_stack: component_stack ? "present" : "absent",
     };
     error_diagnostics.set(error, evidence);
     if (!scope?.addEventProcessor) return error;
@@ -109,7 +110,7 @@ function errorCategory(message, name) {
         )
     )
         return "dom_tree_mutation";
-    if (/dynamically imported module|Loading (chunk|CSS chunk)/.test(message)) return "module_load";
+    if (/dynamically imported module|Loading (chunk|CSS chunk)|^Importing a module script failed\.$/.test(message)) return "module_load";
     if (/fullscreen/i.test(message)) return "fullscreen";
     if (/^Minified React error #\d+;/.test(message)) return "react_invariant";
     return "unknown";
@@ -137,6 +138,20 @@ function sourceClass(filename) {
     if (/^(?:file:|[A-Z]:\\|\/)/.test(filename)) return "local_or_unrecognized";
     if (/^(?:\.\.\/){0,3}(?:src|node_modules)\//.test(filename)) return "relative_source_path";
     return "inline_or_unrecognized";
+}
+
+function frameProvenance(frames) {
+    const classes = frames.map(frame => sourceClass(frame.filename));
+    const app = classes.some(value =>
+        ["same_origin_asset_path", "same_origin_url", "relative_source_path"].includes(value),
+    );
+    const external = classes.some(value =>
+        ["cross_origin_url", "external_asset_path", "extension"].includes(value),
+    );
+    if (app && external) return "mixed";
+    if (app) return "app_frames";
+    if (external) return "external_frames";
+    return "unknown";
 }
 
 function frameSourceEvidence(exception) {
@@ -306,10 +321,11 @@ export function prepareSentryEvent(event, hint = {}) {
         ),
         script_origins: [...new Set(frames.map(frame => sourceClass(frame.filename)))].slice(0, 5),
         frame_sources: frameSourceEvidence(exception),
+        provenance: frameProvenance(frames),
     };
     const native_name = original?.name ?? primary?.type;
     if (dom_errors.has(native_name)) diagnostic.native_name = native_name;
-    if (!event.fingerprint && ["react_boundary", "unhandled_rejection"].includes(capture_path)) {
+    if (!event.fingerprint && ["react_boundary", "unhandled_rejection", "global_error"].includes(capture_path)) {
         prepared_event.fingerprint = ["{{ default }}", capture_path];
     }
     diagnostic.native_bridge_frames = frames.some(frame =>
