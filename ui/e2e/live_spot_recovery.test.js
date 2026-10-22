@@ -66,24 +66,42 @@ for (const scenario of ["dropped", "delayed", "legacy"]) {
                     type: "spots",
                     event: "initial",
                     spots: [spot(time, "JA1REC")],
-                    subscription_id: request.subscription_id,
-                    subscription_ack: true,
                 };
-                if (requests.length === 1) {
-                    if (scenario === "delayed") {
-                        socket.send(
-                            JSON.stringify({
-                                version: 1,
-                                type: "spots",
-                                event: "update",
-                                spots: [spot(time + 1, "JA2REC")],
-                            }),
-                        );
-                        setTimeout(() => {
-                            socket.send(JSON.stringify(response));
-                            socket.send(JSON.stringify(response));
-                        }, 1800);
-                    }
+                if (requests.length === 1 && scenario !== "delayed") return;
+                if (scenario !== "legacy") {
+                    socket.send(
+                        JSON.stringify({
+                            version: 1,
+                            type: "spots",
+                            event: "subscribed",
+                            subscription_id: request.subscription_id,
+                            subscription_ack: true,
+                        }),
+                    );
+                }
+                if (scenario === "delayed") {
+                    socket.send(
+                        JSON.stringify({
+                            version: 1,
+                            type: "spots",
+                            event: "update",
+                            spots: [spot(time + 1, "JA2REC")],
+                        }),
+                    );
+                    setTimeout(() => {
+                        socket.send(JSON.stringify(response));
+                        socket.send(JSON.stringify(response));
+                    }, 2500);
+                    return;
+                }
+                if (scenario === "legacy") {
+                    socket.send(
+                        JSON.stringify({ version: 1, type: "spots", event: "initial", spots: [] }),
+                    );
+                    setTimeout(() => {
+                        socket.send(JSON.stringify(response));
+                        socket.send(JSON.stringify(response));
+                    }, 2500);
                     return;
                 }
                 socket.send(JSON.stringify(response));
@@ -100,8 +118,8 @@ for (const scenario of ["dropped", "delayed", "legacy"]) {
             await expect(page.getByText("JA2REC", { exact: true })).toBeVisible();
         }
         await page.waitForTimeout(3500);
-        expect(requests).toHaveLength(2);
-        expect(requests[0]).toEqual(requests[1]);
+        expect(requests).toHaveLength(scenario === "delayed" ? 1 : 2);
+        if (scenario !== "delayed") expect(requests[0]).toEqual(requests[1]);
         await expect(page.getByText("JA1REC", { exact: true })).toHaveCount(1);
     });
 }
