@@ -54,7 +54,7 @@ test("recovers an obsolete initial module before the app can start", async ({ pa
     await page.goto("/");
     await expect.poll(counts.documents).toBe(2);
     await expect(page.locator('[data-tour="about-trigger"]')).toBeAttached();
-    expect(counts.probes()).toBe(1);
+    await expect.poll(counts.probes).toBe(2);
 });
 
 for (const [name, options] of [
@@ -90,7 +90,7 @@ test("recovers a failed lazy module once and stops on a broken target build", as
     });
     await page.goto("/addons");
     await expect.poll(() => documents).toBe(2);
-    await expect.poll(() => probes).toBe(2);
+    await expect.poll(() => probes).toBeGreaterThanOrEqual(2);
     await page.waitForTimeout(700);
     expect(documents).toBe(2);
 });

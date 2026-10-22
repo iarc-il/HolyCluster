@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
 
+import BuildUpdate from "@/components/BuildUpdate.jsx";
 import MainContainer from "@/components/MainContainer.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 import { ColorsProvider } from "@/hooks/useColors";
@@ -32,6 +33,7 @@ root.render(
     <React.StrictMode>
         <RouteErrorBoundary>
             <BrowserRouter>
+                <BuildUpdate />
                 <WsProvider>
                     <ProfilesProvider>
                         <Suspense fallback={null}>
