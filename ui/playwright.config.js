@@ -5,6 +5,7 @@ const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
     testDir: "./e2e",
+    testIgnore: "**/integrity/**",
     timeout: 60000,
     fullyParallel: true,
     forbidOnly: Boolean(process.env.CI),

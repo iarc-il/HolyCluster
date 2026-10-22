@@ -5,6 +5,7 @@ import { defineConfig } from "vite";
 import { ctyDxccEntitiesPlugin } from "./scripts/cty_entities.js";
 import { dxccMapChunkName, dxccMapPlugin } from "./scripts/dxcc_map.js";
 import { flagsPlugin } from "./scripts/flags.js";
+import { moduleRecoveryPlugin } from "./scripts/module_recovery.js";
 
 const sentry_options = {
     authToken: process.env.SENTRY_AUTH_TOKEN,
@@ -56,6 +57,7 @@ export default defineConfig(({ mode }) => ({
         ctyDxccEntitiesPlugin(),
         dxccMapPlugin(),
         flagsPlugin(),
+        moduleRecoveryPlugin(),
         react(),
         ...(sentry_upload_enabled ? [sentryVitePlugin(sentry_options)] : []),
     ],

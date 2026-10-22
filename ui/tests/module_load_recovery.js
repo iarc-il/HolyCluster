@@ -1,60 +1,52 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { install_module_load_recovery } from "@/module_load_recovery.js";
 
-function storage() {
-    const values = new Map();
-    return {
-        getItem: key => values.get(key) ?? null,
-        removeItem: key => values.delete(key),
-        setItem: (key, value) => values.set(key, value),
-    };
-}
+afterEach(() => {
+    vi.unstubAllGlobals();
+    sessionStorage.clear();
+});
 
 function preload_error() {
-    return new Event("vite:preloadError", { cancelable: true });
+    const event = new Event("vite:preloadError");
+    event.payload = new TypeError("Importing a module script failed.");
+    return event;
 }
 
 describe("module load recovery", () => {
-    it("reloads once for a failed release", () => {
+    it("does not reload twice into the same target build", async () => {
         const events = new EventTarget();
-        const session = storage();
         const reload = vi.fn();
-        install_module_load_recovery({ events, release: "release-a", reload, storage: session });
-
-        const first = preload_error();
-        events.dispatchEvent(first);
-        const second = preload_error();
-        events.dispatchEvent(second);
-
-        expect(first.defaultPrevented).toBe(true);
-        expect(second.defaultPrevented).toBe(false);
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue({
+                ok: true,
+                headers: new Headers({ "content-type": "text/html" }),
+                text: async () =>
+                    '<meta name="ui-entry" content="/assets/new.js"><script type="module" src="/assets/new.js"></script>',
+            }),
+        );
+        const remove = install_module_load_recovery({ events, entry: "/assets/old.js", reload });
+        events.dispatchEvent(preload_error());
+        await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+        remove();
+        install_module_load_recovery({ events, entry: "/assets/old.js", reload });
+        events.dispatchEvent(preload_error());
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
         expect(reload).toHaveBeenCalledTimes(1);
     });
 
-    it("allows a new release to recover again", () => {
+    it("does not handle unrelated runtime errors", () => {
         const events = new EventTarget();
-        const session = storage();
         const reload = vi.fn();
-        const remove_first = install_module_load_recovery({
-            events,
-            release: "release-a",
-            reload,
-            storage: session,
-        });
-        events.dispatchEvent(preload_error());
-        remove_first();
-
-        install_module_load_recovery({
-            events,
-            release: "release-b",
-            reload,
-            storage: session,
-        });
-        const next_release = preload_error();
-        events.dispatchEvent(next_release);
-
-        expect(next_release.defaultPrevented).toBe(true);
-        expect(reload).toHaveBeenCalledTimes(2);
+        const fetch = vi.fn();
+        vi.stubGlobal("fetch", fetch);
+        install_module_load_recovery({ events, entry: "/assets/current.js", reload });
+        events.dispatchEvent(new Event("error"));
+        const runtime_error = preload_error();
+        runtime_error.payload = new TypeError("e.jsx is not a function");
+        events.dispatchEvent(runtime_error);
+        expect(fetch).not.toHaveBeenCalled();
+        expect(reload).not.toHaveBeenCalled();
     });
 });

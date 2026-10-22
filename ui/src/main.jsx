@@ -14,13 +14,11 @@ import { SpotInteractionProvider } from "@/hooks/useSpotInteraction";
 import { UpdateProvider } from "@/hooks/useUpdate";
 import { WsProvider } from "@/hooks/useWs";
 import "@/index.css";
-import { install_module_load_recovery } from "@/module_load_recovery.js";
 import { initializeSentry } from "@/sentry";
 
 const Addons = lazy(() => import("@/components/addons/Addons"));
 const OmniRigError = lazy(() => import("@/components/OmniRigError.jsx"));
 
-install_module_load_recovery();
 initializeSentry();
 
 const container = document.getElementById("root");
