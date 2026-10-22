@@ -3,8 +3,11 @@ import { continents, modes } from "@/data/filters_data.js";
 import { read_live_spot_snapshot, write_live_spot_snapshot } from "@/utils/live_spot_snapshot.js";
 import { normalize_spot_dxcc_fields } from "@/utils/spot_dxcc.js";
 import { find_zone_number } from "@/utils/zones.js";
+import { addBreadcrumb } from "@sentry/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ReadyState, useWs, useWsMessage } from "./useWs";
+import { ReadyState, useWs } from "./useWs";
+
+let next_subscription_id = 0;
 
 export function normalize_band(band) {
     if (band === 2) return "VHF";
@@ -66,13 +69,24 @@ export function flatten_buffered_spot_batches(spot_batches) {
     return [...spot_batches].reverse().flat();
 }
 
+export function merge_spot_batches(incoming, previous) {
+    const spots = new Map();
+    for (const spot of [...incoming, ...previous]) {
+        if (!spots.has(spot.id)) spots.set(spot.id, spot);
+    }
+    return trim_spots_to_last_hour([...spots.values()]).sort((a, b) => b.time - a.time);
+}
+
 export default function useSpotWebSocket() {
-    const { send, network_state, readyState } = useWs();
+    const { send_now, subscribe, spot_socket_epoch, transport, network_state, readyState } =
+        useWs();
     const [raw_spots, set_spots] = useState(read_live_spot_snapshot);
     const [new_spot_ids, set_new_spot_ids] = useState(new Set());
     const cached_ids_ref = useRef(new Set(raw_spots.map(spot => spot.id)));
 
-    const subscribed_ref = useRef(false);
+    const subscription_ref = useRef(null);
+    const highlight_timer_ref = useRef(null);
+    useEffect(() => () => clearTimeout(highlight_timer_ref.current), []);
     const last_spot_time_ref = useRef(0);
     const is_buffering_spots_ref = useRef(false);
     const buffered_spot_batches_ref = useRef([]);
@@ -91,18 +105,13 @@ export default function useSpotWebSocket() {
             const new_ids = new Set(new_spots.map(spot => spot.id));
             set_new_spot_ids(new_ids);
 
-            setTimeout(() => {
+            clearTimeout(highlight_timer_ref.current);
+            highlight_timer_ref.current = setTimeout(() => {
                 set_new_spot_ids(new Set());
             }, 3000);
 
             set_spots(previous_spots => {
-                // Drop any previously-known spot that the incoming batch also
-                // describes (same content-derived id) before merging — a spot
-                // can legitimately arrive twice (e.g. a reconnect catch-up
-                // racing the live broadcast for the same spot) and without
-                // this it would render as two rows.
-                const deduped_previous = previous_spots.filter(spot => !new_ids.has(spot.id));
-                const merged_spots = trim_spots_to_last_hour([...new_spots, ...deduped_previous]);
+                const merged_spots = merge_spot_batches(new_spots, previous_spots);
                 track_latest_spot_time(merged_spots);
 
                 return merged_spots;
@@ -155,80 +164,146 @@ export default function useSpotWebSocket() {
         return () => clearInterval(timer);
     }, []);
 
-    useEffect(() => {
-        if (readyState !== ReadyState.OPEN) {
-            subscribed_ref.current = false;
-            return;
-        }
-        if (subscribed_ref.current) return;
-
-        subscribed_ref.current = true;
-        send(
-            "spots",
-            last_spot_time_ref.current > 0
-                ? { action: "catch_up", last_time: last_spot_time_ref.current }
-                : { action: "initial" },
-        );
-    }, [readyState, send]);
-
-    useWsMessage("spots", data => {
-        if (!Array.isArray(data.spots) || !["initial", "update"].includes(data.event)) return;
-        const observed_at = Date.now();
-        let new_spots = data.spots
-            .map(spot => {
-                const mode = spot.mode === "DIGITAL" ? "DIGI" : spot.mode;
-                const normalized_spot = {
-                    ...spot,
-                    id: `${spot.time}|${spot.spotter_callsign}|${spot.dx_callsign}`,
-                    mode,
-                    band: normalize_band(spot.band),
-                };
-                return enrich_spot_zones_if_missing(normalize_spot_dxcc_fields(normalized_spot));
-            })
-            .filter(spot => {
-                if (!spot.dx_dxcc_code || !spot.spotter_dxcc_code) {
-                    console.warn("Dropping spot with unknown DXCC code", spot);
-                    return false;
+    const receive_spots = useCallback(
+        data => {
+            if (!Array.isArray(data.spots) || !["initial", "update"].includes(data.event)) return;
+            const pending = subscription_ref.current;
+            if (pending?.active) {
+                if (
+                    data.subscription_ack === true &&
+                    data.subscription_id === pending.request.subscription_id
+                ) {
+                    pending.acknowledged = true;
+                    pending.cancel();
                 }
-                if (!modes.includes(spot.mode)) {
-                    console.warn(`Dropping spot with unknown mode: ${spot.mode}`, spot);
-                    return false;
-                }
-                if (!continents.includes(spot.dx_continent)) {
-                    console.warn(
-                        `Dropping spot with unknown dx_continent: ${spot.dx_continent}`,
-                        spot,
-                    );
-                    return false;
-                }
-                if (!continents.includes(spot.spotter_continent)) {
-                    console.warn(
-                        `Dropping spot with unknown spotter_continent: ${spot.spotter_continent}`,
-                        spot,
-                    );
-                    return false;
-                }
-                return true;
-            });
-
-        new_spots = trim_spots_to_last_hour(new_spots);
-        void write_live_spot_snapshot(new_spots, observed_at);
-        for (const spot of new_spots) cached_ids_ref.current.delete(spot.id);
-
-        if (data.event === "update") {
-            if (is_buffering_spots_ref.current) {
-                buffered_spot_batches_ref.current.push(new_spots);
-                track_latest_spot_time(new_spots);
-                return;
             }
+            const observed_at = Date.now();
+            let new_spots = data.spots
+                .map(spot => {
+                    const mode = spot.mode === "DIGITAL" ? "DIGI" : spot.mode;
+                    const normalized_spot = {
+                        ...spot,
+                        id: `${spot.time}|${spot.spotter_callsign}|${spot.dx_callsign}`,
+                        mode,
+                        band: normalize_band(spot.band),
+                    };
+                    return enrich_spot_zones_if_missing(
+                        normalize_spot_dxcc_fields(normalized_spot),
+                    );
+                })
+                .filter(spot => {
+                    if (!spot.dx_dxcc_code || !spot.spotter_dxcc_code) {
+                        console.warn("Dropping spot with unknown DXCC code", spot);
+                        return false;
+                    }
+                    if (!modes.includes(spot.mode)) {
+                        console.warn(`Dropping spot with unknown mode: ${spot.mode}`, spot);
+                        return false;
+                    }
+                    if (!continents.includes(spot.dx_continent)) {
+                        console.warn(
+                            `Dropping spot with unknown dx_continent: ${spot.dx_continent}`,
+                            spot,
+                        );
+                        return false;
+                    }
+                    if (!continents.includes(spot.spotter_continent)) {
+                        console.warn(
+                            `Dropping spot with unknown spotter_continent: ${spot.spotter_continent}`,
+                            spot,
+                        );
+                        return false;
+                    }
+                    return true;
+                });
 
-            apply_spot_update(new_spots);
-        } else {
-            cached_ids_ref.current.clear();
-            set_spots(new_spots);
-            track_latest_spot_time(new_spots);
+            new_spots = trim_spots_to_last_hour(new_spots);
+            if (pending?.active && data.subscription_id == null && new_spots.length > 0) {
+                // Live traffic proves delivery, not completion of the frozen catch-up.
+                pending.delivered = true;
+            }
+            void write_live_spot_snapshot(new_spots, observed_at);
+            for (const spot of new_spots) cached_ids_ref.current.delete(spot.id);
+
+            if (data.event === "update") {
+                if (is_buffering_spots_ref.current) {
+                    buffered_spot_batches_ref.current.push(new_spots);
+                    track_latest_spot_time(new_spots);
+                    return;
+                }
+
+                apply_spot_update(new_spots);
+            } else {
+                const cached_ids = new Set(cached_ids_ref.current);
+                cached_ids_ref.current.clear();
+                set_spots(previous =>
+                    merge_spot_batches(
+                        new_spots,
+                        previous.filter(spot => !cached_ids.has(spot.id)),
+                    ),
+                );
+                track_latest_spot_time(new_spots);
+            }
+        },
+        [apply_spot_update, track_latest_spot_time],
+    );
+
+    useEffect(() => {
+        // The listener must exist before a synchronous response to send_now.
+        const unsubscribe = subscribe("spots", receive_spots);
+        if (readyState !== ReadyState.OPEN || spot_socket_epoch == null) {
+            subscription_ref.current = null;
+            return unsubscribe;
         }
-    });
+        let pending = subscription_ref.current;
+        if (pending?.epoch !== spot_socket_epoch || pending?.transport !== transport) {
+            pending = {
+                epoch: spot_socket_epoch,
+                transport,
+                request: {
+                    ...(last_spot_time_ref.current > 0
+                        ? { action: "catch_up", last_time: last_spot_time_ref.current }
+                        : { action: "initial" }),
+                    subscription_id: `${spot_socket_epoch}:${++next_subscription_id}`,
+                },
+                attempts: 0,
+                acknowledged: false,
+                delivered: false,
+            };
+            subscription_ref.current = pending;
+        }
+        let timer;
+        pending.active = true;
+        pending.cancel = () => clearTimeout(timer);
+        const attempt = () => {
+            if (!pending.active || pending.acknowledged) return;
+            const sent = send_now("spots", pending.request, pending.epoch);
+            pending.attempts += 1;
+            if ([1, 2, 5].includes(pending.attempts)) {
+                addBreadcrumb({
+                    category: "spots.subscription",
+                    data: {
+                        transport,
+                        action: pending.request.action,
+                        attempt: pending.attempts,
+                        sent,
+                        delivered: pending.delivered,
+                    },
+                });
+            }
+            if (!pending.active || pending.acknowledged) return;
+            const delay = pending.delivered
+                ? 30000
+                : Math.min(1000 * 2 ** Math.min(pending.attempts - 1, 5), 30000);
+            timer = setTimeout(attempt, Math.min(30000, delay * (0.8 + Math.random() * 0.4)));
+        };
+        attempt();
+        return () => {
+            pending.active = false;
+            pending.cancel();
+            unsubscribe();
+        };
+    }, [readyState, spot_socket_epoch, transport, subscribe, send_now, receive_spots]);
 
     return { raw_spots, new_spot_ids, network_state, set_spot_buffering };
 }
