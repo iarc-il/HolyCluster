@@ -16,17 +16,20 @@ pub struct Args {
     /// backend host:port (overrides dev_server)
     #[argh(option)]
     pub backend: Option<String>,
-    /// run with dummy radio instead of real radio
-    #[argh(switch)]
+    // Older releases preserve launch arguments across self-update.
+    /// use the legacy dummy radio override
+    #[argh(switch, hidden_help)]
     pub dummy: bool,
-    /// run with dummy rotator instead of real rotator
-    #[argh(switch)]
+    // Older releases preserve launch arguments across self-update.
+    /// use the legacy dummy rotator override
+    #[argh(switch, hidden_help)]
     pub dummy_rotator: bool,
     /// do not open a browser automatically on startup
     #[argh(switch)]
     pub no_browser: bool,
-    /// search for local ui dist dir instead of using remote server
-    #[argh(switch)]
+    // Older releases preserve launch arguments across self-update.
+    /// accepted legacy local UI option
+    #[argh(switch, hidden_help)]
     pub local_ui: bool,
     /// port for local connection
     #[argh(option)]
@@ -36,7 +39,7 @@ pub struct Args {
     #[argh(option, hidden_help)]
     pub port: Option<u16>,
     /// closes the running instance
-    #[argh(switch)]
+    #[argh(switch, hidden_help)]
     pub close: bool,
     /// internal detached update helper plan
     #[argh(option, hidden_help)]
@@ -96,6 +99,28 @@ mod tests {
 
         let legacy = Args::from_args(&["catserver"], &["--port", "41235"]).unwrap();
         assert_eq!(server_config(&legacy).unwrap().local_port, 41235);
+    }
+
+    #[test]
+    fn help_hides_compatibility_and_internal_options() {
+        let Err(help) = Args::from_args(&["catserver"], &["--help"]) else {
+            panic!("help must exit argument parsing");
+        };
+        for visible in ["--dev-server", "--backend", "--no-browser", "--listen-port"] {
+            assert!(help.output.contains(visible));
+        }
+        for hidden in [
+            "--dummy",
+            "--dummy-rotator",
+            "--local-ui",
+            "--port",
+            "--close",
+            "--apply-update",
+            "--resume-update",
+            "--elevate-update",
+        ] {
+            assert!(!help.output.contains(&format!("  {hidden}")));
+        }
     }
 
     #[test]
