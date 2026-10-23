@@ -20,6 +20,7 @@ pub(crate) type RotatorFactory = DeviceFactory<Box<dyn Rotator>>;
 struct ConnectionTrace {
     outage_started: Option<Instant>,
     failed_attempts: u32,
+    origin: &'static str,
     initialization: Option<serde_json::Value>,
     disconnect: Option<serde_json::Value>,
 }
@@ -27,7 +28,9 @@ struct ConnectionTrace {
 impl ConnectionTrace {
     fn disconnected(&mut self, selected: &ActiveRotatorBackend, error: &RotatorError) {
         if self.disconnect.is_none() {
-            self.disconnect = Some(serde_json::json!({"origin": error.operation, "error": error}));
+            self.disconnect = Some(
+                serde_json::json!({"origin": self.origin, "operation": error.operation, "error": error}),
+            );
         }
         self.failed_attempts += 1;
         if self.outage_started.is_some() {
@@ -115,12 +118,14 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
         let command = match received {
             Ok(command) => command,
             Err(mpsc::RecvTimeoutError::Timeout) => {
+                connection_trace.origin = "automatic_retry";
                 let connected = snapshot
                     .read()
                     .unwrap_or_else(|error| error.into_inner())
                     .connection
                     == RotatorConnectionState::Connected;
                 if connected {
+                    connection_trace.origin = "status_poll";
                     let success = rotator.as_mut().is_some_and(|rotator| {
                         publish_status(&snapshot, rotator.status(), &mut connection_trace).is_ok()
                     });
@@ -139,6 +144,16 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                 continue;
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        };
+        connection_trace.origin = match &command {
+            Command::Replace { .. } => "replacement",
+            Command::Test { .. } => "test_restore",
+            Command::Retry(_) => "manual_retry",
+            Command::SetAzimuth(..) => "set_azimuth",
+            Command::Stop(_) => "stop",
+            Command::Poll(_) => "status_poll",
+            Command::Clear { .. } => "clear",
+            Command::Shutdown(_) => "shutdown",
         };
         match command {
             Command::Clear {
@@ -335,6 +350,7 @@ fn actor_context(
 ) -> serde_json::Value {
     let state = snapshot.read().unwrap_or_else(|e| e.into_inner());
     serde_json::json!({
+        "origin": trace.origin,
         "pre_state": crate::tracing_setup::rotator_state(&state),
         "backend_object_present": backend_object_present,
         "initialization": trace.initialization, "disconnect": trace.disconnect,
@@ -355,6 +371,7 @@ fn replace_from_factory(
     let mut candidate = factory();
     let init = candidate.init();
     connection_trace.initialization = Some(serde_json::json!({
+        "origin": connection_trace.origin,
         "outcome": if init.is_ok() { "success" } else { "failure" },
         "error": init.as_ref().err(),
     }));

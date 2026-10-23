@@ -740,4 +740,5 @@ fn rotator_command_envelope_retains_request_state_and_retry_evidence() {
     assert_eq!(fields["post_state"]["connection"], "Disconnected");
     assert_eq!(fields["actor_context"]["backend_object_present"], false);
     assert_eq!(fields["actor_context"]["failed_attempts"], 0);
+    assert_eq!(fields["actor_context"]["origin"], "set_azimuth");
 }
