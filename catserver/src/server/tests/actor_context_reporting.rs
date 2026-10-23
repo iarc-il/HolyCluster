@@ -327,9 +327,8 @@ fn backend_call_evidence_distinguishes_targets_and_resolved_modes() {
                 .is_some_and(|version| !version.is_empty())
         );
         assert!(
-            report["contexts"]["Rust Tracing Fields"]["error_summary"]
-                .as_str()
-                .unwrap()
+            evidence["error_chain"]
+                .to_string()
                 .contains(&format!("{operation} failed with code {code}:"))
         );
     }
@@ -366,19 +365,21 @@ fn actor_context_distinguishes_preexisting_and_operation_caused_disconnect() {
     assert_eq!(reports.len(), 2);
     for (report, before) in reports.iter().zip(["connected", "disconnected"]) {
         let fields = &report["contexts"]["Rust Tracing Fields"];
-        assert_eq!(fields["device_connected"], false);
+        assert!(fields.get("device_connected").is_none());
+        let evidence = evidence(report);
         assert!(
-            fields["error_summary"]
-                .as_str()
-                .unwrap()
+            evidence["error_chain"]
+                .to_string()
                 .contains("Hamlib rig_set_mode failed with code -8:")
         );
-        let evidence = evidence(report);
         assert_eq!(evidence["post_state"]["connection"], "Disconnected");
         let pre = &evidence["execution_state"];
         assert_eq!(pre["application_connection_state"], before, "{evidence}");
         assert_eq!(pre["selected_backend"], "hamlib");
-        assert_eq!(pre["config"]["rig"]["model_id"], fields["model_id"]);
+        assert_eq!(
+            pre["config"]["rig"]["model_id"],
+            evidence["post_state"]["config"]["rig"]["model_id"]
+        );
         assert_eq!(pre["backend_object_present"], true);
         assert_eq!(pre["initialization"]["outcome"], "succeeded");
         if before == "connected" {

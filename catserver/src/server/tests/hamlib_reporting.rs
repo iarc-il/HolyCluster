@@ -110,15 +110,24 @@ fn hamlib_native_codes_reach_the_session_envelope() {
         );
         let fields = &event["contexts"]["Rust Tracing Fields"];
         assert_eq!(fields["action"], "SetModeAndFreq");
-        let summary = fields["error_summary"].as_str().unwrap();
+        for field in ["model_id", "device_connected", "error_summary"] {
+            assert!(fields.get(field).is_none());
+        }
+        let evidence: serde_json::Value =
+            serde_json::from_str(fields["failure_evidence"].as_str().unwrap()).unwrap();
+        let summary = evidence["error_chain"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|cause| cause.as_str().unwrap())
+            .collect::<Vec<_>>()
+            .join("; ");
         assert!(summary.contains("set mode"), "{summary}");
         assert!(
             summary.contains(&format!("Hamlib rig_set_mode failed with code {code}:")),
             "{summary}"
         );
         assert!(!summary.contains(&format!("code {}:", if code == -5 { -8 } else { -5 })));
-        let evidence: serde_json::Value =
-            serde_json::from_str(fields["failure_evidence"].as_str().unwrap()).unwrap();
         assert_eq!(evidence["stage"], "radio_command");
         assert!(
             evidence["error_chain"]

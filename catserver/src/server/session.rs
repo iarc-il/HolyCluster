@@ -131,7 +131,6 @@ async fn handle_ws_socket(
                         Ok(None) => {}
                         Err(error) => {
                             let snapshot = radio_manager.snapshot();
-                            let model_id = snapshot.config.rig.as_ref().map(|rig| rig.model_id.as_str()).unwrap_or("");
                             let unsupported = error.chain().any(|cause| {
                                 cause.downcast_ref::<crate::rig::RadioOperationError>().is_some_and(|error| {
                                     error.kind == crate::rig::RadioOperationErrorKind::UnsupportedMode
@@ -139,13 +138,13 @@ async fn handle_ws_socket(
                             });
                             if unsupported {
                                 let evidence = crate::tracing_setup::radio_evidence(&error, &before_command, &snapshot, text.as_ref());
-                                tracing::warn!(target: "catserver::diagnostic", %error, action, model_id, failure_evidence = %serde_json::json!(evidence), "Radio mode rejected");
+                                tracing::warn!(target: "catserver::diagnostic", %error, action, failure_evidence = %serde_json::json!(evidence), "Radio mode rejected");
                                 client_sender.send(radio::message("command_result", &serde_json::json!({
                                     "action": action, "ok": false, "reason": "unsupported_mode",
                                     "mode": evidence.get("request").and_then(|request| request.get("mode"))
                                 }))?).await?;
                             } else {
-                                tracing::error!(%error, action, model_id, device_connected = snapshot.last_status.status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::radio_evidence(&error, &before_command, &snapshot, text.as_ref())), "Failed to process radio WebSocket message");
+                                tracing::error!(%error, action, failure_evidence = %serde_json::json!(crate::tracing_setup::radio_evidence(&error, &before_command, &snapshot, text.as_ref())), "Failed to process radio WebSocket message");
                             }
                         }
                     }
@@ -158,7 +157,7 @@ async fn handle_ws_socket(
                     match rotator::process(text.to_string(), &rotator_manager, &rotator_configuration).await {
                         Ok(Some(response)) => client_sender.send(response).await?,
                         Ok(None) => {}
-                        Err(error) => tracing::error!(%error, action, model_id = %crate::tracing_setup::rotator_model_id(&rotator_manager), device_connected = rotator_manager.status().status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::rotator_evidence(&error, &before, &rotator_manager.snapshot(), text.as_ref())), "Failed to process rotator WebSocket message"),
+                        Err(error) => tracing::error!(%error, action, failure_evidence = %serde_json::json!(crate::tracing_setup::rotator_evidence(&error, &before, &rotator_manager.snapshot(), text.as_ref())), "Failed to process rotator WebSocket message"),
                     }
                     client_sender.send(rotator::status_message(&rotator_manager.status())?).await?;
                 },

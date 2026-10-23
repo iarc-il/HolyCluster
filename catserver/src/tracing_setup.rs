@@ -173,23 +173,6 @@ pub(crate) fn websocket_action(message: &str) -> String {
         .unwrap_or_else(|| "UnknownAction".to_owned())
 }
 
-pub(crate) fn rotator_model_id(rotator: &crate::rotator_manager::RotatorManager) -> String {
-    match rotator.snapshot().config {
-        crate::rotator_config::RotatorConfig::Hamlib { hamlib } => {
-            format!("hamlib:{}", hamlib.model_id)
-        }
-        crate::rotator_config::RotatorConfig::Unconfigured => String::new(),
-    }
-}
-
-pub(crate) fn error_summary(error: &anyhow::Error) -> String {
-    error
-        .chain()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("; ")
-}
-
 type Evidence = std::collections::BTreeMap<String, serde_json::Value>;
 
 fn diagnostic_io_summary(kind: std::io::ErrorKind, code: i32) -> String {
@@ -477,10 +460,6 @@ mod tests {
         assert_eq!(websocket_action("invalid json"), "UnknownAction");
         let error = anyhow::anyhow!("previously unknown library error: device=/dev/ttyUSB0")
             .context("operation failed with code 1603");
-        assert_eq!(
-            error_summary(&error),
-            "operation failed with code 1603; previously unknown library error: device=/dev/ttyUSB0"
-        );
         let evidence = failure_evidence(&error, "new_stage");
         assert_eq!(evidence["stage"], "new_stage");
         assert_eq!(
