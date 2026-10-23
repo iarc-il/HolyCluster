@@ -145,8 +145,25 @@ pub fn run(args: Args) -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug)]
+pub(crate) struct InstanceContactFailure {
+    pub(crate) evidence: serde_json::Value,
+    error: anyhow::Error,
+}
+
+impl std::fmt::Display for InstanceContactFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("existing instance contact failed")
+    }
+}
+
+impl std::error::Error for InstanceContactFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.error.as_ref())
+    }
+}
+
 pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &str) -> Result<()> {
-    use anyhow::Context;
     use serde_json::json;
     let started = Instant::now();
     let deadline = started + Duration::from_secs(3);
@@ -195,8 +212,13 @@ pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &st
         }
     })();
     let evidence = json!({"action": action, "elapsed_ms": started.elapsed().as_millis() as u64, "attempts": attempts});
-    tracing::info!(target: "catserver::diagnostic", evidence = %evidence, success = result.is_ok(), "Existing instance contact completed");
-    result.with_context(|| format!("existing instance contact: {evidence}"))
+    match result {
+        Ok(()) => {
+            tracing::info!(target: "catserver::diagnostic", evidence = %evidence, "Existing instance contact completed");
+            Ok(())
+        }
+        Err(error) => Err(InstanceContactFailure { evidence, error }.into()),
+    }
 }
 
 fn radio(config: RadioConfig, use_dummy: bool) -> Result<RadioManager> {
@@ -320,7 +342,9 @@ mod singleton_diagnostic_tests {
         });
         let error = super::contact_existing_instance(&port_file, "open").unwrap_err();
         server.join().unwrap();
-        let text = format!("{error:#}");
+        let fields = crate::tracing_setup::failure_evidence(&error, "instance_contact");
+        let text = fields["instance_contact"].to_string();
+        assert!(!format!("{error:#}").contains("attempts"));
         assert!(!text.contains("owner_"));
         for expected in ["attempts", "elapsed_ms", "503", "open", "port_file_age_ms"] {
             assert!(text.contains(expected), "missing {expected}: {text}");

@@ -324,6 +324,11 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
             } else {
                 "network_request"
             }
+        } else if let Some(contact) =
+            cause.downcast_ref::<crate::application::InstanceContactFailure>()
+        {
+            fields.insert("instance_contact".into(), contact.evidence.clone());
+            "instance_contact"
         } else if let Some(browser) = cause.downcast_ref::<crate::desktop::BrowserLaunchError>() {
             fields.insert("browser".into(), browser.evidence.clone());
             "browser_launcher"
