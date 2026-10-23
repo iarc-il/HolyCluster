@@ -145,28 +145,95 @@ pub fn run(args: Args) -> Result<()> {
 }
 
 pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &str) -> Result<()> {
-    let deadline = Instant::now() + Duration::from_secs(3);
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_millis(500))
-        .build()?;
-    loop {
-        if let Ok(port) = instance_port::read(port_file) {
-            match client
-                .post(format!("http://127.0.0.1:{port}/{action}"))
-                .send()
-            {
-                Ok(response) => {
-                    response.error_for_status()?;
-                    return Ok(());
+    use anyhow::Context;
+    use serde_json::json;
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs(3);
+    let mut attempts = Vec::new();
+    let result = (|| -> Result<()> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_millis(500))
+            .build()?;
+        loop {
+            let mut attempt = json!({
+                "attempt": attempts.len() + 1,
+                "elapsed_ms": started.elapsed().as_millis() as u64,
+                "instance": crate::diagnostics::instance_evidence(port_file),
+            });
+            match instance_port::read(port_file) {
+                Ok(port) => {
+                    attempt["port"] = port.into();
+                    match client
+                        .post(format!("http://127.0.0.1:{port}/{action}"))
+                        .send()
+                    {
+                        Ok(response) => {
+                            attempt["http_status"] = response.status().as_u16().into();
+                            attempts.push(attempt);
+                            response.error_for_status()?;
+                            return Ok(());
+                        }
+                        Err(error) => {
+                            attempt["connect_error"] = error.to_string().into();
+                            attempts.push(attempt);
+                            if Instant::now() >= deadline {
+                                return Err(error.into());
+                            }
+                        }
+                    }
                 }
-                Err(error) if Instant::now() >= deadline => return Err(error.into()),
-                Err(_) => {}
+                Err(error) => {
+                    attempt["read_error"] = format!("{error:#}").into();
+                    attempts.push(attempt);
+                }
             }
+            if Instant::now() >= deadline {
+                anyhow::bail!("running catserver did not publish a reachable local port");
+            }
+            std::thread::sleep(Duration::from_millis(100));
         }
-        if Instant::now() >= deadline {
-            anyhow::bail!("running catserver did not publish a reachable local port");
+    })();
+    let evidence = json!({"action": action, "elapsed_ms": started.elapsed().as_millis() as u64, "attempts": attempts});
+    tracing::info!(target: "catserver::diagnostic", evidence = %evidence, success = result.is_ok(), "Existing instance contact completed");
+    result.with_context(|| format!("existing instance contact: {evidence}"))
+}
+
+#[cfg(test)]
+mod singleton_diagnostic_tests {
+    #[test]
+    fn failed_contact_retains_http_attempt_and_owner_evidence() {
+        use std::io::{Read, Write};
+        let directory = tempfile::tempdir().unwrap();
+        let port_file = directory.path().join("instance-port");
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        crate::instance_port::publish(&port_file, listener.local_addr().unwrap().port()).unwrap();
+        std::fs::write(
+            directory.path().join("instance-owner.json"),
+            r#"{"pid":123,"lifecycle_phase":"serving"}"#,
+        )
+        .unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 4096];
+            stream.read(&mut request).unwrap();
+            stream
+                .write_all(b"HTTP/1.1 503 Unavailable\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        });
+        let error = super::contact_existing_instance(&port_file, "open").unwrap_err();
+        server.join().unwrap();
+        let text = format!("{error:#}");
+        for expected in [
+            "attempts",
+            "owner_state",
+            "123",
+            "elapsed_ms",
+            "503",
+            "open",
+            "port_file_age_ms",
+        ] {
+            assert!(text.contains(expected), "missing {expected}: {text}");
         }
-        std::thread::sleep(Duration::from_millis(100));
     }
 }
 
