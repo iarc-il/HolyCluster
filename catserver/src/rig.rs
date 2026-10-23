@@ -101,6 +101,8 @@ pub struct RadioDisconnectContext {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RadioActorContext {
+    pub config: crate::radio_config::RadioConfig,
+    pub last_status: Status,
     pub application_connection_state: &'static str,
     pub configuration_present: bool,
     pub selected_backend: &'static str,

@@ -310,6 +310,8 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
                 fields.insert(
                     "pre_operation".into(),
                     serde_json::json!({
+                        "config": context.config,
+                        "last_status": context.last_status,
                         "application_connection_state": context.application_connection_state,
                         "configuration_present": context.configuration_present,
                         "selected_backend": context.selected_backend,

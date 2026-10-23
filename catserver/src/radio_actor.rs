@@ -229,6 +229,8 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 let actor_context = {
                     let state = snapshot.read().unwrap_or_else(|error| error.into_inner());
                     RadioActorContext {
+                        config: state.config.clone(),
+                        last_status: state.last_status.clone(),
                         application_connection_state: match state.connection {
                             ConnectionState::Connected => "connected",
                             ConnectionState::Disconnected => "disconnected",

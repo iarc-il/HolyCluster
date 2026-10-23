@@ -595,6 +595,7 @@ async fn actor_context_stays_with_result_across_queued_replacement() {
     let native = net_config(backend.address());
     let config = configured(&native);
     let original_model = config.rig.as_ref().unwrap().model_id.clone();
+    let original_config = config.clone();
     let radio = RadioManager::new(config.clone(), selected()).unwrap();
     radio
         .replace(config, selected(), move || {
@@ -647,6 +648,8 @@ async fn actor_context_stays_with_result_across_queued_replacement() {
         "{evidence:?}"
     );
     assert_eq!(pre["model_id"], original_model);
+    assert_eq!(pre["config"], serde_json::json!(original_config));
+    assert_eq!(pre["last_status"]["freq"], 7_100_000);
     assert_eq!(pre["selected_backend"], "hamlib");
     assert_eq!(pre["configuration_present"], true);
     assert_eq!(pre["backend_object_present"], true);
