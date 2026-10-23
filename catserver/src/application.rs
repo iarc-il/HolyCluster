@@ -35,6 +35,7 @@ pub fn run(args: Args) -> Result<()> {
     if let Some(plan) = args.apply_update.as_deref() {
         return crate::updater::run_helper(plan);
     }
+    crate::diagnostics::phase("singleton_acquisition");
     let instance = SingleInstance::new(INSTANCE_NAME)?;
     // single-instance's Linux socket must not escape into the browser process.
     #[cfg(target_os = "linux")]
@@ -55,6 +56,8 @@ pub fn run(args: Args) -> Result<()> {
         }
         return contact_existing_instance(&port_file, path);
     }
+    crate::diagnostics::own(&port_file);
+    crate::diagnostics::phase("loading_configuration");
     instance_port::clear(&port_file)?;
     if args.close {
         tracing::warn!("No running instance, not closing");
@@ -110,7 +113,7 @@ pub fn run(args: Args) -> Result<()> {
                 restart,
             );
             if let Err(error) = &result {
-                tracing::error!(?error, "Singleton instance failed");
+                tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(error, "singleton")), "Singleton instance failed");
                 let _ = quit_sender.send(UserEvent::Quit);
             }
             result
@@ -129,11 +132,13 @@ pub fn run(args: Args) -> Result<()> {
             Err(anyhow::anyhow!("Singleton thread panicked: {message}"))
         }
     };
+    crate::diagnostics::phase("shutdown");
     instance_port::clear(&port_file)?;
     let shutdown_reason = result?;
     // Keep singleton ownership while Linux prepares and activates the update.
     // Successful exec releases the close-on-exec lock; failed exec retains it
     // until rollback has completed. Windows helpers still wait for parent exit.
+    crate::diagnostics::phase("update_activation");
     crate::updater::exec_pending_update(shutdown_reason)?;
     drop(instance);
     Ok(())
@@ -204,6 +209,7 @@ async fn run_singleton(
     no_browser: bool,
     restart: Option<crate::updater::RestartContext>,
 ) -> Result<UserEvent> {
+    crate::diagnostics::phase("radio_initialization");
     let snapshot = radio.snapshot();
     let selected = snapshot.selected.clone();
     let factory = radio_factory::factory(snapshot.config.clone(), selected.clone());
@@ -212,6 +218,7 @@ async fn run_singleton(
         .await?;
     let snapshot = radio.snapshot();
     tracing::info!(?snapshot.connection, ?snapshot.selected, "Radio startup completed");
+    crate::diagnostics::phase("rotator_initialization");
     let active_rotator_config = rotator.snapshot().config;
     if use_dummy_rotator {
         rotator
@@ -239,6 +246,7 @@ async fn run_singleton(
     let shutdown_radio = radio.clone();
     let shutdown_rotator = rotator.clone();
     let silent = restart.is_some() || no_browser;
+    crate::diagnostics::phase("server_binding");
     let building =
         Server::build_server(sender, radio, rotator, server_config, use_local_ui, restart);
     tokio::pin!(building);
@@ -254,6 +262,8 @@ async fn run_singleton(
     };
     let local_port = server.local_port()?;
     instance_port::publish(&instance_port::path()?, local_port)?;
+    crate::diagnostics::port(local_port);
+    crate::diagnostics::phase("serving");
     if !silent && let Err(error) = open_browser(local_port) {
         tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "browser_startup")), "Failed to open browser on startup");
     }
@@ -271,6 +281,7 @@ async fn run_singleton(
     });
     tracing::info!("Running webapp");
     let result = server.run_server().await;
+    crate::diagnostics::phase("device_shutdown");
     shutdown_radio.shutdown().await?;
     shutdown_rotator.shutdown().await?;
     result

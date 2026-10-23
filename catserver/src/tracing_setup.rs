@@ -120,7 +120,15 @@ pub(crate) fn sentry_options(dsn: Option<&str>) -> Option<ClientOptions> {
         before_breadcrumb: Some(Arc::new(move |breadcrumb| {
             breadcrumb_redactions.breadcrumb(breadcrumb)
         })),
-        before_send: Some(Arc::new(move |event| redactions.event(event))),
+        before_send: Some(Arc::new(move |mut event| {
+            if let serde_json::Value::Object(context) = crate::diagnostics::context() {
+                event.contexts.insert(
+                    "catserver_runtime".into(),
+                    sentry::protocol::Context::Other(context.into_iter().collect()),
+                );
+            }
+            redactions.event(event)
+        })),
         // The SDK also joins its worker on drop; this is not a total exit deadline.
         shutdown_timeout: Duration::from_secs(2),
         transport: Some(Arc::new(move |options: &ClientOptions| {
@@ -534,6 +542,7 @@ mod tests {
         assert_eq!(event.release.as_deref(), Some(env!("VERSION")));
         assert!(event.server_name.is_none());
         assert!(event.contexts.contains_key("os"));
+        assert!(event.contexts.contains_key("catserver_runtime"));
         let serialized = serde_json::to_string(event).unwrap();
         assert!(serialized.contains("1603"));
         assert!(serialized.contains("unknown diagnostic value"));
