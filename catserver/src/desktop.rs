@@ -31,7 +31,7 @@ fn capture(mut file: std::fs::File) -> (String, Option<String>) {
         .seek(SeekFrom::Start(0))
         .and_then(|_| file.take(16 * 1024).read_to_end(&mut bytes));
     (
-        String::from_utf8_lossy(&bytes).into_owned(),
+        crate::diagnostics::payload(&bytes),
         result.err().map(|error| error.to_string()),
     )
 }

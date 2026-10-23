@@ -126,6 +126,16 @@ fn publish_owner(state: &State) {
     }
 }
 
+pub(crate) fn payload(bytes: &[u8]) -> String {
+    let mut text = String::from_utf8_lossy(bytes).into_owned();
+    let mut end = text.len().min(16 * 1024);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    text.truncate(end);
+    text
+}
+
 pub(crate) fn instance_evidence(port_file: &std::path::Path) -> Value {
     let metadata = std::fs::metadata(port_file);
     let owner = std::fs::read_to_string(port_file.with_file_name("instance-owner.json"));

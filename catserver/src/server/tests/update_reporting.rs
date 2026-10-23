@@ -86,7 +86,7 @@ async fn exercise_failure(case: &'static str) {
             } else {
                 assert_eq!(request.uri().path(), "/artifact");
                 if case == "artifact_http" {
-                    Response::builder().status(503).header("x-request-id", "artifact-trace").body(Body::from("x".repeat(20 * 1024))).unwrap()
+                    Response::builder().status(503).header("x-request-id", "artifact-trace").body(Body::from(vec![0xff; 20 * 1024])).unwrap()
                 } else {
                     Response::new(Body::from(bytes.as_slice()))
                 }
@@ -300,13 +300,13 @@ fn update_failures_retain_the_failing_boundary_in_the_envelope() {
         ) {
             assert_eq!(evidence["http_status"], 503, "{case}");
             assert_eq!(evidence["http"]["method"], "GET", "{case}");
-            assert_eq!(
-                evidence["http"]["failed_response_body"]
-                    .as_str()
-                    .unwrap()
-                    .len(),
-                16 * 1024,
-                "{case}"
+            let body_length = evidence["http"]["failed_response_body"]
+                .as_str()
+                .unwrap()
+                .len();
+            assert!(
+                (16 * 1024 - 3..=16 * 1024).contains(&body_length),
+                "{case}: {body_length}"
             );
             assert!(
                 evidence["http"]["response_headers"]
