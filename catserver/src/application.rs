@@ -114,7 +114,7 @@ pub fn run(args: Args) -> Result<()> {
                 restart,
             );
             if let Err(error) = &result {
-                tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(error, "singleton")), "Singleton instance failed");
+                tracing::error!(error = %crate::error_format::diagnostic(error), failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(error, "singleton")), "Singleton instance failed");
                 let _ = quit_sender.send(UserEvent::Quit);
             }
             result
@@ -301,7 +301,7 @@ async fn run_singleton(
     instance_port::publish(&instance_port::path()?, local_port)?;
     crate::diagnostics::phase("serving");
     if !silent && let Err(error) = open_browser(local_port, "startup") {
-        tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "browser_startup")), "Failed to open browser on startup");
+        tracing::error!(error = %crate::error_format::diagnostic(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "browser_startup")), "Failed to open browser on startup");
     }
     tokio::spawn(async move {
         while let Ok(event) = receiver.recv().await {
@@ -309,7 +309,7 @@ async fn run_singleton(
                 UserEvent::Quit | UserEvent::RestartForUpdate => break,
                 UserEvent::OpenBrowser(origin) => {
                     if let Err(error) = open_browser(local_port, origin) {
-                        tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "browser_user_event")), "Failed to open browser from user event");
+                        tracing::error!(error = %crate::error_format::diagnostic(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "browser_user_event")), "Failed to open browser from user event");
                     }
                 }
             }
@@ -342,6 +342,15 @@ mod singleton_diagnostic_tests {
         });
         let error = super::contact_existing_instance(&port_file, "open").unwrap_err();
         server.join().unwrap();
+        let diagnostic = crate::error_format::diagnostic(&error);
+        assert!(diagnostic.contains("503"));
+        assert!(!diagnostic.contains("existing instance contact failed"));
+        assert!(
+            error
+                .chain()
+                .any(|cause| cause.is::<super::InstanceContactFailure>())
+        );
+        assert!(error.chain().any(|cause| cause.is::<reqwest::Error>()));
         let fields = crate::tracing_setup::failure_evidence(&error, "instance_contact");
         let text = fields["instance_contact"].to_string();
         assert!(!format!("{error:#}").contains("attempts"));

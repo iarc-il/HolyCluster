@@ -163,12 +163,13 @@ fn failed_status(
         None => "NotApplicable",
     };
     let os_error_code = io_error.and_then(std::io::Error::raw_os_error).unwrap_or(0);
+    let diagnostic = crate::error_format::diagnostic(&error);
     let status = updater
-        .record_failure(format!("{error:#}"))
+        .record_failure(diagnostic.clone())
         .unwrap_or(UpdateStatus {
             state: UpdateState::Failed,
             available_version: None,
-            diagnostic: Some(format!("{error:#}")),
+            diagnostic: Some(diagnostic),
         });
     evidence["state_after"] = serde_json::json!(status);
     evidence["session_after"] = serde_json::json!(updater.session());

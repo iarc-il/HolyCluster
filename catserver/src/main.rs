@@ -1,7 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use anyhow::Result;
-
 mod application;
 mod args;
 mod desktop;
@@ -10,6 +8,7 @@ mod diagnostic_redaction;
 mod diagnostics;
 mod dummy;
 mod dummy_rotator;
+mod error_format;
 mod freq;
 mod hamlib_device_config;
 mod hamlib_radio;
@@ -65,14 +64,14 @@ mod startup_radio_tests;
 #[cfg(test)]
 mod updater_tests;
 
-fn main() -> Result<()> {
+fn main() -> Result<(), error_format::TerminalError> {
     let args = argh::from_env();
     diagnostics::initialize(&args);
     let _sentry = tracing_setup::configure();
     let result = application::run(args);
     if let Err(error) = &result {
-        tracing::error!(?error, failure_evidence = %serde_json::json!(tracing_setup::failure_evidence(error, "termination")), "Catserver terminated unexpectedly");
+        tracing::error!(error = %error_format::diagnostic(error), failure_evidence = %serde_json::json!(tracing_setup::failure_evidence(error, "termination")), "Catserver terminated unexpectedly");
     }
     diagnostics::phase("terminated");
-    result
+    result.map_err(error_format::TerminalError)
 }

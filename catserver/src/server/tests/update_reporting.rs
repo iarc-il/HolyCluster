@@ -161,6 +161,7 @@ async fn exercise_failure(case: &'static str) {
     };
     #[cfg(windows)]
     let missing_helper = directory.path().join("missing-helper.exe");
+    let persisted_updater = state.updater.clone();
     let app = Router::new()
         .route(
             "/operation",
@@ -201,6 +202,7 @@ async fn exercise_failure(case: &'static str) {
                 }
             }),
         )
+        .route("/status", axum::routing::get(crate::server::update::status))
         .with_state(state);
     let server = spawn_app(app).await;
     drop(refused);
@@ -221,7 +223,32 @@ async fn exercise_failure(case: &'static str) {
         case,
         "manifest_http" | "artifact_http" | "failure_status_write"
     ) {
-        assert!(payload["diagnostic"].as_str().unwrap().contains("503"));
+        let diagnostic = payload["diagnostic"].as_str().unwrap();
+        assert!(diagnostic.contains("503"));
+        assert_eq!(diagnostic.matches("HTTP status server error").count(), 1);
+        assert!(
+            !diagnostic.contains("update HTTP operation failed"),
+            "{diagnostic}"
+        );
+        if case != "failure_status_write" {
+            assert_eq!(
+                persisted_updater.status().diagnostic.as_deref(),
+                Some(diagnostic)
+            );
+            let stored: serde_json::Value = serde_json::from_slice(
+                &std::fs::read(directory.path().join("state.json")).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(stored["diagnostic"], diagnostic);
+            let status = reqwest::get(format!("http://{}/status", server.address))
+                .await
+                .unwrap()
+                .text()
+                .await
+                .unwrap();
+            let status: serde_json::Value = serde_json::from_str(&status).unwrap();
+            assert_eq!(status["diagnostic"], diagnostic);
+        }
     }
     radio.shutdown().await.unwrap();
     if let Some((_, task)) = interrupted {
