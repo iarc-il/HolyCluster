@@ -14,11 +14,11 @@ export default function RotatorState({
         return null;
     }
 
-    const color = tuning_enabled
-        ? moving
-            ? colors.rotator.moving
-            : state_color
-        : colors.rotator.inactive;
+    const color = moving
+        ? colors.rotator.moving
+        : tuning_enabled
+          ? state_color
+          : colors.rotator.inactive;
     const numeric_azimuth = Number(azimuth);
     const heading = Number.isFinite(numeric_azimuth) ? ((numeric_azimuth % 360) + 360) % 360 : 0;
     const title = moving ? "Rotator moving" : `Rotator ${status}`;
@@ -44,7 +44,7 @@ export default function RotatorState({
                 color={color}
             >
                 <title>{title}</title>
-                {moving && tuning_enabled && (
+                {moving && (
                     <animate
                         attributeName="color"
                         values={`${colors.rotator.moving};${colors.rotator.moving_flash};${colors.rotator.moving}`}

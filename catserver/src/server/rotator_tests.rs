@@ -6,6 +6,7 @@ use super::{rotator::process, rotator_configuration::RotatorConfiguration};
 use crate::{
     hamlib_device_config::HamlibDeviceConfig,
     hamlib_rotator::HamlibRotator,
+    rotator::{Rotator, RotatorError, RotatorStatus},
     rotator_config::RotatorConfig,
     rotator_manager::{ActiveRotatorBackend, RotatorManager},
 };
@@ -67,8 +68,68 @@ async fn stops_rotator_movement() {
     .await
     .unwrap();
 
-    assert!(response.is_none());
+    let response = response_json(response.unwrap());
+    assert_eq!(response["event"], "command_result");
+    assert_eq!(response["action"], "Stop");
+    assert_eq!(response["ok"], true);
     assert_eq!(manager.snapshot().target_azimuth, None);
+    manager.shutdown().await.unwrap();
+}
+
+struct StopFailure;
+
+impl Rotator for StopFailure {
+    fn init(&mut self) -> Result<(), RotatorError> {
+        Ok(())
+    }
+
+    fn name(&self) -> &str {
+        "stop failure"
+    }
+
+    fn set_azimuth(&mut self, _: f64) -> Result<(), RotatorError> {
+        Ok(())
+    }
+
+    fn stop(&mut self) -> Result<(), RotatorError> {
+        Err(RotatorError::new("stop", "unsupported"))
+    }
+
+    fn status(&mut self) -> Result<RotatorStatus, RotatorError> {
+        Ok(RotatorStatus {
+            azimuth: 90.0,
+            status: "connected".into(),
+            name: self.name().into(),
+        })
+    }
+}
+
+#[tokio::test]
+async fn reports_stop_failure_without_clearing_the_target() {
+    let config = RotatorConfig::hamlib_dummy();
+    let selected = ActiveRotatorBackend::Configured(config.hamlib().unwrap().clone());
+    let manager = RotatorManager::new(config.clone()).unwrap();
+    manager
+        .replace(config, selected, || Box::new(StopFailure))
+        .await
+        .unwrap();
+    manager.set_azimuth(180.0).await.unwrap();
+    let service = RotatorConfiguration::new(manager.clone());
+
+    let response = process(
+        r#"{"version":1,"type":"rotator","action":"Stop"}"#.into(),
+        &manager,
+        &service,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let response = response_json(response);
+
+    assert_eq!(response["event"], "command_result");
+    assert_eq!(response["action"], "Stop");
+    assert_eq!(response["ok"], false);
+    assert_eq!(manager.snapshot().target_azimuth, Some(180.0));
     manager.shutdown().await.unwrap();
 }
 

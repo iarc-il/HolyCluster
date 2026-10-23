@@ -20,6 +20,7 @@ impl RadioConfigurationService for Service {
             radio_configuration: true,
             radio_configuration_api: 2,
             rotator_configuration: true,
+            rotator_stop: true,
             omnirig_rtty_mode: "dig_l",
         }
     }
@@ -195,6 +196,7 @@ async fn capabilities_advertise_radio_configuration_api_v2_without_backends() {
     let response: serde_json::Value = serde_json::from_str(&response).unwrap();
     assert_eq!(response["event"], "capabilities");
     assert_eq!(response["radio_configuration_api"], 2);
+    assert_eq!(response["rotator_stop"], true);
     assert_eq!(response["omnirig_rtty_mode"], "dig_l");
     assert!(response.get("backends").is_none());
 }

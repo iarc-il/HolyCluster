@@ -78,13 +78,20 @@ pub(super) async fn process(
             }
             return Ok(None);
         }
-        ClientMessage::Stop => {
-            if let Err(error) = rotator.stop().await {
+        ClientMessage::Stop => match rotator.stop().await {
+            Ok(()) => (
+                "command_result",
+                serde_json::json!({"action": "Stop", "ok": true}),
+            ),
+            Err(error) => {
                 let error = anyhow::Error::new(error);
                 tracing::error!(%error, action = "Stop", failure_evidence = %serde_json::json!(crate::tracing_setup::rotator_evidence(&error, &before, &rotator.snapshot(), &message_text)), "Failed to stop rotator");
+                (
+                    "command_result",
+                    serde_json::json!({"action": "Stop", "ok": false}),
+                )
             }
-            return Ok(None);
-        }
+        },
         ClientMessage::ListRotatorModels => (
             "rotator_models",
             service

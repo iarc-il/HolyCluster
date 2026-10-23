@@ -1,5 +1,6 @@
 import { ROTATOR_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { toast } from "react-toastify";
 import useRadio from "./useRadio";
 import { useWs, useWsMessage } from "./useWs";
 
@@ -15,8 +16,9 @@ function angular_distance(a, b) {
 }
 
 export function RotatorProvider({ children }) {
-    const { local_version } = useRadio();
+    const { local_version, radio_capabilities } = useRadio();
     const rotator_supported = supports_cat_feature(local_version, ROTATOR_MIN_VERSION);
+    const rotator_stop_supported = radio_capabilities?.rotator_stop === true;
     const [rotator_status, set_rotator_status] = useState("unavailable");
     const [rotator_azimuth, set_rotator_azimuth] = useState(null);
     const [rotator_target_azimuth, set_rotator_target_azimuth] = useState(null);
@@ -75,6 +77,16 @@ export function RotatorProvider({ children }) {
             set_rotator_connection_result(data);
             return;
         }
+        if (data.event === "command_result" && data.action === "Stop") {
+            if (data.ok) {
+                set_rotator_target_azimuth(null);
+            } else {
+                toast.warn("The rotator could not be stopped.", {
+                    toastId: "rotator-stop",
+                });
+            }
+            return;
+        }
         if (data.event !== "status") {
             return;
         }
@@ -82,15 +94,18 @@ export function RotatorProvider({ children }) {
         const next_azimuth =
             data.status === "connected" && Number.isFinite(data.azimuth) ? data.azimuth : null;
         set_rotator_status(data.status || "unavailable");
-        set_rotator_azimuth(next_azimuth);
+        set_rotator_azimuth(current => (next_azimuth == null ? current : next_azimuth));
         set_rotator_target_azimuth(target => {
             if (data.status !== "connected") {
-                return null;
+                return target;
             }
             if (target == null || next_azimuth == null) {
                 return target;
             }
-            return angular_distance(next_azimuth, target) <= 5 ? null : target;
+            if (angular_distance(next_azimuth, target) <= 5) {
+                return null;
+            }
+            return target;
         });
         set_rotator_name(data.name || "");
         set_rotator_ready(true);
@@ -160,8 +175,13 @@ export function RotatorProvider({ children }) {
         if (!rotator_supported) return;
 
         if (rotator_tuning_enabled && rotator_status === "connected") {
-            send("rotator", { action: "Stop" });
-            set_rotator_target_azimuth(null);
+            if (rotator_stop_supported) {
+                send("rotator", { action: "Stop" });
+            } else if (rotator_target_azimuth != null) {
+                toast.warn("This CATServer cannot stop movement already in progress.", {
+                    toastId: "rotator-stop",
+                });
+            }
         }
         set_rotator_tuning_enabled(enabled => !enabled);
     }
@@ -176,10 +196,7 @@ export function RotatorProvider({ children }) {
     }
 
     const show_bearings =
-        rotator_tuning_enabled &&
-        rotator_supported &&
-        network_state === "connected" &&
-        rotator_status === "connected";
+        rotator_supported && network_state === "connected" && rotator_status === "connected";
 
     return (
         <RotatorContext.Provider
@@ -192,7 +209,7 @@ export function RotatorProvider({ children }) {
                 rotator_status: rotator_supported ? rotator_status : "unavailable",
                 rotator_heading: rotator_supported ? rotator_azimuth : null,
                 rotator_azimuth: show_bearings ? rotator_azimuth : null,
-                rotator_target_azimuth: show_bearings ? rotator_target_azimuth : null,
+                rotator_target_azimuth: rotator_supported ? rotator_target_azimuth : null,
                 rotator_name: rotator_supported ? rotator_name : "",
                 rotator_models: rotator_supported ? rotator_models : [],
                 rotator_models_error: rotator_supported ? rotator_models_error : null,

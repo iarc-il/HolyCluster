@@ -56,6 +56,22 @@ describe("RotatorState", () => {
         expect(screen.getByRole("img").getAttribute("color")).toBe("#9ca3af");
     });
 
+    it("keeps the movement warning visible when tuning is inactive", () => {
+        render(
+            <RotatorState
+                status="connected"
+                name="Hamlib rotator"
+                moving={true}
+                tuning_enabled={false}
+                on_click={() => {}}
+            />,
+        );
+
+        const indicator = screen.getByRole("img", { name: "Rotator moving" });
+        expect(indicator.getAttribute("color")).toBe("#facc15");
+        expect(indicator.querySelector("animate")).not.toBeNull();
+    });
+
     it("calls the toggle handler when pressed", async () => {
         const on_click = vi.fn();
         render(

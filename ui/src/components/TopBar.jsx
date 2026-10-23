@@ -129,7 +129,7 @@ function TopBar({
                     status={rotator_status}
                     name={rotator_name}
                     azimuth={rotator_heading}
-                    moving={rotator_status === "connected" && rotator_target_azimuth != null}
+                    moving={rotator_target_azimuth != null}
                     tuning_enabled={rotator_tuning_enabled}
                     on_click={toggle_rotator_tuning}
                 />
