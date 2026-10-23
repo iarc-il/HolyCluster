@@ -281,16 +281,8 @@ async fn run_singleton(
     let shutdown_radio = radio.clone();
     let shutdown_rotator = rotator.clone();
     let silent = restart.is_some() || no_browser;
-<<<<<<< HEAD
     crate::diagnostics::phase("server_binding");
-    let building =
-        Server::build_server(sender, radio, rotator, server_config, use_local_ui, restart);
-||||||| parent of 08dff33a (Ignore legacy --local-ui option)
-    let building =
-        Server::build_server(sender, radio, rotator, server_config, use_local_ui, restart);
-=======
     let building = Server::build_server(sender, radio, rotator, server_config, restart);
->>>>>>> 08dff33a (Ignore legacy --local-ui option)
     tokio::pin!(building);
     let server = loop {
         tokio::select! {
