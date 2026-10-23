@@ -65,7 +65,7 @@ pub(crate) fn phase(phase: &'static str) {
 pub(crate) fn bytes_value(bytes: &[u8]) -> Value {
     match std::str::from_utf8(bytes) {
         Ok(text) => text.into(),
-        Err(_) => json!({"bytes": crate::diagnostic_redaction::Redactions::current().bytes(bytes)}),
+        Err(_) => json!({"bytes": bytes}),
     }
 }
 
@@ -76,14 +76,22 @@ pub(crate) fn os_value(value: &std::ffi::OsStr) -> Value {
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStrExt;
-        json!({"unix_bytes": crate::diagnostic_redaction::Redactions::current().bytes(value.as_bytes())})
+        json!({"unix_bytes": value.as_bytes()})
     }
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;
         let units = value.encode_wide().collect::<Vec<_>>();
-        json!({"windows_utf16": crate::diagnostic_redaction::Redactions::current().wide(&units)})
+        json!({"windows_utf16": units})
     }
+}
+
+pub(crate) fn path_value(path: &std::path::Path) -> Value {
+    os_value(
+        crate::diagnostic_redaction::Redactions::current()
+            .path(path)
+            .as_os_str(),
+    )
 }
 
 pub(crate) fn payload(bytes: &[u8]) -> Value {
@@ -93,7 +101,7 @@ pub(crate) fn payload(bytes: &[u8]) -> Value {
 pub(crate) fn instance_evidence(port_file: &std::path::Path) -> Value {
     let metadata = std::fs::metadata(port_file);
     json!({
-        "port_file": os_value(port_file.as_os_str()), "port_file_exists": port_file.exists(),
+        "port_file": path_value(port_file), "port_file_exists": port_file.exists(),
         "port_file_age_ms": metadata.ok().and_then(|m| m.modified().ok())
             .and_then(|time| time.elapsed().ok()).map(|d| d.as_millis() as u64),
     })

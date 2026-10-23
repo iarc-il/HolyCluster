@@ -716,7 +716,19 @@ mod tests {
         let mut event = Event::default();
         event.extra.insert(
             "diagnostic_path".into(),
+            crate::diagnostics::path_value(&path),
+        );
+        event.extra.insert(
+            "opaque_os".into(),
             crate::diagnostics::os_value(path.as_os_str()),
+        );
+        event.extra.insert(
+            "opaque_body".into(),
+            crate::diagnostics::payload(path.as_os_str().as_bytes()),
+        );
+        event.extra.insert(
+            "singleton_path".into(),
+            crate::diagnostics::instance_evidence(&path)["port_file"].clone(),
         );
         event.extra.insert(
             "raw_path".into(),
@@ -730,10 +742,22 @@ mod tests {
         let events = transport.0.lock().unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].extra["diagnostic_path"], redacted);
-        assert_eq!(events[0].extra["raw_path"], redacted);
+        assert_eq!(events[0].extra["singleton_path"], redacted);
+        assert_eq!(
+            events[0].extra["opaque_os"],
+            serde_json::json!({"unix_bytes": path.as_os_str().as_bytes()})
+        );
+        assert_eq!(
+            events[0].extra["opaque_body"],
+            serde_json::json!({"bytes": path.as_os_str().as_bytes()})
+        );
+        assert_eq!(
+            events[0].extra["raw_path"],
+            serde_json::json!({"unix_bytes": path.as_os_str().as_bytes()})
+        );
         assert_eq!(
             events[0].extra["raw_body"],
-            serde_json::json!({"bytes": b"~/capture-\xfe"})
+            serde_json::json!({"bytes": path.as_os_str().as_bytes()})
         );
     }
 
