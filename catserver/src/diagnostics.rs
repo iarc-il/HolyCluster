@@ -126,24 +126,72 @@ fn publish_owner(state: &State) {
     }
 }
 
-pub(crate) fn payload(bytes: &[u8]) -> String {
-    let mut text = String::from_utf8_lossy(bytes).into_owned();
-    let mut end = text.len().min(16 * 1024);
-    while !text.is_char_boundary(end) {
-        end -= 1;
+pub(crate) fn bytes_value(bytes: &[u8]) -> Value {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => text.into(),
+        Err(_) => json!({"bytes": crate::diagnostic_redaction::Redactions::current().bytes(bytes)}),
     }
-    text.truncate(end);
-    text
+}
+
+pub(crate) fn os_value(value: &std::ffi::OsStr) -> Value {
+    if let Some(text) = value.to_str() {
+        return text.into();
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        json!({"unix_bytes": crate::diagnostic_redaction::Redactions::current().bytes(value.as_bytes())})
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        let units = value.encode_wide().collect::<Vec<_>>();
+        json!({"windows_utf16": crate::diagnostic_redaction::Redactions::current().wide(&units)})
+    }
+}
+
+pub(crate) fn payload(bytes: &[u8]) -> Value {
+    bytes_value(&bytes[..bytes.len().min(16 * 1024)])
 }
 
 pub(crate) fn instance_evidence(port_file: &std::path::Path) -> Value {
     let metadata = std::fs::metadata(port_file);
     let owner = std::fs::read_to_string(port_file.with_file_name("instance-owner.json"));
     json!({
-        "port_file": port_file, "port_file_exists": port_file.exists(),
+        "port_file": os_value(port_file.as_os_str()), "port_file_exists": port_file.exists(),
         "port_file_age_ms": metadata.ok().and_then(|m| m.modified().ok())
             .and_then(|time| time.elapsed().ok()).map(|d| d.as_millis() as u64),
         "owner_state": owner.as_ref().ok().map(|text| serde_json::from_str::<Value>(text).unwrap_or_else(|_| text.clone().into())),
         "owner_read_error": owner.err().map(|e| e.to_string()),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(windows)]
+    #[test]
+    fn os_values_preserve_unpaired_surrogates() {
+        use std::os::windows::ffi::OsStringExt;
+        let value = std::ffi::OsString::from_wide(&[120, 0xd800]);
+        assert_eq!(
+            super::os_value(&value),
+            serde_json::json!({"windows_utf16": [120, 0xd800]})
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn instance_paths_preserve_non_unicode_bytes() {
+        use std::{
+            ffi::OsString,
+            os::unix::ffi::{OsStrExt, OsStringExt},
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join(OsString::from_vec(vec![b'p', 0xff]));
+        let evidence = super::instance_evidence(&path);
+        assert_eq!(
+            evidence["port_file"],
+            serde_json::json!({"unix_bytes": path.as_os_str().as_bytes()})
+        );
+    }
 }

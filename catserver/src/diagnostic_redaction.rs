@@ -132,6 +132,64 @@ impl Redactions {
         result
     }
 
+    pub(crate) fn bytes(&self, bytes: &[u8]) -> Vec<u8> {
+        let mut output = Vec::new();
+        let mut remaining = bytes;
+        let mut after_invalid = false;
+        while !remaining.is_empty() {
+            let (valid, invalid) = match std::str::from_utf8(remaining) {
+                Ok(_) => (remaining.len(), 0),
+                Err(error) => (
+                    error.valid_up_to(),
+                    error
+                        .error_len()
+                        .unwrap_or(remaining.len() - error.valid_up_to()),
+                ),
+            };
+            let text = std::str::from_utf8(&remaining[..valid]).expect("validated prefix");
+            // Invalid units are not path boundaries. Mark them while matching Unicode prefixes.
+            let marked = format!(
+                "{}{text}{}",
+                if after_invalid { "X" } else { "" },
+                if invalid != 0 { "X" } else { "" }
+            );
+            let redacted = self.text(&marked);
+            output.extend_from_slice(
+                &redacted.as_bytes()
+                    [usize::from(after_invalid)..redacted.len() - usize::from(invalid != 0)],
+            );
+            output.extend_from_slice(&remaining[valid..valid + invalid]);
+            remaining = &remaining[valid + invalid..];
+            after_invalid = invalid != 0;
+        }
+        output
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn wide(&self, units: &[u16]) -> Vec<u16> {
+        let mut output = Vec::new();
+        let mut text = String::new();
+        let mut after_invalid = false;
+        for character in char::decode_utf16(units.iter().copied()) {
+            match character {
+                Ok(character) => text.push(character),
+                Err(error) => {
+                    let marked = format!("{}{text}X", if after_invalid { "X" } else { "" });
+                    let redacted = self.text(&marked);
+                    output.extend(
+                        redacted[usize::from(after_invalid)..redacted.len() - 1].encode_utf16(),
+                    );
+                    output.push(error.unpaired_surrogate());
+                    text.clear();
+                    after_invalid = true;
+                }
+            }
+        }
+        let redacted = self.text(&format!("{}{text}", if after_invalid { "X" } else { "" }));
+        output.extend(redacted[usize::from(after_invalid)..].encode_utf16());
+        output
+    }
+
     fn value(&self, value: &mut Value) {
         match value {
             Value::String(text) => *text = self.text(text),
@@ -237,6 +295,24 @@ mod tests {
     use super::*;
     use sentry::protocol::{Context, Exception, Frame, Stacktrace};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn raw_bytes_only_replace_exact_home_prefixes() {
+        let redactions = Redactions::new(Some("/home/operator".into()));
+        assert_eq!(redactions.bytes(b"/home/operator/\xff"), b"~/\xff");
+        assert_eq!(
+            redactions.bytes(b"/home/operator\xff"),
+            b"/home/operator\xff"
+        );
+        assert_eq!(
+            redactions.bytes(b"\xff/home/operator/file"),
+            b"\xff/home/operator/file"
+        );
+        assert_eq!(
+            redactions.bytes(b"\xff /home/operator/\xfe"),
+            b"\xff ~/\xfe"
+        );
+    }
 
     #[test]
     fn replaces_only_the_actual_home_directory_prefix() {

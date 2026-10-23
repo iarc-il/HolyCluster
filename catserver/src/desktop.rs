@@ -16,7 +16,7 @@ pub(crate) fn context() -> serde_json::Value {
         (
             key.to_owned(),
             serde_json::json!(
-                std::env::var_os(key).map(|value| value.to_string_lossy().into_owned())
+                std::env::var_os(key).map(|value| crate::diagnostics::os_value(&value))
             ),
         )
     })
@@ -24,7 +24,7 @@ pub(crate) fn context() -> serde_json::Value {
     .into()
 }
 
-fn capture(mut file: std::fs::File) -> (String, Option<String>) {
+fn capture(mut file: std::fs::File) -> (serde_json::Value, Option<String>) {
     use std::io::{Seek, SeekFrom};
     let mut bytes = Vec::new();
     let result = file
@@ -47,7 +47,7 @@ pub(crate) fn launch_commands(
     let mut attempts = Vec::new();
     let mut result = Err(std::io::Error::other("no browser launcher available").into());
     for mut command in commands {
-        let mut evidence = json!({"launcher": command.get_program().to_string_lossy(), "args": command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect::<Vec<_>>()});
+        let mut evidence = json!({"launcher": crate::diagnostics::os_value(command.get_program()), "args": command.get_args().map(crate::diagnostics::os_value).collect::<Vec<_>>()});
         command.stdin(Stdio::null());
         // Inherited browser handles must not keep output capture waiting after the launcher exits.
         let files = (|| -> std::io::Result<_> {
@@ -87,8 +87,8 @@ pub(crate) fn launch_commands(
         if let Some((stdout, stderr)) = files {
             let (stdout, stdout_error) = capture(stdout);
             let (stderr, stderr_error) = capture(stderr);
-            evidence["stdout"] = stdout.into();
-            evidence["stderr"] = stderr.into();
+            evidence["stdout"] = stdout;
+            evidence["stderr"] = stderr;
             evidence["stdout_read_error"] = json!(stdout_error);
             evidence["stderr_read_error"] = json!(stderr_error);
         }
@@ -124,6 +124,59 @@ pub(crate) fn launch_commands(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    #[test]
+    fn browser_diagnostics_preserve_non_unicode_values() {
+        use std::{ffi::OsString, os::unix::ffi::OsStringExt, process::Command};
+        const TEST: &str = "desktop::tests::browser_diagnostics_preserve_non_unicode_values";
+        let raw = vec![b'x', 0xff];
+        if std::env::var_os("CATSERVER_EXACT_DESKTOP_TEST").is_none() {
+            assert!(
+                Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", TEST])
+                    .env("CATSERVER_EXACT_DESKTOP_TEST", "1")
+                    .env("DISPLAY", OsString::from_vec(raw.clone()))
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+            return;
+        }
+        let mut missing = Command::new(OsString::from_vec(raw.clone()));
+        missing.arg(OsString::from_vec(raw.clone()));
+        let mut command = Command::new("sh");
+        command.args([
+            "-c",
+            "printf '\\377'; head -c 20000 /dev/zero; printf '\\376' >&2; exit 23",
+        ]);
+        command.arg(OsString::from_vec(raw.clone()));
+        let error =
+            super::launch_commands("http://localhost", "test", vec![missing, command]).unwrap_err();
+        let evidence: serde_json::Value = serde_json::from_str(&error.to_string()).unwrap();
+        assert_eq!(
+            evidence["desktop"]["DISPLAY"],
+            serde_json::json!({"unix_bytes": raw})
+        );
+        assert_eq!(
+            evidence["attempts"][0]["launcher"],
+            serde_json::json!({"unix_bytes": raw})
+        );
+        assert_eq!(
+            evidence["attempts"][0]["args"][0],
+            serde_json::json!({"unix_bytes": raw})
+        );
+        let mut stdout = vec![0; 16 * 1024];
+        stdout[0] = 0xff;
+        assert_eq!(
+            evidence["attempts"][1]["stdout"],
+            serde_json::json!({"bytes": stdout})
+        );
+        assert_eq!(
+            evidence["attempts"][1]["stderr"],
+            serde_json::json!({"bytes": [254]})
+        );
+    }
+
     #[test]
     fn browser_failure_retains_launcher_output_and_desktop_evidence() {
         #[cfg(unix)]
@@ -178,7 +231,7 @@ mod tests {
             assert_eq!(
                 evidence["desktop"][key],
                 serde_json::json!(
-                    std::env::var_os(key).map(|value| value.to_string_lossy().into_owned())
+                    std::env::var_os(key).map(|value| crate::diagnostics::os_value(&value))
                 )
             );
         }

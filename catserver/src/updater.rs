@@ -1537,14 +1537,14 @@ fn update_get(
             .iter()
             .map(|(name, value)| (
                 name.as_str(),
-                String::from_utf8_lossy(value.as_bytes()).into_owned()
+                crate::diagnostics::bytes_value(value.as_bytes())
             ))
             .collect::<Vec<_>>()
     );
     if let Err(error) = response.error_for_status_ref() {
         let mut body = Vec::new();
         let body_result = response.take(16 * 1024).read_to_end(&mut body);
-        evidence["failed_response_body"] = crate::diagnostics::payload(&body).into();
+        evidence["failed_response_body"] = crate::diagnostics::payload(&body);
         if let Err(error) = body_result {
             evidence["body_read_error"] = error.to_string().into();
         }
