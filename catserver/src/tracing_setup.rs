@@ -618,6 +618,68 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn final_envelope_redacts_non_unicode_home_paths() {
+        use std::{
+            ffi::OsString,
+            os::unix::ffi::{OsStrExt, OsStringExt},
+            process::Command,
+        };
+        const TEST: &str = "tracing_setup::tests::final_envelope_redacts_non_unicode_home_paths";
+        if std::env::var_os("CATSERVER_NATIVE_HOME_TEST").is_none() {
+            let directory = tempfile::tempdir().unwrap();
+            let home = directory
+                .path()
+                .join(OsString::from_vec(b"operator-\xff".to_vec()));
+            std::fs::create_dir(&home).unwrap();
+            assert!(
+                Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", TEST])
+                    .env("HOME", &home)
+                    .env("CATSERVER_NATIVE_HOME_TEST", "1")
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+            return;
+        }
+        let home = directories::BaseDirs::new()
+            .unwrap()
+            .home_dir()
+            .to_path_buf();
+        assert!(home.to_str().is_none());
+        let path = home.join(OsString::from_vec(b"capture-\xfe".to_vec()));
+        let redacted = serde_json::json!({"unix_bytes": b"~/capture-\xfe"});
+        let transport = Arc::new(MemoryTransport::default());
+        let client = Client::from(ClientOptions {
+            transport: Some(Arc::new(transport.clone())),
+            ..sentry_options(Some("http://public@127.0.0.1:1/1")).unwrap()
+        });
+        let mut event = Event::default();
+        event.extra.insert(
+            "diagnostic_path".into(),
+            crate::diagnostics::os_value(path.as_os_str()),
+        );
+        event.extra.insert(
+            "raw_path".into(),
+            serde_json::json!({"unix_bytes": path.as_os_str().as_bytes()}),
+        );
+        event.extra.insert(
+            "raw_body".into(),
+            serde_json::json!({"bytes": path.as_os_str().as_bytes()}),
+        );
+        client.capture_event(event, None);
+        let events = transport.0.lock().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].extra["diagnostic_path"], redacted);
+        assert_eq!(events[0].extra["raw_path"], redacted);
+        assert_eq!(
+            events[0].extra["raw_body"],
+            serde_json::json!({"bytes": b"~/capture-\xfe"})
+        );
+    }
+
     #[test]
     fn real_sentry_pipeline_keeps_errors_context_and_breadcrumbs() {
         let transport = Arc::new(MemoryTransport::default());

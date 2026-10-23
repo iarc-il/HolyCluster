@@ -14,14 +14,26 @@ struct HomePrefix {
 pub(crate) struct Redactions {
     home_prefixes: Vec<HomePrefix>,
     case_insensitive: bool,
+    native_home: Option<std::path::PathBuf>,
 }
 
 impl Redactions {
     pub(crate) fn current() -> Self {
-        Self::new(BaseDirs::new().map(|dirs| dirs.home_dir().to_string_lossy().into_owned()))
+        Self::from_home(BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf()))
+    }
+
+    fn from_home(home: Option<std::path::PathBuf>) -> Self {
+        let mut redactions = Self::new(
+            home.as_ref()
+                .and_then(|home| home.to_str())
+                .map(str::to_owned),
+        );
+        redactions.native_home = home;
+        redactions
     }
 
     fn new(home: Option<String>) -> Self {
+        let native_home = home.as_ref().map(std::path::PathBuf::from);
         let mut home_prefixes = Vec::new();
         let mut case_insensitive = false;
         if let Some(home) = home {
@@ -78,6 +90,7 @@ impl Redactions {
         Self {
             home_prefixes,
             case_insensitive,
+            native_home,
         }
     }
 
@@ -133,6 +146,21 @@ impl Redactions {
     }
 
     pub(crate) fn bytes(&self, bytes: &[u8]) -> Vec<u8> {
+        #[cfg(unix)]
+        let native_redacted = self
+            .native_home
+            .as_ref()
+            .filter(|home| home.to_str().is_none() && home.parent().is_some())
+            .map(|home| {
+                use std::os::unix::ffi::OsStrExt;
+                let mut prefix = home.as_os_str().as_bytes().to_vec();
+                while prefix.last() == Some(&b'/') {
+                    prefix.pop();
+                }
+                redact_native(bytes, &[prefix], false, byte_edge)
+            });
+        #[cfg(unix)]
+        let bytes = native_redacted.as_deref().unwrap_or(bytes);
         let mut output = Vec::new();
         let mut remaining = bytes;
         let mut after_invalid = false;
@@ -167,6 +195,16 @@ impl Redactions {
 
     #[cfg(windows)]
     pub(crate) fn wide(&self, units: &[u16]) -> Vec<u16> {
+        let native_redacted = self
+            .native_home
+            .as_ref()
+            .filter(|home| home.to_str().is_none() && home.parent().is_some())
+            .map(|home| {
+                use std::os::windows::ffi::OsStrExt;
+                let prefixes = windows_prefixes(home.as_os_str().encode_wide().collect());
+                redact_native(units, &prefixes, true, wide_edge)
+            });
+        let units = native_redacted.as_deref().unwrap_or(units);
         let mut output = Vec::new();
         let mut text = String::new();
         let mut after_invalid = false;
@@ -195,6 +233,31 @@ impl Redactions {
             Value::String(text) => *text = self.text(text),
             Value::Array(values) => values.iter_mut().for_each(|value| self.value(value)),
             Value::Object(fields) => {
+                for key in ["bytes", "unix_bytes"] {
+                    if let Some(value) = fields.get_mut(key)
+                        && let Some(bytes) = value.as_array().and_then(|values| {
+                            values
+                                .iter()
+                                .map(|value| {
+                                    value.as_u64().and_then(|value| u8::try_from(value).ok())
+                                })
+                                .collect::<Option<Vec<_>>>()
+                        })
+                    {
+                        *value = serde_json::json!(self.bytes(&bytes));
+                    }
+                }
+                #[cfg(windows)]
+                if let Some(value) = fields.get_mut("windows_utf16")
+                    && let Some(units) = value.as_array().and_then(|values| {
+                        values
+                            .iter()
+                            .map(|value| value.as_u64().and_then(|value| u16::try_from(value).ok()))
+                            .collect::<Option<Vec<_>>>()
+                    })
+                {
+                    *value = serde_json::json!(self.wide(&units));
+                }
                 let original = std::mem::take(fields);
                 let reserved: std::collections::HashSet<_> = original.keys().cloned().collect();
                 for (key, mut value) in original {
@@ -234,6 +297,138 @@ impl Redactions {
     pub(crate) fn breadcrumb(&self, breadcrumb: Breadcrumb) -> Option<Breadcrumb> {
         self.redact(breadcrumb)
     }
+}
+
+fn redact_native<T: Copy + Eq + Into<u32> + From<u8>>(
+    input: &[T],
+    prefixes: &[Vec<T>],
+    windows: bool,
+    edge: fn(&[T], bool) -> Option<char>,
+) -> Vec<T> {
+    let normalize = |unit: T| {
+        let unit = unit.into();
+        if windows && unit <= 127 {
+            let byte = (unit as u8).to_ascii_lowercase();
+            u32::from(if byte == b'/' { b'\\' } else { byte })
+        } else {
+            unit
+        }
+    };
+    let mut result = input.to_vec();
+    for prefix in prefixes.iter().filter(|prefix| !prefix.is_empty()) {
+        let mut output = Vec::new();
+        let mut cursor = 0;
+        let mut start = 0;
+        while start + prefix.len() <= result.len() {
+            let end = start + prefix.len();
+            let matches = result[start..end]
+                .iter()
+                .zip(prefix)
+                .all(|(&a, &b)| normalize(a) == normalize(b));
+            let starts_path = start == 0
+                || edge(&result[..start], true)
+                    .is_some_and(|c| !c.is_alphanumeric() && !matches!(c, '_' | '-' | '.' | '\\'));
+            let ends_directory = end == result.len()
+                || edge(&result[end..], false).is_some_and(|c| {
+                    c.is_whitespace()
+                        || matches!(
+                            c,
+                            '/' | '\\' | '\'' | '"' | ')' | ']' | '}' | ',' | ';' | ':' | '?' | '#'
+                        )
+                });
+            if matches && starts_path && ends_directory {
+                output.extend_from_slice(&result[cursor..start]);
+                output.push(T::from(b'~'));
+                cursor = end;
+                start = end;
+            } else {
+                start += 1;
+            }
+        }
+        output.extend_from_slice(&result[cursor..]);
+        result = output;
+    }
+    result
+}
+
+#[cfg(unix)]
+fn byte_edge(bytes: &[u8], last: bool) -> Option<char> {
+    for length in 1..=bytes.len().min(4) {
+        let candidate = if last {
+            &bytes[bytes.len() - length..]
+        } else {
+            &bytes[..length]
+        };
+        if let Ok(text) = std::str::from_utf8(candidate) {
+            return if last {
+                text.chars().next_back()
+            } else {
+                text.chars().next()
+            };
+        }
+    }
+    None
+}
+
+#[cfg(any(windows, test))]
+fn wide_edge(units: &[u16], last: bool) -> Option<char> {
+    for length in 1..=units.len().min(2) {
+        let candidate = if last {
+            &units[units.len() - length..]
+        } else {
+            &units[..length]
+        };
+        if let Ok(text) = String::from_utf16(candidate) {
+            return if last {
+                text.chars().next_back()
+            } else {
+                text.chars().next()
+            };
+        }
+    }
+    None
+}
+
+#[cfg(any(windows, test))]
+fn windows_prefixes(mut home: Vec<u16>) -> Vec<Vec<u16>> {
+    for unit in &mut home {
+        if *unit == u16::from(b'/') {
+            *unit = u16::from(b'\\');
+        }
+    }
+    let slash = u16::from(b'\\');
+    while home.last() == Some(&slash) {
+        home.pop();
+    }
+    let verbatim = r"\\?\".encode_utf16().collect::<Vec<_>>();
+    let unc = r"UNC\".encode_utf16().collect::<Vec<_>>();
+    if home.starts_with(&verbatim) {
+        home.drain(..verbatim.len());
+        if home.len() >= unc.len()
+            && home[..unc.len()].iter().zip(&unc).all(|(&a, &b)| {
+                a == b || (a <= 127 && b <= 127 && (a as u8).eq_ignore_ascii_case(&(b as u8)))
+            })
+        {
+            home.splice(..unc.len(), [slash, slash]);
+        }
+    }
+    if home.is_empty() || (home.len() == 2 && home[1] == u16::from(b':')) {
+        return Vec::new();
+    }
+    let mut prefixes = vec![home.clone()];
+    if home.get(1) == Some(&u16::from(b':')) {
+        prefixes.push(verbatim.into_iter().chain(home).collect());
+    } else if home.starts_with(&[slash, slash]) {
+        prefixes.push(
+            verbatim
+                .into_iter()
+                .chain(unc)
+                .chain(home[2..].iter().copied())
+                .collect(),
+        );
+    }
+    prefixes.sort_by_key(|prefix| std::cmp::Reverse(prefix.len()));
+    prefixes
 }
 
 fn follows_file_scheme(text: &str) -> bool {
@@ -295,6 +490,144 @@ mod tests {
     use super::*;
     use sentry::protocol::{Context, Exception, Frame, Stacktrace};
     use std::collections::BTreeMap;
+
+    #[cfg(unix)]
+    #[test]
+    fn native_home_prefixes_match_exact_unix_bytes() {
+        use std::{ffi::OsString, os::unix::ffi::OsStringExt, path::PathBuf};
+        let redactions = Redactions::from_home(Some(PathBuf::from(OsString::from_vec(
+            b"/home/operator-\xff".to_vec(),
+        ))));
+        assert_eq!(
+            redactions.bytes(b"/home/operator-\xff/file-\xfe"),
+            b"~/file-\xfe"
+        );
+        assert_eq!(
+            redactions.bytes(b"log: /home/operator-\xff/file"),
+            b"log: ~/file"
+        );
+        assert_eq!(
+            redactions.bytes(b"/home/operator-\xfe/file"),
+            b"/home/operator-\xfe/file"
+        );
+        assert_eq!(
+            redactions.bytes(b"/home/operator-\xff-other/file"),
+            b"/home/operator-\xff-other/file"
+        );
+        assert_eq!(
+            redactions.bytes(b"/home/operator-\xff\xfe/file"),
+            b"/home/operator-\xff\xfe/file"
+        );
+        assert_eq!(
+            redactions.text("/home/operator-\u{fffd}/file"),
+            "/home/operator-\u{fffd}/file"
+        );
+    }
+
+    #[test]
+    fn native_windows_matching_preserves_unpaired_units() {
+        for (home, variant) in [
+            (r"C:\Users\operator-", r"\\?\c:\users\OPERATOR-"),
+            (r"\\?\C:\Users\operator-", "c:/users/operator-"),
+            (
+                r"\\server\share\operator-",
+                "//?/unc/SERVER/share/operator-",
+            ),
+            (
+                r"\\?\UNC\server\share\operator-",
+                "//server/share/operator-",
+            ),
+        ] {
+            let home = home.encode_utf16().chain([0xd800]).collect::<Vec<_>>();
+            let path = variant
+                .encode_utf16()
+                .chain([0xd800])
+                .chain("/file".encode_utf16())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                redact_native(&path, &windows_prefixes(home), true, wide_edge),
+                "~/file".encode_utf16().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn native_home_prefixes_match_windows_units_and_path_variants() {
+        use std::{ffi::OsString, os::windows::ffi::OsStringExt, path::PathBuf};
+        for (home_prefix, variants) in [
+            (
+                r"C:\Users\operator-",
+                vec![
+                    r"C:\Users\operator-",
+                    "c:/users/OPERATOR-",
+                    r"\\?\C:\Users\operator-",
+                    "//?/c:/users/operator-",
+                ],
+            ),
+            (
+                r"\\?\C:\Users\operator-",
+                vec![
+                    r"C:\Users\operator-",
+                    "c:/users/OPERATOR-",
+                    r"\\?\C:\Users\operator-",
+                ],
+            ),
+            (
+                r"\\server\share\operator-",
+                vec![
+                    r"\\server\share\operator-",
+                    "//SERVER/share/operator-",
+                    r"\\?\UNC\server\share\operator-",
+                    "//?/unc/server/share/operator-",
+                ],
+            ),
+            (
+                r"\\?\UNC\server\share\operator-",
+                vec![
+                    r"\\server\share\operator-",
+                    "//SERVER/share/operator-",
+                    r"\\?\UNC\server\share\operator-",
+                ],
+            ),
+        ] {
+            let home = home_prefix
+                .encode_utf16()
+                .chain([0xd800])
+                .collect::<Vec<_>>();
+            let redactions = Redactions::from_home(Some(PathBuf::from(OsString::from_wide(&home))));
+            for variant in variants {
+                let path = variant
+                    .encode_utf16()
+                    .chain([0xd800])
+                    .chain("/file-".encode_utf16())
+                    .chain([0xdc00])
+                    .collect::<Vec<_>>();
+                let expected = "~/file-".encode_utf16().chain([0xdc00]).collect::<Vec<_>>();
+                assert_eq!(redactions.wide(&path), expected, "{home_prefix}: {variant}");
+                let mut event = Event::default();
+                event
+                    .extra
+                    .insert("path".into(), serde_json::json!({"windows_utf16": path}));
+                assert_eq!(
+                    redactions.event(event).unwrap().extra["path"],
+                    serde_json::json!({"windows_utf16": expected})
+                );
+                let neighbor = variant
+                    .encode_utf16()
+                    .chain([0xd800])
+                    .chain("-other/file".encode_utf16())
+                    .collect::<Vec<_>>();
+                assert_eq!(redactions.wide(&neighbor), neighbor);
+                let different = variant
+                    .encode_utf16()
+                    .chain([0xd801])
+                    .chain("/file".encode_utf16())
+                    .collect::<Vec<_>>();
+                assert_eq!(redactions.wide(&different), different);
+            }
+        }
+    }
 
     #[test]
     fn raw_bytes_only_replace_exact_home_prefixes() {
