@@ -24,14 +24,14 @@ impl Rotator for HamlibRotator {
         self.handle = None;
         self.config
             .validate()
-            .map_err(|error| operation_error("validate configuration", error))?;
+            .map_err(|error| operation_error("validate configuration", error, false))?;
         let model_id = self
             .config
             .model_id
             .parse::<hamlib::RotatorModelId>()
-            .map_err(|error| operation_error("parse model", error))?;
+            .map_err(|error| operation_error("parse model", error, false))?;
         let catalog = hamlib::RotatorCatalog::load()
-            .map_err(|error| operation_error("load catalog", error))?;
+            .map_err(|error| operation_error("load catalog", error, false))?;
         let model = catalog.model(model_id).ok_or_else(|| {
             RotatorError::new("select model", format!("unknown model {model_id}"))
         })?;
@@ -45,9 +45,9 @@ impl Rotator for HamlibRotator {
         let port_type = model.port_type();
         let descriptors = catalog
             .describe_model(model_id)
-            .map_err(|error| operation_error("describe model", error))?;
-        let mut rotator =
-            hamlib::Rotator::new(model_id).map_err(|error| operation_error("initialize", error))?;
+            .map_err(|error| operation_error("describe model", error, false))?;
+        let mut rotator = hamlib::Rotator::new(model_id)
+            .map_err(|error| operation_error("initialize", error, false))?;
         for (token, value) in &self.config.token_values {
             if matches!(
                 port_type,
@@ -64,17 +64,17 @@ impl Rotator for HamlibRotator {
                 })?;
             let value = descriptor
                 .parse_value(value)
-                .map_err(|error| operation_error("parse configuration", error))?;
+                .map_err(|error| operation_error("parse configuration", error, false))?;
             rotator
                 .configure(descriptor, &value)
-                .map_err(|error| operation_error("configure", error))?;
+                .map_err(|error| operation_error("configure", error, false))?;
         }
         let mut handle = rotator
             .open()
-            .map_err(|error| operation_error("open", error))?;
+            .map_err(|error| operation_error("open", error, false))?;
         handle
             .position()
-            .map_err(|error| operation_error("read initial position", error))?;
+            .map_err(|error| operation_error("read initial position", error, true))?;
         self.handle = Some(handle);
         Ok(())
     }
@@ -89,7 +89,7 @@ impl Rotator for HamlibRotator {
             .as_mut()
             .ok_or_else(|| unavailable("set azimuth"))?
             .set_azimuth(azimuth)
-            .map_err(|error| operation_error("set azimuth", error));
+            .map_err(|error| operation_error("set azimuth", error, true));
         if result.is_err() {
             self.handle = None;
         }
@@ -102,7 +102,7 @@ impl Rotator for HamlibRotator {
             .as_mut()
             .ok_or_else(|| unavailable("stop"))?
             .stop()
-            .map_err(|error| operation_error("stop", error));
+            .map_err(|error| operation_error("stop", error, true));
         if result.is_err() {
             self.handle = None;
         }
@@ -115,7 +115,7 @@ impl Rotator for HamlibRotator {
             .as_mut()
             .ok_or_else(|| unavailable("read status"))?
             .position()
-            .map_err(|error| operation_error("read status", error));
+            .map_err(|error| operation_error("read status", error, true));
         match result {
             Ok(position) => Ok(RotatorStatus {
                 azimuth: position.azimuth,
@@ -141,20 +141,11 @@ fn unavailable(operation: &'static str) -> RotatorError {
 fn operation_error(
     operation: &'static str,
     error: impl std::error::Error + 'static,
+    opened_handle_present: bool,
 ) -> RotatorError {
     let mut result = RotatorError::new(operation, error.to_string());
     let mut native = crate::tracing_setup::native_error(&error);
-    native["handle_present"] = matches!(
-        operation,
-        "read initial position"
-            | "set azimuth"
-            | "stop"
-            | "read status"
-            | "configure"
-            | "open"
-            | "parse configuration"
-    )
-    .into();
+    native["handle_present"] = opened_handle_present.into();
     result.native_error = Some(native);
     result
 }

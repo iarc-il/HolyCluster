@@ -13,6 +13,50 @@ use crate::{
     rotator_manager::{ActiveRotatorBackend, RotatorConnectionState, RotatorManager},
 };
 
+#[test]
+fn native_errors_only_report_opened_rotator_handles() {
+    use crate::rotator::Rotator;
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap().to_string();
+    drop(listener);
+    for (tokens, operation) in [
+        (
+            BTreeMap::from([("timeout".into(), "invalid".into())]),
+            "parse configuration",
+        ),
+        (BTreeMap::from([("rot_pathname".into(), address)]), "open"),
+    ] {
+        let mut rotator = HamlibRotator::new(HamlibDeviceConfig {
+            model_id: hamlib::RotatorModelId::NET_ROTCTL.to_string(),
+            token_values: tokens,
+        });
+        let error = rotator.init().unwrap_err();
+        assert_eq!(error.operation, operation);
+        assert_eq!(
+            error.native_error.unwrap()["handle_present"],
+            false,
+            "{operation}"
+        );
+    }
+    let mut rotator = HamlibRotator::new(HamlibDeviceConfig {
+        model_id: hamlib::RotatorModelId::DUMMY.to_string(),
+        token_values: BTreeMap::new(),
+    });
+    rotator.init().unwrap();
+    assert_eq!(
+        rotator
+            .set_azimuth(f64::NAN)
+            .unwrap_err()
+            .native_error
+            .unwrap()["handle_present"],
+        true
+    );
+    assert_eq!(
+        rotator.stop().unwrap_err().native_error.unwrap()["handle_present"],
+        false
+    );
+}
+
 fn configured_backend(config: &RotatorConfig) -> ActiveRotatorBackend {
     ActiveRotatorBackend::Configured(config.hamlib().expect("Hamlib config").clone())
 }
