@@ -48,13 +48,27 @@ pub(crate) fn launch_commands(
     let mut result = Err(std::io::Error::other("no browser launcher available").into());
     for mut command in commands {
         let mut evidence = json!({"launcher": command.get_program().to_string_lossy(), "args": command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect::<Vec<_>>()});
-        // Browsers can inherit launcher output handles. Files let us collect launcher output without waiting for the browser to close.
-        let stdout = tempfile::tempfile()?;
-        let stderr = tempfile::tempfile()?;
-        command
-            .stdin(Stdio::null())
-            .stdout(Stdio::from(stdout.try_clone()?))
-            .stderr(Stdio::from(stderr.try_clone()?));
+        command.stdin(Stdio::null());
+        // Inherited browser handles must not keep output capture waiting after the launcher exits.
+        let files = (|| -> std::io::Result<_> {
+            let stdout = tempfile::tempfile()?;
+            let stderr = tempfile::tempfile()?;
+            let output = stdout.try_clone()?;
+            let errors = stderr.try_clone()?;
+            command
+                .stdout(Stdio::from(output))
+                .stderr(Stdio::from(errors));
+            Ok((stdout, stderr))
+        })();
+        let files = match files {
+            Ok(files) => Some(files),
+            Err(error) => {
+                evidence["capture_setup_error"] = error.to_string().into();
+                evidence["capture_setup_os_code"] = json!(error.raw_os_error());
+                command.stdout(Stdio::null()).stderr(Stdio::null());
+                None
+            }
+        };
         #[cfg(windows)]
         let child = crate::windows_sockets::spawn(&mut command);
         #[cfg(not(windows))]
@@ -70,12 +84,14 @@ pub(crate) fn launch_commands(
             }
         };
         let status = child.wait();
-        let (stdout, stdout_error) = capture(stdout);
-        let (stderr, stderr_error) = capture(stderr);
-        evidence["stdout"] = stdout.into();
-        evidence["stderr"] = stderr.into();
-        evidence["stdout_read_error"] = json!(stdout_error);
-        evidence["stderr_read_error"] = json!(stderr_error);
+        if let Some((stdout, stderr)) = files {
+            let (stdout, stdout_error) = capture(stdout);
+            let (stderr, stderr_error) = capture(stderr);
+            evidence["stdout"] = stdout.into();
+            evidence["stderr"] = stderr.into();
+            evidence["stdout_read_error"] = json!(stdout_error);
+            evidence["stderr_read_error"] = json!(stderr_error);
+        }
         result = match status {
             Ok(status) => {
                 evidence["exit_status"] = status.to_string().into();
