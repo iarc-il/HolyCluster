@@ -13,7 +13,7 @@ use super::{UserEvent, spawn_app, spawn_catserver_with_events};
 async fn shutdown_returns_the_explicit_reason() {
     for reason in [UserEvent::Quit, UserEvent::RestartForUpdate] {
         let (sender, receiver) = tokio::sync::broadcast::channel(10);
-        sender.send(UserEvent::OpenBrowser).unwrap();
+        sender.send(UserEvent::OpenBrowser("test")).unwrap();
         sender.send(reason.clone()).unwrap();
         assert_eq!(super::super::shutdown(receiver).await, reason);
     }
@@ -52,7 +52,7 @@ async fn shutdown_distinguishes_update_restart_from_user_quit() {
         assert_eq!(init["type"], "radio");
         assert!(init["catserver_version"].is_string());
 
-        sender.send(UserEvent::OpenBrowser).unwrap();
+        sender.send(UserEvent::OpenBrowser("test")).unwrap();
         assert!(
             reqwest::get(format!("http://{}/api/update", catserver.address))
                 .await

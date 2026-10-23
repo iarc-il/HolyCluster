@@ -233,7 +233,7 @@ async fn handle_ws_socket(
                     client_close_code = axum::extract::ws::close_code::RESTART;
                     break;
                 }
-                UserEvent::OpenBrowser => client_sender.send(radio::focus_message()?).await?,
+                UserEvent::OpenBrowser(_) => client_sender.send(radio::focus_message()?).await?,
             },
             _ = radio_interval.tick() => {
                 let data = radio_manager.status();

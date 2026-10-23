@@ -242,26 +242,12 @@ fn radio(config: RadioConfig, use_dummy: bool) -> Result<RadioManager> {
     Ok(RadioManager::new(config, selected)?)
 }
 
-fn open_browser(port: u16) -> Result<()> {
+fn open_browser(port: u16, origin: &str) -> Result<()> {
     let url = format!("http://127.0.0.1:{port}");
+    let commands = open::commands(&url);
     #[cfg(windows)]
-    {
-        use anyhow::Context;
-        use std::process::Stdio;
-
-        let mut command = open::commands(url)
-            .pop()
-            .context("cannot determine browser launch command")?;
-        command
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
-        let status = crate::windows_sockets::spawn(&mut command)?.wait()?;
-        anyhow::ensure!(status.success(), "browser launcher exited with {status}");
-    }
-    #[cfg(not(windows))]
-    open::that(url)?;
-    Ok(())
+    let commands = commands.into_iter().rev().take(1).collect();
+    crate::desktop::launch_commands(&url, origin, commands)
 }
 
 #[tokio::main]
@@ -331,15 +317,15 @@ async fn run_singleton(
     instance_port::publish(&instance_port::path()?, local_port)?;
     crate::diagnostics::port(local_port);
     crate::diagnostics::phase("serving");
-    if !silent && let Err(error) = open_browser(local_port) {
+    if !silent && let Err(error) = open_browser(local_port, "startup") {
         tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "browser_startup")), "Failed to open browser on startup");
     }
     tokio::spawn(async move {
         while let Ok(event) = receiver.recv().await {
             match event {
                 UserEvent::Quit | UserEvent::RestartForUpdate => break,
-                UserEvent::OpenBrowser => {
-                    if let Err(error) = open_browser(local_port) {
+                UserEvent::OpenBrowser(origin) => {
+                    if let Err(error) = open_browser(local_port, origin) {
                         tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "browser_user_event")), "Failed to open browser from user event");
                     }
                 }

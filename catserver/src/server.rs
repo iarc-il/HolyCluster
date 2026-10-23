@@ -165,7 +165,9 @@ async fn exit_server_handler(
 async fn open_tab_handler(
     axum::extract::State(state): axum::extract::State<AppState>,
 ) -> axum::http::StatusCode {
-    let _ = state.sender.send(UserEvent::OpenBrowser);
+    let _ = state
+        .sender
+        .send(UserEvent::OpenBrowser("existing_instance_http"));
     axum::http::StatusCode::OK
 }
 

@@ -4,6 +4,7 @@ use anyhow::Result;
 
 mod application;
 mod args;
+mod desktop;
 mod device_actor;
 mod diagnostic_redaction;
 mod diagnostics;

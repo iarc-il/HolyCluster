@@ -40,7 +40,7 @@ fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> 
 pub enum UserEvent {
     Quit,
     RestartForUpdate,
-    OpenBrowser,
+    OpenBrowser(&'static str),
 }
 
 impl UserEvent {
@@ -118,7 +118,7 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
             MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
                 let id = event.id();
                 if id == &open_menu_id {
-                    let _ = tray_sender.send(UserEvent::OpenBrowser);
+                    let _ = tray_sender.send(UserEvent::OpenBrowser("tray_menu"));
                 } else if id == &quit_menu_id {
                     if let Err(error) = tray_sender.send(UserEvent::Quit) {
                         tracing::error!(?error, "Failed to send tray quit event");
@@ -174,7 +174,7 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
         let id = event.id();
         if id == &open_menu_id {
-            let _ = tray_sender.send(UserEvent::OpenBrowser);
+            let _ = tray_sender.send(UserEvent::OpenBrowser("tray_menu"));
         } else if id == &quit_menu_id && tray_sender.send(UserEvent::Quit).is_err() {
             tracing::error!("Failed to send tray quit event");
         }
