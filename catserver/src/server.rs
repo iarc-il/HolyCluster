@@ -119,11 +119,15 @@ impl Server {
             .route("/api/update/install", post(update::install))
             .route(
                 "/api/update/defer",
-                post(|axum::extract::State(state)| update::run_operation(state, "defer", |updater| updater.defer())),
+                post(|axum::extract::State(state)| {
+                    update::run_operation(state, "defer", |updater| updater.defer())
+                }),
             )
             .route(
                 "/api/update/retry",
-                post(|axum::extract::State(state)| update::run_operation(state, "retry", |updater| updater.retry())),
+                post(|axum::extract::State(state)| {
+                    update::run_operation(state, "retry", |updater| updater.retry())
+                }),
             );
         let app = if use_local_ui {
             app.fallback(any(local_ui))
