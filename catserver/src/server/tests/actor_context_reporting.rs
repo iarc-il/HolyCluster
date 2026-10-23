@@ -118,6 +118,16 @@ fn evidence(event: &serde_json::Value) -> serde_json::Value {
     .unwrap()
 }
 
+fn assert_status_read_disconnect(disconnect: &serde_json::Value) {
+    // The connection can close between the frequency and mode reads.
+    let expected = match disconnect["backend_call"]["operation"].as_str().unwrap() {
+        "rig_get_freq" => "read frequency",
+        "rig_get_mode" => "read mode",
+        operation => panic!("unexpected status operation: {operation}"),
+    };
+    assert!(disconnect["error"].as_str().unwrap().contains(expected));
+}
+
 struct ComFailureRadio {
     fail_init: bool,
     untyped_error: bool,
@@ -501,12 +511,7 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
         retry["pre_operation"]["disconnect"]["origin"], "status_read",
         "{retry}"
     );
-    assert!(
-        retry["pre_operation"]["disconnect"]["error"]
-            .as_str()
-            .unwrap()
-            .contains("read frequency")
-    );
+    assert_status_read_disconnect(&retry["pre_operation"]["disconnect"]);
     let unconfigured = evidence(&reports[0]);
     assert_eq!(
         unconfigured["pre_operation"]["configuration_present"],
@@ -533,12 +538,7 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
         "{disconnected}"
     );
     assert_eq!(pre["disconnect"]["origin"], "status_read");
-    assert!(
-        pre["disconnect"]["error"]
-            .as_str()
-            .unwrap()
-            .contains("read frequency")
-    );
+    assert_status_read_disconnect(&pre["disconnect"]);
     assert_eq!(disconnected["backend_call"]["handle_present"], false);
 }
 
