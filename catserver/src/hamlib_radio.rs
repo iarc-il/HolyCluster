@@ -1,5 +1,3 @@
-use std::fmt;
-
 use crate::{
     freq::Freq,
     radio_config::HamlibRigConfig,
@@ -157,12 +155,14 @@ fn init_error(rig: u8, error: OpenError) -> RadioInitError {
         rig,
         error: error.message,
         details: error.details,
+        native_error: error.native_error,
     }
 }
 
 struct OpenError {
     message: String,
     details: Option<String>,
+    native_error: Option<serde_json::Value>,
 }
 
 impl OpenError {
@@ -170,24 +170,29 @@ impl OpenError {
         Self {
             message: message.into(),
             details: None,
+            native_error: None,
         }
     }
 
-    fn from_display(error: impl fmt::Display) -> Self {
+    fn from_display(error: impl std::error::Error + 'static) -> Self {
+        let native_error = Some(crate::tracing_setup::native_error(&error));
         let details = error.to_string();
         Self {
             message: details.lines().next().unwrap_or_default().to_owned(),
             details: details.contains('\n').then_some(details),
+            native_error,
         }
     }
 
     fn from_hamlib(error: hamlib::HamlibError) -> Self {
+        let native_error = Some(crate::tracing_setup::native_error(&error));
         let message = error.short_message();
         let details = error.to_string();
         let has_details = details != message;
         Self {
             message,
             details: has_details.then_some(details),
+            native_error,
         }
     }
 }

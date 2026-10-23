@@ -508,6 +508,23 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
         retry["pre_operation"]["initialization"]["outcome"],
         "failed"
     );
+    let native = &retry["pre_operation"]["initialization"]["native_error"];
+    assert_eq!(native["operation"], "rig_open");
+    assert_eq!(native["code"], -6);
+    assert!(
+        native["text"]
+            .as_str()
+            .unwrap()
+            .contains("rig_open failed with code -6:")
+    );
+    assert!(native["text"].as_str().unwrap().contains('\n'));
+    assert!(
+        native["hamlib_version"]
+            .as_str()
+            .unwrap()
+            .starts_with("Hamlib ")
+    );
+    assert_eq!(retry["initialization_native_error"], *native);
     assert_eq!(
         retry["pre_operation"]["disconnect"]["origin"], "status_read",
         "{retry}"

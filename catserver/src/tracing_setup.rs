@@ -255,6 +255,13 @@ fn initialization_evidence(fields: &mut Evidence, error: &crate::rig::RadioInitE
         fields.insert("initialization_call".into(), serde_json::json!(context));
     }
     if let crate::rig::RadioInitError::Hamlib {
+        native_error: Some(native),
+        ..
+    } = error
+    {
+        fields.insert("initialization_native_error".into(), native.clone());
+    }
+    if let crate::rig::RadioInitError::Hamlib {
         details: Some(details),
         ..
     } = error
@@ -542,6 +549,7 @@ mod tests {
                 rig: 1,
                 error: "backend unavailable at 192.168.1.10:4532".into(),
                 details: Some("full initialization details".into()),
+                native_error: None,
             }),
             last_operation_error: Some(RadioOperationError::new(
                 1,

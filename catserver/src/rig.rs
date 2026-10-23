@@ -47,6 +47,7 @@ pub enum RadioInitError {
         rig: u8,
         error: String,
         details: Option<String>,
+        native_error: Option<serde_json::Value>,
     },
     Io {
         backend: &'static str,
@@ -85,6 +86,7 @@ impl std::error::Error for RadioInitError {}
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct RadioInitializationContext {
+    pub native_error: Option<serde_json::Value>,
     pub origin: &'static str,
     pub outcome: &'static str,
     pub error: Option<String>,

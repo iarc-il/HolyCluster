@@ -412,6 +412,10 @@ fn publish(
         snapshot.last_operation_error = None;
     }
     connection_trace.initialization = Some(RadioInitializationContext {
+        native_error: init.as_ref().err().and_then(|error| match error {
+            RadioInitError::Hamlib { native_error, .. } => native_error.clone(),
+            _ => None,
+        }),
         origin: connection_trace.initialization_origin,
         outcome: if init.is_ok() { "succeeded" } else { "failed" },
         error: init.as_ref().err().map(ToString::to_string),
@@ -438,7 +442,10 @@ fn publish(
             drop(snapshot);
             if connection_trace.disconnect.is_none() {
                 connection_trace.disconnect = Some(RadioDisconnectContext {
-                    native_error: None,
+                    native_error: connection_trace
+                        .initialization
+                        .as_ref()
+                        .and_then(|init| init.native_error.clone()),
                     origin: "initialization",
                     error: error.to_string(),
                     backend_call: connection_trace
