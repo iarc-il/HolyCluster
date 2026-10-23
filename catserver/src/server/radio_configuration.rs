@@ -4,8 +4,8 @@ use serde::Serialize;
 
 use crate::{
     radio_config::{
-        ActiveRadioBackend, HamlibRigConfig, RadioConfig, RadioConfigError, RadioRigConfig,
-        ResolvedRadioModel, resolve_model_id,
+        HamlibRigConfig, RadioConfig, RadioConfigError, RadioRigConfig, ResolvedRadioModel,
+        resolve_model_id,
     },
     radio_factory,
     radio_manager::{RadioManager, RadioManagerError},
@@ -174,9 +174,7 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
             if !errors.is_empty() {
                 return ConfigurationResult::failure(ConfigurationFailure::InvalidConfig, errors);
             }
-            let dummy_override =
-                matches!(self.radio.snapshot().selected, ActiveRadioBackend::Dummy);
-            let selected = configuration.effective_backend(dummy_override);
+            let selected = configuration.effective_backend();
             let factory = radio_factory::factory(configuration.clone(), selected.clone());
             match self
                 .radio
@@ -204,9 +202,7 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
             if !errors.is_empty() {
                 return ConfigurationResult::failure(ConfigurationFailure::InvalidConfig, errors);
             }
-            let dummy_override =
-                matches!(self.radio.snapshot().selected, ActiveRadioBackend::Dummy);
-            let selected = config.effective_backend(dummy_override);
+            let selected = config.effective_backend();
             let factory = radio_factory::factory(config, selected);
             match self.radio.test_connection(move || factory()).await {
                 Ok(()) => ConfigurationResult::success(),

@@ -29,12 +29,7 @@ impl Drop for TestDir {
 }
 
 fn dummy_config() -> RotatorConfig {
-    RotatorConfig::Hamlib {
-        hamlib: HamlibDeviceConfig {
-            model_id: hamlib::RotatorModelId::DUMMY.to_string(),
-            token_values: BTreeMap::new(),
-        },
-    }
+    RotatorConfig::hamlib_dummy()
 }
 
 #[test]
@@ -58,6 +53,19 @@ fn saves_and_loads_versioned_configuration() {
     );
     let persisted = fs::read_to_string(directory.file()).unwrap();
     assert!(persisted.contains("\"version\": 1"));
+}
+
+#[test]
+fn hamlib_dummy_session_config_does_not_replace_persisted_config() {
+    let directory = TestDir::new();
+    let persisted_config = RotatorConfig::unconfigured();
+    persisted_config.save_to_path(&directory.file()).unwrap();
+    let persisted = fs::read_to_string(directory.file()).unwrap();
+
+    let session = RotatorConfig::hamlib_dummy();
+
+    assert_eq!(session.hamlib().unwrap().model_id, "1");
+    assert_eq!(fs::read_to_string(directory.file()).unwrap(), persisted);
 }
 
 #[test]

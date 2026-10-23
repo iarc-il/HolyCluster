@@ -59,15 +59,15 @@ async fn local_controls(socket: &mut Socket) {
 #[tokio::test]
 async fn unsupported_mode_returns_feedback_and_still_tunes_frequency() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let config = crate::radio_config::RadioConfig::platform_default();
-    let selected = crate::radio_config::ActiveRadioBackend::Dummy;
+    let config = crate::radio_config::RadioConfig::hamlib_dummy();
+    let selected = config.effective_backend();
+    let factory = crate::radio_factory::factory(config.clone(), selected.clone());
     let radio = crate::radio_manager::RadioManager::new(config.clone(), selected.clone()).unwrap();
     radio
-        .replace(config, selected, || {
-            Box::new(crate::dummy::DummyRadio::new())
-        })
+        .replace(config, selected, move || factory())
         .await
         .unwrap();
+    let initial_mode = radio.status().mode;
     let (server, _) =
         super::spawn_catserver_with_radio(listener.local_addr().unwrap(), None, radio.clone())
             .await;
@@ -84,7 +84,7 @@ async fn unsupported_mode_returns_feedback_and_still_tunes_frequency() {
     assert_eq!(result["mode"], "UNKNOWN");
     let status = event(&mut socket, "status").await;
     assert_eq!(status["freq"], 14_074_000);
-    assert_eq!(status["mode"], "SSB");
+    assert_eq!(status["mode"], initial_mode);
     assert_eq!(status["status"], "connected");
     local_controls(&mut socket).await;
     socket.close(None).await.unwrap();

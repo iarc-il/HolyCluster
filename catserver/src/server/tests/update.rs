@@ -17,7 +17,7 @@ async fn update_mutations_preserve_an_active_transaction() {
             is_using_ssl: false,
             local_port: 3000,
         },
-        RadioManager::new(config.clone(), config.effective_backend(false)).unwrap(),
+        RadioManager::new(config.clone(), config.effective_backend()).unwrap(),
         RotatorManager::new(RotatorConfig::unconfigured()).unwrap(),
         sender,
         None,

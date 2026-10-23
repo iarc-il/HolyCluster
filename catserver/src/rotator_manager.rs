@@ -17,7 +17,6 @@ pub enum RotatorConnectionState {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ActiveRotatorBackend {
     Unconfigured,
-    DummyOverride,
     Configured(HamlibDeviceConfig),
 }
 
@@ -25,7 +24,6 @@ impl std::fmt::Display for ActiveRotatorBackend {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Unconfigured => formatter.write_str("unconfigured"),
-            Self::DummyOverride => formatter.write_str("dummy_rotator"),
             Self::Configured(config) => write!(formatter, "hamlib:{}", config.model_id),
         }
     }

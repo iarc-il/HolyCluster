@@ -206,17 +206,18 @@ fn removes_temporary_file_and_preserves_bytes_when_rename_fails() {
 }
 
 #[test]
-fn dummy_override_is_explicit_and_never_persisted() {
+fn hamlib_dummy_session_config_does_not_replace_persisted_config() {
     let directory = TestDir::new();
-    let config = RadioConfig::platform_default();
-
-    config.save_to_path(&directory.file()).unwrap();
+    let persisted_config = RadioConfig::platform_default();
+    persisted_config.save_to_path(&directory.file()).unwrap();
     let persisted = fs::read_to_string(directory.file()).unwrap();
 
-    assert_eq!(config.effective_backend(true), ActiveRadioBackend::Dummy);
+    let session = RadioConfig::hamlib_dummy();
+
     assert_eq!(
-        config.effective_backend(false),
-        ActiveRadioBackend::Configured(RadioBackendKind::Unconfigured)
+        session.effective_backend(),
+        ActiveRadioBackend::Configured(RadioBackendKind::Hamlib)
     );
-    assert!(!persisted.contains("dummy"));
+    assert_eq!(session.rig.unwrap().model_id, "hamlib:1");
+    assert_eq!(fs::read_to_string(directory.file()).unwrap(), persisted);
 }

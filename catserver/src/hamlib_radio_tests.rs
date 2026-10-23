@@ -28,6 +28,7 @@ fn config() -> HamlibRigConfig {
 fn dummy_rig_selects_vfos_and_maps_modes() {
     let mut radio = HamlibRadio::new(config());
     radio.init().unwrap();
+    assert_eq!(radio.get_status().unwrap().mode, "SSB");
     radio
         .set_frequency(Slot::A, Freq::from_u32_hz(7_100_000))
         .unwrap();

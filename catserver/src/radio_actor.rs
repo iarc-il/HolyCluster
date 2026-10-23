@@ -236,7 +236,6 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                             ConnectionState::Disconnected => "disconnected",
                         },
                         selected_backend: match state.selected {
-                            ActiveRadioBackend::Dummy => "dummy",
                             ActiveRadioBackend::Configured(RadioBackendKind::Unconfigured) => {
                                 "unconfigured"
                             }

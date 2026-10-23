@@ -50,7 +50,7 @@ async fn local_ui_only_serves_get_and_head_requests() {
             is_using_ssl: false,
             local_port: 0,
         },
-        RadioManager::new(config.clone(), config.effective_backend(false)).unwrap(),
+        RadioManager::new(config.clone(), config.effective_backend()).unwrap(),
         RotatorManager::new(RotatorConfig::unconfigured()).unwrap(),
         sender,
         Some(ui_dir.path().to_owned()),

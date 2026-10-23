@@ -6,14 +6,13 @@ use tokio::sync::broadcast::{self, Sender};
 
 use crate::{
     args::{Args, server_config},
-    dummy_rotator::DummyRotator,
-    hamlib_rotator::HamlibRotator,
     instance_port,
     radio_config::RadioConfig,
     radio_factory,
     radio_manager::RadioManager,
     rotator_config::RotatorConfig,
-    rotator_manager::{ActiveRotatorBackend, RotatorManager},
+    rotator_factory,
+    rotator_manager::RotatorManager,
     server::{Server, ServerConfig},
     startup_radio, tray_icon,
     tray_icon::UserEvent,
@@ -82,8 +81,14 @@ pub fn run(args: Args) -> Result<()> {
             "Radio configuration is invalid; using the platform default for this session"
         );
     }
-    let radio = radio(radio_config.config, args.dummy)?;
-    let rotator_config = RotatorConfig::config_path()
+    let radio_config = if args.dummy {
+        tracing::warn!("--dummy is deprecated; using the Hamlib dummy radio for this session");
+        RadioConfig::hamlib_dummy()
+    } else {
+        radio_config.config
+    };
+    let radio = radio(radio_config)?;
+    let loaded_rotator_config = RotatorConfig::config_path()
         .and_then(|path| RotatorConfig::load_from_path(&path))
         .unwrap_or_else(|error| {
             tracing::error!(
@@ -92,8 +97,15 @@ pub fn run(args: Args) -> Result<()> {
             );
             RotatorConfig::unconfigured()
         });
+    let rotator_config = if args.dummy_rotator {
+        tracing::warn!(
+            "--dummy-rotator is deprecated; using the Hamlib dummy rotator for this session"
+        );
+        RotatorConfig::hamlib_dummy()
+    } else {
+        loaded_rotator_config
+    };
     let rotator = RotatorManager::new(rotator_config)?;
-    let use_dummy_rotator = args.dummy_rotator;
     let no_browser = args.no_browser;
     let (sender, _) = broadcast::channel::<UserEvent>(10);
     let event_sender = sender.clone();
@@ -109,7 +121,6 @@ pub fn run(args: Args) -> Result<()> {
                 rotator,
                 server_config,
                 use_local_ui,
-                use_dummy_rotator,
                 no_browser,
                 restart,
             );
@@ -221,8 +232,8 @@ pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &st
     }
 }
 
-fn radio(config: RadioConfig, use_dummy: bool) -> Result<RadioManager> {
-    let selected = config.effective_backend(use_dummy);
+fn radio(config: RadioConfig) -> Result<RadioManager> {
+    let selected = config.effective_backend();
     Ok(RadioManager::new(config, selected)?)
 }
 
@@ -242,7 +253,6 @@ async fn run_singleton(
     rotator: RotatorManager,
     server_config: ServerConfig,
     use_local_ui: bool,
-    use_dummy_rotator: bool,
     no_browser: bool,
     restart: Option<crate::updater::RestartContext>,
 ) -> Result<UserEvent> {
@@ -257,20 +267,9 @@ async fn run_singleton(
     tracing::info!(?snapshot.connection, ?snapshot.selected, "Radio startup completed");
     crate::diagnostics::phase("rotator_initialization");
     let active_rotator_config = rotator.snapshot().config;
-    if use_dummy_rotator {
+    if let Some((selected, factory)) = rotator_factory::factory(&active_rotator_config) {
         rotator
-            .replace(
-                active_rotator_config,
-                ActiveRotatorBackend::DummyOverride,
-                || Box::new(DummyRotator::new()),
-            )
-            .await?;
-    } else if let Some(config) = active_rotator_config.hamlib().cloned() {
-        let selected = ActiveRotatorBackend::Configured(config.clone());
-        rotator
-            .replace(active_rotator_config, selected, move || {
-                Box::new(HamlibRotator::new(config.clone()))
-            })
+            .replace(active_rotator_config, selected, move || factory())
             .await?;
     }
     let rotator_snapshot = rotator.snapshot();

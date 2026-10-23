@@ -94,7 +94,7 @@ async fn exercise_failure(case: &'static str) {
         }
     }))).await;
     let config = RadioConfig::platform_default();
-    let radio = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let radio = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     let (sender, _) = tokio::sync::broadcast::channel(10);
     let manifest_url = if case == "manifest_connect" {
         refused_url

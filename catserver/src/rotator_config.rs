@@ -64,6 +64,15 @@ impl RotatorConfig {
         Self::Unconfigured
     }
 
+    pub fn hamlib_dummy() -> Self {
+        Self::Hamlib {
+            hamlib: HamlibDeviceConfig {
+                model_id: hamlib::RotatorModelId::DUMMY.to_string(),
+                token_values: Default::default(),
+            },
+        }
+    }
+
     pub fn config_path() -> Result<PathBuf, RotatorConfigError> {
         let project_dirs = ProjectDirs::from("org", "iarc", "holycluster")
             .ok_or(RotatorConfigError::ProjectDirectories)?;

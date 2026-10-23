@@ -114,8 +114,8 @@ fn open(config: &HamlibRigConfig) -> Result<hamlib::Rig<hamlib::Open>, OpenError
     let descriptors = catalog
         .describe_model(hamlib::RigModelId::new(model))
         .map_err(OpenError::from_display)?;
-    let mut rig =
-        hamlib::Rig::new(hamlib::RigModelId::new(model)).map_err(OpenError::from_hamlib)?;
+    let model = hamlib::RigModelId::new(model);
+    let mut rig = hamlib::Rig::new(model).map_err(OpenError::from_hamlib)?;
     for (token, value) in &config.token_values {
         if matches!(
             port_type,
@@ -134,7 +134,17 @@ fn open(config: &HamlibRigConfig) -> Result<hamlib::Rig<hamlib::Open>, OpenError
         rig.configure(descriptor, &value)
             .map_err(OpenError::from_display)?;
     }
-    rig.open().map_err(OpenError::from_hamlib)
+    let mut rig = rig.open().map_err(OpenError::from_hamlib)?;
+    // Keep dummy sessions within CATServer's controllable mode set.
+    if model == hamlib::RigModelId::DUMMY {
+        rig.set_mode(
+            hamlib::Vfo::Current,
+            hamlib::Mode::Usb,
+            hamlib::PassbandWidth::new(0),
+        )
+        .map_err(OpenError::from_hamlib)?;
+    }
+    Ok(rig)
 }
 
 fn unavailable(operation: &'static str) -> RadioOperationError {

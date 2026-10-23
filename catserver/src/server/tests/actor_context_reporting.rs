@@ -460,7 +460,7 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
             } else {
                 configured(&native)
             };
-            let selected = config.effective_backend(false);
+            let selected = config.effective_backend();
             let radio = RadioManager::new(config.clone(), selected.clone()).unwrap();
             let factory = crate::radio_factory::factory(config.clone(), selected.clone());
             radio
@@ -633,15 +633,14 @@ async fn actor_context_stays_with_result_across_queued_replacement() {
         .await
         .unwrap()
         .unwrap();
-    let mut replacement =
-        Box::pin(
-            radio.replace(RadioConfig { rig: None }, ActiveRadioBackend::Dummy, || {
-                Box::new(HamlibRadio::new(HamlibRigConfig {
-                    model_id: "1".into(),
-                    token_values: Default::default(),
-                }))
-            }),
-        );
+    let replacement_config = RadioConfig::hamlib_dummy();
+    let replacement_selected = replacement_config.effective_backend();
+    let mut replacement = Box::pin(radio.replace(replacement_config, replacement_selected, || {
+        Box::new(HamlibRadio::new(HamlibRigConfig {
+            model_id: "1".into(),
+            token_values: Default::default(),
+        }))
+    }));
     // Polling enqueues replacement while the actor is still inside the first backend call.
     assert!(poll!(replacement.as_mut()).is_pending());
     assert!(poll!(operation.as_mut()).is_pending());
@@ -652,8 +651,11 @@ async fn actor_context_stays_with_result_across_queued_replacement() {
         .unwrap();
     replacement.await.unwrap();
     let after = radio.snapshot();
-    assert!(after.config.rig.is_none());
-    assert_eq!(after.selected, ActiveRadioBackend::Dummy);
+    assert_eq!(after.config.rig.as_ref().unwrap().model_id, "hamlib:1");
+    assert_eq!(
+        after.selected,
+        ActiveRadioBackend::Configured(RadioBackendKind::Hamlib)
+    );
     assert!(after.last_operation_error.is_none());
     let error = anyhow::Error::new(operation.await.unwrap_err());
     let evidence = radio_evidence(&error, &after, &after, "{}");

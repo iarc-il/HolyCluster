@@ -186,11 +186,11 @@ impl Radio for OrderedRadio {
 #[tokio::test]
 async fn unsupported_mode_keeps_mode_but_changes_frequency() {
     let config = RadioConfig::platform_default();
-    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let manager = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     let events = Arc::new(Mutex::new(Vec::new()));
     let recorded = Arc::clone(&events);
     manager
-        .replace(config.clone(), config.effective_backend(false), move || {
+        .replace(config.clone(), config.effective_backend(), move || {
             Box::new(OrderedRadio {
                 events: Arc::clone(&recorded),
                 rig: 1,
@@ -252,9 +252,9 @@ async fn unsupported_mode_does_not_hide_a_frequency_failure() {
         }
     }
     let config = RadioConfig::platform_default();
-    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let manager = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     manager
-        .replace(config.clone(), config.effective_backend(false), || {
+        .replace(config.clone(), config.effective_backend(), || {
             Box::new(FrequencyFailureRadio)
         })
         .await
@@ -277,11 +277,11 @@ async fn unsupported_mode_does_not_hide_a_frequency_failure() {
 #[tokio::test(flavor = "current_thread")]
 async fn write_failure_is_visible_and_schedules_recovery_when_reads_succeed() {
     let config = RadioConfig::platform_default();
-    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let manager = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     let attempts = Arc::new(AtomicUsize::new(0));
     let factory_attempts = Arc::clone(&attempts);
     manager
-        .replace(config.clone(), config.effective_backend(false), move || {
+        .replace(config.clone(), config.effective_backend(), move || {
             Box::new(WriteFailRadio {
                 attempts: Arc::clone(&factory_attempts),
             })
@@ -313,13 +313,13 @@ async fn write_failure_is_visible_and_schedules_recovery_when_reads_succeed() {
 #[tokio::test(flavor = "current_thread")]
 async fn retry_reconstructs_failed_selected_backend_on_actor_thread() {
     let config = RadioConfig::platform_default();
-    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let manager = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     let attempts = Arc::new(AtomicUsize::new(0));
     let threads = Arc::new(Mutex::new(Vec::new()));
     let factory_attempts = Arc::clone(&attempts);
     let factory_threads = Arc::clone(&threads);
     manager
-        .replace(config.clone(), config.effective_backend(false), move || {
+        .replace(config.clone(), config.effective_backend(), move || {
             Box::new(RetryRadio {
                 attempts: Arc::clone(&factory_attempts),
                 threads: Arc::clone(&factory_threads),
@@ -339,13 +339,13 @@ async fn retry_reconstructs_failed_selected_backend_on_actor_thread() {
 #[tokio::test]
 async fn retries_failed_backend_without_a_browser_session() {
     let config = RadioConfig::platform_default();
-    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let manager = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     let attempts = Arc::new(AtomicUsize::new(0));
     let threads = Arc::new(Mutex::new(Vec::new()));
     let factory_attempts = Arc::clone(&attempts);
     let factory_threads = Arc::clone(&threads);
     manager
-        .replace(config.clone(), config.effective_backend(false), move || {
+        .replace(config.clone(), config.effective_backend(), move || {
             Box::new(RetryRadio {
                 attempts: Arc::clone(&factory_attempts),
                 threads: Arc::clone(&factory_threads),
@@ -371,8 +371,7 @@ async fn retries_failed_backend_without_a_browser_session() {
 #[tokio::test(flavor = "current_thread")]
 async fn commands_queued_during_recovery_remain_fifo() {
     let config = RadioConfig::platform_default();
-    let manager =
-        Arc::new(RadioManager::new(config.clone(), config.effective_backend(false)).unwrap());
+    let manager = Arc::new(RadioManager::new(config.clone(), config.effective_backend()).unwrap());
     let events = Arc::new(Mutex::new(Vec::new()));
     let factory_events = Arc::clone(&events);
     let (started_sender, started) = mpsc::channel();
@@ -380,7 +379,7 @@ async fn commands_queued_during_recovery_remain_fifo() {
     let release = Arc::new(Mutex::new(Some(release)));
     let factory_release = Arc::clone(&release);
     manager
-        .replace(config.clone(), config.effective_backend(false), move || {
+        .replace(config.clone(), config.effective_backend(), move || {
             Box::new(RecoveringOrderedRadio {
                 attempts: 0,
                 started: started_sender.clone(),
@@ -414,13 +413,13 @@ async fn commands_queued_during_recovery_remain_fifo() {
 #[tokio::test]
 async fn commands_reach_backend_in_fifo_order_with_coherent_status() {
     let config = RadioConfig::platform_default();
-    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let manager = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     let events = Arc::new(Mutex::new(Vec::new()));
     let factory_events = Arc::clone(&events);
     manager
         .replace(
             config,
-            RadioConfig::platform_default().effective_backend(false),
+            RadioConfig::platform_default().effective_backend(),
             move || {
                 Box::new(OrderedRadio {
                     events: Arc::clone(&factory_events),

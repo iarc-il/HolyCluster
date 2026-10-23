@@ -26,7 +26,6 @@ pub enum RadioBackendKind {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ActiveRadioBackend {
-    Dummy,
     Configured(RadioBackendKind),
 }
 
@@ -192,12 +191,17 @@ impl RadioConfig {
         Ok(())
     }
 
-    pub fn effective_backend(&self, dummy: bool) -> ActiveRadioBackend {
-        if dummy {
-            ActiveRadioBackend::Dummy
-        } else {
-            ActiveRadioBackend::Configured(self.backend())
+    pub fn hamlib_dummy() -> Self {
+        Self {
+            rig: Some(RadioRigConfig {
+                model_id: format!("hamlib:{}", hamlib::RigModelId::DUMMY),
+                token_values: BTreeMap::new(),
+            }),
         }
+    }
+
+    pub fn effective_backend(&self) -> ActiveRadioBackend {
+        ActiveRadioBackend::Configured(self.backend())
     }
 
     pub(crate) fn backend(&self) -> RadioBackendKind {

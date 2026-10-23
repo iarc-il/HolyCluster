@@ -6,8 +6,6 @@ mod desktop;
 mod device_actor;
 mod diagnostic_redaction;
 mod diagnostics;
-mod dummy;
-mod dummy_rotator;
 mod error_format;
 mod freq;
 mod hamlib_device_config;

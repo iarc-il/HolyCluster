@@ -4,8 +4,8 @@ use axum::extract::ws::Message;
 
 use super::{rotator::process, rotator_configuration::RotatorConfiguration};
 use crate::{
-    dummy_rotator::DummyRotator,
     hamlib_device_config::HamlibDeviceConfig,
+    hamlib_rotator::HamlibRotator,
     rotator_config::RotatorConfig,
     rotator_manager::{ActiveRotatorBackend, RotatorManager},
 };
@@ -44,13 +44,16 @@ async fn lists_rotator_models_with_compatibility() {
 
 #[tokio::test]
 async fn stops_rotator_movement() {
-    let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
+    let config = RotatorConfig::hamlib_dummy();
+    let selected = ActiveRotatorBackend::Configured(config.hamlib().unwrap().clone());
+    let manager = RotatorManager::new(config.clone()).unwrap();
     manager
-        .replace(
-            RotatorConfig::unconfigured(),
-            ActiveRotatorBackend::DummyOverride,
-            || Box::new(DummyRotator::new()),
-        )
+        .replace(config, selected, || {
+            Box::new(HamlibRotator::new(HamlibDeviceConfig {
+                model_id: hamlib::RotatorModelId::DUMMY.to_string(),
+                token_values: BTreeMap::new(),
+            }))
+        })
         .await
         .unwrap();
     manager.set_azimuth(180.0).await.unwrap();

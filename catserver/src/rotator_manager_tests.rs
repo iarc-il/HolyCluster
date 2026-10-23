@@ -10,8 +10,8 @@ use std::{
 };
 
 use crate::{
-    dummy_rotator::DummyRotator,
     hamlib_device_config::HamlibDeviceConfig,
+    hamlib_rotator::HamlibRotator,
     rotator::{Rotator, RotatorError, RotatorStatus},
     rotator_config::RotatorConfig,
     rotator_manager::{
@@ -151,10 +151,16 @@ impl Rotator for ExclusiveRotator {
     }
 }
 
-fn configured_rotator() -> (RotatorConfig, ActiveRotatorBackend) {
-    let hamlib = HamlibDeviceConfig {
+fn dummy_backend() -> ActiveRotatorBackend {
+    ActiveRotatorBackend::Configured(HamlibDeviceConfig {
         model_id: hamlib::RotatorModelId::DUMMY.to_string(),
         token_values: BTreeMap::new(),
+    })
+}
+
+fn configured_rotator() -> (RotatorConfig, ActiveRotatorBackend) {
+    let ActiveRotatorBackend::Configured(hamlib) = dummy_backend() else {
+        unreachable!();
     };
     (
         RotatorConfig::Hamlib {
@@ -170,16 +176,12 @@ async fn confines_non_send_backend_lifecycle_to_worker_thread() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let factory_events = Arc::clone(&events);
     manager
-        .replace(
-            RotatorConfig::unconfigured(),
-            ActiveRotatorBackend::DummyOverride,
-            move || {
-                Box::new(RecordingRotator {
-                    events: Arc::clone(&factory_events),
-                    marker: Rc::new(()),
-                })
-            },
-        )
+        .replace(RotatorConfig::unconfigured(), dummy_backend(), move || {
+            Box::new(RecordingRotator {
+                events: Arc::clone(&factory_events),
+                marker: Rc::new(()),
+            })
+        })
         .await
         .unwrap();
     manager.set_azimuth(90.0).await.unwrap();
@@ -193,14 +195,14 @@ async fn confines_non_send_backend_lifecycle_to_worker_thread() {
 }
 
 #[tokio::test]
-async fn publishes_dummy_status_and_target() {
-    let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
+async fn publishes_hamlib_dummy_status_and_target() {
+    let (config, selected) = configured_rotator();
+    let hamlib = config.hamlib().unwrap().clone();
+    let manager = RotatorManager::new(config.clone()).unwrap();
     manager
-        .replace(
-            RotatorConfig::unconfigured(),
-            ActiveRotatorBackend::DummyOverride,
-            || Box::new(DummyRotator::new()),
-        )
+        .replace(config, selected, move || {
+            Box::new(HamlibRotator::new(hamlib.clone()))
+        })
         .await
         .unwrap();
     manager.set_azimuth(90.0).await.unwrap();
@@ -208,7 +210,7 @@ async fn publishes_dummy_status_and_target() {
     let snapshot = manager.snapshot();
     assert_eq!(snapshot.connection, RotatorConnectionState::Connected);
     assert_eq!(snapshot.target_azimuth, Some(90.0));
-    assert_eq!(snapshot.last_status.name, "dummy_rotator");
+    assert_eq!(snapshot.last_status.name, "Hamlib Dummy");
     manager.shutdown().await.unwrap();
 }
 
@@ -218,16 +220,12 @@ async fn stops_the_rotator_and_clears_its_target() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let factory_events = Arc::clone(&events);
     manager
-        .replace(
-            RotatorConfig::unconfigured(),
-            ActiveRotatorBackend::DummyOverride,
-            move || {
-                Box::new(RecordingRotator {
-                    events: Arc::clone(&factory_events),
-                    marker: Rc::new(()),
-                })
-            },
-        )
+        .replace(RotatorConfig::unconfigured(), dummy_backend(), move || {
+            Box::new(RecordingRotator {
+                events: Arc::clone(&factory_events),
+                marker: Rc::new(()),
+            })
+        })
         .await
         .unwrap();
     manager.set_azimuth(90.0).await.unwrap();
@@ -251,16 +249,12 @@ async fn cached_consumers_do_not_multiply_hardware_polls() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let factory_events = Arc::clone(&events);
     manager
-        .replace(
-            RotatorConfig::unconfigured(),
-            ActiveRotatorBackend::DummyOverride,
-            move || {
-                Box::new(RecordingRotator {
-                    events: Arc::clone(&factory_events),
-                    marker: Rc::new(()),
-                })
-            },
-        )
+        .replace(RotatorConfig::unconfigured(), dummy_backend(), move || {
+            Box::new(RecordingRotator {
+                events: Arc::clone(&factory_events),
+                marker: Rc::new(()),
+            })
+        })
         .await
         .unwrap();
     let polls_before = events
@@ -290,15 +284,11 @@ async fn reconnects_without_consumers() {
     let attempts = Arc::new(AtomicUsize::new(0));
     let factory_attempts = Arc::clone(&attempts);
     manager
-        .replace(
-            RotatorConfig::unconfigured(),
-            ActiveRotatorBackend::DummyOverride,
-            move || {
-                Box::new(RetryRotator {
-                    attempts: Arc::clone(&factory_attempts),
-                })
-            },
-        )
+        .replace(RotatorConfig::unconfigured(), dummy_backend(), move || {
+            Box::new(RetryRotator {
+                attempts: Arc::clone(&factory_attempts),
+            })
+        })
         .await
         .unwrap();
     assert_eq!(
@@ -337,7 +327,7 @@ async fn same_healthy_configuration_test_reuses_active_rotator() {
     manager
         .test_connection(config, selected, move || {
             creations.fetch_add(1, Ordering::SeqCst);
-            Box::new(DummyRotator::new())
+            panic!("healthy active configuration must be reused")
         })
         .await
         .unwrap();
@@ -357,13 +347,9 @@ async fn testing_and_replacement_never_overlap_exclusive_instances() {
     let active_count = Arc::clone(&active);
     let active_overlap = Arc::clone(&overlap);
     manager
-        .replace(
-            config.clone(),
-            ActiveRotatorBackend::DummyOverride,
-            move || {
-                ExclusiveRotator::create(Arc::clone(&active_count), Arc::clone(&active_overlap))
-            },
-        )
+        .replace(config.clone(), dummy_backend(), move || {
+            ExclusiveRotator::create(Arc::clone(&active_count), Arc::clone(&active_overlap))
+        })
         .await
         .unwrap();
 
@@ -375,10 +361,7 @@ async fn testing_and_replacement_never_overlap_exclusive_instances() {
         })
         .await
         .unwrap();
-    assert_eq!(
-        manager.snapshot().selected,
-        ActiveRotatorBackend::DummyOverride
-    );
+    assert_eq!(manager.snapshot().selected, dummy_backend());
     assert_eq!(active.load(Ordering::SeqCst), 1);
     assert!(!overlap.load(Ordering::SeqCst));
 

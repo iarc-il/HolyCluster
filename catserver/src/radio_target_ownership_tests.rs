@@ -60,13 +60,13 @@ async fn failed_selection_prevents_both_mode_and_frequency_writes() {
 
 async fn check_target(fail_selection: bool) {
     let config = RadioConfig::platform_default();
-    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let manager = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     let modes = Arc::new(Mutex::new(["USB".into(), "LSB".into()]));
     let events = Arc::new(Mutex::new(Vec::new()));
     let factory_modes = modes.clone();
     let factory_events = events.clone();
     manager
-        .replace(config.clone(), config.effective_backend(false), move || {
+        .replace(config.clone(), config.effective_backend(), move || {
             Box::new(TargetRadio {
                 selected: Slot::B,
                 modes: factory_modes.clone(),
@@ -140,7 +140,7 @@ impl Radio for ExclusiveRadio {
 #[tokio::test]
 async fn same_port_replacement_releases_old_owner_and_failed_replace_keeps_new_config() {
     let config = RadioConfig::platform_default();
-    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let manager = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     let port = Arc::new(Mutex::new(false));
     for fail in [false, false, true] {
         let factory_port = port.clone();
@@ -154,7 +154,7 @@ async fn same_port_replacement_releases_old_owner_and_failed_replace_keeps_new_c
         manager
             .replace(
                 next_config.clone(),
-                next_config.effective_backend(false),
+                next_config.effective_backend(),
                 move || {
                     Box::new(ExclusiveRadio {
                         port: factory_port.clone(),
@@ -173,7 +173,7 @@ async fn same_port_replacement_releases_old_owner_and_failed_replace_keeps_new_c
         assert_eq!(*port.lock().unwrap(), !fail);
         assert_eq!(
             manager.snapshot().selected,
-            next_config.effective_backend(false)
+            next_config.effective_backend()
         );
         if fail {
             manager.retry().await.unwrap();
@@ -198,7 +198,7 @@ async fn test_restoration_failure_is_visible_and_old_factory_can_retry() {
 
 async fn check_exclusive_test(test_fails: bool, restore_fails: bool) {
     let config = RadioConfig::platform_default();
-    let selected = config.effective_backend(false);
+    let selected = config.effective_backend();
     let manager = RadioManager::new(config.clone(), selected.clone()).unwrap();
     let port = Arc::new(Mutex::new(false));
     let attempts = Arc::new(AtomicUsize::new(0));

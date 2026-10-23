@@ -132,7 +132,7 @@ async fn spawn_catserver_with_restart(
     restart: Option<crate::updater::RestartContext>,
 ) -> (TestServer, tokio::sync::broadcast::Sender<UserEvent>) {
     let config = RadioConfig::platform_default();
-    let radio = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let radio = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     spawn_catserver_with_radio(upstream, restart, radio).await
 }
 

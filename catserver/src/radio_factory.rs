@@ -1,5 +1,4 @@
 use crate::{
-    dummy::DummyRadio,
     hamlib_radio::HamlibRadio,
     radio_actor::RadioFactory,
     radio_config::{ActiveRadioBackend, RadioConfig, RadioRigConfig, ResolvedRadioModel},
@@ -15,7 +14,6 @@ pub(crate) fn factory(config: RadioConfig, selected: ActiveRadioBackend) -> Radi
 
 fn build(config: &RadioConfig, selected: &ActiveRadioBackend) -> Box<dyn Radio> {
     match selected {
-        ActiveRadioBackend::Dummy => Box::new(DummyRadio::new()),
         ActiveRadioBackend::Configured(_) => radio(config.rig.as_ref()),
     }
 }
@@ -64,7 +62,7 @@ mod tests {
                 token_values: BTreeMap::new(),
             }),
         };
-        let selected = config.effective_backend(false);
+        let selected = config.effective_backend();
         let manager = RadioManager::new(config.clone(), selected.clone()).unwrap();
         let radio_factory = factory(config.clone(), selected.clone());
 
@@ -96,7 +94,7 @@ mod tests {
     #[tokio::test]
     async fn unconfigured_radio_is_unavailable() {
         let config = RadioConfig::platform_default();
-        let selected = config.effective_backend(false);
+        let selected = config.effective_backend();
         let manager = RadioManager::new(config.clone(), selected.clone()).unwrap();
         let radio_factory = factory(config.clone(), selected.clone());
 

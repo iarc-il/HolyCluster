@@ -88,7 +88,7 @@ mod tests {
     use super::*;
     use crate::{
         freq::Freq,
-        radio_config::{ActiveRadioBackend, RadioConfig},
+        radio_config::RadioConfig,
         rig::{Radio, RadioInitError, RadioOperationError, Slot, Status},
     };
 
@@ -130,19 +130,16 @@ mod tests {
     #[tokio::test]
     async fn maps_supported_control_modes_and_rejects_unknown() {
         let modes = Arc::new(Mutex::new(Vec::new()));
-        let radio =
-            RadioManager::new(RadioConfig::platform_default(), ActiveRadioBackend::Dummy).unwrap();
+        let config = RadioConfig::hamlib_dummy();
+        let selected = config.effective_backend();
+        let radio = RadioManager::new(config.clone(), selected.clone()).unwrap();
         let recording = Arc::clone(&modes);
         radio
-            .replace(
-                RadioConfig::platform_default(),
-                ActiveRadioBackend::Dummy,
-                move || {
-                    Box::new(RecordingRadio {
-                        modes: Arc::clone(&recording),
-                    })
-                },
-            )
+            .replace(config, selected, move || {
+                Box::new(RecordingRadio {
+                    modes: Arc::clone(&recording),
+                })
+            })
             .await
             .unwrap();
 

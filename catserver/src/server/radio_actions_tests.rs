@@ -68,7 +68,7 @@ impl RadioConfigurationService for Service {
 }
 fn radio() -> RadioManager {
     let config = RadioConfig::platform_default();
-    RadioManager::new(config.clone(), config.effective_backend(false)).unwrap()
+    RadioManager::new(config.clone(), config.effective_backend()).unwrap()
 }
 
 #[tokio::test]

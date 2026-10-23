@@ -6,9 +6,9 @@ use std::{
 
 use crate::{
     device_actor::Worker,
-    dummy::DummyRadio,
     radio_actor::Command,
     radio_config::RadioConfig,
+    radio_factory,
     radio_manager::{ConnectionState, RadioManager},
     rig::{Mode, Radio, RadioInitError, RadioOperationError, Slot, Status},
 };
@@ -85,14 +85,12 @@ impl Radio for ThreadRadio {
 }
 
 async fn manager() -> RadioManager {
-    let config = RadioConfig::platform_default();
-    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let config = RadioConfig::hamlib_dummy();
+    let selected = config.effective_backend();
+    let factory = radio_factory::factory(config.clone(), selected.clone());
+    let manager = RadioManager::new(config.clone(), selected.clone()).unwrap();
     manager
-        .replace(
-            config,
-            RadioConfig::platform_default().effective_backend(false),
-            || Box::new(DummyRadio::new()),
-        )
+        .replace(config, selected, move || factory())
         .await
         .unwrap();
     manager
@@ -103,7 +101,7 @@ async fn failed_candidate_keeps_selected_backend_observable() {
     let manager = manager().await;
     let config = RadioConfig::platform_default();
     manager
-        .replace(config.clone(), config.effective_backend(false), || {
+        .replace(config.clone(), config.effective_backend(), || {
             Box::new(FailingRadio)
         })
         .await
@@ -118,11 +116,11 @@ async fn actor_keeps_native_lifecycle_on_one_thread() {
     let config = RadioConfig::platform_default();
     let events = Arc::new(Mutex::new(Vec::new()));
     let factory_events = Arc::clone(&events);
-    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let manager = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     manager
         .replace(
             config,
-            RadioConfig::platform_default().effective_backend(false),
+            RadioConfig::platform_default().effective_backend(),
             move || Box::new(ThreadRadio::new(Arc::clone(&factory_events), None)),
         )
         .await
@@ -139,7 +137,7 @@ async fn actor_keeps_native_lifecycle_on_one_thread() {
 #[tokio::test]
 async fn connection_test_runs_and_drops_candidate_on_worker() {
     let config = RadioConfig::platform_default();
-    let manager = RadioManager::new(config.clone(), config.effective_backend(false)).unwrap();
+    let manager = RadioManager::new(config.clone(), config.effective_backend()).unwrap();
     let events = Arc::new(Mutex::new(Vec::new()));
     let factory_events = Arc::clone(&events);
     manager
@@ -166,7 +164,7 @@ async fn poll_does_not_starve_current_thread_timer_during_blocked_initialization
     let replacement = Arc::clone(&manager);
     let replace = tokio::spawn(async move {
         replacement
-            .replace(config.clone(), config.effective_backend(false), move || {
+            .replace(config.clone(), config.effective_backend(), move || {
                 started_sender.send(()).unwrap();
                 Box::new(ThreadRadio::new(
                     Arc::new(Mutex::new(Vec::new())),
