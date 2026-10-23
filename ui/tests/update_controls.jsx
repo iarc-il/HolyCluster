@@ -139,6 +139,25 @@ describe("CAT Control updates", () => {
         expect(fetch).toHaveBeenNthCalledWith(2, "/api/update/check", expect.any(Object));
     });
 
+    it("rechecks a persisted failed status automatically", async () => {
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(
+                response({
+                    state: "failed",
+                    diagnostic:
+                        "error sending request for url (http://127.0.0.1:5173/catserver/releases/latest)",
+                }),
+            )
+            .mockResolvedValueOnce(response({ state: "idle" }));
+        vi.stubGlobal("fetch", fetch);
+
+        render_updates();
+
+        expect(await screen.findByText("CAT Control is up to date.")).not.toBeNull();
+        expect(fetch).toHaveBeenNthCalledWith(2, "/api/update/check", expect.any(Object));
+    });
+
     it("shares available and deferred state between the badge and consent dialog", async () => {
         const fetch = vi
             .fn()

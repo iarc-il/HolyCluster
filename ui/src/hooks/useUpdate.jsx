@@ -277,10 +277,9 @@ export function UpdateProvider({ children }) {
                 adopt(payload.session);
                 return;
             }
-            const next =
-                payload?.state === "idle" || payload?.state === "installed"
-                    ? await request_update("/api/update/check", update_dev_mode)
-                    : normalize_update_status(payload);
+            const next = ["idle", "installed", "failed"].includes(payload?.state)
+                ? await request_update("/api/update/check", update_dev_mode)
+                : normalize_update_status(payload);
             if (
                 enabled_ref.current &&
                 generation === request_generation_ref.current &&
