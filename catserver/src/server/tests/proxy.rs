@@ -43,7 +43,7 @@ async fn proxies_arbitrary_paths_and_queries() {
 }
 
 #[tokio::test]
-async fn proxies_ui_assets_when_local_ui_is_requested() {
+async fn proxies_ui_assets_from_upstream() {
     use super::{RadioConfig, RadioManager, RotatorConfig, RotatorManager, Server, ServerConfig};
 
     let upstream = spawn_app(Router::new().fallback(any(|request: Request| async move {
@@ -76,7 +76,6 @@ async fn proxies_ui_assets_when_local_ui_is_requested() {
             is_using_ssl: false,
             local_port: 0,
         },
-        true,
         None,
     )
     .await

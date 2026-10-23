@@ -150,7 +150,6 @@ async fn spawn_catserver_with_radio(
             is_using_ssl: false,
             local_port: 0,
         },
-        false,
         restart,
     )
     .await

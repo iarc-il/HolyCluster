@@ -36,6 +36,9 @@ pub fn run(args: Args) -> Result<()> {
         crate::diagnostics::phase("update_helper");
         return crate::updater::run_helper(plan);
     }
+    if args.local_ui {
+        tracing::warn!("--local-ui is deprecated and no longer changes CATServer behavior");
+    }
     crate::diagnostics::phase("singleton_acquisition");
     let instance = SingleInstance::new(INSTANCE_NAME)?;
     // single-instance's Linux socket must not escape into the browser process.
@@ -109,7 +112,6 @@ pub fn run(args: Args) -> Result<()> {
     let no_browser = args.no_browser;
     let (sender, _) = broadcast::channel::<UserEvent>(10);
     let event_sender = sender.clone();
-    let use_local_ui = args.local_ui;
     let tray_receiver = sender.subscribe();
     let thread = std::thread::Builder::new()
         .name("singleton".into())
@@ -120,7 +122,6 @@ pub fn run(args: Args) -> Result<()> {
                 radio,
                 rotator,
                 server_config,
-                use_local_ui,
                 no_browser,
                 restart,
             );
@@ -246,13 +247,11 @@ fn open_browser(port: u16, origin: &str) -> Result<()> {
 }
 
 #[tokio::main]
-#[allow(clippy::too_many_arguments)]
 async fn run_singleton(
     sender: Sender<UserEvent>,
     radio: RadioManager,
     rotator: RotatorManager,
     server_config: ServerConfig,
-    use_local_ui: bool,
     no_browser: bool,
     restart: Option<crate::updater::RestartContext>,
 ) -> Result<UserEvent> {
@@ -282,9 +281,16 @@ async fn run_singleton(
     let shutdown_radio = radio.clone();
     let shutdown_rotator = rotator.clone();
     let silent = restart.is_some() || no_browser;
+<<<<<<< HEAD
     crate::diagnostics::phase("server_binding");
     let building =
         Server::build_server(sender, radio, rotator, server_config, use_local_ui, restart);
+||||||| parent of 08dff33a (Ignore legacy --local-ui option)
+    let building =
+        Server::build_server(sender, radio, rotator, server_config, use_local_ui, restart);
+=======
+    let building = Server::build_server(sender, radio, rotator, server_config, restart);
+>>>>>>> 08dff33a (Ignore legacy --local-ui option)
     tokio::pin!(building);
     let server = loop {
         tokio::select! {

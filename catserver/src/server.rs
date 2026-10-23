@@ -70,7 +70,6 @@ impl Server {
         radio: RadioManager,
         rotator: RotatorManager,
         mut server_config: ServerConfig,
-        _use_local_ui: bool,
         restart: Option<crate::updater::RestartContext>,
     ) -> Result<Self> {
         let listener = if let Some(context) = &restart {
