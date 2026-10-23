@@ -33,12 +33,14 @@ pub(crate) fn initialize(args: &crate::args::Args) {
     } else {
         "normal"
     };
-    let config = crate::args::server_config(args);
+    let config = crate::args::server_config(args).ok();
     let _ = RUNTIME.set(Runtime {
         started: Instant::now(),
         launch: json!({
-            "launch_mode": mode, "backend": config.dns,
-            "requested_local_port": args.port, "default_local_port": config.local_port,
+            "launch_mode": mode,
+            "backend": config.as_ref().map(|config| config.dns.as_str()),
+            "requested_local_port": args.listen_port.or(args.port),
+            "default_local_port": config.as_ref().map(|config| config.local_port),
             "dev_server": args.dev_server, "local_ui": args.local_ui,
             "dummy": args.dummy, "dummy_rotator": args.dummy_rotator,
             "no_browser": args.no_browser,
