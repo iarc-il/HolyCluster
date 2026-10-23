@@ -51,6 +51,7 @@ export function RadioProvider({ children }) {
     const [radio_model_details, set_radio_model_details] = useState({});
     const [radio_model_error, set_radio_model_error] = useState(null);
     const [radio_configuration, set_radio_configuration_state] = useState(null);
+    const [radio_configuration_ready, set_radio_configuration_ready] = useState(false);
     const [radio_configuration_result, set_radio_configuration_result] = useState(null);
     const [radio_connection_result, set_radio_connection_result] = useState(null);
     const [radio_retry_result, set_radio_retry_result] = useState(null);
@@ -102,6 +103,7 @@ export function RadioProvider({ children }) {
         set_radio_status("unavailable");
         set_raw_local_version(null);
         set_radio_capabilities(null);
+        set_radio_configuration_ready(false);
     }, [radioReadyState]);
 
     useEffect(() => {
@@ -129,6 +131,9 @@ export function RadioProvider({ children }) {
                 data.catserver_version !== cat_identity_ref.current;
             if (identity_changed || data.status === "unavailable") {
                 set_radio_capabilities(null);
+            }
+            if (identity_changed || (data.status === "unavailable" && !data.catserver_version)) {
+                set_radio_configuration_ready(false);
             }
             if (data.catserver_version) {
                 cat_connected_ref.current = true;
@@ -177,6 +182,7 @@ export function RadioProvider({ children }) {
 
         if (data.event === "configuration") {
             set_radio_configuration_state(data);
+            set_radio_configuration_ready(true);
         }
 
         if (data.event === "configuration_result") {
@@ -191,6 +197,7 @@ export function RadioProvider({ children }) {
                         event: "configuration",
                         ...action.config,
                     });
+                    set_radio_configuration_ready(true);
                 }
             }
             action?.resolve?.(data);
@@ -253,17 +260,23 @@ export function RadioProvider({ children }) {
     }
 
     function set_mode_and_freq(mode, freq) {
-        const mode_warning =
-            mode === "RTTY" && radio_configuration?.rig?.model_id?.startsWith("omnirig:");
-        if (mode_warning) {
-            warn_unsupported_mode(`This radio doesn't support ${mode}`);
-        }
         if (mode === "RTTY" && !supports_cat_feature(local_version, RTTY_TUNING_MIN_VERSION)) {
             warn_unsupported_mode("Update CATServer to use RTTY mode. The radio was not changed.");
             return false;
         }
+        if (mode === "RTTY" && !radio_configuration_ready) {
+            warn_unsupported_mode("Wait for CATServer radio configuration before using RTTY.");
+            return false;
+        }
+        const is_omnirig = radio_configuration?.rig?.model_id?.startsWith("omnirig:");
+        if (mode === "RTTY" && is_omnirig && radio_capabilities?.omnirig_rtty_mode !== "dig_l") {
+            warn_unsupported_mode(
+                "Update CATServer to use RTTY with OmniRig. The radio was not changed.",
+            );
+            return false;
+        }
 
-        if (!mode_warning) toast.dismiss("radio-mode");
+        toast.dismiss("radio-mode");
         send_message_to_radio({
             action: "SetModeAndFreq",
             mode,

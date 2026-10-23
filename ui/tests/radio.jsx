@@ -217,21 +217,44 @@ describe("radio configuration", () => {
         expect(Consumer.radio.radio_configuration_support).toBe("supported");
     });
 
-    it("warns about an unsupported mode and still sends the tune command", () => {
+    it("blocks OmniRig RTTY on CATServer versions without the mapping capability", () => {
         render_radio();
-        emit({ event: "status", status: "connected", catserver_version: "catserver-v2.0.0" });
+        emit({ event: "status", status: "connected", catserver_version: "catserver-v1.3.2" });
+        emit({ event: "capabilities", radio_configuration_api: 2 });
         emit({ event: "configuration", rig: { model_id: "omnirig:1" } });
         websocket.send.mockClear();
+
         act(() => Consumer.radio.set_mode_and_freq("RTTY", 14080));
+
+        expect(websocket.send).not.toHaveBeenCalled();
+        expect(toast.warn).toHaveBeenCalledWith(
+            "Update CATServer to use RTTY with OmniRig. The radio was not changed.",
+            {
+                theme: "dark",
+                toastId: "radio-mode",
+            },
+        );
+    });
+
+    it("uses the advertised OmniRig RTTY mapping without a preemptive warning", () => {
+        render_radio();
+        emit({ event: "status", status: "connected", catserver_version: "catserver-v2.0.0" });
+        emit({
+            event: "capabilities",
+            radio_configuration_api: 2,
+            omnirig_rtty_mode: "dig_l",
+        });
+        emit({ event: "configuration", rig: { model_id: "omnirig:1" } });
+        websocket.send.mockClear();
+
+        act(() => Consumer.radio.set_mode_and_freq("RTTY", 14080));
+
         expect(websocket.send).toHaveBeenCalledWith("radio", {
             action: "SetModeAndFreq",
             mode: "RTTY",
             freq: 14080,
         });
-        expect(toast.warn).toHaveBeenCalledWith("This radio doesn't support RTTY", {
-            theme: "dark",
-            toastId: "radio-mode",
-        });
+        expect(toast.warn).not.toHaveBeenCalled();
     });
 
     it("shows a server mode rejection without losing radio status", () => {
@@ -254,7 +277,7 @@ describe("radio configuration", () => {
         expect(Consumer.radio.radio_mode).toBe("SSB");
     });
 
-    it("continues tuning without active-rig state", () => {
+    it("blocks RTTY until the active backend is known", () => {
         render_radio();
         const supported_version = `catserver-v${RTTY_TUNING_MIN_VERSION.slice(0, 3).join(".")}`;
         emit({
@@ -263,14 +286,61 @@ describe("radio configuration", () => {
             freq: 14_074_000,
             catserver_version: supported_version,
         });
+        websocket.send.mockClear();
+
         act(() => Consumer.radio.set_mode_and_freq("RTTY", 14.1));
 
         expect(Consumer.radio.radio_band).toBe(20);
+        expect(websocket.send).not.toHaveBeenCalled();
+        expect(toast.warn).toHaveBeenCalledWith(
+            "Wait for CATServer radio configuration before using RTTY.",
+            {
+                theme: "dark",
+                toastId: "radio-mode",
+            },
+        );
+    });
+
+    it("does not trust stale backend configuration after reconnect", () => {
+        const view = render_radio();
+        emit({ event: "status", status: "connected", catserver_version: "catserver-v1.3.2" });
+        emit({ event: "capabilities", radio_configuration_api: 2 });
+        emit({ event: "configuration", rig: { model_id: "hamlib:2" } });
+
+        websocket.ready_state = websocket.ReadyState.CLOSED;
+        view.rerender(
+            <RadioProvider>
+                <Consumer />
+            </RadioProvider>,
+        );
+        websocket.ready_state = websocket.ReadyState.OPEN;
+        view.rerender(
+            <RadioProvider>
+                <Consumer />
+            </RadioProvider>,
+        );
+        emit({ event: "status", status: "connected", catserver_version: "catserver-v1.3.2" });
+        websocket.send.mockClear();
+
+        act(() => Consumer.radio.set_mode_and_freq("RTTY", 14080));
+
+        expect(websocket.send).not.toHaveBeenCalled();
+        expect(toast.warn).toHaveBeenCalledWith(
+            "Wait for CATServer radio configuration before using RTTY.",
+            {
+                theme: "dark",
+                toastId: "radio-mode",
+            },
+        );
+
+        emit({ event: "capabilities", radio_configuration_api: 2 });
+        emit({ event: "configuration", rig: { model_id: "hamlib:2" } });
+        websocket.send.mockClear();
+        act(() => Consumer.radio.set_mode_and_freq("RTTY", 14080));
         expect(websocket.send).toHaveBeenCalledWith("radio", {
             action: "SetModeAndFreq",
             mode: "RTTY",
-            freq: 14.1,
+            freq: 14080,
         });
-        expect(Consumer.radio.set_rig).toBeUndefined();
     });
 });
