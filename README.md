@@ -122,17 +122,29 @@ cd catserver
 cargo run
 ```
 
-Use `--port` to choose a different local port. `--backend` selects a different
-HolyCluster server, `--dev-server` uses the shared development server, and
-`--local-ui` serves a local `ui/dist` build. Use `--no-browser` to start the
-server without opening a browser, for example in automated tests.
+Use `--listen-port` to choose a different local port. `--backend` selects a
+different HolyCluster server, and `--dev-server` uses the shared development
+server. Use `--no-browser` to start the server without opening a browser, for
+example in automated tests.
 
-Run it with a dummy radio for development:
+For UI development, start Vite without its CATServer reverse proxy:
+
+```sh
+cd ui
+npm run dev
+```
+
+In another terminal, point CATServer at Vite:
 
 ```sh
 cd catserver
-cargo run -- --dummy
+cargo run -- --backend 127.0.0.1:5173
 ```
+
+Open CATServer's origin at `http://127.0.0.1:3000`, not the Vite origin. Do not
+pass Vite's `--catserver` option or set `CATSERVER_PROXY=true` in this setup.
+Select the Hamlib Dummy radio or rotator model in CAT Control settings when a
+simulated device is needed.
 
 When running the Linux ELF binary directly, the tray icon needs GTK3 and
 AppIndicator packages:
