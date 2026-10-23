@@ -102,16 +102,13 @@ pub struct RadioDisconnectContext {
     pub backend_call: Option<Box<RadioBackendContext>>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct RadioActorContext {
     pub config: crate::radio_config::RadioConfig,
     pub last_status: Status,
     pub application_connection_state: &'static str,
-    pub configuration_present: bool,
     pub selected_backend: &'static str,
-    pub model_id: Option<String>,
     pub backend_object_present: bool,
-    pub initialization_failed: bool,
     pub initialization: Option<RadioInitializationContext>,
     pub disconnect: Option<RadioDisconnectContext>,
     pub outage_ms: Option<u64>,

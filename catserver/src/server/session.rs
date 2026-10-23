@@ -142,7 +142,7 @@ async fn handle_ws_socket(
                                 tracing::warn!(target: "catserver::diagnostic", %error, action, model_id, failure_evidence = %serde_json::json!(evidence), "Radio mode rejected");
                                 client_sender.send(radio::message("command_result", &serde_json::json!({
                                     "action": action, "ok": false, "reason": "unsupported_mode",
-                                    "mode": evidence.get("requested_mode")
+                                    "mode": evidence.get("request").and_then(|request| request.get("mode"))
                                 }))?).await?;
                             } else {
                                 tracing::error!(%error, action, model_id, device_connected = snapshot.last_status.status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::radio_evidence(&error, &before_command, &snapshot, text.as_ref())), "Failed to process radio WebSocket message");

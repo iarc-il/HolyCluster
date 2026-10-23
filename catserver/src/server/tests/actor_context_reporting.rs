@@ -218,7 +218,7 @@ fn typed_com_codes_keep_setup_and_property_failures_distinct() {
     assert!(unknown["hresult"].is_null(), "{unknown}");
     assert!(unknown["backend_call"]["hresult"].is_null());
     let setup = evidence(&reports[0]);
-    let call = &setup["pre_operation"]["initialization"]["backend_call"];
+    let call = &setup["execution_state"]["initialization"]["backend_call"];
     assert_eq!(call["hresult"], 0x80070057u32);
     assert_eq!(call["operation"], "CLSIDFromProgID");
     assert!(setup["backend_call"]["hresult"].is_null());
@@ -228,7 +228,7 @@ fn typed_com_codes_keep_setup_and_property_failures_distinct() {
     assert_eq!(property["backend_call"]["operation"], "invoke_put");
     assert_eq!(property["backend_call"]["target"], "Mode");
     assert_eq!(property["backend_call"]["resolved_mode"], "CW");
-    assert!(property["pre_operation"]["initialization"]["backend_call"].is_null());
+    assert!(property["execution_state"]["initialization"]["backend_call"].is_null());
 }
 
 #[test]
@@ -298,11 +298,11 @@ fn backend_call_evidence_distinguishes_targets_and_resolved_modes() {
         );
         assert_eq!(evidence["backend_call"]["target"], target);
         assert_eq!(
-            evidence["pre_operation"]["initialization"]["origin"],
+            evidence["execution_state"]["initialization"]["origin"],
             "replacement"
         );
         assert_eq!(
-            evidence["pre_operation"]["requested_frequency_hz"],
+            evidence["execution_state"]["requested_frequency_hz"],
             freq * 1000
         );
         if operation != "rig_set_mode" {
@@ -372,14 +372,12 @@ fn actor_context_distinguishes_preexisting_and_operation_caused_disconnect() {
                 .contains("Hamlib rig_set_mode failed with code -8:")
         );
         let evidence = evidence(report);
-        assert_eq!(evidence["connection_state"], "disconnected");
-        let pre = &evidence["pre_operation"];
+        assert_eq!(evidence["post_state"]["connection"], "Disconnected");
+        let pre = &evidence["execution_state"];
         assert_eq!(pre["application_connection_state"], before, "{evidence}");
-        assert_eq!(pre["configuration_present"], true);
         assert_eq!(pre["selected_backend"], "hamlib");
-        assert_eq!(pre["model_id"], fields["model_id"]);
+        assert_eq!(pre["config"]["rig"]["model_id"], fields["model_id"]);
         assert_eq!(pre["backend_object_present"], true);
-        assert_eq!(pre["initialization_failed"], false);
         assert_eq!(pre["initialization"]["outcome"], "succeeded");
         if before == "connected" {
             assert!(pre["disconnect"].is_null());
@@ -430,15 +428,15 @@ fn recovery_clears_the_previous_disconnect_origin() {
     for report in &reports {
         let evidence = evidence(report);
         assert!(
-            evidence["pre_operation"]["disconnect"].is_null(),
+            evidence["execution_state"]["disconnect"].is_null(),
             "{evidence}"
         );
         assert_eq!(
-            evidence["pre_operation"]["initialization"]["outcome"],
+            evidence["execution_state"]["initialization"]["outcome"],
             "succeeded"
         );
         assert_eq!(
-            evidence["pre_operation"]["application_connection_state"],
+            evidence["execution_state"]["application_connection_state"],
             "connected"
         );
     }
@@ -505,10 +503,10 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
     assert_eq!(reports.len(), 5);
     let retry = evidence(&reports[4]);
     assert_eq!(
-        retry["pre_operation"]["initialization"]["outcome"],
+        retry["execution_state"]["initialization"]["outcome"],
         "failed"
     );
-    let native = &retry["pre_operation"]["initialization"]["native_error"];
+    let native = &retry["execution_state"]["initialization"]["native_error"];
     assert_eq!(native["operation"], "rig_open");
     assert_eq!(native["code"], -6);
     assert!(
@@ -524,20 +522,22 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
             .unwrap()
             .starts_with("Hamlib ")
     );
-    assert_eq!(retry["initialization_native_error"], *native);
+    assert!(
+        retry["receipt_state"]["last_initialization_error"]
+            .as_str()
+            .unwrap()
+            .contains("rig_open")
+    );
     assert_eq!(
-        retry["pre_operation"]["disconnect"]["origin"], "status_read",
+        retry["execution_state"]["disconnect"]["origin"], "status_read",
         "{retry}"
     );
-    assert_status_read_disconnect(&retry["pre_operation"]["disconnect"]);
+    assert_status_read_disconnect(&retry["execution_state"]["disconnect"]);
     let unconfigured = evidence(&reports[0]);
-    assert_eq!(
-        unconfigured["pre_operation"]["configuration_present"],
-        false
-    );
+    assert!(unconfigured["execution_state"]["config"]["rig"].is_null());
     for report in &reports[1..3] {
         let evidence = evidence(report);
-        let pre = &evidence["pre_operation"];
+        let pre = &evidence["execution_state"];
         assert_eq!(pre["initialization"]["outcome"], "failed", "{evidence}");
         assert!(
             pre["initialization"]["error"]
@@ -546,11 +546,10 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
                 .contains("initialization failed")
         );
         assert_eq!(pre["disconnect"]["origin"], "initialization");
-        assert_eq!(pre["configuration_present"], true);
-        assert_eq!(pre["model_id"], "hamlib:999999");
+        assert_eq!(pre["config"]["rig"]["model_id"], "hamlib:999999");
     }
     let disconnected = evidence(&reports[3]);
-    let pre = &disconnected["pre_operation"];
+    let pre = &disconnected["execution_state"];
     assert_eq!(
         pre["initialization"]["outcome"], "succeeded",
         "{disconnected}"
@@ -593,17 +592,19 @@ fn actor_context_distinguishes_missing_backend_from_failed_initialization() {
     assert_eq!(reports.len(), 2);
     for (report, initialized) in reports.iter().zip([false, true]) {
         let evidence = evidence(report);
-        assert_eq!(evidence["connection_state"], "disconnected");
-        let pre = &evidence["pre_operation"];
+        assert_eq!(evidence["post_state"]["connection"], "Disconnected");
+        let pre = &evidence["execution_state"];
         assert_eq!(
             pre["application_connection_state"], "disconnected",
             "{evidence}"
         );
-        assert_eq!(pre["configuration_present"], true);
         assert_eq!(pre["selected_backend"], "hamlib");
-        assert_eq!(pre["model_id"], "hamlib:1");
+        assert_eq!(pre["config"]["rig"]["model_id"], "hamlib:1");
         assert_eq!(pre["backend_object_present"], initialized);
-        assert_eq!(pre["initialization_failed"], initialized);
+        assert_eq!(
+            pre["initialization"]["outcome"].as_str(),
+            initialized.then_some("failed")
+        );
     }
 }
 
@@ -612,7 +613,6 @@ async fn actor_context_stays_with_result_across_queued_replacement() {
     let backend = FakeRigctld::start(SocketAddr::from(([127, 0, 0, 1], 0)), 7_100_000, "USB");
     let native = net_config(backend.address());
     let config = configured(&native);
-    let original_model = config.rig.as_ref().unwrap().model_id.clone();
     let original_config = config.clone();
     let radio = RadioManager::new(config.clone(), selected()).unwrap();
     radio
@@ -660,18 +660,20 @@ async fn actor_context_stays_with_result_across_queued_replacement() {
             .to_string()
             .contains("Hamlib rig_set_mode failed with code -8:")
     );
-    let pre = &evidence["pre_operation"];
+    let pre = &evidence["execution_state"];
     assert_eq!(
         pre["application_connection_state"], "connected",
         "{evidence:?}"
     );
-    assert_eq!(pre["model_id"], original_model);
     assert_eq!(pre["config"], serde_json::json!(original_config));
+    for field in ["model_id", "configuration_present", "initialization_failed"] {
+        assert!(pre.get(field).is_none());
+    }
     assert_eq!(pre["last_status"]["freq"], 7_100_000);
     assert_eq!(pre["selected_backend"], "hamlib");
-    assert_eq!(pre["configuration_present"], true);
     assert_eq!(pre["backend_object_present"], true);
-    assert_eq!(pre["initialization_failed"], false);
+    assert!(evidence["receipt_state"]["config"]["rig"].is_null());
+    assert!(evidence["post_state"]["config"]["rig"].is_null());
     assert_eq!(pre["initialization"]["outcome"], "succeeded");
     assert!(pre["disconnect"].is_null());
     assert_eq!(evidence["backend_call"]["operation"], "rig_set_mode");
@@ -725,13 +727,13 @@ async fn actor_context_uses_execution_state_for_tune_queued_behind_replacement()
     let after = radio.snapshot();
     let evidence = radio_evidence(&error, &enqueued, &after, "{}");
     radio.shutdown().await.unwrap();
-    let pre = &evidence["pre_operation"];
+    let pre = &evidence["execution_state"];
     assert_eq!(pre["application_connection_state"], "disconnected");
-    assert_eq!(pre["configuration_present"], false);
+    assert!(pre["config"]["rig"].is_null());
+    assert!(evidence["receipt_state"]["config"]["rig"].is_object());
+    assert!(evidence["post_state"]["config"]["rig"].is_null());
     assert_eq!(pre["selected_backend"], "unconfigured");
-    assert!(pre["model_id"].is_null());
     assert_eq!(pre["backend_object_present"], true);
-    assert_eq!(pre["initialization_failed"], true);
     assert_eq!(pre["initialization"]["outcome"], "failed");
     assert_eq!(pre["disconnect"]["origin"], "initialization");
 }

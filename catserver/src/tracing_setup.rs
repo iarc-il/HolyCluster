@@ -339,28 +339,7 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
             "radio_initialization"
         } else if let Some(operation) = cause.downcast_ref::<crate::rig::RadioOperationError>() {
             if let Some(context) = &operation.actor_context {
-                fields.insert(
-                    "pre_operation".into(),
-                    serde_json::json!({
-                        "config": context.config,
-                        "last_status": context.last_status,
-                        "application_connection_state": context.application_connection_state,
-                        "configuration_present": context.configuration_present,
-                        "selected_backend": context.selected_backend,
-                        "model_id": context.model_id,
-                        "backend_object_present": context.backend_object_present,
-                        "initialization_failed": context.initialization_failed,
-                        "initialization": context.initialization,
-                        "disconnect": context.disconnect,
-                        "outage_ms": context.outage_ms,
-                        "failed_attempts": context.failed_attempts,
-                        "retry_delay_ms": context.retry_delay_ms,
-                        "next_retry_ms": context.next_retry_ms,
-                        "requested_mode": context.requested_mode,
-                        "requested_frequency_hz": context.requested_frequency_hz,
-                        "requested_vfo": context.requested_vfo,
-                    }),
-                );
+                fields.insert("execution_state".into(), serde_json::json!(context));
             }
             if let Some(context) = &operation.backend_context {
                 fields.insert("backend_call".into(), serde_json::json!(context));
@@ -424,40 +403,13 @@ pub(crate) fn radio_evidence(
     snapshot: &crate::radio_manager::RadioSnapshot,
     message: &str,
 ) -> Evidence {
-    use crate::radio_manager::ConnectionState;
     let mut fields = failure_evidence(error, "radio_command");
-    fields.insert("pre_state".into(), radio_state(before_command));
+    fields.insert("receipt_state".into(), radio_state(before_command));
     fields.insert("post_state".into(), radio_state(snapshot));
     fields.insert(
-        "connection_state".into(),
-        match snapshot.connection {
-            ConnectionState::Connected => "connected",
-            ConnectionState::Disconnected => "disconnected",
-        }
-        .into(),
+        "request".into(),
+        serde_json::from_str(message).unwrap_or_else(|_| message.into()),
     );
-    fields.insert(
-        "configuration_present".into(),
-        snapshot.config.rig.is_some().into(),
-    );
-    // Keep history from before execution and connectivity from after execution.
-    if let Some(init) = &before_command.last_error {
-        initialization_evidence(&mut fields, init);
-    }
-    if let Some(last) = &before_command.last_operation_error {
-        fields.insert("previous_operation".into(), last.to_string().into());
-        if let Some(details) = &last.details {
-            fields.insert("previous_operation_details".into(), details.clone().into());
-        }
-    }
-    if let Ok(request) = serde_json::from_str::<serde_json::Value>(message) {
-        if let Some(mode) = request.get("mode") {
-            fields.insert("requested_mode".into(), mode.clone());
-        }
-        fields.insert("request".into(), request);
-    } else {
-        fields.insert("request".into(), message.into());
-    }
     fields
 }
 
@@ -575,36 +527,38 @@ mod tests {
         ));
         let request = serde_json::json!({"action":"SetModeAndFreq","mode":"NewMode","freq":14074,"new-field":"keep me"});
         let fields = radio_evidence(&error, &before, &after, &request.to_string());
-        assert_eq!(fields["connection_state"], "disconnected");
-        assert_eq!(fields["configuration_present"], false);
+        assert_eq!(fields["post_state"]["connection"], "Disconnected");
+        let initialization = fields["receipt_state"]["last_initialization_error"]
+            .as_str()
+            .unwrap();
+        assert!(initialization.contains("192.168.1.10:4532"));
+        assert!(initialization.contains("full initialization details"));
         assert!(
-            fields["initialization"]
-                .as_str()
-                .unwrap()
-                .contains("192.168.1.10:4532")
-        );
-        assert_eq!(
-            fields["initialization_details"],
-            "full initialization details"
-        );
-        assert!(
-            fields["previous_operation"]
+            fields["receipt_state"]["last_operation_error"]
                 .as_str()
                 .unwrap()
                 .contains("unknown previous operation failure")
         );
-        assert_eq!(fields["requested_mode"], "NewMode");
+        for field in [
+            "connection_state",
+            "configuration_present",
+            "requested_mode",
+            "initialization",
+            "previous_operation",
+        ] {
+            assert!(!fields.contains_key(field));
+        }
         assert_eq!(fields["request"], request);
-        assert_eq!(fields["pre_state"]["last_status"]["freq"], 0);
+        assert_eq!(fields["receipt_state"]["last_status"]["freq"], 0);
         assert_eq!(
             fields["post_state"]["config"],
             serde_json::json!({"rig": null})
         );
-        assert_eq!(fields["pre_state"]["connection"], "Connected");
+        assert_eq!(fields["receipt_state"]["connection"], "Connected");
         assert_eq!(fields["hresult"], 0x80070057u32);
         let first_failure = radio_evidence(&error, &after, &after, "{}");
-        assert!(!first_failure.contains_key("initialization"));
-        assert!(!first_failure.contains_key("previous_operation"));
+        assert!(first_failure["receipt_state"]["last_initialization_error"].is_null());
+        assert!(first_failure["receipt_state"]["last_operation_error"].is_null());
         assert!(hresult("[0xsecret] invalid code").is_none());
     }
 

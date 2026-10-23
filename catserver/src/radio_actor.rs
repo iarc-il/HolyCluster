@@ -235,7 +235,6 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                             ConnectionState::Connected => "connected",
                             ConnectionState::Disconnected => "disconnected",
                         },
-                        configuration_present: state.config.rig.is_some(),
                         selected_backend: match state.selected {
                             ActiveRadioBackend::Dummy => "dummy",
                             ActiveRadioBackend::Configured(RadioBackendKind::Unconfigured) => {
@@ -244,9 +243,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                             ActiveRadioBackend::Configured(RadioBackendKind::Hamlib) => "hamlib",
                             ActiveRadioBackend::Configured(RadioBackendKind::Omnirig) => "omnirig",
                         },
-                        model_id: state.config.rig.as_ref().map(|rig| rig.model_id.clone()),
                         backend_object_present: radio.is_some(),
-                        initialization_failed: state.last_error.is_some(),
                         initialization: connection_trace.initialization.clone(),
                         disconnect: connection_trace.disconnect.clone(),
                         outage_ms: connection_trace
