@@ -694,3 +694,30 @@ async fn actor_context_uses_execution_state_for_tune_queued_behind_replacement()
     assert_eq!(pre["initialization"]["outcome"], "failed");
     assert_eq!(pre["disconnect"]["origin"], "initialization");
 }
+
+#[test]
+fn rotator_command_envelope_retains_request_state_and_retry_evidence() {
+    let events = capture(async {
+        let manager = crate::rotator_manager::RotatorManager::new(
+            crate::rotator_config::RotatorConfig::unconfigured(),
+        )
+        .unwrap();
+        let service =
+            super::super::rotator_configuration::RotatorConfiguration::new(manager.clone());
+        super::super::rotator::process(r#"{"version":1,"type":"rotator","action":"SetAzimuth","azimuth":123.5,"extra":"retain"}"#.into(), &manager, &service).await.unwrap();
+        manager.shutdown().await.unwrap();
+    });
+    assert_eq!(events.len(), 1);
+    let fields: serde_json::Value = serde_json::from_str(
+        events[0]["contexts"]["Rust Tracing Fields"]["failure_evidence"]
+            .as_str()
+            .expect("rotator failure evidence"),
+    )
+    .unwrap();
+    assert_eq!(fields["request"]["azimuth"], 123.5);
+    assert_eq!(fields["request"]["extra"], "retain");
+    assert_eq!(fields["pre_state"]["last_status"]["azimuth"], 0.0);
+    assert_eq!(fields["post_state"]["connection"], "Disconnected");
+    assert_eq!(fields["actor_context"]["backend_object_present"], false);
+    assert_eq!(fields["actor_context"]["failed_attempts"], 0);
+}

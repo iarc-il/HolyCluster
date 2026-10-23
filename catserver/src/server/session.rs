@@ -122,7 +122,7 @@ async fn handle_ws_socket(
                 Some(message) => match message? {
                 Message::Text(text) if radio_actions::is_message(text.as_ref()) => {
                     let action = crate::tracing_setup::websocket_action(text.as_ref());
-                    tracing::info!(target: "catserver::diagnostic", action, "CAT command");
+                    tracing::info!(target: "catserver::diagnostic", action, command = %text, "CAT command");
                     // Commands can replace the initialization/operation failure
                     // in the shared snapshot before returning an error.
                     let before_command = radio_manager.snapshot();
@@ -153,11 +153,12 @@ async fn handle_ws_socket(
                 }
                 Message::Text(text) if rotator::is_message(text.as_ref()) => {
                     let action = crate::tracing_setup::websocket_action(text.as_ref());
-                    tracing::info!(target: "catserver::diagnostic", action, "CAT command");
+                    tracing::info!(target: "catserver::diagnostic", action, command = %text, "CAT command");
+                    let before = rotator_manager.snapshot();
                     match rotator::process(text.to_string(), &rotator_manager, &rotator_configuration).await {
                         Ok(Some(response)) => client_sender.send(response).await?,
                         Ok(None) => {}
-                        Err(error) => tracing::error!(%error, action, model_id = %crate::tracing_setup::rotator_model_id(&rotator_manager), device_connected = rotator_manager.status().status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), "Failed to process rotator WebSocket message"),
+                        Err(error) => tracing::error!(%error, action, model_id = %crate::tracing_setup::rotator_model_id(&rotator_manager), device_connected = rotator_manager.status().status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::rotator_evidence(&error, &before, &rotator_manager.snapshot(), text.as_ref())), "Failed to process rotator WebSocket message"),
                     }
                     client_sender.send(rotator::status_message(&rotator_manager.status())?).await?;
                 },

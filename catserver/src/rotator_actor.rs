@@ -20,10 +20,15 @@ pub(crate) type RotatorFactory = DeviceFactory<Box<dyn Rotator>>;
 struct ConnectionTrace {
     outage_started: Option<Instant>,
     failed_attempts: u32,
+    initialization: Option<serde_json::Value>,
+    disconnect: Option<serde_json::Value>,
 }
 
 impl ConnectionTrace {
     fn disconnected(&mut self, selected: &ActiveRotatorBackend, error: &RotatorError) {
+        if self.disconnect.is_none() {
+            self.disconnect = Some(serde_json::json!({"origin": error.operation, "error": error}));
+        }
         self.failed_attempts += 1;
         if self.outage_started.is_some() {
             tracing::debug!(?selected, %error, attempt = self.failed_attempts, "Rotator reconnect failed");
@@ -44,11 +49,14 @@ impl ConnectionTrace {
             "Rotator reconnected"
         );
         self.failed_attempts = 0;
+        self.disconnect = None;
     }
 
     fn reset(&mut self) {
         self.outage_started = None;
         self.failed_attempts = 0;
+        self.initialization = None;
+        self.disconnect = None;
     }
 }
 
@@ -246,10 +254,23 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                 let _ = reply.send(());
             }
             Command::SetAzimuth(azimuth, reply) => {
-                let result = rotator.as_mut().map_or_else(
-                    || Err(RotatorError::new("set azimuth", "not configured")),
-                    |rotator| rotator.set_azimuth(azimuth),
+                let context = actor_context(
+                    &snapshot,
+                    &connection_trace,
+                    rotator.is_some(),
+                    retry_delay,
+                    next_action,
                 );
+                let result = rotator
+                    .as_mut()
+                    .map_or_else(
+                        || Err(RotatorError::new("set azimuth", "not configured")),
+                        |rotator| rotator.set_azimuth(azimuth),
+                    )
+                    .map_err(|mut error| {
+                        error.actor_context = Some(context);
+                        error
+                    });
                 if let Err(error) = &result {
                     publish_error(&snapshot, error.clone(), &mut connection_trace);
                     next_action = Some(schedule_after_attempt(false, &mut retry_delay));
@@ -260,10 +281,23 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                 let _ = reply.send(result);
             }
             Command::Stop(reply) => {
-                let result = rotator.as_mut().map_or_else(
-                    || Err(RotatorError::new("stop", "not configured")),
-                    |rotator| rotator.stop(),
+                let context = actor_context(
+                    &snapshot,
+                    &connection_trace,
+                    rotator.is_some(),
+                    retry_delay,
+                    next_action,
                 );
+                let result = rotator
+                    .as_mut()
+                    .map_or_else(
+                        || Err(RotatorError::new("stop", "not configured")),
+                        |rotator| rotator.stop(),
+                    )
+                    .map_err(|mut error| {
+                        error.actor_context = Some(context);
+                        error
+                    });
                 if let Err(error) = &result {
                     publish_error(&snapshot, error.clone(), &mut connection_trace);
                     next_action = Some(schedule_after_attempt(false, &mut retry_delay));
@@ -292,6 +326,25 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
     }
 }
 
+fn actor_context(
+    snapshot: &RwLock<RotatorSnapshot>,
+    trace: &ConnectionTrace,
+    backend_object_present: bool,
+    retry_delay: Duration,
+    next_action: Option<Instant>,
+) -> serde_json::Value {
+    let state = snapshot.read().unwrap_or_else(|e| e.into_inner());
+    serde_json::json!({
+        "pre_state": crate::tracing_setup::rotator_state(&state),
+        "backend_object_present": backend_object_present,
+        "initialization": trace.initialization, "disconnect": trace.disconnect,
+        "failed_attempts": trace.failed_attempts,
+        "outage_ms": trace.outage_started.map(|t| t.elapsed().as_millis() as u64),
+        "retry_delay_ms": retry_delay.as_millis() as u64,
+        "next_retry_ms": next_action.map(|t| t.saturating_duration_since(Instant::now()).as_millis() as u64),
+    })
+}
+
 fn replace_from_factory(
     snapshot: &RwLock<RotatorSnapshot>,
     factory: &RotatorFactory,
@@ -300,7 +353,12 @@ fn replace_from_factory(
 ) -> bool {
     drop(rotator.take());
     let mut candidate = factory();
-    let result = candidate.init().and_then(|()| candidate.status());
+    let init = candidate.init();
+    connection_trace.initialization = Some(serde_json::json!({
+        "outcome": if init.is_ok() { "success" } else { "failure" },
+        "error": init.as_ref().err(),
+    }));
+    let result = init.and_then(|()| candidate.status());
     let success = publish_status(snapshot, result, connection_trace).is_ok();
     *rotator = Some(candidate);
     success
@@ -342,9 +400,11 @@ fn publish_status(
 
 fn publish_error(
     snapshot: &RwLock<RotatorSnapshot>,
-    error: RotatorError,
+    mut error: RotatorError,
     connection_trace: &mut ConnectionTrace,
 ) {
+    // The returned error owns execution context; stored history must not nest snapshots.
+    error.actor_context = None;
     let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());
     let selected = snapshot.selected.clone();
     snapshot.connection = RotatorConnectionState::Disconnected;

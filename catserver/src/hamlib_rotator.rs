@@ -87,7 +87,7 @@ impl Rotator for HamlibRotator {
         let result = self
             .handle
             .as_mut()
-            .ok_or_else(|| RotatorError::new("set azimuth", "not initialized"))?
+            .ok_or_else(|| unavailable("set azimuth"))?
             .set_azimuth(azimuth)
             .map_err(|error| operation_error("set azimuth", error));
         if result.is_err() {
@@ -100,7 +100,7 @@ impl Rotator for HamlibRotator {
         let result = self
             .handle
             .as_mut()
-            .ok_or_else(|| RotatorError::new("stop", "not initialized"))?
+            .ok_or_else(|| unavailable("stop"))?
             .stop()
             .map_err(|error| operation_error("stop", error));
         if result.is_err() {
@@ -113,7 +113,7 @@ impl Rotator for HamlibRotator {
         let result = self
             .handle
             .as_mut()
-            .ok_or_else(|| RotatorError::new("read status", "not initialized"))?
+            .ok_or_else(|| unavailable("read status"))?
             .position()
             .map_err(|error| operation_error("read status", error));
         match result {
@@ -130,6 +130,31 @@ impl Rotator for HamlibRotator {
     }
 }
 
-fn operation_error(operation: &'static str, error: impl std::fmt::Display) -> RotatorError {
-    RotatorError::new(operation, error.to_string())
+fn unavailable(operation: &'static str) -> RotatorError {
+    let mut error = RotatorError::new(operation, "not initialized");
+    error.native_error = Some(
+        serde_json::json!({"backend": "hamlib", "operation": operation, "handle_present": false, "hamlib_version": hamlib::version()}),
+    );
+    error
+}
+
+fn operation_error(
+    operation: &'static str,
+    error: impl std::error::Error + 'static,
+) -> RotatorError {
+    let mut result = RotatorError::new(operation, error.to_string());
+    let mut native = crate::tracing_setup::native_error(&error);
+    native["handle_present"] = matches!(
+        operation,
+        "read initial position"
+            | "set azimuth"
+            | "stop"
+            | "read status"
+            | "configure"
+            | "open"
+            | "parse configuration"
+    )
+    .into();
+    result.native_error = Some(native);
+    result
 }

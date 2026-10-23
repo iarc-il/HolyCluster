@@ -17,10 +17,12 @@ impl RotatorStatus {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct RotatorError {
-    operation: &'static str,
-    message: String,
+    pub operation: &'static str,
+    pub message: String,
+    pub native_error: Option<serde_json::Value>,
+    pub actor_context: Option<serde_json::Value>,
 }
 
 impl RotatorError {
@@ -28,6 +30,8 @@ impl RotatorError {
         Self {
             operation,
             message: message.into(),
+            native_error: None,
+            actor_context: None,
         }
     }
 }

@@ -65,6 +65,7 @@ pub(super) async fn process(
     rotator: &RotatorManager,
     service: &RotatorConfiguration,
 ) -> Result<Option<Message>> {
+    let before = rotator.snapshot();
     let Ok(request) = serde_json::from_str::<ClientMessage>(&message_text) else {
         tracing::error!(message = message_text, "Failed to parse rotator message");
         return Ok(None);
@@ -73,14 +74,14 @@ pub(super) async fn process(
         ClientMessage::SetAzimuth { azimuth } => {
             if let Err(error) = rotator.set_azimuth(azimuth).await {
                 let error = anyhow::Error::new(error);
-                tracing::error!(%error, action = "SetAzimuth", model_id = %crate::tracing_setup::rotator_model_id(rotator), device_connected = rotator.status().status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), "Failed to set rotator azimuth");
+                tracing::error!(%error, action = "SetAzimuth", model_id = %crate::tracing_setup::rotator_model_id(rotator), device_connected = rotator.status().status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::rotator_evidence(&error, &before, &rotator.snapshot(), &message_text)), "Failed to set rotator azimuth");
             }
             return Ok(None);
         }
         ClientMessage::Stop => {
             if let Err(error) = rotator.stop().await {
                 let error = anyhow::Error::new(error);
-                tracing::error!(%error, action = "Stop", model_id = %crate::tracing_setup::rotator_model_id(rotator), device_connected = rotator.status().status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), "Failed to stop rotator");
+                tracing::error!(%error, action = "Stop", model_id = %crate::tracing_setup::rotator_model_id(rotator), device_connected = rotator.status().status == "connected", error_summary = %crate::tracing_setup::error_summary(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::rotator_evidence(&error, &before, &rotator.snapshot(), &message_text)), "Failed to stop rotator");
             }
             return Ok(None);
         }

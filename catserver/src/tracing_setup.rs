@@ -329,6 +329,17 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
                 fields.insert("operation_details".into(), details.clone().into());
             }
             "radio_operation"
+        } else if let Some(rotator) = cause.downcast_ref::<crate::rotator::RotatorError>() {
+            fields.insert("native_operation".into(), rotator.operation.into());
+            fields.insert(
+                "actor_context".into(),
+                serde_json::json!(rotator.actor_context),
+            );
+            fields.insert(
+                "native_error".into(),
+                serde_json::json!(rotator.native_error),
+            );
+            "rotator_operation"
         } else if let Some(tray) = cause.downcast_ref::<tray_icon::Error>() {
             match tray {
                 tray_icon::Error::OsError(io) => {
@@ -396,6 +407,32 @@ pub(crate) fn radio_evidence(
     } else {
         fields.insert("request".into(), message.into());
     }
+    fields
+}
+
+pub(crate) fn rotator_state(
+    snapshot: &crate::rotator_manager::RotatorSnapshot,
+) -> serde_json::Value {
+    serde_json::json!({
+        "config": snapshot.config, "selected_backend": snapshot.selected.to_string(),
+        "connection": format!("{:?}", snapshot.connection), "last_status": snapshot.last_status,
+        "last_error": snapshot.last_error, "target_azimuth": snapshot.target_azimuth,
+    })
+}
+
+pub(crate) fn rotator_evidence(
+    error: &anyhow::Error,
+    before: &crate::rotator_manager::RotatorSnapshot,
+    after: &crate::rotator_manager::RotatorSnapshot,
+    message: &str,
+) -> Evidence {
+    let mut fields = failure_evidence(error, "rotator_command");
+    fields.insert("pre_state".into(), rotator_state(before));
+    fields.insert("post_state".into(), rotator_state(after));
+    fields.insert(
+        "request".into(),
+        serde_json::from_str(message).unwrap_or_else(|_| message.into()),
+    );
     fields
 }
 
