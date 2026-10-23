@@ -46,6 +46,10 @@ fn restart_arguments_preserve_options_without_duplicate_internal_flags() {
     use argh::FromArgs;
     let arguments = [
         "--dummy",
+        "--dummy-rotator",
+        "--local-ui",
+        "--no-browser",
+        "--dev-server",
         "--backend",
         "localhost:9000",
         "--port",
@@ -60,6 +64,10 @@ fn restart_arguments_preserve_options_without_duplicate_internal_flags() {
         retained,
         [
             "--dummy",
+            "--dummy-rotator",
+            "--local-ui",
+            "--no-browser",
+            "--dev-server",
             "--backend",
             "localhost:9000",
             "--listen-port",
@@ -71,6 +79,10 @@ fn restart_arguments_preserve_options_without_duplicate_internal_flags() {
     let borrowed = launch.iter().map(String::as_str).collect::<Vec<_>>();
     let parsed = crate::args::Args::from_args(&["catserver"], &borrowed).unwrap();
     assert!(parsed.dummy);
+    assert!(parsed.dummy_rotator);
+    assert!(parsed.local_ui);
+    assert!(parsed.no_browser);
+    assert!(parsed.dev_server);
     assert_eq!(parsed.backend.as_deref(), Some("localhost:9000"));
     assert_eq!(parsed.listen_port, Some(41234));
     assert_eq!(parsed.port, None);
