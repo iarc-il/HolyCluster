@@ -140,37 +140,9 @@ impl Radio for OmnirigRadio {
         Ok(())
     }
 
-    fn validate_mode(&self, mode: Mode) -> Result<(), RadioOperationError> {
-        if matches!(mode, Mode::Rtty) {
-            return Err(RadioOperationError::unsupported_mode(
-                self.rig_number(),
-                "OmniRig does not support RTTY mode",
-            )
-            .with_backend_context(context(
-                "resolve_mode",
-                Some("Mode"),
-                self.inner.is_some(),
-            )));
-        }
-        Ok(())
-    }
-
     fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
         let mut context = context("invoke_put", Some("Mode"), self.inner.is_some());
-        let (mode, resolved) = match mode {
-            Mode::LSB => (0x04000000, "LSB"),
-            Mode::USB => (0x02000000, "USB"),
-            Mode::CW => (0x00800000, "CW"),
-            Mode::Data => (0x08000000, "DIG_U"),
-            Mode::Rtty => {
-                context.operation = "resolve_mode";
-                return Err(RadioOperationError::unsupported_mode(
-                    self.rig_number(),
-                    "OmniRig does not support RTTY mode",
-                )
-                .with_backend_context(context));
-            }
-        };
+        let (mode, resolved) = crate::omnirig_mode::resolve(mode);
         context.resolved_mode = Some(resolved);
         let Some(rig) = self.current_rig() else {
             return Err(RadioOperationError::new(
@@ -335,19 +307,14 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_mode_and_missing_dispatch_are_distinct_without_com_calls() {
+    fn missing_dispatch_preserves_resolved_mode() {
         let mut radio = OmnirigRadio::new(OmniRigSlot::Rig2);
-        let unsupported = radio.set_mode(Mode::Rtty).unwrap_err();
-        let unavailable = radio.set_mode(Mode::CW).unwrap_err();
-        assert_eq!(unsupported.rig, 2);
-        assert_eq!(
-            unsupported.backend_context.unwrap().operation,
-            "resolve_mode"
-        );
-        let context = unavailable.backend_context.unwrap();
+        let error = radio.set_mode(Mode::Rtty).unwrap_err();
+        assert_eq!(error.rig, 2);
+        let context = error.backend_context.unwrap();
         assert_eq!(context.operation, "invoke_put");
         assert_eq!(context.target, Some("Mode"));
-        assert_eq!(context.resolved_mode, Some("CW"));
+        assert_eq!(context.resolved_mode, Some("DIG_L"));
         assert!(!context.handle_present);
         assert!(context.hresult.is_none());
     }

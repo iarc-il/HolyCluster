@@ -17,6 +17,7 @@ pub(super) struct Capabilities {
     pub(super) radio_configuration: bool,
     pub(super) radio_configuration_api: u8,
     pub(super) rotator_configuration: bool,
+    pub(super) omnirig_rtty_mode: &'static str,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -114,6 +115,7 @@ impl RadioConfigurationService for ProductionRadioConfiguration {
             radio_configuration: true,
             radio_configuration_api: 2,
             rotator_configuration: true,
+            omnirig_rtty_mode: "dig_l",
         }
     }
 

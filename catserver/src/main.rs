@@ -14,6 +14,7 @@ mod hamlib_rotator;
 mod instance_port;
 #[cfg(windows)]
 mod omnirig;
+mod omnirig_mode;
 mod radio_actor;
 pub mod radio_config;
 mod radio_factory;
