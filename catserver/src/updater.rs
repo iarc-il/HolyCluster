@@ -765,13 +765,15 @@ impl UpdateService {
     }
 
     fn fetch_manifest(&self) -> Result<ReleaseManifest> {
-        let response = secure_client()
-            .get(self.manifest_url.clone())
-            .send()
-            .at_stage(UpdateStage::ManifestRequest)?
-            .error_for_status()
-            .at_stage(UpdateStage::ManifestHttpStatus)?;
-        serde_json::from_reader(response).at_stage(UpdateStage::ManifestDecode)
+        let (response, evidence, started) = update_get(
+            self.manifest_url.clone(),
+            "manifest",
+            UpdateStage::ManifestRequest,
+            UpdateStage::ManifestHttpStatus,
+        )?;
+        serde_json::from_reader(response)
+            .at_stage(UpdateStage::ManifestDecode)
+            .map_err(|error| http_failure(error, evidence, started))
     }
 
     pub(crate) fn accept_manifest(
@@ -1451,29 +1453,107 @@ fn download_artifact(
     if !is_secure_url(&url) {
         bail!("artifact URL must use HTTPS");
     }
+    let (response, evidence, started) = update_get(
+        url,
+        "artifact",
+        UpdateStage::ArtifactRequest,
+        UpdateStage::ArtifactHttpStatus,
+    )?;
+    let result = (|| {
+        if response
+            .content_length()
+            .is_some_and(|length| length != artifact.size)
+        {
+            return Err(anyhow::anyhow!(
+                "artifact Content-Length does not match manifest"
+            ))
+            .at_stage(UpdateStage::ArtifactContentLength);
+        }
+        let mut reader = ProgressReader {
+            reader: response,
+            progress,
+            downloaded: 0,
+            reported: 0,
+        };
+        let file = File::create(destination).at_stage(UpdateStage::StagingFileCreate)?;
+        copy_verified(&mut reader, file, artifact)
+    })();
+    result.map_err(|error| http_failure(error, evidence, started))
+}
+
+#[derive(Debug)]
+pub(crate) struct UpdateHttpFailure {
+    pub(crate) evidence: serde_json::Value,
+    error: anyhow::Error,
+}
+
+impl std::fmt::Display for UpdateHttpFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{}; HTTP evidence: {}",
+            self.error, self.evidence
+        )
+    }
+}
+
+impl std::error::Error for UpdateHttpFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.error.as_ref())
+    }
+}
+
+fn http_failure(
+    error: anyhow::Error,
+    mut evidence: serde_json::Value,
+    started: std::time::Instant,
+) -> anyhow::Error {
+    evidence["elapsed_ms"] = (started.elapsed().as_millis() as u64).into();
+    UpdateHttpFailure { evidence, error }.into()
+}
+
+fn update_get(
+    url: Url,
+    operation: &str,
+    request_stage: UpdateStage,
+    status_stage: UpdateStage,
+) -> Result<(
+    reqwest::blocking::Response,
+    serde_json::Value,
+    std::time::Instant,
+)> {
+    let started = std::time::Instant::now();
+    let mut evidence = serde_json::json!({"operation": operation, "method": "GET", "initial_url": url.as_str(), "attempt": 1, "retry_count": 0});
     let response = secure_client()
         .get(url)
         .send()
-        .at_stage(UpdateStage::ArtifactRequest)?
-        .error_for_status()
-        .at_stage(UpdateStage::ArtifactHttpStatus)?;
-    if response
-        .content_length()
-        .is_some_and(|length| length != artifact.size)
-    {
-        return Err(anyhow::anyhow!(
-            "artifact Content-Length does not match manifest"
-        ))
-        .at_stage(UpdateStage::ArtifactContentLength);
+        .at_stage(request_stage)
+        .map_err(|error| http_failure(error, evidence.clone(), started))?;
+    evidence["final_url"] = response.url().as_str().into();
+    evidence["status"] = response.status().as_u16().into();
+    evidence["response_headers"] = serde_json::json!(
+        response
+            .headers()
+            .iter()
+            .map(|(name, value)| (
+                name.as_str(),
+                String::from_utf8_lossy(value.as_bytes()).into_owned()
+            ))
+            .collect::<Vec<_>>()
+    );
+    if let Err(error) = response.error_for_status_ref() {
+        let mut body = Vec::new();
+        let body_result = response.take(16 * 1024).read_to_end(&mut body);
+        evidence["failed_response_body"] = String::from_utf8_lossy(&body).into_owned().into();
+        if let Err(error) = body_result {
+            evidence["body_read_error"] = error.to_string().into();
+        }
+        let error = Err::<(), _>(error).at_stage(status_stage).unwrap_err();
+        return Err(http_failure(error, evidence, started));
     }
-    let mut reader = ProgressReader {
-        reader: response,
-        progress,
-        downloaded: 0,
-        reported: 0,
-    };
-    let file = File::create(destination).at_stage(UpdateStage::StagingFileCreate)?;
-    copy_verified(&mut reader, file, artifact)
+    evidence["elapsed_ms"] = (started.elapsed().as_millis() as u64).into();
+    tracing::info!(target: "catserver::diagnostic", http = %evidence, "Update HTTP response");
+    Ok((response, evidence, started))
 }
 
 struct ProgressReader<'a, R> {

@@ -71,7 +71,7 @@ async fn exercise_failure(case: &'static str) {
         async move {
             if request.uri().path() == "/manifest" {
                 if matches!(case, "manifest_http" | "failure_status_write") {
-                    return Response::builder().status(503).body(Body::empty()).unwrap();
+                    return Response::builder().status(503).header("x-request-id", "manifest-trace").header("set-cookie", "first=value").header("set-cookie", "second=value").body(Body::from("x".repeat(20 * 1024))).unwrap();
                 }
                 if case == "manifest_decode" {
                     return Response::new(Body::from("not JSON"));
@@ -86,7 +86,7 @@ async fn exercise_failure(case: &'static str) {
             } else {
                 assert_eq!(request.uri().path(), "/artifact");
                 if case == "artifact_http" {
-                    Response::builder().status(503).body(Body::empty()).unwrap()
+                    Response::builder().status(503).header("x-request-id", "artifact-trace").body(Body::from("x".repeat(20 * 1024))).unwrap()
                 } else {
                     Response::new(Body::from(bytes.as_slice()))
                 }
@@ -299,6 +299,23 @@ fn update_failures_retain_the_failing_boundary_in_the_envelope() {
             "manifest_http" | "artifact_http" | "failure_status_write"
         ) {
             assert_eq!(evidence["http_status"], 503, "{case}");
+            assert_eq!(evidence["http"]["method"], "GET", "{case}");
+            assert_eq!(
+                evidence["http"]["failed_response_body"]
+                    .as_str()
+                    .unwrap()
+                    .len(),
+                16 * 1024,
+                "{case}"
+            );
+            assert!(
+                evidence["http"]["response_headers"]
+                    .to_string()
+                    .contains("x-request-id"),
+                "{case}"
+            );
+            assert_eq!(evidence["http"]["attempt"], 1);
+            assert_eq!(evidence["http"]["retry_count"], 0);
             assert!(
                 evidence["destination"]
                     .as_str()

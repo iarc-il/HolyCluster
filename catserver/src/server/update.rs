@@ -34,7 +34,7 @@ pub(super) async fn check(
     let dev_mode = options
         .map(|Json(options)| options.dev_mode)
         .unwrap_or(false);
-    run(state, move |updater| {
+    run_operation(state, "check", move |updater| {
         updater.with_dev_mode(dev_mode).check()
     })
     .await
@@ -48,15 +48,26 @@ pub(super) async fn status(State(state): State<AppState>) -> Json<UpdateResponse
     response(&state.updater, state.updater.status())
 }
 
+#[cfg(test)]
 pub(super) async fn run(
     state: AppState,
     action: impl FnOnce(crate::updater::UpdateService) -> anyhow::Result<UpdateStatus> + Send + 'static,
 ) -> (StatusCode, Json<UpdateResponse>) {
+    run_operation(state, "update_request", action).await
+}
+
+async fn run_operation(
+    state: AppState,
+    operation: &'static str,
+    action: impl FnOnce(crate::updater::UpdateService) -> anyhow::Result<UpdateStatus> + Send + 'static,
+) -> (StatusCode, Json<UpdateResponse>) {
+    let before = serde_json::json!({"operation": operation, "state_before": state.updater.status(), "session_before": state.updater.session(), "attempt": 1, "retry_count": 0});
+    let started = std::time::Instant::now();
     let updater = state.updater.clone();
     match tokio::task::spawn_blocking(move || updater.exclusive(|| action(updater.clone()))).await {
         Ok(Ok(status)) => (StatusCode::OK, response(&state.updater, status)),
-        Ok(Err(error)) => failed_status(&state.updater, error),
-        Err(error) => failed_status(&state.updater, error.into()),
+        Ok(Err(error)) => failed_status(&state.updater, error, before, started),
+        Err(error) => failed_status(&state.updater, error.into(), before, started),
     }
 }
 
@@ -92,6 +103,8 @@ pub(super) async fn install(
         .clone()
         .with_dev_mode(dev_mode)
         .with_origin(origin);
+    let before = serde_json::json!({"operation": "install", "state_before": updater.status(), "session_before": updater.session(), "attempt": 1, "retry_count": 0});
+    let started = std::time::Instant::now();
     let result = tokio::task::spawn_blocking(move || {
         updater.exclusive(|| {
             let status = updater.download()?;
@@ -113,8 +126,8 @@ pub(super) async fn install(
             (StatusCode::ACCEPTED, response(&state.updater, status))
         }
         Ok(Ok(status)) => (StatusCode::OK, response(&state.updater, status)),
-        Ok(Err(error)) => failed_status(&state.updater, error),
-        Err(error) => failed_status(&state.updater, error.into()),
+        Ok(Err(error)) => failed_status(&state.updater, error, before, started),
+        Err(error) => failed_status(&state.updater, error.into(), before, started),
     }
 }
 
@@ -125,6 +138,8 @@ pub(super) fn restart_message(session: Option<crate::update_progress::UpdateSess
 fn failed_status(
     updater: &crate::updater::UpdateService,
     error: anyhow::Error,
+    mut evidence: serde_json::Value,
+    started: std::time::Instant,
 ) -> (StatusCode, Json<UpdateResponse>) {
     if error.is::<crate::updater::UpdateBusy>() {
         return (StatusCode::CONFLICT, response(updater, updater.status()));
@@ -148,14 +163,6 @@ fn failed_status(
         None => "NotApplicable",
     };
     let os_error_code = io_error.and_then(std::io::Error::raw_os_error).unwrap_or(0);
-    tracing::error!(
-        ?error,
-        error_stage,
-        failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, error_stage)),
-        io_error_kind,
-        os_error_code,
-        "Update request failed"
-    );
     let status = updater
         .record_failure(format!("{error:#}"))
         .unwrap_or(UpdateStatus {
@@ -163,5 +170,19 @@ fn failed_status(
             available_version: None,
             diagnostic: Some(format!("{error:#}")),
         });
+    evidence["state_after"] = serde_json::json!(status);
+    evidence["session_after"] = serde_json::json!(updater.session());
+    evidence["elapsed_ms"] = (started.elapsed().as_millis() as u64).into();
+    evidence["failure"] =
+        serde_json::json!(crate::tracing_setup::failure_evidence(&error, error_stage));
+    tracing::error!(
+        ?error,
+        update_evidence = %evidence,
+        error_stage,
+        failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, error_stage)),
+        io_error_kind,
+        os_error_code,
+        "Update request failed"
+    );
     (StatusCode::BAD_GATEWAY, response(updater, status))
 }

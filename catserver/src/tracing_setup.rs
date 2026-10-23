@@ -283,6 +283,9 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
             } else {
                 "network_request"
             }
+        } else if let Some(http) = cause.downcast_ref::<crate::updater::UpdateHttpFailure>() {
+            fields.insert("http".into(), http.evidence.clone());
+            "update_http"
         } else if cause.is::<serde_json::Error>() {
             "json"
         } else if let Some(init) = cause.downcast_ref::<crate::rig::RadioInitError>() {
