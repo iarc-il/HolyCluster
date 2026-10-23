@@ -249,8 +249,6 @@ pub(crate) fn native_error(error: &(dyn std::error::Error + 'static)) -> serde_j
 
 fn initialization_evidence(fields: &mut Evidence, error: &crate::rig::RadioInitError) {
     fields.insert("initialization".into(), error.to_string().into());
-    fields.insert("initialization_native".into(), format!("{error:?}").into());
-    fields.insert("hamlib_version".into(), hamlib::version().into());
     if let crate::rig::RadioInitError::Com { context, .. } = error {
         fields.insert("initialization_call".into(), serde_json::json!(context));
     }
@@ -354,7 +352,6 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
             if let Some(native) = &operation.native_error {
                 fields.insert("native_error".into(), native.clone());
             }
-            fields.insert("hamlib_version".into(), hamlib::version().into());
             if let Some(details) = &operation.details {
                 fields.insert("operation_details".into(), details.clone().into());
             }
@@ -793,6 +790,9 @@ mod tests {
         assert!(event.server_name.is_none());
         assert!(event.contexts.contains_key("os"));
         assert!(event.contexts.contains_key("catserver_runtime"));
+        let runtime = serde_json::to_value(&event.contexts["catserver_runtime"]).unwrap();
+        assert!(runtime.get("release").is_none());
+        assert!(runtime.get("environment").is_none());
         let serialized = serde_json::to_string(event).unwrap();
         assert!(serialized.contains("1603"));
         assert!(serialized.contains("unknown diagnostic value"));

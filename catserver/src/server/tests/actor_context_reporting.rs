@@ -319,6 +319,8 @@ fn backend_call_evidence_distinguishes_targets_and_resolved_modes() {
         assert_eq!(evidence["backend_call"]["backend"], "hamlib");
         assert_eq!(evidence["backend_call"]["handle_present"], true);
         assert_eq!(evidence["native_error"]["code"], code);
+        assert!(evidence.get("hamlib_version").is_none());
+        assert!(evidence.get("initialization_native").is_none());
         assert!(
             evidence["native_error"]["hamlib_version"]
                 .as_str()

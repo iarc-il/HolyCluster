@@ -52,8 +52,6 @@ pub(crate) fn context() -> Value {
     let mut context = runtime.launch.clone();
     context["lifecycle_phase"] = (*runtime.phase.lock().unwrap_or_else(|e| e.into_inner())).into();
     context["process_uptime_ms"] = (runtime.started.elapsed().as_millis() as u64).into();
-    context["release"] = env!("VERSION").into();
-    context["environment"] = env!("CATSERVER_SENTRY_ENVIRONMENT").into();
     context
 }
 
