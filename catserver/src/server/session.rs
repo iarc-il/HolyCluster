@@ -122,7 +122,8 @@ async fn handle_ws_socket(
                 Some(message) => match message? {
                 Message::Text(text) if radio_actions::is_message(text.as_ref()) => {
                     let action = crate::tracing_setup::websocket_action(text.as_ref());
-                    tracing::info!(target: "catserver::diagnostic", action, command = %text, "CAT command");
+                    tracing::info!(action, "CAT command");
+                    tracing::debug!(target: "catserver::diagnostic", action, command = %text, "CAT command");
                     // Commands can replace the initialization/operation failure
                     // in the shared snapshot before returning an error.
                     let before_command = radio_manager.snapshot();
@@ -152,7 +153,8 @@ async fn handle_ws_socket(
                 }
                 Message::Text(text) if rotator::is_message(text.as_ref()) => {
                     let action = crate::tracing_setup::websocket_action(text.as_ref());
-                    tracing::info!(target: "catserver::diagnostic", action, command = %text, "CAT command");
+                    tracing::info!(action, "CAT command");
+                    tracing::debug!(target: "catserver::diagnostic", action, command = %text, "CAT command");
                     let before = rotator_manager.snapshot();
                     match rotator::process(text.to_string(), &rotator_manager, &rotator_configuration).await {
                         Ok(Some(response)) => client_sender.send(response).await?,
