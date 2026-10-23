@@ -291,6 +291,12 @@ fn update_failures_retain_the_failing_boundary_in_the_envelope() {
         let fields = &event["contexts"]["Rust Tracing Fields"];
         let evidence: serde_json::Value =
             serde_json::from_str(fields["failure_evidence"].as_str().unwrap()).unwrap();
+        let update: serde_json::Value =
+            serde_json::from_str(fields["update_evidence"].as_str().unwrap()).unwrap();
+        assert!(update.get("failure").is_none());
+        assert!(update.get("operation").is_some());
+        assert!(update.get("state_before").is_some());
+        assert!(update.get("state_after").is_some());
         if fields["error_stage"] != expected || evidence["stage"] != expected {
             missing.push((case, expected));
         }

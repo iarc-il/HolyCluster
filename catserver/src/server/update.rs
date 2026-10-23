@@ -173,8 +173,6 @@ fn failed_status(
     evidence["state_after"] = serde_json::json!(status);
     evidence["session_after"] = serde_json::json!(updater.session());
     evidence["elapsed_ms"] = (started.elapsed().as_millis() as u64).into();
-    evidence["failure"] =
-        serde_json::json!(crate::tracing_setup::failure_evidence(&error, error_stage));
     tracing::error!(
         ?error,
         update_evidence = %evidence,
