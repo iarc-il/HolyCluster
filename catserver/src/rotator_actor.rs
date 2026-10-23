@@ -16,53 +16,6 @@ use crate::{
 
 pub(crate) type RotatorFactory = DeviceFactory<Box<dyn Rotator>>;
 
-#[derive(Default)]
-struct ConnectionTrace {
-    outage_started: Option<Instant>,
-    failed_attempts: u32,
-    origin: &'static str,
-    initialization: Option<serde_json::Value>,
-    disconnect: Option<serde_json::Value>,
-}
-
-impl ConnectionTrace {
-    fn disconnected(&mut self, selected: &ActiveRotatorBackend, error: &RotatorError) {
-        if self.disconnect.is_none() {
-            self.disconnect = Some(
-                serde_json::json!({"origin": self.origin, "operation": error.operation, "error": error}),
-            );
-        }
-        self.failed_attempts += 1;
-        if self.outage_started.is_some() {
-            tracing::debug!(?selected, %error, attempt = self.failed_attempts, "Rotator reconnect failed");
-            return;
-        }
-        self.outage_started = Some(Instant::now());
-        tracing::warn!(?selected, %error, "Rotator disconnected; retrying");
-    }
-
-    fn connected(&mut self, selected: &ActiveRotatorBackend) {
-        let Some(started) = self.outage_started.take() else {
-            return;
-        };
-        tracing::info!(
-            ?selected,
-            attempts = self.failed_attempts,
-            outage_ms = started.elapsed().as_millis(),
-            "Rotator reconnected"
-        );
-        self.failed_attempts = 0;
-        self.disconnect = None;
-    }
-
-    fn reset(&mut self) {
-        self.outage_started = None;
-        self.failed_attempts = 0;
-        self.initialization = None;
-        self.disconnect = None;
-    }
-}
-
 pub(crate) enum Command {
     Clear {
         config: RotatorConfig,
@@ -105,7 +58,6 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
     let mut factory: Option<RotatorFactory> = None;
     let mut retry_delay = Duration::from_secs(1);
     let mut next_action: Option<Instant> = None;
-    let mut connection_trace = ConnectionTrace::default();
     loop {
         let received = match next_action {
             Some(deadline) => {
@@ -118,25 +70,18 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
         let command = match received {
             Ok(command) => command,
             Err(mpsc::RecvTimeoutError::Timeout) => {
-                connection_trace.origin = "automatic_retry";
                 let connected = snapshot
                     .read()
                     .unwrap_or_else(|error| error.into_inner())
                     .connection
                     == RotatorConnectionState::Connected;
                 if connected {
-                    connection_trace.origin = "status_poll";
-                    let success = rotator.as_mut().is_some_and(|rotator| {
-                        publish_status(&snapshot, rotator.status(), &mut connection_trace).is_ok()
-                    });
+                    let success = rotator
+                        .as_mut()
+                        .is_some_and(|rotator| publish_status(&snapshot, rotator.status()).is_ok());
                     next_action = Some(schedule_after_attempt(success, &mut retry_delay));
                 } else if let Some(factory) = &factory {
-                    let success = replace_from_factory(
-                        &snapshot,
-                        factory,
-                        &mut rotator,
-                        &mut connection_trace,
-                    );
+                    let success = replace_from_factory(&snapshot, factory, &mut rotator);
                     next_action = Some(schedule_after_attempt(success, &mut retry_delay));
                 } else {
                     next_action = None;
@@ -144,16 +89,6 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                 continue;
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
-        };
-        connection_trace.origin = match &command {
-            Command::Replace { .. } => "replacement",
-            Command::Test { .. } => "test_restore",
-            Command::Retry(_) => "manual_retry",
-            Command::SetAzimuth(..) => "set_azimuth",
-            Command::Stop(_) => "stop",
-            Command::Poll(_) => "status_poll",
-            Command::Clear { .. } => "clear",
-            Command::Shutdown(_) => "shutdown",
         };
         match command {
             Command::Clear {
@@ -171,7 +106,6 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                     factory = None;
                     next_action = None;
                     retry_delay = Duration::from_secs(1);
-                    connection_trace.reset();
                     let mut state = snapshot.write().unwrap_or_else(|error| error.into_inner());
                     state.config = config;
                     state.selected = ActiveRotatorBackend::Unconfigured;
@@ -195,7 +129,6 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                     Ok(())
                 };
                 if result.is_ok() {
-                    connection_trace.reset();
                     tracing::info!(selected = %selected, "Replacing rotator backend");
                     {
                         let mut state = snapshot.write().unwrap_or_else(|error| error.into_inner());
@@ -203,12 +136,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                         state.selected = selected.clone();
                         state.last_status.name = selected.to_string();
                     }
-                    let success = replace_from_factory(
-                        &snapshot,
-                        &next_factory,
-                        &mut rotator,
-                        &mut connection_trace,
-                    );
+                    let success = replace_from_factory(&snapshot, &next_factory, &mut rotator);
                     factory = Some(next_factory);
                     retry_delay = Duration::from_secs(1);
                     next_action = Some(schedule_after_attempt(success, &mut retry_delay));
@@ -243,12 +171,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                 drop(candidate);
 
                 if let Some(active_factory) = &factory {
-                    let success = replace_from_factory(
-                        &snapshot,
-                        active_factory,
-                        &mut rotator,
-                        &mut connection_trace,
-                    );
+                    let success = replace_from_factory(&snapshot, active_factory, &mut rotator);
                     retry_delay = Duration::from_secs(1);
                     next_action = Some(schedule_after_attempt(success, &mut retry_delay));
                 } else {
@@ -258,24 +181,13 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
             }
             Command::Retry(reply) => {
                 if let Some(factory) = &factory {
-                    let success = replace_from_factory(
-                        &snapshot,
-                        factory,
-                        &mut rotator,
-                        &mut connection_trace,
-                    );
+                    let success = replace_from_factory(&snapshot, factory, &mut rotator);
                     next_action = Some(schedule_after_attempt(success, &mut retry_delay));
                 }
                 let _ = reply.send(());
             }
             Command::SetAzimuth(azimuth, reply) => {
-                let context = actor_context(
-                    &snapshot,
-                    &connection_trace,
-                    rotator.is_some(),
-                    retry_delay,
-                    next_action,
-                );
+                let context = execution_state(&snapshot, rotator.is_some());
                 let result = rotator
                     .as_mut()
                     .map_or_else(
@@ -283,11 +195,11 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                         |rotator| rotator.set_azimuth(azimuth),
                     )
                     .map_err(|mut error| {
-                        error.actor_context = Some(context);
+                        error.execution_state = Some(context);
                         error
                     });
                 if let Err(error) = &result {
-                    publish_error(&snapshot, error.clone(), &mut connection_trace);
+                    publish_error(&snapshot, error.clone());
                     next_action = Some(schedule_after_attempt(false, &mut retry_delay));
                 } else {
                     let mut state = snapshot.write().unwrap_or_else(|error| error.into_inner());
@@ -296,13 +208,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                 let _ = reply.send(result);
             }
             Command::Stop(reply) => {
-                let context = actor_context(
-                    &snapshot,
-                    &connection_trace,
-                    rotator.is_some(),
-                    retry_delay,
-                    next_action,
-                );
+                let context = execution_state(&snapshot, rotator.is_some());
                 let result = rotator
                     .as_mut()
                     .map_or_else(
@@ -310,11 +216,11 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                         |rotator| rotator.stop(),
                     )
                     .map_err(|mut error| {
-                        error.actor_context = Some(context);
+                        error.execution_state = Some(context);
                         error
                     });
                 if let Err(error) = &result {
-                    publish_error(&snapshot, error.clone(), &mut connection_trace);
+                    publish_error(&snapshot, error.clone());
                     next_action = Some(schedule_after_attempt(false, &mut retry_delay));
                 } else {
                     snapshot
@@ -326,8 +232,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
             }
             Command::Poll(reply) => {
                 if let Some(rotator) = &mut rotator {
-                    let success =
-                        publish_status(&snapshot, rotator.status(), &mut connection_trace).is_ok();
+                    let success = publish_status(&snapshot, rotator.status()).is_ok();
                     next_action = Some(schedule_after_attempt(success, &mut retry_delay));
                 }
                 let _ = reply.send(());
@@ -341,42 +246,25 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
     }
 }
 
-fn actor_context(
+fn execution_state(
     snapshot: &RwLock<RotatorSnapshot>,
-    trace: &ConnectionTrace,
     backend_object_present: bool,
-    retry_delay: Duration,
-    next_action: Option<Instant>,
 ) -> serde_json::Value {
-    let state = snapshot.read().unwrap_or_else(|e| e.into_inner());
-    serde_json::json!({
-        "origin": trace.origin,
-        "pre_state": crate::tracing_setup::rotator_state(&state),
-        "backend_object_present": backend_object_present,
-        "initialization": trace.initialization, "disconnect": trace.disconnect,
-        "failed_attempts": trace.failed_attempts,
-        "outage_ms": trace.outage_started.map(|t| t.elapsed().as_millis() as u64),
-        "retry_delay_ms": retry_delay.as_millis() as u64,
-        "next_retry_ms": next_action.map(|t| t.saturating_duration_since(Instant::now()).as_millis() as u64),
-    })
+    let snapshot = snapshot.read().unwrap_or_else(|e| e.into_inner());
+    let mut state = crate::tracing_setup::rotator_state(&snapshot);
+    state["backend_object_present"] = backend_object_present.into();
+    state
 }
 
 fn replace_from_factory(
     snapshot: &RwLock<RotatorSnapshot>,
     factory: &RotatorFactory,
     rotator: &mut Option<Box<dyn Rotator>>,
-    connection_trace: &mut ConnectionTrace,
 ) -> bool {
     drop(rotator.take());
     let mut candidate = factory();
-    let init = candidate.init();
-    connection_trace.initialization = Some(serde_json::json!({
-        "origin": connection_trace.origin,
-        "outcome": if init.is_ok() { "success" } else { "failure" },
-        "error": init.as_ref().err(),
-    }));
-    let result = init.and_then(|()| candidate.status());
-    let success = publish_status(snapshot, result, connection_trace).is_ok();
+    let result = candidate.init().and_then(|()| candidate.status());
+    let success = publish_status(snapshot, result).is_ok();
     *rotator = Some(candidate);
     success
 }
@@ -384,51 +272,46 @@ fn replace_from_factory(
 fn publish_status(
     snapshot: &RwLock<RotatorSnapshot>,
     result: Result<crate::rotator::RotatorStatus, RotatorError>,
-    connection_trace: &mut ConnectionTrace,
 ) -> Result<(), RotatorError> {
     match result {
         Ok(status) if status.status == "connected" => {
             let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());
-            let selected = snapshot.selected.clone();
+            if snapshot.connection != RotatorConnectionState::Connected {
+                tracing::info!(selected = %snapshot.selected, "Rotator connected");
+            }
             snapshot.connection = RotatorConnectionState::Connected;
             snapshot.last_error = None;
             snapshot.last_status = status;
-            drop(snapshot);
-            connection_trace.connected(&selected);
             Ok(())
         }
         Ok(status) => {
             let error = RotatorError::new("status", status.status.clone());
             let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());
-            let selected = snapshot.selected.clone();
+            tracing::warn!(selected = %snapshot.selected, %error, "Rotator disconnected; retrying");
             snapshot.connection = RotatorConnectionState::Disconnected;
             snapshot.last_error = Some(error.clone());
             snapshot.last_status = status;
-            drop(snapshot);
-            connection_trace.disconnected(&selected, &error);
             Err(error)
         }
         Err(error) => {
-            publish_error(snapshot, error.clone(), connection_trace);
+            publish_error(snapshot, error.clone());
             Err(error)
         }
     }
 }
 
-fn publish_error(
-    snapshot: &RwLock<RotatorSnapshot>,
-    mut error: RotatorError,
-    connection_trace: &mut ConnectionTrace,
-) {
+fn publish_error(snapshot: &RwLock<RotatorSnapshot>, mut error: RotatorError) {
     // The returned error owns execution context; stored history must not nest snapshots.
-    error.actor_context = None;
+    error.execution_state = None;
     let mut snapshot = snapshot.write().unwrap_or_else(|error| error.into_inner());
-    let selected = snapshot.selected.clone();
+    if snapshot.connection == RotatorConnectionState::Connected || snapshot.last_error.is_none() {
+        tracing::warn!(selected = %snapshot.selected, %error, "Rotator disconnected; retrying");
+    } else {
+        tracing::debug!(selected = %snapshot.selected, %error, "Rotator reconnect failed");
+    }
     snapshot.connection = RotatorConnectionState::Disconnected;
     snapshot.last_error = Some(error.clone());
     snapshot.last_status.status = "disconnected".into();
-    drop(snapshot);
-    connection_trace.disconnected(&selected, &error);
 }
 
 fn schedule_after_attempt(success: bool, retry_delay: &mut Duration) -> Instant {

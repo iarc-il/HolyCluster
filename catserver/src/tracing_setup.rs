@@ -383,8 +383,8 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
         } else if let Some(rotator) = cause.downcast_ref::<crate::rotator::RotatorError>() {
             fields.insert("native_operation".into(), rotator.operation.into());
             fields.insert(
-                "actor_context".into(),
-                serde_json::json!(rotator.actor_context),
+                "execution_state".into(),
+                serde_json::json!(rotator.execution_state),
             );
             fields.insert(
                 "native_error".into(),
@@ -478,7 +478,7 @@ pub(crate) fn rotator_evidence(
     message: &str,
 ) -> Evidence {
     let mut fields = failure_evidence(error, "rotator_command");
-    fields.insert("pre_state".into(), rotator_state(before));
+    fields.insert("receipt_state".into(), rotator_state(before));
     fields.insert("post_state".into(), rotator_state(after));
     fields.insert(
         "request".into(),

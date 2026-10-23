@@ -737,7 +737,7 @@ async fn actor_context_uses_execution_state_for_tune_queued_behind_replacement()
 }
 
 #[test]
-fn rotator_command_envelope_retains_request_state_and_retry_evidence() {
+fn rotator_command_envelope_retains_request_and_named_states() {
     let events = capture(async {
         let manager = crate::rotator_manager::RotatorManager::new(
             crate::rotator_config::RotatorConfig::unconfigured(),
@@ -757,9 +757,22 @@ fn rotator_command_envelope_retains_request_state_and_retry_evidence() {
     .unwrap();
     assert_eq!(fields["request"]["azimuth"], 123.5);
     assert_eq!(fields["request"]["extra"], "retain");
-    assert_eq!(fields["pre_state"]["last_status"]["azimuth"], 0.0);
+    assert_eq!(fields["receipt_state"]["last_status"]["azimuth"], 0.0);
     assert_eq!(fields["post_state"]["connection"], "Disconnected");
-    assert_eq!(fields["actor_context"]["backend_object_present"], false);
-    assert_eq!(fields["actor_context"]["failed_attempts"], 0);
-    assert_eq!(fields["actor_context"]["origin"], "set_azimuth");
+    assert_eq!(fields["execution_state"]["backend_object_present"], false);
+    assert_eq!(
+        fields["execution_state"]["config"],
+        fields["receipt_state"]["config"]
+    );
+    for field in [
+        "initialization",
+        "disconnect",
+        "failed_attempts",
+        "outage_ms",
+        "origin",
+        "retry_delay_ms",
+        "next_retry_ms",
+    ] {
+        assert!(fields["execution_state"].get(field).is_none());
+    }
 }

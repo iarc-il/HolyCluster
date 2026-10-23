@@ -22,7 +22,7 @@ pub struct RotatorError {
     pub operation: &'static str,
     pub message: String,
     pub native_error: Option<serde_json::Value>,
-    pub actor_context: Option<serde_json::Value>,
+    pub execution_state: Option<serde_json::Value>,
 }
 
 impl RotatorError {
@@ -31,7 +31,7 @@ impl RotatorError {
             operation,
             message: message.into(),
             native_error: None,
-            actor_context: None,
+            execution_state: None,
         }
     }
 }
