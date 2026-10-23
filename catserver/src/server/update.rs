@@ -56,7 +56,7 @@ pub(super) async fn run(
     run_operation(state, "update_request", action).await
 }
 
-async fn run_operation(
+pub(super) async fn run_operation(
     state: AppState,
     operation: &'static str,
     action: impl FnOnce(crate::updater::UpdateService) -> anyhow::Result<UpdateStatus> + Send + 'static,
