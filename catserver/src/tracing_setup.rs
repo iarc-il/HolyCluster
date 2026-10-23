@@ -251,6 +251,22 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
             serde_json::json!(error.chain().map(ToString::to_string).collect::<Vec<_>>()),
         ),
     ]);
+    if stage.starts_with("tray_") {
+        fields.insert("desktop".into(), crate::desktop::context());
+        fields.insert("server_continues".into(), true.into());
+        fields.insert(
+            "native_errors".into(),
+            serde_json::json!(
+                error
+                    .chain()
+                    .map(|cause| format!("{cause:?}"))
+                    .collect::<Vec<_>>()
+            ),
+        );
+        if let Some(stage) = error.downcast_ref::<crate::tray_icon::TrayStage>() {
+            fields.insert("stage".into(), stage.0.into());
+        }
+    }
     let mut categories = Vec::new();
     for cause in error.chain() {
         let category = if let Some(io) = cause.downcast_ref::<std::io::Error>() {
@@ -608,10 +624,24 @@ mod tests {
                 let error =
                     anyhow::anyhow!("MSI installer exited with code 1603; see msi-install.log");
                 tracing::error!(?error, artifact_path = %format!("{home}/update.msi"), new_field = "unknown diagnostic value", "Catserver terminated unexpectedly");
+                let error = anyhow::Error::new(tray_icon::Error::OsError(
+                    std::io::Error::from_raw_os_error(5),
+                ));
+                tracing::error!(failure_evidence = %serde_json::json!(failure_evidence(&error, "tray_native_build")), "Tray diagnostic regression");
             });
         });
         let events = transport.0.lock().unwrap();
-        assert_eq!(events.len(), 3);
+        assert_eq!(events.len(), 4);
+        let tray = serde_json::to_value(&events[3]).unwrap();
+        let tray: serde_json::Value = serde_json::from_str(
+            tray["contexts"]["Rust Tracing Fields"]["failure_evidence"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(tray["server_continues"], true);
+        assert!(tray["desktop"].get("DISPLAY").is_some());
+        assert!(tray["io_summary"].as_str().unwrap().contains("5"));
         assert!(
             events[0]
                 .message

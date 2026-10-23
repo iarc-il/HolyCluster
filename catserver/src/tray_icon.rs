@@ -1,6 +1,4 @@
-#[cfg(target_os = "linux")]
-use anyhow::Context;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use tokio::sync::broadcast::{Receiver, Sender};
 use tray_icon::{
     TrayIcon, TrayIconBuilder,
@@ -12,22 +10,37 @@ use winit::{
     event_loop::{ActiveEventLoop, EventLoopProxy},
 };
 
+#[derive(Debug)]
+pub(crate) struct TrayStage(pub(crate) &'static str);
+
+impl std::fmt::Display for TrayStage {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.0)
+    }
+}
+
 #[cfg(windows)]
 fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> {
     use tray_icon::Icon;
-    Ok(tray_icon.with_icon(Icon::from_resource(1, Some((32, 32)))?))
+    Ok(tray_icon.with_icon(
+        Icon::from_resource(1, Some((32, 32))).context(TrayStage("tray_icon_resource"))?,
+    ))
 }
 
 #[cfg(target_os = "linux")]
 fn add_icon_to_tray_icon(tray_icon: TrayIconBuilder) -> Result<TrayIconBuilder> {
-    let icon_dir = ico::IconDir::read(std::io::Cursor::new(include_bytes!("../wix/icon.ico")))?;
+    let icon_dir = ico::IconDir::read(std::io::Cursor::new(include_bytes!("../wix/icon.ico")))
+        .context(TrayStage("tray_icon_read"))?;
     let image = icon_dir
         .entries()
         .first()
-        .context("The bundled Windows icon contains no images")?
-        .decode()?;
+        .context("The bundled Windows icon contains no images")
+        .context(TrayStage("tray_icon_select"))?
+        .decode()
+        .context(TrayStage("tray_icon_decode"))?;
     let (width, height) = (image.width(), image.height());
-    let icon = tray_icon::Icon::from_rgba(image.rgba_data().to_vec(), width, height)?;
+    let icon = tray_icon::Icon::from_rgba(image.rgba_data().to_vec(), width, height)
+        .context(TrayStage("tray_icon_rgba"))?;
     Ok(tray_icon.with_icon(icon))
 }
 
@@ -58,14 +71,16 @@ fn create_tray_icon() -> Result<(TrayIcon, MenuItem, MenuItem)> {
     let quit_menu_item = MenuItem::new("Quit", true, None);
     let tray_menu = Menu::new();
     let instance_title = "Holy Cluster";
-    if let Err(error) = tray_menu.append_items(&[&open_menu_item, &quit_menu_item]) {
-        return Err(error.into());
-    }
+    tray_menu
+        .append_items(&[&open_menu_item, &quit_menu_item])
+        .context(TrayStage("tray_menu_append"))?;
     let tray_icon = TrayIconBuilder::new()
         .with_menu(Box::new(tray_menu))
         .with_tooltip(instance_title)
         .with_title(instance_title);
-    let tray_icon = add_icon_to_tray_icon(tray_icon)?.build()?;
+    let tray_icon = add_icon_to_tray_icon(tray_icon)?
+        .build()
+        .context(TrayStage("tray_native_build"))?;
     Ok((tray_icon, open_menu_item, quit_menu_item))
 }
 
@@ -152,14 +167,16 @@ pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver
         proxy,
     };
     if let Err(error) = event_loop.run_app(&mut app) {
-        tracing::error!(?error, "Tray event loop failed");
+        let error = anyhow::Error::new(error);
+        tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "tray_event_loop_run")), "Tray event loop failed");
     }
 }
 
 #[cfg(target_os = "linux")]
 pub fn run_tray_icon(tray_sender: Sender<UserEvent>, mut tray_receiver: Receiver<UserEvent>) {
     if let Err(error) = gtk::init() {
-        tracing::error!(?error, "Failed to initialize GTK tray event loop");
+        let error = anyhow::Error::new(error);
+        tracing::error!(?error, failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "tray_gtk_init")), "Failed to initialize GTK tray event loop");
         return;
     }
     let (tray_icon, open_menu_item, quit_menu_item) = match create_tray_icon() {
