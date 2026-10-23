@@ -1,7 +1,4 @@
-use std::{
-    io::Read,
-    process::{Command, Stdio},
-};
+use std::process::{Command, Stdio};
 
 pub(crate) fn context() -> serde_json::Value {
     [
@@ -22,18 +19,6 @@ pub(crate) fn context() -> serde_json::Value {
     })
     .collect::<serde_json::Map<_, _>>()
     .into()
-}
-
-fn capture(mut file: std::fs::File) -> (serde_json::Value, Option<String>) {
-    use std::io::{Seek, SeekFrom};
-    let mut bytes = Vec::new();
-    let result = file
-        .seek(SeekFrom::Start(0))
-        .and_then(|_| file.take(16 * 1024).read_to_end(&mut bytes));
-    (
-        crate::diagnostics::payload(&bytes),
-        result.err().map(|error| error.to_string()),
-    )
 }
 
 pub(crate) struct BrowserLaunchError {
@@ -70,27 +55,10 @@ pub(crate) fn launch_commands(
     let mut result = Err(std::io::Error::other("no browser launcher available").into());
     for mut command in commands {
         let mut evidence = json!({"launcher": crate::diagnostics::os_value(command.get_program()), "args": command.get_args().map(crate::diagnostics::os_value).collect::<Vec<_>>()});
-        command.stdin(Stdio::null());
-        // Inherited browser handles must not keep output capture waiting after the launcher exits.
-        let files = (|| -> std::io::Result<_> {
-            let stdout = tempfile::tempfile()?;
-            let stderr = tempfile::tempfile()?;
-            let output = stdout.try_clone()?;
-            let errors = stderr.try_clone()?;
-            command
-                .stdout(Stdio::from(output))
-                .stderr(Stdio::from(errors));
-            Ok((stdout, stderr))
-        })();
-        let files = match files {
-            Ok(files) => Some(files),
-            Err(error) => {
-                evidence["capture_setup_error"] = error.to_string().into();
-                evidence["capture_setup_os_code"] = json!(error.raw_os_error());
-                command.stdout(Stdio::null()).stderr(Stdio::null());
-                None
-            }
-        };
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
         #[cfg(windows)]
         let child = crate::windows_sockets::spawn(&mut command);
         #[cfg(not(windows))]
@@ -106,14 +74,6 @@ pub(crate) fn launch_commands(
             }
         };
         let status = child.wait();
-        if let Some((stdout, stderr)) = files {
-            let (stdout, stdout_error) = capture(stdout);
-            let (stderr, stderr_error) = capture(stderr);
-            evidence["stdout"] = stdout;
-            evidence["stderr"] = stderr;
-            evidence["stdout_read_error"] = json!(stdout_error);
-            evidence["stderr_read_error"] = json!(stderr_error);
-        }
         result = match status {
             Ok(status) => {
                 evidence["exit_status"] = status.to_string().into();
@@ -193,20 +153,12 @@ mod tests {
             evidence["attempts"][0]["args"][0],
             serde_json::json!({"unix_bytes": raw})
         );
-        let mut stdout = vec![0; 16 * 1024];
-        stdout[0] = 0xff;
-        assert_eq!(
-            evidence["attempts"][1]["stdout"],
-            serde_json::json!({"bytes": stdout})
-        );
-        assert_eq!(
-            evidence["attempts"][1]["stderr"],
-            serde_json::json!({"bytes": [254]})
-        );
+        assert!(evidence["attempts"][1].get("stdout").is_none());
+        assert!(evidence["attempts"][1].get("stderr").is_none());
     }
 
     #[test]
-    fn browser_failure_retains_launcher_output_and_desktop_evidence() {
+    fn browser_failure_retains_launcher_and_desktop_evidence() {
         #[cfg(unix)]
         let command = {
             let mut command = std::process::Command::new("sh");
@@ -238,18 +190,8 @@ mod tests {
         assert_eq!(evidence["url"], "http://127.0.0.1:1234/?full=query");
         let attempt = &evidence["attempts"][0];
         assert_eq!(attempt["exit_code"], 23);
-        assert!(
-            attempt["stdout"]
-                .as_str()
-                .unwrap()
-                .contains("browser stdout")
-        );
-        assert!(
-            attempt["stderr"]
-                .as_str()
-                .unwrap()
-                .contains("browser stderr")
-        );
+        assert!(attempt.get("stdout").is_none());
+        assert!(attempt.get("stderr").is_none());
         for key in [
             "DISPLAY",
             "WAYLAND_DISPLAY",
