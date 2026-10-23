@@ -198,45 +198,6 @@ pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &st
     result.with_context(|| format!("existing instance contact: {evidence}"))
 }
 
-#[cfg(test)]
-mod singleton_diagnostic_tests {
-    #[test]
-    fn failed_contact_retains_http_attempt_and_owner_evidence() {
-        use std::io::{Read, Write};
-        let directory = tempfile::tempdir().unwrap();
-        let port_file = directory.path().join("instance-port");
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        crate::instance_port::publish(&port_file, listener.local_addr().unwrap().port()).unwrap();
-        std::fs::write(
-            directory.path().join("instance-owner.json"),
-            r#"{"pid":123,"lifecycle_phase":"serving"}"#,
-        )
-        .unwrap();
-        let server = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            let mut request = [0; 4096];
-            stream.read(&mut request).unwrap();
-            stream
-                .write_all(b"HTTP/1.1 503 Unavailable\r\nContent-Length: 0\r\n\r\n")
-                .unwrap();
-        });
-        let error = super::contact_existing_instance(&port_file, "open").unwrap_err();
-        server.join().unwrap();
-        let text = format!("{error:#}");
-        for expected in [
-            "attempts",
-            "owner_state",
-            "123",
-            "elapsed_ms",
-            "503",
-            "open",
-            "port_file_age_ms",
-        ] {
-            assert!(text.contains(expected), "missing {expected}: {text}");
-        }
-    }
-}
-
 fn radio(config: RadioConfig, use_dummy: bool) -> Result<RadioManager> {
     let selected = config.effective_backend(use_dummy);
     Ok(RadioManager::new(config, selected)?)
@@ -338,4 +299,43 @@ async fn run_singleton(
     shutdown_radio.shutdown().await?;
     shutdown_rotator.shutdown().await?;
     result
+}
+
+#[cfg(test)]
+mod singleton_diagnostic_tests {
+    #[test]
+    fn failed_contact_retains_http_attempt_and_owner_evidence() {
+        use std::io::{Read, Write};
+        let directory = tempfile::tempdir().unwrap();
+        let port_file = directory.path().join("instance-port");
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        crate::instance_port::publish(&port_file, listener.local_addr().unwrap().port()).unwrap();
+        std::fs::write(
+            directory.path().join("instance-owner.json"),
+            r#"{"pid":123,"lifecycle_phase":"serving"}"#,
+        )
+        .unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 4096];
+            assert!(stream.read(&mut request).unwrap() > 0);
+            stream
+                .write_all(b"HTTP/1.1 503 Unavailable\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        });
+        let error = super::contact_existing_instance(&port_file, "open").unwrap_err();
+        server.join().unwrap();
+        let text = format!("{error:#}");
+        for expected in [
+            "attempts",
+            "owner_state",
+            "123",
+            "elapsed_ms",
+            "503",
+            "open",
+            "port_file_age_ms",
+        ] {
+            assert!(text.contains(expected), "missing {expected}: {text}");
+        }
+    }
 }

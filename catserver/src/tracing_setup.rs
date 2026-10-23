@@ -209,18 +209,16 @@ pub(crate) fn native_error(error: &(dyn std::error::Error + 'static)) -> serde_j
         serde_json::json!({"text": error.to_string(), "hamlib_version": hamlib::version()});
     let mut cause = Some(error);
     while let Some(error) = cause {
-        if let Some(native) = error.downcast_ref::<hamlib::HamlibError>() {
-            match native {
-                hamlib::HamlibError::Call {
-                    operation, code, ..
-                }
-                | hamlib::HamlibError::NullErrorText { operation, code }
-                | hamlib::HamlibError::InvalidErrorText { operation, code } => {
-                    result["operation"] = (*operation).into();
-                    result["code"] = (*code).into();
-                }
-                _ => {}
+        if let Some(
+            hamlib::HamlibError::Call {
+                operation, code, ..
             }
+            | hamlib::HamlibError::NullErrorText { operation, code }
+            | hamlib::HamlibError::InvalidErrorText { operation, code },
+        ) = error.downcast_ref::<hamlib::HamlibError>()
+        {
+            result["operation"] = (*operation).into();
+            result["code"] = (*code).into();
         }
         cause = error.source();
     }
