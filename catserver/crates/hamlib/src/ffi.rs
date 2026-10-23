@@ -21,7 +21,9 @@ unsafe extern "C" {
 pub(crate) fn version() -> String {
     // Hamlib exports this immutable, NUL-terminated string for the library lifetime.
     unsafe { CStr::from_ptr(std::ptr::addr_of!(hamlib_version)) }
-        .to_str().expect("bundled Hamlib version must be valid UTF-8").to_owned()
+        .to_str()
+        .expect("bundled Hamlib version must be valid UTF-8")
+        .to_owned()
 }
 
 static BACKENDS: OnceLock<Result<(), HamlibError>> = OnceLock::new();
