@@ -21,6 +21,7 @@ pub(crate) type RadioFactory = DeviceFactory<Box<dyn Radio>>;
 struct ConnectionTrace {
     outage_started: Option<Instant>,
     failed_attempts: u32,
+    initialization_origin: &'static str,
     initialization: Option<RadioInitializationContext>,
     disconnect: Option<RadioDisconnectContext>,
 }
@@ -108,6 +109,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
         let command = match received {
             Ok(command) => command,
             Err(mpsc::RecvTimeoutError::Timeout) => {
+                connection_trace.initialization_origin = "automatic_retry";
                 let connected = snapshot
                     .read()
                     .unwrap_or_else(|error| error.into_inner())
@@ -132,6 +134,12 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                 continue;
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        };
+        connection_trace.initialization_origin = match &command {
+            Command::Replace { .. } => "replacement",
+            Command::Test { .. } => "test_restore",
+            Command::Retry(_) => "manual_retry",
+            _ => "command",
         };
         match command {
             Command::Replace {
@@ -402,6 +410,7 @@ fn publish(
         snapshot.last_operation_error = None;
     }
     connection_trace.initialization = Some(RadioInitializationContext {
+        origin: connection_trace.initialization_origin,
         outcome: if init.is_ok() { "succeeded" } else { "failed" },
         error: init.as_ref().err().map(ToString::to_string),
         details: init.as_ref().err().and_then(|error| match error {

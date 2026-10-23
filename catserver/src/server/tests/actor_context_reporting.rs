@@ -279,13 +279,27 @@ fn backend_call_evidence_distinguishes_targets_and_resolved_modes() {
         }
     });
     assert_eq!(reports.len(), cases.len());
-    for (report, (operation, target, _, _, mode, code)) in reports.iter().zip(cases) {
+    for (report, (operation, target, _, freq, mode, code)) in reports.iter().zip(cases) {
         let evidence = evidence(report);
         assert_eq!(
             evidence["backend_call"]["operation"], operation,
             "{evidence}"
         );
         assert_eq!(evidence["backend_call"]["target"], target);
+        assert_eq!(
+            evidence["pre_operation"]["initialization"]["origin"],
+            "replacement"
+        );
+        assert_eq!(
+            evidence["pre_operation"]["requested_frequency_hz"],
+            freq * 1000
+        );
+        if operation != "rig_set_mode" {
+            assert_eq!(
+                evidence["backend_call"]["resolved_frequency_hz"],
+                freq * 1000
+            );
+        }
         if operation == "rig_set_mode" {
             assert_eq!(evidence["backend_call"]["resolved_mode"], mode);
         } else {
@@ -293,6 +307,12 @@ fn backend_call_evidence_distinguishes_targets_and_resolved_modes() {
         }
         assert_eq!(evidence["backend_call"]["backend"], "hamlib");
         assert_eq!(evidence["backend_call"]["handle_present"], true);
+        assert_eq!(evidence["native_error"]["code"], code);
+        assert!(
+            evidence["native_error"]["hamlib_version"]
+                .as_str()
+                .is_some_and(|version| !version.is_empty())
+        );
         assert!(
             report["contexts"]["Rust Tracing Fields"]["error_summary"]
                 .as_str()

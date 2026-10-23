@@ -81,6 +81,11 @@ fn native_context(
         context.hresult = Some(co::HRESULT::DISP_E_EXCEPTION.raw());
         context.exception_code = (exception.scode != 0).then_some(exception.scode);
         context.exception_wcode = (exception.wCode != 0).then_some(exception.wCode);
+        context.exception_details = Some(serde_json::json!({
+            "source": exception.bstrSource(), "description": exception.bstrDescription(),
+            "help_file": exception.bstrHelpFile(), "help_context": exception.dwHelpContext,
+            "scode": exception.scode, "wcode": exception.wCode,
+        }));
     }
     context
 }
@@ -189,8 +194,9 @@ impl Radio for OmnirigRadio {
             Slot::A => "FreqA",
             Slot::B => "FreqB",
         };
-        let context = context("invoke_put", Some(vfo), self.inner.is_some());
+        let mut context = context("invoke_put", Some(vfo), self.inner.is_some());
         let freq = freq.as_u32_hz();
+        context.resolved_frequency_hz = Some(freq);
         let Some(rig) = self.current_rig() else {
             return Err(RadioOperationError::new(
                 self.rig_number(),

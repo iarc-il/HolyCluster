@@ -56,6 +56,7 @@ impl Radio for HamlibRadio {
         let frequency = hamlib::Frequency::new(f64::from(freq.as_u32_hz()))
             .map_err(|error| operation_error("validate frequency", error))?;
         let mut selection = RadioBackendContext::new("hamlib", "rig_set_vfo", self.rig.is_some());
+        selection.resolved_frequency_hz = Some(freq.as_u32_hz());
         selection.target = Some(match slot {
             Slot::A => "A",
             Slot::B => "B",
@@ -69,6 +70,7 @@ impl Radio for HamlibRadio {
         })?;
         let mut write = RadioBackendContext::new("hamlib", "rig_set_freq", true);
         write.target = Some("Current");
+        write.resolved_frequency_hz = Some(freq.as_u32_hz());
         rig.set_frequency(hamlib::Vfo::Current, frequency)
             .map_err(|error| operation_error("set frequency", error).with_backend_context(write))
     }

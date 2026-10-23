@@ -85,6 +85,7 @@ impl std::error::Error for RadioInitError {}
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct RadioInitializationContext {
+    pub origin: &'static str,
     pub outcome: &'static str,
     pub error: Option<String>,
     pub details: Option<String>,
@@ -124,6 +125,8 @@ pub struct RadioBackendContext {
     pub target: Option<&'static str>,
     pub resolved_mode: Option<&'static str>,
     pub handle_present: bool,
+    pub resolved_frequency_hz: Option<u32>,
+    pub exception_details: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hresult: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -140,6 +143,8 @@ impl RadioBackendContext {
             target: None,
             resolved_mode: None,
             handle_present,
+            resolved_frequency_hz: None,
+            exception_details: None,
             hresult: None,
             exception_code: None,
             exception_wcode: None,
