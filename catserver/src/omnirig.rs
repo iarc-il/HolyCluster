@@ -142,7 +142,13 @@ impl Radio for OmnirigRadio {
 
     fn set_mode(&mut self, mode: Mode) -> Result<(), RadioOperationError> {
         let mut context = context("invoke_put", Some("Mode"), self.inner.is_some());
-        let (mode, resolved) = crate::omnirig_mode::resolve(mode);
+        let (mode, resolved) = match mode {
+            Mode::LSB => (0x04000000, "LSB"),
+            Mode::USB => (0x02000000, "USB"),
+            Mode::CW => (0x00800000, "CW"),
+            Mode::Data => (0x08000000, "DIG_U"),
+            Mode::Rtty => (0x10000000, "DIG_L"),
+        };
         context.resolved_mode = Some(resolved);
         let Some(rig) = self.current_rig() else {
             return Err(RadioOperationError::new(
