@@ -138,7 +138,7 @@ try {
             "--no-browser",
             "--backend",
             `127.0.0.1:${backendPort}`,
-            "--port",
+            "--listen-port",
             String(port),
         ],
         {

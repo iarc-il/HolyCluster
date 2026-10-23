@@ -1076,9 +1076,19 @@ pub(crate) fn original_arguments(arguments: &[String]) -> Vec<String> {
     while let Some(argument) = arguments.next() {
         if argument == "--resume-update" {
             arguments.next();
-        } else if !argument.starts_with("--resume-update=") {
-            result.push(argument.clone());
+            continue;
         }
+        if argument.starts_with("--resume-update=") {
+            continue;
+        }
+        if argument == "--port" {
+            result.push("--listen-port".into());
+            if let Some(port) = arguments.next() {
+                result.push(port.clone());
+            }
+            continue;
+        }
+        result.push(argument.clone());
     }
     result
 }

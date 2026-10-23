@@ -56,14 +56,24 @@ fn restart_arguments_preserve_options_without_duplicate_internal_flags() {
     ]
     .map(str::to_owned);
     let retained = crate::updater::original_arguments(&arguments);
-    assert_eq!(retained, arguments[..5]);
+    assert_eq!(
+        retained,
+        [
+            "--dummy",
+            "--backend",
+            "localhost:9000",
+            "--listen-port",
+            "41234"
+        ]
+    );
     let mut launch = retained;
     launch.extend(["--resume-update".into(), "new-plan".into()]);
     let borrowed = launch.iter().map(String::as_str).collect::<Vec<_>>();
     let parsed = crate::args::Args::from_args(&["catserver"], &borrowed).unwrap();
     assert!(parsed.dummy);
     assert_eq!(parsed.backend.as_deref(), Some("localhost:9000"));
-    assert_eq!(parsed.port, Some(41234));
+    assert_eq!(parsed.listen_port, Some(41234));
+    assert_eq!(parsed.port, None);
     assert_eq!(parsed.resume_update.as_deref(), Some(Path::new("new-plan")));
 }
 

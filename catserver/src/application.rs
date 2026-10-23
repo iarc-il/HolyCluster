@@ -70,7 +70,7 @@ pub fn run(args: Args) -> Result<()> {
         .as_deref()
         .map(crate::updater::restart_context)
         .transpose()?;
-    let mut server_config = server_config(&args);
+    let mut server_config = server_config(&args)?;
     if let Some(context) = &restart {
         server_config.local_port = context.port;
     }
