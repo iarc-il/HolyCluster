@@ -19,9 +19,7 @@ mod rotator_tests;
 #[cfg(test)]
 mod tests;
 
-use std::path::PathBuf;
-
-use anyhow::{Context, Result};
+use anyhow::Result;
 use axum::{
     Router,
     http::Uri,
@@ -35,7 +33,7 @@ use tokio::{
 use crate::{radio_manager::RadioManager, rotator_manager::RotatorManager, tray_icon::UserEvent};
 
 use self::{
-    http_proxy::{local_ui, proxy},
+    http_proxy::proxy,
     listener::{bind_startup_listener, bind_update_listener, protect_listener},
     session::ws_handler,
     state::AppState,
@@ -72,7 +70,7 @@ impl Server {
         radio: RadioManager,
         rotator: RotatorManager,
         mut server_config: ServerConfig,
-        use_local_ui: bool,
+        _use_local_ui: bool,
         restart: Option<crate::updater::RestartContext>,
     ) -> Result<Self> {
         let listener = if let Some(context) = &restart {
@@ -106,8 +104,7 @@ impl Server {
                 .await?
         };
         server_config.local_port = listener.local_addr()?.port();
-        let ui_dir = use_local_ui.then(find_ui_dir).transpose()?;
-        let mut state = AppState::new(server_config, radio, rotator, sender.clone(), ui_dir)?;
+        let mut state = AppState::new(server_config, radio, rotator, sender.clone())?;
         state.updater = state.updater.with_restart(restart);
         let app = Router::new()
             .route("/ws", any(ws_handler))
@@ -129,12 +126,7 @@ impl Server {
                     update::run_operation(state, "retry", |updater| updater.retry())
                 }),
             );
-        let app = if use_local_ui {
-            app.fallback(any(local_ui))
-        } else {
-            app.fallback(any(proxy))
-        }
-        .with_state(state.clone());
+        let app = app.fallback(any(proxy)).with_state(state.clone());
         Ok(Self {
             app,
             listener,
@@ -173,23 +165,6 @@ async fn open_tab_handler(
         .sender
         .send(UserEvent::OpenBrowser("existing_instance_http"));
     axum::http::StatusCode::OK
-}
-
-fn find_ui_dir() -> Result<PathBuf> {
-    let mut path = std::env::var("APPIMAGE")
-        .map(PathBuf::from)
-        .or_else(|_| std::env::current_exe())?;
-
-    loop {
-        let ui_dir = path.join("ui/dist");
-        if ui_dir.exists() {
-            return Ok(ui_dir);
-        }
-        path = path
-            .parent()
-            .with_context(|| format!("Cannot get parent of {}", path.display()))?
-            .into();
-    }
 }
 
 async fn shutdown(mut receiver: Receiver<UserEvent>) -> UserEvent {

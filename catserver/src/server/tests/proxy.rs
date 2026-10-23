@@ -43,6 +43,75 @@ async fn proxies_arbitrary_paths_and_queries() {
 }
 
 #[tokio::test]
+async fn proxies_ui_assets_when_local_ui_is_requested() {
+    use super::{RadioConfig, RadioManager, RotatorConfig, RotatorManager, Server, ServerConfig};
+
+    let upstream = spawn_app(Router::new().fallback(any(|request: Request| async move {
+        let mut response = Response::new(Body::from("upstream asset"));
+        response.headers_mut().insert(
+            "x-upstream-method",
+            request.method().as_str().parse().unwrap(),
+        );
+        response.headers_mut().insert(
+            "x-upstream-path",
+            request
+                .uri()
+                .path_and_query()
+                .unwrap()
+                .as_str()
+                .parse()
+                .unwrap(),
+        );
+        response
+    })))
+    .await;
+    let config = RadioConfig::platform_default();
+    let (sender, _) = tokio::sync::broadcast::channel(10);
+    let server = Server::build_server(
+        sender,
+        RadioManager::new(config.clone(), config.effective_backend()).unwrap(),
+        RotatorManager::new(RotatorConfig::unconfigured()).unwrap(),
+        ServerConfig {
+            dns: upstream.address.to_string(),
+            is_using_ssl: false,
+            local_port: 0,
+        },
+        true,
+        None,
+    )
+    .await
+    .unwrap();
+    let catserver = super::TestServer {
+        address: server.listener.local_addr().unwrap(),
+        task: tokio::spawn(async move { Some(server.run_server().await.unwrap()) }),
+    };
+    let client = reqwest::Client::new();
+    for method in [Method::GET, Method::HEAD] {
+        for path in ["/", "/index.html", "/assets/app.js?v=1", "/assets/app.css"] {
+            let response = client
+                .request(
+                    method.clone(),
+                    format!("http://{}{path}", catserver.address),
+                )
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()["x-upstream-method"], method.as_str());
+            assert_eq!(response.headers()["x-upstream-path"], path);
+            assert_eq!(
+                response.text().await.unwrap(),
+                if method == Method::HEAD {
+                    ""
+                } else {
+                    "upstream asset"
+                }
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn preserves_request_method_headers_and_body() {
     let upstream = spawn_app(Router::new().fallback(any(|request: Request| async move {
         let method = request.method().clone();

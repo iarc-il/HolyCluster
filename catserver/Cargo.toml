@@ -41,7 +41,6 @@ tempfile = "3.19.1"
 tokio = { version = "1.44.2", features = ["fs", "io-util", "rt", "rt-multi-thread"] }
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
 tower = { version = "0.5.2", features = ["util"] }
-tower-http = { version = "0.6.2", features = ["fs"] }
 tracing = "0.1.41"
 tracing-panic = "0.1.2"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }

@@ -20,7 +20,6 @@ async fn update_mutations_preserve_an_active_transaction() {
         RadioManager::new(config.clone(), config.effective_backend()).unwrap(),
         RotatorManager::new(RotatorConfig::unconfigured()).unwrap(),
         sender,
-        None,
     )
     .unwrap();
     state.updater = UpdateService::with_data_dir(

@@ -1,7 +1,6 @@
 mod actor_context_reporting;
 mod command_logging;
 mod hamlib_reporting;
-mod local_ui;
 mod proxy;
 mod readiness;
 mod release_cache;

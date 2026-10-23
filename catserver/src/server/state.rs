@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 use axum::body::Body;
 use hyper_tls::HttpsConnector;
@@ -28,7 +28,6 @@ pub(super) struct AppState {
     pub(super) upstream_websocket_trace: AvailabilityTrace,
     pub(super) upstream_upgrade_trace: AvailabilityTrace,
     pub(super) sender: Sender<UserEvent>,
-    pub(super) ui_dir: Option<PathBuf>,
     pub(super) radio_configuration: RadioConfiguration,
     pub(super) rotator_configuration: RotatorConfiguration,
     pub(super) updater: UpdateService,
@@ -41,7 +40,6 @@ impl AppState {
         radio: RadioManager,
         rotator: RotatorManager,
         sender: Sender<UserEvent>,
-        ui_dir: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
         let manifest_url = reqwest::Url::parse(
             &server_config
@@ -63,7 +61,6 @@ impl AppState {
             upstream_websocket_trace: AvailabilityTrace::new("websocket"),
             upstream_upgrade_trace: AvailabilityTrace::new("proxy-upgrade"),
             sender,
-            ui_dir,
         })
     }
 }

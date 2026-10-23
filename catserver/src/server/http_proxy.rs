@@ -1,16 +1,12 @@
-use std::convert::Infallible;
-
 use axum::{
     body::Body,
     extract::{Request, State},
-    http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header},
+    http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use hyper::upgrade::OnUpgrade;
 use hyper_util::rt::TokioIo;
 use sha2::{Digest, Sha256};
-use tower::{ServiceExt, service_fn};
-use tower_http::services::ServeDir;
 
 use super::{availability_trace::AvailabilityTrace, state::AppState};
 
@@ -86,25 +82,6 @@ pub(super) async fn proxy(
             response
         }
     }
-}
-
-pub(super) async fn local_ui(
-    State(state): State<AppState>,
-    request: Request<Body>,
-) -> Response<Body> {
-    if matches!(*request.method(), Method::GET | Method::HEAD) && !is_upgrade_request(&request) {
-        let ui_dir = state.ui_dir.clone().expect("local UI directory is missing");
-        let fallback_state = state.clone();
-        let service = ServeDir::new(ui_dir).fallback(service_fn(move |request| {
-            let state = fallback_state.clone();
-            async move { Ok::<_, Infallible>(proxy(State(state), request).await) }
-        }));
-        return match service.oneshot(request).await {
-            Ok(response) => response.map(Body::new),
-            Err(error) => match error {},
-        };
-    }
-    proxy(State(state), request).await
 }
 
 fn noncanonical_release_path(path: &str) -> bool {

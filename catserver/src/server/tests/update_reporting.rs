@@ -149,7 +149,6 @@ async fn exercise_failure(case: &'static str) {
         rotator,
         updater,
         sender,
-        ui_dir: None,
         release_downloads: Arc::new(tokio::sync::Semaphore::new(2)),
         http_client: hyper_util::client::legacy::Client::builder(
             hyper_util::rt::TokioExecutor::new(),
