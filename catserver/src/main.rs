@@ -70,9 +70,9 @@ fn main() -> Result<()> {
     diagnostics::initialize(&args);
     let _sentry = tracing_setup::configure();
     let result = application::run(args);
-    diagnostics::phase("terminated");
     if let Err(error) = &result {
         tracing::error!(?error, failure_evidence = %serde_json::json!(tracing_setup::failure_evidence(error, "termination")), "Catserver terminated unexpectedly");
     }
+    diagnostics::phase("terminated");
     result
 }

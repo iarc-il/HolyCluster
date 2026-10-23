@@ -30,9 +30,11 @@ pub fn run(args: Args) -> Result<()> {
         "update launch modes cannot be combined with each other or --close"
     );
     if let Some(plan) = args.elevate_update.as_deref() {
+        crate::diagnostics::phase("update_elevation_broker");
         return crate::updater::run_installer_broker(plan);
     }
     if let Some(plan) = args.apply_update.as_deref() {
+        crate::diagnostics::phase("update_helper");
         return crate::updater::run_helper(plan);
     }
     crate::diagnostics::phase("singleton_acquisition");
