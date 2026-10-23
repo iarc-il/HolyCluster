@@ -11,7 +11,7 @@ pub const BASE_LOCAL_PORT: u16 = 3000;
 #[argh(help_triggers("-h", "--help"))]
 pub struct Args {
     /// use the development HolyCluster server
-    #[argh(switch)]
+    #[argh(switch, hidden_help)]
     pub dev_server: bool,
     /// backend host:port (overrides dev_server)
     #[argh(option)]
@@ -106,7 +106,7 @@ mod tests {
         let Err(help) = Args::from_args(&["catserver"], &["--help"]) else {
             panic!("help must exit argument parsing");
         };
-        for visible in ["--dev-server", "--backend", "--no-browser", "--listen-port"] {
+        for visible in ["--backend", "--no-browser", "--listen-port"] {
             assert!(help.output.contains(visible));
         }
         for hidden in [
