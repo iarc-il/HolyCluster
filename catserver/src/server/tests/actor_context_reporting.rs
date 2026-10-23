@@ -677,8 +677,9 @@ async fn actor_context_stays_with_result_across_queued_replacement() {
     assert_eq!(pre["last_status"]["freq"], 7_100_000);
     assert_eq!(pre["selected_backend"], "hamlib");
     assert_eq!(pre["backend_object_present"], true);
-    assert!(evidence["receipt_state"]["config"]["rig"].is_null());
-    assert!(evidence["post_state"]["config"]["rig"].is_null());
+    let replacement_config = serde_json::to_value(&after.config).unwrap();
+    assert_eq!(evidence["receipt_state"]["config"], replacement_config);
+    assert_eq!(evidence["post_state"]["config"], replacement_config);
     assert_eq!(pre["initialization"]["outcome"], "succeeded");
     assert!(pre["disconnect"].is_null());
     assert_eq!(evidence["backend_call"]["operation"], "rig_set_mode");
