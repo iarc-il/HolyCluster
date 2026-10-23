@@ -304,6 +304,12 @@ fn update_failures_retain_the_failing_boundary_in_the_envelope() {
             case,
             "manifest_http" | "artifact_http" | "failure_status_write"
         ) {
+            assert!(
+                !fields["error"]
+                    .as_str()
+                    .unwrap()
+                    .contains("response_headers")
+            );
             assert_eq!(evidence["http_status"], 503, "{case}");
             assert_eq!(evidence["http"]["method"], "GET", "{case}");
             if case == "artifact_http" {

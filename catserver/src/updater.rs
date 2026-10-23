@@ -1489,11 +1489,7 @@ pub(crate) struct UpdateHttpFailure {
 
 impl std::fmt::Display for UpdateHttpFailure {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "{}; HTTP evidence: {}",
-            self.error, self.evidence
-        )
+        formatter.write_str("update HTTP operation failed")
     }
 }
 
