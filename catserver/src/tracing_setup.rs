@@ -326,6 +326,9 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
             } else {
                 "network_request"
             }
+        } else if let Some(browser) = cause.downcast_ref::<crate::desktop::BrowserLaunchError>() {
+            fields.insert("browser".into(), browser.evidence.clone());
+            "browser_launcher"
         } else if let Some(http) = cause.downcast_ref::<crate::updater::UpdateHttpFailure>() {
             fields.insert("http".into(), http.evidence.clone());
             "update_http"
@@ -616,6 +619,60 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn browser_envelopes_keep_failure_evidence_once_and_success_breadcrumbs() {
+        let transport = Arc::new(MemoryTransport::default());
+        let client = Arc::new(Client::from(ClientOptions {
+            transport: Some(Arc::new(transport.clone())),
+            ..sentry_options(Some("http://public@127.0.0.1:1/1")).unwrap()
+        }));
+        let hub = Arc::new(sentry::Hub::new(
+            Some(client),
+            Arc::new(sentry::Scope::default()),
+        ));
+        let subscriber = tracing_subscriber::Registry::default()
+            .with(sentry::integrations::tracing::layer().event_filter(sentry_event_filter));
+        sentry::Hub::run(hub, || {
+            tracing::subscriber::with_default(subscriber, || {
+                for exit in [23, 0] {
+                    #[cfg(unix)]
+                    let mut command = std::process::Command::new("sh");
+                    #[cfg(unix)]
+                    command.args(["-c", &format!("exit {exit}")]);
+                    #[cfg(windows)]
+                    let mut command = std::process::Command::new("cmd");
+                    #[cfg(windows)]
+                    command.args(["/C", &format!("exit /b {exit}")]);
+                    if let Err(error) = crate::desktop::launch_commands(
+                        "http://localhost/?browser=evidence",
+                        "test",
+                        vec![command],
+                    ) {
+                        tracing::error!(?error, failure_evidence = %serde_json::json!(failure_evidence(&error, "browser_test")), "Browser test failed");
+                    } else {
+                        tracing::error!("After browser success");
+                    }
+                }
+            })
+        });
+        let events = transport.0.lock().unwrap();
+        assert_eq!(events.len(), 2);
+        assert!(events[0].breadcrumbs.is_empty());
+        let event = serde_json::to_value(&events[0]).unwrap();
+        let fields = &event["contexts"]["Rust Tracing Fields"];
+        assert!(
+            !fields["error"]
+                .as_str()
+                .unwrap()
+                .contains("browser=evidence")
+        );
+        let evidence: serde_json::Value =
+            serde_json::from_str(fields["failure_evidence"].as_str().unwrap()).unwrap();
+        assert_eq!(evidence["browser"]["attempts"][0]["exit_code"], 23);
+        assert_eq!(events[1].breadcrumbs.len(), 1);
+        assert!(events[1].breadcrumbs[0].data.contains_key("browser"));
     }
 
     #[cfg(unix)]

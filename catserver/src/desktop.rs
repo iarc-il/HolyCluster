@@ -36,12 +36,34 @@ fn capture(mut file: std::fs::File) -> (serde_json::Value, Option<String>) {
     )
 }
 
+pub(crate) struct BrowserLaunchError {
+    pub(crate) evidence: serde_json::Value,
+    error: anyhow::Error,
+}
+
+impl std::fmt::Display for BrowserLaunchError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("browser launch failed")
+    }
+}
+
+impl std::fmt::Debug for BrowserLaunchError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, formatter)
+    }
+}
+
+impl std::error::Error for BrowserLaunchError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.error.as_ref())
+    }
+}
+
 pub(crate) fn launch_commands(
     url: &str,
     origin: &str,
     commands: Vec<Command>,
 ) -> anyhow::Result<()> {
-    use anyhow::Context;
     use serde_json::json;
     let started = std::time::Instant::now();
     let mut attempts = Vec::new();
@@ -118,8 +140,13 @@ pub(crate) fn launch_commands(
         break;
     }
     let evidence = json!({"url": url, "origin": origin, "desktop": context(), "attempts": attempts, "elapsed_ms": started.elapsed().as_millis() as u64});
-    tracing::info!(target: "catserver::diagnostic", browser = %evidence, success = result.is_ok(), "Browser launch completed");
-    result.with_context(|| evidence.to_string())
+    match result {
+        Ok(()) => {
+            tracing::info!(target: "catserver::diagnostic", browser = %evidence, "Browser launch completed");
+            Ok(())
+        }
+        Err(error) => Err(BrowserLaunchError { evidence, error }.into()),
+    }
 }
 
 #[cfg(test)]
@@ -152,7 +179,8 @@ mod tests {
         command.arg(OsString::from_vec(raw.clone()));
         let error =
             super::launch_commands("http://localhost", "test", vec![missing, command]).unwrap_err();
-        let evidence: serde_json::Value = serde_json::from_str(&error.to_string()).unwrap();
+        let evidence =
+            crate::tracing_setup::failure_evidence(&error, "browser_test")["browser"].clone();
         assert_eq!(
             evidence["desktop"]["DISPLAY"],
             serde_json::json!({"unix_bytes": raw})
@@ -203,8 +231,9 @@ mod tests {
             vec![command],
         )
         .unwrap_err();
-        let evidence: serde_json::Value =
-            serde_json::from_str(&error.to_string()).expect("browser evidence JSON");
+        assert!(!format!("{error:?}").contains("full=query"));
+        let evidence =
+            crate::tracing_setup::failure_evidence(&error, "browser_test")["browser"].clone();
         assert_eq!(evidence["origin"], "test_browser");
         assert_eq!(evidence["url"], "http://127.0.0.1:1234/?full=query");
         let attempt = &evidence["attempts"][0];
