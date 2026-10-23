@@ -108,6 +108,13 @@ pub struct RadioActorContext {
     pub initialization_failed: bool,
     pub initialization: Option<RadioInitializationContext>,
     pub disconnect: Option<RadioDisconnectContext>,
+    pub outage_ms: Option<u64>,
+    pub failed_attempts: u32,
+    pub retry_delay_ms: u64,
+    pub next_retry_ms: Option<u64>,
+    pub requested_mode: Option<String>,
+    pub requested_frequency_hz: u32,
+    pub requested_vfo: &'static str,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
@@ -155,6 +162,7 @@ pub struct RadioOperationError {
     pub details: Option<String>,
     pub actor_context: Option<Box<RadioActorContext>>,
     pub backend_context: Option<Box<RadioBackendContext>>,
+    pub native_error: Option<serde_json::Value>,
 }
 
 impl RadioOperationError {
@@ -167,6 +175,7 @@ impl RadioOperationError {
             details: None,
             actor_context: None,
             backend_context: None,
+            native_error: None,
         }
     }
 

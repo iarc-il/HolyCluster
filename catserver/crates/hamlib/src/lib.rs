@@ -22,6 +22,10 @@ pub use types::{
     RotatorModelId,
 };
 
+pub fn version() -> String {
+    ffi::version()
+}
+
 #[derive(Clone, Debug)]
 pub struct Catalog {
     models: Vec<RigModel>,

@@ -14,6 +14,15 @@ use crate::{
     RotatorModel, RotatorModelId,
 };
 
+unsafe extern "C" {
+    static hamlib_version: c_char;
+}
+
+pub(crate) fn version() -> String {
+    // Hamlib exports this immutable, NUL-terminated string for the library lifetime.
+    unsafe { CStr::from_ptr(std::ptr::addr_of!(hamlib_version)) }.to_string_lossy().into_owned()
+}
+
 static BACKENDS: OnceLock<Result<(), HamlibError>> = OnceLock::new();
 static ROTATOR_BACKENDS: OnceLock<Result<(), HamlibError>> = OnceLock::new();
 

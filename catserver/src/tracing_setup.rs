@@ -204,8 +204,33 @@ fn hresult(message: &str) -> Option<u32> {
     u32::from_str_radix(code, 16).ok()
 }
 
+pub(crate) fn native_error(error: &(dyn std::error::Error + 'static)) -> serde_json::Value {
+    let mut result =
+        serde_json::json!({"text": error.to_string(), "hamlib_version": hamlib::version()});
+    let mut cause = Some(error);
+    while let Some(error) = cause {
+        if let Some(native) = error.downcast_ref::<hamlib::HamlibError>() {
+            match native {
+                hamlib::HamlibError::Call {
+                    operation, code, ..
+                }
+                | hamlib::HamlibError::NullErrorText { operation, code }
+                | hamlib::HamlibError::InvalidErrorText { operation, code } => {
+                    result["operation"] = (*operation).into();
+                    result["code"] = (*code).into();
+                }
+                _ => {}
+            }
+        }
+        cause = error.source();
+    }
+    result
+}
+
 fn initialization_evidence(fields: &mut Evidence, error: &crate::rig::RadioInitError) {
     fields.insert("initialization".into(), error.to_string().into());
+    fields.insert("initialization_native".into(), format!("{error:?}").into());
+    fields.insert("hamlib_version".into(), hamlib::version().into());
     if let crate::rig::RadioInitError::Com { context, .. } = error {
         fields.insert("initialization_call".into(), serde_json::json!(context));
     }
@@ -276,6 +301,13 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
                         "initialization_failed": context.initialization_failed,
                         "initialization": context.initialization,
                         "disconnect": context.disconnect,
+                        "outage_ms": context.outage_ms,
+                        "failed_attempts": context.failed_attempts,
+                        "retry_delay_ms": context.retry_delay_ms,
+                        "next_retry_ms": context.next_retry_ms,
+                        "requested_mode": context.requested_mode,
+                        "requested_frequency_hz": context.requested_frequency_hz,
+                        "requested_vfo": context.requested_vfo,
                     }),
                 );
             }
@@ -289,6 +321,10 @@ pub(crate) fn failure_evidence(error: &anyhow::Error, stage: &'static str) -> Ev
             if let Some(code) = code {
                 fields.insert("hresult".into(), code.into());
             }
+            if let Some(native) = &operation.native_error {
+                fields.insert("native_error".into(), native.clone());
+            }
+            fields.insert("hamlib_version".into(), hamlib::version().into());
             if let Some(details) = &operation.details {
                 fields.insert("operation_details".into(), details.clone().into());
             }
@@ -328,6 +364,8 @@ pub(crate) fn radio_evidence(
 ) -> Evidence {
     use crate::radio_manager::ConnectionState;
     let mut fields = failure_evidence(error, "radio_command");
+    fields.insert("pre_state".into(), radio_state(before_command));
+    fields.insert("post_state".into(), radio_state(snapshot));
     fields.insert(
         "connection_state".into(),
         match snapshot.connection {
@@ -359,6 +397,15 @@ pub(crate) fn radio_evidence(
         fields.insert("request".into(), message.into());
     }
     fields
+}
+
+pub(crate) fn radio_state(snapshot: &crate::radio_manager::RadioSnapshot) -> serde_json::Value {
+    serde_json::json!({
+        "config": snapshot.config, "selected_backend": format!("{:?}", snapshot.selected),
+        "connection": format!("{:?}", snapshot.connection), "last_status": snapshot.last_status,
+        "last_initialization_error": snapshot.last_error.as_ref().map(|e| format!("{e:?}")),
+        "last_operation_error": snapshot.last_operation_error.as_ref().map(|e| format!("{e:?}")),
+    })
 }
 
 #[cfg(test)]
@@ -459,6 +506,12 @@ mod tests {
         );
         assert_eq!(fields["requested_mode"], "NewMode");
         assert_eq!(fields["request"], request);
+        assert_eq!(fields["pre_state"]["last_status"]["freq"], 0);
+        assert_eq!(
+            fields["post_state"]["config"],
+            serde_json::json!({"rig": null})
+        );
+        assert_eq!(fields["pre_state"]["connection"], "Connected");
         assert_eq!(fields["hresult"], 0x80070057u32);
         let first_failure = radio_evidence(&error, &after, &after, "{}");
         assert!(!first_failure.contains_key("initialization"));

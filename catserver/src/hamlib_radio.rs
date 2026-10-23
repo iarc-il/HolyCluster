@@ -141,8 +141,13 @@ fn unavailable(operation: &'static str) -> RadioOperationError {
     RadioOperationError::new(1, operation, "radio unavailable")
 }
 
-fn operation_error(operation: &'static str, error: impl fmt::Display) -> RadioOperationError {
-    RadioOperationError::new(1, operation, error.to_string())
+fn operation_error(
+    operation: &'static str,
+    error: impl std::error::Error + 'static,
+) -> RadioOperationError {
+    let mut result = RadioOperationError::new(1, operation, error.to_string());
+    result.native_error = Some(crate::tracing_setup::native_error(&error));
+    result
 }
 
 fn init_error(rig: u8, error: OpenError) -> RadioInitError {

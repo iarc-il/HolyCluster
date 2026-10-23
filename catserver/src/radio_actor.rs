@@ -239,6 +239,17 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                         initialization_failed: state.last_error.is_some(),
                         initialization: connection_trace.initialization.clone(),
                         disconnect: connection_trace.disconnect.clone(),
+                        outage_ms: connection_trace
+                            .outage_started
+                            .map(|t| t.elapsed().as_millis() as u64),
+                        failed_attempts: connection_trace.failed_attempts,
+                        retry_delay_ms: retry_delay.as_millis() as u64,
+                        next_retry_ms: next_action.map(|t| {
+                            t.saturating_duration_since(Instant::now()).as_millis() as u64
+                        }),
+                        requested_mode: mode.map(|mode| format!("{mode:?}")),
+                        requested_frequency_hz: frequency.as_u32_hz(),
+                        requested_vfo: "A",
                     }
                 };
                 let mut mode_warning = None;
