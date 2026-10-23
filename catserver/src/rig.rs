@@ -94,6 +94,7 @@ pub struct RadioInitializationContext {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct RadioDisconnectContext {
+    pub native_error: Option<serde_json::Value>,
     pub origin: &'static str,
     pub error: String,
     pub backend_call: Option<Box<RadioBackendContext>>,

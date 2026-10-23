@@ -438,6 +438,7 @@ fn publish(
             drop(snapshot);
             if connection_trace.disconnect.is_none() {
                 connection_trace.disconnect = Some(RadioDisconnectContext {
+                    native_error: None,
                     origin: "initialization",
                     error: error.to_string(),
                     backend_call: connection_trace
@@ -493,6 +494,7 @@ fn publish_status_error(
     // Keep the first failure until recovery instead of replacing it with "unavailable".
     if snapshot.connection == ConnectionState::Connected || connection_trace.disconnect.is_none() {
         connection_trace.disconnect = Some(RadioDisconnectContext {
+            native_error: error.native_error.clone(),
             origin,
             error: error.to_string(),
             backend_call: error.backend_context.clone(),

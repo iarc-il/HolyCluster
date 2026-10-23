@@ -126,6 +126,7 @@ fn assert_status_read_disconnect(disconnect: &serde_json::Value) {
         operation => panic!("unexpected status operation: {operation}"),
     };
     assert!(disconnect["error"].as_str().unwrap().contains(expected));
+    assert_eq!(disconnect["native_error"]["code"], -6);
 }
 
 struct ComFailureRadio {
