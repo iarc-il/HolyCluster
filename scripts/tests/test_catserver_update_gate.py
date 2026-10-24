@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -130,6 +131,95 @@ class UpdateGateTests(unittest.TestCase):
                     self.output,
                 )
             call.assert_not_called()
+
+
+class UpdateWorkflowTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        workflow = SCRIPT.parents[1] / "workflows/catserver.yml"
+        cls.text = workflow.read_text()
+        sections = re.split(
+            r"^  ([a-z][a-z-]+):\n",
+            cls.text.split("\njobs:\n", 1)[1],
+            flags=re.MULTILINE,
+        )
+        cls.jobs = dict(zip(sections[1::2], sections[2::2], strict=True))
+
+    def step(self, job, command):
+        matches = [
+            step
+            for step in re.split(r"(?=^      - )", self.jobs[job], flags=re.MULTILINE)
+            if command in step
+        ]
+        self.assertEqual(len(matches), 1, command)
+        return matches[0]
+
+    def test_baseline_reuses_inspection_job(self):
+        self.assertNotIn("snapshot-production-baseline", self.jobs)
+        self.assertNotIn("update-linux-production", self.jobs)
+        inspect = self.jobs["inspect-candidate-packages"]
+        self.assertEqual(self.text.count("catserver_baseline.py"), 1)
+        self.assertEqual(inspect.count("cargo build --release --locked"), 1)
+        step = self.step("inspect-candidate-packages", "catserver_baseline.py")
+        self.assertIn("if: startsWith(github.ref, 'refs/tags/')", step)
+        self.assertIn("--validator", step)
+        self.assertLess(
+            inspect.index("id: inspect"), inspect.index("catserver_baseline.py")
+        )
+        self.assertIn("name: Production-update-baseline", inspect)
+
+    def test_product_scenarios_reuse_smoke_setup_and_direct_fuse(self):
+        smoke = self.jobs["smoke-linux-release"]
+        self.assertEqual(smoke.count("npm ci"), 1)
+        self.assertEqual(smoke.count("npx playwright install"), 1)
+        self.assertNotIn("apt-get update", smoke)
+        self.assertNotIn("APPIMAGE_EXTRACT_AND_RUN", self.text)
+        command = "catserver_update_gate.py run"
+        self.assertEqual(self.text.count(command), 1)
+        step = self.step("smoke-linux-release", command)
+        for required in (
+            "unshare --net",
+            "setpriv",
+            "xvfb-run",
+            "--baseline",
+            "--attestation",
+        ):
+            self.assertIn(required, step)
+        self.assertIn("if: startsWith(github.ref, 'refs/tags/')", step)
+        for required in (
+            "test -c /dev/fuse",
+            'ctypes.CDLL("libfuse.so.2")',
+            'os.open("/dev/fuse", os.O_RDWR)',
+            "TMPDIR=",
+        ):
+            self.assertIn(required, smoke)
+        build = self.step("smoke-linux-release", "npm run build")
+        self.assertIn("if: startsWith(github.ref, 'refs/tags/')", build)
+        self.assertLess(smoke.index("release_browser_smoke.mjs"), smoke.index(command))
+        self.assertIn("name: Linux-update-attestation", smoke)
+        evidence = self.step(
+            "smoke-linux-release", "name: Linux-update-failure-evidence"
+        )
+        self.assertIn("failure() && startsWith(github.ref, 'refs/tags/')", evidence)
+
+    def test_aggregate_and_publication_fail_closed(self):
+        aggregate = self.jobs["update-process-gate"]
+        self.assertIn("if: always()", aggregate)
+        self.assertIn(
+            "needs: [inspect-candidate-packages, smoke-linux-release]", aggregate
+        )
+        self.assertIn("needs.inspect-candidate-packages.result", aggregate)
+        self.assertIn("needs.smoke-linux-release.result", aggregate)
+        self.assertIn('test "$BASELINE_RESULT" = success', aggregate)
+        self.assertIn('test "$LINUX_RESULT" = success', aggregate)
+        self.assertIn("name: Linux-update-attestation", aggregate)
+        self.assertIn("!startsWith(github.ref, 'refs/tags/')", aggregate)
+        publish = self.jobs["publish-catserver"]
+        self.assertIn("update-process-gate]", publish)
+        self.assertLess(
+            publish.index("catserver_update_gate.py verify"),
+            publish.index("catserver/publish.py"),
+        )
 
 
 if __name__ == "__main__":
