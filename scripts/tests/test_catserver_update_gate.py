@@ -25,19 +25,36 @@ class UpdateGateTests(unittest.TestCase):
         self.baseline = self.root / "baseline"
         self.baseline.mkdir()
         releases = []
-        for platform in ("linux", "windows"):
+        for platform, suffix in (("linux", "AppImage"), ("windows", "msi")):
+            name = f"baseline-{platform}.{suffix}"
             artifact = self.baseline / platform
             artifact.write_bytes(platform.encode())
             releases.append(
                 {
-                    **gate.identity(artifact),
+                    "artifact": {
+                        **gate.identity(artifact),
+                        "name": name,
+                        "location": f"/catserver/artifacts/{name}",
+                    },
                     "platform": platform,
                     "architecture": "x86_64",
-                    "version": "catserver-v1",
+                    "version": "catserver-v1.2.3",
+                    "url": f"https://example.com/catserver/artifacts/{name}",
                     "path": platform,
                 }
             )
-        (self.baseline / "baseline.json").write_text(json.dumps({"releases": releases}))
+        manifest = self.baseline / "latest.json"
+        manifest.write_text(json.dumps({"schema_version": 1, "releases": releases}))
+        descriptor = {
+            "schema_version": 1,
+            "manifest": {
+                "url": "https://example.com/catserver/releases/latest",
+                "path": "latest.json",
+                "sha256": gate.identity(manifest)["sha256"],
+            },
+            "releases": releases,
+        }
+        (self.baseline / "baseline.json").write_text(json.dumps(descriptor))
         self.output = self.root / "attestation.json"
 
     def run_gate(self, codes=(0, 0)):

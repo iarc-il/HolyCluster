@@ -1,6 +1,7 @@
 import functools
 import hashlib
 import http.server
+import importlib.util
 import json
 import os
 import shutil
@@ -10,10 +11,14 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / ".github/scripts/catserver_baseline.py"
 FIXTURES = ROOT / "backend/shared/artifact-validator/fixtures"
+spec = importlib.util.spec_from_file_location("update_gate", ROOT / ".github/scripts/catserver_update_gate.py")
+gate = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(gate)
 
 
 class BaselineTest(unittest.TestCase):
@@ -107,6 +112,75 @@ class BaselineTest(unittest.TestCase):
             self.assertEqual(release["url"], self.origin + expected["artifact"]["location"])
         self.assertEqual(self.requests.count("/catserver/releases/latest"), 1)
         self.assertEqual(len(self.requests), 3)
+
+    def test_snapshot_reaches_both_gate_scenarios(self):
+        result = self.run_snapshot()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        descriptor_path = self.output / "baseline.json"
+        descriptor_bytes = descriptor_path.read_bytes()
+        descriptor = json.loads(descriptor_bytes)
+        packages = {release["platform"]: self.output / release["path"] for release in descriptor["releases"]}
+        linux = self.root / "candidate.AppImage"
+        windows = self.root / "candidate.msi"
+        shutil.copyfile(FIXTURES / "valid-linux.AppImage", linux)
+        shutil.copyfile(FIXTURES / "valid-windows.msi", windows)
+        attestation = self.root / "attestation.json"
+        commands = []
+
+        def run_scenario(command, **kwargs):
+            self.assertEqual(command[:2], ["node", "ui/scripts/linux_update_product.mjs"])
+            commands.append(command)
+            return 0
+
+        with patch.object(gate.subprocess, "call", side_effect=run_scenario):
+            self.assertTrue(gate.run(self.output, linux, windows, "catserver-v1.2.3", self.root, attestation))
+        self.assertEqual(
+            commands,
+            [
+                [
+                    "node",
+                    "ui/scripts/linux_update_product.mjs",
+                    "--baseline",
+                    str(packages["linux"]),
+                    "--candidate",
+                    str(linux),
+                    "--version",
+                    "catserver-v1.2.3",
+                    "--dist",
+                    str(self.root),
+                    "--scenario",
+                    scenario,
+                ]
+                for scenario in ("update", "corrupt-download")
+            ],
+        )
+        self.assertEqual(descriptor_path.read_bytes(), descriptor_bytes)
+        self.assertEqual(json.loads(attestation.read_text())["baseline"], descriptor["releases"])
+        gate.verify(attestation, linux, windows, "catserver-v1.2.3")
+
+    def test_changed_snapshot_stops_gate_before_scenarios(self):
+        result = self.run_snapshot()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        descriptor = json.loads((self.output / "baseline.json").read_bytes())
+        packages = {release["platform"]: self.output / release["path"] for release in descriptor["releases"]}
+        attestation = self.root / "attestation.json"
+        for platform, package in packages.items():
+            with self.subTest(platform=platform):
+                original = package.read_bytes()
+                package.write_bytes(bytes([original[0] ^ 1]) + original[1:])
+                with patch.object(gate.subprocess, "call") as call:
+                    with self.assertRaisesRegex(ValueError, "Baseline bytes differ from snapshot"):
+                        gate.run(
+                            self.output,
+                            packages["linux"],
+                            packages["windows"],
+                            "catserver-v1.2.3",
+                            self.root,
+                            attestation,
+                        )
+                    call.assert_not_called()
+                self.assertFalse(attestation.exists())
+                package.write_bytes(original)
 
     def test_rejects_missing_and_malformed_targets_before_download(self):
         original = json.loads(json.dumps(self.manifest))

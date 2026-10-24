@@ -40,7 +40,9 @@ def run(baseline, linux, windows, version, dist, output):
         artifact = (baseline / item["path"]).resolve()
         if not artifact.is_relative_to(baseline.resolve()):
             raise ValueError("Baseline path is outside the snapshot")
-        if identity(artifact) != {key: item[key] for key in ("sha256", "size")}:
+        if identity(artifact) != {
+            key: item["artifact"][key] for key in ("sha256", "size")
+        }:
             raise ValueError("Baseline bytes differ from snapshot")
     data = {
         "schema_version": 1,
