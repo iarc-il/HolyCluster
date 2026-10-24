@@ -7,6 +7,9 @@ on:
       - "backend/shared/artifact-validator/**"
       - "backend/shared/src/shared/artifact_validation.py"
       - ".github/workflows/catserver.yml"
+      - ".github/scripts/catserver_*.py"
+      - "scripts/tests/test_catserver_*.py"
+      - "ui/**"
     branches:
       - "dev"
     tags:
@@ -17,6 +20,9 @@ on:
       - "backend/shared/artifact-validator/**"
       - "backend/shared/src/shared/artifact_validation.py"
       - ".github/workflows/catserver.yml"
+      - ".github/scripts/catserver_*.py"
+      - "scripts/tests/test_catserver_*.py"
+      - "ui/**"
     branches:
       - "dev"
 
@@ -97,6 +103,9 @@ jobs:
       - name: Run Python tests
         working-directory: catserver
         run: python3 -m unittest discover -s . -p 'test_*.py'
+
+      - name: Test baseline and update gate scripts
+        run: python3 -m unittest scripts.tests.test_catserver_baseline scripts.tests.test_catserver_update_gate
 
   lint-catserver:
     name: Lint Catserver
@@ -400,10 +409,135 @@ jobs:
       - name: Exercise the actual AppImage payload
         run: xvfb-run -a node ui/scripts/release_browser_smoke.mjs
 
+  snapshot-production-baseline:
+    name: Snapshot current production release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RUSTC_WRAPPER: ""
+    steps:
+      - name: No production baseline required
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: echo 'Non-production publication; production baseline not requested'
+      - uses: actions/checkout@v4
+        if: startsWith(github.ref, 'refs/tags/')
+      - name: Build read-only package inspector
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: backend/shared/artifact-validator
+        run: cargo build --release --locked
+      - name: Snapshot and validate actual production bytes once
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          python3 .github/scripts/catserver_baseline.py \
+            --validator "$PWD/backend/shared/artifact-validator/target/release/holy-artifact-validator" \
+            --output-dir baseline
+      - name: Preserve immutable production baseline
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: Production-update-baseline
+          path: baseline/
+          if-no-files-found: error
+          retention-days: 7
+
+  update-linux-production:
+    name: Test Linux production update process
+    needs: [snapshot-production-baseline, inspect-candidate-packages]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+    steps:
+      - name: No production product coverage requested
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: echo 'Non-production publication; Linux update scenarios did not run'
+      - uses: actions/checkout@v4
+        if: startsWith(github.ref, 'refs/tags/')
+      - uses: actions/download-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: Production-update-baseline
+          path: baseline
+      - uses: actions/download-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: HolyCluster-linux-x86_64
+          path: candidate/linux
+      - uses: actions/download-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: HolyCluster-windows-x86_64
+          path: candidate/windows
+      - uses: actions/setup-node@v7
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install Linux product test dependencies and build UI
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: ui
+        run: |
+          mkdir -p "$RUNNER_TEMP/update-product"
+          echo "TMPDIR=$RUNNER_TEMP/update-product" >> "$GITHUB_ENV"
+          npm ci
+          npx playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y xvfb xauth libfuse2
+          npm run build
+      - name: Run both real update scenarios without external networking
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          VERSION: ${{ needs.inspect-candidate-packages.outputs.version }}
+        run: |
+          sudo --preserve-env=PATH,PLAYWRIGHT_BROWSERS_PATH,APPIMAGE_EXTRACT_AND_RUN,TMPDIR,GITHUB_SHA,GITHUB_RUN_ID \
+            unshare --net bash -c 'ip link set lo up; exec setpriv --reuid="$SUDO_UID" --regid="$SUDO_GID" --init-groups "$@"' bash \
+            xvfb-run -a python3 .github/scripts/catserver_update_gate.py run \
+              --baseline "$PWD/baseline" \
+              --linux "$PWD/candidate/linux/$VERSION-linux-x86_64.AppImage" \
+              --windows "$PWD/candidate/windows/HolyCluster.msi" \
+              --version "$VERSION" --dist "$PWD/ui/dist" \
+              --attestation "$PWD/update-results/attestation.json"
+      - name: Preserve small update attestation and scenario logs
+        if: ${{ always() && startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Linux-update-attestation
+          path: update-results/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve full failure evidence only
+        if: ${{ failure() && startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Linux-update-failure-evidence
+          path: ${{ runner.temp }}/update-product/catserver-product-*/evidence/**
+          if-no-files-found: ignore
+          retention-days: 3
+
+  update-process-gate:
+    name: Gate production update process
+    if: always()
+    needs: [snapshot-production-baseline, update-linux-production]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require production baseline and Linux scenarios
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          BASELINE_RESULT: ${{ needs.snapshot-production-baseline.result }}
+          LINUX_RESULT: ${{ needs.update-linux-production.result }}
+        run: |
+          test "$BASELINE_RESULT" = success
+          test "$LINUX_RESULT" = success
+      - name: Explicit non-production no-op
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: echo 'Non-production publication; product update coverage was not run'
+
   publish-catserver:
     name: Publish Catserver
     if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
-    needs: [test-catserver, lint-catserver, build-linux, build-windows, inspect-candidate-packages, smoke-windows-release, smoke-linux-release]
+    needs: [test-catserver, lint-catserver, build-linux, build-windows, inspect-candidate-packages, smoke-windows-release, smoke-linux-release, update-process-gate]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -438,6 +572,22 @@ jobs:
           VERSION="${CATSERVER_VERSION:-$(git describe --match 'catserver-v*')}"
           holy-artifact-validator windows "$VERSION" "catserver/target/$TARGET/release/HolyCluster.msi"
           holy-artifact-validator linux "$VERSION" "catserver/target/x86_64-unknown-linux-gnu/release/$VERSION-linux-x86_64.AppImage"
+
+      - name: Download production update attestation
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/download-artifact@v4
+        with:
+          name: Linux-update-attestation
+          path: update-results
+
+      - name: Bind production publication to tested package bytes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          python3 .github/scripts/catserver_update_gate.py verify \
+            --attestation update-results/attestation.json \
+            --version "$CATSERVER_VERSION" \
+            --linux "catserver/target/x86_64-unknown-linux-gnu/release/$CATSERVER_VERSION-linux-x86_64.AppImage" \
+            --windows "catserver/target/$TARGET/release/HolyCluster.msi"
 
       - name: Setup SSH
         run: |
