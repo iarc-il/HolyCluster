@@ -74,10 +74,14 @@ describe("runtime bridge advisory", () => {
         const additional = candidate();
         additional.exception.values.unshift({ type: "Error", value: "app failure" });
         variants.push([additional, {}]);
+        variants.push([{ ...candidate(), message: "app failure" }, {}]);
         for (const diagnostic of [
             { boundary: true },
             { operation: "websocket_message" },
             { component_stack: "present" },
+            { original_frames: [app] },
+            { original_value: "app failure" },
+            { original_stack: "present" },
         ])
             variants.push([{ ...candidate(), contexts: { diagnostic } }, {}]);
         const with_stack = new Error(message);

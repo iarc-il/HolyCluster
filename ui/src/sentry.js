@@ -286,7 +286,7 @@ function isExternalCrawlerNoise(event, primary, frames, capture_path, original_f
 }
 
 function isRuntimeBridgeCandidate(
-    exception,
+    event,
     primary,
     frames,
     capture_path,
@@ -300,7 +300,9 @@ function isRuntimeBridgeCandidate(
         capture_path === "unhandled_rejection" &&
         primary?.mechanism?.handled === false &&
         primary.value === message &&
-        exception?.values?.length === 1 &&
+        event.exception?.values?.length === 1 &&
+        (event.message === undefined || event.message === message) &&
+        !evidence.original_frames?.length &&
         !boundary &&
         !evidence.operation &&
         evidence.component_stack !== "present" &&
@@ -469,7 +471,7 @@ export function prepareSentryEvent(event, hint = {}) {
     };
     if (
         isRuntimeBridgeCandidate(
-            exception,
+            event,
             primary,
             frames,
             capture_path,
