@@ -1,0 +1,461 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
+import { chmod, copyFile, readFile, readdir, readlink, writeFile } from "node:fs/promises";
+import net from "node:net";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
+import { candidateRelease, withProductTest } from "./product_test.mjs";
+
+export const UPDATE_BOUND_MS = 55000;
+export const PRODUCT_PORT = 41234;
+const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+const hash = bytes => createHash("sha256").update(bytes).digest("hex");
+
+export function readyVersion(version) {
+    return version.replace(/^catserver-v/, "").replace(/-g[0-9a-f]+$/, "");
+}
+
+export function listeningInodes(text, port) {
+    return text
+        .trim()
+        .split("\n")
+        .slice(1)
+        .map(line => line.trim().split(/\s+/))
+        .filter(
+            fields => Number.parseInt(fields[1].split(":")[1], 16) === port && fields[3] === "0A",
+        )
+        .map(fields => fields[9]);
+}
+
+export function assertSinglePage(evidence) {
+    assert.equal(evidence.launcherCount, 1, "CATServer opened an extra browser page");
+    assert.equal(evidence.pages.filter(page => !page.startup).length, 1, "Extra product page");
+}
+
+async function processes(token) {
+    const result = [];
+    for (const pid of await readdir("/proc")) {
+        if (!/^\d+$/.test(pid)) continue;
+        try {
+            const env = await readFile(`/proc/${pid}/environ`, "utf8");
+            if (!env.split("\0").includes(`HOLY_PRODUCT_OWNER=${token}`)) continue;
+            const stat = await readFile(`/proc/${pid}/stat`, "utf8");
+            const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+            result.push({
+                pid: Number(pid),
+                parent: Number(fields[1]),
+                start: fields[19],
+                command: (await readFile(`/proc/${pid}/cmdline`, "utf8")).replaceAll("\0", " "),
+            });
+        } catch (error) {
+            if (!["ENOENT", "ESRCH", "EACCES"].includes(error.code)) throw error;
+        }
+    }
+    return result;
+}
+
+async function listenerOwners(port) {
+    const inodes = new Set();
+    for (const family of ["tcp", "tcp6"]) {
+        for (const inode of listeningInodes(await readFile(`/proc/net/${family}`, "utf8"), port))
+            inodes.add(`socket:[${inode}]`);
+    }
+    const owners = [];
+    for (const pid of await readdir("/proc")) {
+        if (!/^\d+$/.test(pid)) continue;
+        try {
+            for (const fd of await readdir(`/proc/${pid}/fd`)) {
+                try {
+                    if (inodes.has(await readlink(`/proc/${pid}/fd/${fd}`))) {
+                        owners.push(Number(pid));
+                        break;
+                    }
+                } catch (error) {
+                    if (!["ENOENT", "ESRCH", "EACCES"].includes(error.code)) throw error;
+                }
+            }
+        } catch (error) {
+            if (!["ENOENT", "ESRCH", "EACCES"].includes(error.code)) throw error;
+        }
+    }
+    return owners;
+}
+
+export async function runLinuxUpdate({ baseline, candidate, version, dist }) {
+    assert.equal(process.platform, "linux");
+    for (const value of [baseline, candidate, version, dist])
+        assert(value, "Supply all four inputs");
+    const baselineVersion = path
+        .basename(baseline)
+        .match(/^catserver-v(.+)-linux-x86_64\.AppImage$/)?.[1];
+    assert(baselineVersion, "Use the validated production baseline artifact name");
+    const expectedVersion = readyVersion(version);
+    assert.notEqual(baselineVersion, expectedVersion, "Candidate must differ from baseline");
+    const baselineHash = hash(await readFile(baseline));
+    const bytes = await readFile(candidate);
+    const release = candidateRelease({
+        version,
+        platform: "linux",
+        architecture: "x86_64",
+        name: path.basename(candidate),
+        bytes,
+    });
+    return withProductTest(
+        {
+            dist,
+            manifest: { schema_version: 1, releases: [release] },
+            artifacts: new Map([[release.artifact.location, bytes]]),
+            browserBridge: true,
+        },
+        async ({ directories, env, backend, browserBridge }) => {
+            const token = randomUUID();
+            const active = path.join(directories.root, "CATServer.AppImage");
+            await copyFile(baseline, active);
+            await chmod(active, 0o700);
+            const evidence = {
+                baselineHash,
+                candidateHash: hash(bytes),
+                timeline: [],
+                responses: [],
+                browser: [],
+                stateDirectory: directories.data,
+            };
+            const save = (name, data) => writeFile(path.join(directories.evidence, name), data);
+            let page;
+            let child;
+            let reserve;
+            let sampling = false;
+            let sampler;
+            let updateStart;
+            const started = Date.now();
+            const record = (kind, data) => {
+                evidence.browser.push({ ms: Date.now() - started, kind, ...data });
+                if (evidence.browser.length > 4000) evidence.browser.shift();
+            };
+            const responses = new Set();
+            browserBridge.context.on("page", opened => {
+                opened.on("console", message => record("console", { text: message.text() }));
+                opened.on("pageerror", error => record("pageerror", { error: String(error) }));
+                opened.on("websocket", socket => {
+                    const openedAt = Date.now();
+                    record("socket-open", { url: socket.url() });
+                    socket.on("close", () => record("socket-close", { url: socket.url() }));
+                    socket.on("framereceived", frame =>
+                        record("socket-frame", {
+                            original: opened === page,
+                            openedAt,
+                            payload: String(frame.payload).slice(0, 8192),
+                        }),
+                    );
+                });
+                opened.on("response", response => {
+                    if (!/\/api\/(ready|update)/.test(response.url())) return;
+                    const pending = response
+                        .text()
+                        .then(body => {
+                            evidence.responses.push({
+                                ms: Date.now() - started,
+                                url: response.url(),
+                                status: response.status(),
+                                body,
+                            });
+                        })
+                        .catch(error => record("response-error", { error: String(error) }));
+                    responses.add(pending);
+                    pending.finally(() => responses.delete(pending));
+                });
+            });
+            const ready = async () => {
+                try {
+                    const response = await fetch(`http://127.0.0.1:${PRODUCT_PORT}/api/ready`, {
+                        signal: AbortSignal.timeout(1000),
+                    });
+                    const body = await response.json();
+                    evidence.responses.push({
+                        ms: Date.now() - started,
+                        source: "runner-ready",
+                        status: response.status,
+                        body,
+                    });
+                    return response.ok ? body : null;
+                } catch {
+                    return null;
+                }
+            };
+            try {
+                await browserBridge.context.tracing.start({ screenshots: true, snapshots: true });
+                reserve = net.createServer();
+                await new Promise((resolve, reject) => {
+                    reserve.once("error", reject);
+                    reserve.listen(PRODUCT_PORT, "127.0.0.1", resolve);
+                });
+                sampler = (async () => {
+                    sampling = true;
+                    let previous;
+                    while (sampling) {
+                        const owned = await processes(token);
+                        const snapshot = JSON.stringify(owned);
+                        if (snapshot !== previous)
+                            evidence.timeline.push({ ms: Date.now() - started, processes: owned });
+                        previous = snapshot;
+                        await pause(250);
+                    }
+                })();
+                await new Promise(resolve => reserve.close(resolve));
+                child = spawn(
+                    active,
+                    [
+                        "--backend",
+                        new URL(backend.origin).host,
+                        "--listen-port",
+                        String(PRODUCT_PORT),
+                        "--dummy",
+                        "--dummy-rotator",
+                    ],
+                    {
+                        env: { ...env, HOLY_PRODUCT_OWNER: token },
+                        stdio: ["ignore", "pipe", "pipe"],
+                    },
+                );
+                const stdout = [];
+                const stderr = [];
+                child.stdout.on("data", chunk => stdout.push(chunk));
+                child.stderr.on("data", chunk => stderr.push(chunk));
+                child.on("error", error => record("process-error", { error: String(error) }));
+                child.on("exit", (code, signal) =>
+                    evidence.timeline.push({
+                        ms: Date.now() - started,
+                        exit: { pid: child.pid, code, signal },
+                    }),
+                );
+                evidence.timeline.push({
+                    ms: Date.now() - started,
+                    spawn: { pid: child.pid, active },
+                });
+                // Keep the streams available even if the launcher exits during exec.
+                evidence.output = { stdout, stderr };
+                page = await browserBridge.waitForFirstPage(20000);
+                const before = await ready();
+                assert.equal(
+                    before?.version,
+                    baselineVersion,
+                    "Baseline readiness version differs",
+                );
+                evidence.baselineReady = before;
+                assert.equal(page.url().split("/")[2], `127.0.0.1:${PRODUCT_PORT}`);
+                assertSinglePage(browserBridge.evidence());
+                const nonce = randomUUID();
+                await page.evaluate(value => {
+                    window.__productNonce = value;
+                    window.__productStillWaiting = false;
+                    new MutationObserver(() => {
+                        if (document.body.innerText.includes("Still waiting"))
+                            window.__productStillWaiting = true;
+                    }).observe(document.body, {
+                        subtree: true,
+                        childList: true,
+                        characterData: true,
+                    });
+                }, nonce);
+                const navigations = [];
+                page.on("framenavigated", frame => {
+                    if (frame === page.mainFrame()) navigations.push(frame.url());
+                });
+                await page
+                    .getByRole("button", { name: "Update", exact: true })
+                    .waitFor({ timeout: 20000 });
+                const skip = page.getByRole("button", { name: "Skip", exact: true });
+                if (await skip.isVisible()) await skip.click();
+                updateStart = Date.now();
+                await page
+                    .getByRole("button", { name: "Update", exact: true })
+                    .click({ timeout: 3000 });
+                let after;
+                let completed = false;
+                while (Date.now() - updateStart < UPDATE_BOUND_MS - 5000) {
+                    after = await ready();
+                    if (after?.version === expectedVersion && !page.isClosed()) {
+                        completed = await page
+                            .getByText(`Verified running version: ${expectedVersion}`, {
+                                exact: true,
+                            })
+                            .isVisible();
+                        if (completed) break;
+                    }
+                    await pause(250);
+                }
+                evidence.elapsed = Date.now() - updateStart;
+                evidence.candidateReady = after;
+                evidence.navigations = navigations;
+                evidence.activeHash = hash(await readFile(active));
+                evidence.previousHash = hash(await readFile(`${active}.previous`));
+                evidence.listeners = await listenerOwners(PRODUCT_PORT);
+                evidence.owned = await processes(token);
+                const failures = [];
+                const check = (condition, message) => {
+                    if (!condition) failures.push(message);
+                };
+                evidence.originalPageClosed = page.isClosed();
+                check(!evidence.originalPageClosed, "Original page closed");
+                if (!page.isClosed()) {
+                    evidence.pageState = await page.evaluate(() => ({
+                        nonce: window.__productNonce,
+                        stillWaiting: window.__productStillWaiting,
+                        text: document.body.innerText,
+                    }));
+                    check(evidence.pageState.nonce === nonce, "Original page reloaded");
+                    check(!evidence.pageState.stillWaiting, "UI reached Still waiting");
+                }
+                check(navigations.length === 0, "Main frame navigated after initial load");
+                check(
+                    completed && evidence.elapsed < UPDATE_BOUND_MS,
+                    `Original page did not complete the update in ${UPDATE_BOUND_MS} ms`,
+                );
+                check(
+                    after?.version === expectedVersion,
+                    "Original port did not return the candidate version",
+                );
+                check(
+                    evidence.activeHash === evidence.candidateHash,
+                    "Active AppImage hash differs from candidate",
+                );
+                check(
+                    evidence.previousHash === baselineHash,
+                    "Previous AppImage hash differs from baseline",
+                );
+                check(
+                    evidence.listeners.length === 1 &&
+                        evidence.owned.some(process => process.pid === evidence.listeners[0]),
+                    "Expected one owned CATServer listener",
+                );
+                check(
+                    evidence.browser.some(
+                        event =>
+                            event.kind === "socket-frame" &&
+                            event.original &&
+                            event.openedAt > updateStart &&
+                            event.payload.includes(version),
+                    ),
+                    "Original page did not reconnect automatically",
+                );
+                if (after?.version === expectedVersion && !page.isClosed()) {
+                    evidence.operation = await page
+                        .evaluate(
+                            port =>
+                                new Promise((resolve, reject) => {
+                                    const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+                                    const timer = setTimeout(() => {
+                                        socket.close();
+                                        reject(new Error("Dummy CAT operation timed out"));
+                                    }, 3000);
+                                    socket.onopen = () =>
+                                        socket.send(
+                                            JSON.stringify({
+                                                version: 1,
+                                                type: "radio",
+                                                action: "SetModeAndFreq",
+                                                mode: "CW",
+                                                freq: 14025,
+                                            }),
+                                        );
+                                    socket.onmessage = event => {
+                                        const message = JSON.parse(event.data);
+                                        if (
+                                            message.type === "radio" &&
+                                            message.freq === 14025000 &&
+                                            message.mode === "CW"
+                                        ) {
+                                            clearTimeout(timer);
+                                            socket.close();
+                                            resolve(message);
+                                        }
+                                    };
+                                }),
+                            PRODUCT_PORT,
+                        )
+                        .catch(error => {
+                            failures.push(String(error));
+                            return null;
+                        });
+                }
+                check(
+                    Boolean(evidence.operation),
+                    "Dummy CAT operation did not succeed after restart",
+                );
+                check(
+                    Date.now() - updateStart < UPDATE_BOUND_MS,
+                    "Update exceeded its strict bound",
+                );
+                try {
+                    assertSinglePage(browserBridge.evidence());
+                } catch (error) {
+                    failures.push(error.message);
+                }
+                assert.deepEqual(failures, [], failures.join("; "));
+                return { baseline: before.version, candidate: version, elapsed: evidence.elapsed };
+            } finally {
+                try {
+                    sampling = false;
+                    await sampler;
+                    if (reserve?.listening) await new Promise(resolve => reserve.close(resolve));
+                    for (const opened of browserBridge.context.pages()) {
+                        if (opened.isClosed()) continue;
+                        const id = browserBridge.context.pages().indexOf(opened);
+                        await opened
+                            .screenshot({ path: path.join(directories.evidence, `page-${id}.png`) })
+                            .catch(() => {});
+                        await save(`page-${id}.html`, await opened.content().catch(String));
+                    }
+                    await browserBridge.context.tracing
+                        .stop({ path: path.join(directories.evidence, "browser-trace.zip") })
+                        .catch(() => {});
+                    await Promise.allSettled([...responses]);
+                    const output = evidence.output;
+                    evidence.output = undefined;
+                    await save("stdout.log", Buffer.concat(output?.stdout || []));
+                    await save("stderr.log", Buffer.concat(output?.stderr || []));
+                    await save("update-evidence.json", JSON.stringify(evidence, null, 2));
+                } finally {
+                    // The token survives updater exec; PID identity is checked again before each signal.
+                    for (const signal of ["SIGTERM", "SIGKILL"]) {
+                        for (const owned of await processes(token)) {
+                            const current = (await processes(token)).find(
+                                process =>
+                                    process.pid === owned.pid && process.start === owned.start,
+                            );
+                            if (current) {
+                                try {
+                                    process.kill(owned.pid, signal);
+                                } catch (error) {
+                                    if (error.code !== "ESRCH")
+                                        record("cleanup-error", { error: String(error) });
+                                }
+                            }
+                        }
+                        await pause(250);
+                    }
+                }
+            }
+        },
+    );
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    try {
+        const { values } = parseArgs({
+            options: {
+                baseline: { type: "string" },
+                candidate: { type: "string" },
+                version: { type: "string" },
+                dist: { type: "string" },
+            },
+        });
+        console.log(await runLinuxUpdate(values));
+    } catch (error) {
+        console.error(error);
+        if (error.evidenceDirectory) console.error(`Failure evidence: ${error.evidenceDirectory}`);
+        process.exitCode = 1;
+    }
+}

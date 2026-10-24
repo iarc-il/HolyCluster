@@ -123,17 +123,18 @@ export async function startProductBrowserBridge({ directories, env, maxEntries =
                     entry.status = "opening";
                     const page = await context.newPage();
                     entry.pageId = pageIds.get(page);
+                    // CATServer can wait for xdg-open before it starts serving HTTP.
+                    res.writeHead(200).end();
                     await page.goto(target, { waitUntil: "domcontentloaded", timeout: 15000 });
                     entry.status = "opened";
                     if (entry.id === firstLaunchId) resolveFirst(page);
-                    res.writeHead(200).end();
                 } catch (error) {
                     entry.error = String(error).slice(0, 2048);
                     if (entry.status === "opening") {
                         entry.status = "failed";
                         if (entry.id === firstLaunchId) rejectFirst(error);
                     }
-                    res.writeHead(400).end();
+                    if (!res.headersSent) res.writeHead(400).end();
                 }
             });
         });

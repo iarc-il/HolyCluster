@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -51,6 +52,10 @@ test("real launcher opens one page per call and shutdown releases resources", li
         assert.equal(bridge.context.pages().length, 1);
 
         await launch(env, `${backend.origin}/?requested=second`);
+        await bridge.context
+            .pages()
+            .at(-1)
+            .waitForURL(`${backend.origin}/?requested=second`, { waitUntil: "domcontentloaded" });
         const afterUpdate = bridge.evidence();
         assert.equal(afterUpdate.launcherCount - beforeUpdate.launcherCount, 1);
         assert.equal(afterUpdate.pageCount - beforeUpdate.pageCount, 1);
@@ -65,6 +70,28 @@ test("real launcher opens one page per call and shutdown releases resources", li
     await assert.rejects(bridge.context.newPage());
     await assert.rejects(stat(bridge.socketPath), { code: "ENOENT" });
     await bridge.close();
+});
+
+test("launcher returns before CATServer starts serving HTTP", linux, async t => {
+    const options = await fixture(t);
+    await withProductTest(options, async ({ browserBridge: bridge, env }) => {
+        let serving = false;
+        const server = http.createServer((_request, response) => {
+            if (serving) response.end("<title>After launcher</title>");
+            else server.once("serving", () => response.end("<title>After launcher</title>"));
+        });
+        await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+        try {
+            await launch(env, `http://127.0.0.1:${server.address().port}/`);
+            serving = true;
+            server.emit("serving");
+            const page = await bridge.waitForFirstPage();
+            assert.equal(await page.title(), "After launcher");
+        } finally {
+            server.closeAllConnections();
+            await new Promise(resolve => server.close(resolve));
+        }
+    });
 });
 
 test("reject invalid URLs and bound launcher evidence", linux, async t => {
@@ -115,6 +142,7 @@ test("retain browser evidence and the primary product error", linux, async t => 
         withProductTest(options, async ({ browserBridge, env, backend }) => {
             bridge = browserBridge;
             await launch(env, backend.origin);
+            await bridge.waitForFirstPage();
             throw primary;
         }),
         error => error === primary,
@@ -138,6 +166,10 @@ test("bound all page evidence without losing total counts", linux, async t => {
         try {
             await launch(bridge.env, backend.origin);
             await launch(bridge.env, `${backend.origin}/?second`);
+            await bridge.context
+                .pages()
+                .at(-1)
+                .waitForURL(`${backend.origin}/?second`, { waitUntil: "domcontentloaded" });
             await bridge.context.newPage();
             const evidence = bridge.evidence();
             assert.equal(evidence.pageCount, 4);
@@ -155,7 +187,7 @@ test("report a failed first navigation instead of waiting for another launch", l
     const options = await fixture(t);
     await withProductTest(options, async ({ browserBridge: bridge, env, backend }) => {
         await bridge.context.route("**/*", route => route.abort());
-        await assert.rejects(launch(env, backend.origin));
+        await launch(env, backend.origin);
         await assert.rejects(bridge.waitForFirstPage(), /net::ERR_FAILED/);
         assert.equal(bridge.evidence().launchers[0].status, "failed");
         assert.equal(bridge.evidence().pageCount, 2);
