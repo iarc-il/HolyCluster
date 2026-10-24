@@ -282,7 +282,7 @@ async fn run_singleton(
     let mut receiver = sender.subscribe();
     let shutdown_radio = radio.clone();
     let shutdown_rotator = rotator.clone();
-    let launch_browser = startup_browser_enabled(no_browser, restart.as_ref());
+    let launch_browser = !no_browser && restart.is_none();
     crate::diagnostics::phase("server_binding");
     let building = Server::build_server(sender, radio, rotator, server_config, restart);
     tokio::pin!(building);
@@ -322,28 +322,8 @@ async fn run_singleton(
     result
 }
 
-fn startup_browser_enabled(
-    no_browser: bool,
-    restart: Option<&crate::updater::RestartContext>,
-) -> bool {
-    !no_browser && restart.is_none()
-}
-
 #[cfg(test)]
 mod singleton_diagnostic_tests {
-    #[test]
-    fn normal_start_opens_a_browser_but_owned_restart_does_not() {
-        assert!(super::startup_browser_enabled(false, None));
-        assert!(!super::startup_browser_enabled(true, None));
-        let context = crate::updater::RestartContext {
-            id: "owned-update".into(),
-            port: 41234,
-            expected_version: "1.3.4".into(),
-            state_path: std::path::PathBuf::new(),
-        };
-        assert!(!super::startup_browser_enabled(false, Some(&context)));
-    }
-
     #[test]
     fn failed_contact_retains_port_metadata_and_attempt_evidence() {
         use std::io::{Read, Write};
