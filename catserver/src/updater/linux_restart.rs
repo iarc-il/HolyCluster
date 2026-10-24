@@ -120,15 +120,9 @@ fn owned_file(path: &Path) -> Result<()> {
 }
 
 pub(super) fn process_started() -> Result<SystemTime> {
-    let stat = fs::read_to_string("/proc/self/stat")?;
-    let ticks: f64 = stat
-        .rsplit_once(')')
-        .context("invalid process stat")?
-        .1
-        .split_whitespace()
-        .nth(19)
-        .context("missing process start time")?
-        .parse()?;
+    let ticks =
+        crate::update_progress::UpdateOwner::start_time(Path::new("/proc"), std::process::id())?
+            .context("update owner process is missing")? as f64;
     let uptime: f64 = fs::read_to_string("/proc/uptime")?
         .split_whitespace()
         .next()

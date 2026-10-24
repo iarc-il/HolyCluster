@@ -25,7 +25,7 @@ impl UpdateOwner {
         )
     }
 
-    fn start_time(proc_root: &Path, pid: u32) -> Result<Option<u64>> {
+    pub(crate) fn start_time(proc_root: &Path, pid: u32) -> Result<Option<u64>> {
         let stat = match fs::read_to_string(proc_root.join(pid.to_string()).join("stat")) {
             Ok(stat) => stat,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
