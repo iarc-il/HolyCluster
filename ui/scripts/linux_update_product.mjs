@@ -229,39 +229,11 @@ async function listenerOwners(port) {
 }
 
 async function dummyCAT(page) {
-    return page.evaluate(
-        port =>
-            new Promise((resolve, reject) => {
-                const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`);
-                const timer = setTimeout(() => {
-                    socket.close();
-                    reject(new Error("Dummy CAT operation timed out"));
-                }, 3000);
-                socket.onopen = () =>
-                    socket.send(
-                        JSON.stringify({
-                            version: 1,
-                            type: "radio",
-                            action: "SetModeAndFreq",
-                            mode: "CW",
-                            freq: 14025,
-                        }),
-                    );
-                socket.onmessage = event => {
-                    const message = JSON.parse(event.data);
-                    if (
-                        message.type === "radio" &&
-                        message.freq === 14025000 &&
-                        message.mode === "CW" &&
-                        message.status === "connected"
-                    ) {
-                        clearTimeout(timer);
-                        socket.close();
-                        resolve(message);
-                    }
-                };
-            }),
-        PRODUCT_PORT,
+    return catRequest(
+        page,
+        "radio",
+        { action: "SetModeAndFreq", mode: "CW", freq: 14025 },
+        { freq: 14025000, mode: "CW", status: "connected" },
     );
 }
 
