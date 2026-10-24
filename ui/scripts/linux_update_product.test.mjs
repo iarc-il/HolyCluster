@@ -3,6 +3,8 @@ import test from "node:test";
 import {
     PRODUCT_PORT,
     UPDATE_BOUND_MS,
+    assertConfiguration,
+    assertNormalRelaunch,
     assertSinglePage,
     listeningInodes,
     readyVersion,
@@ -27,6 +29,37 @@ test("ignore only the persistent browser startup tab", () => {
         /Extra product page/,
     );
     assert.throws(() => assertSinglePage({ ...evidence, launcherCount: 0 }));
+});
+
+test("configuration readback rejects missing, changed, and extra settings", () => {
+    const expected = { rig: { model_id: "hamlib:1", token_values: { retry: "7" } } };
+    const response = { version: 1, type: "radio", event: "configuration", ...expected };
+    assertConfiguration(response, expected);
+    assert.throws(() => assertConfiguration({ ...response, rig: null }, expected));
+    assert.throws(() =>
+        assertConfiguration({ ...response, rig: { ...expected.rig, token_values: {} } }, expected),
+    );
+    assert.throws(() =>
+        assertConfiguration(
+            { ...response, rig: { ...expected.rig, token_values: { retry: "8" } } },
+            expected,
+        ),
+    );
+    assert.throws(() => assertConfiguration({ ...response, extra: true }, expected));
+});
+
+test("normal relaunch requires one new page and the update page closed", () => {
+    const evidence = {
+        launcherCount: 2,
+        pages: [{ startup: true }, { closed: true }, { closed: false }],
+    };
+    assertNormalRelaunch(evidence);
+    assert.throws(() => assertNormalRelaunch({ ...evidence, launcherCount: 3 }));
+    assert.throws(() => assertNormalRelaunch({ ...evidence, pages: [{}, {}] }));
+    assert.throws(() =>
+        assertNormalRelaunch({ ...evidence, pages: [{ closed: false }, { closed: false }] }),
+    );
+    assert.throws(() => assertNormalRelaunch({ ...evidence, pages: [...evidence.pages, {}] }));
 });
 
 test("match CATServer readiness version normalization", () => {

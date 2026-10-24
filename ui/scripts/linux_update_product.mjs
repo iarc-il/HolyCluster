@@ -34,6 +34,114 @@ export function assertSinglePage(evidence) {
     assert.equal(evidence.pages.filter(page => !page.startup).length, 1, "Extra product page");
 }
 
+export function assertConfiguration(response, expected) {
+    const { version, type, event, ...configuration } = response;
+    assert.equal(version, 1);
+    assert.deepEqual(configuration, expected, `${type} configuration differs`);
+}
+
+export function assertNormalRelaunch(evidence) {
+    assert.equal(evidence.launcherCount, 2, "Normal start must open exactly one new page");
+    const pages = evidence.pages.filter(page => !page.startup);
+    assert.equal(pages.length, 2);
+    assert.equal(pages[0].closed, true, "Close the update page before normal start");
+    assert(!pages[1].closed, "Normal start page must remain open");
+}
+
+const RADIO_CONFIGURATION = {
+    rig: { model_id: "hamlib:1", token_values: { retry: "7", timeout: "1234" } },
+};
+const ROTATOR_CONFIGURATION = {
+    backend: "hamlib",
+    hamlib: { model_id: "1", token_values: { retry: "6", timeout: "2345" } },
+};
+
+async function catRequest(page, type, request, expected) {
+    return page.evaluate(
+        ({ port, type, request, expected }) =>
+            new Promise((resolve, reject) => {
+                const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+                let sent = false;
+                const finish = (error, message) => {
+                    clearTimeout(timer);
+                    socket.close();
+                    if (error) reject(error);
+                    else resolve(message);
+                };
+                const timer = setTimeout(
+                    () => finish(new Error(`${type} ${request.action} timed out`)),
+                    5000,
+                );
+                socket.onerror = () => finish(new Error(`${type} socket failed`));
+                socket.onopen = () => {
+                    socket.send(JSON.stringify({ version: 1, type, ...request }));
+                    sent = true;
+                };
+                socket.onmessage = event => {
+                    const message = JSON.parse(event.data);
+                    if (
+                        sent &&
+                        message.type === type &&
+                        Object.entries(expected).every(([key, value]) => message[key] === value)
+                    )
+                        finish(null, message);
+                };
+            }),
+        { port: PRODUCT_PORT, type, request, expected },
+    );
+}
+
+async function persistedCAT(page, save = false) {
+    const result = {};
+    for (const [type, name, configuration, event] of [
+        ["radio", "Radio", RADIO_CONFIGURATION, "configuration"],
+        ["rotator", "Rotator", ROTATOR_CONFIGURATION, "rotator_configuration"],
+    ]) {
+        if (save) {
+            result[`${type}Save`] = await catRequest(
+                page,
+                type,
+                {
+                    action: `Set${name}Configuration`,
+                    configuration,
+                },
+                { event: `${event}_result` },
+            );
+            assert.equal(result[`${type}Save`].ok, true, JSON.stringify(result));
+        }
+        result[type] = await catRequest(
+            page,
+            type,
+            {
+                action: `Get${name}Configuration`,
+            },
+            { event },
+        );
+        assertConfiguration(result[type], configuration);
+    }
+    result.radioOperation = await dummyCAT(page);
+    result.rotatorOperation = await catRequest(
+        page,
+        "rotator",
+        {
+            action: "SetAzimuth",
+            azimuth: 3,
+        },
+        { event: "status", azimuth: 3, status: "connected" },
+    );
+    result.rotatorStop = await catRequest(
+        page,
+        "rotator",
+        { action: "Stop" },
+        {
+            event: "command_result",
+            action: "Stop",
+        },
+    );
+    assert.equal(result.rotatorStop.ok, true);
+    return result;
+}
+
 async function processes(token) {
     const result = [];
     for (const pid of await readdir("/proc")) {
@@ -107,7 +215,8 @@ async function dummyCAT(page) {
                     if (
                         message.type === "radio" &&
                         message.freq === 14025000 &&
-                        message.mode === "CW"
+                        message.mode === "CW" &&
+                        message.status === "connected"
                     ) {
                         clearTimeout(timer);
                         socket.close();
@@ -178,7 +287,7 @@ export async function runLinuxUpdate({
                 ],
             ]),
             browserBridge: true,
-            preserveEvidence: corruption,
+            preserveEvidence: true,
         },
         async ({ directories, env, backend, browserBridge }) => {
             const token = randomUUID();
@@ -286,8 +395,7 @@ export async function runLinuxUpdate({
                         new URL(backend.origin).host,
                         "--listen-port",
                         String(PRODUCT_PORT),
-                        "--dummy",
-                        "--dummy-rotator",
+                        ...(corruption ? ["--dummy", "--dummy-rotator"] : []),
                     ],
                     {
                         env: { ...env, HOLY_PRODUCT_OWNER: token },
@@ -321,6 +429,8 @@ export async function runLinuxUpdate({
                 evidence.baselineReady = before;
                 assert.equal(page.url().split("/")[2], `127.0.0.1:${PRODUCT_PORT}`);
                 assertSinglePage(browserBridge.evidence());
+                if (!corruption)
+                    evidence.configurationBeforeUpdate = await persistedCAT(page, true);
                 const nonce = randomUUID();
                 await page.evaluate(value => {
                     window.__productNonce = value;
@@ -572,14 +682,14 @@ export async function runLinuxUpdate({
                     "Original page did not reconnect automatically",
                 );
                 if (after?.version === expectedVersion && !page.isClosed()) {
-                    evidence.operation = await dummyCAT(page).catch(error => {
+                    evidence.configurationAfterUpdate = await persistedCAT(page).catch(error => {
                         failures.push(String(error));
                         return null;
                     });
                 }
                 check(
-                    Boolean(evidence.operation),
-                    "Dummy CAT operation did not succeed after restart",
+                    Boolean(evidence.configurationAfterUpdate),
+                    "Persisted CAT configurations or operations failed after update",
                 );
                 check(
                     Date.now() - updateStart < UPDATE_BOUND_MS,
@@ -591,7 +701,69 @@ export async function runLinuxUpdate({
                     failures.push(error.message);
                 }
                 assert.deepEqual(failures, [], failures.join("; "));
-                return { baseline: before.version, candidate: version, elapsed: evidence.elapsed };
+                evidence.updateBrowserBridge = browserBridge.evidence();
+                await page.screenshot({
+                    path: path.join(directories.evidence, "update-complete.png"),
+                });
+                await save("update-complete.html", await page.content());
+                await page.close();
+                const stopResponse = await fetch(`http://127.0.0.1:${PRODUCT_PORT}/exit`, {
+                    method: "POST",
+                    signal: AbortSignal.timeout(3000),
+                });
+                assert(stopResponse.ok, "Normal stop request failed");
+                const stopStart = Date.now();
+                while ((await processes(token)).length && Date.now() - stopStart < 10000)
+                    await pause(100);
+                evidence.normalStop = {
+                    processes: await processes(token),
+                    listeners: await listenerOwners(PRODUCT_PORT),
+                };
+                assert.deepEqual(evidence.normalStop.processes, [], "Normal stop left processes");
+                assert.deepEqual(evidence.normalStop.listeners, [], "Normal stop retained port");
+                const newPage = browserBridge.context.waitForEvent("page", { timeout: 20000 });
+                const restarted = spawn(
+                    active,
+                    [
+                        "--backend",
+                        new URL(backend.origin).host,
+                        "--listen-port",
+                        String(PRODUCT_PORT),
+                    ],
+                    {
+                        env: { ...env, HOLY_PRODUCT_OWNER: token },
+                        stdio: ["ignore", "pipe", "pipe"],
+                    },
+                );
+                restarted.stdout.on("data", chunk => stdout.push(chunk));
+                restarted.stderr.on("data", chunk => stderr.push(chunk));
+                restarted.on("error", error => record("process-error", { error: String(error) }));
+                evidence.normalStart = { pid: restarted.pid, active, dummyOverrides: false };
+                page = await newPage;
+                await page.waitForURL(`http://127.0.0.1:${PRODUCT_PORT}/**`, { timeout: 20000 });
+                await page.waitForLoadState("domcontentloaded", { timeout: 20000 });
+                assert.equal(new URL(page.url()).port, String(PRODUCT_PORT));
+                evidence.normalReady = await ready();
+                assert.equal(evidence.normalReady?.version, expectedVersion);
+                assert.equal(
+                    evidence.normalReady.update_id,
+                    null,
+                    "Normal start reused update session",
+                );
+                assert.notEqual(evidence.normalReady.instance_id, after.instance_id);
+                evidence.normalListeners = await listenerOwners(PRODUCT_PORT);
+                assert.deepEqual(evidence.normalListeners, [restarted.pid]);
+                assert.equal(hash(await readFile(active)), evidence.candidateHash);
+                evidence.configurationAfterNormalStart = await persistedCAT(page);
+                evidence.normalBrowserBridge = browserBridge.evidence();
+                assertNormalRelaunch(evidence.normalBrowserBridge);
+                return {
+                    baseline: before.version,
+                    candidate: version,
+                    elapsed: evidence.elapsed,
+                    normalRelaunch: true,
+                    evidenceDirectory: directories.evidence,
+                };
             } finally {
                 try {
                     sampling = false;
