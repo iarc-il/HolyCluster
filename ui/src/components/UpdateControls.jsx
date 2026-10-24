@@ -5,7 +5,11 @@ import { useColors } from "@/hooks/useColors";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
 
 const CAT_RELEASE_NOTES = {
-    "1.3.3": [],
+    "1.3.3": [
+        <b key="rotator-toggle">Clicking the rotator button now disables it</b>,
+        "RTTY is now supported for OmniRig",
+        "Many small bug fixes",
+    ],
 };
 
 const INTERNAL_RELEASE_NOTES = ["Release notes are available only for public releases."];

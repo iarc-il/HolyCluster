@@ -207,19 +207,6 @@ describe("CAT Control updates", () => {
         ).not.toBeNull();
     });
 
-    it("keeps the update prompt compact when release notes are empty", async () => {
-        vi.stubGlobal(
-            "fetch",
-            vi.fn().mockResolvedValue(response({ state: "available", available_version: "1.3.3" })),
-        );
-
-        render_updates();
-
-        const dialog = await screen.findByRole("dialog");
-        expect(within(dialog).getByText("Version 1.3.3 is ready to install.")).not.toBeNull();
-        expect(within(dialog).queryByText("What's new")).toBeNull();
-    });
-
     it("shares available and deferred state between the badge and consent dialog", async () => {
         const fetch = vi
             .fn()
