@@ -8,7 +8,9 @@ export default defineConfig({
     reporter: "list",
     use: { baseURL: "http://127.0.0.1:5188" },
     webServer: {
-        command: "vite preview --host 127.0.0.1 --port 5188 --strictPort",
+        command:
+            "vite build --outDir dist/integrity && vite preview --outDir dist/integrity --host 127.0.0.1 --port 5188 --strictPort",
+        env: { VITE_SENTRY_DSN: "" },
         url: "http://127.0.0.1:5188",
         reuseExistingServer: false,
     },

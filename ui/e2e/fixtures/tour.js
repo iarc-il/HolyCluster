@@ -1,4 +1,4 @@
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect } from "./browser.js";
 
 const current_time = Math.floor(Date.now() / 1000);
 
@@ -127,12 +127,6 @@ export const test = base.extend({
     tour_spots: [tour_spots, { option: true }],
     auto_start_tour: [false, { option: true }],
     page: async ({ page, tour_spots, auto_start_tour }, use) => {
-        const browser_errors = [];
-        page.on("pageerror", error => browser_errors.push(`pageerror: ${error.message}`));
-        page.on("console", message => {
-            if (message.type() === "error") browser_errors.push(`console: ${message.text()}`);
-        });
-
         await page.addInitScript(auto_start => {
             localStorage.clear();
             sessionStorage.clear();
@@ -181,7 +175,6 @@ export const test = base.extend({
         });
 
         await use(page);
-        expect(browser_errors, "browser console/runtime errors").toEqual([]);
     },
 });
 

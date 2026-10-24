@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/browser.js";
 
 const models = [
     { id: "hamlib:1", manufacturer: "Hamlib", model: "Dummy", connection_kind: "none" },

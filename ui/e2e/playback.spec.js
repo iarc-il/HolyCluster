@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/browser.js";
 
 const PROFILE_STORE = {
     version: 1,

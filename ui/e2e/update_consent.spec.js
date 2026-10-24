@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/browser.js";
 
 test.use({ viewport: { width: 1920, height: 1080 } });
 

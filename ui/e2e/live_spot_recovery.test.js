@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/browser.js";
 
 function spot(time, dx_callsign) {
     return {
@@ -19,7 +19,10 @@ function spot(time, dx_callsign) {
 }
 
 for (const scenario of ["dropped", "delayed", "legacy"]) {
-    test(`recovers ${scenario} spot subscription without reloading`, async ({ page }) => {
+    test(`recovers ${scenario} spot subscription without reloading`, async ({
+        page,
+        mock_socket_delays,
+    }) => {
         const requests = [];
         const time = Math.floor(Date.now() / 1000);
         await page.addInitScript(() => {
@@ -88,20 +91,28 @@ for (const scenario of ["dropped", "delayed", "legacy"]) {
                             spots: [spot(time + 1, "JA2REC")],
                         }),
                     );
-                    setTimeout(() => {
-                        socket.send(JSON.stringify(response));
-                        socket.send(JSON.stringify(response));
-                    }, 2500);
+                    mock_socket_delays(
+                        socket,
+                        () => {
+                            socket.send(JSON.stringify(response));
+                            socket.send(JSON.stringify(response));
+                        },
+                        2500,
+                    );
                     return;
                 }
                 if (scenario === "legacy") {
                     socket.send(
                         JSON.stringify({ version: 1, type: "spots", event: "initial", spots: [] }),
                     );
-                    setTimeout(() => {
-                        socket.send(JSON.stringify(response));
-                        socket.send(JSON.stringify(response));
-                    }, 2500);
+                    mock_socket_delays(
+                        socket,
+                        () => {
+                            socket.send(JSON.stringify(response));
+                            socket.send(JSON.stringify(response));
+                        },
+                        2500,
+                    );
                     return;
                 }
                 socket.send(JSON.stringify(response));

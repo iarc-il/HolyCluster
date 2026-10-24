@@ -1,6 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { TraceMap, originalPositionFor } from "@jridgewell/trace-mapping";
-import { expect, test } from "@playwright/test";
+import { expect, test, testWithBrowserErrors } from "../fixtures/browser.js";
+
+const missing_secret =
+    /^(?:console: TypeError: |pageerror: (?:TypeError: )?)(?:Cannot read properties of undefined \(reading 'secret'\)|missing is undefined|message.missing is undefined|can't access property "secret", (?:missing|\(void 0\)|[\w]+.missing) is undefined|undefined is not an object \(evaluating '(?:\(void 0\)|[\w]+.missing).secret'\))(?:\n|$)/;
 
 function assetPath(filename) {
     if (!filename) return null;
@@ -34,8 +37,19 @@ async function mappedSources(event) {
 
 async function capture(page, scenario) {
     const events = [];
+    const timers = new Set();
+    page.on("close", () => {
+        for (const timer of timers) clearTimeout(timer);
+    });
     await page.routeWebSocket("**/*", socket => {
         if (new URL(socket.url()).pathname !== "/ws") return;
+        const socket_timers = new Set();
+        socket.onClose(() => {
+            for (const timer of socket_timers) {
+                clearTimeout(timer);
+                timers.delete(timer);
+            }
+        });
         socket.onMessage(() => {
             socket.send(
                 JSON.stringify({
@@ -45,17 +59,19 @@ async function capture(page, scenario) {
                     version: 1,
                 }),
             );
-            setTimeout(
-                () =>
-                    socket.send(
-                        JSON.stringify({
-                            type: scenario === "websocket_update" ? "update" : "radio",
-                            event: "diagnostic_failure",
-                            secret: "payload",
-                        }),
-                    ),
-                100,
-            );
+            const timer = setTimeout(() => {
+                timers.delete(timer);
+                socket_timers.delete(timer);
+                socket.send(
+                    JSON.stringify({
+                        type: scenario === "websocket_update" ? "update" : "radio",
+                        event: "diagnostic_failure",
+                        secret: "payload",
+                    }),
+                );
+            }, 100);
+            timers.add(timer);
+            socket_timers.add(timer);
         });
     });
     await page.route("**/api/1/envelope/**", async route => {
@@ -76,102 +92,112 @@ async function capture(page, scenario) {
     return event;
 }
 
-test("reports the original failure through the production React boundary and SDK", async ({
-    page,
-}) => {
-    const event = await capture(page, "boundary");
-    expect(event.contexts.diagnostic).toMatchObject({
-        capture_path: "react_boundary",
-        original_kind: "error",
-        original_stack: "present",
-    });
-    expect(event.fingerprint).toEqual(["{{ default }}", "react_boundary"]);
-    expect(
-        event.exception.values.some(
-            value =>
-                value.type === "TypeError" &&
-                value.stacktrace?.frames?.some(
-                    frame => assetPath(frame.filename) && frame.lineno > 0 && frame.colno > 0,
-                ),
-        ),
-    ).toBe(true);
-    expect(
-        event.exception.values.some(
-            value =>
-                value.type === "React ErrorBoundary TypeError" &&
-                value.stacktrace?.frames?.length > 0,
-        ),
-    ).toBe(true);
-    expect((await mappedSources(event)).join("\n")).toContain("return missing.secret;");
-    await expect(page.getByRole("alert")).toBeVisible();
-});
+testWithBrowserErrors(
+    "reports the original failure through the production React boundary and SDK",
+    [missing_secret],
+    async ({ page }) => {
+        const event = await capture(page, "boundary");
+        expect(event.contexts.diagnostic).toMatchObject({
+            capture_path: "react_boundary",
+            original_kind: "error",
+            original_stack: "present",
+        });
+        expect(event.fingerprint).toEqual(["{{ default }}", "react_boundary"]);
+        expect(
+            event.exception.values.some(
+                value =>
+                    value.type === "TypeError" &&
+                    value.stacktrace?.frames?.some(
+                        frame => assetPath(frame.filename) && frame.lineno > 0 && frame.colno > 0,
+                    ),
+            ),
+        ).toBe(true);
+        expect(
+            event.exception.values.some(
+                value =>
+                    value.type === "React ErrorBoundary TypeError" &&
+                    value.stacktrace?.frames?.length > 0,
+            ),
+        ).toBe(true);
+        expect((await mappedSources(event)).join("\n")).toContain("return missing.secret;");
+        await expect(page.getByRole("alert")).toBeVisible();
+    },
+);
 
-test("reports primitive boundary failures with separate synthetic and component stacks", async ({
-    page,
-}) => {
-    const event = await capture(page, "boundary_primitive");
-    expect(event.contexts.diagnostic).toMatchObject({
-        capture_path: "react_boundary",
-        original_kind: "string",
-        original_stack: "absent",
-        javascript_stack_origin: "synthetic_capture",
-        component_stack: "present",
-    });
-    expect(event.fingerprint).toEqual(["{{ default }}", "react_boundary"]);
-    expect(event.exception.values).toEqual(
-        expect.arrayContaining([
-            expect.objectContaining({
-                type: "React ErrorBoundary NonErrorThrown",
-                stacktrace: { frames: expect.any(Array) },
-            }),
-            expect.objectContaining({
-                type: "NonErrorThrown",
-                value: "diagnostic primitive boundary failure",
-                stacktrace: { frames: expect.any(Array) },
-            }),
-        ]),
-    );
-    expect(JSON.stringify(event)).not.toContain("Application error (message redacted)");
-    await expect(page.getByRole("alert")).toBeVisible();
-});
+testWithBrowserErrors(
+    "reports primitive boundary failures with separate synthetic and component stacks",
+    [/^console: diagnostic primitive boundary failure$/],
+    async ({ page }) => {
+        const event = await capture(page, "boundary_primitive");
+        expect(event.contexts.diagnostic).toMatchObject({
+            capture_path: "react_boundary",
+            original_kind: "string",
+            original_stack: "absent",
+            javascript_stack_origin: "synthetic_capture",
+            component_stack: "present",
+        });
+        expect(event.fingerprint).toEqual(["{{ default }}", "react_boundary"]);
+        expect(event.exception.values).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    type: "React ErrorBoundary NonErrorThrown",
+                    stacktrace: { frames: expect.any(Array) },
+                }),
+                expect.objectContaining({
+                    type: "NonErrorThrown",
+                    value: "diagnostic primitive boundary failure",
+                    stacktrace: { frames: expect.any(Array) },
+                }),
+            ]),
+        );
+        expect(JSON.stringify(event)).not.toContain("Application error (message redacted)");
+        await expect(page.getByRole("alert")).toBeVisible();
+    },
+);
 
-test("preserves complete boundary cause chains", async ({ page }) => {
-    const event = await capture(page, "boundary_cause");
-    expect(event.contexts.diagnostic).toMatchObject({
-        capture_path: "react_boundary",
-        original_kind: "error",
-        javascript_stack_origin: "original",
-        component_stack: "present",
-    });
-    expect(event.exception.values).toEqual(
-        expect.arrayContaining([
-            expect.objectContaining({ type: "Error", value: "diagnostic boundary cause" }),
-            expect.objectContaining({
-                type: "TypeError",
-                value: "diagnostic boundary failure",
-            }),
-        ]),
-    );
-    for (const value of event.exception.values) {
-        expect(value.stacktrace?.frames?.length).toBeGreaterThan(0);
-    }
-});
+testWithBrowserErrors(
+    "preserves complete boundary cause chains",
+    [/^console: TypeError: diagnostic boundary failure(?:\n|$)/],
+    async ({ page }) => {
+        const event = await capture(page, "boundary_cause");
+        expect(event.contexts.diagnostic).toMatchObject({
+            capture_path: "react_boundary",
+            original_kind: "error",
+            javascript_stack_origin: "original",
+            component_stack: "present",
+        });
+        expect(event.exception.values).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ type: "Error", value: "diagnostic boundary cause" }),
+                expect.objectContaining({
+                    type: "TypeError",
+                    value: "diagnostic boundary failure",
+                }),
+            ]),
+        );
+        for (const value of event.exception.values) {
+            expect(value.stacktrace?.frames?.length).toBeGreaterThan(0);
+        }
+    },
+);
 
-test("retains WebSocket operation evidence through a real subscriber and boundary", async ({
-    page,
-}) => {
-    const event = await capture(page, "websocket");
-    expect(event.contexts.diagnostic).toMatchObject({
-        operation: "websocket_message",
-        stage: "subscriber",
-        message_type: "radio",
-        transport: "unified",
-        capture_path: "react_boundary",
-        original_stack: "present",
-    });
-    expect((await mappedSources(event)).join("\n")).toContain("return message.missing.secret;");
-    await expect(page.getByRole("alert")).toBeVisible();
-});
+testWithBrowserErrors(
+    "retains WebSocket operation evidence through a real subscriber and boundary",
+    [missing_secret],
+    async ({ page }) => {
+        const event = await capture(page, "websocket");
+        expect(event.contexts.diagnostic).toMatchObject({
+            operation: "websocket_message",
+            stage: "subscriber",
+            message_type: "radio",
+            transport: "unified",
+            capture_path: "react_boundary",
+            original_stack: "present",
+        });
+        expect((await mappedSources(event)).join("\n")).toContain("return message.missing.secret;");
+        await expect(page.getByRole("alert")).toBeVisible();
+    },
+);
 
 test("reports direct update subscriber failures without changing callback behavior", async ({
     page,
@@ -219,6 +245,7 @@ test("uses network history after a real upgrade abort without unhandled errors",
             return request;
         };
     });
+    await page.route("**/api/1/envelope/**", route => route.fulfill({ status: 200, body: "{}" }));
     await page.goto("/e2e/diagnostics/index.html");
     await page.waitForFunction(() => window.diagnostics_ready);
     const result = await page.evaluate(() => window.run_diagnostic("cache_abort"));
@@ -251,15 +278,19 @@ for (const [scenario, kind, stack] of [
     ["primitive", "string", "absent"],
     ["stackless", "error", "absent"],
 ]) {
-    test(`reports a real ${scenario} unhandled rejection`, async ({ page }) => {
-        const event = await capture(page, scenario);
-        expect(event.contexts.diagnostic).toMatchObject({
-            capture_path: "unhandled_rejection",
-            original_kind: kind,
-            original_stack: stack,
-        });
-        expect(event.fingerprint).toEqual(["{{ default }}", "unhandled_rejection"]);
-    });
+    testWithBrowserErrors(
+        `reports a real ${scenario} unhandled rejection`,
+        scenario === "primitive" ? [/^pageerror: private secret rejection$/] : [missing_secret],
+        async ({ page }) => {
+            const event = await capture(page, scenario);
+            expect(event.contexts.diagnostic).toMatchObject({
+                capture_path: "unhandled_rejection",
+                original_kind: kind,
+                original_stack: stack,
+            });
+            expect(event.fingerprint).toEqual(["{{ default }}", "unhandled_rejection"]);
+        },
+    );
 }
 
 for (const [scenario, stage, name, present] of [

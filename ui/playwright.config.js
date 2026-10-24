@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = process.env.PLAYWRIGHT_PORT ?? "5173";
+const port = process.env.PLAYWRIGHT_PORT ?? "5193";
 const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
@@ -18,11 +18,10 @@ export default defineConfig({
         video: "retain-on-failure",
     },
     webServer: {
-        command: process.env.CI
-            ? `vite preview --host 127.0.0.1 --port ${port}`
-            : `vite --host 127.0.0.1 --port ${port}`,
+        command: `vite --host 127.0.0.1 --port ${port} --strictPort`,
+        env: { VITE_SENTRY_DSN: "" },
         cwd: ".",
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: false,
         timeout: 120000,
         url: baseURL,
     },
