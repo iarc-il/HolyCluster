@@ -333,7 +333,7 @@ describe("WebSocket transport", () => {
     });
 
     it.each(["unified", "legacy"])("reports versions only on %s spots at send time", candidate => {
-        vi.stubEnv("VITE_SENTRY_RELEASE", "holy-ui@abc123");
+        vi.stubEnv("VITE_UI_VERSION", "v1.2.3");
         const view = render_provider();
         const path = candidate === "unified" ? "/ws" : "/submit_spot";
         const connection = websocket_mock.connection_for(path);
@@ -355,7 +355,7 @@ describe("WebSocket transport", () => {
             version: 1,
             type: "spots",
             ...request,
-            ui_version: "holy-ui@abc123",
+            ui_version: "v1.2.3",
             catserver_version,
         });
         expect(send("spots", request)).toBe(true);

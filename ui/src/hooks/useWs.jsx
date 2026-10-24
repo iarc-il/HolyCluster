@@ -294,7 +294,7 @@ export function WsProvider({ children }) {
         if (type !== "spots") return data;
         return {
             ...data,
-            ui_version: import.meta.env.VITE_SENTRY_RELEASE ?? null,
+            ui_version: import.meta.env.VITE_UI_VERSION ?? null,
             catserver_version: catserver_version_ref.current,
         };
     }, []);
