@@ -970,6 +970,324 @@
         "w": 24,
         "h": 8
       }
+    },
+    {
+      "id": 16,
+      "type": "text",
+      "title": "Client version metrics",
+      "gridPos": {
+        "x": 0,
+        "y": 67,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Counts are **open spot subscriptions after a spot request**, not unique people. One person can have several subscriptions. Current panels use instant queries at the selected range end, not historical last values. UI `development` means no release; CATServer `none` means **direct web**. `not_reported` means a missing field (legacy clients); `invalid` means a rejected value; `other` groups pairs beyond the API label limit. Zero means an observed series has no active subscriptions. Missing series remain **No data**; check scrape health. Report rates count first or changed version pairs per subscription, not users, sessions or downloads. Unchanged repeat requests do not add reports."
+      }
+    },
+    {
+      "id": 17,
+      "type": "bargauge",
+      "title": "Current active subscribers by UI version",
+      "description": "Sum of open spot subscriptions by UI version across API instances. Includes development, not_reported, invalid and other. Zero-valued series are retained.",
+      "gridPos": {
+        "x": 0,
+        "y": 71,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (ui_version) (holycluster_api_client_version_active)",
+          "legendFormat": "{{ui_version}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": "bargauge",
+      "title": "Current active subscribers by CATServer version (none = direct web)",
+      "description": "Sum of open spot subscriptions by CATServer version across API instances. none means direct web, not an unknown version. not_reported, invalid and other remain separate. Zero-valued series are retained.",
+      "gridPos": {
+        "x": 12,
+        "y": 71,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catserver_version) (holycluster_api_client_version_active)",
+          "legendFormat": "{{catserver_version}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        }
+      }
+    },
+    {
+      "id": 19,
+      "type": "table",
+      "title": "Current UI / CATServer version combinations",
+      "description": "Open spot subscriptions summed across API instances. CATServer none means direct web. Retained zero rows are observed pairs with no active subscriptions, not missing data.",
+      "gridPos": {
+        "x": 0,
+        "y": 80,
+        "w": 16,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (ui_version, catserver_version) (holycluster_api_client_version_active)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "ui_version": 0,
+              "catserver_version": 1,
+              "Value": 2
+            },
+            "renameByName": {
+              "ui_version": "UI version",
+              "catserver_version": "CATServer version (none = direct web)",
+              "Value": "Active subscriptions"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Active subscriptions"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "min",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Active subscriptions",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 20,
+      "type": "stat",
+      "title": "Active subscribers with a missing version field",
+      "description": "Open spot subscriptions with UI or CATServer not_reported (legacy or partial reports). Each subscription is counted once, even if both fields are missing. Not unique people. Zero is shown only when the active gauge exists; no gauge data stays No data. invalid and other are not missing fields.",
+      "gridPos": {
+        "x": 16,
+        "y": 80,
+        "w": 8,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(holycluster_api_client_version_active{ui_version=\"not_reported\"} or holycluster_api_client_version_active{catserver_version=\"not_reported\"}) or (0 * sum(holycluster_api_client_version_active))",
+          "legendFormat": "Missing UI or CATServer version",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "noValue": "No data",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "New or changed client version reports per second",
+      "description": "First or changed version pairs per spot subscription, grouped by the reported pair. Not users, sessions or downloads. Reconnects can add reports; unchanged repeat requests do not. Rates need at least two scrapes. Zero means no report changes in an observed series; missing series stay No data. CATServer none means direct web.",
+      "gridPos": {
+        "x": 0,
+        "y": 89,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (ui_version, catserver_version) (rate(holycluster_api_client_version_reports_total[$__rate_interval]))",
+          "legendFormat": "UI {{ui_version}} / CAT {{catserver_version}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
     }
   ]
 }
