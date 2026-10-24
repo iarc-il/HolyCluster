@@ -158,6 +158,38 @@ describe("CAT Control updates", () => {
         expect(fetch).toHaveBeenNthCalledWith(2, "/api/update/check", expect.any(Object));
     });
 
+    it("shows a development note for internal CAT versions", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi
+                .fn()
+                .mockResolvedValue(
+                    response({ state: "available", available_version: "1.3.2-116-gd916a27c" }),
+                ),
+        );
+
+        render_updates();
+
+        const dialog = await screen.findByRole("dialog");
+        expect(within(dialog).getByText("Development build")).not.toBeNull();
+        expect(
+            within(dialog).getByText(/Release notes are available only for public releases/),
+        ).not.toBeNull();
+    });
+
+    it("keeps the update prompt compact when release notes are empty", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue(response({ state: "available", available_version: "1.3.3" })),
+        );
+
+        render_updates();
+
+        const dialog = await screen.findByRole("dialog");
+        expect(within(dialog).getByText("Version 1.3.3 is ready to install.")).not.toBeNull();
+        expect(within(dialog).queryByText("What's new")).toBeNull();
+    });
+
     it("shares available and deferred state between the badge and consent dialog", async () => {
         const fetch = vi
             .fn()

@@ -4,6 +4,22 @@ import Modal from "@/components/ui/Modal.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
 
+const CAT_RELEASE_NOTES = {
+    "1.3.3": [],
+};
+
+const INTERNAL_RELEASE_NOTES = ["Release notes are available only for public releases."];
+
+function release_notes_for(version) {
+    if (Object.hasOwn(CAT_RELEASE_NOTES, version)) {
+        return { heading: "What's new", notes: CAT_RELEASE_NOTES[version] };
+    }
+    if (/^\d+\.\d+\.\d+-\d+(?:-g[0-9a-f]+)?$/i.test(version ?? "")) {
+        return { heading: "Development build", notes: INTERNAL_RELEASE_NOTES };
+    }
+    return { heading: null, notes: [] };
+}
+
 export function UpdateConsentDialog() {
     const {
         consent_required: is_available,
@@ -18,6 +34,7 @@ export function UpdateConsentDialog() {
         dismiss,
         close_dialog,
     } = useUpdate();
+    const release_notes = release_notes_for(remote_version);
 
     return (
         <Modal
@@ -59,16 +76,32 @@ export function UpdateConsentDialog() {
                     </Button>
                 ) : null
             }
-            modal_style={{ width: "24rem", maxWidth: "calc(100vw - 2rem)" }}
+            modal_style={{ width: "32rem", maxWidth: "calc(100vw - 2rem)" }}
         >
             {session ? (
                 <UpdateProgress />
             ) : (
-                <p className="p-4 text-sm">
-                    {is_available
-                        ? `Version ${remote_version ?? ""} is ready to install.`
-                        : (message_for(status, error) ?? "Checking for CAT Control updates…")}
-                </p>
+                <div className="max-h-[60vh] overflow-y-auto p-4 text-sm">
+                    <p>
+                        {is_available
+                            ? `Version ${remote_version ?? ""} is ready to install.`
+                            : (message_for(status, error) ?? "Checking for CAT Control updates…")}
+                    </p>
+                    {is_available && release_notes.notes.length > 0 && (
+                        <section className="mt-4">
+                            <h3 className="font-semibold">{release_notes.heading}</h3>
+                            <ul className="mt-2 list-disc space-y-2 pl-5">
+                                {release_notes.notes.map((note, index) => {
+                                    const key =
+                                        typeof note === "string"
+                                            ? note
+                                            : `cat-release-${remote_version}-${index}`;
+                                    return <li key={key}>{note}</li>;
+                                })}
+                            </ul>
+                        </section>
+                    )}
+                </div>
             )}
         </Modal>
     );
