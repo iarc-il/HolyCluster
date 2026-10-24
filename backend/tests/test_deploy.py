@@ -175,7 +175,13 @@ class DeployTests(unittest.TestCase):
     def rerun_deploy(self, root, **overrides):
         env = {**self.last_env, **overrides}
         return subprocess.run(
-            ["bash", "deploy.sh", "release-tag"], cwd=root, env=env, text=True, capture_output=True, timeout=10, check=False
+            ["bash", "deploy.sh", "release-tag"],
+            cwd=root,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=False,
         )
 
     def assert_all_waited(self, root, services=BACKGROUND_SERVICES):
@@ -449,9 +455,7 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("No new commits. Nothing to deploy.", result.stdout)
         self.assertEqual((root / ".env").read_text(), INITIAL_ENV)
-        self.assertEqual(
-            (root / "docker.log").read_text().splitlines()[0], "compose ps --all --quiet grafana"
-        )
+        self.assertEqual((root / "docker.log").read_text().splitlines()[0], "compose ps --all --quiet grafana")
         self.assertFalse(list(root.glob("start-*")))
 
 
