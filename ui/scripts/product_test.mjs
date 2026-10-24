@@ -6,6 +6,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
+import { startProductBrowserBridge } from "./product_browser_bridge.mjs";
 
 export function candidateRelease({ version, platform, architecture, name, bytes }) {
     for (const value of [version, platform, architecture, name]) {
@@ -184,9 +185,19 @@ export async function withProductTest(options, run) {
         XDG_STATE_HOME: directories.state,
     };
     let backend;
+    let browserBridge;
     try {
         backend = await startProductBackend(options);
-        const result = await run({ directories, env, backend });
+        if (options.browserBridge) {
+            browserBridge = await startProductBrowserBridge({ directories, env });
+        }
+        const result = await run({
+            directories,
+            env: browserBridge?.env || env,
+            backend,
+            browserBridge,
+        });
+        await browserBridge?.close();
         await backend.close();
         backend = undefined;
         await rm(root, { recursive: true, force: true });
@@ -194,6 +205,14 @@ export async function withProductTest(options, run) {
     } catch (cause) {
         const error = cause instanceof Error ? cause : new Error(String(cause));
         const evidence = backend?.evidence() || { requests: [], droppedRequests: 0 };
+        if (browserBridge) {
+            try {
+                await browserBridge.close();
+            } catch (closeError) {
+                evidence.browserCloseError = String(closeError).slice(0, 2048);
+            }
+            evidence.browser = browserBridge.evidence();
+        }
         if (backend) {
             try {
                 await backend.close();
