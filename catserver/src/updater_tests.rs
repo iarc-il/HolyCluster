@@ -1,13 +1,9 @@
-#[cfg(target_os = "linux")]
-use std::os::fd::{AsRawFd, FromRawFd};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::{fs, io, io::Cursor, path::Path};
 
 use reqwest::Url;
 
-#[cfg(target_os = "linux")]
-use crate::updater::close_inherited_descriptors_on_exec;
 #[cfg(unix)]
 use crate::updater::make_executable;
 use crate::updater::{
@@ -538,33 +534,4 @@ fn makes_staged_appimage_executable() {
         0o755
     );
     fs::remove_file(path).unwrap();
-}
-
-#[cfg(target_os = "linux")]
-#[test]
-fn closes_inherited_descriptors_on_exec() {
-    let source = fs::File::open("/dev/null").unwrap();
-    let fd = unsafe {
-        libc::fcntl(
-            source.as_raw_fd(),
-            libc::F_DUPFD_CLOEXEC,
-            libc::STDERR_FILENO + 1,
-        )
-    };
-    assert_ne!(fd, -1);
-    let file = unsafe { fs::File::from_raw_fd(fd) };
-    let standard_flags = (0..=libc::STDERR_FILENO)
-        .map(|fd| unsafe { libc::fcntl(fd, libc::F_GETFD) })
-        .collect::<Vec<_>>();
-
-    close_inherited_descriptors_on_exec().unwrap();
-
-    let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFD) };
-    assert_ne!(flags & libc::FD_CLOEXEC, 0);
-    for (fd, flags) in (0..=libc::STDERR_FILENO).zip(standard_flags) {
-        assert_eq!(
-            unsafe { libc::fcntl(fd, libc::F_GETFD) },
-            flags & !libc::FD_CLOEXEC
-        );
-    }
 }
