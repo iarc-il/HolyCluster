@@ -82,7 +82,7 @@ groups:
           type: prometheus
           uid: victoriametrics
         editorMode: code
-        expr: (max by (job, instance) (holycluster_collector_source_up{source!="sota"}) == bool 0) and on (job, instance) (up{job="collector"}
+        expr: (max by (job, instance) (holycluster_collector_source_up{source!~"sota|telnet"}) == bool 0) and on (job, instance) (up{job="collector"}
           == 1)
         instant: true
         range: false
@@ -143,7 +143,7 @@ groups:
           type: prometheus
           uid: victoriametrics
         editorMode: code
-        expr: (holycluster_collector_source_up{source!="sota"} == bool 0) and on (job, instance) (up{job="collector"} == 1)
+        expr: (holycluster_collector_source_up{source!~"sota|telnet"} == bool 0) and on (job, instance) (up{job="collector"} == 1)
         instant: true
         range: false
         intervalMs: 30000
