@@ -1,6 +1,7 @@
 import { annotateDiagnosticError, prepareSentryEvent, recordBoundaryDiagnostics } from "@/sentry";
+import { toError } from "@/utils/errors.js";
 import * as Sentry from "@sentry/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const global_mechanism = "auto.browser.global_handlers.onerror";
 const boundary_mechanism = "auto.function.react.error_boundary";
@@ -104,6 +105,135 @@ describe("runtime bridge advisory", () => {
                 "browser_runtime_bridge_candidate",
             );
             expect(result.exception.values).toHaveLength(input.exception.values.length);
+        }
+    });
+});
+
+describe("primitive Firefox Windows global OOM", () => {
+    const firefox_windows =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Gecko/20100101 Firefox/147.0";
+    const input = () => {
+        const result = event("out of memory", [app]);
+        result.exception.values[0].mechanism.synthetic = true;
+        return result;
+    };
+    const hint = { originalException: "out of memory" };
+    afterEach(() => vi.restoreAllMocks());
+    const ua = value => vi.spyOn(navigator, "userAgent", "get").mockReturnValue(value);
+    it("drops only the exact primitive global signal, including synthetic app frames", () => {
+        ua(firefox_windows);
+        expect(prepareSentryEvent(input(), hint)).toBeNull();
+        const stackless = input();
+        stackless.exception.values[0].stacktrace.frames = [];
+        expect(prepareSentryEvent(stackless, hint)).toBeNull();
+    });
+    it("retains case, punctuation, whitespace and other OOM variants", () => {
+        ua(firefox_windows);
+        for (const value of [
+            "Out of memory",
+            "out of memory.",
+            " out of memory",
+            "out of memory ",
+            "out of memory\n",
+            "Out of memory error",
+            "Allocation failed - JavaScript heap out of memory",
+        ]) {
+            const variant = input();
+            variant.exception.values[0].value = value;
+            expect(prepareSentryEvent(variant, { originalException: value })).not.toBeNull();
+            expect(prepareSentryEvent(variant, hint)).not.toBeNull();
+            expect(prepareSentryEvent(input(), { originalException: value })).not.toBeNull();
+        }
+    });
+    it("retains Error objects, normalized strings, explicit capture and rejection", () => {
+        ua(firefox_windows);
+        for (const originalException of [
+            new Error("out of memory"),
+            toError("out of memory"),
+            { message: "out of memory" },
+            undefined,
+        ])
+            expect(prepareSentryEvent(input(), { originalException })).not.toBeNull();
+        expect(prepareSentryEvent(input())).not.toBeNull();
+        for (const type of [
+            "generic",
+            "auto.browser.global_handlers.onunhandledrejection",
+            boundary_mechanism,
+        ]) {
+            const variant = input();
+            variant.exception.values[0].mechanism.type = type;
+            expect(prepareSentryEvent(variant, hint)).not.toBeNull();
+        }
+        for (const change of [
+            { handled: true },
+            { synthetic: false },
+            { synthetic: undefined },
+            { handled: undefined },
+        ]) {
+            const variant = input();
+            Object.assign(variant.exception.values[0].mechanism, change);
+            expect(prepareSentryEvent(variant, hint)).not.toBeNull();
+        }
+    });
+    it("retains contradictory messages, boundary, cause and app operation evidence", () => {
+        ua(firefox_windows);
+        const variants = [
+            { ...input(), message: "app failure" },
+            ...[
+                { boundary: true },
+                { operation: "react_boundary" },
+                { operation: "websocket_message" },
+                { original_stack: "present" },
+                { javascript_stack_origin: "original" },
+                { original_frames: [app] },
+                { component_stack: "present" },
+                { original_kind: "error" },
+                { original_value: "different" },
+            ].map(diagnostic => ({ ...input(), contexts: { diagnostic } })),
+        ];
+        const cause = input();
+        cause.exception.values.unshift({ type: "Error", value: "app cause" });
+        variants.push(cause);
+        for (const variant of variants) expect(prepareSentryEvent(variant, hint)).not.toBeNull();
+        const annotated = annotateDiagnosticError("out of memory", { operation: "app_operation" });
+        expect(prepareSentryEvent(input(), { originalException: annotated })).not.toBeNull();
+    });
+    it("retains contradictory client browser and OS contexts", () => {
+        ua(firefox_windows);
+        for (const contexts of [
+            { browser: { name: "Chrome" } },
+            { os: { name: "Linux" } },
+            { device: { type: "mobile" } },
+            { device: { type: "tablet" } },
+        ]) {
+            expect(prepareSentryEvent({ ...input(), contexts }, hint)).not.toBeNull();
+        }
+    });
+    it("requires desktop Firefox on Windows from client evidence", () => {
+        for (const value of [
+            firefox_windows.replace("Windows NT 10.0; Win64; x64", "X11; Linux x86_64"),
+            firefox_windows.replace(
+                "Windows NT 10.0; Win64; x64",
+                "Macintosh; Intel Mac OS X 10.15",
+            ),
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/145.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Android 14; Mobile; rv:147.0) Gecko/147.0 Firefox/147.0",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 FxiOS/147.0 Mobile/15E148 Safari/605.1.15",
+            `${firefox_windows} Mobile`,
+            "",
+        ]) {
+            ua(value);
+            expect(prepareSentryEvent(input(), hint)).not.toBeNull();
+            expect(
+                prepareSentryEvent(
+                    {
+                        ...input(),
+                        contexts: { browser: { name: "Firefox" }, os: { name: "Windows" } },
+                    },
+                    hint,
+                ),
+            ).not.toBeNull();
+            vi.restoreAllMocks();
         }
     });
 });

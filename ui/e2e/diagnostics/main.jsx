@@ -2,6 +2,7 @@ import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 import { WsProvider, useWsMessage } from "@/hooks/useWs";
 import { initializeSentry } from "@/sentry";
 import { create_interval_db } from "@/utils/interval_cache.js";
+import { flush } from "@sentry/react";
 import React from "react";
 import { createRoot } from "react-dom/client";
 
@@ -74,6 +75,23 @@ window.run_diagnostic = async scenario => {
         const error = new TypeError("Cannot read properties of undefined (reading 'secret')");
         error.stack = undefined;
         Promise.reject(error);
+    } else if (scenario === "global_oom") {
+        window.dispatchEvent(
+            new ErrorEvent("error", {
+                message: "out of memory",
+                error: "out of memory",
+                filename: `${location.origin}/assets/synthetic.js`,
+                lineno: 1,
+            }),
+        );
+        await flush(3000);
+        window.dispatchEvent(
+            new ErrorEvent("error", {
+                message: "out of memory",
+                error: new Error("out of memory"),
+            }),
+        );
+        await flush(3000);
     } else if (scenario === "cache_abort") {
         const cache = await import("@/utils/propagation_cache_db.jsx");
         const handlers = new Set();

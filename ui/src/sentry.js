@@ -317,6 +317,44 @@ function isRuntimeBridgeCandidate(
     );
 }
 
+function isPrimitiveFirefoxGlobalOom(event, original, evidence, boundary) {
+    const values = event.exception?.values ?? [];
+    const primary = values[0];
+    if (
+        original !== "out of memory" ||
+        values.length !== 1 ||
+        primary.value !== "out of memory" ||
+        (event.message !== undefined && event.message !== "out of memory") ||
+        primary.mechanism?.type !== "auto.browser.global_handlers.onerror" ||
+        primary.mechanism.handled !== false ||
+        primary.mechanism.synthetic !== true ||
+        boundary ||
+        evidence.operation ||
+        evidence.component_stack === "present" ||
+        evidence.original_stack === "present" ||
+        evidence.javascript_stack_origin === "original" ||
+        evidence.original_frames?.length ||
+        (evidence.original_kind !== undefined && evidence.original_kind !== "string") ||
+        (evidence.original_value !== undefined && evidence.original_value !== "out of memory")
+    )
+        return false;
+    const ua =
+        event.request?.headers?.["User-Agent"] ??
+        event.request?.headers?.["user-agent"] ??
+        globalThis.navigator?.userAgent ??
+        "";
+    // The global handler can attach app frames to a primitive without an original stack.
+    return (
+        /Windows NT [\d.]+/.test(ua) &&
+        /Gecko\/\d+/.test(ua) &&
+        /Firefox\/[\d.]+/.test(ua) &&
+        !/Mobile|Android|FxiOS|Edg\/|OPR\/|SeaMonkey\//.test(ua) &&
+        (!event.contexts?.browser?.name || event.contexts.browser.name === "Firefox") &&
+        (!event.contexts?.os?.name || event.contexts.os.name === "Windows") &&
+        !["mobile", "tablet"].includes(event.contexts?.device?.type)
+    );
+}
+
 export function prepareSentryEvent(event, hint = {}) {
     const prepared_event = { ...event };
     let exception = event.exception;
@@ -337,6 +375,7 @@ export function prepareSentryEvent(event, hint = {}) {
         evidence.operation === "react_boundary" ||
         mechanisms.includes("auto.function.react.error_boundary") ||
         exception?.values?.some(value => value.type?.startsWith("React ErrorBoundary "));
+    if (isPrimitiveFirefoxGlobalOom(event, original, evidence, boundary)) return null;
     const has_original = Object.hasOwn(hint, "originalException");
     const needs_synthetic_stack =
         has_original &&
