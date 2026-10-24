@@ -89,6 +89,8 @@ while IFS= read -r file; do
             add_service nginx
             add_service postgres
             add_service valkey
+            add_service victoriametrics
+            add_service grafana
             run_migrations
             ;;
         shared/*)
@@ -117,6 +119,12 @@ while IFS= read -r file; do
             ;;
         infra/nginx/*)
             add_service nginx
+            ;;
+        infra/monitoring/victoriametrics/*)
+            add_service victoriametrics
+            ;;
+        infra/monitoring/grafana/*)
+            add_service grafana
             ;;
         infra/postgres/*)
             add_service postgres
@@ -167,7 +175,12 @@ for svc in $SERVICE_LIST; do
     if [ "$svc" = "nginx" ] || [ "$svc" = "migrate" ]; then
         continue
     fi
-    docker compose up -d --no-deps "$svc" &
+    # Bind-mounted scrape and provisioning files are read at startup.
+    RECREATE_ARGS=()
+    if [ "$svc" = "victoriametrics" ] || [ "$svc" = "grafana" ]; then
+        RECREATE_ARGS+=(--force-recreate)
+    fi
+    docker compose up -d --no-deps "${RECREATE_ARGS[@]}" "$svc" &
     START_PIDS+=("$!")
     START_SERVICES+=("$svc")
 done

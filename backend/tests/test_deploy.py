@@ -8,7 +8,7 @@ from pathlib import Path
 
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy.sh"
 INITIAL_ENV = "DUMMY_SETTING=test\nSENTRY_RELEASE=oldhead\n"
-BACKGROUND_SERVICES = {"api", "collector", "postgres", "valkey"}
+BACKGROUND_SERVICES = {"api", "collector", "postgres", "valkey", "victoriametrics", "grafana"}
 
 GIT_STUB = """#!/usr/bin/env bash
 set -eu
@@ -164,7 +164,7 @@ class DeployTests(unittest.TestCase):
         root, result = self.run_deploy(FAIL_SERVICES="api,collector,postgres,valkey")
         self.assertEqual(result.returncode, 37, result.stderr)
         self.assert_all_waited(root)
-        for service in BACKGROUND_SERVICES:
+        for service in {"api", "collector", "postgres", "valkey"}:
             self.assertIn(f"Failed to start {service} (exit 37).", result.stderr)
         self.assertNotIn("Deploy complete.", result.stdout)
 
@@ -189,6 +189,23 @@ class DeployTests(unittest.TestCase):
         self.assert_all_waited(root, set())
         self.assertFalse((root / "wait.log").exists())
         self.assertTrue((root / "start-nginx").exists())
+
+    def test_monitoring_changes_select_services_without_migrations(self):
+        for path, services in (
+            ("infra/monitoring/victoriametrics/scrape.yml", {"victoriametrics"}),
+            ("infra/monitoring/grafana/provisioning/datasources/default.yml", {"grafana"}),
+            ("infra/monitoring/grafana/provisioning/dashboards/default.yml", {"grafana"}),
+            ("infra/monitoring/grafana/dashboards/overview.json", {"grafana"}),
+        ):
+            with self.subTest(path=path):
+                root, result = self.run_deploy(CHANGED_FILES=path)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assert_all_waited(root, services)
+                calls = (root / "docker.log").read_text().splitlines()
+                self.assertFalse(any("--exit-code-from migrate" in call for call in calls))
+                self.assertFalse((root / "start-nginx").exists())
+                for service in services:
+                    self.assertIn(f"compose up -d --no-deps --force-recreate {service}", calls)
 
     def assert_no_removals_or_builds(self, root):
         calls = (root / "docker.log").read_text().splitlines()
