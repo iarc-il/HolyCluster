@@ -228,7 +228,10 @@ export function UpdateProvider({ children }) {
             if (
                 dismissed_sessions_ref.current.has(incoming.id) ||
                 terminal_session(current) ||
-                (current?.id && current.id !== incoming.id)
+                (current?.id && current.id !== incoming.id) ||
+                (current?.started &&
+                    !current.id &&
+                    current.expected_version !== incoming.expected_version)
             )
                 return;
             const next = {

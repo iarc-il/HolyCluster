@@ -405,3 +405,109 @@ it("aborts an outstanding progress request on unmount without starting another r
     expect(signal.aborted).toBe(true);
     expect(fetch.mock.calls.filter(([path]) => path === "/api/update")).toHaveLength(1);
 });
+
+it("rejects a foreign target when a legacy install has no transaction identity", async () => {
+    let installing = false;
+    vi.stubGlobal(
+        "fetch",
+        vi.fn(path => {
+            if (path.endsWith("/install")) {
+                installing = true;
+                return Promise.resolve(
+                    response({ state: "installing", available_version: "1.3.4" }, 202),
+                );
+            }
+            if (path === "/api/ready")
+                return Promise.resolve(
+                    response({
+                        update_id: "foreign",
+                        version: "9.0.0",
+                        verified: true,
+                    }),
+                );
+            return Promise.resolve(
+                response(
+                    installing
+                        ? {
+                              state: "installed",
+                              session: {
+                                  id: "foreign",
+                                  expected_version: "9.0.0",
+                                  phase: "updated",
+                                  installer_outcome: "installed",
+                              },
+                          }
+                        : { state: "available", available_version: "1.3.4" },
+                ),
+            );
+        }),
+    );
+    render(<Page />);
+    await waitFor(() => expect(update.status).toBe("available"));
+    await act(async () => {
+        await update.install();
+    });
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    expect(update.status).toBe("installing");
+    expect(update.remote_version).toBe("1.3.4");
+});
+
+it("completes a legacy 1.3.3 install only after the recovered session matches readiness", async () => {
+    let installing = false;
+    let recovered = false;
+    let verified = false;
+    const session = {
+        id: "recovered-owned-install",
+        expected_version: "1.3.4",
+        phase: "updated",
+        installer_outcome: "installed",
+    };
+    const fetch = vi.fn(path => {
+        if (path.endsWith("/install")) {
+            installing = true;
+            return Promise.resolve(
+                response({ state: "installing", available_version: "1.3.4", session: null }, 202),
+            );
+        }
+        if (path === "/api/ready")
+            return Promise.resolve(
+                response({
+                    version: "1.3.4",
+                    update_id: session.id,
+                    verified,
+                }),
+            );
+        return Promise.resolve(
+            response(
+                installing
+                    ? {
+                          state: "idle",
+                          session: recovered ? session : null,
+                      }
+                    : { state: "available", available_version: "1.3.4" },
+            ),
+        );
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<Page />);
+    await waitFor(() => expect(update.status).toBe("available"));
+    await act(async () => {
+        await update.install();
+    });
+    await waitFor(() =>
+        expect(fetch.mock.calls.filter(([path]) => path === "/api/update").length).toBeGreaterThan(
+            1,
+        ),
+    );
+    expect(update.status).toBe("installing");
+    recovered = true;
+    await waitFor(
+        () => expect(fetch.mock.calls.some(([path]) => path === "/api/ready")).toBe(true),
+        { timeout: 3000 },
+    );
+    expect(update.status).not.toBe("updated");
+    verified = true;
+    await waitFor(() => expect(update.status).toBe("updated"), { timeout: 3000 });
+    expect(update.local_version).toBe("1.3.4");
+    expect(screen.getByLabelText("Retained filter").value).toBe("20m");
+});
