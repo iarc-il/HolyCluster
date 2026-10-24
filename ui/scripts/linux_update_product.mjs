@@ -13,6 +13,43 @@ export const PRODUCT_PORT = 41234;
 const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
+export function boundedOutput(maxBytes = 1024 * 1024) {
+    assert(Number.isSafeInteger(maxBytes) && maxBytes >= 2);
+    const headLimit = Math.floor(maxBytes / 2);
+    const tailLimit = maxBytes - headLimit;
+    let head = Buffer.alloc(0);
+    let tail = Buffer.alloc(0);
+    let totalBytes = 0;
+    const stats = () => ({
+        totalBytes,
+        retainedBytes: head.length + tail.length,
+        droppedBytes: totalBytes - head.length - tail.length,
+    });
+    return {
+        append(chunk) {
+            totalBytes += chunk.length;
+            const headBytes = Math.min(headLimit - head.length, chunk.length);
+            head = Buffer.concat([head, chunk.subarray(0, headBytes)]);
+            const remaining = chunk.subarray(headBytes);
+            if (remaining.length)
+                tail = Buffer.from(
+                    Buffer.concat([tail, remaining.subarray(-tailLimit)]).subarray(-tailLimit),
+                );
+        },
+        stats,
+        bytes() {
+            const { droppedBytes } = stats();
+            return Buffer.concat([
+                head,
+                ...(droppedBytes
+                    ? [Buffer.from(`\n[${droppedBytes} output bytes omitted]\n`)]
+                    : []),
+                tail,
+            ]);
+        },
+    };
+}
+
 export function readyVersion(version) {
     return version.replace(/^catserver-v/, "").replace(/-g[0-9a-f]+$/, "");
 }
@@ -402,10 +439,10 @@ export async function runLinuxUpdate({
                         stdio: ["ignore", "pipe", "pipe"],
                     },
                 );
-                const stdout = [];
-                const stderr = [];
-                child.stdout.on("data", chunk => stdout.push(chunk));
-                child.stderr.on("data", chunk => stderr.push(chunk));
+                const stdout = boundedOutput();
+                const stderr = boundedOutput();
+                child.stdout.on("data", chunk => stdout.append(chunk));
+                child.stderr.on("data", chunk => stderr.append(chunk));
                 child.on("error", error => record("process-error", { error: String(error) }));
                 child.on("exit", (code, signal) =>
                     evidence.timeline.push({
@@ -735,8 +772,8 @@ export async function runLinuxUpdate({
                         stdio: ["ignore", "pipe", "pipe"],
                     },
                 );
-                restarted.stdout.on("data", chunk => stdout.push(chunk));
-                restarted.stderr.on("data", chunk => stderr.push(chunk));
+                restarted.stdout.on("data", chunk => stdout.append(chunk));
+                restarted.stderr.on("data", chunk => stderr.append(chunk));
                 restarted.on("error", error => record("process-error", { error: String(error) }));
                 evidence.normalStart = { pid: restarted.pid, active, dummyOverrides: false };
                 page = await newPage;
@@ -783,8 +820,12 @@ export async function runLinuxUpdate({
                     await Promise.allSettled([...responses]);
                     const output = evidence.output;
                     evidence.output = undefined;
-                    await save("stdout.log", Buffer.concat(output?.stdout || []));
-                    await save("stderr.log", Buffer.concat(output?.stderr || []));
+                    evidence.outputStatistics = {
+                        stdout: output?.stdout.stats(),
+                        stderr: output?.stderr.stats(),
+                    };
+                    await save("stdout.log", output?.stdout.bytes() || Buffer.alloc(0));
+                    await save("stderr.log", output?.stderr.bytes() || Buffer.alloc(0));
                     await save("update-evidence.json", JSON.stringify(evidence, null, 2));
                 } finally {
                     // The token survives updater exec; PID identity is checked again before each signal.

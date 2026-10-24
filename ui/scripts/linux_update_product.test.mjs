@@ -6,9 +6,40 @@ import {
     assertConfiguration,
     assertNormalRelaunch,
     assertSinglePage,
+    boundedOutput,
     listeningInodes,
     readyVersion,
 } from "./linux_update_product.mjs";
+
+test("retain complete output within the byte limit", () => {
+    const output = boundedOutput(10);
+    output.append(Buffer.from("abc"));
+    output.append(Buffer.from("defghij"));
+    assert.equal(output.bytes().toString(), "abcdefghij");
+    assert.deepEqual(output.stats(), { totalBytes: 10, retainedBytes: 10, droppedBytes: 0 });
+});
+
+test("bound repeated output and retain startup and final diagnostics", () => {
+    const output = boundedOutput(10);
+    output.append(Buffer.from("start"));
+    for (let index = 0; index < 1000; index++) output.append(Buffer.alloc(100, 120));
+    output.append(Buffer.from("error"));
+    assert.equal(output.bytes().toString(), "start\n[100000 output bytes omitted]\nerror");
+    assert.deepEqual(output.stats(), {
+        totalBytes: 100010,
+        retainedBytes: 10,
+        droppedBytes: 100000,
+    });
+});
+
+test("copy retained output from oversized chunks", () => {
+    const output = boundedOutput(10);
+    const chunk = Buffer.from("first0123456789last!");
+    output.append(chunk);
+    chunk.fill(0);
+    assert.equal(output.bytes().toString(), "first\n[10 output bytes omitted]\nlast!");
+    assert.throws(() => boundedOutput(1));
+});
 
 test("match listening sockets, not established connections or other ports", () => {
     const table = `  sl  local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode
