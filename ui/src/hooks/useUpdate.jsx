@@ -399,7 +399,8 @@ export function UpdateProvider({ children }) {
                 return null;
             const generation = ++request_generation_ref.current;
             const is_install = path.endsWith("/install");
-            if (is_install)
+            if (is_install) {
+                set_dialog_open(true);
                 set_session({
                     started: Date.now(),
                     id: null,
@@ -407,7 +408,7 @@ export function UpdateProvider({ children }) {
                     phase: "requested",
                     accepted: false,
                 });
-            else {
+            } else {
                 if (session_ref.current?.id)
                     dismissed_sessions_ref.current.add(session_ref.current.id);
                 set_session(null);

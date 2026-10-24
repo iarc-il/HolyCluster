@@ -240,6 +240,31 @@ describe("CAT Control updates", () => {
         },
     );
 
+    it("keeps automatic consent visible when the download is rejected", async () => {
+        const diagnostic = "artifact SHA-256 does not match manifest";
+        const fetch = vi.fn(async url =>
+            url === "/api/update/install"
+                ? response({ state: "failed", diagnostic, session: null }, false)
+                : response({ state: "available", available_version: "1.3.1", session: null }),
+        );
+        vi.stubGlobal("fetch", fetch);
+        render(
+            <UpdateProvider>
+                <UpdateConsentDialog />
+            </UpdateProvider>,
+        );
+        const consent = await screen.findByRole("dialog");
+        await userEvent.click(within(consent).getByRole("button", { name: "Update", exact: true }));
+        await waitFor(() =>
+            expect(fetch).toHaveBeenCalledWith("/api/update/install", expect.any(Object)),
+        );
+        const failure = await screen.findByRole("dialog");
+        expect(await within(failure).findByText(diagnostic)).not.toBeNull();
+        expect(within(failure).queryByRole("button", { name: "Update", exact: true })).toBeNull();
+        await userEvent.click(within(failure).getByRole("button", { name: "Close", exact: true }));
+        await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    });
+
     it("refreshes availability when the connected CAT version changes", async () => {
         const fetch = vi
             .fn()
