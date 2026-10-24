@@ -8,6 +8,7 @@ from loguru import logger
 from shared.logging import prune_rotated_logs
 
 from ..logging_setup import open_log_file
+from ..metrics import metrics, validate_telnet_source
 from ..settings import settings
 from .client import telnet_and_collect
 
@@ -19,6 +20,13 @@ def get_telnet_clusters_list(csv_path: str):
             filtered_lines = (line for line in f if not line.lstrip().startswith("#"))
             reader = csv.DictReader(filtered_lines)
             servers = list(reader)
+            names = set()
+            for server in servers:
+                name = server.get("name")
+                validate_telnet_source(name)
+                if name in names:
+                    raise ValueError("Duplicate Telnet source name")
+                names.add(name)
             logger.debug(f"{servers=}")
     except FileNotFoundError:
         logger.error(f"The file {csv_path} was not found.")
@@ -53,6 +61,8 @@ def run_concurrent_telnet_connections(output_queue: asyncio.Queue):
     logger.debug(f"{global_log_file=}")
 
     servers = get_telnet_clusters_list(csv_path)
+    for server in servers:
+        metrics.register_telnet_source(server["name"])
     active_log_paths = [global_log_file]
     active_log_paths.extend(
         os.path.join(telnet_log_dir, server["hostname"], "cluster.log") for server in servers if server.get("hostname")
@@ -78,6 +88,7 @@ def run_concurrent_telnet_connections(output_queue: asyncio.Queue):
                 settings.username_for_telnet_clusters,
                 cluster_log_dir,
                 output_queue,
+                source=server["name"],
             ),
             name=host,
         )

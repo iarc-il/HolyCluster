@@ -1,23 +1,28 @@
+import re
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Literal
 
 from aiohttp import web
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Gauge, Histogram, generate_latest
 
-Source = Literal["telnet", "pota", "sota", "wwff"]
-SOURCES = ("telnet", "pota", "sota", "wwff")
+JSON_SOURCES = ("pota", "sota", "wwff")
+TELNET_SOURCE_PATTERN = re.compile(r"[A-Z][A-Z0-9_-]{0,31}", re.ASCII)
+
+
+def validate_telnet_source(source: str):
+    if not isinstance(source, str) or TELNET_SOURCE_PATTERN.fullmatch(source) is None:
+        raise ValueError("Telnet source name must contain 1-32 uppercase ASCII letters, digits, underscores or hyphens")
 
 
 @dataclass(frozen=True)
 class SpotEnvelope:
-    source: Source
+    source: str
     spot: dict
 
     def __post_init__(self):
-        if self.source not in SOURCES:
-            raise ValueError("Unknown collector source")
+        if self.source not in JSON_SOURCES:
+            validate_telnet_source(self.source)
 
 
 class CollectorMetrics:
@@ -29,8 +34,14 @@ class CollectorMetrics:
             return kind(prefix + name, help_text, labels, registry=self.registry)
 
         self.source_up = metric(Gauge, "source_up", "Source connection or most recent JSON response health", ["source"])
-        for source in SOURCES:
+        for source in JSON_SOURCES:
             self.source_up.labels(source).set(0)
+        self.source_last_spot = metric(
+            Gauge,
+            "source_last_spot_timestamp_seconds",
+            "Last successfully parsed spot before deduplication",
+            ["source"],
+        )
         self.polls = metric(Counter, "polls_total", "JSON fetch outcomes", ["source", "result"])
         self.poll_success = metric(Gauge, "poll_last_success_timestamp_seconds", "Last decoded JSON list", ["source"])
         self.spots = metric(Counter, "spots_total", "Spot branch outcomes", ["source", "stage", "result"])
@@ -44,7 +55,7 @@ class CollectorMetrics:
             Gauge, "refresh_last_success_timestamp_seconds", "Last reference refresh", ["dataset"]
         )
         self.reconnects = metric(
-            Counter, "telnet_reconnect_attempts_total", "Connection attempts after initial attempt"
+            Counter, "telnet_reconnect_attempts_total", "Connection attempts after initial attempt", ["source"]
         )
         self.connections = 0
         self.outage_start = None
@@ -61,9 +72,14 @@ class CollectorMetrics:
     def start_telnet(self):
         self.outage_start = time.monotonic()
 
-    def connection(self, connected):
+    def register_telnet_source(self, source):
+        validate_telnet_source(source)
+        self.source_up.labels(source).set(0)
+        self.reconnects.labels(source)
+
+    def connection(self, source, connected):
         self.connections += 1 if connected else -1
-        self.source_up.labels("telnet").set(self.connections > 0)
+        self.source_up.labels(source).set(connected)
         if self.connections > 0 and self.outage_start is not None:
             self.outages.observe(time.monotonic() - self.outage_start)
             self.outage_start = None

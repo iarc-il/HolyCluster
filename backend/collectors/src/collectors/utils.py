@@ -7,7 +7,7 @@ import aiohttp
 from loguru import logger
 from shared.telemetry import capture_exception
 
-from collectors.metrics import SpotEnvelope, metrics
+from collectors.metrics import JSON_SOURCES, SpotEnvelope, metrics
 
 USER_AGENT = "HolyCluster collector (https://holycluster.iarc.org/)"
 MAX_RETRY_DELAY_SECONDS = 300
@@ -59,6 +59,8 @@ async def run_json_spot_collector(
     from collectors.db.valkey_config import get_valkey_client
     from collectors.settings import settings
 
+    if metric_name not in JSON_SOURCES:
+        raise ValueError("Unknown JSON collector source")
     logger.info(f"Starting {source_label} spot collector")
     valkey_client = get_valkey_client()
     timeout = aiohttp.ClientTimeout(total=request_timeout)
@@ -94,6 +96,7 @@ async def run_json_spot_collector(
                         logger.info(f"Dropping {source_label} spot due to parse error: {e}")
                         continue
 
+                    metrics.source_last_spot.labels(metric_name).set_to_current_time()
                     source_added = await valkey_client.set(source_spot_key, 1, ex=spot_expiration, nx=True)
                     if not source_added:
                         metrics.spots.labels(metric_name, "ingest", "duplicate").inc()

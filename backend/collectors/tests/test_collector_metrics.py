@@ -1,4 +1,5 @@
 import asyncio
+from io import StringIO
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -8,6 +9,7 @@ import redis.exceptions
 from aiohttp import web
 from collectors import main, utils
 from collectors.metrics import CollectorMetrics, SpotEnvelope, start_metrics_server
+from collectors.telnet import runner as telnet_runner
 from collectors.pota import get_pota_spot_key, parse_pota_spot
 from prometheus_client import generate_latest
 from sqlalchemy.exc import SQLAlchemyError
@@ -57,6 +59,7 @@ class MetricsTest(IsolatedAsyncioTestCase):
         await self.poll([[]])
         timestamp = self.value("poll_last_success_timestamp_seconds", source="pota")
         self.assertGreater(timestamp, 0)
+        self.assertIsNone(self.value("source_last_spot_timestamp_seconds", source="pota"))
         self.assertEqual(self.value("source_up", source="pota"), 1)
         with self.assertRaises(asyncio.CancelledError):
             await self.poll([utils.UpstreamResponseError("private-content")])
@@ -77,6 +80,7 @@ class MetricsTest(IsolatedAsyncioTestCase):
         valkey.set.side_effect = [True, True, False, True, False]
         queue = await self.poll([[None, {}, raw, raw, raw]], valkey)
         self.assertEqual(queue.qsize(), 1)
+        self.assertGreater(self.value("source_last_spot_timestamp_seconds", source="pota"), 0)
         self.assertEqual(self.value("spots_total", source="pota", stage="ingest", result="malformed"), 2)
         self.assertEqual(self.value("spots_total", source="pota", stage="ingest", result="duplicate"), 2)
         self.assertEqual(self.value("spots_total", source="pota", stage="ingest", result="queued"), 1)
@@ -115,7 +119,7 @@ class MetricsTest(IsolatedAsyncioTestCase):
 
     async def test_blocked_queue_does_not_count_queued_before_put(self):
         queue = asyncio.Queue(maxsize=1)
-        await queue.put(SpotEnvelope("telnet", {}))
+        await queue.put(SpotEnvelope("DXUSA", {}))
         put_started = asyncio.Event()
         original_put = queue.put
 
@@ -137,7 +141,7 @@ class MetricsTest(IsolatedAsyncioTestCase):
             task.cancel()
             await task
 
-    async def test_telnet_health_is_aggregate_and_clean_eof_starts_outage(self):
+    async def test_telnet_health_is_independent_and_clean_eof_starts_aggregate_outage(self):
         self.metrics.start_telnet()
         incoming = [asyncio.Queue(), asyncio.Queue()]
         reading = [asyncio.Event(), asyncio.Event()]
@@ -171,22 +175,30 @@ class MetricsTest(IsolatedAsyncioTestCase):
         ):
             tasks = [
                 asyncio.create_task(
-                    telnet.telnet_and_collect("private-host", i + 1, "", "/tmp", asyncio.Queue()), name=name
+                    telnet.telnet_and_collect(
+                        "private-host", i + 1, "", "/tmp", asyncio.Queue(), source=("DXUSA", "K7AR")[i]
+                    ),
+                    name=name,
                 )
                 for i, name in enumerate(("first", "second"))
             ]
             try:
                 await asyncio.wait_for(asyncio.gather(*(event.wait() for event in reading)), 1)
-                self.assertEqual(self.value("source_up", source="telnet"), 1)
+                self.assertEqual(self.value("source_up", source="DXUSA"), 1)
+                self.assertEqual(self.value("source_up", source="K7AR"), 1)
+                self.assertIsNone(self.value("source_up", source="telnet"))
                 self.assertEqual(self.value("telnet_outage_duration_seconds"), 0)
                 await incoming[0].put(b"")
                 await asyncio.wait_for(backoff[0].wait(), 1)
-                self.assertEqual(self.value("source_up", source="telnet"), 1)
+                self.assertEqual(self.value("source_up", source="DXUSA"), 0)
+                self.assertEqual(self.value("source_up", source="K7AR"), 1)
                 await incoming[1].put(b"")
                 await asyncio.wait_for(backoff[1].wait(), 1)
-                self.assertEqual(self.value("source_up", source="telnet"), 0)
+                self.assertEqual(self.value("source_up", source="DXUSA"), 0)
+                self.assertEqual(self.value("source_up", source="K7AR"), 0)
                 self.assertGreater(self.value("telnet_outage_duration_seconds"), 0)
-                self.assertEqual(self.value("telnet_reconnect_attempts_total"), 0)
+                self.assertEqual(self.value("telnet_reconnect_attempts_total", source="DXUSA"), 0)
+                self.assertEqual(self.value("telnet_reconnect_attempts_total", source="K7AR"), 0)
             finally:
                 for task in tasks:
                     task.cancel()
@@ -266,16 +278,139 @@ class MetricsTest(IsolatedAsyncioTestCase):
         finally:
             await runner.cleanup()
 
+    async def test_telnet_parsed_activity_precedes_deduplication_and_reaches_persistence(self):
+        queue = asyncio.Queue()
+        incoming = asyncio.Queue()
+        reading = asyncio.Event()
+        reader, writer = MagicMock(), MagicMock()
+        writer.wait_closed = AsyncMock()
+        valkey = AsyncMock()
+        valkey.set.side_effect = [True, False]
+
+        async def read(*args):
+            reading.set()
+            return await incoming.get()
+
+        reader.read = read
+        line = b"DX de W1PRIVATE:    14074.0  K1SECRET    CQ 2010Z\n"
+        with (
+            patch.object(telnet, "metrics", self.metrics),
+            patch.object(telnet, "open_task_log_file", return_value=MagicMock()),
+            patch.object(telnet, "get_valkey_client", return_value=valkey),
+            patch.object(telnet.asyncio, "open_connection", AsyncMock(return_value=(reader, writer))),
+            patch("collectors.metrics.time.time", return_value=100),
+        ):
+            task = asyncio.create_task(
+                telnet.telnet_and_collect("private-host", 7300, "", "/tmp", queue, source="DXUSA")
+            )
+            try:
+                await asyncio.wait_for(reading.wait(), 1)
+                reading.clear()
+                await incoming.put(b"DX de malformed\n")
+                await asyncio.wait_for(reading.wait(), 1)
+                self.assertIsNone(self.value("source_last_spot_timestamp_seconds", source="DXUSA"))
+                reading.clear()
+                await incoming.put(line)
+                await asyncio.wait_for(reading.wait(), 1)
+                self.assertEqual(self.value("source_last_spot_timestamp_seconds", source="DXUSA"), 100)
+                with patch("collectors.metrics.time.time", return_value=200):
+                    reading.clear()
+                    await incoming.put(line)
+                    await asyncio.wait_for(reading.wait(), 1)
+                self.assertEqual(self.value("source_last_spot_timestamp_seconds", source="DXUSA"), 200)
+                reading.clear()
+                await incoming.put(b"DX de malformed\n")
+                await asyncio.wait_for(reading.wait(), 1)
+                self.assertEqual(self.value("source_last_spot_timestamp_seconds", source="DXUSA"), 200)
+            finally:
+                task.cancel()
+                await task
+        self.assertEqual(queue.qsize(), 1)
+        envelope = queue.get_nowait()
+        queue.task_done()
+        self.assertEqual(envelope.source, "DXUSA")
+        self.assertEqual(self.value("spots_total", source="DXUSA", stage="ingest", result="duplicate"), 1)
+        self.assertEqual(self.value("spots_total", source="DXUSA", stage="ingest", result="queued"), 1)
+        envelope.spot.update(spotter_locator="FN42", dx_locator="EM74")
+        await queue.put(envelope)
+        engine = AsyncMock()
+        with (
+            patch.object(main, "metrics", self.metrics),
+            patch.object(main, "get_valkey_client", return_value=valkey),
+            patch.object(main, "create_async_engine", return_value=engine),
+            patch.object(main, "enrich_spot", AsyncMock(return_value=envelope.spot)),
+            patch.object(main, "persist_spot", AsyncMock()) as persist,
+        ):
+            task = asyncio.create_task(main.process_spots(queue, MagicMock()))
+            await asyncio.wait_for(queue.join(), 1)
+            task.cancel()
+            await task
+        persist.assert_awaited_once_with(engine, valkey, envelope.spot)
+        self.assertEqual(self.value("spots_total", source="DXUSA", stage="pipeline", result="success"), 1)
+        self.assertEqual(self.value("processing_duration_seconds_count", source="DXUSA", stage="persist"), 1)
+        exposition = generate_latest(self.metrics.registry).decode()
+        for private in ("private-host", "7300", "W1PRIVATE", "K1SECRET", 'source="telnet"'):
+            self.assertNotIn(private, exposition)
+
+    async def test_configured_sources_are_registered_before_connections_start(self):
+        servers = [
+            {"name": name, "hostname": "private-host", "port": "7300"} for name in ("DXUSA", "K7AR", "AI9T", "NC7J")
+        ]
+        with (
+            patch.object(telnet_runner, "metrics", self.metrics),
+            patch.object(telnet_runner, "get_telnet_clusters_list", return_value=servers),
+            patch.object(telnet_runner.os, "makedirs"),
+            patch.object(telnet_runner, "prune_rotated_logs"),
+            patch.object(telnet_runner, "open_log_file"),
+            patch.object(telnet_runner, "telnet_and_collect", AsyncMock()) as collect,
+            patch.object(telnet_runner.settings, "username_for_telnet_clusters", "W1PRIVATE"),
+        ):
+            tasks = telnet_runner.run_concurrent_telnet_connections(asyncio.Queue())
+            for server in servers:
+                self.assertEqual(self.value("source_up", source=server["name"]), 0)
+            await asyncio.gather(*tasks)
+        self.assertEqual([call.kwargs["source"] for call in collect.call_args_list], [s["name"] for s in servers])
+        self.assertIsNone(self.value("source_up", source="telnet"))
+
+    async def test_source_names_reject_unbounded_values_and_duplicates(self):
+        for name in ("", "telnet", "host.example", "host:7300", "A" * 33, "DΧUSA", "DXUSA\n", "1ABC"):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                SpotEnvelope(name, {})
+        for names in (("private-host.invalid",), ("DXUSA", "DXUSA")):
+            csv = "name,hostname,port\n" + "".join(f"{name},private-host,7300\n" for name in names)
+            with patch("builtins.open", return_value=StringIO(csv)), self.assertRaises(ValueError):
+                telnet_runner.get_telnet_clusters_list("unused.csv")
+
+    async def test_json_duplicate_updates_activity_but_malformed_and_empty_polls_do_not(self):
+        raw = {
+            "spotId": 1,
+            "spotTime": "2026-10-24T10:00:00Z",
+            "frequency": "14074",
+            "spotter": "W1A",
+            "activator": "K1A",
+        }
+        valkey = AsyncMock()
+        valkey.set.return_value = False
+        with patch("collectors.metrics.time.time", return_value=100):
+            await self.poll([[raw]], valkey)
+        self.assertEqual(self.value("source_last_spot_timestamp_seconds", source="pota"), 100)
+        with patch("collectors.metrics.time.time", return_value=200):
+            await self.poll([[raw]], valkey)
+        self.assertEqual(self.value("source_last_spot_timestamp_seconds", source="pota"), 200)
+        with patch("collectors.metrics.time.time", return_value=300):
+            await self.poll([[None, {}], []], valkey)
+        self.assertEqual(self.value("source_last_spot_timestamp_seconds", source="pota"), 200)
+
     async def test_reconnect_counter_excludes_initial_attempt(self):
         retry_started = asyncio.Event()
-        attempts = 0
+        attempts = {1: 0, 2: 0}
 
-        async def connect(*args):
-            nonlocal attempts
-            attempts += 1
-            if attempts == 1:
+        async def connect(host, port):
+            attempts[port] += 1
+            if attempts[port] <= port:
                 raise ConnectionRefusedError()
-            retry_started.set()
+            if all(attempts[p] > p for p in attempts):
+                retry_started.set()
             await asyncio.Future()
 
         with (
@@ -285,13 +420,22 @@ class MetricsTest(IsolatedAsyncioTestCase):
             patch.object(telnet.asyncio, "open_connection", side_effect=connect),
             patch.object(telnet.asyncio, "sleep", AsyncMock()),
         ):
-            task = asyncio.create_task(telnet.telnet_and_collect("private-host", 1, "", "/tmp", asyncio.Queue()))
+            tasks = [
+                asyncio.create_task(
+                    telnet.telnet_and_collect("private-host", port, "", "/tmp", asyncio.Queue(), source=source)
+                )
+                for port, source in ((1, "DXUSA"), (2, "K7AR"))
+            ]
             try:
                 await asyncio.wait_for(retry_started.wait(), 1)
-                self.assertEqual(self.value("telnet_reconnect_attempts_total"), 1)
+                self.assertEqual(self.value("telnet_reconnect_attempts_total", source="DXUSA"), 1)
+                self.assertEqual(self.value("telnet_reconnect_attempts_total", source="K7AR"), 2)
+                self.assertEqual(self.value("source_up", source="DXUSA"), 0)
+                self.assertEqual(self.value("source_up", source="K7AR"), 0)
             finally:
-                task.cancel()
-                await task
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks)
 
     async def test_refresh_loops_keep_last_success_on_failure(self):
         for dataset, loop, fetch in (

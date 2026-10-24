@@ -22,7 +22,7 @@ class CollectorQrzAvailabilityTest(IsolatedAsyncioTestCase):
         for i in range(3):
             queue.put_nowait(
                 SpotEnvelope(
-                    "telnet",
+                    "DXUSA",
                     {
                         "dx_callsign": f"K{i}ABC",
                         "spotter_callsign": "W1ABC",

@@ -94,12 +94,15 @@ async def telnet_and_collect(
     username,
     telnet_log_dir,
     output_queue: asyncio.Queue,
+    *,
+    source: str,
 ):
     """
     Establishes a Telnet connection, sends a username, and collects spots.
     If the connection is lost, it attempts to reconnect with exponential backoff.
     Push spots to output_queue for processing.
     """
+    metrics.register_telnet_source(source)
     reconnect_attempts = 0
     INITIAL_BACKOFF = 60
     MAX_BACKOFF = 86400  # 1 day
@@ -135,13 +138,13 @@ async def telnet_and_collect(
         line_buffer = b""
         try:
             if not initial_attempt:
-                metrics.reconnects.inc()
+                metrics.reconnects.labels(source).inc()
             initial_attempt = False
             logger.debug(f"Attempting to connect to {host}:{port} ...")
             reader, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), timeout=10)
 
             connected = True
-            metrics.connection(True)
+            metrics.connection(source, True)
             logger.info(f"{host}:{port}  Successfully connected")
             if outage_started_at is not None:
                 outage_duration = time.monotonic() - outage_started_at
@@ -185,14 +188,16 @@ async def telnet_and_collect(
 
                     spot = parse_dx_line(line)
                     if spot is None:
-                        metrics.spots.labels("telnet", "ingest", "malformed").inc()
+                        metrics.spots.labels(source, "ingest", "malformed").inc()
                         task_logger.warning(f"Could not parse spot line: {line}")
                         logger.warning(f"Could not parse spot line: {line}")
                         continue
 
+                    metrics.source_last_spot.labels(source).set_to_current_time()
+
                     # W3LPL is a spammer and J9AQ is a pirate
                     if spot["spotter_callsign"].upper() in ["W3LPL", "J9AQ"]:
-                        metrics.spots.labels("telnet", "ingest", "banned").inc()
+                        metrics.spots.labels(source, "ingest", "banned").inc()
                         logger.debug(f"Skipping banned spot: {spot}")
                         continue
 
@@ -205,12 +210,12 @@ async def telnet_and_collect(
                     spot_key = build_spot_key(spot)
                     added = await valkey_client.set(spot_key, 1, ex=settings.valkey_spot_expiration, nx=True)
                     if added:
-                        await output_queue.put(SpotEnvelope("telnet", spot))
-                        metrics.spots.labels("telnet", "ingest", "queued").inc()
+                        await output_queue.put(SpotEnvelope(source, spot))
+                        metrics.spots.labels(source, "ingest", "queued").inc()
                         task_logger.debug(f"Spot added to queue: {spot_data}")
                         logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
                     else:
-                        metrics.spots.labels("telnet", "ingest", "duplicate").inc()
+                        metrics.spots.labels(source, "ingest", "duplicate").inc()
                         task_logger.debug(f"Duplicate spot not queued: {spot_data}")
                         logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
@@ -236,7 +241,7 @@ async def telnet_and_collect(
 
         finally:
             if connected:
-                metrics.connection(False)
+                metrics.connection(source, False)
             if writer:
                 try:
                     writer.close()

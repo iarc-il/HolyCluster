@@ -41,7 +41,7 @@ class JsonCollectorTelemetryTest(IsolatedAsyncioTestCase):
                 await utils.run_json_spot_collector(
                     asyncio.Queue(),
                     source_label="test",
-                    metric_name="test",
+                    metric_name="pota",
                     url="https://example.invalid/spots",
                     poll_interval=1,
                     request_timeout=1,
@@ -69,7 +69,7 @@ class JsonCollectorTelemetryTest(IsolatedAsyncioTestCase):
                 await utils.run_json_spot_collector(
                     asyncio.Queue(),
                     source_label="test",
-                    metric_name="test",
+                    metric_name="pota",
                     url="https://example.invalid/spots",
                     poll_interval=1,
                     request_timeout=1,
