@@ -5,7 +5,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-SCRIPT = Path(__file__).resolve().parents[2] / ".github/scripts/catserver_update_gate.py"
+SCRIPT = (
+    Path(__file__).resolve().parents[2] / ".github/scripts/catserver_update_gate.py"
+)
 spec = importlib.util.spec_from_file_location("update_gate", SCRIPT)
 gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
@@ -26,16 +28,28 @@ class UpdateGateTests(unittest.TestCase):
         for platform in ("linux", "windows"):
             artifact = self.baseline / platform
             artifact.write_bytes(platform.encode())
-            releases.append({**gate.identity(artifact), "platform": platform,
-                             "architecture": "x86_64", "version": "catserver-v1",
-                             "path": platform})
+            releases.append(
+                {
+                    **gate.identity(artifact),
+                    "platform": platform,
+                    "architecture": "x86_64",
+                    "version": "catserver-v1",
+                    "path": platform,
+                }
+            )
         (self.baseline / "baseline.json").write_text(json.dumps({"releases": releases}))
         self.output = self.root / "attestation.json"
 
     def run_gate(self, codes=(0, 0)):
         with patch.object(gate.subprocess, "call", side_effect=codes) as call:
-            result = gate.run(self.baseline, self.linux, self.windows, "catserver-v2",
-                              self.root, self.output)
+            result = gate.run(
+                self.baseline,
+                self.linux,
+                self.windows,
+                "catserver-v2",
+                self.root,
+                self.output,
+            )
         self.assertEqual(call.call_count, 2)
         return result
 
@@ -74,8 +88,14 @@ class UpdateGateTests(unittest.TestCase):
         (self.baseline / "linux").write_bytes(b"changed")
         with patch.object(gate.subprocess, "call") as call:
             with self.assertRaises(ValueError):
-                gate.run(self.baseline, self.linux, self.windows, "catserver-v2",
-                         self.root, self.output)
+                gate.run(
+                    self.baseline,
+                    self.linux,
+                    self.windows,
+                    "catserver-v2",
+                    self.root,
+                    self.output,
+                )
             call.assert_not_called()
 
 

@@ -30,7 +30,9 @@ def candidates(linux, windows, version):
 def run(baseline, linux, windows, version, dist, output):
     descriptor = json.loads((baseline / "baseline.json").read_text())
     releases = descriptor["releases"]
-    if {item["platform"] for item in releases} != {"linux", "windows"} or len(releases) != 2:
+    if {item["platform"] for item in releases} != {"linux", "windows"} or len(
+        releases
+    ) != 2:
         raise ValueError("Baseline must contain both platforms")
     for item in releases:
         artifact = (baseline / item["path"]).resolve()
@@ -47,15 +49,30 @@ def run(baseline, linux, windows, version, dist, output):
         "scenarios": {},
     }
     output.parent.mkdir(parents=True, exist_ok=True)
-    baseline_linux = baseline / next(item["path"] for item in releases if item["platform"] == "linux")
+    baseline_linux = baseline / next(
+        item["path"] for item in releases if item["platform"] == "linux"
+    )
     for scenario in SCENARIOS:
         with (output.parent / f"{scenario}.log").open("w") as log:
             try:
                 code = subprocess.call(
-                    ["node", "ui/scripts/linux_update_product.mjs", "--baseline", str(baseline_linux),
-                     "--candidate", str(linux), "--version", version, "--dist", str(dist),
-                     "--scenario", scenario],
-                    stdout=log, stderr=subprocess.STDOUT, timeout=180,
+                    [
+                        "node",
+                        "ui/scripts/linux_update_product.mjs",
+                        "--baseline",
+                        str(baseline_linux),
+                        "--candidate",
+                        str(linux),
+                        "--version",
+                        version,
+                        "--dist",
+                        str(dist),
+                        "--scenario",
+                        scenario,
+                    ],
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    timeout=180,
                 )
             except (OSError, subprocess.TimeoutExpired) as error:
                 log.write(f"{error}\n")
@@ -69,7 +86,9 @@ def run(baseline, linux, windows, version, dist, output):
 
 def verify(attestation, linux, windows, version):
     data = json.loads(attestation.read_text())
-    if data.get("schema_version") != 1 or data.get("candidate") != candidates(linux, windows, version):
+    if data.get("schema_version") != 1 or data.get("candidate") != candidates(
+        linux, windows, version
+    ):
         raise ValueError("Candidate bytes or version differ from attestation")
     results = data.get("scenarios", {})
     if set(results) != set(SCENARIOS) or any(
@@ -95,7 +114,14 @@ def main():
         else:
             if not args.baseline or not args.dist:
                 parser.error("run requires --baseline and --dist")
-            if not run(args.baseline, args.linux, args.windows, args.version, args.dist, args.attestation):
+            if not run(
+                args.baseline,
+                args.linux,
+                args.windows,
+                args.version,
+                args.dist,
+                args.attestation,
+            ):
                 parser.exit(1, "Linux update scenarios failed; see scenario logs\n")
     except (OSError, ValueError, KeyError) as error:
         parser.exit(1, f"Update gate failed: {error}\n")
