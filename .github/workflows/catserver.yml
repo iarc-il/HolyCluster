@@ -328,6 +328,20 @@ jobs:
         with:
           name: Candidate-package-inspection
           path: candidate/inspection.txt
+      - name: Snapshot and validate actual production bytes once
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          python3 .github/scripts/catserver_baseline.py \
+            --validator "$PWD/backend/shared/artifact-validator/target/release/holy-artifact-validator" \
+            --output-dir baseline
+      - name: Preserve immutable production baseline
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: Production-update-baseline
+          path: baseline/
+          if-no-files-found: error
+          retention-days: 7
 
   smoke-windows-release:
     name: Install candidate MSI and verify browser downloads
@@ -373,8 +387,9 @@ jobs:
     name: Start candidate AppImage and verify browser downloads
     needs: inspect-candidate-packages
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
       CATSERVER_SMOKE_VERSION: ${{ needs.inspect-candidate-packages.outputs.version }}
       CATSERVER_SMOKE_MSI: ${{ github.workspace }}/candidate/windows/HolyCluster.msi
       CATSERVER_SMOKE_APPIMAGE: ${{ github.workspace }}/candidate/linux/${{ needs.inspect-candidate-packages.outputs.version }}-linux-x86_64.AppImage
@@ -408,82 +423,20 @@ jobs:
           echo "CATSERVER_SMOKE_EXPECT_VERSION=$(printf '%s' "$CATSERVER_SMOKE_VERSION" | sed -E 's/^catserver-v//; s/-g[0-9a-f]+$//')" >> "$GITHUB_ENV"
       - name: Exercise the actual AppImage payload
         run: xvfb-run -a node ui/scripts/release_browser_smoke.mjs
-
-  snapshot-production-baseline:
-    name: Snapshot current production release
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      RUSTC_WRAPPER: ""
-    steps:
-      - name: No production baseline required
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        run: echo 'Non-production publication; production baseline not requested'
-      - uses: actions/checkout@v4
-        if: startsWith(github.ref, 'refs/tags/')
-      - name: Build read-only package inspector
-        if: startsWith(github.ref, 'refs/tags/')
-        working-directory: backend/shared/artifact-validator
-        run: cargo build --release --locked
-      - name: Snapshot and validate actual production bytes once
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          python3 .github/scripts/catserver_baseline.py \
-            --validator "$PWD/backend/shared/artifact-validator/target/release/holy-artifact-validator" \
-            --output-dir baseline
-      - name: Preserve immutable production baseline
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v4
-        with:
-          name: Production-update-baseline
-          path: baseline/
-          if-no-files-found: error
-          retention-days: 7
-
-  update-linux-production:
-    name: Test Linux production update process
-    needs: [snapshot-production-baseline, inspect-candidate-packages]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
-    steps:
-      - name: No production product coverage requested
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        run: echo 'Non-production publication; Linux update scenarios did not run'
-      - uses: actions/checkout@v4
-        if: startsWith(github.ref, 'refs/tags/')
       - uses: actions/download-artifact@v4
         if: startsWith(github.ref, 'refs/tags/')
         with:
           name: Production-update-baseline
           path: baseline
-      - uses: actions/download-artifact@v4
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          name: HolyCluster-linux-x86_64
-          path: candidate/linux
-      - uses: actions/download-artifact@v4
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          name: HolyCluster-windows-x86_64
-          path: candidate/windows
-      - uses: actions/setup-node@v7
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: ui/package-lock.json
-      - name: Install Linux product test dependencies and build UI
+      - name: Prepare production update scenarios and build UI
         if: startsWith(github.ref, 'refs/tags/')
         working-directory: ui
         run: |
           mkdir -p "$RUNNER_TEMP/update-product"
           echo "TMPDIR=$RUNNER_TEMP/update-product" >> "$GITHUB_ENV"
-          npm ci
-          npx playwright install --with-deps chromium
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y xvfb xauth libfuse2
+          if ! python3 -c 'import ctypes; ctypes.CDLL("libfuse.so.2")'; then
+            sudo apt-get install --no-install-recommends -y libfuse2
+          fi
           npm run build
       - name: Require direct AppImage FUSE execution
         if: startsWith(github.ref, 'refs/tags/')
@@ -530,17 +483,26 @@ jobs:
   update-process-gate:
     name: Gate production update process
     if: always()
-    needs: [snapshot-production-baseline, update-linux-production]
+    needs: [inspect-candidate-packages, smoke-linux-release]
     runs-on: ubuntu-latest
     steps:
       - name: Require production baseline and Linux scenarios
         if: startsWith(github.ref, 'refs/tags/')
         env:
-          BASELINE_RESULT: ${{ needs.snapshot-production-baseline.result }}
-          LINUX_RESULT: ${{ needs.update-linux-production.result }}
+          BASELINE_RESULT: ${{ needs.inspect-candidate-packages.result }}
+          LINUX_RESULT: ${{ needs.smoke-linux-release.result }}
         run: |
           test "$BASELINE_RESULT" = success
           test "$LINUX_RESULT" = success
+      - name: Require production update attestation
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/download-artifact@v4
+        with:
+          name: Linux-update-attestation
+          path: update-results
+      - name: Require attestation file
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test -s update-results/attestation.json
       - name: Explicit non-production no-op
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         run: echo 'Non-production publication; product update coverage was not run'
