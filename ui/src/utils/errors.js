@@ -7,7 +7,7 @@ export class NonErrorThrown extends Error {
         } catch {
             description = "Unprintable value";
         }
-        super(description, { cause: value });
+        super(description);
         this.name = "NonErrorThrown";
         this.original_kind = original_kind;
         this.original_value = value;

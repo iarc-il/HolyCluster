@@ -17,9 +17,14 @@ import {
     recordDiagnosticAction,
     prepareSentryEvent as sanitizeSentryEvent,
 } from "@/sentry";
+import { toError } from "@/utils/errors.js";
 
 function ThrowError() {
     throw new Error("sensitive callsign data");
+}
+
+function ThrowNormalizedPrimitive() {
+    throw toError("out of memory");
 }
 
 let mount_count = 0;
@@ -213,6 +218,19 @@ describe("Sentry error reporting", () => {
         );
 
         expect(screen.getByRole("alert").textContent).toContain("Something went wrong");
+    });
+
+    it("reports normalized primitive failures without a secondary Sentry error", () => {
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        expect(() =>
+            render(
+                <RouteErrorBoundary>
+                    <ThrowNormalizedPrimitive />
+                </RouteErrorBoundary>,
+            ),
+        ).not.toThrow();
+        expect(screen.getByRole("alert")).not.toBeNull();
     });
 
     it("remounts the failed tree when retrying", () => {
