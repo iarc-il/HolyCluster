@@ -28,6 +28,8 @@ def candidates(linux, windows, version):
 
 
 def run(baseline, linux, windows, version, dist, output):
+    if "APPIMAGE_EXTRACT_AND_RUN" in os.environ:
+        raise ValueError("Product update tests require direct FUSE execution")
     descriptor = json.loads((baseline / "baseline.json").read_text())
     releases = descriptor["releases"]
     if {item["platform"] for item in releases} != {"linux", "windows"} or len(

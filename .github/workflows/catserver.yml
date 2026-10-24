@@ -447,7 +447,6 @@ jobs:
     timeout-minutes: 20
     env:
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
-      APPIMAGE_EXTRACT_AND_RUN: "1"
     steps:
       - name: No production product coverage requested
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
@@ -486,12 +485,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y xvfb xauth libfuse2
           npm run build
+      - name: Require direct AppImage FUSE execution
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          test -c /dev/fuse
+          test -r /dev/fuse
+          test -w /dev/fuse
+          python3 - <<'PY'
+          import ctypes
+          import os
+          ctypes.CDLL("libfuse.so.2")
+          os.close(os.open("/dev/fuse", os.O_RDWR))
+          PY
       - name: Run both real update scenarios without external networking
         if: startsWith(github.ref, 'refs/tags/')
         env:
           VERSION: ${{ needs.inspect-candidate-packages.outputs.version }}
         run: |
-          sudo --preserve-env=PATH,PLAYWRIGHT_BROWSERS_PATH,APPIMAGE_EXTRACT_AND_RUN,TMPDIR,GITHUB_SHA,GITHUB_RUN_ID \
+          sudo --preserve-env=PATH,PLAYWRIGHT_BROWSERS_PATH,TMPDIR,GITHUB_SHA,GITHUB_RUN_ID \
             unshare --net bash -c 'ip link set lo up; exec setpriv --reuid="$SUDO_UID" --regid="$SUDO_GID" --init-groups "$@"' bash \
             xvfb-run -a python3 .github/scripts/catserver_update_gate.py run \
               --baseline "$PWD/baseline" \

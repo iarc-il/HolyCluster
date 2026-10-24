@@ -53,6 +53,20 @@ class UpdateGateTests(unittest.TestCase):
         self.assertEqual(call.call_count, 2)
         return result
 
+    def test_extraction_mode_is_rejected_before_execution(self):
+        with patch.dict(gate.os.environ, {"APPIMAGE_EXTRACT_AND_RUN": "1"}):
+            with patch.object(gate.subprocess, "call", return_value=0) as call:
+                with self.assertRaisesRegex(ValueError, "direct FUSE"):
+                    gate.run(
+                        self.baseline,
+                        self.linux,
+                        self.windows,
+                        "catserver-v2",
+                        self.root,
+                        self.output,
+                    )
+                call.assert_not_called()
+
     def test_pass_and_verify(self):
         self.assertTrue(self.run_gate())
         gate.verify(self.output, self.linux, self.windows, "catserver-v2")
