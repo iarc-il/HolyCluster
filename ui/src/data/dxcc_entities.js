@@ -8,7 +8,8 @@ import { normalize_dxcc_entity_value, normalize_dxcc_label } from "@/data/dxcc_l
 const USA_DXCC_CODES = new Set([291, 6, 110]);
 
 export function normalize_dxcc_code(dxcc_code) {
-    const text = (dxcc_code ?? "").toString().trim();
+    if (!["number", "string"].includes(typeof dxcc_code)) return null;
+    const text = dxcc_code.toString().trim();
     if (!/^\d+$/.test(text)) return null;
 
     const code = Number(text);

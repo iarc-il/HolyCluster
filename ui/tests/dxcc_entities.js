@@ -14,7 +14,11 @@ vi.mock("virtual:cty-dxcc-entities", () => ({
     },
 }));
 
-import { build_dxcc_entity_by_code, get_dxcc_label } from "@/data/dxcc_entities.js";
+import {
+    build_dxcc_entity_by_code,
+    get_dxcc_label,
+    normalize_dxcc_code,
+} from "@/data/dxcc_entities.js";
 
 describe("dxcc_entities", () => {
     it("normalizes CTY DXCC code mappings to frontend labels", () => {
@@ -30,6 +34,13 @@ describe("dxcc_entities", () => {
             230: "Germany",
             291: "USA",
         });
+    });
+
+    it("rejects non-primitive DXCC values without coercing them", () => {
+        const recursive = { toString: () => String(recursive) };
+
+        expect(normalize_dxcc_code(recursive)).toBeNull();
+        expect(normalize_dxcc_code([291])).toBeNull();
     });
 
     it("returns empty label for unknown DXCC codes", () => {
