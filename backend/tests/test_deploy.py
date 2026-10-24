@@ -15,7 +15,9 @@ set -eu
 printf '%s\\n' "$*" >> "$FIXTURE/git.log"
 case "$1" in
     rev-parse)
-        if [[ -f "$FIXTURE/checked" || "$SAME_REF" == 1 ]]; then
+        if [[ "${2-}" == --git-path ]]; then
+            printf '%s/deployed\\n' "$FIXTURE"
+        elif [[ -f "$FIXTURE/checked" || "$SAME_REF" == 1 ]]; then
             echo newhead
         else
             echo oldhead
@@ -36,6 +38,11 @@ esac
 DOCKER_STUB = """#!/usr/bin/env bash
 set -eu
 printf '%s\\n' "$*" >> "$FIXTURE/docker.log"
+if [[ -f "$FIXTURE/deployed" ]]; then
+    printf '%s\\n' "$(< "$FIXTURE/deployed")" >> "$FIXTURE/marker-at-docker.log"
+else
+    echo absent >> "$FIXTURE/marker-at-docker.log"
+fi
 project_name="${COMPOSE_PROJECT_NAME-$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' .env | tail -n 1)}"
 proxy_network_input="${PROXY_NETWORK-$(sed -n 's/^PROXY_NETWORK=//p' .env | tail -n 1)}"
 proxy_network="${proxy_network_input:-holycluster-proxy}"
@@ -82,7 +89,10 @@ if [[ "$1" == inspect ]]; then
     esac
     exit 1
 fi
-if [[ "$*" == 'compose build '* && -z "$project_name" ]]; then exit 14; fi
+if [[ "$*" == 'compose build '* ]]; then
+    if [[ -z "$project_name" ]]; then exit 14; fi
+    exit "$BUILD_STATUS"
+fi
 if [[ "$*" == 'compose up '* && "$MISSING_NETWORK" == "$proxy_network" ]]; then exit 15; fi
 if [[ "$*" == 'compose up --abort-on-container-exit --exit-code-from migrate migrate' ]]; then
     exit "$MIGRATION_STATUS"
@@ -106,6 +116,16 @@ WAIT_STUB = """wait() {
 """
 
 
+MV_STUB = """#!/usr/bin/env bash
+set -eu
+printf '%s|%s|%s\\n' "$1" "$2" "$(< "$1")" >> "$FIXTURE/mv.log"
+if [[ "$2" == "$FIXTURE/deployed" && "$MARKER_WRITE_STATUS" != 0 ]]; then
+    exit "$MARKER_WRITE_STATUS"
+fi
+exec /usr/bin/mv "$@"
+"""
+
+
 class DeployTests(unittest.TestCase):
     def run_deploy(self, **overrides):
         temporary = tempfile.TemporaryDirectory(prefix="holy-deploy-test-")
@@ -115,7 +135,7 @@ class DeployTests(unittest.TestCase):
         (root / "deploy.sh").write_text(DEPLOY.read_text())
         (root / ".env").write_text(overrides.pop("dotenv", INITIAL_ENV))
         (root / "wait.sh").write_text(WAIT_STUB)
-        for name, content in (("git", GIT_STUB), ("docker", DOCKER_STUB)):
+        for name, content in (("git", GIT_STUB), ("docker", DOCKER_STUB), ("mv", MV_STUB)):
             stub = root / "bin" / name
             stub.write_text(content)
             stub.chmod(0o755)
@@ -130,6 +150,8 @@ class DeployTests(unittest.TestCase):
             "FAIL_SERVICES": "",
             "COMPOSE_PROJECT_NAME": "holycluster-backend-dev",
             "CONFIG_STATUS": "0",
+            "BUILD_STATUS": "0",
+            "MARKER_WRITE_STATUS": "0",
             "ENVIRONMENT_CONFIG_STATUS": "0",
             "MISSING_NETWORK": "",
             "LEGACY_NAMES": "",
@@ -140,11 +162,21 @@ class DeployTests(unittest.TestCase):
             "GRAFANA_HEALTH_STATUS": "0",
         }
         ref = overrides.pop("ref", "release-tag")
+        marker = overrides.pop("deployed_head", None)
+        if marker is not None:
+            (root / "deployed").write_text(marker + "\n")
         env.update(overrides)
+        self.last_env = env
         result = subprocess.run(
             ["bash", "deploy.sh", ref], cwd=root, env=env, text=True, capture_output=True, timeout=10, check=False
         )
         return root, result
+
+    def rerun_deploy(self, root, **overrides):
+        env = {**self.last_env, **overrides}
+        return subprocess.run(
+            ["bash", "deploy.sh", "release-tag"], cwd=root, env=env, text=True, capture_output=True, timeout=10, check=False
+        )
 
     def assert_all_waited(self, root, services=BACKGROUND_SERVICES):
         starts = {path.name.removeprefix("start-"): path.read_text().strip() for path in root.glob("start-*")}
@@ -300,6 +332,61 @@ class DeployTests(unittest.TestCase):
         root, result = self.run_deploy(LEGACY_NAMES="api,monitor,nginx", ENVIRONMENT_CONFIG_STATUS="43")
         self.assertEqual(result.returncode, 43, result.stderr)
         self.assert_no_removals_or_builds(root)
+
+    def test_failed_first_deploy_retries_the_full_pending_service_set(self):
+        root, result = self.run_deploy(GRAFANA_PASSWORD_STATUS="41")
+        self.assertEqual(result.returncode, 41, result.stderr)
+        self.assertFalse((root / "deployed").exists())
+        self.assertEqual((root / "deployed.base").read_text(), "oldhead\n")
+        retried = self.rerun_deploy(root, GRAFANA_PASSWORD_STATUS="0")
+        self.assertEqual(retried.returncode, 0, retried.stderr)
+        self.assert_all_waited(root)
+        self.assertTrue((root / "start-nginx").exists())
+        self.assertTrue((root / "start-certbot").exists())
+        self.assertEqual((root / "deployed").read_text(), "newhead\n")
+        diffs = [line for line in (root / "git.log").read_text().splitlines() if line.startswith("diff ")]
+        self.assertEqual(diffs, ["diff --name-only --relative oldhead newhead -- ."] * 2)
+
+    def test_success_marker_advances_only_after_health_and_uses_atomic_rename(self):
+        root, result = self.run_deploy(deployed_head="lastsuccess")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(set((root / "marker-at-docker.log").read_text().splitlines()), {"lastsuccess"})
+        self.assertEqual((root / "deployed").read_text(), "newhead\n")
+        source, destination, revision = (root / "mv.log").read_text().strip().split("|")
+        self.assertEqual(Path(source).parent, root)
+        self.assertTrue(Path(source).name.startswith("deployed.tmp."))
+        self.assertEqual(destination, str(root / "deployed"))
+        self.assertEqual(revision, "newhead")
+        self.assertFalse(Path(source).exists())
+        self.assertIn("diff --name-only --relative lastsuccess newhead -- .", (root / "git.log").read_text())
+
+    def test_failures_do_not_advance_existing_success_marker(self):
+        for overrides in (
+            {"GRAFANA_PASSWORD_STATUS": "41"},
+            {"BUILD_STATUS": "45"},
+            {"FAIL_SERVICES": "api"},
+            {"GRAFANA_HEALTH_STATUS": "44"},
+        ):
+            with self.subTest(overrides=overrides):
+                root, result = self.run_deploy(deployed_head="lastsuccess", **overrides)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual((root / "deployed").read_text(), "lastsuccess\n")
+                self.assertFalse((root / "mv.log").exists())
+
+    def test_failed_atomic_marker_rename_preserves_previous_revision(self):
+        root, result = self.run_deploy(deployed_head="lastsuccess", MARKER_WRITE_STATUS="46")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((root / "deployed").read_text(), "lastsuccess\n")
+        self.assertFalse(list(root.glob("deployed.tmp.*")))
+        self.assertNotIn("Deploy complete.", result.stdout)
+
+    def test_no_backend_or_service_changes_advance_success_marker(self):
+        for changed in ("", "unmapped-file.txt"):
+            with self.subTest(changed=changed):
+                root, result = self.run_deploy(CHANGED_FILES=changed, deployed_head="lastsuccess")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual((root / "deployed").read_text(), "newhead\n")
+                self.assertFalse(list(root.glob("start-*")))
 
     def test_grafana_preflight_failure_aborts_before_build_or_start(self):
         for overrides, status in (

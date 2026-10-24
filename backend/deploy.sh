@@ -9,6 +9,32 @@ fi
 REF="$1"
 
 PREVIOUS_HEAD=$(git rev-parse HEAD)
+DEPLOYMENT_MARKER=$(git rev-parse --git-path holycluster-backend-deployed)
+DEPLOYMENT_BASE="${DEPLOYMENT_MARKER}.base"
+
+write_revision() {
+    local target="$1" revision="$2" temporary
+    temporary=$(mktemp "${target}.tmp.XXXXXX")
+    if ! printf '%s\n' "$revision" > "$temporary" || ! mv "$temporary" "$target"; then
+        rm -f "$temporary"
+        return 1
+    fi
+}
+
+mark_deployed() {
+    write_revision "$DEPLOYMENT_MARKER" "$CURRENT_HEAD"
+    rm -f "$DEPLOYMENT_BASE"
+}
+
+if [ -f "$DEPLOYMENT_MARKER" ]; then
+    DEPLOYED_HEAD=$(< "$DEPLOYMENT_MARKER")
+else
+    # Preserve the first baseline if checkout advances before deployment fails.
+    if [ ! -f "$DEPLOYMENT_BASE" ]; then
+        write_revision "$DEPLOYMENT_BASE" "$PREVIOUS_HEAD"
+    fi
+    DEPLOYED_HEAD=$(< "$DEPLOYMENT_BASE")
+fi
 
 git checkout "$REF" 2>/dev/null || git checkout -b "$REF" "origin/$REF" 2>/dev/null
 # For branches like origin/dev, detach or reset
@@ -20,28 +46,30 @@ fi
 
 CURRENT_HEAD=$(git rev-parse HEAD)
 
-if [ "$PREVIOUS_HEAD" = "$CURRENT_HEAD" ]; then
+if [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ]; then
     GRAFANA_ID=$(docker compose ps --all --quiet grafana)
     GRAFANA_HEALTH_STATE=""
     if [ -n "$GRAFANA_ID" ]; then
         GRAFANA_HEALTH_STATE=$(docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$GRAFANA_ID")
     fi
     if [ "$GRAFANA_HEALTH_STATE" = "running healthy" ]; then
+        mark_deployed
         echo "No new commits. Nothing to deploy."
         exit 0
     fi
     echo "Recovering missing or unhealthy Grafana."
     CHANGED_FILES=infra/monitoring/grafana/recovery
 else
-    CHANGED_FILES=$(git diff --name-only --relative "$PREVIOUS_HEAD" "$CURRENT_HEAD" -- .)
+    CHANGED_FILES=$(git diff --name-only --relative "$DEPLOYED_HEAD" "$CURRENT_HEAD" -- .)
 fi
 
 if [ -z "$CHANGED_FILES" ]; then
+    mark_deployed
     echo "No files changed in backend/. Nothing to deploy."
     exit 0
 fi
 
-if [ "$PREVIOUS_HEAD" != "$CURRENT_HEAD" ]; then
+if [ "$DEPLOYED_HEAD" != "$CURRENT_HEAD" ]; then
     if grep -q '^SENTRY_RELEASE=' .env; then
         sed -i "s/^SENTRY_RELEASE=.*/SENTRY_RELEASE=$CURRENT_HEAD/" .env
     else
@@ -153,6 +181,7 @@ fi
 SERVICE_LIST="${!SERVICES[*]}"
 
 if [ -z "$SERVICE_LIST" ]; then
+    mark_deployed
     echo "Changed files don't map to any services. Nothing to deploy."
     exit 0
 fi
@@ -247,4 +276,5 @@ if [[ -v SERVICES[grafana] ]]; then
     docker compose up -d --no-deps --wait --wait-timeout 120 grafana
 fi
 
+mark_deployed
 echo "Deploy complete."
