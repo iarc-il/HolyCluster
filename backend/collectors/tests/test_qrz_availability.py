@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import collectors.main as main
 import httpx
+from collectors.metrics import SpotEnvelope
 from shared.cty import CtyCountry
 from shared.qrz import QrzSessionManager
 
@@ -20,13 +21,16 @@ class CollectorQrzAvailabilityTest(IsolatedAsyncioTestCase):
         queue = asyncio.Queue()
         for i in range(3):
             queue.put_nowait(
-                {
-                    "dx_callsign": f"K{i}ABC",
-                    "spotter_callsign": "W1ABC",
-                    "frequency": 14074.0,
-                    "mode": "FT8",
-                    "comment": "",
-                }
+                SpotEnvelope(
+                    "telnet",
+                    {
+                        "dx_callsign": f"K{i}ABC",
+                        "spotter_callsign": "W1ABC",
+                        "frequency": 14074.0,
+                        "mode": "FT8",
+                        "comment": "",
+                    },
+                )
             )
         country = CtyCountry("United States", "NA", 291, 40, -100, 5, 8)
         engine = AsyncMock()
@@ -73,6 +77,7 @@ class CollectorQrzAvailabilityTest(IsolatedAsyncioTestCase):
 
         with (
             patch.object(main, "ensure_cty_available", AsyncMock()),
+            patch.object(main, "start_metrics_server", AsyncMock()),
             patch.object(main, "get_valkey_client", return_value=None),
             patch.object(main, "close_valkey_client", AsyncMock()) as close,
             patch.object(main, "QrzSessionManager", return_value=manager),
