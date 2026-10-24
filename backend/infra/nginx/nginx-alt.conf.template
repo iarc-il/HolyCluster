@@ -22,6 +22,9 @@ server {
     ssl_certificate /etc/letsencrypt/live/${DOMAIN_ALT}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_ALT}/privkey.pem;
 
+    location = /metrics { return 404; }
+    location = /metrics/ { return 404; }
+
     # Proxy requests to FastAPI app
     location / {
         proxy_set_header    Host                $host;
