@@ -319,8 +319,6 @@ export async function runLinuxUpdate({
             let page;
             let child;
             let reserve;
-            let sampling = false;
-            let sampler;
             let updateStart;
             const started = Date.now();
             const record = (kind, data) => {
@@ -384,18 +382,6 @@ export async function runLinuxUpdate({
                     reserve.once("error", reject);
                     reserve.listen(PRODUCT_PORT, "127.0.0.1", resolve);
                 });
-                sampler = (async () => {
-                    sampling = true;
-                    let previous;
-                    while (sampling) {
-                        const owned = await processes(token);
-                        const snapshot = JSON.stringify(owned);
-                        if (snapshot !== previous)
-                            evidence.timeline.push({ ms: Date.now() - started, processes: owned });
-                        previous = snapshot;
-                        await pause(250);
-                    }
-                })();
                 await new Promise(resolve => reserve.close(resolve));
                 child = spawn(
                     active,
@@ -436,6 +422,10 @@ export async function runLinuxUpdate({
                     "Baseline readiness version differs",
                 );
                 evidence.baselineReady = before;
+                evidence.timeline.push({
+                    ms: Date.now() - started,
+                    processes: await processes(token),
+                });
                 assert.equal(page.url().split("/")[2], `127.0.0.1:${PRODUCT_PORT}`);
                 assertSinglePage(browserBridge.evidence());
                 if (!corruption)
@@ -775,8 +765,7 @@ export async function runLinuxUpdate({
                 };
             } finally {
                 try {
-                    sampling = false;
-                    await sampler;
+                    evidence.finalProcesses = await processes(token);
                     if (reserve?.listening) await new Promise(resolve => reserve.close(resolve));
                     for (const opened of browserBridge.context.pages()) {
                         if (opened.isClosed()) continue;
