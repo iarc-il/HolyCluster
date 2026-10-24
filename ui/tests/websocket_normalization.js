@@ -4,6 +4,7 @@ import {
     enrich_spot_zones_if_missing,
     flatten_buffered_spot_batches,
     has_valid_enriched_value,
+    has_valid_spot_locations,
     normalize_band,
     trim_spots_to_last_hour,
 } from "@/hooks/useSpotWebSocket.js";
@@ -54,6 +55,27 @@ describe("has_valid_enriched_value", () => {
         expect(has_valid_enriched_value(0)).toBe(true);
         expect(has_valid_enriched_value(5)).toBe(true);
         expect(has_valid_enriched_value("FN20")).toBe(true);
+    });
+});
+
+describe("has_valid_spot_locations", () => {
+    it("accepts bounded longitude-latitude pairs", () => {
+        expect(
+            has_valid_spot_locations({
+                dx_loc: [-180, -90],
+                spotter_loc: [180, 90],
+            }),
+        ).toBe(true);
+    });
+
+    it.each([
+        { dx_loc: [0, 91], spotter_loc: [0, 0] },
+        { dx_loc: [181, 0], spotter_loc: [0, 0] },
+        { dx_loc: [0, 0], spotter_loc: [0, -91] },
+        { dx_loc: [0, 0], spotter_loc: [Number.NaN, 0] },
+        { dx_loc: [0], spotter_loc: [0, 0] },
+    ])("rejects invalid spot locations", spot => {
+        expect(has_valid_spot_locations(spot)).toBe(false);
     });
 });
 

@@ -46,6 +46,8 @@ const spot = {
     spotter_itu_zone: 8,
     dx_state: "NY",
     spotter_state: "NY",
+    dx_loc: [-74, 41],
+    spotter_loc: [-75, 40],
 };
 
 function receive(spots, fields = {}) {
@@ -139,6 +141,19 @@ describe("spot subscriptions", () => {
         receive([], { event });
         act(() => vi.advanceTimersByTime(120000));
         expect(websocket.send).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops spots with invalid locations", () => {
+        const view = renderHook(useSpotWebSocket);
+        connect(view);
+        ack([
+            spot,
+            { ...spot, dx_callsign: "K3ABC", dx_loc: [0, 91] },
+            { ...spot, dx_callsign: "K4ABC", spotter_loc: [181, 0] },
+        ]);
+        expect(view.result.current.raw_spots).toEqual([
+            expect.objectContaining({ dx_callsign: "K2ABC" }),
+        ]);
     });
 
     it("does not establish a subscription from malformed traffic", () => {

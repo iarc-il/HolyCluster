@@ -20,6 +20,20 @@ export function has_valid_enriched_value(value) {
     return value !== undefined && value !== null && value !== "" && value !== -1 && value !== "-1";
 }
 
+function is_valid_location(location) {
+    return (
+        Array.isArray(location) &&
+        location.length === 2 &&
+        location.every(Number.isFinite) &&
+        Math.abs(location[0]) <= 180 &&
+        Math.abs(location[1]) <= 90
+    );
+}
+
+export function has_valid_spot_locations(spot) {
+    return is_valid_location(spot?.dx_loc) && is_valid_location(spot?.spotter_loc);
+}
+
 export function enrich_spot_zones_if_missing(spot) {
     const updates = {};
 
@@ -192,16 +206,21 @@ export default function useSpotWebSocket() {
             let new_spots = data.spots
                 .map(spot => {
                     const mode = spot.mode === "DIGITAL" ? "DIGI" : spot.mode;
-                    const normalized_spot = {
+                    return normalize_spot_dxcc_fields({
                         ...spot,
                         id: `${spot.time}|${spot.spotter_callsign}|${spot.dx_callsign}`,
                         mode,
                         band: normalize_band(spot.band),
-                    };
-                    return enrich_spot_zones_if_missing(
-                        normalize_spot_dxcc_fields(normalized_spot),
-                    );
+                    });
                 })
+                .filter(spot => {
+                    if (!has_valid_spot_locations(spot)) {
+                        console.warn("Dropping spot with invalid location", spot);
+                        return false;
+                    }
+                    return true;
+                })
+                .map(enrich_spot_zones_if_missing)
                 .filter(spot => {
                     if (!spot.dx_dxcc_code || !spot.spotter_dxcc_code) {
                         console.warn("Dropping spot with unknown DXCC code", spot);
