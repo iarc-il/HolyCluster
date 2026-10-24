@@ -55,7 +55,7 @@
     {
       "type": "table",
       "title": "Current source availability",
-      "description": "Dynamic configured source names. 1 = connected or most recent JSON response decoded; 0 = unavailable. Disabled SOTA is excluded.",
+      "description": "Current availability for each configured source. Disabled SOTA is excluded.",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -64,7 +64,7 @@
         {
           "refId": "A",
           "expr": "holycluster_collector_source_up{source!=\"sota\"}",
-          "legendFormat": "{{source}} / {{instance}}",
+          "legendFormat": "{{source}}",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -84,7 +84,40 @@
           },
           "mappings": []
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Inactive",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "Active",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "x": 0,
@@ -101,7 +134,17 @@
           "options": {
             "excludeByName": {
               "Time": true,
-              "__name__": true
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "indexByName": {
+              "source": 0,
+              "Value": 1
+            },
+            "renameByName": {
+              "source": "Source",
+              "Value": "Status"
             }
           }
         }
@@ -132,7 +175,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix: spots/s",
           "min": 0,
           "noValue": "No data",
           "color": {
@@ -187,7 +230,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix: spots/s",
           "min": 0,
           "noValue": "No data",
           "color": {
@@ -362,7 +405,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix: spots/s",
           "min": 0,
           "noValue": "No data",
           "color": {
@@ -527,7 +570,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix: spots/s",
           "min": 0,
           "noValue": "No data",
           "color": {
@@ -582,7 +625,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix: spots/s",
           "min": 0,
           "noValue": "No data",
           "color": {
@@ -661,7 +704,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "suffix: spots/s",
           "min": 0,
           "noValue": "No data",
           "color": {
