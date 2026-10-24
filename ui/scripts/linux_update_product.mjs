@@ -83,7 +83,72 @@ async function listenerOwners(port) {
     return owners;
 }
 
-export async function runLinuxUpdate({ baseline, candidate, version, dist }) {
+async function dummyCAT(page) {
+    return page.evaluate(
+        port =>
+            new Promise((resolve, reject) => {
+                const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+                const timer = setTimeout(() => {
+                    socket.close();
+                    reject(new Error("Dummy CAT operation timed out"));
+                }, 3000);
+                socket.onopen = () =>
+                    socket.send(
+                        JSON.stringify({
+                            version: 1,
+                            type: "radio",
+                            action: "SetModeAndFreq",
+                            mode: "CW",
+                            freq: 14025,
+                        }),
+                    );
+                socket.onmessage = event => {
+                    const message = JSON.parse(event.data);
+                    if (
+                        message.type === "radio" &&
+                        message.freq === 14025000 &&
+                        message.mode === "CW"
+                    ) {
+                        clearTimeout(timer);
+                        socket.close();
+                        resolve(message);
+                    }
+                };
+            }),
+        PRODUCT_PORT,
+    );
+}
+
+export function corruptDownload(bytes) {
+    assert(Buffer.isBuffer(bytes) && bytes.length > 0, "Supply nonempty candidate bytes");
+    const altered = Buffer.from(bytes);
+    altered[altered.length - 1] ^= 1;
+    return altered;
+}
+
+export function assertCorruptionFailure(state) {
+    assert.equal(state?.state, "failed", "Expected terminal corruption failure");
+    assert.match(
+        state.diagnostic || "",
+        /SHA-?256|checksum|size.*(?:match|mismatch)/i,
+        "Expected a corruption diagnostic",
+    );
+}
+
+export async function runLinuxUpdate({
+    baseline,
+    candidate,
+    version,
+    dist,
+    scenario = "update",
+    validDownload = false,
+}) {
+    assert(["update", "corrupt-download"].includes(scenario), "Unknown scenario");
+    assert(
+        !validDownload || scenario === "corrupt-download",
+        "Use valid-download only as a control",
+    );
+    const corruption = scenario === "corrupt-download";
     assert.equal(process.platform, "linux");
     for (const value of [baseline, candidate, version, dist])
         assert(value, "Supply all four inputs");
@@ -106,8 +171,14 @@ export async function runLinuxUpdate({ baseline, candidate, version, dist }) {
         {
             dist,
             manifest: { schema_version: 1, releases: [release] },
-            artifacts: new Map([[release.artifact.location, bytes]]),
+            artifacts: new Map([
+                [
+                    release.artifact.location,
+                    corruption && !validDownload ? corruptDownload(bytes) : bytes,
+                ],
+            ]),
             browserBridge: true,
+            preserveEvidence: corruption,
         },
         async ({ directories, env, backend, browserBridge }) => {
             const token = randomUUID();
@@ -115,8 +186,12 @@ export async function runLinuxUpdate({ baseline, candidate, version, dist }) {
             await copyFile(baseline, active);
             await chmod(active, 0o700);
             const evidence = {
+                scenario,
+                validDownload,
                 baselineHash,
                 candidateHash: hash(bytes),
+                servedHash: hash(corruption && !validDownload ? corruptDownload(bytes) : bytes),
+                manifest: release,
                 timeline: [],
                 responses: [],
                 browser: [],
@@ -250,7 +325,14 @@ export async function runLinuxUpdate({ baseline, candidate, version, dist }) {
                 await page.evaluate(value => {
                     window.__productNonce = value;
                     window.__productStillWaiting = false;
+                    window.__productActivationSeen = false;
                     new MutationObserver(() => {
+                        if (
+                            /Installing CAT Control|Reconnecting to CAT Control|Waiting for the original local port/.test(
+                                document.body.innerText,
+                            )
+                        )
+                            window.__productActivationSeen = true;
                         if (document.body.innerText.includes("Still waiting"))
                             window.__productStillWaiting = true;
                     }).observe(document.body, {
@@ -272,6 +354,155 @@ export async function runLinuxUpdate({ baseline, candidate, version, dist }) {
                 await page
                     .getByRole("button", { name: "Update", exact: true })
                     .click({ timeout: 3000 });
+                if (corruption) {
+                    const statePath = path.join(directories.data, "holycluster/updates/state.json");
+                    const retry = page.getByRole("button", { name: "Retry update", exact: true });
+                    let failed = false;
+                    while (Date.now() - updateStart < UPDATE_BOUND_MS - 10000) {
+                        const dialog = page.getByRole("dialog");
+                        if (
+                            await dialog
+                                .getByText("artifact SHA-256 does not match manifest", {
+                                    exact: true,
+                                })
+                                .isVisible()
+                        ) {
+                            evidence.failureState = JSON.parse(await readFile(statePath, "utf8"));
+                            assertCorruptionFailure(evidence.failureState);
+                            failed = true;
+                            break;
+                        }
+                        await pause(100);
+                    }
+                    evidence.elapsed = Date.now() - updateStart;
+                    assert(
+                        failed,
+                        "Original UI did not show corruption failure within the strict bound",
+                    );
+                    evidence.failureText = await page.locator("body").innerText();
+                    assert(evidence.failureText.includes(evidence.failureState.diagnostic));
+                    evidence.artifactRequests = backend
+                        .evidence()
+                        .requests.filter(
+                            request =>
+                                request.path === release.artifact.location &&
+                                request.status === 200,
+                        );
+                    assert(
+                        evidence.artifactRequests.length > 0,
+                        "No corruption download reached CATServer",
+                    );
+                    evidence.activeHash = hash(await readFile(active));
+                    assert.equal(evidence.activeHash, baselineHash, "Active baseline was replaced");
+                    evidence.rootEntries = await readdir(directories.root);
+                    assert(
+                        !evidence.rootEntries.some(name => name.startsWith("CATServer.AppImage.")),
+                        "Activation replacement or .previous was created",
+                    );
+                    const updates = path.dirname(statePath);
+                    evidence.updateEntries = await readdir(updates);
+                    for (const name of [
+                        "install-plan.json",
+                        "restart-startup.json",
+                        "session.json",
+                    ])
+                        assert(
+                            !evidence.updateEntries.includes(name),
+                            `Unexpected activation state: ${name}`,
+                        );
+                    evidence.baselineAfterFailure = await ready();
+                    assert.equal(evidence.baselineAfterFailure?.version, baselineVersion);
+                    evidence.navigations = navigations;
+                    assert.deepEqual(navigations, [], "Original document navigated");
+                    assert.equal(await page.evaluate(() => window.__productNonce), nonce);
+                    assert.equal(new URL(page.url()).port, String(PRODUCT_PORT));
+                    assert(!(await page.evaluate(() => window.__productStillWaiting)));
+                    assert(
+                        !(await page.evaluate(() => window.__productActivationSeen)),
+                        "UI entered installation/restart",
+                    );
+                    for (const response of evidence.responses) {
+                        if (!response.url?.includes("/api/update")) continue;
+                        const state = JSON.parse(response.body);
+                        assert(
+                            !["installing", "installed"].includes(state.state),
+                            "CATServer entered installation",
+                        );
+                        assert.equal(
+                            state.session,
+                            null,
+                            "CATServer started an activation session",
+                        );
+                    }
+                    evidence.listeners = await listenerOwners(PRODUCT_PORT);
+                    assert.deepEqual(
+                        evidence.listeners,
+                        [child.pid],
+                        "Original CATServer did not retain the port",
+                    );
+                    evidence.owned = await processes(token);
+                    assert(evidence.owned.some(process => process.pid === child.pid));
+                    assert(!evidence.timeline.some(event => event.exit), "Baseline process exited");
+                    await page
+                        .getByRole("dialog")
+                        .getByRole("button", { name: "Close", exact: true })
+                        .click();
+                    const about = page.locator('[data-tour="about-trigger"]');
+                    if (!(await about.isVisible()))
+                        await page
+                            .locator('[data-tour="top-bar-right-menu"]')
+                            .click({ timeout: 2000 });
+                    await about.click({ timeout: 2000 });
+                    await retry.waitFor({ timeout: 2000 });
+                    assert(await retry.isEnabled(), "Retry is not actionable");
+                    const checksBefore = backend
+                        .evidence()
+                        .requests.filter(
+                            request => request.path === "/catserver/releases/latest",
+                        ).length;
+                    await retry.click({ timeout: 2000 });
+                    await retry.waitFor({ state: "hidden", timeout: 2000 });
+                    evidence.retryState = JSON.parse(await readFile(statePath, "utf8"));
+                    assert.equal(
+                        evidence.retryState.state,
+                        "idle",
+                        "Retry did not clear the failure",
+                    );
+                    await page
+                        .getByRole("button", { name: "Check for updates", exact: true })
+                        .click({ timeout: 2000 });
+                    await page
+                        .getByRole("button", { name: "Update", exact: true })
+                        .waitFor({ timeout: 5000 });
+                    evidence.freshCheckState = JSON.parse(await readFile(statePath, "utf8"));
+                    assert.equal(
+                        evidence.freshCheckState.state,
+                        "available",
+                        "Retry did not permit a fresh check",
+                    );
+                    evidence.retryChecks =
+                        backend
+                            .evidence()
+                            .requests.filter(
+                                request => request.path === "/catserver/releases/latest",
+                            ).length - checksBefore;
+                    assert(evidence.retryChecks > 0, "Retry did not request a fresh manifest");
+                    evidence.operation = await dummyCAT(page);
+                    assertSinglePage(browserBridge.evidence());
+                    evidence.browserBridge = browserBridge.evidence();
+                    assert.equal(hash(await readFile(active)), baselineHash);
+                    assert.equal((await ready())?.version, baselineVersion);
+                    assert(
+                        Date.now() - updateStart < UPDATE_BOUND_MS,
+                        "Corruption check exceeded its strict bound",
+                    );
+                    return {
+                        scenario,
+                        baseline: before.version,
+                        elapsed: evidence.elapsed,
+                        evidenceDirectory: directories.evidence,
+                    };
+                }
                 let after;
                 let completed = false;
                 while (Date.now() - updateStart < UPDATE_BOUND_MS - 5000) {
@@ -341,44 +572,10 @@ export async function runLinuxUpdate({ baseline, candidate, version, dist }) {
                     "Original page did not reconnect automatically",
                 );
                 if (after?.version === expectedVersion && !page.isClosed()) {
-                    evidence.operation = await page
-                        .evaluate(
-                            port =>
-                                new Promise((resolve, reject) => {
-                                    const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`);
-                                    const timer = setTimeout(() => {
-                                        socket.close();
-                                        reject(new Error("Dummy CAT operation timed out"));
-                                    }, 3000);
-                                    socket.onopen = () =>
-                                        socket.send(
-                                            JSON.stringify({
-                                                version: 1,
-                                                type: "radio",
-                                                action: "SetModeAndFreq",
-                                                mode: "CW",
-                                                freq: 14025,
-                                            }),
-                                        );
-                                    socket.onmessage = event => {
-                                        const message = JSON.parse(event.data);
-                                        if (
-                                            message.type === "radio" &&
-                                            message.freq === 14025000 &&
-                                            message.mode === "CW"
-                                        ) {
-                                            clearTimeout(timer);
-                                            socket.close();
-                                            resolve(message);
-                                        }
-                                    };
-                                }),
-                            PRODUCT_PORT,
-                        )
-                        .catch(error => {
-                            failures.push(String(error));
-                            return null;
-                        });
+                    evidence.operation = await dummyCAT(page).catch(error => {
+                        failures.push(String(error));
+                        return null;
+                    });
                 }
                 check(
                     Boolean(evidence.operation),
@@ -450,9 +647,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
                 candidate: { type: "string" },
                 version: { type: "string" },
                 dist: { type: "string" },
+                scenario: { type: "string", default: "update" },
+                "valid-download": { type: "boolean", default: false },
             },
         });
-        console.log(await runLinuxUpdate(values));
+        console.log(await runLinuxUpdate({ ...values, validDownload: values["valid-download"] }));
     } catch (error) {
         console.error(error);
         if (error.evidenceDirectory) console.error(`Failure evidence: ${error.evidenceDirectory}`);

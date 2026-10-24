@@ -199,10 +199,18 @@ export async function withProductTest(options, run) {
             backend,
             browserBridge,
         });
+        const backendEvidence = backend.evidence();
         await browserBridge?.close();
         await backend.close();
         backend = undefined;
-        await rm(root, { recursive: true, force: true });
+        if (options.preserveEvidence) {
+            await writeFile(
+                path.join(directories.evidence, "product.json"),
+                JSON.stringify({ ...backendEvidence, browser: browserBridge?.evidence() }, null, 2),
+            );
+        } else {
+            await rm(root, { recursive: true, force: true });
+        }
         return result;
     } catch (cause) {
         const error = cause instanceof Error ? cause : new Error(String(cause));

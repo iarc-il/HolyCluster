@@ -173,6 +173,26 @@ test("isolate state, remove it on success, and preserve evidence on failure", as
     await assert.rejects(fetch(failedOrigin));
 });
 
+test("retain successful scenario evidence only when requested", async t => {
+    const f = await fixture(t);
+    let directories;
+    let origin;
+    await withProductTest(
+        { ...f, artifacts: new Map(), temporaryParent: f.root, preserveEvidence: true },
+        async context => {
+            directories = context.directories;
+            origin = context.backend.origin;
+            await fetch(`${origin}/catserver/releases/latest`);
+        },
+    );
+    const evidence = JSON.parse(
+        await readFile(path.join(directories.evidence, "product.json"), "utf8"),
+    );
+    assert.equal(evidence.requests[0].path, "/catserver/releases/latest");
+    assert((await stat(directories.data)).isDirectory());
+    await assert.rejects(fetch(origin));
+});
+
 test("preserve bounded evidence if backend setup fails", async t => {
     const f = await fixture(t);
     let evidenceDirectory;
