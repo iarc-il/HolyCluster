@@ -82,7 +82,7 @@ groups:
           type: prometheus
           uid: victoriametrics
         editorMode: code
-        expr: (max by (job, instance) (holycluster_collector_source_up) == bool 0) and on (job, instance) (up{job="collector"}
+        expr: (max by (job, instance) (holycluster_collector_source_up{source!="sota"}) == bool 0) and on (job, instance) (up{job="collector"}
           == 1)
         instant: true
         range: false
@@ -122,8 +122,8 @@ groups:
     for: 10m
     annotations:
       summary: No healthy source on {{ $labels.instance }}
-      description: All source health gauges have been zero for 10 minutes while the collector is being scraped. Disabled sources
-        do not lower the maximum. JSON health reflects the most recent poll; Telnet health is aggregate.
+      description: All observed source health gauges except SOTA have been zero for 10 minutes while the collector is being
+        scraped. JSON health reflects the most recent poll; Telnet health uses each configured source name.
     labels:
       severity: critical
       service: holycluster
@@ -143,9 +143,7 @@ groups:
           type: prometheus
           uid: victoriametrics
         editorMode: code
-        expr: ((holycluster_collector_source_up{source="telnet"} == bool 0) or ((holycluster_collector_source_up{source!="telnet"}
-          == bool 0) and on (job, instance, source) (sum by (job, instance, source) (holycluster_collector_polls_total{result="attempt"})
-          > 0))) and on (job, instance) (up{job="collector"} == 1)
+        expr: (holycluster_collector_source_up{source!="sota"} == bool 0) and on (job, instance) (up{job="collector"} == 1)
         instant: true
         range: false
         intervalMs: 30000
@@ -184,8 +182,8 @@ groups:
     for: 15m
     annotations:
       summary: '{{ $labels.source }} is unhealthy on {{ $labels.instance }}'
-      description: Telnet has no active connection, or an observed JSON source has remained unhealthy for 15 minutes. JSON
-        sources with no poll attempts (including disabled SOTA) are excluded. No per-host Telnet health is available.
+      description: This source has remained unavailable for 15 minutes while the collector is being scraped. Each configured
+        Telnet source is evaluated separately. JSON health reflects the most recent poll. SOTA is excluded; absent series do not alert.
     labels:
       severity: warning
       service: holycluster
