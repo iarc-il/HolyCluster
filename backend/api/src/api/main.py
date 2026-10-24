@@ -211,16 +211,14 @@ async def spots_broadcast_task(app):
 
     try:
         while True:
+            started = time.perf_counter()
             try:
                 await valkey_client.xgroup_create(STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True)
                 break
-            except redis.exceptions.ResponseError as e:
-                if "BUSYGROUP" in str(e):
-                    break
-                logger.warning(f"Failed to initialize spots consumer group: {e}")
-                capture_exception(e, operation="api.broadcast.initialize")
-                await asyncio.sleep(2)
             except redis.exceptions.RedisError as e:
+                if isinstance(e, redis.exceptions.ResponseError) and "BUSYGROUP" in str(e):
+                    break
+                metrics.background_run("spot_broadcast", "error", started)
                 logger.warning(f"Failed to initialize spots consumer group: {e}")
                 capture_exception(e, operation="api.broadcast.initialize")
                 await asyncio.sleep(2)
@@ -228,9 +226,14 @@ async def spots_broadcast_task(app):
         stream_id = "0"
         while True:
             try:
-                response = await valkey_client.xreadgroup(
-                    CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: stream_id}, count=10, block=60000
-                )
+                started = time.perf_counter()
+                try:
+                    response = await valkey_client.xreadgroup(
+                        CONSUMER_GROUP, CONSUMER_NAME, {STREAM_NAME: stream_id}, count=10, block=60000
+                    )
+                except Exception:
+                    metrics.background_run("spot_broadcast", "error", started)
+                    raise
                 if not any(messages for _, messages in response):
                     stream_id = ">"
                     continue
@@ -254,11 +257,11 @@ async def spots_broadcast_task(app):
                         await valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, *message_ids)
                         await valkey_client.xdel(STREAM_NAME, *message_ids)
                     except Exception:
-                        metrics.background_run("broadcast", "error", started)
+                        metrics.background_run("spot_broadcast", "error", started)
                         raise
                     else:
                         # Success means stream processing, not delivery to every socket.
-                        metrics.background_run("broadcast", "success", started)
+                        metrics.background_run("spot_broadcast", "success", started)
             except asyncio.CancelledError:
                 raise
             except Exception as e:
