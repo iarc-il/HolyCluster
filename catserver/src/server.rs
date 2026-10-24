@@ -104,6 +104,12 @@ impl Server {
         };
         server_config.local_port = listener.local_addr()?.port();
         let mut state = AppState::new(server_config, radio, rotator, sender.clone())?;
+        #[cfg(target_os = "linux")]
+        if let Some(context) = &restart
+            && !context.state_path.as_os_str().is_empty()
+        {
+            crate::updater::linux_restart::complete(context)?;
+        }
         state.updater = state.updater.with_restart(restart);
         let app = Router::new()
             .route("/ws", any(ws_handler))

@@ -319,7 +319,7 @@ fn activation_boundaries_keep_complete_launcher_and_singleton_owner() {
     // Force EACCES, rather than ENOEXEC (execvp can run a shell fallback).
     fs::set_permissions(&plan.current_executable, fs::Permissions::from_mode(0o644)).unwrap();
     assert!(
-        exec_linux(&plan)
+        exec_linux(&plan, &fixture.0.join("install-plan.json"))
             .unwrap_err()
             .to_string()
             .contains("previous version restored")
@@ -507,7 +507,7 @@ fn failed_rollback_does_not_unlink_updated_launcher() {
     fs::remove_file(plan.current_executable.with_extension("AppImage.previous")).unwrap();
     fs::set_permissions(&plan.current_executable, fs::Permissions::from_mode(0o644)).unwrap();
     assert!(
-        exec_linux(&plan)
+        exec_linux(&plan, &fixture.0.join("install-plan.json"))
             .unwrap_err()
             .to_string()
             .contains("cannot restore previous version")

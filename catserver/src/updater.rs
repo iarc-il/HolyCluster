@@ -1,3 +1,6 @@
+#[cfg(target_os = "linux")]
+pub(crate) mod linux_restart;
+
 #[cfg(any(test, windows))]
 use std::ffi::OsString;
 #[cfg(unix)]
@@ -245,14 +248,27 @@ pub(crate) struct RestartContext {
 }
 
 pub(crate) fn restart_context(path: &Path) -> Result<RestartContext> {
-    let plan: InstallPlan = serde_json::from_slice(&fs::read(path)?)?;
-    let context = plan.restart.context("update plan has no restart context")?;
-    anyhow::ensure!(
-        context.port != 0,
-        "update restart requires the original port"
+    #[cfg(target_os = "linux")]
+    return linux_restart::recover(
+        path,
+        &update_target()?,
+        env!("VERSION"),
+        &std::env::args().skip(1).collect::<Vec<_>>(),
+        linux_restart::process_started()?,
     );
-    parse_version(&context.expected_version)?;
-    Ok(context)
+    #[cfg(not(target_os = "linux"))]
+    let plan: InstallPlan = serde_json::from_slice(&fs::read(path)?)?;
+    #[cfg(not(target_os = "linux"))]
+    let context = plan.restart.context("update plan has no restart context")?;
+    #[cfg(not(target_os = "linux"))]
+    {
+        anyhow::ensure!(
+            context.port != 0,
+            "update restart requires the original port"
+        );
+        parse_version(&context.expected_version)?;
+        Ok(context)
+    }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -625,7 +641,7 @@ impl UpdateService {
         let final_path = self
             .staging_dir()
             .join(format!("{}-{}", version, artifact.name));
-        let restart = (cfg!(windows) && self.local_port != 0).then(|| RestartContext {
+        let restart = (self.local_port != 0).then(|| RestartContext {
             id: uuid::Uuid::new_v4().to_string(),
             port: self.local_port,
             expected_version: version.to_string(),
@@ -837,7 +853,7 @@ impl UpdateService {
 pub fn run_helper(plan_path: &Path) -> Result<()> {
     let plan: InstallPlan =
         serde_json::from_slice(&fs::read(plan_path)?).context("cannot load update plan")?;
-    let progress = if cfg!(windows) && plan.restart.is_some() {
+    let progress = if plan.restart.is_some() {
         let store = SessionStore::load(&plan.state_path.with_file_name("session.json"))?;
         anyhow::ensure!(
             plan.restart
@@ -852,6 +868,7 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
     };
     let status_server = progress
         .as_ref()
+        .filter(|_| cfg!(windows))
         .map(|store| crate::update_status_server::StatusServer::start(store.clone()))
         .transpose()?;
     let result = apply_install_plan(&plan, progress.as_ref());
@@ -973,7 +990,7 @@ pub fn run_helper(plan_path: &Path) -> Result<()> {
     if result
         .as_ref()
         .is_ok_and(|state| *state == UpdateState::Installed)
-        && let Err(error) = exec_linux(&plan)
+        && let Err(error) = exec_linux(&plan, plan_path)
     {
         write_json(
             &plan.state_path,
@@ -1048,9 +1065,8 @@ fn activate_linux(activation: &Path, current: &Path) -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-fn exec_linux(plan: &InstallPlan) -> Result<()> {
-    let mut command = Command::new(&plan.current_executable);
-    command.args(&plan.command_args);
+fn exec_linux(plan: &InstallPlan, plan_path: &Path) -> Result<()> {
+    let mut command = restart_command(plan, plan_path);
     let error = command.exec();
     let backup = plan.current_executable.with_extension("AppImage.previous");
     fs::rename(&backup, &plan.current_executable).with_context(|| {
@@ -1093,7 +1109,6 @@ pub(crate) fn original_arguments(arguments: &[String]) -> Vec<String> {
     result
 }
 
-#[cfg(windows)]
 fn restart_command(plan: &InstallPlan, plan_path: &Path) -> Command {
     let mut command = Command::new(&plan.current_executable);
     command.args(original_arguments(&plan.command_args));

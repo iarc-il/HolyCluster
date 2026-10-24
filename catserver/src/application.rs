@@ -72,6 +72,8 @@ pub fn run(args: Args) -> Result<()> {
         .as_deref()
         .map(crate::updater::restart_context)
         .transpose()?;
+    #[cfg(target_os = "linux")]
+    let restart = restart.or_else(crate::updater::linux_restart::startup_context);
     let mut server_config = server_config(&args)?;
     if let Some(context) = &restart {
         server_config.local_port = context.port;
@@ -280,7 +282,7 @@ async fn run_singleton(
     let mut receiver = sender.subscribe();
     let shutdown_radio = radio.clone();
     let shutdown_rotator = rotator.clone();
-    let silent = restart.is_some() || no_browser;
+    let launch_browser = startup_browser_enabled(no_browser, restart.as_ref());
     crate::diagnostics::phase("server_binding");
     let building = Server::build_server(sender, radio, rotator, server_config, restart);
     tokio::pin!(building);
@@ -297,7 +299,7 @@ async fn run_singleton(
     let local_port = server.local_port()?;
     instance_port::publish(&instance_port::path()?, local_port)?;
     crate::diagnostics::phase("serving");
-    if !silent && let Err(error) = open_browser(local_port, "startup") {
+    if launch_browser && let Err(error) = open_browser(local_port, "startup") {
         tracing::error!(error = %crate::error_format::diagnostic(&error), failure_evidence = %serde_json::json!(crate::tracing_setup::failure_evidence(&error, "browser_startup")), "Failed to open browser on startup");
     }
     tokio::spawn(async move {
@@ -320,8 +322,28 @@ async fn run_singleton(
     result
 }
 
+fn startup_browser_enabled(
+    no_browser: bool,
+    restart: Option<&crate::updater::RestartContext>,
+) -> bool {
+    !no_browser && restart.is_none()
+}
+
 #[cfg(test)]
 mod singleton_diagnostic_tests {
+    #[test]
+    fn normal_start_opens_a_browser_but_owned_restart_does_not() {
+        assert!(super::startup_browser_enabled(false, None));
+        assert!(!super::startup_browser_enabled(true, None));
+        let context = crate::updater::RestartContext {
+            id: "owned-update".into(),
+            port: 41234,
+            expected_version: "1.3.4".into(),
+            state_path: std::path::PathBuf::new(),
+        };
+        assert!(!super::startup_browser_enabled(false, Some(&context)));
+    }
+
     #[test]
     fn failed_contact_retains_port_metadata_and_attempt_evidence() {
         use std::io::{Read, Write};
