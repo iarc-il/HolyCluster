@@ -109,9 +109,13 @@ export function create_interval_db(db_name, db_version, store_name) {
                 stage = "notify";
                 notify();
             } catch (error) {
-                // An open abort leaves no trusted disk snapshot. Keep this
+                // An unavailable database leaves no trusted disk snapshot. Keep this
                 // instance in memory-only mode; never overwrite unknown disk data.
-                if (stage === "open" && !upgrade_error && error?.name === "AbortError") {
+                if (
+                    stage === "open" &&
+                    !upgrade_error &&
+                    ["AbortError", "UnknownError"].includes(error?.name)
+                ) {
                     memory_only = true;
                     return;
                 }

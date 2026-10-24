@@ -42,6 +42,17 @@ describe("cache hydration diagnostic observation", () => {
         },
     );
 
+    it("falls back to memory when the browser cannot open IndexedDB", async () => {
+        openDB.mockRejectedValueOnce(new DOMException("Internal error.", "UnknownError"));
+        const store = create_interval_db("test_cache", 1, "test_records");
+
+        await expect(store.ready()).resolves.toBeUndefined();
+        await store.commit([], { start: 0, end: 100, value: ["fallback"] });
+        expect(store.get_overlapping_intervals(0, 100)).toEqual([
+            expect.objectContaining({ start: 0, end: 100, value: ["fallback"] }),
+        ]);
+    });
+
     it("retains the database and store names for open failures", async () => {
         const error = new DOMException("secret", "VersionError");
         openDB.mockRejectedValueOnce(error);
