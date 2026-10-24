@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { request } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -144,7 +145,9 @@ test("isolate state, remove it on success, and preserve evidence on failure", as
             assert.equal(new Set(dirs).size, dirs.length);
             for (const directory of dirs) assert((await stat(directory)).isDirectory());
             assert.equal(context.env.HOME, success.home);
-            assert.equal(context.env.APPDATA, success.appData);
+            assert.equal(context.env.XDG_DATA_HOME, success.data);
+            assert.equal(context.env.XDG_CONFIG_HOME, success.config);
+            assert.equal(context.env.XDG_STATE_HOME, success.state);
             assert.equal(context.env.XDG_CACHE_HOME, success.cache);
         },
     );
@@ -193,4 +196,62 @@ test("preserve bounded evidence if backend setup fails", async t => {
     );
     assert.deepEqual(evidence.requests, []);
     assert(evidence.error.length <= 16384);
+});
+
+test("reject unsupported isolation platforms before creating state", async t => {
+    const f = await fixture(t);
+    const before = await readdir(f.root);
+    const moduleUrl = new URL("./product_test.mjs", import.meta.url).href;
+    for (const platform of ["win32", "darwin"]) {
+        execFileSync(process.execPath, [
+            "--input-type=module",
+            "--eval",
+            `
+            import assert from "node:assert/strict";
+            import { withProductTest } from ${JSON.stringify(moduleUrl)};
+            Object.defineProperty(process, "platform", { value: ${JSON.stringify(platform)} });
+            await assert.rejects(
+                withProductTest({ temporaryParent: ${JSON.stringify(f.root)} }, () => assert.fail("Must not run")),
+                error => error.message === "Product state isolation requires Linux",
+            );
+        `,
+        ]);
+        assert.deepEqual(await readdir(f.root), before);
+    }
+});
+
+test("keep the product error when failure evidence cannot be written", async t => {
+    for (const unavailable of ["deleted", "file"]) {
+        await t.test(unavailable, async t => {
+            const f = await fixture(t);
+            const primary = new Error("product failure");
+            let directories;
+            let origin;
+            await assert.rejects(
+                withProductTest(
+                    { ...f, artifacts: new Map(), temporaryParent: f.root },
+                    async context => {
+                        directories = context.directories;
+                        origin = context.backend.origin;
+                        await rm(directories.evidence, { recursive: true });
+                        if (unavailable === "file")
+                            await writeFile(directories.evidence, "unavailable");
+                        throw primary;
+                    },
+                ),
+                error => {
+                    assert.equal(error, primary);
+                    assert.equal(error.evidenceDirectory, directories.evidence);
+                    assert(error.evidenceWriteError instanceof Error);
+                    assert.equal(
+                        error.evidenceWriteError.code,
+                        unavailable === "deleted" ? "ENOENT" : "ENOTDIR",
+                    );
+                    return true;
+                },
+            );
+            assert((await stat(directories.home)).isDirectory());
+            await assert.rejects(fetch(origin));
+        });
+    }
 });

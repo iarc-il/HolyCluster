@@ -165,34 +165,23 @@ export async function startProductBackend({
 }
 
 export async function withProductTest(options, run) {
+    // Windows Known Folders do not use APPDATA overrides.
+    assert(process.platform === "linux", "Product state isolation requires Linux");
     const root = await mkdtemp(
         path.join(options.temporaryParent || os.tmpdir(), "catserver-product-"),
     );
     const directories = { root };
-    for (const name of [
-        "home",
-        "data",
-        "config",
-        "cache",
-        "state",
-        "appData",
-        "localAppData",
-        "browser",
-        "evidence",
-    ]) {
+    for (const name of ["home", "data", "config", "cache", "state", "browser", "evidence"]) {
         directories[name] = path.join(root, name);
         await mkdir(directories[name]);
     }
     const env = {
         ...process.env,
         HOME: directories.home,
-        USERPROFILE: directories.home,
         XDG_DATA_HOME: directories.data,
         XDG_CONFIG_HOME: directories.config,
         XDG_CACHE_HOME: directories.cache,
         XDG_STATE_HOME: directories.state,
-        APPDATA: directories.appData,
-        LOCALAPPDATA: directories.localAppData,
     };
     let backend;
     try {
@@ -212,15 +201,19 @@ export async function withProductTest(options, run) {
                 evidence.closeError = String(closeError).slice(0, 2048);
             }
         }
-        await writeFile(
-            path.join(directories.evidence, "failure.json"),
-            JSON.stringify(
-                { ...evidence, error: String(error.stack || error).slice(0, 16384) },
-                null,
-                2,
-            ),
-        );
         error.evidenceDirectory = directories.evidence;
+        try {
+            await writeFile(
+                path.join(directories.evidence, "failure.json"),
+                JSON.stringify(
+                    { ...evidence, error: String(error.stack || error).slice(0, 16384) },
+                    null,
+                    2,
+                ),
+            );
+        } catch (evidenceWriteError) {
+            error.evidenceWriteError = evidenceWriteError;
+        }
         throw error;
     }
 }
