@@ -4,9 +4,11 @@ import {
     PRODUCT_PORT,
     UPDATE_BOUND_MS,
     assertConfiguration,
+    assertCorruptionFailure,
     assertNormalRelaunch,
     assertSinglePage,
     boundedOutput,
+    corruptDownload,
     listeningInodes,
     readyVersion,
 } from "./linux_update_product.mjs";
@@ -51,46 +53,40 @@ test("match listening sockets, not established connections or other ports", () =
     assert.deepEqual(listeningInodes(table, 1), []);
 });
 
-test("ignore only the persistent browser startup tab", () => {
-    const evidence = { launcherCount: 1, pages: [{ startup: true }, { startup: false }] };
-    assertSinglePage(evidence);
-    assert.throws(() => assertSinglePage({ ...evidence, launcherCount: 2 }), /extra browser page/);
-    assert.throws(
-        () => assertSinglePage({ ...evidence, pages: [...evidence.pages, {}] }),
-        /Extra product page/,
-    );
-    assert.throws(() => assertSinglePage({ ...evidence, launcherCount: 0 }));
+test("page checks reject extra pages, missing launches, and an open update page", () => {
+    for (const [check, evidence, invalid] of [
+        [
+            assertSinglePage,
+            { launcherCount: 1, pages: [{ startup: true }, {}] },
+            [{ launcherCount: 2 }, { launcherCount: 0 }, { pages: [{}, {}] }],
+        ],
+        [
+            assertNormalRelaunch,
+            { launcherCount: 2, pages: [{ startup: true }, { closed: true }, {}] },
+            [
+                { launcherCount: 3 },
+                { pages: [{}] },
+                { pages: [{}, {}] },
+                { pages: [{ closed: true }, {}, {}] },
+            ],
+        ],
+    ]) {
+        check(evidence);
+        for (const change of invalid) assert.throws(() => check({ ...evidence, ...change }));
+    }
 });
 
 test("configuration readback rejects missing, changed, and extra settings", () => {
     const expected = { rig: { model_id: "hamlib:1", token_values: { retry: "7" } } };
     const response = { version: 1, type: "radio", event: "configuration", ...expected };
     assertConfiguration(response, expected);
-    assert.throws(() => assertConfiguration({ ...response, rig: null }, expected));
-    assert.throws(() =>
-        assertConfiguration({ ...response, rig: { ...expected.rig, token_values: {} } }, expected),
-    );
-    assert.throws(() =>
-        assertConfiguration(
-            { ...response, rig: { ...expected.rig, token_values: { retry: "8" } } },
-            expected,
-        ),
-    );
-    assert.throws(() => assertConfiguration({ ...response, extra: true }, expected));
-});
-
-test("normal relaunch requires one new page and the update page closed", () => {
-    const evidence = {
-        launcherCount: 2,
-        pages: [{ startup: true }, { closed: true }, { closed: false }],
-    };
-    assertNormalRelaunch(evidence);
-    assert.throws(() => assertNormalRelaunch({ ...evidence, launcherCount: 3 }));
-    assert.throws(() => assertNormalRelaunch({ ...evidence, pages: [{}, {}] }));
-    assert.throws(() =>
-        assertNormalRelaunch({ ...evidence, pages: [{ closed: false }, { closed: false }] }),
-    );
-    assert.throws(() => assertNormalRelaunch({ ...evidence, pages: [...evidence.pages, {}] }));
+    for (const change of [
+        { rig: null },
+        { rig: { ...expected.rig, token_values: {} } },
+        { rig: { ...expected.rig, token_values: { retry: "8" } } },
+        { extra: true },
+    ])
+        assert.throws(() => assertConfiguration({ ...response, ...change }, expected));
 });
 
 test("match CATServer readiness version normalization", () => {
@@ -101,4 +97,25 @@ test("match CATServer readiness version normalization", () => {
 
 test("keep the update deadline below Still waiting", () => {
     assert(UPDATE_BOUND_MS > 0 && UPDATE_BOUND_MS < 60000);
+});
+
+test("alter bytes without changing candidate size or input", () => {
+    const valid = Buffer.from("valid candidate");
+    const altered = corruptDownload(valid);
+    assert.equal(altered.length, valid.length);
+    assert.notDeepEqual(altered, valid);
+    assert.equal(valid.toString(), "valid candidate");
+    assert.throws(() => corruptDownload(Buffer.alloc(0)));
+});
+
+test("accept only a terminal corruption failure with a diagnostic", () => {
+    const state = { state: "failed", diagnostic: "SHA256 mismatch" };
+    assertCorruptionFailure(state);
+    for (const state of [
+        { state: "idle" },
+        { state: "downloading", diagnostic: "SHA256 mismatch" },
+        { state: "failed" },
+        { state: "failed", diagnostic: "Network unavailable" },
+    ])
+        assert.throws(() => assertCorruptionFailure(state), /corrupt|terminal/i);
 });

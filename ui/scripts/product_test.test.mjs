@@ -68,37 +68,6 @@ test("serve one manifest snapshot and exact candidate bytes", async t => {
     assert.equal((await fetch(`${backend.origin}/api/update`)).status, 404);
 });
 
-test("serve changed and truncated bytes without changing metadata", async t => {
-    const f = await fixture(t);
-    for (const bytes of [f.bytes.subarray(0, 3), Buffer.alloc(f.bytes.length, 1)]) {
-        const backend = await startProductBackend({
-            ...f,
-            artifacts: new Map([[f.release.artifact.location, bytes]]),
-        });
-        try {
-            assert.deepEqual(
-                await (await fetch(`${backend.origin}/catserver/releases/latest`)).json(),
-                f.manifest,
-            );
-            assert.deepEqual(
-                Buffer.from(
-                    await (await fetch(backend.origin + f.release.artifact.location)).arrayBuffer(),
-                ),
-                bytes,
-            );
-            assert(
-                backend
-                    .evidence()
-                    .requests.some(
-                        entry => entry.path === f.release.artifact.location && entry.status === 200,
-                    ),
-            );
-        } finally {
-            await backend.close();
-        }
-    }
-});
-
 test("reject traversal and bound request data and evidence", async t => {
     const f = await fixture(t);
     const backend = await startProductBackend({
