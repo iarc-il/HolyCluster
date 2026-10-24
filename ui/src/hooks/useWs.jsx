@@ -69,6 +69,7 @@ export function WsProvider({ children }) {
     const [connection_generation, set_connection_generation] = useState(0);
     const [spot_socket_epochs, set_spot_socket_epochs] = useState({});
     const spot_socket_epochs_ref = useRef({});
+    const catserver_version_ref = useRef(null);
     const next_spot_socket_epoch_ref = useRef(0);
     const open_spot_socket = candidate => {
         const epoch = ++next_spot_socket_epoch_ref.current;
@@ -76,6 +77,7 @@ export function WsProvider({ children }) {
         set_spot_socket_epochs({ ...spot_socket_epochs_ref.current });
     };
     const close_spot_socket = candidate => {
+        if (transport_ref.current === candidate) catserver_version_ref.current = null;
         delete spot_socket_epochs_ref.current[candidate];
         set_spot_socket_epochs({ ...spot_socket_epochs_ref.current });
     };
@@ -87,6 +89,13 @@ export function WsProvider({ children }) {
     const send_state_ref = useRef(null);
 
     const dispatch = useCallback(message => {
+        if (message.type === "radio" && message.event === "status") {
+            if (typeof message.catserver_version === "string") {
+                catserver_version_ref.current = message.catserver_version;
+            } else if (message.version === 1 && message.status === "unavailable") {
+                catserver_version_ref.current = null;
+            }
+        }
         const handlers = subscribers_ref.current.get(message.type);
         if (handlers) {
             for (const handler of handlers) {
@@ -113,6 +122,7 @@ export function WsProvider({ children }) {
 
     const reset_transport = useCallback(candidate => {
         if (transport_ref.current !== candidate) return;
+        catserver_version_ref.current = null;
         transport_ref.current = "probing";
         set_transport("probing");
     }, []);
@@ -281,56 +291,73 @@ export function WsProvider({ children }) {
         };
     }, []);
 
-    const send = useCallback((type, data) => {
-        if (type === "radio" || type === "rotator") recordDiagnosticAction(data?.action);
-        const {
-            transport,
-            compatibility_radio_ready_state,
-            compatibility_ready_state,
-            unified_ready_state,
-            send_compatibility_message,
-            send_compatibility_radio_message,
-            send_unified_message,
-        } = send_state_ref.current;
-        if (transport === "probing") return false;
+    const with_versions = useCallback((type, data) => {
+        if (type !== "spots") return data;
+        return {
+            ...data,
+            ui_version: import.meta.env.VITE_SENTRY_RELEASE ?? null,
+            catserver_version: catserver_version_ref.current,
+        };
+    }, []);
 
-        if (transport === "cat_v1_2") {
-            if (type === "radio") {
-                if (compatibility_radio_ready_state === ReadyState.OPEN) {
-                    send_compatibility_radio_message(cat_v1_2_message(type, data));
+    const send = useCallback(
+        (type, data) => {
+            if (type === "radio" || type === "rotator") recordDiagnosticAction(data?.action);
+            const {
+                transport,
+                compatibility_radio_ready_state,
+                compatibility_ready_state,
+                unified_ready_state,
+                send_compatibility_message,
+                send_compatibility_radio_message,
+                send_unified_message,
+            } = send_state_ref.current;
+            if (transport === "probing") return false;
+            data = with_versions(type, data);
+
+            if (transport === "cat_v1_2") {
+                if (type === "radio") {
+                    if (compatibility_radio_ready_state === ReadyState.OPEN) {
+                        send_compatibility_radio_message(cat_v1_2_message(type, data));
+                        return true;
+                    }
+                } else if (compatibility_ready_state === ReadyState.OPEN) {
+                    send_compatibility_message(cat_v1_2_message(type, data));
                     return true;
                 }
-            } else if (compatibility_ready_state === ReadyState.OPEN) {
-                send_compatibility_message(cat_v1_2_message(type, data));
+                return false;
+            }
+
+            if (unified_ready_state === ReadyState.OPEN) {
+                send_unified_message({ version: 1, type, ...data });
                 return true;
             }
             return false;
-        }
-
-        if (unified_ready_state === ReadyState.OPEN) {
-            send_unified_message({ version: 1, type, ...data });
-            return true;
-        }
-        return false;
-    }, []);
+        },
+        [with_versions],
+    );
 
     const spot_socket_epoch =
         readyState === ReadyState.OPEN ? (spot_socket_epochs[transport] ?? null) : null;
 
-    const send_now = useCallback((type, data, epoch) => {
-        const state = send_state_ref.current;
-        const candidate = transport_ref.current;
-        if (epoch == null || spot_socket_epochs_ref.current[candidate] !== epoch) return false;
-        if (candidate === "unified" && state.unified_ready_state === ReadyState.OPEN) {
-            state.send_unified_message({ version: 1, type, ...data }, false);
-            return true;
-        }
-        if (candidate === "cat_v1_2" && state.compatibility_ready_state === ReadyState.OPEN) {
-            state.send_compatibility_message(cat_v1_2_message(type, data), false);
-            return true;
-        }
-        return false;
-    }, []);
+    const send_now = useCallback(
+        (type, data, epoch) => {
+            const state = send_state_ref.current;
+            const candidate = transport_ref.current;
+            if (epoch == null || spot_socket_epochs_ref.current[candidate] !== epoch) return false;
+            data = with_versions(type, data);
+            if (candidate === "unified" && state.unified_ready_state === ReadyState.OPEN) {
+                state.send_unified_message({ version: 1, type, ...data }, false);
+                return true;
+            }
+            if (candidate === "cat_v1_2" && state.compatibility_ready_state === ReadyState.OPEN) {
+                state.send_compatibility_message(cat_v1_2_message(type, data), false);
+                return true;
+            }
+            return false;
+        },
+        [with_versions],
+    );
 
     const wait_for_open = useCallback(signal => {
         if (signal?.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));

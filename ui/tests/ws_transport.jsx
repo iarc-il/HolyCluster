@@ -78,6 +78,7 @@ describe("WebSocket transport", () => {
     afterEach(() => {
         cleanup();
         vi.useRealTimers();
+        vi.unstubAllEnvs();
     });
 
     it.each(["unified", "legacy"])(
@@ -312,6 +313,8 @@ describe("WebSocket transport", () => {
                 version: 1,
                 type: "spots",
                 action: "initial",
+                ui_version: null,
+                catserver_version: candidate === "unified" ? null : "catserver-v1.2.0",
             },
             false,
         );
@@ -327,6 +330,116 @@ describe("WebSocket transport", () => {
         ).toBe(true);
         act(() => connection.options.onClose());
         expect(send_now("spots", {}, second)).toBe(false);
+    });
+
+    it.each(["unified", "legacy"])("reports versions only on %s spots at send time", candidate => {
+        vi.stubEnv("VITE_SENTRY_RELEASE", "holy-ui@abc123");
+        const view = render_provider();
+        const path = candidate === "unified" ? "/ws" : "/submit_spot";
+        const connection = websocket_mock.connection_for(path);
+        connection.readyState = websocket_mock.ReadyState.OPEN;
+        act(() => connection.options.onOpen());
+        const request = Object.freeze({ action: "initial", bands: [20], source: "test" });
+        const send = TestConsumer.context.send;
+        const send_now = TestConsumer.context.send_now;
+        expect(send("spots", request)).toBe(false);
+        receive(
+            view,
+            candidate === "unified" ? "/ws" : "/radio",
+            candidate === "unified"
+                ? { version: 1, type: "radio", event: "status", status: "unavailable" }
+                : { status: "connected", version: "catserver-v1.2.0" },
+        );
+        const epoch = TestConsumer.context.spot_socket_epoch;
+        const expected = catserver_version => ({
+            version: 1,
+            type: "spots",
+            ...request,
+            ui_version: "holy-ui@abc123",
+            catserver_version,
+        });
+        expect(send("spots", request)).toBe(true);
+        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(
+            expected(candidate === "unified" ? null : "catserver-v1.2.0"),
+        );
+        receive(
+            view,
+            candidate === "unified" ? "/ws" : "/radio",
+            candidate === "unified"
+                ? { type: "radio", event: "status", catserver_version: "catserver-v1.3.0" }
+                : { status: "connected", version: "catserver-v1.2.1" },
+        );
+        const version = candidate === "unified" ? "catserver-v1.3.0" : "catserver-v1.2.1";
+        expect(send("spots", request)).toBe(true);
+        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(expected(version));
+        expect(send_now("spots", request, epoch)).toBe(true);
+        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(expected(version), false);
+        expect(request).toEqual({ action: "initial", bands: [20], source: "test" });
+        for (const type of ["history", "update", "rotator"]) {
+            expect(send(type, request)).toBe(true);
+            expect(connection.sendJsonMessage).toHaveBeenLastCalledWith({
+                version: 1,
+                type,
+                ...request,
+            });
+            expect(send_now(type, request, epoch)).toBe(true);
+            expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(
+                { version: 1, type, ...request },
+                false,
+            );
+        }
+        const radio = websocket_mock.connection_for(candidate === "unified" ? "/ws" : "/radio");
+        radio.readyState = websocket_mock.ReadyState.OPEN;
+        receive(view, path, null);
+        expect(send("radio", { action: "GetCapabilities" })).toBe(true);
+        expect(radio.sendJsonMessage).toHaveBeenLastCalledWith(
+            candidate === "unified"
+                ? { version: 1, type: "radio", action: "GetCapabilities" }
+                : { type: "GetCapabilities" },
+        );
+    });
+
+    it.each(["unified", "legacy"])("clears %s identity when its spot socket closes", candidate => {
+        vi.useFakeTimers();
+        const view = render_provider();
+        const path = candidate === "unified" ? "/ws" : "/submit_spot";
+        const connection = websocket_mock.connection_for(path);
+        connection.readyState = websocket_mock.ReadyState.OPEN;
+        receive(
+            view,
+            candidate === "unified" ? "/ws" : "/radio",
+            candidate === "unified"
+                ? { type: "radio", event: "status", catserver_version: "catserver-v1.3.0" }
+                : { status: "connected", version: "catserver-v1.2.0" },
+        );
+        act(() => connection.options.onClose());
+        act(() => vi.advanceTimersByTime(1500));
+        expect(TestConsumer.context.send("spots", {})).toBe(true);
+        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith({
+            version: 1,
+            type: "spots",
+            ui_version: null,
+            catserver_version: null,
+        });
+    });
+
+    it("clears a CAT identity when the direct backend identifies itself", () => {
+        const view = render_provider();
+        const connection = websocket_mock.connection_for("/ws");
+        connection.readyState = websocket_mock.ReadyState.OPEN;
+        receive(view, "/ws", {
+            type: "radio",
+            event: "status",
+            catserver_version: "catserver-v1.3.0",
+        });
+        receive(view, "/ws", { version: 1, type: "radio", event: "status", status: "unavailable" });
+        TestConsumer.context.send("spots", {});
+        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith({
+            version: 1,
+            type: "spots",
+            ui_version: null,
+            catserver_version: null,
+        });
     });
 
     it("returns to parallel probing when the selected transport closes", () => {
