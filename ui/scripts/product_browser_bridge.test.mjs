@@ -162,6 +162,61 @@ test("report a failed first navigation instead of waiting for another launch", l
     });
 });
 
+test("reject WSL before state, callback, or browser creation", linux, async t => {
+    const options = await fixture(t);
+    const bridgeUrl = new URL("./product_browser_bridge.mjs", import.meta.url).href;
+    const harnessUrl = new URL("./product_test.mjs", import.meta.url).href;
+    for (const signal of [
+        "release",
+        "version",
+        "proc",
+        "WSL_DISTRO_NAME",
+        "WSL_INTEROP",
+        "childEnv",
+    ]) {
+        execFileSync(
+            process.execPath,
+            [
+                "--input-type=module",
+                "--eval",
+                `
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            import os from "node:os";
+            import { syncBuiltinESMExports } from "node:module";
+            import { chromium } from "@playwright/test";
+            const signal = ${JSON.stringify(signal)};
+            delete process.env.WSL_DISTRO_NAME;
+            delete process.env.WSL_INTEROP;
+            os.release = () => signal === "release" ? "5.15.0-microsoft-standard-WSL2" : "6.1.0";
+            os.version = () => signal === "version" ? "Microsoft Linux" : "Linux";
+            const readFileSync = fs.readFileSync;
+            fs.readFileSync = (file, ...args) => file === "/proc/version"
+                ? (signal === "proc" ? "Linux version 4.4.0-Microsoft" : "Linux version 6.1.0")
+                : readFileSync(file, ...args);
+            if (signal === "WSL_DISTRO_NAME" || signal === "WSL_INTEROP") process.env[signal] = "test";
+            syncBuiltinESMExports();
+            chromium.launchPersistentContext = () => assert.fail("Must not create a browser");
+            const { startProductBrowserBridge } = await import(${JSON.stringify(bridgeUrl)});
+            const { withProductTest } = await import(${JSON.stringify(harnessUrl)});
+            const root = ${JSON.stringify(options.temporaryParent)};
+            const before = fs.readdirSync(root);
+            await assert.rejects(startProductBrowserBridge({
+                directories: { root, browser: root },
+                env: signal === "childEnv" ? { ...process.env, WSL_INTEROP: "test" } : process.env,
+            }), /does not support WSL/);
+            if (signal !== "childEnv") {
+                await assert.rejects(withProductTest({ browserBridge: true, temporaryParent: root },
+                    () => assert.fail("Must not call the product callback")), /does not support WSL/);
+            }
+            assert.deepEqual(fs.readdirSync(root), before);
+            `,
+            ],
+            { cwd: new URL("../", import.meta.url) },
+        );
+    }
+});
+
 test("browser bridge fails closed on other platforms", async () => {
     const moduleUrl = new URL("./product_browser_bridge.mjs", import.meta.url).href;
     for (const platform of ["darwin", "win32"]) {

@@ -3,9 +3,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { assertProductBrowserPlatform } from "./product_browser_platform.mjs";
 
 export async function startProductBrowserBridge({ directories, env, maxEntries = 128 }) {
-    assert(process.platform === "linux", "Product browser bridge requires Linux");
+    assertProductBrowserPlatform(env);
     assert(Number.isSafeInteger(maxEntries) && maxEntries > 0 && maxEntries <= 10000);
     const control = await mkdtemp(path.join(os.tmpdir(), "catserver-browser-"));
     const socketPath = path.join(control, "open.sock");

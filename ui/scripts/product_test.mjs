@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { startProductBrowserBridge } from "./product_browser_bridge.mjs";
+import { assertProductBrowserPlatform } from "./product_browser_platform.mjs";
 
 export function candidateRelease({ version, platform, architecture, name, bytes }) {
     for (const value of [version, platform, architecture, name]) {
@@ -168,6 +169,7 @@ export async function startProductBackend({
 export async function withProductTest(options, run) {
     // Windows Known Folders do not use APPDATA overrides.
     assert(process.platform === "linux", "Product state isolation requires Linux");
+    if (options.browserBridge) assertProductBrowserPlatform();
     const root = await mkdtemp(
         path.join(options.temporaryParent || os.tmpdir(), "catserver-product-"),
     );
