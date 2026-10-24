@@ -198,26 +198,19 @@ test("reject WSL before state, callback, or browser creation", linux, async t =>
     const options = await fixture(t);
     const bridgeUrl = new URL("./product_browser_bridge.mjs", import.meta.url).href;
     const harnessUrl = new URL("./product_test.mjs", import.meta.url).href;
-    for (const signal of [
-        "release",
-        "version",
-        "proc",
-        "WSL_DISTRO_NAME",
-        "WSL_INTEROP",
-        "childEnv",
-    ]) {
-        execFileSync(
-            process.execPath,
-            [
-                "--input-type=module",
-                "--eval",
-                `
+    const platformUrl = new URL("./product_browser_platform.mjs", import.meta.url).href;
+    execFileSync(
+        process.execPath,
+        [
+            "--input-type=module",
+            "--eval",
+            `
             import assert from "node:assert/strict";
             import fs from "node:fs";
             import os from "node:os";
             import { syncBuiltinESMExports } from "node:module";
             import { chromium } from "@playwright/test";
-            const signal = ${JSON.stringify(signal)};
+            let signal;
             delete process.env.WSL_DISTRO_NAME;
             delete process.env.WSL_INTEROP;
             os.release = () => signal === "release" ? "5.15.0-microsoft-standard-WSL2" : "6.1.0";
@@ -226,8 +219,18 @@ test("reject WSL before state, callback, or browser creation", linux, async t =>
             fs.readFileSync = (file, ...args) => file === "/proc/version"
                 ? (signal === "proc" ? "Linux version 4.4.0-Microsoft" : "Linux version 6.1.0")
                 : readFileSync(file, ...args);
-            if (signal === "WSL_DISTRO_NAME" || signal === "WSL_INTEROP") process.env[signal] = "test";
             syncBuiltinESMExports();
+            const { assertProductBrowserPlatform } = await import(${JSON.stringify(platformUrl)});
+            assertProductBrowserPlatform({});
+            for (signal of ["release", "version", "proc", "WSL_DISTRO_NAME", "WSL_INTEROP", "childEnv"]) {
+                if (signal.startsWith("WSL_")) process.env[signal] = "test";
+                assert.throws(() => assertProductBrowserPlatform(
+                    signal === "childEnv" ? { WSL_INTEROP: "test" } : {},
+                ), /does not support WSL/);
+                delete process.env.WSL_DISTRO_NAME;
+                delete process.env.WSL_INTEROP;
+            }
+            signal = "release";
             chromium.launchPersistentContext = () => assert.fail("Must not create a browser");
             const { startProductBrowserBridge } = await import(${JSON.stringify(bridgeUrl)});
             const { withProductTest } = await import(${JSON.stringify(harnessUrl)});
@@ -235,18 +238,15 @@ test("reject WSL before state, callback, or browser creation", linux, async t =>
             const before = fs.readdirSync(root);
             await assert.rejects(startProductBrowserBridge({
                 directories: { root, browser: root },
-                env: signal === "childEnv" ? { ...process.env, WSL_INTEROP: "test" } : process.env,
+                env: process.env,
             }), /does not support WSL/);
-            if (signal !== "childEnv") {
-                await assert.rejects(withProductTest({ browserBridge: true, temporaryParent: root },
-                    () => assert.fail("Must not call the product callback")), /does not support WSL/);
-            }
+            await assert.rejects(withProductTest({ browserBridge: true, temporaryParent: root },
+                () => assert.fail("Must not call the product callback")), /does not support WSL/);
             assert.deepEqual(fs.readdirSync(root), before);
             `,
-            ],
-            { cwd: new URL("../", import.meta.url) },
-        );
-    }
+        ],
+        { cwd: new URL("../", import.meta.url) },
+    );
 });
 
 test("browser bridge fails closed on other platforms", async () => {
