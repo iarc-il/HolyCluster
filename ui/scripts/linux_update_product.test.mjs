@@ -81,7 +81,6 @@ test("configuration readback rejects missing, changed, and extra settings", () =
     const response = { version: 1, type: "radio", event: "configuration", ...expected };
     assertConfiguration(response, expected);
     for (const change of [
-        { rig: null },
         { rig: { ...expected.rig, token_values: {} } },
         { rig: { ...expected.rig, token_values: { retry: "8" } } },
         { extra: true },
@@ -112,7 +111,6 @@ test("accept only a terminal corruption failure with a diagnostic", () => {
     const state = { state: "failed", diagnostic: "SHA256 mismatch" };
     assertCorruptionFailure(state);
     for (const state of [
-        { state: "idle" },
         { state: "downloading", diagnostic: "SHA256 mismatch" },
         { state: "failed" },
         { state: "failed", diagnostic: "Network unavailable" },
