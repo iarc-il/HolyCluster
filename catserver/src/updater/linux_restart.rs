@@ -59,6 +59,10 @@ pub(super) fn recover(
         let session = SessionStore::load(&session_path)?.snapshot();
         anyhow::ensure!(
             !session.terminal()
+                && session.owner.as_ref().is_none_or(|owner| {
+                    owner.pid == std::process::id()
+                        && owner.active(Path::new("/proc")).unwrap_or(false)
+                })
                 && session.id == context.id
                 && session.port == context.port
                 && session.expected_version == context.expected_version
@@ -302,6 +306,49 @@ mod tests {
         let mut normal_start = Fixture::new(true);
         normal_start.arguments = original_arguments(&normal_start.arguments);
         assert!(normal_start.recover().is_err());
+    }
+
+    #[test]
+    fn startup_preserves_owned_handoffs_but_rejects_an_abandoned_restart_owner() {
+        for owner_state in ["live", "legacy", "dead", "reused", "rebooted"] {
+            let fixture = Fixture::new(true);
+            let path = fixture.dir.path().join("session.json");
+            let mut session: serde_json::Value =
+                serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+            if owner_state == "legacy" {
+                session.as_object_mut().unwrap().remove("owner");
+            } else if owner_state == "reused" {
+                session["owner"]["started_at"] = 0.into();
+            } else if owner_state == "dead" {
+                session["owner"]["pid"] = u32::MAX.into();
+            } else if owner_state == "rebooted" {
+                session["owner"]["boot_id"] = "previous-boot".into();
+            }
+            write_json(&path, &session).unwrap();
+            let context = fixture.recover();
+            let service = UpdateService::with_data_dir(
+                Url::parse("https://releases.example/manifest.json").unwrap(),
+                "catserver-v1.2.3",
+                fixture.dir.path().to_owned(),
+            )
+            .unwrap();
+            if matches!(owner_state, "dead" | "reused" | "rebooted") {
+                assert!(context.is_err());
+                assert!(service.session().unwrap().terminal());
+                assert_eq!(service.status().state, UpdateState::Failed);
+                assert!(!service.readiness().verified);
+                assert!(service.exclusive(|| service.retry()).is_ok());
+            } else {
+                assert_eq!(service.session().unwrap().phase, "reconnecting");
+                assert!(service.exclusive(|| Ok(())).is_err());
+                let service = service.with_restart(Some(context.unwrap()));
+                assert!(service.readiness().verified);
+                assert_eq!(
+                    service.readiness().update_id.as_deref(),
+                    Some("owned-update")
+                );
+            }
+        }
     }
 
     #[test]

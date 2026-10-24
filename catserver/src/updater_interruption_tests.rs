@@ -514,3 +514,88 @@ fn failed_rollback_does_not_unlink_updated_launcher() {
     );
     assert_eq!(fs::read(&plan.current_executable).unwrap(), VALID_APPIMAGE);
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_startup_terminates_abandoned_sessions_and_allows_retry() {
+    for owner in ["legacy", "dead", "reused", "rebooted"] {
+        for phase in [
+            "downloading",
+            "verifying",
+            "waiting_for_parent",
+            "installing",
+            "reconnecting",
+            "waiting_for_local_port",
+        ] {
+            let fixture = Fixture::new();
+            let store = fixture.session(phase);
+            let mut session = serde_json::to_value(store.snapshot()).unwrap();
+            match owner {
+                "legacy" => {
+                    session.as_object_mut().unwrap().remove("owner");
+                }
+                "dead" => session["owner"]["pid"] = u32::MAX.into(),
+                "reused" => session["owner"]["started_at"] = 0.into(),
+                "rebooted" => session["owner"]["boot_id"] = "previous-boot".into(),
+                _ => unreachable!(),
+            }
+            if phase == "reconnecting" {
+                session["installer_outcome"] = "installed".into();
+            }
+            write_json(&fixture.0.join("session.json"), &session).unwrap();
+            if !matches!(phase, "downloading" | "verifying") {
+                let mut plan = fixture.plan();
+                plan.parent_pid = u32::MAX;
+                plan.restart = Some(RestartContext {
+                    id: "interrupted".into(),
+                    port: 41234,
+                    expected_version: "1.3.0".into(),
+                    state_path: plan.state_path.clone(),
+                });
+                write_json(&fixture.0.join("install-plan.json"), &plan).unwrap();
+                write_json(
+                    &plan.state_path,
+                    &UpdateStatus {
+                        state: UpdateState::Installing,
+                        available_version: Some("1.3.0".into()),
+                        diagnostic: None,
+                    },
+                )
+                .unwrap();
+            }
+            let service = fixture.service();
+            let session = service.session().unwrap();
+            assert!(session.terminal(), "{phase}: {}", session.phase);
+            if phase == "reconnecting" {
+                assert_eq!(session.phase, "restart_failed");
+                assert_eq!(session.installer_outcome.as_deref(), Some("installed"));
+            }
+            assert!(session.diagnostic.as_deref().unwrap().contains("retry"));
+            assert_eq!(service.status().state, UpdateState::Failed);
+            assert!(!service.readiness().verified);
+            assert!(service.readiness().update_id.is_none());
+            assert_eq!(
+                service.exclusive(|| service.retry()).unwrap().state,
+                UpdateState::Idle
+            );
+            assert!(service.session().is_none());
+            assert!(service.exclusive(|| Ok(())).is_ok());
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_startup_preserves_a_live_owned_session() {
+    for phase in ["downloading", "verifying", "reconnecting"] {
+        let fixture = Fixture::new();
+        fixture.session(phase);
+        let mut stale_plan = fixture.plan();
+        stale_plan.parent_pid = u32::MAX;
+        write_json(&fixture.0.join("install-plan.json"), &stale_plan).unwrap();
+        let service = fixture.service();
+        assert_eq!(service.session().unwrap().phase, phase);
+        assert!(service.exclusive(|| Ok(())).is_err());
+        assert!(!service.readiness().verified);
+    }
+}

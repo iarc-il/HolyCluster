@@ -510,8 +510,53 @@ impl UpdateService {
 
     #[cfg(target_os = "linux")]
     fn reconcile_linux_installing_status_with(&self, proc_root: &Path) -> Result<()> {
-        // Normal startup holds the singleton lock. Never clear an install owned
-        // by a live process, or one whose session/plan cannot be established.
+        // Startup holds the singleton lock; session owners also protect in-process reuse.
+        if proc_root
+            .join(std::process::id().to_string())
+            .try_exists()?
+            && !self.data_dir.join("update-helper.json").try_exists()?
+            && let Some(session) = self.session()
+        {
+            if session.terminal()
+                && self.status().state != UpdateState::Installing
+                && session.installer_outcome.as_deref() != Some("unconfirmed")
+            {
+                return Ok(());
+            }
+            if let Some(owner) = &session.owner {
+                if owner.active(proc_root)? {
+                    return Ok(());
+                }
+            } else if let Ok(data) = fs::read(self.plan_path())
+                && let Ok(plan) = serde_json::from_slice::<InstallPlan>(&data)
+                && plan.state_path == self.state_path()
+                && plan.restart.as_ref().is_some_and(|context| {
+                    context.id == session.id
+                        && context.port == session.port
+                        && context.expected_version == session.expected_version
+                        && context.state_path == self.state_path()
+                })
+                && proc_root.join(plan.parent_pid.to_string()).try_exists()?
+            {
+                return Ok(());
+            }
+            let diagnostic = "Linux update was interrupted before completion; retry the update";
+            SessionStore::load(&self.session_path())?.change(|session| {
+                session.phase = if session.installer_outcome.as_deref() == Some("installed") {
+                    "restart_failed"
+                } else {
+                    session.installer_outcome = Some("failed".into());
+                    "failed"
+                }
+                .into();
+                session.diagnostic = Some(diagnostic.into());
+            })?;
+            return self.write_status(&UpdateStatus {
+                state: UpdateState::Failed,
+                available_version: None,
+                diagnostic: Some(diagnostic.into()),
+            });
+        }
         let status = self.status();
         if status.state != UpdateState::Installing
             || !proc_root

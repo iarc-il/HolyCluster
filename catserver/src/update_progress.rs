@@ -7,9 +7,60 @@ use std::{
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "linux")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct UpdateOwner {
+    pub pid: u32,
+    pub started_at: u64,
+    #[serde(default)]
+    pub boot_id: String,
+}
+
+#[cfg(target_os = "linux")]
+impl UpdateOwner {
+    pub(crate) fn active(&self, proc_root: &Path) -> Result<bool> {
+        Ok(
+            fs::read_to_string(proc_root.join("sys/kernel/random/boot_id"))?.trim() == self.boot_id
+                && Self::start_time(proc_root, self.pid)? == Some(self.started_at),
+        )
+    }
+
+    fn start_time(proc_root: &Path, pid: u32) -> Result<Option<u64>> {
+        let stat = match fs::read_to_string(proc_root.join(pid.to_string()).join("stat")) {
+            Ok(stat) => stat,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
+        Ok(Some(
+            stat.rsplit_once(')')
+                .context("invalid process stat")?
+                .1
+                .split_whitespace()
+                .nth(19)
+                .context("missing process start time")?
+                .parse()?,
+        ))
+    }
+
+    fn current() -> Result<Self> {
+        let pid = std::process::id();
+        Ok(Self {
+            pid,
+            started_at: Self::start_time(Path::new("/proc"), pid)?
+                .context("update owner process is missing")?,
+            boot_id: fs::read_to_string("/proc/sys/kernel/random/boot_id")?
+                .trim()
+                .to_owned(),
+        })
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct UpdateSession {
     pub id: String,
+    #[cfg(target_os = "linux")]
+    #[serde(default)]
+    pub owner: Option<UpdateOwner>,
     pub expected_version: String,
     pub port: u16,
     pub origin: String,
@@ -50,6 +101,8 @@ impl SessionStore {
     ) -> Result<Arc<Self>> {
         let data = UpdateSession {
             id,
+            #[cfg(target_os = "linux")]
+            owner: Some(UpdateOwner::current()?),
             port,
             expected_version: version,
             origin,
