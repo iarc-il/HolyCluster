@@ -43,7 +43,9 @@ export function UpdateConsentDialog() {
     return (
         <Modal
             title={
-                <h2 className="text-lg">CAT Control update{is_available ? " available" : ""}</h2>
+                <h2 className="text-lg">
+                    {is_available ? "CAT Control update available" : "CAT Control update"}
+                </h2>
             }
             button={<span aria-hidden="true" />}
             external_open={show_update}
