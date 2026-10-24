@@ -1,0 +1,995 @@
+{
+  "uid": "holycluster-pipeline",
+  "title": "HolyCluster / Spots and sources",
+  "description": "Source availability, spot collection and pipeline outcomes, queue and reference refreshes.",
+  "schemaVersion": 41,
+  "version": 2,
+  "editable": false,
+  "timezone": "browser",
+  "refresh": "30s",
+  "tags": [
+    "HolyCluster",
+    "monitoring"
+  ],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Connectivity",
+      "type": "link",
+      "url": "/d/holycluster-system",
+      "targetBlank": false
+    },
+    {
+      "title": "Users",
+      "type": "link",
+      "url": "/d/holycluster-api",
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "type": "text",
+      "title": "Spots and sources",
+      "options": {
+        "mode": "markdown",
+        "content": "SOTA is excluded. Sources use configured names, including individual Telnet sources. Missing series show **No data**, not zero. Rates need two scrapes. Ingestion, enrichment, pipeline and persistence count different events; do not add stages. The last parsed spot age uses a planned metric."
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "id": 1
+    },
+    {
+      "type": "table",
+      "title": "Current source availability",
+      "description": "Dynamic configured source names. 1 = connected or most recent JSON response decoded; 0 = unavailable. Disabled SOTA is excluded.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "holycluster_collector_source_up{source!=\"sota\"}",
+          "legendFormat": "{{source}} / {{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 9,
+        "h": 5
+      },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            }
+          }
+        }
+      ],
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "Incoming spots",
+      "description": "All parsed or rejected ingestion outcomes; each ingestion outcome counts once.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(holycluster_collector_spots_total{source!=\"sota\",stage=\"ingest\"}[$__rate_interval]))",
+          "legendFormat": "Incoming spots",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 3,
+        "w": 5,
+        "h": 5
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "none",
+        "displayMode": "basic"
+      },
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "Completed pipeline",
+      "description": "Successful pipeline completions per second; not persistence operation count.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(holycluster_collector_spots_total{source!=\"sota\",stage=\"pipeline\",result=\"success\"}[$__rate_interval]))",
+          "legendFormat": "Completed pipeline",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 3,
+        "w": 5,
+        "h": 5
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "none",
+        "displayMode": "basic"
+      },
+      "id": 4
+    },
+    {
+      "type": "stat",
+      "title": "Duplicate percentage",
+      "description": "Duplicates / all ingestion outcomes. No traffic gives No data.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum(rate(holycluster_collector_spots_total{source!=\"sota\",stage=\"ingest\",result=\"duplicate\"}[$__rate_interval])) / (sum(rate(holycluster_collector_spots_total{source!=\"sota\",stage=\"ingest\"}[$__rate_interval])) > 0)",
+          "legendFormat": "Duplicate percentage",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 19,
+        "y": 3,
+        "w": 5,
+        "h": 5
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "none",
+        "displayMode": "basic"
+      },
+      "id": 5
+    },
+    {
+      "type": "state-timeline",
+      "title": "Source availability timeline",
+      "description": "Per configured source and collector instance. Gaps mean no series, not a healthy source.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "holycluster_collector_source_up{source!=\"sota\"}",
+          "legendFormat": "{{source}} / {{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unavailable",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Available",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "showValue": "never",
+        "rowHeight": 0.8,
+        "mergeValues": true,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "id": 6
+    },
+    {
+      "type": "timeseries",
+      "title": "Incoming spot rate by source",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (source) (rate(holycluster_collector_spots_total{source!=\"sota\",stage=\"ingest\"}[$__rate_interval]))",
+          "legendFormat": "{{source}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 7
+    },
+    {
+      "type": "timeseries",
+      "title": "Time since last parsed spot by source",
+      "description": "Uses the planned last parsed spot timestamp metric. No data means no timestamp is available; it does not mean a healthy or idle source.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(time() - holycluster_collector_source_last_spot_timestamp_seconds{source!=\"sota\"}) and (holycluster_collector_source_last_spot_timestamp_seconds{source!=\"sota\"} > 0)",
+          "legendFormat": "{{source}} / {{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 8
+    },
+    {
+      "type": "timeseries",
+      "title": "Source contribution percentage",
+      "description": "Share of queued (accepted) spots. No accepted traffic gives No data.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum by (source) (rate(holycluster_collector_spots_total{source!=\"sota\",stage=\"ingest\",result=\"queued\"}[$__rate_interval])) / scalar(sum(rate(holycluster_collector_spots_total{source!=\"sota\",stage=\"ingest\",result=\"queued\"}[$__rate_interval])) > 0)",
+          "legendFormat": "{{source}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 9
+    },
+    {
+      "type": "timeseries",
+      "title": "Collection outcomes by source",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (source, result) (rate(holycluster_collector_spots_total{source!=\"sota\",stage=\"ingest\"}[$__rate_interval]))",
+          "legendFormat": "{{source}} / {{result}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 10
+    },
+    {
+      "type": "timeseries",
+      "title": "Dropped spots by reason",
+      "description": "Includes ingestion rejections and unsuccessful downstream outcomes. Stages are not additive.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (stage, result) (rate(holycluster_collector_spots_total{source!=\"sota\",result!~\"queued|success\"}[$__rate_interval]))",
+          "legendFormat": "{{stage}} / {{result}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 11
+    },
+    {
+      "type": "timeseries",
+      "title": "Processing pipeline \u00b7 rates with time lag",
+      "description": "Independent event rates: queued \u2192 enrich success \u2192 pipeline success. Queue wait and work cause time lag. This is not an exact transaction funnel; do not subtract stages.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(holycluster_collector_spots_total{source!=\"sota\",stage=\"ingest\",result=\"queued\"}[$__rate_interval]))",
+          "legendFormat": "Queued",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(holycluster_collector_spots_total{source!=\"sota\",stage=\"enrich\",result=\"success\"}[$__rate_interval]))",
+          "legendFormat": "Enrich success",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate(holycluster_collector_spots_total{source!=\"sota\",stage=\"pipeline\",result=\"success\"}[$__rate_interval]))",
+          "legendFormat": "Pipeline success",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 12
+    },
+    {
+      "type": "timeseries",
+      "title": "Queue depth, capacity and 80% limit",
+      "description": "Spots waiting per collector. The 80% line follows the configured capacity.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "holycluster_collector_queue_depth",
+          "legendFormat": "Depth {{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "refId": "B",
+          "expr": "holycluster_collector_queue_capacity",
+          "legendFormat": "Capacity {{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "refId": "C",
+          "expr": "0.8 * holycluster_collector_queue_capacity",
+          "legendFormat": "80% capacity {{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 13
+    },
+    {
+      "type": "timeseries",
+      "title": "Persistence operations",
+      "description": "Attempts and outcomes are separate counters; do not add them.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (operation, result) (rate(holycluster_collector_persistence_operations_total[$__rate_interval]))",
+          "legendFormat": "{{operation}} / {{result}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 14
+    },
+    {
+      "type": "timeseries",
+      "title": "Persistence failures",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (operation) (rate(holycluster_collector_persistence_operations_total{result=\"error\"}[$__rate_interval]))",
+          "legendFormat": "{{operation}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 15
+    },
+    {
+      "type": "timeseries",
+      "title": "LoTW / DXpedition refresh health",
+      "description": "Attempt, success and error rates are not additive. Refreshes can be idle for a day.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (dataset, result) (rate(holycluster_collector_refresh_total{dataset=~\"lotw|dxpeditions\"}[$__rate_interval]))",
+          "legendFormat": "{{dataset}} / {{result}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 16
+    },
+    {
+      "type": "timeseries",
+      "title": "LoTW / DXpedition refresh freshness",
+      "description": "Age since last successful refresh, not the age of the underlying reference data. Some refreshes run daily. Missing means no recorded success.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - holycluster_collector_refresh_last_success_timestamp_seconds{dataset=~\"lotw|dxpeditions\"}",
+          "legendFormat": "{{dataset}} / {{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 17
+    }
+  ]
+}
