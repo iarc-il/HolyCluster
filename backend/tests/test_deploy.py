@@ -190,6 +190,20 @@ class DeployTests(unittest.TestCase):
         self.assertFalse((root / "wait.log").exists())
         self.assertTrue((root / "start-nginx").exists())
 
+    def test_unrelated_deploy_does_not_require_monitoring_credentials(self):
+        for path, services in (
+            ("infra/nginx/nginx.conf.template", set()),
+            ("api/src/api/main.py", {"api"}),
+        ):
+            with self.subTest(path=path):
+                root, result = self.run_deploy(CHANGED_FILES=path)
+                self.assertNotIn("GRAFANA_ADMIN_PASSWORD", (root / ".env").read_text())
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assert_all_waited(root, services)
+                self.assertTrue((root / "start-nginx").exists())
+                self.assertFalse((root / "start-grafana").exists())
+                self.assertFalse((root / "start-victoriametrics").exists())
+
     def test_monitoring_changes_select_services_without_migrations(self):
         for path, services in (
             ("infra/monitoring/victoriametrics/scrape.yml", {"victoriametrics"}),

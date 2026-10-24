@@ -127,13 +127,22 @@ services:
   grafana:
     image: grafana/grafana:12.3.1
     restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        if [ -z "$${GF_SECURITY_ADMIN_PASSWORD}" ]; then
+          echo 'Set GRAFANA_ADMIN_PASSWORD before starting Grafana.' >&2
+          exit 1
+        fi
+        exec /run.sh
     # The bind mount is created on the host; Grafana runs as UID 472.
     user: "472:472"
     environment:
       GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana/
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SECURITY_COOKIE_SECURE: "true"
