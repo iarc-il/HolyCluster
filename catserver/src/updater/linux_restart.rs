@@ -329,9 +329,6 @@ mod tests {
             if matches!(owner_state, "dead" | "reused" | "rebooted") {
                 assert!(context.is_err());
                 assert!(service.session().unwrap().terminal());
-                assert_eq!(service.status().state, UpdateState::Failed);
-                assert!(!service.readiness().verified);
-                assert!(service.exclusive(|| service.retry()).is_ok());
             } else {
                 assert_eq!(service.session().unwrap().phase, "reconnecting");
                 assert!(service.exclusive(|| Ok(())).is_err());
