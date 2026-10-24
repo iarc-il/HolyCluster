@@ -285,6 +285,38 @@ function isExternalCrawlerNoise(event, primary, frames, capture_path, original_f
     return true;
 }
 
+function isRuntimeBridgeCandidate(
+    exception,
+    primary,
+    frames,
+    capture_path,
+    boundary,
+    evidence,
+    original,
+    original_frames,
+) {
+    const message = "Invalid call to runtime.sendMessage(). Tab not found.";
+    return (
+        capture_path === "unhandled_rejection" &&
+        primary?.mechanism?.handled === false &&
+        primary.value === message &&
+        exception?.values?.length === 1 &&
+        !boundary &&
+        !evidence.operation &&
+        evidence.component_stack !== "present" &&
+        evidence.original_stack !== "present" &&
+        (evidence.original_value === undefined || evidence.original_value === message) &&
+        frames.length === 0 &&
+        !original_frames?.length &&
+        (original === undefined ||
+            original === message ||
+            (isError(original) &&
+                original.message === message &&
+                !Object.hasOwn(original, "cause") &&
+                !Object.hasOwn(original, "errors")))
+    );
+}
+
 export function prepareSentryEvent(event, hint = {}) {
     const prepared_event = { ...event };
     let exception = event.exception;
@@ -396,6 +428,20 @@ export function prepareSentryEvent(event, hint = {}) {
         frame_sources: frameSourceEvidence(exception),
         provenance: frameProvenance(frames),
     };
+    if (
+        isRuntimeBridgeCandidate(
+            exception,
+            primary,
+            frames,
+            capture_path,
+            boundary,
+            evidence,
+            original,
+            original_frames,
+        )
+    ) {
+        diagnostic.category = "browser_runtime_bridge_candidate";
+    }
     if (isLazySecondary(primary, boundary, original_frames)) {
         diagnostic.category = "react_lazy_secondary";
         if (!event.fingerprint) {

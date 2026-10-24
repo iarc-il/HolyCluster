@@ -1,4 +1,4 @@
-import { prepareSentryEvent, recordBoundaryDiagnostics } from "@/sentry";
+import { annotateDiagnosticError, prepareSentryEvent, recordBoundaryDiagnostics } from "@/sentry";
 import * as Sentry from "@sentry/react";
 import { describe, expect, it } from "vitest";
 
@@ -26,6 +26,87 @@ const secondary = [
     "undefined is not an object (evaluating 'v._result.default')",
     'can\'t access property "default", v._result is undefined',
 ];
+
+describe("runtime bridge advisory", () => {
+    const message = "Invalid call to runtime.sendMessage(). Tab not found.";
+    const rejection = "auto.browser.global_handlers.onunhandledrejection";
+    const candidate = () => event(message, [], rejection, { fingerprint: ["caller"] });
+    const stackless = () => {
+        const error = new Error(message);
+        error.stack = undefined;
+        return error;
+    };
+    it("labels exact stackless unhandled evidence without dropping or regrouping it", () => {
+        for (const hint of [{}, { originalException: stackless() }]) {
+            const input = candidate();
+            const result = prepareSentryEvent(input, hint);
+            expect(result.contexts.diagnostic.category).toBe("browser_runtime_bridge_candidate");
+            expect(result.contexts.diagnostic.provenance).toBe("unknown");
+            expect(result.contexts.diagnostic.capture_path).toBe("unhandled_rejection");
+            expect(result.fingerprint).toEqual(["caller"]);
+            expect(result.exception).toEqual(input.exception);
+        }
+    });
+    it("retains near matches without a bridge classification", () => {
+        const variants = [];
+        for (const value of [
+            message.toLowerCase(),
+            `${message} `,
+            message.slice(0, -1),
+            `Uncaught ${message}`,
+            "Invalid call to runtime.sendMessage(). Tab not found!",
+        ]) {
+            const input = candidate();
+            input.exception.values[0].value = value;
+            variants.push([input, {}]);
+        }
+        for (const mechanism of [global_mechanism, boundary_mechanism, "generic"])
+            variants.push([event(message, [], mechanism), {}]);
+        for (const frames of [[app], [{ function: "unknown" }]])
+            variants.push([event(message, frames, rejection), {}]);
+        const handled = candidate();
+        handled.exception.values[0].mechanism.handled = true;
+        variants.push([handled, {}]);
+        const absent_handled = candidate();
+        absent_handled.exception.values[0].mechanism.handled = undefined;
+        variants.push([absent_handled, {}]);
+        const additional = candidate();
+        additional.exception.values.unshift({ type: "Error", value: "app failure" });
+        variants.push([additional, {}]);
+        for (const diagnostic of [
+            { boundary: true },
+            { operation: "websocket_message" },
+            { component_stack: "present" },
+        ])
+            variants.push([{ ...candidate(), contexts: { diagnostic } }, {}]);
+        const with_stack = new Error(message);
+        with_stack.stack = `Error: ${message}\n at throwSite (http://localhost:3000/assets/index.js:9:3)`;
+        variants.push([candidate(), { originalException: with_stack }]);
+        const different = stackless();
+        different.message = "app failure";
+        variants.push([candidate(), { originalException: different }]);
+        const cause = stackless();
+        cause.cause = new Error("app cause");
+        variants.push([candidate(), { originalException: cause }]);
+        variants.push([candidate(), { originalException: "app failure" }]);
+        variants.push([
+            candidate(),
+            {
+                originalException: annotateDiagnosticError(stackless(), {
+                    operation: "app_operation",
+                }),
+            },
+        ]);
+        for (const [input, hint] of variants) {
+            const result = prepareSentryEvent(input, hint);
+            expect(result).not.toBeNull();
+            expect(result.contexts.diagnostic.category).not.toBe(
+                "browser_runtime_bridge_candidate",
+            );
+            expect(result.exception.values).toHaveLength(input.exception.values.length);
+        }
+    });
+});
 
 describe("event quality", () => {
     it.each(secondary)("groups a proven lazy secondary without hiding it: %s", message => {
