@@ -1,0 +1,374 @@
+# Routing uses the Grafana notification policy; no contact point is provisioned.
+# Optional and idle series can be absent; up covers configured scrape failures.
+apiVersion: 1
+groups:
+- orgId: 1
+  name: HolyCluster health
+  folder: HolyCluster
+  interval: 1m
+  rules:
+  - uid: hc-target-down
+    title: HolyCluster scrape target down
+    condition: C
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: victoriametrics
+      model:
+        datasource:
+          type: prometheus
+          uid: victoriametrics
+        editorMode: code
+        expr: up{job=~"api|collector"} == bool 0
+        instant: true
+        range: false
+        intervalMs: 30000
+        maxDataPoints: 43200
+        refId: A
+    - refId: C
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: A
+        refId: C
+        datasource:
+          type: __expr__
+          uid: __expr__
+        conditions:
+        - type: query
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+          evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+        intervalMs: 30000
+        maxDataPoints: 43200
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    annotations:
+      summary: Scrape failed for {{ $labels.job }} / {{ $labels.instance }}
+      description: The configured target has failed scrapes for 5 minutes. A removed target produces no series and cannot
+        be detected by this rule.
+    labels:
+      severity: critical
+      service: holycluster
+    isPaused: false
+  - uid: hc-no-healthy-source
+    title: HolyCluster has no healthy source
+    condition: C
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: victoriametrics
+      model:
+        datasource:
+          type: prometheus
+          uid: victoriametrics
+        editorMode: code
+        expr: (max by (job, instance) (holycluster_collector_source_up) == bool 0) and on (job, instance) (up{job="collector"}
+          == 1)
+        instant: true
+        range: false
+        intervalMs: 30000
+        maxDataPoints: 43200
+        refId: A
+    - refId: C
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: A
+        refId: C
+        datasource:
+          type: __expr__
+          uid: __expr__
+        conditions:
+        - type: query
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+          evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+        intervalMs: 30000
+        maxDataPoints: 43200
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    annotations:
+      summary: No healthy source on {{ $labels.instance }}
+      description: All source health gauges have been zero for 10 minutes while the collector is being scraped. Disabled sources
+        do not lower the maximum. JSON health reflects the most recent poll; Telnet health is aggregate.
+    labels:
+      severity: critical
+      service: holycluster
+    isPaused: false
+  - uid: hc-source-unhealthy
+    title: HolyCluster source unhealthy
+    condition: C
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: victoriametrics
+      model:
+        datasource:
+          type: prometheus
+          uid: victoriametrics
+        editorMode: code
+        expr: ((holycluster_collector_source_up{source="telnet"} == bool 0) or ((holycluster_collector_source_up{source!="telnet"}
+          == bool 0) and on (job, instance, source) (sum by (job, instance, source) (holycluster_collector_polls_total{result="attempt"})
+          > 0))) and on (job, instance) (up{job="collector"} == 1)
+        instant: true
+        range: false
+        intervalMs: 30000
+        maxDataPoints: 43200
+        refId: A
+    - refId: C
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: A
+        refId: C
+        datasource:
+          type: __expr__
+          uid: __expr__
+        conditions:
+        - type: query
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+          evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+        intervalMs: 30000
+        maxDataPoints: 43200
+    noDataState: OK
+    execErrState: Error
+    for: 15m
+    annotations:
+      summary: '{{ $labels.source }} is unhealthy on {{ $labels.instance }}'
+      description: Telnet has no active connection, or an observed JSON source has remained unhealthy for 15 minutes. JSON
+        sources with no poll attempts (including disabled SOTA) are excluded. No per-host Telnet health is available.
+    labels:
+      severity: warning
+      service: holycluster
+    isPaused: false
+  - uid: hc-queue-high
+    title: HolyCluster queue utilization high
+    condition: C
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: victoriametrics
+      model:
+        datasource:
+          type: prometheus
+          uid: victoriametrics
+        editorMode: code
+        expr: ((holycluster_collector_queue_depth / clamp_min(holycluster_collector_queue_capacity, 1)) > bool 0.8) and (holycluster_collector_queue_capacity
+          > 0) and on (job, instance) (up{job="collector"} == 1)
+        instant: true
+        range: false
+        intervalMs: 30000
+        maxDataPoints: 43200
+        refId: A
+    - refId: C
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: A
+        refId: C
+        datasource:
+          type: __expr__
+          uid: __expr__
+        conditions:
+        - type: query
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+          evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+        intervalMs: 30000
+        maxDataPoints: 43200
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    annotations:
+      summary: Queue utilization exceeds 80% on {{ $labels.instance }}
+      description: The bounded spot queue has exceeded 80% utilization for 10 minutes while the collector is being scraped.
+    labels:
+      severity: warning
+      service: holycluster
+    isPaused: false
+  - uid: hc-api-background-errors
+    title: HolyCluster API background errors
+    condition: C
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: victoriametrics
+      model:
+        datasource:
+          type: prometheus
+          uid: victoriametrics
+        editorMode: code
+        expr: (sum by (job, instance, task) (increase(holycluster_api_background_runs_total{outcome="error"}[10m])) >= bool
+          5) and on (job, instance) (up{job="api"} == 1)
+        instant: true
+        range: false
+        intervalMs: 30000
+        maxDataPoints: 43200
+        refId: A
+    - refId: C
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: A
+        refId: C
+        datasource:
+          type: __expr__
+          uid: __expr__
+        conditions:
+        - type: query
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+          evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+        intervalMs: 30000
+        maxDataPoints: 43200
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    annotations:
+      summary: Repeated API background errors for {{ $labels.task }}
+      description: At least five failed work runs in a rolling 10-minute window, sustained for 5 minutes. Idle reads and cancellation
+        are excluded. A single transient failure does not trigger this rule.
+    labels:
+      severity: warning
+      service: holycluster
+    isPaused: false
+  - uid: hc-refresh-errors
+    title: HolyCluster reference refresh errors
+    condition: C
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: victoriametrics
+      model:
+        datasource:
+          type: prometheus
+          uid: victoriametrics
+        editorMode: code
+        expr: (sum by (job, instance, dataset) (increase(holycluster_collector_refresh_total{result="error"}[1h])) >= bool
+          3) and on (job, instance) (up{job="collector"} == 1)
+        instant: true
+        range: false
+        intervalMs: 30000
+        maxDataPoints: 43200
+        refId: A
+    - refId: C
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: A
+        refId: C
+        datasource:
+          type: __expr__
+          uid: __expr__
+        conditions:
+        - type: query
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+          evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+        intervalMs: 30000
+        maxDataPoints: 43200
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    annotations:
+      summary: Repeated reference refresh errors for {{ $labels.dataset }}
+      description: At least three failed refreshes in a rolling hour, sustained for 5 minutes. Isolated upstream refresh failures
+        do not trigger this rule.
+    labels:
+      severity: warning
+      service: holycluster
+    isPaused: false
