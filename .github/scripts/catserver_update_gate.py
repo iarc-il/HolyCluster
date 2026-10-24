@@ -11,13 +11,11 @@ SCENARIOS = ("update", "corrupt-download")
 
 
 def identity(path):
-    digest = hashlib.sha256()
-    size = 0
     with path.open("rb") as source:
-        while chunk := source.read(1024 * 1024):
-            digest.update(chunk)
-            size += len(chunk)
-    return {"sha256": digest.hexdigest(), "size": size}
+        return {
+            "sha256": hashlib.file_digest(source, "sha256").hexdigest(),
+            "size": os.fstat(source.fileno()).st_size,
+        }
 
 
 def candidates(linux, windows, version):

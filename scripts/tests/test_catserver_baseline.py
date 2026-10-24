@@ -94,10 +94,12 @@ class BaselineTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertFalse((self.output / "baseline.json").exists())
 
-    def test_snapshots_and_inspects_both_packages(self):
+    def test_validated_snapshot_reaches_both_gate_scenarios(self):
         result = self.run_snapshot()
         self.assertEqual(result.returncode, 0, result.stderr)
-        descriptor = json.loads((self.output / "baseline.json").read_text())
+        descriptor_path = self.output / "baseline.json"
+        descriptor_bytes = descriptor_path.read_bytes()
+        descriptor = json.loads(descriptor_bytes)
         self.assertEqual(descriptor["schema_version"], 1)
         snapshot = (self.output / descriptor["manifest"]["path"]).read_bytes()
         self.assertEqual(snapshot, self.manifest_path.read_bytes())
@@ -108,34 +110,20 @@ class BaselineTest(unittest.TestCase):
             for key, value in expected.items():
                 self.assertEqual(release[key], value)
             content = (self.output / release["path"]).read_bytes()
-            self.assertEqual(hashlib.sha256(content).hexdigest(), expected["artifact"]["sha256"])
+            self.assertEqual(content, (FIXTURES / expected["artifact"]["name"]).read_bytes())
             self.assertEqual(release["url"], self.origin + expected["artifact"]["location"])
         self.assertEqual(self.requests.count("/catserver/releases/latest"), 1)
         self.assertEqual(len(self.requests), 3)
-
-    def test_snapshot_reaches_both_gate_scenarios(self):
-        result = self.run_snapshot()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        descriptor_path = self.output / "baseline.json"
-        descriptor_bytes = descriptor_path.read_bytes()
-        descriptor = json.loads(descriptor_bytes)
         packages = {release["platform"]: self.output / release["path"] for release in descriptor["releases"]}
         linux = self.root / "candidate.AppImage"
         windows = self.root / "candidate.msi"
         shutil.copyfile(FIXTURES / "valid-linux.AppImage", linux)
         shutil.copyfile(FIXTURES / "valid-windows.msi", windows)
         attestation = self.root / "attestation.json"
-        commands = []
-
-        def run_scenario(command, **kwargs):
-            self.assertEqual(command[:2], ["node", "ui/scripts/linux_update_product.mjs"])
-            commands.append(command)
-            return 0
-
-        with patch.object(gate.subprocess, "call", side_effect=run_scenario):
+        with patch.object(gate.subprocess, "call", return_value=0) as call:
             self.assertTrue(gate.run(self.output, linux, windows, "catserver-v1.2.3", self.root, attestation))
         self.assertEqual(
-            commands,
+            [invocation.args[0] for invocation in call.call_args_list],
             [
                 [
                     "node",
