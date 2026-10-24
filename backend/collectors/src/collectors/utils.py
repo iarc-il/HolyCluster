@@ -7,6 +7,8 @@ import aiohttp
 from loguru import logger
 from shared.telemetry import capture_exception
 
+from collectors.metrics import SpotEnvelope, metrics
+
 USER_AGENT = "HolyCluster collector (https://holycluster.iarc.org/)"
 MAX_RETRY_DELAY_SECONDS = 300
 
@@ -65,9 +67,19 @@ async def run_json_spot_collector(
     async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
         while True:
             try:
-                raw_spots = await fetch_json_list(session, url, source_label)
+                metrics.polls.labels(metric_name, "attempt").inc()
+                try:
+                    raw_spots = await fetch_json_list(session, url, source_label)
+                except Exception:
+                    metrics.polls.labels(metric_name, "error").inc()
+                    metrics.source_up.labels(metric_name).set(0)
+                    raise
+                metrics.polls.labels(metric_name, "success").inc()
+                metrics.source_up.labels(metric_name).set(1)
+                metrics.poll_success.labels(metric_name).set_to_current_time()
                 valid_raw_spots = [spot for spot in raw_spots if isinstance(spot, dict)]
                 invalid_count = len(raw_spots) - len(valid_raw_spots)
+                metrics.spots.labels(metric_name, "ingest", "malformed").inc(invalid_count)
                 if invalid_count:
                     logger.info(f"Dropping {invalid_count} malformed {source_label} spot records")
 
@@ -78,19 +90,24 @@ async def run_json_spot_collector(
                         spot = parse_spot(raw_spot)
                         content_spot_key = build_spot_key(spot)
                     except (KeyError, TypeError, ValueError) as e:
+                        metrics.spots.labels(metric_name, "ingest", "malformed").inc()
                         logger.info(f"Dropping {source_label} spot due to parse error: {e}")
                         continue
 
                     source_added = await valkey_client.set(source_spot_key, 1, ex=spot_expiration, nx=True)
                     if not source_added:
+                        metrics.spots.labels(metric_name, "ingest", "duplicate").inc()
                         continue
 
                     content_added = await valkey_client.set(
                         content_spot_key, 1, ex=settings.valkey_spot_expiration, nx=True
                     )
                     if content_added:
-                        await output_queue.put(spot)
+                        await output_queue.put(SpotEnvelope(metric_name, spot))
+                        metrics.spots.labels(metric_name, "ingest", "queued").inc()
                         queued_count += 1
+                    else:
+                        metrics.spots.labels(metric_name, "ingest", "duplicate").inc()
 
                 logger.debug(f"Fetched {len(raw_spots)} {source_label} spots, queued {queued_count} new spots")
                 failure_count = 0

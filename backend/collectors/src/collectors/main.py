@@ -27,6 +27,7 @@ from collectors.enrichers.lotw import (
     get_lotw_status,
     serialize_lotw_user_activity,
 )
+from collectors.metrics import metrics, start_metrics_server
 from collectors.pota import run_pota_collector
 from collectors.settings import settings
 from collectors.sota import SOTA_ENABLED, run_sota_collector
@@ -183,9 +184,11 @@ async def add_spot_to_postgres(engine, spot: dict):
 async def persist_spot(engine, valkey_client, spot: dict):
     for attempt in range(PERSIST_ATTEMPTS):
         try:
-            await add_spot_to_postgres(engine, spot)
+            with metrics.operation("postgres_insert"):
+                await add_spot_to_postgres(engine, spot)
             if all(spot.get(key) for key in ("spotter_locator", "dx_locator", "band", "mode")):
-                await valkey_client.xadd(STREAM_API, spot, "*", maxlen=10000)
+                with metrics.operation("valkey_xadd"):
+                    await valkey_client.xadd(STREAM_API, spot, "*", maxlen=10000)
             return
         except (SQLAlchemyError, redis.exceptions.RedisError):
             if attempt == PERSIST_ATTEMPTS - 1:
@@ -203,23 +206,30 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
 
     try:
         while True:
-            spot = await input_queue.get()
+            envelope = await input_queue.get()
+            source, spot = envelope.source, envelope.spot
+            result = "enrich_error"
             try:
                 try:
-                    enriched_spot = await enrich_spot(
-                        qrz_session_key=qrz_manager.get_key(),
-                        spot=spot,
-                        http_client=qrz_manager.http_client,
-                        valkey_client=valkey_client,
-                        refresh_qrz_session=qrz_manager.refresh_if_stale,
-                    )
+                    with metrics.processing.labels(source, "enrich").time():
+                        enriched_spot = await enrich_spot(
+                            qrz_session_key=qrz_manager.get_key(),
+                            spot=spot,
+                            http_client=qrz_manager.http_client,
+                            valkey_client=valkey_client,
+                            refresh_qrz_session=qrz_manager.refresh_if_stale,
+                        )
+                    metrics.spots.labels(source, "enrich", "success").inc()
                 except InvalidBandError:
+                    result = "invalid_band"
                     logger.debug(f"Dropping spot due to invalid band: {spot}")
                     continue
                 except InvalidCallsignError as e:
+                    result = "invalid_callsign"
                     logger.info(f"Dropping spot due to {e}: {spot}")
                     continue
                 except GeoException as e:
+                    result = "geo_error"
                     logger.info(f"Dropping spot due to geo exception ({e.callsign_type}, {e.data_type}): {e.callsign}")
                     continue
                 except Exception as e:
@@ -232,15 +242,23 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                 if enriched_spot["spotter_locator"].startswith("AA00") or enriched_spot["dx_locator"].startswith(
                     "AA00"
                 ):
+                    result = "south_pole"
                     logger.info(f"Dropping spot with South Pole locator: {enriched_spot.get('dx_callsign')}")
                     continue
 
+                result = "persist_error"
                 try:
-                    await persist_spot(engine, valkey_client, enriched_spot)
+                    with metrics.processing.labels(source, "persist").time():
+                        await persist_spot(engine, valkey_client, enriched_spot)
+                    result = "success"
                 except (SQLAlchemyError, redis.exceptions.RedisError) as e:
                     logger.opt(exception=e).warning("Failed to persist spot after retries")
                     capture_exception(e, operation="collector.persist")
+            except asyncio.CancelledError:
+                result = "cancelled"
+                raise
             finally:
+                metrics.spots.labels(source, "pipeline", result).inc()
                 input_queue.task_done()
 
     except asyncio.CancelledError:
@@ -255,7 +273,8 @@ async def refresh_dxpedition_data(valkey_client):
     while True:
         sleep = 86400
         try:
-            await refresh_dxpedition_cache(redis_client=valkey_client)
+            with metrics.refresh("dxpeditions"):
+                await refresh_dxpedition_cache(redis_client=valkey_client)
             logger.info("DXpedition data refreshed successfully")
         except Exception as e:
             sleep = 600
@@ -306,7 +325,8 @@ async def refresh_lotw_user_data(valkey_client):
     failure_count = 0
     while True:
         try:
-            await update_lotw_user_data(valkey_client)
+            with metrics.refresh("lotw"):
+                await update_lotw_user_data(valkey_client)
             failure_count = 0
             sleep = LOTW_REFRESH_INTERVAL_SECONDS
         except (httpx.HTTPError, LotwResponseError) as e:
@@ -341,7 +361,11 @@ async def run_collector():
     )
     tasks = []
 
+    metrics.bind_queue(spots_queue)
+    metrics.start_telnet()
+    metrics_runner = None
     try:
+        metrics_runner = await start_metrics_server(settings.collector_metrics_port)
         # QRZ is optional enrichment: sources and processing must start during an outage.
         tasks = [
             asyncio.create_task(qrz_manager.refresh_loop(), name="qrz_refresh_task"),
@@ -365,6 +389,8 @@ async def run_collector():
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
         await asyncio.gather(qrz_manager.aclose(), close_valkey_client(), return_exceptions=True)
+        if metrics_runner is not None:
+            await metrics_runner.cleanup()
 
 
 async def run_collector_with_monitor():

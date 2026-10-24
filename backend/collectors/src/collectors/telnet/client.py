@@ -12,6 +12,7 @@ from shared.telemetry import capture_exception
 
 from collectors.db.valkey_config import get_valkey_client
 from collectors.logging_setup import open_task_log_file
+from collectors.metrics import SpotEnvelope, metrics
 from collectors.settings import settings
 from collectors.utils import build_spot_key
 
@@ -127,13 +128,20 @@ async def telnet_and_collect(
         failure_count = record_reconnect_failure(host, port, error, level)
         task_logger.log(level, f"Connection failed: {host}:{port}  {error} (total {failure_count})")
 
+    initial_attempt = True
     while True:
+        connected = False
         reader, writer = None, None
         line_buffer = b""
         try:
+            if not initial_attempt:
+                metrics.reconnects.inc()
+            initial_attempt = False
             logger.debug(f"Attempting to connect to {host}:{port} ...")
             reader, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), timeout=10)
 
+            connected = True
+            metrics.connection(True)
             logger.info(f"{host}:{port}  Successfully connected")
             if outage_started_at is not None:
                 outage_duration = time.monotonic() - outage_started_at
@@ -177,12 +185,14 @@ async def telnet_and_collect(
 
                     spot = parse_dx_line(line)
                     if spot is None:
+                        metrics.spots.labels("telnet", "ingest", "malformed").inc()
                         task_logger.warning(f"Could not parse spot line: {line}")
                         logger.warning(f"Could not parse spot line: {line}")
                         continue
 
                     # W3LPL is a spammer and J9AQ is a pirate
                     if spot["spotter_callsign"].upper() in ["W3LPL", "J9AQ"]:
+                        metrics.spots.labels("telnet", "ingest", "banned").inc()
                         logger.debug(f"Skipping banned spot: {spot}")
                         continue
 
@@ -195,10 +205,12 @@ async def telnet_and_collect(
                     spot_key = build_spot_key(spot)
                     added = await valkey_client.set(spot_key, 1, ex=settings.valkey_spot_expiration, nx=True)
                     if added:
-                        await output_queue.put(spot)
+                        await output_queue.put(SpotEnvelope("telnet", spot))
+                        metrics.spots.labels("telnet", "ingest", "queued").inc()
                         task_logger.debug(f"Spot added to queue: {spot_data}")
                         logger.debug(f"Spot added to queue: {host}:{port}  {spot_data}")
                     else:
+                        metrics.spots.labels("telnet", "ingest", "duplicate").inc()
                         task_logger.debug(f"Duplicate spot not queued: {spot_data}")
                         logger.debug(f"Duplicate spot not queued: {host}:{port}  {spot_data}")
 
@@ -223,6 +235,8 @@ async def telnet_and_collect(
             capture_exception(e, operation="collector.telnet.unexpected")
 
         finally:
+            if connected:
+                metrics.connection(False)
             if writer:
                 try:
                     writer.close()
