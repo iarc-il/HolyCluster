@@ -21,21 +21,32 @@ fi
 CURRENT_HEAD=$(git rev-parse HEAD)
 
 if [ "$PREVIOUS_HEAD" = "$CURRENT_HEAD" ]; then
-    echo "No new commits. Nothing to deploy."
-    exit 0
+    GRAFANA_ID=$(docker compose ps --all --quiet grafana)
+    GRAFANA_HEALTH_STATE=""
+    if [ -n "$GRAFANA_ID" ]; then
+        GRAFANA_HEALTH_STATE=$(docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$GRAFANA_ID")
+    fi
+    if [ "$GRAFANA_HEALTH_STATE" = "running healthy" ]; then
+        echo "No new commits. Nothing to deploy."
+        exit 0
+    fi
+    echo "Recovering missing or unhealthy Grafana."
+    CHANGED_FILES=infra/monitoring/grafana/recovery
+else
+    CHANGED_FILES=$(git diff --name-only --relative "$PREVIOUS_HEAD" "$CURRENT_HEAD" -- .)
 fi
-
-CHANGED_FILES=$(git diff --name-only --relative "$PREVIOUS_HEAD" "$CURRENT_HEAD" -- .)
 
 if [ -z "$CHANGED_FILES" ]; then
     echo "No files changed in backend/. Nothing to deploy."
     exit 0
 fi
 
-if grep -q '^SENTRY_RELEASE=' .env; then
-    sed -i "s/^SENTRY_RELEASE=.*/SENTRY_RELEASE=$CURRENT_HEAD/" .env
-else
-    printf '\nSENTRY_RELEASE=%s\n' "$CURRENT_HEAD" >> .env
+if [ "$PREVIOUS_HEAD" != "$CURRENT_HEAD" ]; then
+    if grep -q '^SENTRY_RELEASE=' .env; then
+        sed -i "s/^SENTRY_RELEASE=.*/SENTRY_RELEASE=$CURRENT_HEAD/" .env
+    else
+        printf '\nSENTRY_RELEASE=%s\n' "$CURRENT_HEAD" >> .env
+    fi
 fi
 
 echo "Changed files:"
@@ -155,6 +166,27 @@ if [ "$COMPOSE_FILE_CHANGED" = true ]; then
     # Match the proxy network's ${PROXY_NETWORK:-holycluster-proxy} Compose expression.
     PROXY_NETWORK_NAME="${PROXY_NETWORK_NAME:-holycluster-proxy}"
     docker network inspect "$PROXY_NETWORK_NAME" >/dev/null
+fi
+
+if [[ -v SERVICES[grafana] ]]; then
+    echo "Checking Grafana credentials and data permissions..."
+    docker compose run --rm --no-deps --user 0 --entrypoint /bin/sh grafana -ec '
+        if [ -z "$GF_SECURITY_ADMIN_PASSWORD" ]; then
+            echo "Set GRAFANA_ADMIN_PASSWORD before deploying Grafana." >&2
+            exit 1
+        fi
+        # Dashboards are a separate read-only mount, not runtime data.
+        find /var/lib/grafana -path /var/lib/grafana/dashboards -prune -o -exec chown -h 472:472 {} +
+    '
+    docker compose run --rm --no-deps --user 472:472 --entrypoint /bin/sh grafana -ec '
+        if ! test -w /var/lib/grafana; then
+            echo "Grafana data directory is not writable by UID 472." >&2
+            exit 1
+        fi
+    '
+fi
+
+if [ "$COMPOSE_FILE_CHANGED" = true ]; then
     migrate_legacy_compose_containers
 fi
 
@@ -208,6 +240,11 @@ fi
 
 if [ "$COMPOSE_FILE_CHANGED" = true ]; then
     docker compose up -d --no-deps certbot
+fi
+
+if [[ -v SERVICES[grafana] ]]; then
+    echo "Waiting up to 120 seconds for Grafana health..."
+    docker compose up -d --no-deps --wait --wait-timeout 120 grafana
 fi
 
 echo "Deploy complete."

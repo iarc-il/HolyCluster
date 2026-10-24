@@ -52,6 +52,27 @@ if [[ "$*" == "network inspect $proxy_network" ]]; then
     if [[ "$MISSING_NETWORK" == "$proxy_network" ]]; then exit 15; fi
     exit 0
 fi
+if [[ "$*" == 'compose ps --all --quiet grafana' ]]; then
+    if [[ "$GRAFANA_STATE" != missing ]]; then echo grafana-id; fi
+    exit 0
+fi
+if [[ "$*" == inspect*grafana-id ]]; then
+    printf '%s\\n' "$GRAFANA_STATE"
+    exit 0
+fi
+if [[ "$*" == 'compose run '* ]]; then
+    if [[ "$*" == *'--user 0 '* ]]; then
+        if [[ "$GRAFANA_PASSWORD_STATUS" != 0 ]]; then
+            echo 'Set GRAFANA_ADMIN_PASSWORD before deploying Grafana.' >&2
+            exit "$GRAFANA_PASSWORD_STATUS"
+        fi
+        exit "$OWNERSHIP_STATUS"
+    fi
+    exit "$WRITABLE_STATUS"
+fi
+if [[ "$*" == 'compose up -d --no-deps --wait '* ]]; then
+    exit "$GRAFANA_HEALTH_STATUS"
+fi
 if [[ "$1" == inspect ]]; then
     name="${!#}"
     case ",$LEGACY_NAMES," in
@@ -112,6 +133,11 @@ class DeployTests(unittest.TestCase):
             "ENVIRONMENT_CONFIG_STATUS": "0",
             "MISSING_NETWORK": "",
             "LEGACY_NAMES": "",
+            "GRAFANA_STATE": "running healthy",
+            "GRAFANA_PASSWORD_STATUS": "0",
+            "OWNERSHIP_STATUS": "0",
+            "WRITABLE_STATUS": "0",
+            "GRAFANA_HEALTH_STATUS": "0",
         }
         ref = overrides.pop("ref", "release-tag")
         env.update(overrides)
@@ -275,12 +301,71 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(result.returncode, 43, result.stderr)
         self.assert_no_removals_or_builds(root)
 
+    def test_grafana_preflight_failure_aborts_before_build_or_start(self):
+        for overrides, status in (
+            ({"GRAFANA_PASSWORD_STATUS": "41"}, 41),
+            ({"OWNERSHIP_STATUS": "42"}, 42),
+            ({"WRITABLE_STATUS": "43"}, 43),
+        ):
+            with self.subTest(overrides=overrides):
+                root, result = self.run_deploy(
+                    CHANGED_FILES="infra/monitoring/grafana/provisioning/datasources/default.yml", **overrides
+                )
+                self.assertEqual(result.returncode, status, result.stderr)
+                self.assert_no_removals_or_builds(root)
+                self.assertNotIn("Deploy complete.", result.stdout)
+
+    def test_missing_grafana_password_prevents_legacy_removal(self):
+        root, result = self.run_deploy(GRAFANA_PASSWORD_STATUS="41", LEGACY_NAMES="api,monitor,nginx")
+        self.assertEqual(result.returncode, 41, result.stderr)
+        self.assert_no_removals_or_builds(root)
+
+    def test_grafana_health_failure_does_not_prevent_product_start(self):
+        root, result = self.run_deploy(GRAFANA_HEALTH_STATUS="44")
+        self.assertEqual(result.returncode, 44, result.stderr)
+        self.assert_all_waited(root)
+        self.assertTrue((root / "start-nginx").exists())
+        calls = (root / "docker.log").read_text().splitlines()
+        health = "compose up -d --no-deps --wait --wait-timeout 120 grafana"
+        self.assertIn(health, calls)
+        self.assertLess(calls.index("compose up -d --no-deps nginx"), calls.index(health))
+        self.assertNotIn("Deploy complete.", result.stdout)
+
+    def test_same_ref_recovers_only_missing_or_unhealthy_grafana(self):
+        for state in ("missing", "running unhealthy", "exited unhealthy", "running starting"):
+            with self.subTest(state=state):
+                root, result = self.run_deploy(SAME_REF="1", GRAFANA_STATE=state)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assert_all_waited(root, {"grafana"})
+                self.assertEqual((root / ".env").read_text(), INITIAL_ENV)
+                calls = (root / "docker.log").read_text().splitlines()
+                self.assertIn("compose up -d --no-deps --force-recreate grafana", calls)
+                self.assertIn("compose up -d --no-deps --wait --wait-timeout 120 grafana", calls)
+                self.assertNotIn("compose up -d --no-deps nginx", calls)
+                self.assertNotIn("compose up --abort-on-container-exit --exit-code-from migrate migrate", calls)
+
+    def test_same_ref_recovery_propagates_health_failure(self):
+        root, result = self.run_deploy(SAME_REF="1", GRAFANA_STATE="running unhealthy", GRAFANA_HEALTH_STATUS="44")
+        self.assertEqual(result.returncode, 44, result.stderr)
+        self.assert_all_waited(root, {"grafana"})
+        self.assertFalse((root / "start-nginx").exists())
+        self.assertNotIn("Deploy complete.", result.stdout)
+
+    def test_same_ref_recovery_still_requires_password(self):
+        root, result = self.run_deploy(SAME_REF="1", GRAFANA_STATE="missing", GRAFANA_PASSWORD_STATUS="41")
+        self.assertEqual(result.returncode, 41, result.stderr)
+        self.assert_no_removals_or_builds(root)
+        self.assertIn("Set GRAFANA_ADMIN_PASSWORD", result.stderr)
+
     def test_same_ref_remains_a_no_op(self):
         root, result = self.run_deploy(SAME_REF="1")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("No new commits. Nothing to deploy.", result.stdout)
         self.assertEqual((root / ".env").read_text(), INITIAL_ENV)
-        self.assertFalse((root / "docker.log").exists())
+        self.assertEqual(
+            (root / "docker.log").read_text().splitlines()[0], "compose ps --all --quiet grafana"
+        )
+        self.assertFalse(list(root.glob("start-*")))
 
 
 if __name__ == "__main__":
