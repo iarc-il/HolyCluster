@@ -77,7 +77,6 @@ export function WsProvider({ children }) {
         set_spot_socket_epochs({ ...spot_socket_epochs_ref.current });
     };
     const close_spot_socket = candidate => {
-        if (transport_ref.current === candidate) catserver_version_ref.current = null;
         delete spot_socket_epochs_ref.current[candidate];
         set_spot_socket_epochs({ ...spot_socket_epochs_ref.current });
     };

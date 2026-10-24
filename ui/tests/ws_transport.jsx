@@ -399,28 +399,67 @@ describe("WebSocket transport", () => {
         );
     });
 
-    it.each(["unified", "legacy"])("clears %s identity when its spot socket closes", candidate => {
-        vi.useFakeTimers();
+    it.each(["unified", "legacy"])(
+        "clears %s identity when its identity socket closes",
+        candidate => {
+            vi.useFakeTimers();
+            const view = render_provider();
+            const path = candidate === "unified" ? "/ws" : "/submit_spot";
+            const connection = websocket_mock.connection_for(path);
+            connection.readyState = websocket_mock.ReadyState.OPEN;
+            receive(
+                view,
+                candidate === "unified" ? "/ws" : "/radio",
+                candidate === "unified"
+                    ? { type: "radio", event: "status", catserver_version: "catserver-v1.3.0" }
+                    : { status: "connected", version: "catserver-v1.2.0" },
+            );
+            const identity = websocket_mock.connection_for(
+                candidate === "unified" ? "/ws" : "/radio",
+            );
+            act(() => identity.options.onClose());
+            const unified = websocket_mock.connection_for("/ws");
+            unified.readyState = websocket_mock.ReadyState.OPEN;
+            act(() => vi.advanceTimersByTime(1500));
+            expect(TestConsumer.context.send("spots", {})).toBe(true);
+            expect(unified.sendJsonMessage).toHaveBeenLastCalledWith({
+                version: 1,
+                type: "spots",
+                ui_version: null,
+                catserver_version: null,
+            });
+        },
+    );
+
+    it("retains legacy CAT identity when only the spot socket reconnects", () => {
         const view = render_provider();
-        const path = candidate === "unified" ? "/ws" : "/submit_spot";
-        const connection = websocket_mock.connection_for(path);
-        connection.readyState = websocket_mock.ReadyState.OPEN;
-        receive(
-            view,
-            candidate === "unified" ? "/ws" : "/radio",
-            candidate === "unified"
-                ? { type: "radio", event: "status", catserver_version: "catserver-v1.3.0" }
-                : { status: "connected", version: "catserver-v1.2.0" },
-        );
-        act(() => connection.options.onClose());
-        act(() => vi.advanceTimersByTime(1500));
-        expect(TestConsumer.context.send("spots", {})).toBe(true);
-        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith({
+        const radio = websocket_mock.connection_for("/radio");
+        radio.readyState = websocket_mock.ReadyState.OPEN;
+        receive(view, "/radio", { status: "connected", version: "catserver-v1.2.0" });
+        const spots = websocket_mock.connection_for("/submit_spot");
+        spots.readyState = websocket_mock.ReadyState.OPEN;
+        act(() => spots.options.onOpen());
+        const first_epoch = TestConsumer.context.spot_socket_epoch;
+        spots.readyState = websocket_mock.ReadyState.CLOSED;
+        act(() => spots.options.onClose());
+        expect(TestConsumer.context.transport).toBe("cat_v1_2");
+        expect(TestConsumer.context.send("spots", {})).toBe(false);
+        spots.readyState = websocket_mock.ReadyState.OPEN;
+        act(() => spots.options.onOpen());
+        const epoch = TestConsumer.context.spot_socket_epoch;
+        expect(epoch).toBeGreaterThan(first_epoch);
+        expect(radio.readyState).toBe(websocket_mock.ReadyState.OPEN);
+        const expected = {
             version: 1,
             type: "spots",
+            action: "initial",
             ui_version: null,
-            catserver_version: null,
-        });
+            catserver_version: "catserver-v1.2.0",
+        };
+        expect(TestConsumer.context.send_now("spots", { action: "initial" }, epoch)).toBe(true);
+        expect(spots.sendJsonMessage).toHaveBeenLastCalledWith(expected, false);
+        expect(TestConsumer.context.send("spots", { action: "initial" })).toBe(true);
+        expect(spots.sendJsonMessage).toHaveBeenLastCalledWith(expected);
     });
 
     it("clears a CAT identity when the direct backend identifies itself", () => {
