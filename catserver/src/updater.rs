@@ -267,8 +267,8 @@ struct InstallPlan {
     // Preserve the full release tag separately from the normalized comparison version.
     #[serde(default)]
     release_version: Option<String>,
-    #[serde(default)]
-    reinstall: bool,
+    #[serde(default, alias = "reinstall")]
+    force_update: bool,
     #[serde(default)]
     command_args: Vec<String>,
     #[serde(default)]
@@ -680,7 +680,7 @@ impl UpdateService {
                 artifact,
                 state_path: self.state_path(),
                 parent_pid: std::process::id(),
-                reinstall: self.dev_mode && version == self.current_version,
+                force_update: self.dev_mode,
                 version: Some(version.to_string()),
                 release_version: Some(release.version),
                 command_args: original_arguments(&std::env::args().skip(1).collect::<Vec<_>>()),
@@ -794,7 +794,7 @@ impl UpdateService {
             .find(|r| map_platform(&r.platform) == Some(self.platform))
             .context("release does not contain an artifact for this platform")?;
         let version = parse_version(&release.version)?;
-        if version < self.current_version || (version == self.current_version && !self.dev_mode) {
+        if version <= self.current_version && !self.dev_mode {
             return Ok(None);
         }
         anyhow::ensure!(
@@ -1209,8 +1209,8 @@ pub(crate) fn pending_linux_plan(
         "install plan and status target versions differ"
     );
     anyhow::ensure!(
-        target > current || (target == current && plan.reinstall),
-        "install plan would downgrade or reinstall without consent"
+        target > current || plan.force_update,
+        "install plan would apply a non-upgrade without consent"
     );
     Ok(Some(plan_path))
 }
@@ -1224,7 +1224,7 @@ pub fn exec_pending_update(_reason: crate::tray_icon::UserEvent) -> Result<()> {
 pub(crate) fn windows_installer_arguments(
     msi: &Path,
     log: &Path,
-    reinstall: bool,
+    force_update: bool,
 ) -> Vec<OsString> {
     let mut arguments = vec![
         "/i".into(),
@@ -1234,7 +1234,7 @@ pub(crate) fn windows_installer_arguments(
         "/L*v".into(),
         log.as_os_str().to_owned(),
     ];
-    if reinstall {
+    if force_update {
         arguments.extend(["REINSTALL=ALL".into(), "REINSTALLMODE=vamus".into()]);
     }
     arguments
@@ -1303,7 +1303,7 @@ fn execute_installer_broker(
         &windows_installer_arguments(
             &plan.staged_artifact,
             &plan.state_path.with_file_name("msi-install.log"),
-            plan.reinstall,
+            plan.force_update,
         ),
         || {
             write_json(

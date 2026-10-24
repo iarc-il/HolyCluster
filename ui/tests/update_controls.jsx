@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const cat = vi.hoisted(() => ({ current: null }));
+const color_context = vi.hoisted(() => ({ dev_mode: false }));
 
 vi.mock("@/hooks/useRadio", () => ({
     default: () => cat.current,
@@ -20,6 +21,7 @@ import { NATIVE_UPDATER_MIN_VERSION } from "@/utils/cat_features.js";
 
 vi.mock("@/hooks/useColors", () => ({
     useColors: () => ({
+        dev_mode: color_context.dev_mode,
         colors: {
             buttons: { utility: "#fff" },
             theme: { text: "#fff", modals: "#111", borders: "#333" },
@@ -52,6 +54,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+    color_context.dev_mode = false;
     cat.current = {
         local_version: [...NATIVE_UPDATER_MIN_VERSION],
         is_cat_available: () => true,
@@ -156,6 +159,33 @@ describe("CAT Control updates", () => {
 
         expect(await screen.findByText("CAT Control is up to date.")).not.toBeNull();
         expect(fetch).toHaveBeenNthCalledWith(2, "/api/update/check", expect.any(Object));
+    });
+
+    it("offers every manifest version when forced updates are enabled", async () => {
+        color_context.dev_mode = true;
+        const fetch = vi.fn((path, options) => {
+            const forced = path.endsWith("/check") && JSON.parse(options.body).dev_mode;
+            return Promise.resolve(
+                response(
+                    forced
+                        ? { state: "available", available_version: "1.3.2-116" }
+                        : { state: "idle" },
+                ),
+            );
+        });
+        vi.stubGlobal("fetch", fetch);
+        render_updates();
+        await screen.findByText("CAT Control is up to date.");
+
+        await userEvent.click(screen.getByRole("checkbox", { name: /Always offer updates/ }));
+
+        expect(await screen.findByText("Version 1.3.2-116 is ready to install.")).not.toBeNull();
+        expect(
+            fetch.mock.calls.some(
+                ([path, options]) =>
+                    path.endsWith("/check") && JSON.parse(options.body).dev_mode === true,
+            ),
+        ).toBe(true);
     });
 
     it("shows a development note for internal CAT versions", async () => {

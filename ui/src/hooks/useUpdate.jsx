@@ -198,9 +198,9 @@ export function UpdateProvider({ children }) {
     const { local_version } = use_radio();
     const ws = useWs();
     const { dev_mode } = useColors();
-    const [allow_same_version, set_allow_same_version] = useState(false);
+    const [force_update, set_force_update] = useState(false);
     const [dialog_open, set_dialog_open] = useState(false);
-    const update_dev_mode = Boolean(dev_mode && allow_same_version);
+    const update_dev_mode = Boolean(dev_mode && force_update);
     const supported = supports_cat_feature(local_version, NATIVE_UPDATER_MIN_VERSION);
     const local_version_key = local_version?.join(".") ?? null;
     const [session, set_session_state] = useState(null);
@@ -476,8 +476,8 @@ export function UpdateProvider({ children }) {
             open_dialog: () => set_dialog_open(true),
             close_dialog: () => set_dialog_open(false),
             active: session != null && !terminal_session(session),
-            allow_same_version,
-            set_allow_same_version,
+            force_update,
+            set_force_update,
             refresh,
             reconnect: () => {
                 ws?.reconnect?.();
@@ -509,7 +509,7 @@ export function UpdateProvider({ children }) {
             show_dialog,
             session,
             dialog_open,
-            allow_same_version,
+            force_update,
             refresh,
             action,
             ws?.reconnect,

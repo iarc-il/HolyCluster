@@ -11,6 +11,16 @@ WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/catserver.ym
 
 
 class ReleaseVersionTests(unittest.TestCase):
+    def test_internal_msi_packages_allow_forced_downgrades(self):
+        root = WORKFLOW.parents[2]
+        build_script = (root / "catserver/build_msi.sh").read_text()
+        wix_source = (root / "catserver/wix/main.wxs").read_text()
+
+        self.assertIn('ALLOW_DOWNGRADES=yes', build_script)
+        self.assertIn('-d AllowDowngrades="$ALLOW_DOWNGRADES"', build_script)
+        self.assertIn('<?if "$(var.AllowDowngrades)" = "yes" ?>', wix_source)
+        self.assertIn('AllowDowngrades="yes"', wix_source)
+
     def test_candidate_artifact_uploads_are_not_skipped_for_pull_requests(self):
         workflow = WORKFLOW.read_text()
         for step in ("Upload Linux AppImage", "Upload Windows MSI"):

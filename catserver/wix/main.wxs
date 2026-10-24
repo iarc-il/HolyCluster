@@ -8,11 +8,18 @@
         InstallerVersion="450"
         Compressed="yes"
     >
-        <MajorUpgrade
-            Schedule="afterInstallInitialize"
-            AllowSameVersionUpgrades="yes"
-            DowngradeErrorMessage="A newer version of [ProductName] is already installed. Setup will now exit."
-        />
+        <?if "$(var.AllowDowngrades)" = "yes" ?>
+            <MajorUpgrade
+                Schedule="afterInstallInitialize"
+                AllowDowngrades="yes"
+            />
+        <?else ?>
+            <MajorUpgrade
+                Schedule="afterInstallInitialize"
+                AllowSameVersionUpgrades="yes"
+                DowngradeErrorMessage="A newer version of [ProductName] is already installed. Setup will now exit."
+            />
+        <?endif?>
 
         <Upgrade Id="5A85AD3D-3294-4EB3-99EA-BFDFFE92F471">
             <UpgradeVersion Minimum="0.1.0.0" IncludeMinimum="yes" OnlyDetect="no" Property="PREVIOUSFOUND" />

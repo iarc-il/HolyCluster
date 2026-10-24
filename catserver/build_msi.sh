@@ -16,6 +16,10 @@ GIT_TAG=${CATSERVER_VERSION:-$(git describe --match 'catserver-v*')}
 if [[ $GIT_TAG =~ ^catserver-v([0-9]+)\.([0-9]+)\.[0-9]+(-[0-9]+-g[0-9a-f]+)?$ ]]; then
     MAJOR_VERSION=${BASH_REMATCH[1]}
     MINOR_VERSION=${BASH_REMATCH[2]}
+    ALLOW_DOWNGRADES=no
+    if [[ -n ${BASH_REMATCH[3]} ]]; then
+        ALLOW_DOWNGRADES=yes
+    fi
 else
     echo "Invalid catserver version: $GIT_TAG" >&2
     exit 1
@@ -62,6 +66,7 @@ run_wix() {
         -d Version="$VERSION" \
         -d ReleaseVersion="$GIT_TAG" \
         -d ProductCode="$product_code" \
+        -d AllowDowngrades="$ALLOW_DOWNGRADES" \
         -d CargoTargetBinDir="$BUILD_DIR" \
         -d DefaultShortcutArguments="$DEFAULT_SHORTCUT_ARGUMENTS" \
         "wix/$WIX_NAME.wxs" \

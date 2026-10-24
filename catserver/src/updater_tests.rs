@@ -169,6 +169,33 @@ fn reports_equal_release_as_current() {
 }
 
 #[test]
+fn forced_updates_accept_equal_and_older_development_versions() {
+    let service = UpdateService::with_data_dir(
+        Url::parse("https://releases.example/manifest.json").unwrap(),
+        "catserver-v1.2.0-1340-g4a8f4fdf",
+        std::env::temp_dir(),
+    )
+    .unwrap()
+    .with_dev_mode(true);
+    let manifest = |version: &str| ReleaseManifest {
+        schema_version: 1,
+        releases: vec![release(version)],
+    };
+
+    for version in [
+        "catserver-v1.2.0-1340-gsame",
+        "catserver-v1.2.0-1339-golder",
+    ] {
+        assert!(
+            service
+                .accept_manifest(manifest(version))
+                .unwrap()
+                .is_some()
+        );
+    }
+}
+
+#[test]
 fn compares_development_commit_numbers() {
     let service = UpdateService::with_data_dir(
         Url::parse("https://releases.example/manifest.json").unwrap(),
@@ -434,10 +461,15 @@ fn linux_shutdown_requires_a_new_matching_non_downgrade_install_request() {
     );
     assert!(pending_linux_plan(&dir, "1.4.0", UserEvent::RestartForUpdate).is_err());
     assert!(pending_linux_plan(&dir, "1.3.1", UserEvent::RestartForUpdate).is_err());
-    plan["reinstall"] = true.into();
+    plan["force_update"] = true.into();
     fs::write(dir.join("install-plan.json"), plan.to_string()).unwrap();
     assert!(
         pending_linux_plan(&dir, "1.3.1", UserEvent::RestartForUpdate)
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        pending_linux_plan(&dir, "1.4.0", UserEvent::RestartForUpdate)
             .unwrap()
             .is_some()
     );

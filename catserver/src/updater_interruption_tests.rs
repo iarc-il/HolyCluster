@@ -53,7 +53,7 @@ impl Fixture {
             parent_pid: std::process::id(),
             version: Some("1.2.3".into()),
             release_version: Some("catserver-v1.2.3".into()),
-            reinstall: false,
+            force_update: false,
             command_args: vec![],
             restart: None,
         }

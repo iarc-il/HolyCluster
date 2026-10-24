@@ -143,8 +143,8 @@ export default function UpdateControls({ on_check = null }) {
         error,
         check,
         retry,
-        allow_same_version,
-        set_allow_same_version,
+        force_update,
+        set_force_update,
         session,
         active,
     } = useUpdate();
@@ -163,11 +163,11 @@ export default function UpdateControls({ on_check = null }) {
                 <label className="mt-3 flex items-center gap-2">
                     <input
                         type="checkbox"
-                        checked={allow_same_version}
+                        checked={force_update}
                         disabled={busy}
-                        onChange={event => set_allow_same_version(event.target.checked)}
+                        onChange={event => set_force_update(event.target.checked)}
                     />
-                    Allow same-version updates (testing only)
+                    Always offer updates (testing only)
                 </label>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
