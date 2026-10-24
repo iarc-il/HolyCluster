@@ -319,7 +319,7 @@
     {
       "type": "state-timeline",
       "title": "Source availability timeline",
-      "description": "Per configured source and collector instance. Gaps mean no series, not a healthy source.",
+      "description": "Per configured source. Gaps mean no series, not a healthy source.",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -328,7 +328,7 @@
         {
           "refId": "A",
           "expr": "holycluster_collector_source_up{source!~\"sota|telnet\"}",
-          "legendFormat": "{{source}} / {{instance}}",
+          "legendFormat": "{{source}}",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
