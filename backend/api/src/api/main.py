@@ -19,6 +19,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
+from prometheus_client import CONTENT_TYPE_LATEST, Info, generate_latest
 from shared.cty import ensure_cty_available
 from shared.db import GeoCache, HolySpot, PropagationMeasurement, SpotsWithIssues
 from shared.geo import GeoException, get_geo_details
@@ -30,12 +31,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
 
-from . import propagation, releases, submit_spot, voacap
+from . import metrics, propagation, releases, submit_spot, voacap
 from .release_cache import ReleaseCacheMiddleware
 from .release_response import validated_response
 from .settings import settings
 
 initialize_sentry(settings, "api")
+Info("holycluster_api_build", "API build release").info({"release": settings.sentry_release})
 
 
 def build_propagation_measurement_rows(history, collected_at):
@@ -82,6 +84,8 @@ async def upsert_propagation_history(history):
 async def propagation_data_collector(app):
     while True:
         sleep = 3600
+        started = time.perf_counter()
+        outcome = "success"
         try:
             propagation_history = await propagation.collect_propagation_history()
             app.state.propagation = propagation.latest_propagation_from_history(propagation_history)
@@ -92,13 +96,16 @@ async def propagation_data_collector(app):
                 stored_samples = await upsert_propagation_history(propagation_history)
                 logger.info(f"Stored {stored_samples} propagation samples")
             except Exception as e:
+                outcome = "error"
                 sleep = 10
                 logger.exception(f"Failed to persist propagation data: {str(e)}")
                 capture_exception(e, operation="api.propagation.persist")
         except Exception as e:
+            outcome = "error"
             sleep = 10
             logger.exception(f"Failed to fetch propagation data: {str(e)}")
             capture_exception(e, operation="api.propagation.fetch")
+        metrics.background_run("propagation", outcome, started)
         await asyncio.sleep(sleep)
 
 
@@ -120,6 +127,8 @@ def get_closed_websockets():
 
 def mark_websocket_closed(websocket):
     get_closed_websockets().add(websocket)
+    if connection := getattr(websocket, "scope", {}).get("metrics_connection"):
+        connection.close()
 
 
 # Bound both lock acquisition and socket backpressure for broadcasts only.
@@ -162,6 +171,7 @@ async def send_json_to_websockets(connections, message):
         except Exception as e:
             logger.warning(f"Failed to send to websocket: {e}")
 
+        metrics.BROADCAST_FAILURES.inc()
         # Remove the recipient before closing: close can also fail or stall.
         mark_websocket_closed(websocket)
         connections.discard(websocket)
@@ -179,11 +189,12 @@ async def send_json_to_websockets(connections, message):
 
 
 async def broadcast_spots(app, spots):
-    await send_json_to_websockets(app.state.active_connections, {"type": "update", "spots": spots})
-    await send_json_to_websockets(
-        app.state.active_ws_spot_connections,
-        build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots),
-    )
+    with metrics.BROADCAST_DURATION.time():
+        await send_json_to_websockets(app.state.active_connections, {"type": "update", "spots": spots})
+        await send_json_to_websockets(
+            app.state.active_ws_spot_connections,
+            build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots),
+        )
 
 
 async def spots_broadcast_task(app):
@@ -225,20 +236,29 @@ async def spots_broadcast_task(app):
                     continue
 
                 for stream_name, messages in response:
-                    message_ids = []
-                    spots = []
-                    for msg_id, spot in messages:
-                        message_ids.append(msg_id)
-                        spot = cleanup_spot(spot)
-                        if spot is not None:
-                            spots.append(spot)
+                    if not messages:
+                        continue
+                    started = time.perf_counter()
+                    try:
+                        message_ids = []
+                        spots = []
+                        for msg_id, spot in messages:
+                            message_ids.append(msg_id)
+                            spot = cleanup_spot(spot)
+                            if spot is not None:
+                                spots.append(spot)
 
-                    if spots:
-                        await broadcast_spots(app, spots)
+                        if spots:
+                            await broadcast_spots(app, spots)
 
-                    if message_ids:
                         await valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, *message_ids)
                         await valkey_client.xdel(STREAM_NAME, *message_ids)
+                    except Exception:
+                        metrics.background_run("broadcast", "error", started)
+                        raise
+                    else:
+                        # Success means stream processing, not delivery to every socket.
+                        metrics.background_run("broadcast", "success", started)
             except asyncio.CancelledError:
                 raise
             except Exception as e:
@@ -308,6 +328,13 @@ async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False
 app = fastapi.FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(ReleaseCacheMiddleware)
+app.add_middleware(metrics.MetricsMiddleware)
+
+
+@app.get("/metrics", include_in_schema=False)
+async def scrape_metrics():
+    return fastapi.Response(content=generate_latest(), headers={"Content-Type": CONTENT_TYPE_LATEST})
+
 
 MISSING_RESOLVE_RESULT_BATCH_SIZE = 50
 MISSING_RESOLVE_WORKER_COUNT = 4
@@ -701,7 +728,9 @@ async def propagation_history(start_time: int, end_time: int):
     if end_time - start_time > MAX_PROPAGATION_HISTORY_RANGE_SECONDS:
         raise HTTPException(status_code=400, detail="time range cannot exceed 24 hours")
 
-    return await get_propagation_history_data(start_time, end_time)
+    result = await get_propagation_history_data(start_time, end_time)
+    metrics.HISTORY_RECORDS.labels("propagation").inc(sum(len(samples) for samples in result["metrics"].values()))
+    return result
 
 
 @app.get("/voacap")
@@ -745,7 +774,7 @@ async def radio(websocket: fastapi.WebSocket):
     """Dummy websockets endpoint to indicate to the client that radio connection is not available."""
     try:
         await websocket.accept()
-        await websocket.send_json({"status": "unavailable"})
+        await send_ws_json(websocket, get_websocket_send_lock(websocket), {"status": "unavailable"})
         await websocket.close()
     except websockets.WebSocketDisconnect:
         pass
@@ -820,6 +849,7 @@ async def submit_spot_one_spot(websocket: fastapi.WebSocket):
                 await dispatch_ws_message(websocket, send_lock, missing_jobs, message)
                 continue
 
+            metrics.FEATURES.labels("submit_spot").inc()
             response = await submit_spot.handle_spot(message)
             await send_ws_json(websocket, send_lock, response)
     except websockets.WebSocketDisconnect:
@@ -865,6 +895,7 @@ async def ws(websocket: fastapi.WebSocket):
 
 
 async def send_ws_submit(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
+    metrics.FEATURES.labels("submit_spot").inc()
     response = await submit_spot.handle_spot(message)
     if "type" in response:
         response = {**response, "error_type": response["type"]}
@@ -879,6 +910,8 @@ async def send_ws_json(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, me
         if websocket in get_closed_websockets():
             raise websockets.WebSocketDisconnect(code=1000)
         try:
+            if hasattr(websocket, "scope"):
+                websocket.scope["metrics_outgoing_type"] = metrics.message_kind(message)
             await websocket.send_json(message)
         except RuntimeError as e:
             if str(e) == 'Cannot call "send" once a close message has been sent.':
@@ -890,6 +923,8 @@ async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
     end_time = message["end_time"]
     start_time = message["start_time"]
     event = message.get("event", WsHistoryEvent.SPOTS.value)
+    kind = "propagation" if event == WsHistoryEvent.PROPAGATION.value else "spots"
+    metrics.FEATURES.labels("propagation_history" if kind == "propagation" else "spot_history").inc()
 
     if start_time is None:
         await send_ws_json(
@@ -929,6 +964,7 @@ async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
             send_lock,
             build_ws_message(WsMessageType.HISTORY, event=WsHistoryEvent.PROPAGATION.value, **result),
         )
+        metrics.HISTORY_RECORDS.labels("propagation").inc(sum(len(samples) for samples in result["metrics"].values()))
         return
 
     async with async_session() as session:
@@ -954,6 +990,7 @@ async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
                 spots=payload,
             ),
         )
+        metrics.HISTORY_RECORDS.labels("spots").inc(len(spots))
 
 
 async def cancel_missing_jobs(missing_jobs):
@@ -1025,6 +1062,7 @@ async def send_ws_missing(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
                 build_ws_error(WsErrorType.UNSUPPORTED_ACTION, "Missing job is already running", job_id=job_id),
             )
             return
+        metrics.FEATURES.labels("resolve_missing").inc()
         job.task = asyncio.create_task(run_missing_resolve_job(websocket, send_lock, job))
         return
 
@@ -1237,6 +1275,7 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
                 subscription_ack=True,
             ),
         )
+    metrics.FEATURES.labels("initial_spots" if action == WsSpotAction.INITIAL.value else "spot_catch_up").inc()
     if action == WsSpotAction.INITIAL.value:
         spots = await get_initial_spots()
         event = WsSpotEvent.INITIAL.value
@@ -1248,9 +1287,11 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
 
 async def send_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
     if "initial" in message:
+        metrics.FEATURES.labels("initial_spots").inc()
         spots = await get_initial_spots()
         await send_ws_json(websocket, send_lock, {"type": "initial", "spots": spots})
     elif "last_time" in message:
+        metrics.FEATURES.labels("spot_catch_up").inc()
         spots = await get_spots_after(message["last_time"])
         await send_ws_json(websocket, send_lock, {"type": "update", "spots": spots})
 
@@ -1373,6 +1414,7 @@ async def spot_history(start_time: int, end_time: int):
 
         logger.info(f"history perf: {perf}")
 
+    metrics.HISTORY_RECORDS.labels("spots").inc(len(spots))
     return fastapi.Response(content=payload, media_type="application/json")
 
 
