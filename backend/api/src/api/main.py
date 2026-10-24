@@ -1267,6 +1267,8 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
 
     # Registration must not depend on the duration of the snapshot query.
     app.state.active_ws_spot_connections.add(websocket)
+    if connection := websocket.scope.get("metrics_connection"):
+        connection.report_client_versions(message)
     if isinstance(message.get("subscription_id"), str):
         await send_ws_json(
             websocket,
@@ -1289,6 +1291,9 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
 
 
 async def send_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
+    if "initial" in message or "last_time" in message:
+        if connection := websocket.scope.get("metrics_connection"):
+            connection.report_client_versions(message)
     if "initial" in message:
         metrics.FEATURES.labels("initial_spots").inc()
         spots = await get_initial_spots()

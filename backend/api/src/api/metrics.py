@@ -1,6 +1,8 @@
 import json
+import re
 import time
 from dataclasses import dataclass
+from threading import Lock
 
 from prometheus_client import Counter, Gauge, Histogram
 
@@ -14,6 +16,19 @@ HTTP_DURATION = Histogram(
     ["method", "route"],
     buckets=HTTP_BUCKETS,
 )
+CLIENT_VERSION_ACTIVE = Gauge(
+    PREFIX + "client_version_active", "Open spot subscribers by client release", ["ui_version", "catserver_version"]
+)
+CLIENT_VERSION_REPORTS = Counter(
+    PREFIX + "client_version_reports_total", "Changed client release reports", ["ui_version", "catserver_version"]
+)
+CLIENT_VERSION_PAIRS = set()
+CLIENT_VERSION_PAIR_LOCK = Lock()
+UI_SHA = re.compile(r"[0-9a-fA-F]{7,40}")
+UI_TAG = re.compile(
+    r"v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?"
+)
+CAT_TAG = re.compile(r"catserver-v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9]+-g[0-9a-fA-F]{7,40})?")
 WS_ACTIVE = Gauge(PREFIX + "websocket_active", "Accepted open connections", ["endpoint"])
 WS_TOTAL = Counter(PREFIX + "websocket_connections_total", "Accepted connections", ["endpoint"])
 WS_DISCONNECTS = Counter(PREFIX + "websocket_disconnects_total", "Closed accepted connections", ["endpoint"])
@@ -87,14 +102,56 @@ def message_kind(message):
     return "unknown"
 
 
+def client_version(message, field):
+    if field not in message:
+        return "not_reported"
+    value = message[field]
+    if value is None:
+        return "development" if field == "ui_version" else "none"
+    if not isinstance(value, str) or len(value) > 64:
+        return "invalid"
+    if field == "ui_version":
+        if UI_SHA.fullmatch(value):
+            return value.lower()
+        return value if UI_TAG.fullmatch(value) else "invalid"
+    return value if CAT_TAG.fullmatch(value) else "invalid"
+
+
+def client_version_pair(message):
+    pair = (client_version(message, "ui_version"), client_version(message, "catserver_version"))
+    # Keep admission atomic when multiple ASGI threads share the registry.
+    with CLIENT_VERSION_PAIR_LOCK:
+        if pair in CLIENT_VERSION_PAIRS:
+            return pair
+        if len(CLIENT_VERSION_PAIRS) >= 100:
+            return ("other", "other")
+        CLIENT_VERSION_PAIRS.add(pair)
+    return pair
+
+
 @dataclass
 class Connection:
     endpoint: str
     active: bool = True
+    client_versions: tuple[str, str] | None = None
+
+    def report_client_versions(self, message):
+        if not self.active:
+            return
+        pair = client_version_pair(message)
+        if pair == self.client_versions:
+            return
+        if self.client_versions is not None:
+            CLIENT_VERSION_ACTIVE.labels(*self.client_versions).dec()
+        self.client_versions = pair
+        CLIENT_VERSION_ACTIVE.labels(*pair).inc()
+        CLIENT_VERSION_REPORTS.labels(*pair).inc()
 
     def close(self):
         if self.active:
             self.active = False
+            if self.client_versions is not None:
+                CLIENT_VERSION_ACTIVE.labels(*self.client_versions).dec()
             WS_ACTIVE.labels(self.endpoint).dec()
             WS_DISCONNECTS.labels(self.endpoint).inc()
 
