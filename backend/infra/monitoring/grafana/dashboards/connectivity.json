@@ -3,7 +3,7 @@
   "title": "HolyCluster / Connectivity",
   "description": "User-facing API, WebSocket and spot delivery connectivity.",
   "schemaVersion": 41,
-  "version": 3,
+  "version": 4,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -42,7 +42,7 @@
       "title": "Connectivity",
       "options": {
         "mode": "markdown",
-        "content": "User-facing connectivity only. Missing series show **No data**, not zero. Rates need two scrapes. API availability measures scrape success, not public reachability. Subscribers are anonymous open spot subscriptions, not unique users."
+        "content": "User-facing connectivity only. Missing series show **No data**, not zero. Rates need two scrapes. API scrape health is not a public reachability check. Subscribers are anonymous open spot subscriptions, not unique users."
       },
       "gridPos": {
         "x": 0,
@@ -54,8 +54,8 @@
     },
     {
       "type": "stat",
-      "title": "API availability",
-      "description": "Scrape availability: 1 = all API instances can be scraped. This is not an external reachability probe.",
+      "title": "API scrape health",
+      "description": "Healthy means all API instances can be scraped. This is not an external reachability probe.",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -64,7 +64,7 @@
         {
           "refId": "A",
           "expr": "min(up{job=\"api\"})",
-          "legendFormat": "API availability",
+          "legendFormat": "API scrape health",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -76,13 +76,27 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
+          "unit": "none",
           "min": 0,
           "noValue": "No data",
           "color": {
             "mode": "palette-classic"
           },
-          "mappings": []
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Scrape failed",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Healthy",
+                  "color": "green"
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
