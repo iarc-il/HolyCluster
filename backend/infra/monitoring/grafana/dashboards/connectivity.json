@@ -3,7 +3,7 @@
   "title": "HolyCluster / Connectivity",
   "description": "User-facing API, WebSocket and spot delivery connectivity.",
   "schemaVersion": 41,
-  "version": 2,
+  "version": 3,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -518,171 +518,6 @@
     },
     {
       "type": "timeseries",
-      "title": "HTTP response p50 by route",
-      "description": "Complete server request duration, not client network latency.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le, route) (rate(holycluster_api_http_request_duration_seconds_bucket[$__rate_interval])))",
-          "legendFormat": "{{route}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "min": 0,
-          "noValue": "No data",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": []
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 24,
-        "w": 8,
-        "h": 8
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 10
-    },
-    {
-      "type": "timeseries",
-      "title": "HTTP response p95 by route",
-      "description": "Complete server request duration, not client network latency.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(holycluster_api_http_request_duration_seconds_bucket[$__rate_interval])))",
-          "legendFormat": "{{route}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "min": 0,
-          "noValue": "No data",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": []
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 8,
-        "y": 24,
-        "w": 8,
-        "h": 8
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 11
-    },
-    {
-      "type": "timeseries",
-      "title": "HTTP response p99 by route",
-      "description": "Complete server request duration, not client network latency.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "histogram_quantile(0.99, sum by (le, route) (rate(holycluster_api_http_request_duration_seconds_bucket[$__rate_interval])))",
-          "legendFormat": "{{route}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "min": 0,
-          "noValue": "No data",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": []
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 16,
-        "y": 24,
-        "w": 8,
-        "h": 8
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 12
-    },
-    {
-      "type": "timeseries",
       "title": "HTTP 4xx / 5xx error rate",
       "description": "",
       "datasource": {
@@ -717,7 +552,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 24,
         "w": 24,
         "h": 8
       },
