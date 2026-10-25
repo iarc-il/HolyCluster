@@ -3,7 +3,7 @@
   "title": "HolyCluster / Spots and sources",
   "description": "Source availability, spot collection and pipeline outcomes, queue and reference refreshes.",
   "schemaVersion": 41,
-  "version": 4,
+  "version": 5,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -423,61 +423,6 @@
     },
     {
       "type": "timeseries",
-      "title": "Time since last parsed spot by source",
-      "description": "Uses the planned last parsed spot timestamp metric. No data means no timestamp is available; it does not mean a healthy or idle source.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "(time() - holycluster_collector_source_last_spot_timestamp_seconds{source!~\"sota|telnet\"}) and (holycluster_collector_source_last_spot_timestamp_seconds{source!~\"sota|telnet\"} > 0)",
-          "legendFormat": "{{source}} / {{instance}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "min": 0,
-          "noValue": "No data",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": []
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 13,
-        "w": 12,
-        "h": 8
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 8
-    },
-    {
-      "type": "timeseries",
       "title": "Source contribution percentage",
       "description": "Share of queued (accepted) spots. No accepted traffic gives No data.",
       "datasource": {
@@ -511,9 +456,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 13,
-        "w": 12,
+        "w": 24,
         "h": 8
       },
       "options": {
