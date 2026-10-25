@@ -21,6 +21,7 @@ async function mockUpdates(page) {
             mock.session = {
                 id: "translated-update",
                 started: Date.now(),
+                expected_version: "1.3.2",
                 phase: "downloading",
                 total: 100,
                 downloaded: 20,
