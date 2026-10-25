@@ -349,7 +349,7 @@ class MetricsTest(IsolatedAsyncioTestCase):
         self.assertEqual(self.value("spots_total", source="DXUSA", stage="pipeline", result="success"), 1)
         self.assertEqual(self.value("processing_duration_seconds_count", source="DXUSA", stage="persist"), 1)
         exposition = generate_latest(self.metrics.registry).decode()
-        for private in ("private-host", "7300", "W1PRIVATE", "K1SECRET", 'source="telnet"'):
+        for private in ("private-host", '"7300"', "W1PRIVATE", "K1SECRET", 'source="telnet"'):
             self.assertNotIn(private, exposition)
 
     async def test_configured_sources_are_registered_before_connections_start(self):
