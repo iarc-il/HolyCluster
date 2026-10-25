@@ -271,9 +271,16 @@ if [ "$COMPOSE_FILE_CHANGED" = true ]; then
     docker compose up -d --no-deps certbot
 fi
 
-if [[ -v SERVICES[grafana] ]]; then
-    echo "Waiting up to 120 seconds for Grafana health..."
-    docker compose up -d --no-deps --wait --wait-timeout 120 grafana
+HEALTH_SERVICES=()
+for svc in api collector nginx victoriametrics grafana; do
+    if [[ -v SERVICES[$svc] ]]; then
+        HEALTH_SERVICES+=("$svc")
+    fi
+done
+
+if [ "${#HEALTH_SERVICES[@]}" -gt 0 ]; then
+    echo "Waiting up to 120 seconds for service health: ${HEALTH_SERVICES[*]}"
+    docker compose up -d --no-deps --wait --wait-timeout 120 "${HEALTH_SERVICES[@]}"
 fi
 
 mark_deployed

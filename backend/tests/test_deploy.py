@@ -78,7 +78,15 @@ if [[ "$*" == 'compose run '* ]]; then
     exit "$WRITABLE_STATUS"
 fi
 if [[ "$*" == 'compose up -d --no-deps --wait '* ]]; then
-    exit "$GRAFANA_HEALTH_STATUS"
+    for service in ${@:8}; do
+        case ",$UNHEALTHY_SERVICES," in
+            *,"$service",*) exit 44 ;;
+        esac
+        if [[ "$service" == grafana && "$GRAFANA_HEALTH_STATUS" != 0 ]]; then
+            exit "$GRAFANA_HEALTH_STATUS"
+        fi
+    done
+    exit 0
 fi
 if [[ "$1" == inspect ]]; then
     name="${!#}"
@@ -160,6 +168,7 @@ class DeployTests(unittest.TestCase):
             "OWNERSHIP_STATUS": "0",
             "WRITABLE_STATUS": "0",
             "GRAFANA_HEALTH_STATUS": "0",
+            "UNHEALTHY_SERVICES": "",
         }
         ref = overrides.pop("ref", "release-tag")
         marker = overrides.pop("deployed_head", None)
@@ -419,10 +428,26 @@ class DeployTests(unittest.TestCase):
         self.assert_all_waited(root)
         self.assertTrue((root / "start-nginx").exists())
         calls = (root / "docker.log").read_text().splitlines()
-        health = "compose up -d --no-deps --wait --wait-timeout 120 grafana"
+        health = "compose up -d --no-deps --wait --wait-timeout 120 api collector nginx victoriametrics grafana"
         self.assertIn(health, calls)
         self.assertLess(calls.index("compose up -d --no-deps nginx"), calls.index(health))
         self.assertNotIn("Deploy complete.", result.stdout)
+
+    def test_selected_service_health_failure_preserves_marker(self):
+        for service, path in (
+            ("api", "api/src/api/main.py"),
+            ("nginx", "infra/nginx/nginx.conf"),
+            ("collector", "collectors/src/collectors/main.py"),
+            ("victoriametrics", "infra/monitoring/victoriametrics/scrape.yml"),
+            ("grafana", "infra/monitoring/grafana/dashboards/overview.json"),
+        ):
+            with self.subTest(service=service):
+                root, result = self.run_deploy(
+                    CHANGED_FILES=path, UNHEALTHY_SERVICES=service, deployed_head="lastsuccess"
+                )
+                self.assertEqual(result.returncode, 44, result.stderr)
+                self.assertEqual((root / "deployed").read_text(), "lastsuccess\n")
+                self.assertNotIn("Deploy complete.", result.stdout)
 
     def test_same_ref_recovers_only_missing_or_unhealthy_grafana(self):
         for state in ("missing", "running unhealthy", "exited unhealthy", "running starting"):

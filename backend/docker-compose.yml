@@ -73,6 +73,12 @@ services:
       - .env
     environment:
       COLLECTOR_METRICS_PORT: ${COLLECTOR_METRICS_PORT:-9101}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['COLLECTOR_METRICS_PORT'] + '/metrics', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     volumes:
       - ${LOG_DIR}:${LOG_DIR}
     expose:
