@@ -66,12 +66,17 @@ if [[ "$*" == "network inspect $proxy_network" ]]; then
     if [[ "$MISSING_NETWORK" == "$proxy_network" ]]; then exit 15; fi
     exit 0
 fi
-if [[ "$*" == 'compose ps --all --quiet grafana' ]]; then
-    if [[ "$GRAFANA_STATE" != missing ]]; then echo grafana-id; fi
+if [[ "$*" == 'compose ps --all --quiet '* ]]; then
+    service="${!#}"
+    state_variable="${service^^}_STATE"
+    if [[ "${!state_variable}" != missing ]]; then echo "$service-id"; fi
     exit 0
 fi
-if [[ "$*" == inspect*grafana-id ]]; then
-    printf '%s\\n' "$GRAFANA_STATE"
+if [[ "$*" == inspect*-id ]]; then
+    service="${!#}"
+    service="${service%-id}"
+    state_variable="${service^^}_STATE"
+    printf '%s\\n' "${!state_variable}"
     exit 0
 fi
 if [[ "$*" == 'compose run '* ]]; then
@@ -174,6 +179,10 @@ class DeployTests(unittest.TestCase):
             "MISSING_NETWORK": "",
             "LEGACY_NAMES": "",
             "GRAFANA_STATE": "running healthy",
+            "API_STATE": "running healthy",
+            "COLLECTOR_STATE": "running healthy",
+            "NGINX_STATE": "running healthy",
+            "VICTORIAMETRICS_STATE": "running healthy",
             "GRAFANA_PASSWORD_STATUS": "0",
             "OWNERSHIP_STATUS": "0",
             "WRITABLE_STATUS": "0",
@@ -510,6 +519,29 @@ class DeployTests(unittest.TestCase):
         retried = self.rerun_deploy(root)
         self.assertEqual(retried.returncode, 0, retried.stderr)
 
+    def test_same_ref_recovers_each_unhealthy_core_service_and_requires_health(self):
+        for service, background in (
+            ("api", {"api"}),
+            ("collector", {"collector"}),
+            ("nginx", set()),
+            ("victoriametrics", {"victoriametrics"}),
+        ):
+            for state in ("missing", "running unhealthy", "exited unhealthy", "running starting"):
+                with self.subTest(service=service, state=state):
+                    root, result = self.run_deploy(
+                        SAME_REF="1", UNHEALTHY_SERVICES=service, **{f"{service.upper()}_STATE": state}
+                    )
+                    self.assertEqual(result.returncode, 44, result.stderr)
+                    self.assertNotIn("Nothing to deploy.", result.stdout)
+                    self.assertFalse((root / "deployed").exists())
+                    self.assert_all_waited(root, background)
+                    self.assertFalse((root / "start-grafana").exists())
+                    self.assertEqual((root / ".env").read_text(), INITIAL_ENV)
+                    retried = self.rerun_deploy(root, UNHEALTHY_SERVICES="")
+                    self.assertEqual(retried.returncode, 0, retried.stderr)
+                    self.assertIn("Deploy complete.", retried.stdout)
+                    self.assertEqual((root / "deployed").read_text(), "newhead\n")
+
     def test_same_ref_recovers_only_missing_or_unhealthy_grafana(self):
         for state in ("missing", "running unhealthy", "exited unhealthy", "running starting"):
             with self.subTest(state=state):
@@ -541,7 +573,14 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("No new commits. Nothing to deploy.", result.stdout)
         self.assertEqual((root / ".env").read_text(), INITIAL_ENV)
-        self.assertEqual((root / "docker.log").read_text().splitlines()[0], "compose ps --all --quiet grafana")
+        calls = (root / "docker.log").read_text().splitlines()
+        self.assertCountEqual(
+            [call for call in calls if call.startswith("compose ps")],
+            [
+                f"compose ps --all --quiet {service}"
+                for service in ("api", "collector", "nginx", "victoriametrics", "grafana")
+            ],
+        )
         self.assertFalse(list(root.glob("start-*")))
 
 

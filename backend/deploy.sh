@@ -50,18 +50,29 @@ fi
 CURRENT_HEAD=$(git rev-parse HEAD)
 
 if [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ]; then
-    GRAFANA_ID=$(docker compose ps --all --quiet grafana)
-    GRAFANA_HEALTH_STATE=""
-    if [ -n "$GRAFANA_ID" ]; then
-        GRAFANA_HEALTH_STATE=$(docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$GRAFANA_ID")
-    fi
-    if [ "$GRAFANA_HEALTH_STATE" = "running healthy" ]; then
+    CHANGED_FILES=""
+    for svc in api collector nginx victoriametrics grafana; do
+        CONTAINER_ID=$(docker compose ps --all --quiet "$svc")
+        HEALTH_STATE=""
+        if [ -n "$CONTAINER_ID" ]; then
+            HEALTH_STATE=$(docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$CONTAINER_ID")
+        fi
+        if [ "$HEALTH_STATE" = "running healthy" ]; then
+            continue
+        fi
+        echo "Recovering missing or unhealthy $svc."
+        case "$svc" in
+            api) CHANGED_FILES+=$'api/recovery\n' ;;
+            collector) CHANGED_FILES+=$'collectors/recovery\n' ;;
+            nginx) CHANGED_FILES+=$'infra/nginx/recovery\n' ;;
+            victoriametrics|grafana) CHANGED_FILES+="infra/monitoring/$svc/recovery"$'\n' ;;
+        esac
+    done
+    if [ -z "$CHANGED_FILES" ]; then
         mark_deployed
         echo "No new commits. Nothing to deploy."
         exit 0
     fi
-    echo "Recovering missing or unhealthy Grafana."
-    CHANGED_FILES=infra/monitoring/grafana/recovery
 else
     CHANGED_FILES=$(git diff --name-only --relative "$DEPLOYED_HEAD" "$CURRENT_HEAD" -- .)
 fi
