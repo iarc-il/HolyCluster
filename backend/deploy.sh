@@ -8,8 +8,14 @@ fi
 
 REF="$1"
 
-PREVIOUS_HEAD=$(git rev-parse HEAD)
 DEPLOYMENT_MARKER=$(git rev-parse --git-path holycluster-backend-deployed)
+exec 9>"${DEPLOYMENT_MARKER}.lock"
+if ! flock -n 9; then
+    echo "Another backend deployment is running." >&2
+    exit 1
+fi
+
+PREVIOUS_HEAD=$(git rev-parse HEAD)
 DEPLOYMENT_BASE="${DEPLOYMENT_MARKER}.base"
 
 write_revision() {

@@ -1,5 +1,6 @@
 """Deploy regression tests using only temporary shell stubs, not Git or Docker."""
 
+import fcntl
 import os
 import subprocess
 import tempfile
@@ -459,6 +460,22 @@ class DeployTests(unittest.TestCase):
         diffs = [line for line in (root / "git.log").read_text().splitlines() if line.startswith("diff ")]
         self.assertEqual(diffs, ["diff --name-only --relative oldhead newhead -- ."] * 2)
         self.assertFalse((root / "deployed.base").exists())
+
+    def test_host_lock_rejects_overlap_before_checkout_or_docker(self):
+        root, result = self.run_deploy()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (root / "git.log").write_text("")
+        (root / "docker.log").write_text("")
+        with (root / "deployed.lock").open("w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            overlapping = self.rerun_deploy(root)
+        self.assertNotEqual(overlapping.returncode, 0)
+        self.assertIn("Another backend deployment is running.", overlapping.stderr)
+        self.assertNotIn("checkout", (root / "git.log").read_text())
+        self.assertNotIn("rev-parse HEAD", (root / "git.log").read_text())
+        self.assertEqual((root / "docker.log").read_text(), "")
+        retried = self.rerun_deploy(root)
+        self.assertEqual(retried.returncode, 0, retried.stderr)
 
     def test_same_ref_recovers_only_missing_or_unhealthy_grafana(self):
         for state in ("missing", "running unhealthy", "exited unhealthy", "running starting"):
