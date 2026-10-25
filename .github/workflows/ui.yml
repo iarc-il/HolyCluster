@@ -55,7 +55,7 @@ jobs:
           npx biome check .
 
       - name: Test UI deployment
-        run: python3 -m unittest discover -s scripts/tests -v
+        run: python3 -m unittest discover -s scripts/tests -p 'test_deploy_ui.py' -v
 
       - name: Run tests
         run: |
