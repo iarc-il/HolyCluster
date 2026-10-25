@@ -3,7 +3,7 @@
   "title": "HolyCluster / Spots and sources",
   "description": "Source availability, spot collection and pipeline outcomes, queue and reference refreshes.",
   "schemaVersion": 41,
-  "version": 3,
+  "version": 4,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -37,21 +37,6 @@
     }
   ],
   "panels": [
-    {
-      "type": "text",
-      "title": "Spots and sources",
-      "options": {
-        "mode": "markdown",
-        "content": "SOTA is excluded. Sources use configured names, including individual Telnet sources. Missing series show **No data**, not zero. Rates need two scrapes. Ingestion, enrichment, pipeline and persistence count different events; do not add stages. The last parsed spot age uses a planned metric."
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 24,
-        "h": 3
-      },
-      "id": 1
-    },
     {
       "type": "table",
       "title": "Current source availability",
@@ -121,7 +106,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 3,
+        "y": 0,
         "w": 9,
         "h": 5
       },
@@ -187,7 +172,7 @@
       },
       "gridPos": {
         "x": 9,
-        "y": 3,
+        "y": 0,
         "w": 5,
         "h": 5
       },
@@ -242,7 +227,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 3,
+        "y": 0,
         "w": 5,
         "h": 5
       },
@@ -297,7 +282,7 @@
       },
       "gridPos": {
         "x": 19,
-        "y": 3,
+        "y": 0,
         "w": 5,
         "h": 5
       },
@@ -366,7 +351,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 5,
         "w": 12,
         "h": 8
       },
@@ -417,7 +402,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 8,
+        "y": 5,
         "w": 12,
         "h": 8
       },
@@ -472,7 +457,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 13,
         "w": 12,
         "h": 8
       },
@@ -527,7 +512,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 16,
+        "y": 13,
         "w": 12,
         "h": 8
       },
@@ -582,7 +567,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 21,
         "w": 12,
         "h": 8
       },
@@ -637,7 +622,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 24,
+        "y": 21,
         "w": 12,
         "h": 8
       },
