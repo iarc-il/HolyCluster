@@ -32,15 +32,12 @@ mark_deployed() {
     rm -f "$DEPLOYMENT_BASE"
 }
 
-if [ -f "$DEPLOYMENT_MARKER" ]; then
-    DEPLOYED_HEAD=$(< "$DEPLOYMENT_MARKER")
-else
-    # Preserve the first baseline if checkout advances before deployment fails.
-    if [ ! -f "$DEPLOYMENT_BASE" ]; then
-        write_revision "$DEPLOYMENT_BASE" "$PREVIOUS_HEAD"
-    fi
-    DEPLOYED_HEAD=$(< "$DEPLOYMENT_BASE")
+# The checkout can differ from the marker after an older script rolls back.
+# Keep this baseline if checkout advances before deployment fails.
+if [ ! -f "$DEPLOYMENT_BASE" ]; then
+    write_revision "$DEPLOYMENT_BASE" "$PREVIOUS_HEAD"
 fi
+DEPLOYED_HEAD=$(< "$DEPLOYMENT_BASE")
 
 git checkout "$REF" 2>/dev/null || git checkout -b "$REF" "origin/$REF" 2>/dev/null
 # For branches like origin/dev, detach or reset
@@ -51,14 +48,6 @@ if [[ "$REF" == origin/* ]]; then
 fi
 
 CURRENT_HEAD=$(git rev-parse HEAD)
-
-if [ -f "$DEPLOYMENT_BASE" ]; then
-    DEPLOYED_HEAD=$(< "$DEPLOYMENT_BASE")
-elif [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ] && [ "$PREVIOUS_HEAD" != "$CURRENT_HEAD" ]; then
-    # An older deploy script can roll back without updating the marker.
-    write_revision "$DEPLOYMENT_BASE" "$PREVIOUS_HEAD"
-    DEPLOYED_HEAD="$PREVIOUS_HEAD"
-fi
 
 if [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ]; then
     GRAFANA_ID=$(docker compose ps --all --quiet grafana)

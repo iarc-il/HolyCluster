@@ -19,9 +19,9 @@ case "$1" in
         if [[ "${2-}" == --git-path ]]; then
             printf '%s/deployed\\n' "$FIXTURE"
         elif [[ -f "$FIXTURE/checked" || "$SAME_REF" == 1 ]]; then
-            echo newhead
+            echo "$CURRENT_HEAD"
         else
-            echo oldhead
+            echo "$PREVIOUS_HEAD"
         fi
         ;;
     checkout)
@@ -31,7 +31,13 @@ case "$1" in
         touch "$FIXTURE/checked"
         ;;
     reset) ;;
-    diff) printf '%s\\n' "$CHANGED_FILES" ;;
+    diff)
+        if [[ "$4" == "$CHECKOUT_DIFF_BASE" && -n "$CHECKOUT_CHANGED_FILES" ]]; then
+            printf '%s\\n' "$CHECKOUT_CHANGED_FILES"
+        else
+            printf '%s\\n' "$CHANGED_FILES"
+        fi
+        ;;
     *) exit 90 ;;
 esac
 """
@@ -154,6 +160,9 @@ class DeployTests(unittest.TestCase):
             "BASH_ENV": str(root / "wait.sh"),
             "CHECKOUT_MODE": "success",
             "SAME_REF": "0",
+            "CURRENT_HEAD": "newhead",
+            "CHECKOUT_CHANGED_FILES": "",
+            "CHECKOUT_DIFF_BASE": "",
             "CHANGED_FILES": "docker-compose.yml",
             "MIGRATION_STATUS": "0",
             "FAIL_SERVICES": "",
@@ -175,6 +184,7 @@ class DeployTests(unittest.TestCase):
         marker = overrides.pop("deployed_head", None)
         if marker is not None:
             (root / "deployed").write_text(marker + "\n")
+        env["PREVIOUS_HEAD"] = marker or "oldhead"
         env.update(overrides)
         self.last_env = env
         result = subprocess.run(
@@ -368,7 +378,9 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(set((root / "marker-at-docker.log").read_text().splitlines()), {"lastsuccess"})
         self.assertEqual((root / "deployed").read_text(), "newhead\n")
-        source, destination, revision = (root / "mv.log").read_text().strip().split("|")
+        baseline_write, marker_write = (root / "mv.log").read_text().splitlines()
+        self.assertEqual(baseline_write.split("|")[1:], [str(root / "deployed.base"), "lastsuccess"])
+        source, destination, revision = marker_write.split("|")
         self.assertEqual(Path(source).parent, root)
         self.assertTrue(Path(source).name.startswith("deployed.tmp."))
         self.assertEqual(destination, str(root / "deployed"))
@@ -387,7 +399,9 @@ class DeployTests(unittest.TestCase):
                 root, result = self.run_deploy(deployed_head="lastsuccess", **overrides)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual((root / "deployed").read_text(), "lastsuccess\n")
-                self.assertFalse((root / "mv.log").exists())
+                writes = (root / "mv.log").read_text().splitlines()
+                self.assertEqual(len(writes), 1)
+                self.assertEqual(writes[0].split("|")[1:], [str(root / "deployed.base"), "lastsuccess"])
 
     def test_failed_atomic_marker_rename_preserves_previous_revision(self):
         root, result = self.run_deploy(deployed_head="lastsuccess", MARKER_WRITE_STATUS="46")
@@ -451,7 +465,7 @@ class DeployTests(unittest.TestCase):
                 self.assertNotIn("Deploy complete.", result.stdout)
 
     def test_rollback_then_redeploy_uses_checkout_and_retains_retry_base(self):
-        root, result = self.run_deploy(deployed_head="newhead", BUILD_STATUS="45")
+        root, result = self.run_deploy(deployed_head="newhead", PREVIOUS_HEAD="oldhead", BUILD_STATUS="45")
         self.assertEqual(result.returncode, 45, result.stderr)
         self.assertEqual((root / "deployed.base").read_text(), "oldhead\n")
         retried = self.rerun_deploy(root, BUILD_STATUS="0")
@@ -459,6 +473,25 @@ class DeployTests(unittest.TestCase):
         self.assert_all_waited(root)
         diffs = [line for line in (root / "git.log").read_text().splitlines() if line.startswith("diff ")]
         self.assertEqual(diffs, ["diff --name-only --relative oldhead newhead -- ."] * 2)
+        self.assertFalse((root / "deployed.base").exists())
+
+    def test_legacy_rollback_drift_uses_checkout_instead_of_marker(self):
+        root, result = self.run_deploy(
+            deployed_head="revision-A",
+            PREVIOUS_HEAD="revision-B",
+            CURRENT_HEAD="revision-C",
+            CHANGED_FILES="api/src/api/main.py",
+            CHECKOUT_CHANGED_FILES="api/src/api/main.py\ncollectors/src/collectors/main.py",
+            CHECKOUT_DIFF_BASE="revision-B",
+            BUILD_STATUS="45",
+        )
+        self.assertEqual(result.returncode, 45, result.stderr)
+        self.assertIn("diff --name-only --relative revision-B revision-C -- .", (root / "git.log").read_text())
+        self.assertEqual((root / "deployed.base").read_text(), "revision-B\n")
+        retried = self.rerun_deploy(root, BUILD_STATUS="0")
+        self.assertEqual(retried.returncode, 0, retried.stderr)
+        self.assert_all_waited(root, {"api", "collector"})
+        self.assertEqual((root / "deployed").read_text(), "revision-C\n")
         self.assertFalse((root / "deployed.base").exists())
 
     def test_host_lock_rejects_overlap_before_checkout_or_docker(self):
