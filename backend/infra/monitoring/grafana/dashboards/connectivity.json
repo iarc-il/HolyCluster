@@ -3,7 +3,7 @@
   "title": "HolyCluster / Connectivity",
   "description": "User-facing API, WebSocket and spot delivery connectivity.",
   "schemaVersion": 41,
-  "version": 4,
+  "version": 5,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -103,7 +103,7 @@
       "gridPos": {
         "x": 0,
         "y": 3,
-        "w": 6,
+        "w": 8,
         "h": 5
       },
       "options": {
@@ -156,9 +156,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 6,
+        "x": 8,
         "y": 3,
-        "w": 6,
+        "w": 8,
         "h": 5
       },
       "options": {
@@ -211,9 +211,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
+        "x": 16,
         "y": 3,
-        "w": 6,
+        "w": 8,
         "h": 5
       },
       "options": {
@@ -230,61 +230,6 @@
         "displayMode": "basic"
       },
       "id": 4
-    },
-    {
-      "type": "stat",
-      "title": "Broadcast failures \u00b7 last 15m",
-      "description": "Failed recipient sends, including timeouts.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(increase(holycluster_api_spot_broadcast_send_failures_total[15m]))",
-          "legendFormat": "Broadcast failures \u00b7 last 15m",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": true,
-          "range": false,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "min": 0,
-          "noValue": "No data",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": []
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 18,
-        "y": 3,
-        "w": 6,
-        "h": 5
-      },
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "horizontal",
-        "colorMode": "value",
-        "graphMode": "none",
-        "displayMode": "basic"
-      },
-      "id": 5
     },
     {
       "type": "timeseries",
