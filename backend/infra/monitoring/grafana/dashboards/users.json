@@ -3,7 +3,7 @@
   "title": "HolyCluster / Users",
   "description": "Anonymous subscriptions, version adoption and aggregate feature usage. No unique user counts.",
   "schemaVersion": 41,
-  "version": 2,
+  "version": 3,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -163,9 +163,9 @@
       "id": 3
     },
     {
-      "type": "stat",
-      "title": "CAT subscribers",
-      "description": "Recognized CAT versions only; unknown and unreported fields are excluded.",
+      "type": "timeseries",
+      "title": "CAT subscribers over time",
+      "description": "All reported CAT version categories, including invalid and other. Direct and not_reported subscriptions are excluded.",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -173,14 +173,14 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(holycluster_api_client_version_active{catserver_version!~\"none|not_reported|invalid|other\"})",
+          "expr": "sum(holycluster_api_client_version_active{catserver_version!~\"none|not_reported\"})",
           "legendFormat": "CAT subscribers",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "instant": true,
-          "range": false,
+          "instant": false,
+          "range": true,
           "format": "time_series"
         }
       ],
@@ -203,17 +203,17 @@
         "h": 5
       },
       "options": {
-        "reduceOptions": {
-          "values": false,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
           "calcs": [
             "lastNotNull"
-          ],
-          "fields": ""
+          ]
         },
-        "orientation": "horizontal",
-        "colorMode": "value",
-        "graphMode": "none",
-        "displayMode": "basic"
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "id": 4
     },
