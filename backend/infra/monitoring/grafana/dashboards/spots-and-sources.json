@@ -3,7 +3,7 @@
   "title": "HolyCluster / Spots and sources",
   "description": "Source availability, spot collection and pipeline outcomes, queue and reference refreshes.",
   "schemaVersion": 41,
-  "version": 5,
+  "version": 6,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -37,105 +37,6 @@
     }
   ],
   "panels": [
-    {
-      "type": "table",
-      "title": "Current source availability",
-      "description": "Current availability for each configured source. Disabled SOTA is excluded.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "holycluster_collector_source_up{source!~\"sota|telnet\"}",
-          "legendFormat": "{{source}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": true,
-          "range": false,
-          "format": "table"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "min": 0,
-          "noValue": "No data",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": []
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "Inactive",
-                        "color": "red"
-                      },
-                      "1": {
-                        "text": "Active",
-                        "color": "green"
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 9,
-        "h": 5
-      },
-      "options": {
-        "showHeader": true
-      },
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "instance": true,
-              "job": true
-            },
-            "indexByName": {
-              "source": 0,
-              "Value": 1
-            },
-            "renameByName": {
-              "source": "Source",
-              "Value": "Status"
-            }
-          }
-        }
-      ],
-      "id": 2
-    },
     {
       "type": "stat",
       "title": "Incoming spots",
@@ -171,9 +72,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 9,
+        "x": 0,
         "y": 0,
-        "w": 5,
+        "w": 8,
         "h": 5
       },
       "options": {
@@ -226,9 +127,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 14,
+        "x": 8,
         "y": 0,
-        "w": 5,
+        "w": 8,
         "h": 5
       },
       "options": {
@@ -281,9 +182,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 19,
+        "x": 16,
         "y": 0,
-        "w": 5,
+        "w": 8,
         "h": 5
       },
       "options": {
