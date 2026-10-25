@@ -46,6 +46,14 @@ fi
 
 CURRENT_HEAD=$(git rev-parse HEAD)
 
+if [ -f "$DEPLOYMENT_BASE" ]; then
+    DEPLOYED_HEAD=$(< "$DEPLOYMENT_BASE")
+elif [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ] && [ "$PREVIOUS_HEAD" != "$CURRENT_HEAD" ]; then
+    # An older deploy script can roll back without updating the marker.
+    write_revision "$DEPLOYMENT_BASE" "$PREVIOUS_HEAD"
+    DEPLOYED_HEAD="$PREVIOUS_HEAD"
+fi
+
 if [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ]; then
     GRAFANA_ID=$(docker compose ps --all --quiet grafana)
     GRAFANA_HEALTH_STATE=""

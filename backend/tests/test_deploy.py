@@ -449,6 +449,17 @@ class DeployTests(unittest.TestCase):
                 self.assertEqual((root / "deployed").read_text(), "lastsuccess\n")
                 self.assertNotIn("Deploy complete.", result.stdout)
 
+    def test_rollback_then_redeploy_uses_checkout_and_retains_retry_base(self):
+        root, result = self.run_deploy(deployed_head="newhead", BUILD_STATUS="45")
+        self.assertEqual(result.returncode, 45, result.stderr)
+        self.assertEqual((root / "deployed.base").read_text(), "oldhead\n")
+        retried = self.rerun_deploy(root, BUILD_STATUS="0")
+        self.assertEqual(retried.returncode, 0, retried.stderr)
+        self.assert_all_waited(root)
+        diffs = [line for line in (root / "git.log").read_text().splitlines() if line.startswith("diff ")]
+        self.assertEqual(diffs, ["diff --name-only --relative oldhead newhead -- ."] * 2)
+        self.assertFalse((root / "deployed.base").exists())
+
     def test_same_ref_recovers_only_missing_or_unhealthy_grafana(self):
         for state in ("missing", "running unhealthy", "exited unhealthy", "running starting"):
             with self.subTest(state=state):
