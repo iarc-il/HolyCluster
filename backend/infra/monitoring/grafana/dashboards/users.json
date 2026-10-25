@@ -3,7 +3,7 @@
   "title": "HolyCluster / Users",
   "description": "Anonymous subscriptions, version adoption and aggregate feature usage. No unique user counts.",
   "schemaVersion": 41,
-  "version": 4,
+  "version": 5,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -493,92 +493,6 @@
       "id": 9
     },
     {
-      "id": 10,
-      "type": "table",
-      "title": "Current UI / CATServer version combinations",
-      "description": "Open spot subscriptions summed across API instances. CATServer none means direct web. Retained zero rows are observed pairs with no active subscriptions, not missing data.",
-      "gridPos": {
-        "x": 0,
-        "y": 24,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (ui_version, catserver_version) (holycluster_api_client_version_active)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": true,
-          "range": false,
-          "format": "table"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "indexByName": {
-              "ui_version": 0,
-              "catserver_version": 1,
-              "Value": 2
-            },
-            "renameByName": {
-              "ui_version": "UI version",
-              "catserver_version": "CATServer version (none = direct web)",
-              "Value": "Active subscriptions"
-            }
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "No data",
-          "mappings": []
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Active subscriptions"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "short"
-              },
-              {
-                "id": "decimals",
-                "value": 0
-              },
-              {
-                "id": "min",
-                "value": 0
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "displayName": "Active subscriptions",
-            "desc": true
-          }
-        ]
-      }
-    },
-    {
       "type": "timeseries",
       "title": "Version reporting coverage",
       "description": "Both valid fields includes development UI and direct web CAT none. Legacy / unreported misses either field. Invalid/other may leave a gap; these two series are not a full partition.",
@@ -625,9 +539,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 24,
-        "w": 12,
+        "w": 24,
         "h": 8
       },
       "options": {
