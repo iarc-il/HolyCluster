@@ -3,7 +3,7 @@
   "title": "HolyCluster / Spots and sources",
   "description": "Source availability, spot collection and pipeline outcomes, queue and reference refreshes.",
   "schemaVersion": 41,
-  "version": 2,
+  "version": 3,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -264,7 +264,7 @@
     {
       "type": "stat",
       "title": "Duplicate percentage",
-      "description": "Duplicates / all ingestion outcomes. No traffic gives No data.",
+      "description": "Telnet duplicates / all telnet ingestion outcomes. No traffic gives No data.",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -272,7 +272,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * sum(rate(holycluster_collector_spots_total{source!~\"sota|telnet\",stage=\"ingest\",result=\"duplicate\"}[$__rate_interval])) / (sum(rate(holycluster_collector_spots_total{source!~\"sota|telnet\",stage=\"ingest\"}[$__rate_interval])) > 0)",
+          "expr": "100 * sum(rate(holycluster_collector_spots_total{source!~\"pota|sota|wwff\",stage=\"ingest\",result=\"duplicate\"}[$__rate_interval])) / (sum(rate(holycluster_collector_spots_total{source!~\"pota|sota|wwff\",stage=\"ingest\"}[$__rate_interval])) > 0)",
           "legendFormat": "Duplicate percentage",
           "datasource": {
             "type": "prometheus",
