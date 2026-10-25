@@ -3,7 +3,7 @@
   "title": "HolyCluster / Users",
   "description": "Anonymous subscriptions, version adoption and aggregate feature usage. No unique user counts.",
   "schemaVersion": 41,
-  "version": 6,
+  "version": 7,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -273,9 +273,9 @@
       "id": 5
     },
     {
-      "type": "bargauge",
-      "title": "Active by UI version",
-      "description": "Includes development, not_reported, invalid and other. CAT none means direct web.",
+      "type": "table",
+      "title": "UI versions · count / percentage",
+      "description": "Open spot subscriptions by reported UI version. Percentage is the share of all open spot subscriptions, not unique people.",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -284,103 +284,123 @@
         {
           "refId": "A",
           "expr": "sum by (ui_version) (holycluster_api_client_version_active)",
-          "legendFormat": "{{ui_version}}",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
           },
           "instant": true,
           "range": false,
-          "format": "time_series"
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "expr": "100 * sum by (ui_version) (holycluster_api_client_version_active) / scalar(sum(holycluster_api_client_version_active) > 0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "ui_version",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true
+            },
+            "indexByName": {
+              "ui_version": 0,
+              "Value #A": 1,
+              "Value #B": 2
+            },
+            "renameByName": {
+              "ui_version": "UI version",
+              "Value #A": "Count",
+              "Value #B": "Percentage"
+            }
+          }
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "min": 0,
           "noValue": "No data",
-          "color": {
-            "mode": "palette-classic"
-          },
           "mappings": []
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Count"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "min",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Percentage"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "x": 0,
         "y": 8,
-        "w": 12,
+        "w": 24,
         "h": 8
       },
       "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "horizontal",
-        "colorMode": "value",
-        "graphMode": "none",
-        "displayMode": "basic"
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Count",
+            "desc": true
+          }
+        ]
       },
       "id": 6
-    },
-    {
-      "type": "bargauge",
-      "title": "UI version adoption percentage",
-      "description": "Share of all open spot subscriptions, including unknown buckets. Not release popularity among unique people.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "100 * sum by (ui_version) (holycluster_api_client_version_active) / scalar(sum(holycluster_api_client_version_active) > 0)",
-          "legendFormat": "{{ui_version}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": true,
-          "range": false,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "noValue": "No data",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": []
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 8,
-        "w": 12,
-        "h": 8
-      },
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "horizontal",
-        "colorMode": "value",
-        "graphMode": "none",
-        "displayMode": "basic"
-      },
-      "id": 7
     },
     {
       "type": "bargauge",
