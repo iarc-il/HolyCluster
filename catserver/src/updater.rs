@@ -1618,7 +1618,7 @@ fn update_get(
         return Err(http_failure(error, evidence, started));
     }
     evidence["elapsed_ms"] = (started.elapsed().as_millis() as u64).into();
-    tracing::info!(target: "catserver::diagnostic", http = %evidence, "Update HTTP response");
+    tracing::debug!(target: "catserver::diagnostic", http = %evidence, "Update HTTP response");
     Ok((response, evidence, started))
 }
 
