@@ -10,7 +10,19 @@ const STORE_NAME = "intervals";
 const METRICS = ["a_index", "k_index", "sfi"];
 const BUCKET_MS = 30 * 60 * 1000;
 
-const store = create_interval_db(DB_NAME, DB_VERSION, STORE_NAME);
+const store = create_interval_db(DB_NAME, DB_VERSION, STORE_NAME, record =>
+    METRICS.every(
+        metric =>
+            Array.isArray(record.metrics?.[metric]) &&
+            record.metrics[metric].every(
+                sample =>
+                    sample !== null &&
+                    typeof sample === "object" &&
+                    Number.isFinite(sample.timestamp) &&
+                    Number.isFinite(sample.value),
+            ),
+    ),
+);
 
 export const subscribe = store.subscribe;
 export const get_version = store.get_version;

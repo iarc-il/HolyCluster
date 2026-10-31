@@ -10,7 +10,20 @@ const DB_NAME = "holycluster_spot_cache";
 const DB_VERSION = 1;
 const STORE_NAME = "intervals";
 
-const store = create_interval_db(DB_NAME, DB_VERSION, STORE_NAME);
+const store = create_interval_db(
+    DB_NAME,
+    DB_VERSION,
+    STORE_NAME,
+    record =>
+        Array.isArray(record.spots) &&
+        record.spots.every(
+            spot =>
+                spot !== null &&
+                typeof spot === "object" &&
+                typeof spot.id === "string" &&
+                Number.isFinite(spot.time),
+        ),
+);
 
 export const subscribe = store.subscribe;
 export const get_version = store.get_version;

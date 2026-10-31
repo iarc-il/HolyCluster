@@ -10,7 +10,7 @@ import { openDB } from "idb";
 // starting the moment this module loads. Writes (commit, evict) are the only
 // things that touch IndexedDB, are always async, and notify subscribers
 // (via useSyncExternalStore in the hooks) when they change the mirror.
-export function create_interval_db(db_name, db_version, store_name) {
+export function create_interval_db(db_name, db_version, store_name, validate_record = () => true) {
     let db_promise = null;
     let upgrade_error = null;
     let memory_only = false;
@@ -91,6 +91,19 @@ export function create_interval_db(db_name, db_version, store_name) {
         return db_promise;
     }
 
+    function valid_record(record) {
+        return (
+            record !== null &&
+            typeof record === "object" &&
+            Number.isSafeInteger(record.id) &&
+            record.id > 0 &&
+            Number.isFinite(record.start) &&
+            Number.isFinite(record.end) &&
+            record.start <= record.end &&
+            validate_record(record)
+        );
+    }
+
     function hydrate() {
         hydrate_promise = (async () => {
             let stage = "open";
@@ -103,7 +116,40 @@ export function create_interval_db(db_name, db_version, store_name) {
                 stage = "transaction";
                 const tx = db.transaction(store_name, "readonly");
                 stage = "get_all";
-                const [all] = await Promise.all([tx.store.getAll(), tx.done]);
+                let all;
+                try {
+                    [all] = await Promise.all([tx.store.getAll(), tx.done]);
+                } catch (error) {
+                    if (error?.name !== "UnknownError") throw error;
+                }
+                if (!all || !all.every(valid_record)) {
+                    stage = "read_keys";
+                    const keys_tx = db.transaction(store_name, "readonly");
+                    const [keys] = await Promise.all([keys_tx.store.getAllKeys(), keys_tx.done]);
+                    all = [];
+                    const invalid_keys = [];
+                    for (const key of keys) {
+                        // A failed value read can abort its transaction. Isolate each read.
+                        stage = "read_record";
+                        const read_tx = db.transaction(store_name, "readonly");
+                        let record;
+                        try {
+                            [record] = await Promise.all([read_tx.store.get(key), read_tx.done]);
+                        } catch (error) {
+                            if (error?.name !== "UnknownError") throw error;
+                        }
+                        if (valid_record(record) && record.id === key) all.push(record);
+                        else invalid_keys.push(key);
+                    }
+                    if (invalid_keys.length > 0) {
+                        stage = "repair";
+                        const repair_tx = db.transaction(store_name, "readwrite");
+                        await Promise.all([
+                            ...invalid_keys.map(key => repair_tx.store.delete(key)),
+                            repair_tx.done,
+                        ]);
+                    }
+                }
                 stage = "mirror";
                 records_map = new Map(all.map(r => [r.id, r]));
                 stage = "notify";
@@ -112,7 +158,7 @@ export function create_interval_db(db_name, db_version, store_name) {
                 // An unavailable database leaves no trusted disk snapshot. Keep this
                 // instance in memory-only mode; never overwrite unknown disk data.
                 if (
-                    stage === "open" &&
+                    ["open", "read_keys", "read_record", "repair"].includes(stage) &&
                     !upgrade_error &&
                     ["AbortError", "UnknownError"].includes(error?.name)
                 ) {
