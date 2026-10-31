@@ -18,6 +18,7 @@ function Heatmap() {
     } = useProfiles();
     const canvas_ref = useRef(null);
     const heatmap_instance_ref = useRef(null);
+    const heatmap_canvas_ref = useRef(null);
 
     const visible_bands = bands.filter(band => !settings.disabled_bands[band]);
 
@@ -45,6 +46,20 @@ function Heatmap() {
     }, [raw_spots, selected_continent, settings]);
 
     useEffect(() => {
+        const canvas = canvas_ref.current;
+        return () => {
+            canvas.width = 0;
+            canvas.height = 0;
+            if (heatmap_canvas_ref.current) {
+                heatmap_canvas_ref.current.width = 0;
+                heatmap_canvas_ref.current.height = 0;
+            }
+            heatmap_canvas_ref.current = null;
+            heatmap_instance_ref.current = null;
+        };
+    }, []);
+
+    useEffect(() => {
         if (!canvas_ref.current) return;
 
         const cell_width = 50;
@@ -54,16 +69,18 @@ function Heatmap() {
         const width = continents.length * cell_width + left_margin;
         const height = visible_bands.length * cell_height + top_margin + 20;
 
-        canvas_ref.current.width = width;
-        canvas_ref.current.height = height;
+        const canvas = canvas_ref.current;
+        if (canvas.width !== width) canvas.width = width;
+        if (canvas.height !== height) canvas.height = height;
+        const ctx = canvas.getContext("2d");
 
-        const ctx = canvas_ref.current.getContext("2d");
-
-        ctx.save();
-
+        // Only the blurred layer needs pixel reads. Keep labels at full resolution.
+        const scale = 0.5;
         if (!heatmap_instance_ref.current) {
-            heatmap_instance_ref.current = simpleheat(canvas_ref.current);
-            heatmap_instance_ref.current.radius(25, 15);
+            const heatmap_canvas = document.createElement("canvas");
+            heatmap_canvas_ref.current = heatmap_canvas;
+            heatmap_instance_ref.current = simpleheat(heatmap_canvas);
+            heatmap_instance_ref.current.radius(35 * scale, 25 * scale);
             heatmap_instance_ref.current.gradient({
                 0: "white",
                 0.2: "blue",
@@ -74,13 +91,22 @@ function Heatmap() {
             });
         }
 
+        const heatmap_canvas = heatmap_canvas_ref.current;
+        const heatmap_width = Math.ceil(width * scale);
+        const heatmap_height = Math.ceil(height * scale);
+        if (heatmap_canvas.width !== heatmap_width || heatmap_canvas.height !== heatmap_height) {
+            heatmap_canvas.width = heatmap_width;
+            heatmap_canvas.height = heatmap_height;
+            heatmap_instance_ref.current.resize();
+        }
+
         const points = [];
         visible_bands.forEach((band, band_index) => {
             continents.forEach((continent, continent_index) => {
                 const value = heatmap_data[band]?.[continent] || 0;
                 const point = [
-                    left_margin + continent_index * cell_width + cell_width / 2,
-                    top_margin + band_index * cell_height + cell_height / 2,
+                    (left_margin + continent_index * cell_width + cell_width / 2) * scale,
+                    (top_margin + band_index * cell_height + cell_height / 2) * scale,
                     Math.min(value, 20),
                 ];
                 points.push(point);
@@ -89,33 +115,7 @@ function Heatmap() {
 
         heatmap_instance_ref.current.data(points);
         heatmap_instance_ref.current.max(20);
-        heatmap_instance_ref.current.radius(35, 25);
         heatmap_instance_ref.current.draw(0);
-
-        ctx.restore();
-
-        const imageData = ctx.getImageData(0, 0, width, height);
-        const pixels = imageData.data;
-
-        for (let i = 0; i < pixels.length; i += 4) {
-            const r = pixels[i];
-            const g = pixels[i + 1];
-            const b = pixels[i + 2];
-            const alpha = pixels[i + 3];
-
-            if (alpha > 0) {
-                const brightness = (r + g + b) / 3;
-                if (brightness < 10) {
-                    pixels[i + 3] = 0;
-                }
-            }
-        }
-
-        const tempCanvas = document.createElement("canvas");
-        tempCanvas.width = width;
-        tempCanvas.height = height;
-        const tempCtx = tempCanvas.getContext("2d");
-        tempCtx.putImageData(imageData, 0, 0);
 
         ctx.clearRect(0, 0, width, height);
 
@@ -139,7 +139,7 @@ function Heatmap() {
             ctx.stroke();
         }
 
-        ctx.drawImage(tempCanvas, 0, 0);
+        ctx.drawImage(heatmap_canvas, 0, 0, width, height);
 
         ctx.font = "bold 24px sans-serif";
         ctx.fillStyle = colors.theme.text;
@@ -156,7 +156,7 @@ function Heatmap() {
         continents.forEach((continent, index) => {
             ctx.fillText(continent, left_margin + index * cell_width + cell_width / 2, 20);
         });
-    }, [heatmap_data, colors.theme.text, settings]);
+    }, [heatmap_data, colors.theme.text, colors.theme.borders, settings]);
 
     return (
         <div className="pt-2" data-tour="heatmap-panel">
