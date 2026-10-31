@@ -41,6 +41,12 @@ class DeployUiTests(unittest.TestCase):
             f"subprocess.run([{shutil.which('mv')!r}, *sys.argv[1:]], check=True)\n"
             "if index and failure == 'after-index': sys.exit(92)\n"
         )
+        (binary / "rm").write_text(
+            "#!/usr/bin/env python3\n"
+            "import os, sys\n"
+            "if os.environ.get('FAIL_PRUNE_ASSET') and sys.argv[-1].endswith('/assets/' + os.environ['FAIL_PRUNE_ASSET']): sys.exit(93)\n"
+            f"os.execv({shutil.which('rm')!r}, ['rm', *sys.argv[1:]])\n"
+        )
         (binary / "ssh").write_text('#!/bin/sh\nshift\nprintf "%s\\n" "$*" >> "$SSH_LOG"\nexec sh -c "$*"\n')
         for executable in binary.iterdir():
             executable.chmod(0o755)
@@ -65,6 +71,98 @@ class DeployUiTests(unittest.TestCase):
             data = json.loads(file.read_text())
             data["published_at"] -= 8 * 86400
             file.write_text(json.dumps(data))
+
+    def diagnostics(self):
+        directory = self.target / ".ui-deployments"
+        plans = sorted(directory.glob("*.json"))
+        self.assertTrue(plans)
+        return [
+            (json.loads(plan.read_text()), [json.loads(line) for line in
+             plan.with_suffix(".jsonl").read_text().splitlines()])
+            for plan in plans
+        ]
+
+    def test_diagnostics_without_pruning(self):
+        self.env["VITE_SENTRY_RELEASE"] = "v1.2.3"
+        result = self.deploy(1, ("one.js", "shared.js"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        [(plan, events)] = self.diagnostics()
+        self.assertEqual(plan["build"], f"{1:040x}")
+        self.assertEqual(plan["release"], "v1.2.3")
+        self.assertEqual(plan["published_assets"], ["assets/one.js", "assets/shared.js"])
+        self.assertEqual(plan["retained_assets"], ["assets/legacy.js", "assets/one.js", "assets/shared.js"])
+        self.assertEqual(plan["prune_candidates"], [])
+        self.assertEqual([event["event"] for event in events], ["deployment_started", "publication_started", "published", "cleanup_completed"])
+        self.assertGreater(events[2]["timestamp"], 0)
+        self.assertEqual(len(plan["index_sha256"]), 64)
+        self.assertNotIn(str(self.target), json.dumps(plan))
+        directory = self.target / ".ui-deployments"
+        self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
+        self.assertTrue(all(file.stat().st_mode & 0o777 == 0o600 for file in directory.iterdir()))
+        summaries = [json.loads(line) for line in result.stdout.splitlines() if line.startswith('{"event":')]
+        self.assertEqual(len(summaries), 1)
+        self.assertEqual(summaries[0]["attempt"], plan["attempt"])
+        first_attempt = plan["attempt"]
+        self.assertEqual(self.deploy(1, ("one.js", "shared.js")).returncode, 0)
+        self.assertEqual(len(self.diagnostics()), 2)
+        self.assertEqual(len({plan["attempt"] for plan, _ in self.diagnostics()}), 2)
+        self.assertTrue(any(plan["attempt"] == first_attempt for plan, _ in self.diagnostics()))
+
+    def test_diagnostics_record_actual_pruning_and_survive_retention(self):
+        self.assertEqual(self.deploy(1, ("one.js", "obsolete.js", "shared.js")).returncode, 0)
+        for number in range(2, 5):
+            self.age_manifests()
+            self.assertEqual(self.deploy(number).returncode, 0)
+        (self.target / "assets/one.js").unlink()
+        self.age_manifests()
+        result = self.deploy(5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        records = self.diagnostics()
+        self.assertEqual(len(records), 5)
+        plan, events = next((plan, events) for plan, events in records if plan["build"] == f"{5:040x}")
+        self.assertEqual(plan["prune_candidates"], ["assets/obsolete.js", "assets/one.js"])
+        self.assertEqual([event["asset"] for event in events if event["event"] == "asset_pruned"], ["assets/obsolete.js"])
+        self.assertNotIn(f"{1:040x}", plan["retained_releases"])
+        legacy_events = [event for _, events in records for event in events if event["event"] == "asset_pruned"]
+        self.assertEqual(sorted(event["asset"] for event in legacy_events), ["assets/legacy.js", "assets/obsolete.js"])
+        self.assertFalse((self.target / "assets/legacy.js").exists())
+        self.assertTrue((self.target / "assets/shared.js").exists())
+
+    def test_diagnostics_do_not_report_failed_publication_as_success(self):
+        result = self.deploy(1, fail="before-index")
+        self.assertNotEqual(result.returncode, 0)
+        [(plan, events)] = self.diagnostics()
+        self.assertEqual([event["event"] for event in events], ["deployment_started", "publication_started"])
+        self.assertEqual((self.target / "index.html").read_text(), "previous index")
+        self.assertEqual(plan["published_assets"], ["assets/shared.js"])
+
+    def test_diagnostics_do_not_report_failed_deletion_as_pruned(self):
+        self.env["KEEP_RELEASES"] = "1"
+        self.assertEqual(self.deploy(1, ("obsolete.js",)).returncode, 0)
+        self.age_manifests()
+        self.env["FAIL_PRUNE_ASSET"] = "obsolete.js"
+        result = self.deploy(2)
+        self.assertNotEqual(result.returncode, 0)
+        plan, events = next((plan, events) for plan, events in self.diagnostics() if plan["build"] == f"{2:040x}")
+        self.assertEqual(plan["prune_candidates"], ["assets/legacy.js", "assets/obsolete.js"])
+        self.assertEqual([event["asset"] for event in events if event["event"] == "asset_pruned"], ["assets/legacy.js"])
+        self.assertFalse(any(event["event"] == "cleanup_completed" for event in events))
+        self.assertTrue((self.target / "assets/obsolete.js").exists())
+        self.assertEqual((self.target / "index.html").read_text(), "index 2")
+
+    def test_rejects_symbolic_diagnostics_directory(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        (self.target / ".ui-deployments").symlink_to(outside)
+        self.assertNotEqual(self.deploy(1).returncode, 0)
+        self.assertEqual(list(outside.iterdir()), [])
+        self.assertEqual((self.target / "index.html").read_text(), "previous index")
+
+    def test_diagnostics_record_upload_failure(self):
+        self.assertNotEqual(self.deploy(1, fail="assets/").returncode, 0)
+        [(_, events)] = self.diagnostics()
+        self.assertEqual([event["event"] for event in events], ["deployment_started"])
+        self.assertEqual((self.target / "index.html").read_text(), "previous index")
 
     def test_retention_and_migration(self):
         self.assertEqual(self.deploy(1, ("one.js", "shared.js")).returncode, 0)

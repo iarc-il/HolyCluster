@@ -1,9 +1,12 @@
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import shlex
 import sys
 import time
+import uuid
 
 RELEASE = re.compile(r"[0-9a-f]{40}")
 ASSET = re.compile(r"assets/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_.-]+")
@@ -125,7 +128,32 @@ def main():
     candidates = {name for data in expired + abandoned for name in data["assets"]} - keep
     assets = {name for data in records + abandoned for name in data["assets"]}
     checks = []
-    targets = {"assets", ".ui-releases", "index.html", ".ui-index.html"}
+    attempt = uuid.uuid4().hex
+    diagnostic_name = f".ui-deployments/{attempt}"
+    journal = f"{remote_root}/{diagnostic_name}.jsonl"
+
+    def event(kind, **details):
+        data = {"event": kind, "attempt": attempt, "build": release, **details}
+        prefix = json.dumps(data, sort_keys=True, separators=(",", ":"))[:-1] + ',"timestamp":'
+        return f"printf '%s%s%s\\n' {shlex.quote(prefix)} \"$(date +%s)\" '}}' >> '{journal}'"
+
+    # Keep history separate from expiring manifests, including repeated builds.
+    diagnostics = {
+        "schema": 1, "attempt": attempt, "build": release,
+        "release": os.environ.get("VITE_SENTRY_RELEASE") or release,
+        "planned_at": time.time(), "index_sha256": pending["index_sha256"],
+        "published_assets": sorted(pending["assets"]),
+        "retention": {"minimum_releases": minimum, "days": days},
+        "retained_releases": sorted(data["release"] for data in retained),
+        "retained_assets": sorted(keep),
+        "expired_releases": sorted(data["release"] for data in expired),
+        "abandoned_releases": sorted(data["release"] for data in abandoned),
+        "prune_candidates": sorted(candidates),
+    }
+    (root / "diagnostics.json").write_text(json.dumps(diagnostics, sort_keys=True, separators=(",", ":")) + "\n")
+    (root / "diagnostic-name").write_text(diagnostic_name)
+    targets = {"assets", ".ui-releases", "index.html", ".ui-index.html", ".ui-deployments",
+               diagnostic_name + ".json", diagnostic_name + ".jsonl"}
     for name in assets:
         targets.update(str(parent) for parent in Path(name).parents if str(parent) != ".")
         targets.add(name)
@@ -134,12 +162,29 @@ def main():
     for name in sorted(targets):
         checks.append(f"test ! -L '{remote_root}/{name}'")
     shell_script(root / "validate.sh", checks)
-    publish = [f"mv '{remote_root}/.ui-releases/{name}.tmp' '{remote_root}/.ui-releases/{name}'" for name in updates]
+    shell_script(root / "start.sh", ["umask 077", event("deployment_started")])
+    publish = [event("publication_started")]
+    publish += [f"mv '{remote_root}/.ui-releases/{name}.tmp' '{remote_root}/.ui-releases/{name}'" for name in updates]
     publish.append(f"mv '{remote_root}/.ui-index.html' '{remote_root}/index.html'")
+    publish.append(event("published"))
     shell_script(root / "publish.sh", publish)
-    cleanup = [f"rm -f '{remote_root}/{name}'" for name in sorted(candidates)]
-    cleanup += [f"rm -f '{remote_root}/.ui-releases/{data['release']}.json'" for data in expired]
+    cleanup = ["pruned=0"]
+    for name in sorted(candidates):
+        cleanup += [f"if test -e '{remote_root}/{name}'; then",
+                    f"rm '{remote_root}/{name}'", event("asset_pruned", asset=name),
+                    "pruned=$((pruned + 1))", "fi"]
+    for data in sorted(expired, key=lambda data: data["release"]):
+        cleanup += [f"rm '{remote_root}/.ui-releases/{data['release']}.json'",
+                    event("release_pruned", release=data["release"])]
     cleanup += [f"rm -f '{remote_root}/.ui-releases/{name}'" for name in sorted(remote_files) if name.endswith(".tmp")]
+    cleanup.append(event("cleanup_completed"))
+    summary = json.dumps({
+        "event": "ui_deployment_completed", "attempt": attempt, "build": release,
+        "diagnostics": diagnostic_name + ".json", "events": diagnostic_name + ".jsonl",
+        "published_assets": len(pending["assets"]), "retained_assets": len(keep),
+        "retained_releases": len(retained),
+    }, separators=(",", ":"))[:-1] + ',"pruned_assets":'
+    cleanup.append(f"printf '%s%s%s\\n' {shlex.quote(summary)} \"$pruned\" '}}'")
     shell_script(root / "cleanup.sh", cleanup)
 
 

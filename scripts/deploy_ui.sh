@@ -26,6 +26,7 @@ cd '$path'
 test \"\$(pwd -P)\" = '$path'
 test ! -L assets
 test ! -L .ui-releases
+test ! -L .ui-deployments
 test ! -L index.html
 test ! -L .ui-index.html
 mkdir .ui-deploy-lock
@@ -53,6 +54,10 @@ if (( ${#manifests[@]} == 0 )); then
 fi
 python3 "$helper" plan "$temporary" "$release" "$KEEP_RELEASES" "$KEEP_DAYS" "$path"
 ssh "$remote" sh < "$temporary/validate.sh"
+diagnostic_name=$(< "$temporary/diagnostic-name")
+ssh "$remote" "umask 077; mkdir -p '$path/.ui-deployments'"
+rsync -qvz --chmod=F600 "$temporary/diagnostics.json" "$destination/$diagnostic_name.json"
+ssh "$remote" sh < "$temporary/start.sh"
 
 rsync -avzc "$temporary/pending.json" "$destination/.ui-releases/$release.json.tmp"
 rsync -avz ui/dist/assets/ "$destination/assets/"
