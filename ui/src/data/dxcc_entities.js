@@ -10,7 +10,8 @@ const USA_DXCC_CODES = new Set([291, 6, 110]);
 export function normalize_dxcc_code(dxcc_code) {
     if (!["number", "string"].includes(typeof dxcc_code)) return null;
     const text = dxcc_code.toString().trim();
-    if (!/^\d+$/.test(text)) return null;
+    // DXCC codes have at most three digits; keep regex work bounded in Firefox.
+    if (!/^\d{1,3}$/.test(text)) return null;
 
     const code = Number(text);
     if (!Number.isSafeInteger(code) || code <= 0) return null;

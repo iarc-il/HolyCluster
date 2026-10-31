@@ -43,6 +43,17 @@ describe("dxcc_entities", () => {
         expect(normalize_dxcc_code([291])).toBeNull();
     });
 
+    it.each([1, "001", " 291 ", 999])("accepts a DXCC code: %s", value => {
+        expect(normalize_dxcc_code(value)).toBe(Number(value));
+    });
+
+    it.each([0, -1, 1.5, 1000, "0001", "1e2", "+1", "1.0", "１２３", "", null])(
+        "rejects an invalid DXCC code: %s",
+        value => {
+            expect(normalize_dxcc_code(value)).toBeNull();
+        },
+    );
+
     it("returns empty label for unknown DXCC codes", () => {
         expect(get_dxcc_label(999)).toBe("");
         expect(get_dxcc_label("bad")).toBe("");
