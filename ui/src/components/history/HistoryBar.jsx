@@ -3,6 +3,7 @@ import Button from "@/components/ui/Button.jsx";
 import Select from "@/components/ui/Select.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { useTimeZone } from "@/hooks/useTimeZone";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const PRESETS = [
@@ -13,16 +14,6 @@ const PRESETS = [
     { label: "24h", hours: 24 },
     { label: "48h", hours: 48 },
 ];
-
-function fmt_utc_hhmm(date) {
-    const h = String(date.getUTCHours()).padStart(2, "0");
-    const m = String(date.getUTCMinutes()).padStart(2, "0");
-    return `${h}:${m}`;
-}
-
-function fmt_utc_date(date) {
-    return date.toUTCString().slice(5, 11);
-}
 
 function tick_interval_hours(range_hours) {
     if (range_hours <= 4) return 0.25;
@@ -44,6 +35,7 @@ function HistoryBar({
     set_is_dragging,
 }) {
     const { colors } = useColors();
+    const { hours, offset_ms, to_string } = useTimeZone();
     const {
         active_profile_data: {
             history: { display_hours, time_between_shifts, step_size_ms },
@@ -103,13 +95,16 @@ function HistoryBar({
 
     // Major tick marks
     const interval_ms = tick_interval_hours(display_hours) * 3_600_000;
-    const first_tick = Math.ceil(bar_start_ms / interval_ms) * interval_ms;
+    // Align ticks to the displayed zone so midnight always lands on a tick
+    const zone_offset_ms = offset_ms(new Date(bar_start_ms));
+    const align_up = (ms, step) => Math.ceil((ms + zone_offset_ms) / step) * step - zone_offset_ms;
+    const first_tick = align_up(bar_start_ms, interval_ms);
     const multi_day = display_hours > 24;
     const ticks = [];
     for (let t = first_tick; t < bar_end_ms; t += interval_ms) {
         const frac = (t - bar_start_ms) / display_ms;
         const date = new Date(t);
-        const is_midnight = date.getUTCHours() === 0;
+        const is_midnight = hours(date) === 0;
         ticks.push({ ms: t, frac, date, is_midnight });
     }
 
@@ -118,7 +113,7 @@ function HistoryBar({
     const major_tick_ms_set = new Set(ticks.map(t => t.ms));
     const minor_ticks = [];
     if (interval_ms > minor_interval_ms) {
-        const first_minor = Math.ceil(bar_start_ms / minor_interval_ms) * minor_interval_ms;
+        const first_minor = align_up(bar_start_ms, minor_interval_ms);
         for (let t = first_minor; t < bar_end_ms; t += minor_interval_ms) {
             if (major_tick_ms_set.has(t)) continue;
             const frac = (t - bar_start_ms) / display_ms;
@@ -384,6 +379,7 @@ function HistoryBar({
                     {minor_ticks.map(tick => (
                         <div
                             key={tick.ms}
+                            data-testid="history-minor-tick"
                             className="absolute bottom-0 pointer-events-none"
                             style={{
                                 left: `${tick.frac * 100}%`,
@@ -417,6 +413,7 @@ function HistoryBar({
                     {ticks.map(tick => (
                         <div
                             key={tick.ms}
+                            data-testid="history-tick-label"
                             className="absolute top-0 flex items-start justify-center pointer-events-none"
                             style={{
                                 left: `${tick.frac * 100}%`,
@@ -428,14 +425,14 @@ function HistoryBar({
                                     className="text-[14px] leading-none whitespace-nowrap font-medium"
                                     style={{ color: colors.theme.text }}
                                 >
-                                    {fmt_utc_date(tick.date)}
+                                    {to_string(tick.date).slice(0, 6)}
                                 </span>
                             ) : (
                                 <span
                                     className="text-[14px] leading-none whitespace-nowrap"
                                     style={{ color: colors.theme.text, opacity: 0.8 }}
                                 >
-                                    {fmt_utc_hhmm(tick.date)}
+                                    {to_string(tick.date).slice(13, 18)}
                                 </span>
                             )}
                         </div>

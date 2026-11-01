@@ -12,6 +12,7 @@ import { RadioProvider } from "@/hooks/useRadio";
 import { RotatorProvider } from "@/hooks/useRotator";
 import { SettingsProvider } from "@/hooks/useSettings";
 import { SpotInteractionProvider } from "@/hooks/useSpotInteraction";
+import { TimeZoneProvider } from "@/hooks/useTimeZone";
 import { UpdateProvider } from "@/hooks/useUpdate";
 import { WsProvider } from "@/hooks/useWs";
 import "@/index.css";
@@ -42,19 +43,21 @@ root.render(
                                     path="/"
                                     element={
                                         <ColorsProvider>
-                                            <FiltersProvider>
-                                                <SettingsProvider>
-                                                    <RadioProvider>
-                                                        <UpdateProvider>
-                                                            <RotatorProvider>
-                                                                <SpotInteractionProvider>
-                                                                    <MainContainer />
-                                                                </SpotInteractionProvider>
-                                                            </RotatorProvider>
-                                                        </UpdateProvider>
-                                                    </RadioProvider>
-                                                </SettingsProvider>
-                                            </FiltersProvider>
+                                            <TimeZoneProvider>
+                                                <FiltersProvider>
+                                                    <SettingsProvider>
+                                                        <RadioProvider>
+                                                            <UpdateProvider>
+                                                                <RotatorProvider>
+                                                                    <SpotInteractionProvider>
+                                                                        <MainContainer />
+                                                                    </SpotInteractionProvider>
+                                                                </RotatorProvider>
+                                                            </UpdateProvider>
+                                                        </RadioProvider>
+                                                    </SettingsProvider>
+                                                </FiltersProvider>
+                                            </TimeZoneProvider>
                                         </ColorsProvider>
                                     }
                                 />
