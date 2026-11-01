@@ -44,18 +44,21 @@ for (const [state, path] of [
         async ({ page }) => {
             let documents = 0;
             let probes = 0;
-            await page.route(`**${path}`, route => {
+            let completed_probes = 0;
+            await page.route(`**${path}`, async route => {
                 if (route.request().resourceType() === "document") {
                     documents++;
                     return route.fulfill({ contentType: "text/html", body: html });
                 }
                 probes++;
-                return state === "offline"
-                    ? route.abort()
-                    : route.fulfill({
-                          contentType: "text/html",
-                          body: state === "new" ? newer : html,
-                      });
+                if (state === "offline") await route.abort();
+                else {
+                    await route.fulfill({
+                        contentType: "text/html",
+                        body: state === "new" ? newer : html,
+                    });
+                }
+                completed_probes++;
             });
             await page.goto(path);
             if (path === "/")
@@ -64,15 +67,24 @@ for (const [state, path] of [
             const update = page.getByRole("button", { name: "Reload to update" });
             if (state === "new") await expect(update).toBeVisible();
             else await expect(update).toHaveCount(0);
-            await page.clock.fastForward(300000);
-            await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-            if (state === "new") expect(probes).toBe(1);
-            else await expect.poll(() => probes).toBeGreaterThanOrEqual(2);
+            await page.clock.fastForward(59 * 60 * 1000);
+            expect(probes).toBe(1);
+            await page.clock.fastForward(2 * 60 * 1000);
+            await expect.poll(() => probes).toBe(2);
+            await expect.poll(() => completed_probes).toBe(2);
             expect(documents).toBe(1);
             if (state === "new") {
                 await expect(update).toHaveCount(1);
+                const navigated = page.waitForEvent(
+                    "framenavigated",
+                    frame => frame === page.mainFrame(),
+                );
                 await update.click();
+                await navigated;
+                await page.waitForLoadState("load");
                 await expect.poll(() => documents).toBe(2);
+                await expect.poll(() => completed_probes).toBe(3);
+                await expect(update).toBeVisible();
             } else {
                 await expect(update).toHaveCount(0);
             }

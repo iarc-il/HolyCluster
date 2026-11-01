@@ -1,9 +1,10 @@
-import { install_build_update_check } from "@/module_load_recovery.js";
+import { useUiRefresh } from "@/hooks/useUiRefresh.jsx";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ToastContainer, toast } from "react-toastify";
 
 export default function BuildUpdate() {
+    const { reload, target_entry } = useUiRefresh();
     const [container] = useState(() => document.createElement("div"));
     useEffect(() => {
         function move_container() {
@@ -18,27 +19,24 @@ export default function BuildUpdate() {
         };
     }, [container]);
     useEffect(() => {
-        return install_build_update_check({
-            entry: document.querySelector('meta[name="ui-entry"]')?.content,
-            on_update: () =>
-                toast.info(
-                    <div>
-                        A new version is available.{" "}
-                        <button type="button" onClick={() => window.location.reload()}>
-                            Reload to update
-                        </button>
-                    </div>,
-                    {
-                        toastId: "ui-build-update",
-                        containerId: "ui-build-update",
-                        autoClose: false,
-                        closeButton: false,
-                        closeOnClick: false,
-                        draggable: false,
-                    },
-                ),
-        });
-    }, []);
+        if (!target_entry) return;
+        toast.info(
+            <div>
+                A new version is available.{" "}
+                <button type="button" onClick={reload}>
+                    Reload to update
+                </button>
+            </div>,
+            {
+                toastId: "ui-build-update",
+                containerId: "ui-build-update",
+                autoClose: false,
+                closeButton: false,
+                closeOnClick: false,
+                draggable: false,
+            },
+        );
+    }, [reload, target_entry]);
     return createPortal(
         <ToastContainer containerId="ui-build-update" position="top-right" />,
         container,

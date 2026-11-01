@@ -13,6 +13,7 @@ import { RotatorProvider } from "@/hooks/useRotator";
 import { SettingsProvider } from "@/hooks/useSettings";
 import { SpotInteractionProvider } from "@/hooks/useSpotInteraction";
 import { TimeZoneProvider } from "@/hooks/useTimeZone";
+import { UiRefreshProvider } from "@/hooks/useUiRefresh.jsx";
 import { UpdateProvider } from "@/hooks/useUpdate";
 import { WsProvider } from "@/hooks/useWs";
 import "@/index.css";
@@ -32,49 +33,51 @@ if (import.meta.hot) {
 
 root.render(
     <React.StrictMode>
-        <RouteErrorBoundary>
-            <BrowserRouter>
+        <WsProvider>
+            <UiRefreshProvider>
                 <BuildUpdate />
-                <WsProvider>
-                    <ProfilesProvider>
-                        <Suspense fallback={null}>
-                            <Routes>
-                                <Route
-                                    path="/"
-                                    element={
-                                        <ColorsProvider>
-                                            <TimeZoneProvider>
-                                                <FiltersProvider>
-                                                    <SettingsProvider>
-                                                        <RadioProvider>
-                                                            <UpdateProvider>
-                                                                <RotatorProvider>
-                                                                    <SpotInteractionProvider>
-                                                                        <MainContainer />
-                                                                    </SpotInteractionProvider>
-                                                                </RotatorProvider>
-                                                            </UpdateProvider>
-                                                        </RadioProvider>
-                                                    </SettingsProvider>
-                                                </FiltersProvider>
-                                            </TimeZoneProvider>
-                                        </ColorsProvider>
-                                    }
-                                />
-                                <Route
-                                    path="/addons"
-                                    element={
-                                        <SettingsProvider>
-                                            <Addons />
-                                        </SettingsProvider>
-                                    }
-                                />
-                                <Route path="/omnirig-error" element={<OmniRigError />} />
-                            </Routes>
-                        </Suspense>
-                    </ProfilesProvider>
-                </WsProvider>
-            </BrowserRouter>
-        </RouteErrorBoundary>
+                <RouteErrorBoundary>
+                    <BrowserRouter>
+                        <ProfilesProvider>
+                            <Suspense fallback={null}>
+                                <Routes>
+                                    <Route
+                                        path="/"
+                                        element={
+                                            <ColorsProvider>
+                                                <TimeZoneProvider>
+                                                    <FiltersProvider>
+                                                        <SettingsProvider>
+                                                            <RadioProvider>
+                                                                <UpdateProvider>
+                                                                    <RotatorProvider>
+                                                                        <SpotInteractionProvider>
+                                                                            <MainContainer />
+                                                                        </SpotInteractionProvider>
+                                                                    </RotatorProvider>
+                                                                </UpdateProvider>
+                                                            </RadioProvider>
+                                                        </SettingsProvider>
+                                                    </FiltersProvider>
+                                                </TimeZoneProvider>
+                                            </ColorsProvider>
+                                        }
+                                    />
+                                    <Route
+                                        path="/addons"
+                                        element={
+                                            <SettingsProvider>
+                                                <Addons />
+                                            </SettingsProvider>
+                                        }
+                                    />
+                                    <Route path="/omnirig-error" element={<OmniRigError />} />
+                                </Routes>
+                            </Suspense>
+                        </ProfilesProvider>
+                    </BrowserRouter>
+                </RouteErrorBoundary>
+            </UiRefreshProvider>
+        </WsProvider>
     </React.StrictMode>,
 );

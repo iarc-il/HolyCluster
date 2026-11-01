@@ -27,8 +27,11 @@ describe("module load recovery", () => {
             }),
         );
         const remove = install_module_load_recovery({ events, entry: "/assets/old.js", reload });
+        const navigating = vi.fn();
+        events.addEventListener("holycluster:ui-navigation", navigating);
         events.dispatchEvent(preload_error());
         await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+        expect(navigating).toHaveBeenCalledTimes(1);
         remove();
         install_module_load_recovery({ events, entry: "/assets/old.js", reload });
         events.dispatchEvent(preload_error());

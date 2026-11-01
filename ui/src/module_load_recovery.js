@@ -42,49 +42,6 @@ export async function detect_ui_build({ entry, signal } = {}) {
     return { current_entry: entry, target_entry };
 }
 
-export function install_build_update_check({ entry, on_update, check = detect_ui_build } = {}) {
-    let pending = false;
-    let notified = false;
-    let stopped = false;
-    let active_controller;
-
-    async function run() {
-        if (pending || stopped || notified || !navigator.onLine) return;
-        pending = true;
-        const controller = new AbortController();
-        active_controller = controller;
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        try {
-            const update = await check({ entry, signal: controller.signal });
-            if (stopped || !update) return;
-            notified = true;
-            clearInterval(interval);
-            document.removeEventListener("visibilitychange", visible);
-            on_update?.(update);
-        } catch {
-            // An outage is not evidence that a new build exists.
-        } finally {
-            clearTimeout(timeout);
-            pending = false;
-        }
-    }
-
-    function visible() {
-        if (document.visibilityState === "visible") run();
-    }
-
-    // Retained assets support 7 days or the newest 4 releases, not permanent clients.
-    const interval = setInterval(visible, 5 * 60 * 1000);
-    document.addEventListener("visibilitychange", visible);
-    run();
-    return () => {
-        stopped = true;
-        active_controller?.abort();
-        clearInterval(interval);
-        document.removeEventListener("visibilitychange", visible);
-    };
-}
-
 export function install_module_load_recovery({
     events = window,
     entry,
@@ -138,6 +95,7 @@ export function install_module_load_recovery({
             const update = await check({ entry, signal: controller.signal });
             if (stopped || !update || storage.getItem(marker) === update.target_entry) return;
             storage.setItem(marker, update.target_entry);
+            events.dispatchEvent(new Event("holycluster:ui-navigation"));
             reload();
         } catch {
             // An outage is not evidence that a new build exists.
