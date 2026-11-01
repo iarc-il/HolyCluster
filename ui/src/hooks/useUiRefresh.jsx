@@ -18,6 +18,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     const startup_marker_ref = useRef(null);
     const outcome_sent_ref = useRef(false);
     const [target_entry, set_target_entry] = useState(null);
+    const [manual_required, set_manual_required] = useState(false);
     const [navigation_outcome] = useState(() => {
         try {
             const serialized = sessionStorage.getItem(NAVIGATION_MARKER);
@@ -38,6 +39,10 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     });
     const [blockers, set_blockers] = useState([]);
     const blocker_registrations_ref = useRef(new Map());
+    const blockers_ref = useRef(blockers);
+    const target_entry_ref = useRef(target_entry);
+    const evaluation_timer_ref = useRef(null);
+    const evaluate_ref = useRef(null);
     const storage_available_ref = useRef(null);
     const last_check_ref = useRef(null);
     const last_check_failed_ref = useRef(false);
@@ -46,6 +51,8 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     const queued_check_ref = useRef(null);
     const navigating_ref = useRef(false);
     const stopped_ref = useRef(false);
+    blockers_ref.current = blockers;
+    target_entry_ref.current = target_entry;
 
     const check_for_update = useCallback(
         (fresh = false) => {
@@ -74,7 +81,10 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
                         signal: controller.signal,
                     });
                     last_check_failed_ref.current = false;
-                    if (!stopped_ref.current && update) set_target_entry(update.target_entry);
+                    if (!stopped_ref.current && update) {
+                        target_entry_ref.current = update.target_entry;
+                        set_target_entry(update.target_entry);
+                    }
                     return update;
                 } catch {
                     last_check_failed_ref.current = true;
@@ -134,13 +144,18 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     }, [begin_navigation, running_entry, target_entry]);
 
     const automatic_reload = useCallback(() => {
-        if (!target_entry || !storage_available()) return false;
+        const target = target_entry_ref.current;
+        const active =
+            document.visibilityState === "visible" &&
+            Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS;
+        if (blockers_ref.current.length > 0 || active) return false;
+        if (!target || !storage_available()) return false;
         try {
-            if (sessionStorage.getItem(LAST_AUTO_TARGET) === target_entry) return false;
-            sessionStorage.setItem(LAST_AUTO_TARGET, target_entry);
+            if (sessionStorage.getItem(LAST_AUTO_TARGET) === target) return false;
+            sessionStorage.setItem(LAST_AUTO_TARGET, target);
             sessionStorage.setItem(
                 NAVIGATION_MARKER,
-                JSON.stringify({ source_entry: running_entry, target_entry }),
+                JSON.stringify({ source_entry: running_entry, target_entry: target }),
             );
         } catch {
             storage_available_ref.current = false;
@@ -148,7 +163,39 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
         }
         begin_navigation();
         return true;
-    }, [begin_navigation, running_entry, storage_available, target_entry]);
+    }, [begin_navigation, running_entry, storage_available]);
+
+    const evaluate = useCallback(() => {
+        window.clearTimeout(evaluation_timer_ref.current);
+        if (!target_entry_ref.current || navigating_ref.current) return;
+        const blocked = blockers_ref.current.length > 0;
+        const active =
+            document.visibilityState === "visible" &&
+            Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS;
+        if (blocked || active) {
+            evaluation_timer_ref.current = window.setTimeout(
+                () => evaluate_ref.current?.(),
+                CHECK_INTERVAL_MS,
+            );
+            return;
+        }
+        if (!automatic_reload()) set_manual_required(true);
+    }, [automatic_reload]);
+    evaluate_ref.current = evaluate;
+
+    useEffect(() => {
+        window.clearTimeout(evaluation_timer_ref.current);
+        set_manual_required(false);
+        if (!target_entry) return;
+        if (Date.now() - last_interaction_ref.current >= CHECK_INTERVAL_MS) evaluate();
+        else {
+            evaluation_timer_ref.current = window.setTimeout(
+                () => evaluate_ref.current?.(),
+                CHECK_INTERVAL_MS,
+            );
+        }
+        return () => window.clearTimeout(evaluation_timer_ref.current);
+    }, [evaluate, target_entry]);
 
     useEffect(() => {
         if (!navigation_outcome || ws?.readyState !== ReadyState.OPEN || outcome_sent_ref.current)
@@ -192,7 +239,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
         function visibility_changed() {
             if (navigating_ref.current) return;
             if (document.visibilityState === "hidden") {
-                void check_and_schedule(true);
+                void check_and_schedule(true).then(() => evaluate_ref.current?.());
                 return;
             }
             last_interaction_ref.current = Date.now();
@@ -240,6 +287,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
                 current_entry: running_entry,
                 target_entry,
                 blockers,
+                manual_required,
                 navigation_outcome,
                 register_blocker,
                 manual_reload,

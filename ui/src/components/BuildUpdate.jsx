@@ -1,10 +1,12 @@
 import { useUiRefresh } from "@/hooks/useUiRefresh.jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ToastContainer, toast } from "react-toastify";
 
 export default function BuildUpdate() {
-    const { manual_reload, navigation_outcome, target_entry } = useUiRefresh();
+    const { blockers, manual_reload, manual_required, navigation_outcome, target_entry } =
+        useUiRefresh();
+    const notification_shown_ref = useRef(false);
     const [container] = useState(() => document.createElement("div"));
     useEffect(() => {
         function move_container() {
@@ -21,25 +23,37 @@ export default function BuildUpdate() {
     useEffect(() => {
         if (!target_entry && navigation_outcome?.event !== "target_mismatch") return;
         const mismatch = navigation_outcome?.event === "target_mismatch";
-        toast.info(
+        const manual = mismatch || manual_required;
+        const blocked = target_entry && blockers.length > 0;
+        let message =
+            "A new version is available. HolyCluster will refresh when this tab is hidden or after one hour without activity. ";
+        if (manual) message = "The update could not be loaded automatically. ";
+        else if (blocked) message = "The update is waiting for the current operation to finish. ";
+        const content = (
             <div>
-                {mismatch
-                    ? "The update could not be loaded automatically. "
-                    : "A new version is available. "}
+                {message}
                 <button type="button" onClick={manual_reload}>
-                    {mismatch ? "Reload manually" : "Reload to update"}
+                    {manual ? "Reload manually" : "Reload now"}
                 </button>
-            </div>,
-            {
+            </div>
+        );
+        if (notification_shown_ref.current) {
+            toast.update("ui-build-update", {
+                containerId: "ui-build-update",
+                render: content,
+            });
+        } else {
+            notification_shown_ref.current = true;
+            toast.info(content, {
                 toastId: "ui-build-update",
                 containerId: "ui-build-update",
                 autoClose: false,
                 closeButton: false,
                 closeOnClick: false,
                 draggable: false,
-            },
-        );
-    }, [manual_reload, navigation_outcome, target_entry]);
+            });
+        }
+    }, [blockers, manual_reload, manual_required, navigation_outcome, target_entry]);
     return createPortal(
         <ToastContainer containerId="ui-build-update" position="top-right" />,
         container,

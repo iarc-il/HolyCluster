@@ -110,6 +110,96 @@ it("keeps blocker registration stable through Strict Mode cleanup", async () => 
     expect(Consumer.refresh.blockers).toEqual([]);
 });
 
+it("automatically refreshes a visible page after one hour without activity", async () => {
+    detection.check.mockResolvedValue({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    await act(() => vi.advanceTimersByTimeAsync(60 * 60 * 1000 - 1));
+    expect(navigate).not.toHaveBeenCalled();
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("ignores synthetic interaction when calculating inactivity", async () => {
+    detection.check.mockResolvedValue({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    await act(() => vi.advanceTimersByTimeAsync(59 * 60 * 1000));
+    act(() => window.dispatchEvent(new Event("pointerdown")));
+    await act(() => vi.advanceTimersByTimeAsync(60 * 1000));
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("checks and refreshes immediately when an updated page becomes hidden", async () => {
+    detection.check.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    visibility.mockReturnValue("hidden");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(detection.check).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("requires manual recovery after the target was already attempted", async () => {
+    sessionStorage.setItem("holycluster_ui_last_auto_target", "/assets/next.js");
+    detection.check.mockResolvedValue({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    visibility.mockReturnValue("hidden");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(navigate).not.toHaveBeenCalled();
+    expect(Consumer.refresh.manual_required).toBe(true);
+});
+
+it("waits another hour after a blocker clears", async () => {
+    detection.check.mockResolvedValue({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    const view = render(
+        <UiRefreshProvider navigate={navigate}>
+            <Blocker active={true} />
+            <Consumer />
+        </UiRefreshProvider>,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(60 * 60 * 1000));
+    expect(navigate).not.toHaveBeenCalled();
+
+    view.rerender(
+        <UiRefreshProvider navigate={navigate}>
+            <Blocker active={false} />
+            <Consumer />
+        </UiRefreshProvider>,
+    );
+    expect(navigate).not.toHaveBeenCalled();
+    await act(() => vi.advanceTimersByTimeAsync(60 * 60 * 1000));
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
 it("records a manual navigation marker without consuming the automatic attempt", async () => {
     detection.check.mockResolvedValue({
         current_entry: "/assets/current.js",
@@ -147,6 +237,7 @@ it("requires storage for automatic navigation but still allows manual reload", a
 });
 
 it("allows only one automatic navigation for a target", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
     detection.check.mockResolvedValue({
         current_entry: "/assets/current.js",
         target_entry: "/assets/next.js",
@@ -244,7 +335,7 @@ it("keeps checking while an update is pending and replaces its target", async ()
             target_entry: "/assets/newest.js",
         });
 
-    render_provider();
+    render_provider({ navigate: vi.fn() });
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(Consumer.refresh.target_entry).toBe("/assets/next.js");
 

@@ -64,14 +64,11 @@ for (const [state, path] of [
             if (path === "/")
                 await expect(page.locator('[data-tour="about-trigger"]')).toBeAttached();
             await expect.poll(() => probes).toBe(1);
-            const update = page.getByRole("button", { name: "Reload to update" });
+            const update = page.getByRole("button", { name: "Reload now" });
             if (state === "new") await expect(update).toBeVisible();
             else await expect(update).toHaveCount(0);
             await page.clock.fastForward(59 * 60 * 1000);
             expect(probes).toBe(1);
-            await page.clock.fastForward(2 * 60 * 1000);
-            await expect.poll(() => probes).toBe(2);
-            await expect.poll(() => completed_probes).toBe(2);
             expect(documents).toBe(1);
             if (state === "new") {
                 await expect(update).toHaveCount(1);
@@ -83,14 +80,63 @@ for (const [state, path] of [
                 await navigated;
                 await page.waitForLoadState("load");
                 await expect.poll(() => documents).toBe(2);
-                await expect.poll(() => completed_probes).toBe(3);
+                await expect.poll(() => completed_probes).toBe(2);
                 await expect(page.getByRole("button", { name: "Reload manually" })).toBeVisible();
             } else {
+                await page.clock.fastForward(2 * 60 * 1000);
+                await expect.poll(() => probes).toBe(2);
+                await expect.poll(() => completed_probes).toBe(2);
                 await expect(update).toHaveCount(0);
             }
         },
     );
 }
+
+test("trusted interaction postpones automatic refresh", async ({ page }) => {
+    let documents = 0;
+    await page.route("**/", route => {
+        if (route.request().resourceType() === "document") {
+            documents++;
+            return route.fulfill({ contentType: "text/html", body: html });
+        }
+        return route.fulfill({ contentType: "text/html", body: newer });
+    });
+
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: "Reload now" })).toBeVisible();
+    await page.clock.fastForward(59 * 60 * 1000);
+    await page.mouse.click(2, 2);
+    await page.clock.fastForward(2 * 60 * 1000);
+    expect(documents).toBe(1);
+
+    await page.clock.fastForward(60 * 60 * 1000);
+    await expect.poll(() => documents).toBe(2);
+});
+
+test("waits another hour after an open modal closes", async ({ page }) => {
+    let documents = 0;
+    await page.route("**/", route => {
+        if (route.request().resourceType() === "document") {
+            documents++;
+            return route.fulfill({ contentType: "text/html", body: html });
+        }
+        return route.fulfill({ contentType: "text/html", body: newer });
+    });
+
+    await page.goto("/");
+    await page.locator('[data-tour="about-trigger"]').evaluate(element => element.click());
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(
+        page.getByText("The update is waiting for the current operation to finish."),
+    ).toBeVisible();
+    await page.clock.fastForward(61 * 60 * 1000);
+    expect(documents).toBe(1);
+
+    await page.locator('[data-tour="modal-close-button"]').click();
+    expect(documents).toBe(1);
+    await page.clock.fastForward(60 * 60 * 1000);
+    await expect.poll(() => documents).toBe(2);
+});
 
 test("shows manual recovery after a target mismatch", async ({ page }) => {
     await page.addInitScript(
