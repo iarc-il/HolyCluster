@@ -3,8 +3,10 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const detection = vi.hoisted(() => ({ check: vi.fn() }));
+const diagnostics = vi.hoisted(() => ({ capture: vi.fn() }));
 const websocket = vi.hoisted(() => ({ current: null, send: vi.fn() }));
 
+vi.mock("@sentry/react", () => ({ captureException: diagnostics.capture }));
 vi.mock("@/module_load_recovery.js", () => ({ detect_ui_build: detection.check }));
 vi.mock("@/hooks/useWs", () => ({
     ReadyState: { OPEN: 1 },
@@ -33,6 +35,12 @@ function GraceBlocker() {
     return null;
 }
 
+function preload_error(message = "Importing a module script failed.") {
+    const event = new Event("vite:preloadError", { cancelable: true });
+    event.payload = new TypeError(message);
+    return event;
+}
+
 function render_provider(props = {}) {
     return render(
         <UiRefreshProvider {...props}>
@@ -44,6 +52,7 @@ function render_provider(props = {}) {
 beforeEach(() => {
     vi.useFakeTimers();
     detection.check.mockReset();
+    diagnostics.capture.mockReset();
     websocket.current = null;
     websocket.send.mockReset();
     sessionStorage.clear();
@@ -108,6 +117,95 @@ it("keeps blocker registration stable through Strict Mode cleanup", async () => 
         </StrictMode>,
     );
     expect(Consumer.refresh.blockers).toEqual([]);
+});
+
+it("suppresses and immediately recovers a confirmed stale module while hidden", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    detection.check.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    const error = preload_error();
+    expect(window.dispatchEvent(error)).toBe(false);
+    expect(error.defaultPrevented).toBe(true);
+    expect(diagnostics.capture).toHaveBeenCalledWith(error.payload);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("waits for inactivity before recovering a stale module on an active page", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    detection.check
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+            current_entry: "/assets/current.js",
+            target_entry: "/assets/next.js",
+        })
+        .mockResolvedValueOnce(null);
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    act(() => window.dispatchEvent(preload_error()));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(Consumer.refresh.stale_recovery.status).toBe("waiting");
+    expect(navigate).not.toHaveBeenCalled();
+
+    await act(() => vi.advanceTimersByTimeAsync(60 * 60 * 1000));
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("recovers a stale module immediately after its blocker clears on a hidden page", async () => {
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    detection.check.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    const view = render(
+        <UiRefreshProvider navigate={navigate}>
+            <Blocker active={true} />
+            <Consumer />
+        </UiRefreshProvider>,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    act(() => window.dispatchEvent(preload_error()));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(Consumer.refresh.stale_recovery.status).toBe("blocked");
+    expect(navigate).not.toHaveBeenCalled();
+
+    visibility.mockReturnValue("hidden");
+    view.rerender(
+        <UiRefreshProvider navigate={navigate}>
+            <Blocker active={false} />
+            <Consumer />
+        </UiRefreshProvider>,
+    );
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("requires manual recovery when a stale module is not a confirmed update", async () => {
+    detection.check.mockResolvedValue(null);
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    act(() => window.dispatchEvent(preload_error()));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(navigate).not.toHaveBeenCalled();
+    expect(Consumer.refresh.stale_recovery.status).toBe("manual");
+});
+
+it("does not suppress unrelated preload errors", async () => {
+    detection.check.mockResolvedValue(null);
+    render_provider();
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    const error = preload_error("e.jsx is not a function");
+    expect(window.dispatchEvent(error)).toBe(true);
+    expect(error.defaultPrevented).toBe(false);
+    expect(diagnostics.capture).not.toHaveBeenCalled();
 });
 
 it("automatically refreshes a visible page after one hour without activity", async () => {

@@ -23,7 +23,7 @@ export function moduleRecoveryPlugin() {
                     },
                     {
                         tag: "script",
-                        children: `(${install_module_load_recovery.toString()})({entry:${JSON.stringify(url)},check:${detect_ui_build.toString()}});`,
+                        children: `window.__holycluster_remove_module_recovery=(${install_module_load_recovery.toString()})({entry:${JSON.stringify(url)},check:${detect_ui_build.toString()}});`,
                         injectTo: "head-prepend",
                     },
                 ];

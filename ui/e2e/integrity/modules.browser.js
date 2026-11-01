@@ -100,7 +100,7 @@ testWithBrowserErrors(
     "recovers a failed lazy module once and stops on a broken target build",
     [
         missing_module,
-        /^console: TypeError: (?:Failed to fetch dynamically imported module: http:\/\/127.0.0.1:5188\/assets\/Addons-[\w-]+.js|error loading dynamically imported module: http:\/\/127.0.0.1:5188\/assets\/Addons-[\w-]+.js|Importing a module script failed.)(?:\n|$)/,
+        /^console: TypeError: (?:Cannot read properties of undefined \(reading 'default'\)|can't access property "default", .+ is undefined|undefined is not an object \(evaluating '.+\.default'\))(?:\n|$)/,
     ],
     async ({ page }) => {
         let documents = 0;
@@ -122,8 +122,18 @@ testWithBrowserErrors(
             });
         });
         await page.goto("/addons");
+        await expect(page.getByRole("button", { name: "Reload now" })).toBeVisible();
+        expect(documents).toBe(1);
+        await page.evaluate(() => {
+            Object.defineProperty(document, "visibilityState", {
+                configurable: true,
+                value: "hidden",
+            });
+            document.dispatchEvent(new Event("visibilitychange"));
+        });
         await expect.poll(() => documents).toBe(2);
         await expect.poll(() => probes).toBeGreaterThanOrEqual(2);
+        await expect(page.getByRole("button", { name: "Reload manually" })).toBeVisible();
         await page.waitForTimeout(700);
         expect(documents).toBe(2);
     },

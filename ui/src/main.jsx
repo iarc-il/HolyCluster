@@ -22,6 +22,8 @@ import { initializeSentry } from "@/sentry";
 const Addons = lazy(() => import("@/components/addons/Addons"));
 const OmniRigError = lazy(() => import("@/components/OmniRigError.jsx"));
 
+window.__holycluster_remove_module_recovery?.();
+window.__holycluster_remove_module_recovery = undefined;
 initializeSentry();
 
 const container = document.getElementById("root");

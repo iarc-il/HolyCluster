@@ -1,6 +1,16 @@
+import { captureException } from "@sentry/react";
+
 import { ReadyState, useWs } from "@/hooks/useWs";
 import { detect_ui_build } from "@/module_load_recovery.js";
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from "react";
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const CHECK_TIMEOUT_MS = 5000;
@@ -19,6 +29,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     const outcome_sent_ref = useRef(false);
     const [target_entry, set_target_entry] = useState(null);
     const [manual_required, set_manual_required] = useState(false);
+    const [stale_recovery, set_stale_recovery] = useState(null);
     const [navigation_outcome] = useState(() => {
         try {
             const serialized = sessionStorage.getItem(NAVIGATION_MARKER);
@@ -43,6 +54,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     const target_entry_ref = useRef(target_entry);
     const evaluation_timer_ref = useRef(null);
     const evaluate_ref = useRef(null);
+    const stale_recovery_ref = useRef(null);
     const storage_available_ref = useRef(null);
     const last_check_ref = useRef(null);
     const last_check_failed_ref = useRef(false);
@@ -164,6 +176,72 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
         begin_navigation();
         return true;
     }, [begin_navigation, running_entry, storage_available]);
+
+    const recover_stale_module = useCallback(
+        async error => {
+            const recovery = { error, status: "checking" };
+            stale_recovery_ref.current = recovery;
+            set_stale_recovery(recovery);
+            const update = await check_for_update(true);
+            if (!update) {
+                stale_recovery_ref.current = { error, status: "manual" };
+                set_stale_recovery(stale_recovery_ref.current);
+                return;
+            }
+            if (blockers_ref.current.length > 0) {
+                stale_recovery_ref.current = { error, status: "blocked" };
+                set_stale_recovery(stale_recovery_ref.current);
+                return;
+            }
+            if (
+                document.visibilityState === "visible" &&
+                Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS
+            ) {
+                stale_recovery_ref.current = { error, status: "waiting" };
+                set_stale_recovery(stale_recovery_ref.current);
+                return;
+            }
+            if (!automatic_reload()) {
+                stale_recovery_ref.current = { error, status: "manual" };
+                set_stale_recovery(stale_recovery_ref.current);
+            }
+        },
+        [automatic_reload, check_for_update],
+    );
+
+    useLayoutEffect(() => {
+        function recover(event) {
+            const message = event.payload?.message;
+            if (
+                typeof message !== "string" ||
+                !/Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(
+                    message,
+                )
+            )
+                return;
+            event.preventDefault();
+            const error = event.payload;
+            captureException(error);
+            if (!stale_recovery_ref.current) void recover_stale_module(error);
+        }
+
+        window.addEventListener("vite:preloadError", recover);
+        return () => window.removeEventListener("vite:preloadError", recover);
+    }, [recover_stale_module]);
+
+    useEffect(() => {
+        if (stale_recovery?.status !== "blocked" || blockers.length > 0) return;
+        if (
+            document.visibilityState === "visible" &&
+            Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS
+        ) {
+            stale_recovery_ref.current = { ...stale_recovery_ref.current, status: "waiting" };
+            set_stale_recovery(stale_recovery_ref.current);
+        } else if (!automatic_reload()) {
+            stale_recovery_ref.current = { ...stale_recovery_ref.current, status: "manual" };
+            set_stale_recovery(stale_recovery_ref.current);
+        }
+    }, [automatic_reload, blockers.length, stale_recovery?.status]);
 
     const evaluate = useCallback(() => {
         window.clearTimeout(evaluation_timer_ref.current);
@@ -288,6 +366,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
                 target_entry,
                 blockers,
                 manual_required,
+                stale_recovery,
                 navigation_outcome,
                 register_blocker,
                 manual_reload,

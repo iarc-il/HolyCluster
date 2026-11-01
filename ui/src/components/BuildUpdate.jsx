@@ -4,8 +4,14 @@ import { createPortal } from "react-dom";
 import { ToastContainer, toast } from "react-toastify";
 
 export default function BuildUpdate() {
-    const { blockers, manual_reload, manual_required, navigation_outcome, target_entry } =
-        useUiRefresh();
+    const {
+        blockers,
+        manual_reload,
+        manual_required,
+        navigation_outcome,
+        stale_recovery,
+        target_entry,
+    } = useUiRefresh();
     const notification_shown_ref = useRef(false);
     const [container] = useState(() => document.createElement("div"));
     useEffect(() => {
@@ -21,20 +27,25 @@ export default function BuildUpdate() {
         };
     }, [container]);
     useEffect(() => {
-        if (!target_entry && navigation_outcome?.event !== "target_mismatch") return;
+        if (!target_entry && !stale_recovery && navigation_outcome?.event !== "target_mismatch")
+            return;
         const mismatch = navigation_outcome?.event === "target_mismatch";
-        const manual = mismatch || manual_required;
-        const blocked = target_entry && blockers.length > 0;
+        const manual = mismatch || manual_required || stale_recovery?.status === "manual";
+        const blocked = blockers.length > 0 || stale_recovery?.status === "blocked";
+        const checking = stale_recovery?.status === "checking";
         let message =
             "A new version is available. HolyCluster will refresh when this tab is hidden or after one hour without activity. ";
         if (manual) message = "The update could not be loaded automatically. ";
         else if (blocked) message = "The update is waiting for the current operation to finish. ";
+        else if (checking) message = "A module failed to load. Checking for an update. ";
         const content = (
             <div>
                 {message}
-                <button type="button" onClick={manual_reload}>
-                    {manual ? "Reload manually" : "Reload now"}
-                </button>
+                {!checking && (
+                    <button type="button" onClick={manual_reload}>
+                        {manual ? "Reload manually" : "Reload now"}
+                    </button>
+                )}
             </div>
         );
         if (notification_shown_ref.current) {
@@ -53,7 +64,14 @@ export default function BuildUpdate() {
                 draggable: false,
             });
         }
-    }, [blockers, manual_reload, manual_required, navigation_outcome, target_entry]);
+    }, [
+        blockers,
+        manual_reload,
+        manual_required,
+        navigation_outcome,
+        stale_recovery,
+        target_entry,
+    ]);
     return createPortal(
         <ToastContainer containerId="ui-build-update" position="top-right" />,
         container,

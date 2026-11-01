@@ -47,58 +47,63 @@ export function install_module_load_recovery({
     entry,
     reload = () => window.location.reload(),
     check = detect_ui_build,
+    manual = () => {
+        const message = document.createElement("div");
+        message.setAttribute("role", "alert");
+        message.textContent = "HolyCluster could not load. ";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Reload manually";
+        button.addEventListener("click", () => window.location.reload());
+        message.append(button);
+        document.body.append(message);
+    },
 } = {}) {
     let pending = false;
     let stopped = false;
     let active_controller;
 
-    function asset_url(value) {
-        try {
-            const url = new URL(value, window.location.origin);
-            return (
-                url.origin === window.location.origin &&
-                /^\/assets\/[A-Za-z0-9_-]+\.js$/.test(url.pathname) &&
-                !url.search &&
-                !url.hash
-            );
-        } catch {
-            return false;
-        }
-    }
-
     async function recover(event) {
         const script = event.target;
+        const expected = new URL(entry, window.location.origin).href;
         const initial_failure =
             event.type === "error" &&
             script instanceof HTMLScriptElement &&
             script.type === "module" &&
-            asset_url(script.src);
-        const message = event.payload?.message;
-        const import_failure =
-            event.type === "vite:preloadError" &&
-            typeof message === "string" &&
-            /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(
-                message,
-            );
-        if (!initial_failure && !import_failure) return;
-        if (pending || stopped || !navigator.onLine) return;
+            script.src === expected;
+        if (!initial_failure || pending || stopped) return;
+        event.preventDefault();
         pending = true;
-        const marker = "holycluster_module_reload_target";
         const controller = new AbortController();
         active_controller = controller;
         const timeout = setTimeout(() => controller.abort(), 5000);
         try {
-            // Storage must work before a navigation can be safe.
             const storage = window.sessionStorage;
-            storage.setItem(`${marker}_probe`, "1");
-            storage.removeItem(`${marker}_probe`);
-            const update = await check({ entry, signal: controller.signal });
-            if (stopped || !update || storage.getItem(marker) === update.target_entry) return;
-            storage.setItem(marker, update.target_entry);
+            storage.setItem("holycluster_ui_navigation_probe", "1");
+            storage.removeItem("holycluster_ui_navigation_probe");
+            const update = navigator.onLine
+                ? await check({ entry, signal: controller.signal })
+                : null;
+            if (stopped) return;
+            if (
+                !update ||
+                storage.getItem("holycluster_ui_last_auto_target") === update.target_entry
+            ) {
+                manual();
+                return;
+            }
+            storage.setItem("holycluster_ui_last_auto_target", update.target_entry);
+            storage.setItem(
+                "holycluster_ui_navigation",
+                JSON.stringify({
+                    source_entry: update.current_entry,
+                    target_entry: update.target_entry,
+                }),
+            );
             events.dispatchEvent(new Event("holycluster:ui-navigation"));
             reload();
         } catch {
-            // An outage is not evidence that a new build exists.
+            if (!stopped) manual();
         } finally {
             clearTimeout(timeout);
             pending = false;
@@ -106,11 +111,9 @@ export function install_module_load_recovery({
     }
 
     events.addEventListener("error", recover, true);
-    events.addEventListener("vite:preloadError", recover);
     return () => {
         stopped = true;
         active_controller?.abort();
         events.removeEventListener("error", recover, true);
-        events.removeEventListener("vite:preloadError", recover);
     };
 }
