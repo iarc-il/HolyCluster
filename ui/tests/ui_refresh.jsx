@@ -3,8 +3,13 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const detection = vi.hoisted(() => ({ check: vi.fn() }));
+const websocket = vi.hoisted(() => ({ current: null, send: vi.fn() }));
 
 vi.mock("@/module_load_recovery.js", () => ({ detect_ui_build: detection.check }));
+vi.mock("@/hooks/useWs", () => ({
+    ReadyState: { OPEN: 1 },
+    useWs: () => websocket.current,
+}));
 
 import {
     UiRefreshProvider,
@@ -28,9 +33,9 @@ function GraceBlocker() {
     return null;
 }
 
-function render_provider() {
+function render_provider(props = {}) {
     return render(
-        <UiRefreshProvider>
+        <UiRefreshProvider {...props}>
             <Consumer />
         </UiRefreshProvider>,
     );
@@ -39,6 +44,9 @@ function render_provider() {
 beforeEach(() => {
     vi.useFakeTimers();
     detection.check.mockReset();
+    websocket.current = null;
+    websocket.send.mockReset();
+    sessionStorage.clear();
     document.head.insertAdjacentHTML(
         "beforeend",
         '<meta name="ui-entry" content="/assets/current.js">',
@@ -48,6 +56,7 @@ beforeEach(() => {
 afterEach(() => {
     cleanup();
     document.querySelector('meta[name="ui-entry"]')?.remove();
+    sessionStorage.clear();
     vi.restoreAllMocks();
     vi.useRealTimers();
 });
@@ -99,6 +108,99 @@ it("keeps blocker registration stable through Strict Mode cleanup", async () => 
         </StrictMode>,
     );
     expect(Consumer.refresh.blockers).toEqual([]);
+});
+
+it("records a manual navigation marker without consuming the automatic attempt", async () => {
+    detection.check.mockResolvedValue({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    act(() => Consumer.refresh.manual_reload());
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(sessionStorage.getItem("holycluster_ui_navigation"))).toEqual({
+        source_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    expect(sessionStorage.getItem("holycluster_ui_last_auto_target")).toBeNull();
+});
+
+it("requires storage for automatic navigation but still allows manual reload", async () => {
+    detection.check.mockResolvedValue({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new Error("Storage blocked");
+    });
+
+    act(() => expect(Consumer.refresh.automatic_reload()).toBe(false));
+    expect(navigate).not.toHaveBeenCalled();
+    act(() => Consumer.refresh.manual_reload());
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("allows only one automatic navigation for a target", async () => {
+    detection.check.mockResolvedValue({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    act(() => {
+        expect(Consumer.refresh.automatic_reload()).toBe(true);
+        expect(Consumer.refresh.automatic_reload()).toBe(false);
+    });
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.getItem("holycluster_ui_last_auto_target")).toBe("/assets/next.js");
+});
+
+it("reports and clears a navigation outcome when the transport is ready", async () => {
+    sessionStorage.setItem(
+        "holycluster_ui_navigation",
+        JSON.stringify({
+            source_entry: "/assets/old.js",
+            target_entry: "/assets/current.js",
+        }),
+    );
+    websocket.current = { readyState: 1, send: websocket.send };
+    detection.check.mockResolvedValue(null);
+    render(
+        <StrictMode>
+            <UiRefreshProvider>
+                <Consumer />
+            </UiRefreshProvider>
+        </StrictMode>,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    expect(websocket.send).toHaveBeenCalledTimes(1);
+    expect(websocket.send).toHaveBeenCalledWith("ui_refresh", {
+        event: "loaded_target",
+        blocker: "none",
+    });
+    expect(sessionStorage.getItem("holycluster_ui_navigation")).toBeNull();
+});
+
+it.each([
+    ["/assets/current.js", "target_mismatch"],
+    ["/assets/old.js", "loaded_target"],
+])("classifies a pending navigation from %s as %s", (source_entry, event) => {
+    sessionStorage.setItem(
+        "holycluster_ui_navigation",
+        JSON.stringify({ source_entry, target_entry: "/assets/next.js" }),
+    );
+    detection.check.mockResolvedValue(null);
+    render_provider();
+    expect(Consumer.refresh.navigation_outcome).toEqual({ event, blocker: "none" });
 });
 
 it("checks once during Strict Mode setup", async () => {

@@ -84,10 +84,47 @@ for (const [state, path] of [
                 await page.waitForLoadState("load");
                 await expect.poll(() => documents).toBe(2);
                 await expect.poll(() => completed_probes).toBe(3);
-                await expect(update).toBeVisible();
+                await expect(page.getByRole("button", { name: "Reload manually" })).toBeVisible();
             } else {
                 await expect(update).toHaveCount(0);
             }
         },
     );
 }
+
+test("shows manual recovery after a target mismatch", async ({ page }) => {
+    await page.addInitScript(
+        ({ entry }) =>
+            sessionStorage.setItem(
+                "holycluster_ui_navigation",
+                JSON.stringify({ source_entry: entry, target_entry: "/assets/new-release.js" }),
+            ),
+        { entry },
+    );
+    await page.route("**/", route => route.fulfill({ contentType: "text/html", body: html }));
+
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: "Reload manually" })).toBeVisible();
+    await expect
+        .poll(() => page.evaluate(() => sessionStorage.getItem("holycluster_ui_navigation")))
+        .not.toBeNull();
+});
+
+test("classifies a newer loaded entry without showing a mismatch", async ({ page }) => {
+    await page.addInitScript(() =>
+        sessionStorage.setItem(
+            "holycluster_ui_navigation",
+            JSON.stringify({
+                source_entry: "/assets/obsolete.js",
+                target_entry: "/assets/older-target.js",
+            }),
+        ),
+    );
+    await page.route("**/", route => route.fulfill({ contentType: "text/html", body: html }));
+
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: "Reload manually" })).toHaveCount(0);
+    await expect
+        .poll(() => page.evaluate(() => sessionStorage.getItem("holycluster_ui_navigation")))
+        .not.toBeNull();
+});

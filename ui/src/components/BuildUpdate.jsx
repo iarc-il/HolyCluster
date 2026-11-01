@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { ToastContainer, toast } from "react-toastify";
 
 export default function BuildUpdate() {
-    const { reload, target_entry } = useUiRefresh();
+    const { manual_reload, navigation_outcome, target_entry } = useUiRefresh();
     const [container] = useState(() => document.createElement("div"));
     useEffect(() => {
         function move_container() {
@@ -19,12 +19,15 @@ export default function BuildUpdate() {
         };
     }, [container]);
     useEffect(() => {
-        if (!target_entry) return;
+        if (!target_entry && navigation_outcome?.event !== "target_mismatch") return;
+        const mismatch = navigation_outcome?.event === "target_mismatch";
         toast.info(
             <div>
-                A new version is available.{" "}
-                <button type="button" onClick={reload}>
-                    Reload to update
+                {mismatch
+                    ? "The update could not be loaded automatically. "
+                    : "A new version is available. "}
+                <button type="button" onClick={manual_reload}>
+                    {mismatch ? "Reload manually" : "Reload to update"}
                 </button>
             </div>,
             {
@@ -36,7 +39,7 @@ export default function BuildUpdate() {
                 draggable: false,
             },
         );
-    }, [reload, target_entry]);
+    }, [manual_reload, navigation_outcome, target_entry]);
     return createPortal(
         <ToastContainer containerId="ui-build-update" position="top-right" />,
         container,

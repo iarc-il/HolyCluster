@@ -1,15 +1,44 @@
+import { ReadyState, useWs } from "@/hooks/useWs";
 import { detect_ui_build } from "@/module_load_recovery.js";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const CHECK_TIMEOUT_MS = 5000;
+const NAVIGATION_MARKER = "holycluster_ui_navigation";
+const LAST_AUTO_TARGET = "holycluster_ui_last_auto_target";
 const UiRefreshContext = createContext(null);
 
-export function UiRefreshProvider({ children }) {
+function reload_page() {
+    window.location.reload();
+}
+
+export function UiRefreshProvider({ children, navigate = reload_page }) {
     const running_entry = document.querySelector('meta[name="ui-entry"]')?.content;
+    const ws = useWs();
+    const startup_marker_ref = useRef(null);
+    const outcome_sent_ref = useRef(false);
     const [target_entry, set_target_entry] = useState(null);
+    const [navigation_outcome] = useState(() => {
+        try {
+            const serialized = sessionStorage.getItem(NAVIGATION_MARKER);
+            const marker = JSON.parse(serialized);
+            startup_marker_ref.current = serialized;
+            if (
+                typeof marker?.source_entry !== "string" ||
+                typeof marker?.target_entry !== "string"
+            )
+                return null;
+            return {
+                event: running_entry === marker.source_entry ? "target_mismatch" : "loaded_target",
+                blocker: "none",
+            };
+        } catch {
+            return null;
+        }
+    });
     const [blockers, set_blockers] = useState([]);
     const blocker_registrations_ref = useRef(new Map());
+    const storage_available_ref = useRef(null);
     const last_check_ref = useRef(null);
     const last_check_failed_ref = useRef(false);
     const last_interaction_ref = useRef(Date.now());
@@ -74,10 +103,66 @@ export function UiRefreshProvider({ children }) {
         };
     }, []);
 
-    const reload = useCallback(() => {
+    const begin_navigation = useCallback(() => {
         navigating_ref.current = true;
-        window.location.reload();
+        window.dispatchEvent(new Event("holycluster:ui-navigation"));
+        navigate();
+    }, [navigate]);
+
+    const storage_available = useCallback(() => {
+        if (storage_available_ref.current != null) return storage_available_ref.current;
+        try {
+            sessionStorage.setItem(`${NAVIGATION_MARKER}_probe`, "1");
+            sessionStorage.removeItem(`${NAVIGATION_MARKER}_probe`);
+            storage_available_ref.current = true;
+        } catch {
+            storage_available_ref.current = false;
+        }
+        return storage_available_ref.current;
     }, []);
+
+    const manual_reload = useCallback(() => {
+        if (target_entry) {
+            try {
+                sessionStorage.setItem(
+                    NAVIGATION_MARKER,
+                    JSON.stringify({ source_entry: running_entry, target_entry }),
+                );
+            } catch {}
+        }
+        begin_navigation();
+    }, [begin_navigation, running_entry, target_entry]);
+
+    const automatic_reload = useCallback(() => {
+        if (!target_entry || !storage_available()) return false;
+        try {
+            if (sessionStorage.getItem(LAST_AUTO_TARGET) === target_entry) return false;
+            sessionStorage.setItem(LAST_AUTO_TARGET, target_entry);
+            sessionStorage.setItem(
+                NAVIGATION_MARKER,
+                JSON.stringify({ source_entry: running_entry, target_entry }),
+            );
+        } catch {
+            storage_available_ref.current = false;
+            return false;
+        }
+        begin_navigation();
+        return true;
+    }, [begin_navigation, running_entry, storage_available, target_entry]);
+
+    useEffect(() => {
+        if (!navigation_outcome || ws?.readyState !== ReadyState.OPEN || outcome_sent_ref.current)
+            return;
+        outcome_sent_ref.current = true;
+        try {
+            ws.send("ui_refresh", navigation_outcome);
+        } catch {}
+        try {
+            if (sessionStorage.getItem(NAVIGATION_MARKER) === startup_marker_ref.current) {
+                sessionStorage.removeItem(NAVIGATION_MARKER);
+            }
+        } catch {}
+    }, [navigation_outcome, ws?.readyState, ws?.send]);
 
     useEffect(() => {
         stopped_ref.current = false;
@@ -155,8 +240,10 @@ export function UiRefreshProvider({ children }) {
                 current_entry: running_entry,
                 target_entry,
                 blockers,
+                navigation_outcome,
                 register_blocker,
-                reload,
+                manual_reload,
+                automatic_reload,
             }}
         >
             {children}
