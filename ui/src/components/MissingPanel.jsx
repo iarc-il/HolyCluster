@@ -12,6 +12,7 @@ import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
+import { useUiRefreshBlocker } from "@/hooks/useUiRefresh.jsx";
 import { MISSING_ADIF_MAX_FILE_SIZE_BYTES, MISSING_IMPORT_PHASES } from "@/utils/missing_adif.js";
 import { import_missing_adif_in_worker } from "@/utils/missing_adif_worker_client.js";
 import { create_default_missing } from "@/utils/profile_data.js";
@@ -607,6 +608,7 @@ export default function MissingPanel({ on_import_complete = null }) {
     const [import_error, set_import_error] = useState("");
     const [is_importing, set_is_importing] = useState(false);
     const [import_progress, set_import_progress] = useState(null);
+    useUiRefreshBlocker(is_importing, "import");
     const section_items = useMemo(create_section_items, []);
 
     function update_missing(updater) {

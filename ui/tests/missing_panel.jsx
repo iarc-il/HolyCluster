@@ -4,10 +4,12 @@ import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const import_missing_adif_in_worker = vi.hoisted(() => vi.fn());
+const refresh_blocker = vi.hoisted(() => vi.fn());
 
 vi.mock("@/utils/missing_adif_worker_client.js", () => ({
     import_missing_adif_in_worker,
 }));
+vi.mock("@/hooks/useUiRefresh.jsx", () => ({ useUiRefreshBlocker: refresh_blocker }));
 
 vi.mock("virtual:cty-dxcc-entities", () => ({
     default: ["United States", "Fed. Rep. of Germany", "Canada"],
@@ -77,6 +79,7 @@ describe("MissingPanel", () => {
     beforeEach(() => {
         window.localStorage.clear();
         import_missing_adif_in_worker.mockReset();
+        refresh_blocker.mockReset();
     });
 
     afterEach(() => {
@@ -361,6 +364,33 @@ describe("MissingPanel", () => {
         const stored_profiles = JSON.parse(window.localStorage.getItem(PROFILE_STORE_KEY));
         expect(stored_profiles.profiles[0].data.missing).toEqual(
             create_default_profile_data().missing,
+        );
+    });
+
+    it("blocks refresh until an ADIF import finishes", async () => {
+        const user = userEvent.setup();
+        const profile_data = create_default_profile_data();
+        let finish_import;
+        import_missing_adif_in_worker.mockReturnValue(
+            new Promise(resolve => {
+                finish_import = resolve;
+            }),
+        );
+        render_missing_panel(profile_data);
+
+        await user.upload(
+            screen.getByTestId("missing-adif-input"),
+            new File(["<CALL:5>K1ABC<EOR>"], "upload.adi", { type: "text/plain" }),
+        );
+        await waitFor(() => expect(refresh_blocker).toHaveBeenCalledWith(true, "import"));
+
+        finish_import({ missing: profile_data.missing });
+        await waitFor(() =>
+            expect(
+                refresh_blocker.mock.calls
+                    .filter(([_active, reason]) => reason === "import")
+                    .at(-1),
+            ).toEqual([false, "import"]),
         );
     });
 
