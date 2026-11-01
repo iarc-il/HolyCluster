@@ -11,6 +11,7 @@ import { band_plans } from "@/data/band_plans.js";
 import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
+import { useUiRefreshBlocker } from "@/hooks/useUiRefresh.jsx";
 import { ReadyState, useWs, useWsMessage } from "@/hooks/useWs";
 
 export const QUICK_SPOT_EVENT = "quick-spot";
@@ -51,10 +52,29 @@ function SubmitSpot({ dev_mode }) {
     const [external_close, set_external_close] = useState(true);
     const [external_open, set_external_open] = useState(0);
     const quick_spot_ref = useRef(null);
+    const submission_timer_ref = useRef(null);
+    const submission_active_ref = useRef(false);
+    const [submission_active, set_submission_active] = useState(false);
     const [is_open, set_is_open] = useState(false);
     const [is_testing, set_is_testing] = useState(false);
     let { radio_freq } = use_radio();
     radio_freq = radio_freq ?? 0;
+    useUiRefreshBlocker(submission_active, "submission");
+
+    function finish_submission() {
+        window.clearTimeout(submission_timer_ref.current);
+        submission_timer_ref.current = null;
+        submission_active_ref.current = false;
+        set_submission_active(false);
+    }
+
+    useEffect(
+        () => () => {
+            window.clearTimeout(submission_timer_ref.current);
+            submission_active_ref.current = false;
+        },
+        [],
+    );
 
     useEffect(() => {
         if (is_open) {
@@ -80,6 +100,7 @@ function SubmitSpot({ dev_mode }) {
 
     useWsMessage("submit", response => {
         if (response.status === "success") {
+            finish_submission();
             set_submit_status({ status: "success", reason: "" });
             set_is_open(false);
             set_external_close(false);
@@ -91,6 +112,7 @@ function SubmitSpot({ dev_mode }) {
             }
             toast.success("Spot submitted successfully!", { theme });
         } else if (response.status === "failure") {
+            finish_submission();
             set_submit_status({ status: "failure", reason: response.error_type });
         }
     });
@@ -104,12 +126,11 @@ function SubmitSpot({ dev_mode }) {
     }
 
     function try_to_submit_spot() {
-        if (readyState === ReadyState.OPEN) {
+        if (readyState === ReadyState.OPEN && !submission_active_ref.current) {
             if (!is_freq_in_band_plan(temp_data.freq)) {
                 set_submit_status({ status: "failure", reason: "FrequencyOutOfBand" });
                 return;
             }
-            set_submit_status({ status: "sending", reason: "" });
             const message = {
                 spotter_callsign: temp_data.spotter_callsign,
                 dx_callsign: temp_data.callsign,
@@ -119,7 +140,19 @@ function SubmitSpot({ dev_mode }) {
             if (is_testing) {
                 message.testing = true;
             }
-            send("submit", message);
+            if (!send("submit", message)) {
+                set_submit_status({ status: "failure", reason: "ClusterConnectionFailed" });
+                return;
+            }
+            submission_active_ref.current = true;
+            set_submission_active(true);
+            set_submit_status({ status: "sending", reason: "" });
+            submission_timer_ref.current = window.setTimeout(() => {
+                submission_timer_ref.current = null;
+                submission_active_ref.current = false;
+                set_submission_active(false);
+                set_submit_status({ status: "failure", reason: "ResponseTimeout" });
+            }, 60_000);
         }
     }
 
@@ -146,6 +179,8 @@ function SubmitSpot({ dev_mode }) {
             formatted_failure = "Invalid DX callsign";
         } else if (submit_status.reason === "ClusterConnectionFailed") {
             formatted_failure = "Couldn't reach the remote cluster server";
+        } else if (submit_status.reason === "ResponseTimeout") {
+            formatted_failure = "The server did not respond";
         } else if (submit_status.reason === "FrequencyOutOfBand") {
             formatted_failure = "Frequency is out of range";
         }
@@ -224,7 +259,7 @@ function SubmitSpot({ dev_mode }) {
                         "Submit"
                     )
                 }
-                apply_disabled={readyState !== ReadyState.OPEN}
+                apply_disabled={readyState !== ReadyState.OPEN || submission_active}
                 external_close={external_close}
                 modal_style={
                     is_stuart_mode && !stuart_less_noise
