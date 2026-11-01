@@ -57,6 +57,19 @@ class CollectorMetrics:
         self.reconnects = metric(
             Counter, "telnet_reconnect_attempts_total", "Connection attempts after initial attempt", ["source"]
         )
+        self.telnet_unique_spots = metric(
+            Counter,
+            "telnet_unique_spots_total",
+            "Completed Telnet spot windows reported by exactly one source",
+            ["source"],
+        )
+        self.telnet_spots_by_source_count = metric(
+            Counter,
+            "telnet_spots_by_source_count_total",
+            "Completed Telnet spot windows by distinct source count",
+            ["source_count"],
+        )
+        self.telnet_source_count = 0
         self.connections = 0
         self.outage_start = None
         self.outage = metric(Gauge, "telnet_outage_duration_seconds", "Current aggregate zero-connection outage")
@@ -76,6 +89,19 @@ class CollectorMetrics:
         validate_telnet_source(source)
         self.source_up.labels(source).set(0)
         self.reconnects.labels(source)
+        self.telnet_unique_spots.labels(source)
+        self.telnet_source_count += 1
+        self.telnet_spots_by_source_count.labels(str(self.telnet_source_count))
+
+    def observe_telnet_spot_sources(self, sources):
+        distinct_sources = set(sources)
+        if not distinct_sources:
+            raise ValueError("A Telnet spot must have at least one source")
+        for source in distinct_sources:
+            validate_telnet_source(source)
+        self.telnet_spots_by_source_count.labels(str(len(distinct_sources))).inc()
+        if len(distinct_sources) == 1:
+            self.telnet_unique_spots.labels(distinct_sources.pop()).inc()
 
     def connection(self, source, connected):
         self.connections += 1 if connected else -1

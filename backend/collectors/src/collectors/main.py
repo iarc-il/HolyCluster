@@ -34,6 +34,7 @@ from collectors.sota import SOTA_ENABLED, run_sota_collector
 from collectors.telnet.runner import (
     run_concurrent_telnet_connections,
 )
+from collectors.telnet.spot_tracking import TelnetSpotTracker
 from collectors.wwff import run_wwff_collector
 
 import aiomonitor
@@ -351,6 +352,10 @@ async def run_collector():
     spots_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
 
     valkey_client = get_valkey_client()
+    telnet_spot_tracker = TelnetSpotTracker(
+        valkey_client,
+        window_seconds=settings.valkey_spot_expiration,
+    )
 
     qrz_manager = QrzSessionManager(
         username=settings.qrz_user,
@@ -372,8 +377,9 @@ async def run_collector():
             asyncio.create_task(refresh_dxpedition_data(valkey_client), name="dxpedition_refresh_task"),
             asyncio.create_task(refresh_lotw_user_data(valkey_client), name="lotw_refresh_task"),
             asyncio.create_task(process_spots(spots_queue, qrz_manager), name="processor_task"),
+            asyncio.create_task(telnet_spot_tracker.run(), name="telnet_spot_finalizer"),
         ]
-        tasks.extend(run_concurrent_telnet_connections(spots_queue))
+        tasks.extend(run_concurrent_telnet_connections(spots_queue, telnet_spot_tracker))
         tasks.append(asyncio.create_task(run_pota_collector(spots_queue), name="pota.app"))
         if SOTA_ENABLED:
             tasks.append(asyncio.create_task(run_sota_collector(spots_queue), name="sota"))

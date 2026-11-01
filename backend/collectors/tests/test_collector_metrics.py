@@ -286,6 +286,7 @@ class MetricsTest(IsolatedAsyncioTestCase):
         writer.wait_closed = AsyncMock()
         valkey = AsyncMock()
         valkey.set.side_effect = [True, False]
+        spot_tracker = AsyncMock()
 
         async def read(*args):
             reading.set()
@@ -301,7 +302,9 @@ class MetricsTest(IsolatedAsyncioTestCase):
             patch("collectors.metrics.time.time", return_value=100),
         ):
             task = asyncio.create_task(
-                telnet.telnet_and_collect("private-host", 7300, "", "/tmp", queue, source="DXUSA")
+                telnet.telnet_and_collect(
+                    "private-host", 7300, "", "/tmp", queue, source="DXUSA", spot_tracker=spot_tracker
+                )
             )
             try:
                 await asyncio.wait_for(reading.wait(), 1)
@@ -326,6 +329,8 @@ class MetricsTest(IsolatedAsyncioTestCase):
                 task.cancel()
                 await task
         self.assertEqual(queue.qsize(), 1)
+        self.assertEqual(spot_tracker.record.await_count, 2)
+        spot_tracker.record.assert_awaited_with("2010Z:K1SECRET:14074.0:W1PRIVATE", "DXUSA")
         envelope = queue.get_nowait()
         queue.task_done()
         self.assertEqual(envelope.source, "DXUSA")
@@ -366,8 +371,10 @@ class MetricsTest(IsolatedAsyncioTestCase):
             patch.object(telnet_runner.settings, "username_for_telnet_clusters", "W1PRIVATE"),
         ):
             tasks = telnet_runner.run_concurrent_telnet_connections(asyncio.Queue())
-            for server in servers:
+            for index, server in enumerate(servers, start=1):
                 self.assertEqual(self.value("source_up", source=server["name"]), 0)
+                self.assertEqual(self.value("telnet_unique_spots_total", source=server["name"]), 0)
+                self.assertEqual(self.value("telnet_spots_by_source_count_total", source_count=str(index)), 0)
             await asyncio.gather(*tasks)
         self.assertEqual([call.kwargs["source"] for call in collect.call_args_list], [s["name"] for s in servers])
         self.assertIsNone(self.value("source_up", source="telnet"))

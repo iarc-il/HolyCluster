@@ -72,8 +72,8 @@ class CollectorQrzAvailabilityTest(IsolatedAsyncioTestCase):
                 ready.set()
             await asyncio.Future()
 
-        def telnet(queue):
-            return [asyncio.create_task(worker("telnet", queue))]
+        def telnet(queue, spot_tracker):
+            return [asyncio.create_task(worker("telnet", queue, spot_tracker))]
 
         with (
             patch.object(main, "ensure_cty_available", AsyncMock()),

@@ -34,7 +34,7 @@ def get_telnet_clusters_list(csv_path: str):
     return servers
 
 
-def run_concurrent_telnet_connections(output_queue: asyncio.Queue):
+def run_concurrent_telnet_connections(output_queue: asyncio.Queue, spot_tracker=None):
     """
     Reads a list of Telnet servers from a CSV file and launches a separate
     async task to connect to each server concurrently.
@@ -89,6 +89,7 @@ def run_concurrent_telnet_connections(output_queue: asyncio.Queue):
                 cluster_log_dir,
                 output_queue,
                 source=server["name"],
+                spot_tracker=spot_tracker,
             ),
             name=host,
         )

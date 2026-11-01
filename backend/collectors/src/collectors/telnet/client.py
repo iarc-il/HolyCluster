@@ -7,6 +7,7 @@ import socket
 import time
 from collections import Counter
 
+import redis.exceptions
 from loguru import logger
 from shared.telemetry import capture_exception
 
@@ -96,6 +97,7 @@ async def telnet_and_collect(
     output_queue: asyncio.Queue,
     *,
     source: str,
+    spot_tracker=None,
 ):
     """
     Establishes a Telnet connection, sends a username, and collects spots.
@@ -208,6 +210,11 @@ async def telnet_and_collect(
                     logger.debug(json.dumps(spot, indent=2))
 
                     spot_key = build_spot_key(spot)
+                    if spot_tracker is not None:
+                        try:
+                            await spot_tracker.record(spot_key, source)
+                        except redis.exceptions.RedisError as e:
+                            logger.warning(f"Failed to record Telnet spot source: {type(e).__name__}")
                     added = await valkey_client.set(spot_key, 1, ex=settings.valkey_spot_expiration, nx=True)
                     if added:
                         await output_queue.put(SpotEnvelope(source, spot))
