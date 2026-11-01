@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { TOUR_CLOSE_MODAL_EVENT } from "@/components/tour/tour_events.js";
 import Button from "@/components/ui/Button.jsx";
 import { useColors } from "@/hooks/useColors";
+import { useUiRefreshBlocker } from "@/hooks/useUiRefresh.jsx";
 
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 const modal_stack = [];
@@ -32,6 +33,7 @@ function Modal({
     const modal_ref = useRef(null);
     const previously_focused_ref = useRef(null);
     const modal_instance_ref = useRef({});
+    useUiRefreshBlocker(show_modal, "modal");
 
     const close = useCallback(() => {
         set_show_modal(false);

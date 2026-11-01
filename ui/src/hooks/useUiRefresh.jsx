@@ -8,6 +8,8 @@ const UiRefreshContext = createContext(null);
 export function UiRefreshProvider({ children }) {
     const running_entry = document.querySelector('meta[name="ui-entry"]')?.content;
     const [target_entry, set_target_entry] = useState(null);
+    const [blockers, set_blockers] = useState([]);
+    const blocker_registrations_ref = useRef(new Map());
     const last_check_ref = useRef(null);
     const last_check_failed_ref = useRef(false);
     const last_interaction_ref = useRef(Date.now());
@@ -58,6 +60,19 @@ export function UiRefreshProvider({ children }) {
         },
         [running_entry],
     );
+
+    const register_blocker = useCallback((token, reason) => {
+        const registration = { reason };
+        blocker_registrations_ref.current.set(token, registration);
+        set_blockers([...blocker_registrations_ref.current.values()].map(value => value.reason));
+        return () => {
+            if (blocker_registrations_ref.current.get(token) !== registration) return;
+            blocker_registrations_ref.current.delete(token);
+            set_blockers(
+                [...blocker_registrations_ref.current.values()].map(value => value.reason),
+            );
+        };
+    }, []);
 
     const reload = useCallback(() => {
         navigating_ref.current = true;
@@ -139,6 +154,8 @@ export function UiRefreshProvider({ children }) {
             value={{
                 current_entry: running_entry,
                 target_entry,
+                blockers,
+                register_blocker,
                 reload,
             }}
         >
@@ -151,4 +168,15 @@ export function useUiRefresh() {
     const refresh = useContext(UiRefreshContext);
     if (!refresh) throw new Error("useUiRefresh must be used within UiRefreshProvider");
     return refresh;
+}
+
+export function useUiRefreshBlocker(active, reason) {
+    const register_blocker = useContext(UiRefreshContext)?.register_blocker;
+    const token_ref = useRef(null);
+    if (token_ref.current == null) token_ref.current = Symbol(reason);
+
+    useEffect(() => {
+        if (!active || !register_blocker) return;
+        return register_blocker(token_ref.current, reason);
+    }, [active, reason, register_blocker]);
 }

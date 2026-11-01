@@ -2,6 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const refresh_blocker = vi.hoisted(() => vi.fn());
+
 vi.mock("@/hooks/useColors", () => ({
     useColors: () => ({
         colors: {
@@ -9,11 +11,29 @@ vi.mock("@/hooks/useColors", () => ({
         },
     }),
 }));
+vi.mock("@/hooks/useUiRefresh.jsx", () => ({ useUiRefreshBlocker: refresh_blocker }));
 
 import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    refresh_blocker.mockClear();
+});
+
+describe("Modal refresh blocker", () => {
+    it("blocks refresh only while the modal is open", async () => {
+        const user = userEvent.setup();
+        render(<Modal button={<Button>Open</Button>}>Content</Modal>);
+        expect(refresh_blocker).toHaveBeenLastCalledWith(false, "modal");
+
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        expect(refresh_blocker).toHaveBeenLastCalledWith(true, "modal");
+
+        await user.keyboard("{Escape}");
+        expect(refresh_blocker).toHaveBeenLastCalledWith(false, "modal");
+    });
+});
 
 describe("Modal keyboard handling", () => {
     it("closes a modal when Escape is pressed outside its content", async () => {

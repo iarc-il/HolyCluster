@@ -6,10 +6,15 @@ const detection = vi.hoisted(() => ({ check: vi.fn() }));
 
 vi.mock("@/module_load_recovery.js", () => ({ detect_ui_build: detection.check }));
 
-import { UiRefreshProvider, useUiRefresh } from "@/hooks/useUiRefresh.jsx";
+import { UiRefreshProvider, useUiRefresh, useUiRefreshBlocker } from "@/hooks/useUiRefresh.jsx";
 
 function Consumer() {
     Consumer.refresh = useUiRefresh();
+    return null;
+}
+
+function Blocker({ active, reason = "modal" }) {
+    useUiRefreshBlocker(active, reason);
     return null;
 }
 
@@ -35,6 +40,30 @@ afterEach(() => {
     document.querySelector('meta[name="ui-entry"]')?.remove();
     vi.restoreAllMocks();
     vi.useRealTimers();
+});
+
+it("keeps blocker registration stable through Strict Mode cleanup", async () => {
+    detection.check.mockResolvedValue(null);
+    const view = render(
+        <StrictMode>
+            <UiRefreshProvider>
+                <Blocker active={true} />
+                <Consumer />
+            </UiRefreshProvider>
+        </StrictMode>,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(Consumer.refresh.blockers).toEqual(["modal"]);
+
+    view.rerender(
+        <StrictMode>
+            <UiRefreshProvider>
+                <Blocker active={false} />
+                <Consumer />
+            </UiRefreshProvider>
+        </StrictMode>,
+    );
+    expect(Consumer.refresh.blockers).toEqual([]);
 });
 
 it("checks once during Strict Mode setup", async () => {
