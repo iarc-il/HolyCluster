@@ -1,3 +1,8 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+
 use axum::{
     Router,
     body::{Body, to_bytes},
@@ -108,6 +113,68 @@ async fn proxies_ui_assets_from_upstream() {
             );
         }
     }
+}
+
+#[tokio::test]
+async fn exposes_changed_ui_entries_without_caching_them() {
+    let deployed = Arc::new(AtomicBool::new(false));
+    let upstream = spawn_app(Router::new().fallback(any({
+        let deployed = deployed.clone();
+        move |request: Request| {
+            let deployed = deployed.clone();
+            async move {
+                let path = request.uri().path();
+                let entry = if deployed.load(Ordering::Relaxed) {
+                    "/assets/new.js"
+                } else {
+                    "/assets/old.js"
+                };
+                let body = if path == "/" {
+                    format!(
+                        r#"<meta name="ui-entry" content="{entry}"><script type="module" src="{entry}"></script>"#,
+                    )
+                } else {
+                    format!("module:{path}")
+                };
+                let mut response = Response::new(Body::from(body));
+                response
+                    .headers_mut()
+                    .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+                response
+            }
+        }
+    })))
+    .await;
+    let catserver = spawn_catserver(upstream.address).await;
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(format!("http://{}/", catserver.address))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+    assert!(response.text().await.unwrap().contains("/assets/old.js"));
+
+    deployed.store(true, Ordering::Relaxed);
+    let response = client
+        .get(format!("http://{}/", catserver.address))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+    assert!(response.text().await.unwrap().contains("/assets/new.js"));
+    assert_eq!(
+        client
+            .get(format!("http://{}/assets/new.js", catserver.address))
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap(),
+        "module:/assets/new.js"
+    );
 }
 
 #[tokio::test]

@@ -299,6 +299,61 @@ async fn timed_out_handshake_retries_and_restores_latest_subscription() {
 }
 
 #[tokio::test]
+async fn forwards_ui_refresh_telemetry_to_the_upstream_backend() {
+    let (telemetry_sender, telemetry_receiver) = tokio::sync::oneshot::channel();
+    let telemetry_sender = std::sync::Arc::new(std::sync::Mutex::new(Some(telemetry_sender)));
+    let upstream = spawn_app(Router::new().route(
+        "/ws",
+        get({
+            let telemetry_sender = telemetry_sender.clone();
+            move |ws: WebSocketUpgrade| {
+                let telemetry_sender = telemetry_sender.clone();
+                async move {
+                    ws.on_upgrade(move |mut socket| async move {
+                        socket
+                            .send(axum::extract::ws::Message::Text(
+                                r#"{"version":1,"type":"test","event":"ready"}"#.into(),
+                            ))
+                            .await
+                            .unwrap();
+                        while let Some(Ok(axum::extract::ws::Message::Text(text))) =
+                            socket.recv().await
+                        {
+                            let message: serde_json::Value = serde_json::from_str(&text).unwrap();
+                            if message["type"] == "ui_refresh" {
+                                if let Some(sender) = telemetry_sender.lock().unwrap().take() {
+                                    sender.send(message).unwrap();
+                                }
+                                break;
+                            }
+                        }
+                    })
+                }
+            }
+        }),
+    ))
+    .await;
+    let (server, _) = spawn_catserver_with_events(upstream.address).await;
+    let (mut socket, _) = connect_async(format!("ws://{}/ws", server.address))
+        .await
+        .unwrap();
+    assert_eq!(event(&mut socket, "ready").await["type"], "test");
+
+    socket
+        .send(Message::Text(
+            r#"{"version":1,"type":"ui_refresh","event":"detected","blocker":"none"}"#.into(),
+        ))
+        .await
+        .unwrap();
+    let telemetry = tokio::time::timeout(Duration::from_secs(3), telemetry_receiver)
+        .await
+        .expect("missing upstream telemetry")
+        .unwrap();
+    assert_eq!(telemetry["event"], "detected");
+    assert_eq!(telemetry["blocker"], "none");
+}
+
+#[tokio::test]
 async fn graceful_upstream_close_preserves_close_code() {
     let upstream = spawn_app(Router::new().route(
         "/ws",
