@@ -1,5 +1,6 @@
 import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
+import { useUiRefreshBlocker } from "@/hooks/useUiRefresh.jsx";
 import { useWs } from "@/hooks/useWs";
 import { NATIVE_UPDATER_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
 import {
@@ -467,6 +468,8 @@ export function UpdateProvider({ children }) {
         enabled && !session && (update.status === "available" || update.status === "deferred");
     const consent_required = update_available && (update.status === "available" || dialog_open);
     const show_dialog = consent_required || session != null || (enabled && dialog_open);
+    const active = session != null && !terminal_session(session);
+    useUiRefreshBlocker(active, "cat_update");
 
     const value = useMemo(
         () => ({
@@ -479,7 +482,7 @@ export function UpdateProvider({ children }) {
             dialog_open,
             open_dialog: () => set_dialog_open(true),
             close_dialog: () => set_dialog_open(false),
-            active: session != null && !terminal_session(session),
+            active,
             force_update,
             set_force_update,
             refresh,
@@ -513,6 +516,7 @@ export function UpdateProvider({ children }) {
             show_dialog,
             session,
             dialog_open,
+            active,
             force_update,
             refresh,
             action,

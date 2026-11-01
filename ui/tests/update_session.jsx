@@ -6,8 +6,10 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const cat = vi.hoisted(() => ({ current: null }));
+const refresh_blocker = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/useRadio", () => ({ default: () => cat.current }));
 vi.mock("@/hooks/useColors", () => ({ useColors: () => ({ dev_mode: false }) }));
+vi.mock("@/hooks/useUiRefresh.jsx", () => ({ useUiRefreshBlocker: refresh_blocker }));
 
 function response(payload, status = 200) {
     return { ok: status < 400, status, text: async () => JSON.stringify(payload) };
@@ -52,6 +54,7 @@ it("adopts an active session returned by the automatic check", async () => {
     render(<Page />);
     await waitFor(() => expect(update.session?.id).toBe("concurrent-check"));
     expect(update.active).toBe(true);
+    expect(refresh_blocker).toHaveBeenLastCalledWith(true, "cat_update");
 });
 
 it("does not resume an already completed transaction during a fresh check", async () => {
@@ -93,6 +96,7 @@ function Page() {
 }
 beforeEach(() => {
     cat.current = { local_version: [...NATIVE_UPDATER_MIN_VERSION] };
+    refresh_blocker.mockReset();
 });
 afterEach(() => {
     cleanup();
@@ -328,6 +332,7 @@ it("keeps a terminal helper failure instead of adopting stale parent progress", 
     await waitFor(() => expect(update.status).toBe("failed"), { timeout: 2000 });
     expect(update.error).toBe("Installer failed");
     expect(update.active).toBe(false);
+    expect(refresh_blocker).toHaveBeenLastCalledWith(false, "cat_update");
 });
 
 it("allows retry after terminal failure without re-adopting the old transaction", async () => {
