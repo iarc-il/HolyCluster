@@ -1,4 +1,4 @@
-import { install_module_load_recovery } from "@/module_load_recovery.js";
+import { install_build_update_check } from "@/module_load_recovery.js";
 import { afterEach, expect, it, vi } from "vitest";
 
 let remove;
@@ -11,7 +11,6 @@ afterEach(() => {
 
 function start(entry = "/assets/new.js", response = {}) {
     const notify = vi.fn();
-    const reload = vi.fn();
     vi.stubGlobal(
         "fetch",
         vi.fn().mockResolvedValue({
@@ -22,23 +21,23 @@ function start(entry = "/assets/new.js", response = {}) {
             ...response,
         }),
     );
-    remove = install_module_load_recovery({ entry: "/assets/old.js", notify, reload });
-    return { notify, reload };
+    remove = install_build_update_check({ entry: "/assets/old.js", on_update: notify });
+    return { notify };
 }
 
-it("notifies once without automatic reload across interval and visibility checks", async () => {
+it("reports a changed build once across interval and visibility checks", async () => {
     vi.useFakeTimers();
-    const { notify, reload } = start();
+    const { notify } = start();
     await vi.advanceTimersByTimeAsync(0);
-    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith({
+        current_entry: "/assets/old.js",
+        target_entry: "/assets/new.js",
+    });
     await vi.advanceTimersByTimeAsync(300000 * 2);
     document.dispatchEvent(new Event("visibilitychange"));
     await vi.advanceTimersByTimeAsync(0);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(reload).not.toHaveBeenCalled();
-    notify.mock.calls[0][0]();
-    expect(reload).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({ cache: "no-store", redirect: "error" }),
@@ -63,7 +62,7 @@ it("ignores failed requests and retries without overlapping requests", async () 
                 signal.addEventListener("abort", () => reject(new Error("offline")));
             }),
     );
-    remove = install_module_load_recovery({ entry: "/assets/old.js", notify });
+    remove = install_build_update_check({ entry: "/assets/old.js", on_update: notify });
     document.dispatchEvent(new Event("visibilitychange"));
     expect(fetch).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(5001);

@@ -1,4 +1,4 @@
-import { install_module_load_recovery } from "../src/module_load_recovery.js";
+import { detect_ui_build, install_module_load_recovery } from "../src/module_load_recovery.js";
 
 export function moduleRecoveryPlugin() {
     return {
@@ -23,7 +23,7 @@ export function moduleRecoveryPlugin() {
                     },
                     {
                         tag: "script",
-                        children: `(${install_module_load_recovery.toString()})({entry:${JSON.stringify(url)}});`,
+                        children: `(${install_module_load_recovery.toString()})({entry:${JSON.stringify(url)},check:${detect_ui_build.toString()}});`,
                         injectTo: "head-prepend",
                     },
                 ];

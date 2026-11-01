@@ -1,4 +1,4 @@
-import { install_module_load_recovery } from "@/module_load_recovery.js";
+import { install_build_update_check } from "@/module_load_recovery.js";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ToastContainer, toast } from "react-toastify";
@@ -18,13 +18,13 @@ export default function BuildUpdate() {
         };
     }, [container]);
     useEffect(() => {
-        return install_module_load_recovery({
+        return install_build_update_check({
             entry: document.querySelector('meta[name="ui-entry"]')?.content,
-            notify: reload =>
+            on_update: () =>
                 toast.info(
                     <div>
                         A new version is available.{" "}
-                        <button type="button" onClick={reload}>
+                        <button type="button" onClick={() => window.location.reload()}>
                             Reload to update
                         </button>
                     </div>,

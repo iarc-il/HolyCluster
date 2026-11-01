@@ -1,12 +1,97 @@
+export async function detect_ui_build({ entry, signal } = {}) {
+    function asset_url(value) {
+        try {
+            const url = new URL(value, window.location.origin);
+            return (
+                url.origin === window.location.origin &&
+                /^\/assets\/[A-Za-z0-9_-]+\.js$/.test(url.pathname) &&
+                !url.search &&
+                !url.hash &&
+                (value === url.pathname || value === url.href)
+            );
+        } catch {
+            return false;
+        }
+    }
+
+    if (!asset_url(entry)) return null;
+    const response = await fetch(window.location.href, {
+        cache: "no-store",
+        credentials: "same-origin",
+        redirect: "error",
+        signal,
+        headers: { Accept: "text/html" },
+    });
+    if (
+        response.redirected ||
+        !response.ok ||
+        !response.headers
+            .get("content-type")
+            ?.split(";")[0]
+            .trim()
+            .toLowerCase()
+            .match(/^text\/html$/)
+    )
+        return null;
+
+    const next_document = new DOMParser().parseFromString(await response.text(), "text/html");
+    const target_entry = next_document.querySelector('meta[name="ui-entry"]')?.content;
+    if (!target_entry || !asset_url(target_entry) || target_entry === entry) return null;
+    const module = next_document.querySelector('script[type="module"][src]');
+    if (module?.getAttribute("src") !== target_entry) return null;
+    return { current_entry: entry, target_entry };
+}
+
+export function install_build_update_check({ entry, on_update, check = detect_ui_build } = {}) {
+    let pending = false;
+    let notified = false;
+    let stopped = false;
+    let active_controller;
+
+    async function run() {
+        if (pending || stopped || notified || !navigator.onLine) return;
+        pending = true;
+        const controller = new AbortController();
+        active_controller = controller;
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        try {
+            const update = await check({ entry, signal: controller.signal });
+            if (stopped || !update) return;
+            notified = true;
+            clearInterval(interval);
+            document.removeEventListener("visibilitychange", visible);
+            on_update?.(update);
+        } catch {
+            // An outage is not evidence that a new build exists.
+        } finally {
+            clearTimeout(timeout);
+            pending = false;
+        }
+    }
+
+    function visible() {
+        if (document.visibilityState === "visible") run();
+    }
+
+    // Retained assets support 7 days or the newest 4 releases, not permanent clients.
+    const interval = setInterval(visible, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", visible);
+    run();
+    return () => {
+        stopped = true;
+        active_controller?.abort();
+        clearInterval(interval);
+        document.removeEventListener("visibilitychange", visible);
+    };
+}
+
 export function install_module_load_recovery({
     events = window,
     entry,
     reload = () => window.location.reload(),
-    notify,
+    check = detect_ui_build,
 } = {}) {
-    if (!asset_url(entry)) return () => {};
     let pending = false;
-    let notified = false;
     let stopped = false;
     let active_controller;
 
@@ -17,8 +102,7 @@ export function install_module_load_recovery({
                 url.origin === window.location.origin &&
                 /^\/assets\/[A-Za-z0-9_-]+\.js$/.test(url.pathname) &&
                 !url.search &&
-                !url.hash &&
-                (value === url.pathname || value === url.href)
+                !url.hash
             );
         } catch {
             return false;
@@ -39,8 +123,8 @@ export function install_module_load_recovery({
             /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(
                 message,
             );
-        if (!notify && !initial_failure && !import_failure) return;
-        if (pending || stopped || notified || !navigator.onLine) return;
+        if (!initial_failure && !import_failure) return;
+        if (pending || stopped || !navigator.onLine) return;
         pending = true;
         const marker = "holycluster_module_reload_target";
         const controller = new AbortController();
@@ -48,50 +132,13 @@ export function install_module_load_recovery({
         const timeout = setTimeout(() => controller.abort(), 5000);
         try {
             // Storage must work before a navigation can be safe.
-            const storage = notify ? null : window.sessionStorage;
-            storage?.setItem(`${marker}_probe`, "1");
-            storage?.removeItem(`${marker}_probe`);
-            const response = await fetch(window.location.href, {
-                cache: "no-store",
-                credentials: "same-origin",
-                redirect: "error",
-                signal: controller.signal,
-                headers: { Accept: "text/html" },
-            });
-            if (
-                response.redirected ||
-                !response.ok ||
-                !response.headers
-                    .get("content-type")
-                    ?.split(";")[0]
-                    .trim()
-                    .toLowerCase()
-                    .match(/^text\/html$/)
-            )
-                return;
-            const document = new DOMParser().parseFromString(await response.text(), "text/html");
-            const next = document.querySelector('meta[name="ui-entry"]')?.content;
-            if (
-                stopped ||
-                !next ||
-                !asset_url(next) ||
-                next === entry ||
-                storage?.getItem(marker) === next
-            )
-                return;
-            const module = document.querySelector('script[type="module"][src]');
-            if (module?.getAttribute("src") !== next) return;
-            if (notify) {
-                if (!notified) {
-                    notified = true;
-                    clearInterval(interval);
-                    document.removeEventListener("visibilitychange", visible);
-                    notify(reload);
-                }
-            } else {
-                storage.setItem(marker, next);
-                reload();
-            }
+            const storage = window.sessionStorage;
+            storage.setItem(`${marker}_probe`, "1");
+            storage.removeItem(`${marker}_probe`);
+            const update = await check({ entry, signal: controller.signal });
+            if (stopped || !update || storage.getItem(marker) === update.target_entry) return;
+            storage.setItem(marker, update.target_entry);
+            reload();
         } catch {
             // An outage is not evidence that a new build exists.
         } finally {
@@ -100,23 +147,11 @@ export function install_module_load_recovery({
         }
     }
 
-    function visible() {
-        if (document.visibilityState === "visible") recover({});
-    }
-    // Retained assets support 7 days or the newest 4 releases, not permanent clients.
-    const interval = notify ? setInterval(visible, 5 * 60 * 1000) : null;
-    if (notify) {
-        document.addEventListener("visibilitychange", visible);
-        recover({});
-    } else {
-        events.addEventListener("error", recover, true);
-        events.addEventListener("vite:preloadError", recover);
-    }
+    events.addEventListener("error", recover, true);
+    events.addEventListener("vite:preloadError", recover);
     return () => {
         stopped = true;
         active_controller?.abort();
-        clearInterval(interval);
-        document.removeEventListener("visibilitychange", visible);
         events.removeEventListener("error", recover, true);
         events.removeEventListener("vite:preloadError", recover);
     };
