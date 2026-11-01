@@ -21,6 +21,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { useTimeZone } from "@/hooks/useTimeZone";
 import { get_missing_alert_flash_phase } from "@/utils.js";
 
 const cell_classes = {
@@ -262,10 +263,8 @@ const Spot = forwardRef(function Spot(
         set_is_fading(false);
     }, [is_new_spot]);
 
-    const time = new Date(spot.time * 1000);
-    const utc_hours = String(time.getUTCHours()).padStart(2, "0");
-    const utc_minutes = String(time.getUTCMinutes()).padStart(2, "0");
-    const formatted_time = `${utc_hours}:${utc_minutes}`;
+    const { to_string } = useTimeZone();
+    const formatted_time = to_string(new Date(spot.time * 1000)).slice(13, 18);
     const is_same_freq = current_freq_spots.includes(spot.id);
     const is_pinned = spot.id === pinned_spot;
     const is_hovered = spot.id === hovered_spot.id || is_pinned || is_same_freq;
