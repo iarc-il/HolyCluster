@@ -364,6 +364,7 @@ class WsMessageType(StrEnum):
     RADIO = "radio"
     MISSING = "missing"
     HISTORY = "history"
+    UI_REFRESH = "ui_refresh"
 
 
 class WsSpotAction(StrEnum):
@@ -396,6 +397,17 @@ class WsMissingEvent(StrEnum):
     ACCEPTED = "accepted"
     RESULTS = "results"
     COMPLETE = "complete"
+
+
+UI_REFRESH_EVENTS = {
+    "detected",
+    "blocked",
+    "manual_reload",
+    "auto_reload",
+    "loaded_target",
+    "target_mismatch",
+}
+UI_REFRESH_BLOCKERS = {"none", "modal", "submission", "import", "cat_update", "radio", "rotator"}
 
 
 def build_ws_error(error_type: WsErrorType, message: str, **data):
@@ -813,6 +825,10 @@ async def dispatch_ws_message(websocket, send_lock, missing_jobs, message):
         await send_ws_history(websocket, send_lock, message)
         return
 
+    if message.get("type") == WsMessageType.UI_REFRESH.value:
+        await record_ui_refresh(websocket, send_lock, message)
+        return
+
     await send_ws_json(
         websocket,
         send_lock,
@@ -895,6 +911,47 @@ async def ws(websocket: fastapi.WebSocket):
         app.state.active_ws_spot_connections.discard(websocket)
         app.state.websocket_send_locks.pop(websocket, None)
         await cancel_missing_jobs(missing_jobs)
+
+
+async def record_ui_refresh(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
+    expected_fields = {"version", "type", "event", "blocker"}
+    if set(message) != expected_fields:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(WsErrorType.MALFORMED_MESSAGE, "Invalid UI refresh fields"),
+        )
+        return
+
+    event = message["event"]
+    blocker = message["blocker"]
+    if not isinstance(event, str) or event not in UI_REFRESH_EVENTS:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(WsErrorType.MALFORMED_MESSAGE, "Invalid UI refresh event", field="event"),
+        )
+        return
+    if not isinstance(blocker, str) or blocker not in UI_REFRESH_BLOCKERS:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(WsErrorType.MALFORMED_MESSAGE, "Invalid UI refresh blocker", field="blocker"),
+        )
+        return
+    if (event == "blocked") != (blocker != "none"):
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(
+                WsErrorType.MALFORMED_MESSAGE,
+                "UI refresh blocker is only valid for blocked events",
+                field="blocker",
+            ),
+        )
+        return
+
+    metrics.UI_REFRESH_EVENTS.labels(event, blocker).inc()
 
 
 async def send_ws_submit(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):

@@ -156,6 +156,26 @@ async fn refused_upstream_keeps_local_controls_and_rejects_submit() {
 }
 
 #[tokio::test]
+async fn offline_ui_refresh_telemetry_does_not_close_local_session() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    drop(listener);
+    let (server, _) = spawn_catserver_with_events(address).await;
+    let (mut socket, _) = connect_async(format!("ws://{}/ws", server.address))
+        .await
+        .unwrap();
+
+    socket
+        .send(Message::Text(
+            r#"{"version":1,"type":"ui_refresh","event":"detected","blocker":"none"}"#.into(),
+        ))
+        .await
+        .unwrap();
+    local_controls(&mut socket).await;
+    socket.close(None).await.unwrap();
+}
+
+#[tokio::test]
 async fn offline_history_request_explicitly_closes_instead_of_being_queued() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let (server, _) = spawn_catserver_with_events(listener.local_addr().unwrap()).await;

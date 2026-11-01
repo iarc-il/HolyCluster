@@ -208,6 +208,65 @@ it("does not suppress unrelated preload errors", async () => {
     expect(diagnostics.capture).not.toHaveBeenCalled();
 });
 
+it("reports detection and manual refresh without delaying navigation", async () => {
+    websocket.current = { readyState: 1, send: websocket.send };
+    detection.check.mockResolvedValue({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(websocket.send).toHaveBeenCalledWith("ui_refresh", {
+        event: "detected",
+        blocker: "none",
+    });
+
+    act(() => Consumer.refresh.manual_reload());
+    expect(websocket.send).toHaveBeenCalledWith("ui_refresh", {
+        event: "manual_reload",
+        blocker: "none",
+    });
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("reports blocked and automatic refresh evaluations", async () => {
+    websocket.current = { readyState: 1, send: websocket.send };
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    detection.check.mockResolvedValue({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    render(
+        <UiRefreshProvider navigate={navigate}>
+            <Blocker active={true} />
+            <Consumer />
+        </UiRefreshProvider>,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(60 * 60 * 1000));
+    expect(websocket.send).toHaveBeenCalledWith("ui_refresh", {
+        event: "blocked",
+        blocker: "modal",
+    });
+    expect(navigate).not.toHaveBeenCalled();
+
+    cleanup();
+    websocket.send.mockClear();
+    detection.check.mockResolvedValue({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/newest.js",
+    });
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    act(() => Consumer.refresh.automatic_reload());
+    expect(websocket.send).toHaveBeenCalledWith("ui_refresh", {
+        event: "auto_reload",
+        blocker: "none",
+    });
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
 it("automatically refreshes a visible page after one hour without activity", async () => {
     detection.check.mockResolvedValue({
         current_entry: "/assets/current.js",

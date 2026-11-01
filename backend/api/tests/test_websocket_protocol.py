@@ -138,6 +138,41 @@ class WebSocketProtocolTest(unittest.TestCase):
                 },
             )
 
+    def test_ws_records_bounded_ui_refresh_event_without_acknowledgement(self):
+        with (
+            patch("api.main.metrics.UI_REFRESH_EVENTS") as counter,
+            self.client.websocket_connect("/ws") as websocket,
+        ):
+            websocket.send_json(
+                {
+                    "version": 1,
+                    "type": "ui_refresh",
+                    "event": "blocked",
+                    "blocker": "modal",
+                }
+            )
+            websocket.send_text("not json")
+            self.assertEqual(websocket.receive_json()["error_type"], "MalformedMessage")
+
+        counter.labels.assert_called_once_with("blocked", "modal")
+        counter.labels.return_value.inc.assert_called_once_with()
+
+    def test_ws_rejects_unbounded_ui_refresh_values(self):
+        invalid_messages = [
+            {"event": "private", "blocker": "none"},
+            {"event": ["private"], "blocker": "none"},
+            {"event": "blocked", "blocker": "private"},
+            {"event": "blocked", "blocker": ["private"]},
+            {"event": "blocked", "blocker": "none"},
+            {"event": "detected", "blocker": "modal"},
+            {"event": "detected", "blocker": "none", "route": "/private"},
+        ]
+        for values in invalid_messages:
+            with self.subTest(values=values), self.client.websocket_connect("/ws") as websocket:
+                websocket.send_json({"version": 1, "type": "ui_refresh", **values})
+                response = websocket.receive_json()
+                self.assertEqual(response["error_type"], "MalformedMessage")
+
     def test_ws_returns_spots_initial_response(self):
         spots = [{"dx_callsign": "K1ABC", "time": 10000}]
 

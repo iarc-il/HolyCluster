@@ -35,6 +35,9 @@ WS_DISCONNECTS = Counter(PREFIX + "websocket_disconnects_total", "Closed accepte
 WS_MESSAGES = Counter(
     PREFIX + "websocket_messages_total", "Received or successfully sent messages", ["endpoint", "direction", "type"]
 )
+UI_REFRESH_EVENTS = Counter(
+    PREFIX + "ui_refresh_events_total", "UI refresh coordinator events", ["event", "blocker"]
+)
 BROADCAST_DURATION = Histogram(
     PREFIX + "spot_broadcast_duration_seconds",
     "Complete fan-out to both protocols including recipient eviction",
@@ -94,6 +97,7 @@ def message_kind(message):
         "radio",
         "missing",
         "history",
+        "ui_refresh",
         "error",
         "initial",
         "update",

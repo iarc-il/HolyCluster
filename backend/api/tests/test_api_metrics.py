@@ -84,6 +84,34 @@ class MetricsTest(unittest.TestCase):
         for secret in ("PRIVATE-NESTED", "PRIVATE-KEY", "PRIVATE-VALUE", "PRIVATE-ARRAY"):
             self.assertNotIn(secret, text)
 
+    def test_ui_refresh_metric_uses_bounded_labels(self):
+        before = value(
+            self.client,
+            "holycluster_api_ui_refresh_events_total",
+            event="auto_reload",
+            blocker="none",
+        )
+        with self.client.websocket_connect("/ws") as websocket:
+            websocket.send_json(
+                {
+                    "version": 1,
+                    "type": "ui_refresh",
+                    "event": "auto_reload",
+                    "blocker": "none",
+                }
+            )
+            websocket.send_text("not json")
+            websocket.receive_json()
+        self.assertEqual(
+            value(
+                self.client,
+                "holycluster_api_ui_refresh_events_total",
+                event="auto_reload",
+                blocker="none",
+            ),
+            before + 1,
+        )
+
     def test_broadcast_eviction_closes_connection_once(self):
         for endpoint in ("/ws", "/submit_spot", "/spots_ws"):
             baseline = value(self.client, "holycluster_api_websocket_active", endpoint=endpoint)

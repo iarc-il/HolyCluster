@@ -35,7 +35,9 @@ export default function BuildUpdate() {
         const checking = stale_recovery?.status === "checking";
         let message =
             "A new version is available. HolyCluster will refresh when this tab is hidden or after one hour without activity. ";
-        if (manual) message = "The update could not be loaded automatically. ";
+        if (stale_recovery?.status === "manual") {
+            message = "Part of the UI could not be loaded. ";
+        } else if (manual) message = "The update could not be loaded automatically. ";
         else if (blocked) message = "The update is waiting for the current operation to finish. ";
         else if (checking) message = "A module failed to load. Checking for an update. ";
         const content = (

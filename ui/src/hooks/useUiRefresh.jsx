@@ -27,6 +27,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     const ws = useWs();
     const startup_marker_ref = useRef(null);
     const outcome_sent_ref = useRef(false);
+    const detected_target_ref = useRef(null);
     const [target_entry, set_target_entry] = useState(null);
     const [manual_required, set_manual_required] = useState(false);
     const [stale_recovery, set_stale_recovery] = useState(null);
@@ -125,6 +126,15 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
         };
     }, []);
 
+    const report = useCallback(
+        (event, blocker = "none") => {
+            try {
+                ws?.send("ui_refresh", { event, blocker });
+            } catch {}
+        },
+        [ws?.send],
+    );
+
     const begin_navigation = useCallback(() => {
         navigating_ref.current = true;
         window.dispatchEvent(new Event("holycluster:ui-navigation"));
@@ -152,8 +162,9 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
                 );
             } catch {}
         }
+        report("manual_reload");
         begin_navigation();
-    }, [begin_navigation, running_entry, target_entry]);
+    }, [begin_navigation, report, running_entry, target_entry]);
 
     const automatic_reload = useCallback(() => {
         const target = target_entry_ref.current;
@@ -173,9 +184,10 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
             storage_available_ref.current = false;
             return false;
         }
+        report("auto_reload");
         begin_navigation();
         return true;
-    }, [begin_navigation, running_entry, storage_available]);
+    }, [begin_navigation, report, running_entry, storage_available]);
 
     const recover_stale_module = useCallback(
         async error => {
@@ -189,6 +201,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
                 return;
             }
             if (blockers_ref.current.length > 0) {
+                report("blocked", blockers_ref.current[0]);
                 stale_recovery_ref.current = { error, status: "blocked" };
                 set_stale_recovery(stale_recovery_ref.current);
                 return;
@@ -206,7 +219,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
                 set_stale_recovery(stale_recovery_ref.current);
             }
         },
-        [automatic_reload, check_for_update],
+        [automatic_reload, check_for_update, report],
     );
 
     useLayoutEffect(() => {
@@ -251,6 +264,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
             document.visibilityState === "visible" &&
             Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS;
         if (blocked || active) {
+            if (blocked) report("blocked", blockers_ref.current[0]);
             evaluation_timer_ref.current = window.setTimeout(
                 () => evaluate_ref.current?.(),
                 CHECK_INTERVAL_MS,
@@ -258,8 +272,14 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
             return;
         }
         if (!automatic_reload()) set_manual_required(true);
-    }, [automatic_reload]);
+    }, [automatic_reload, report]);
     evaluate_ref.current = evaluate;
+
+    useEffect(() => {
+        if (!target_entry || detected_target_ref.current === target_entry) return;
+        detected_target_ref.current = target_entry;
+        report("detected");
+    }, [report, target_entry]);
 
     useEffect(() => {
         window.clearTimeout(evaluation_timer_ref.current);
@@ -279,15 +299,13 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
         if (!navigation_outcome || ws?.readyState !== ReadyState.OPEN || outcome_sent_ref.current)
             return;
         outcome_sent_ref.current = true;
-        try {
-            ws.send("ui_refresh", navigation_outcome);
-        } catch {}
+        report(navigation_outcome.event, navigation_outcome.blocker);
         try {
             if (sessionStorage.getItem(NAVIGATION_MARKER) === startup_marker_ref.current) {
                 sessionStorage.removeItem(NAVIGATION_MARKER);
             }
         } catch {}
-    }, [navigation_outcome, ws?.readyState, ws?.send]);
+    }, [navigation_outcome, report, ws?.readyState]);
 
     useEffect(() => {
         stopped_ref.current = false;

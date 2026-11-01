@@ -183,6 +183,8 @@ async fn handle_ws_socket(
                             "error_type": "BackendUnavailable",
                             "error_data": "The backend is unavailable. The spot was not submitted."
                         }).to_string().into())).await?;
+                    } else if is_ui_refresh(text.as_ref()) {
+                        // Telemetry is best effort and must not disrupt local controls.
                     } else {
                         // Do not silently lose history requests or replay commands.
                         client_close_code = axum::extract::ws::close_code::RESTART;
@@ -274,6 +276,14 @@ async fn handle_ws_socket(
     )
     .await;
     Ok(())
+}
+
+fn is_ui_refresh(text: &str) -> bool {
+    if text.len() > 4096 {
+        return false;
+    }
+    serde_json::from_str::<serde_json::Value>(text)
+        .is_ok_and(|message| message["version"] == 1 && message["type"] == "ui_refresh")
 }
 
 fn is_spots_subscription(text: &str) -> bool {
