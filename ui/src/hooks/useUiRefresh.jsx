@@ -180,3 +180,46 @@ export function useUiRefreshBlocker(active, reason) {
         return register_blocker(token_ref.current, reason);
     }, [active, reason, register_blocker]);
 }
+
+export function useUiRefreshGraceBlocker(reason, duration) {
+    const [active, set_active] = useState(false);
+    const operation_ref = useRef(null);
+    const timer_ref = useRef(null);
+    useUiRefreshBlocker(active, reason);
+
+    const clear = useCallback(() => {
+        window.clearTimeout(timer_ref.current);
+        timer_ref.current = null;
+        operation_ref.current = null;
+        set_active(false);
+    }, []);
+
+    const start = useCallback(
+        operation => {
+            window.clearTimeout(timer_ref.current);
+            operation_ref.current = operation;
+            set_active(true);
+            timer_ref.current = window.setTimeout(clear, duration);
+        },
+        [clear, duration],
+    );
+
+    const finish = useCallback(
+        operation => {
+            if (operation_ref.current !== operation) return false;
+            clear();
+            return true;
+        },
+        [clear],
+    );
+
+    useEffect(
+        () => () => {
+            window.clearTimeout(timer_ref.current);
+            operation_ref.current = null;
+        },
+        [],
+    );
+
+    return { active, start, finish };
+}

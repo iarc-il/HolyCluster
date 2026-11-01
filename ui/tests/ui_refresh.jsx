@@ -6,7 +6,12 @@ const detection = vi.hoisted(() => ({ check: vi.fn() }));
 
 vi.mock("@/module_load_recovery.js", () => ({ detect_ui_build: detection.check }));
 
-import { UiRefreshProvider, useUiRefresh, useUiRefreshBlocker } from "@/hooks/useUiRefresh.jsx";
+import {
+    UiRefreshProvider,
+    useUiRefresh,
+    useUiRefreshBlocker,
+    useUiRefreshGraceBlocker,
+} from "@/hooks/useUiRefresh.jsx";
 
 function Consumer() {
     Consumer.refresh = useUiRefresh();
@@ -15,6 +20,11 @@ function Consumer() {
 
 function Blocker({ active, reason = "modal" }) {
     useUiRefreshBlocker(active, reason);
+    return null;
+}
+
+function GraceBlocker() {
+    GraceBlocker.blocker = useUiRefreshGraceBlocker("radio", 5 * 60 * 1000);
     return null;
 }
 
@@ -40,6 +50,31 @@ afterEach(() => {
     document.querySelector('meta[name="ui-entry"]')?.remove();
     vi.restoreAllMocks();
     vi.useRealTimers();
+});
+
+it("keeps a grace blocker until its matching result or timeout", async () => {
+    detection.check.mockResolvedValue(null);
+    render(
+        <UiRefreshProvider>
+            <GraceBlocker />
+            <Consumer />
+        </UiRefreshProvider>,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    act(() => GraceBlocker.blocker.start("configuration"));
+    expect(Consumer.refresh.blockers).toEqual(["radio"]);
+    act(() => GraceBlocker.blocker.finish("other"));
+    expect(Consumer.refresh.blockers).toEqual(["radio"]);
+    await act(() => vi.advanceTimersByTimeAsync(5 * 60 * 1000 - 1));
+    expect(Consumer.refresh.blockers).toEqual(["radio"]);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(Consumer.refresh.blockers).toEqual([]);
+
+    act(() => GraceBlocker.blocker.start("retry"));
+    expect(Consumer.refresh.blockers).toEqual(["radio"]);
+    act(() => GraceBlocker.blocker.finish("retry"));
+    expect(Consumer.refresh.blockers).toEqual([]);
 });
 
 it("keeps blocker registration stable through Strict Mode cleanup", async () => {

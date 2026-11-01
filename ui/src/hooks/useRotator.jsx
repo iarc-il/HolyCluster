@@ -2,6 +2,7 @@ import { ROTATOR_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import useRadio from "./useRadio";
+import { useUiRefreshGraceBlocker } from "./useUiRefresh.jsx";
 import { useWs, useWsMessage } from "./useWs";
 
 const RotatorContext = createContext(null);
@@ -34,6 +35,8 @@ export function RotatorProvider({ children }) {
     const [rotator_connection_result, set_rotator_connection_result] = useState(null);
     const pending_action = useRef(null);
     const { network_state, send } = useWs();
+    const { start: start_refresh_blocker, finish: finish_refresh_blocker } =
+        useUiRefreshGraceBlocker("rotator", 5 * 60 * 1000);
 
     useEffect(() => {
         if (network_state !== "connected") {
@@ -65,6 +68,7 @@ export function RotatorProvider({ children }) {
             return;
         }
         if (data.event === "rotator_configuration_result") {
+            finish_refresh_blocker("configuration");
             set_rotator_configuration_result(data);
             if (data.ok && pending_action.current?.configuration) {
                 set_rotator_configuration(pending_action.current.configuration);
@@ -74,10 +78,12 @@ export function RotatorProvider({ children }) {
             return;
         }
         if (data.event === "rotator_connection_result") {
+            finish_refresh_blocker("connection");
             set_rotator_connection_result(data);
             return;
         }
         if (data.event === "command_result" && data.action === "Stop") {
+            finish_refresh_blocker("stop");
             if (data.ok) {
                 set_rotator_target_azimuth(null);
             } else {
@@ -93,6 +99,7 @@ export function RotatorProvider({ children }) {
 
         const next_azimuth =
             data.status === "connected" && Number.isFinite(data.azimuth) ? data.azimuth : null;
+        finish_refresh_blocker("retry");
         set_rotator_status(data.status || "unavailable");
         set_rotator_azimuth(current => (next_azimuth == null ? current : next_azimuth));
         set_rotator_target_azimuth(target => {
@@ -103,6 +110,7 @@ export function RotatorProvider({ children }) {
                 return target;
             }
             if (angular_distance(next_azimuth, target) <= 5) {
+                finish_refresh_blocker("movement");
                 return null;
             }
             return target;
@@ -121,10 +129,14 @@ export function RotatorProvider({ children }) {
 
         const normalized_azimuth = normalize_azimuth(next_azimuth);
         set_rotator_target_azimuth(normalized_azimuth);
-        send("rotator", {
-            action: "SetAzimuth",
-            azimuth: normalized_azimuth,
-        });
+        if (
+            send("rotator", {
+                action: "SetAzimuth",
+                azimuth: normalized_azimuth,
+            })
+        ) {
+            start_refresh_blocker("movement");
+        }
     }
 
     function list_rotator_models() {
@@ -150,13 +162,18 @@ export function RotatorProvider({ children }) {
     }
 
     function apply_rotator_configuration(configuration) {
-        if (!rotator_supported) return Promise.resolve({ ok: false });
+        if (!rotator_supported || pending_action.current) return Promise.resolve({ ok: false });
 
         return new Promise(resolve => {
             pending_action.current = { configuration, resolve };
             set_rotator_configuration_result(null);
             set_rotator_connection_result(null);
-            send("rotator", { action: "SetRotatorConfiguration", configuration });
+            if (send("rotator", { action: "SetRotatorConfiguration", configuration })) {
+                start_refresh_blocker("configuration");
+            } else {
+                pending_action.current = null;
+                resolve({ ok: false });
+            }
         });
     }
 
@@ -164,11 +181,15 @@ export function RotatorProvider({ children }) {
         if (!rotator_supported) return;
 
         set_rotator_connection_result(null);
-        send("rotator", { action: "TestRotatorConnection", configuration });
+        if (send("rotator", { action: "TestRotatorConnection", configuration })) {
+            start_refresh_blocker("connection");
+        }
     }
 
     function retry_rotator() {
-        if (rotator_supported) send("rotator", { action: "RetryRotator" });
+        if (rotator_supported && send("rotator", { action: "RetryRotator" })) {
+            start_refresh_blocker("retry");
+        }
     }
 
     function toggle_rotator_tuning() {
@@ -176,7 +197,7 @@ export function RotatorProvider({ children }) {
 
         if (rotator_tuning_enabled && rotator_status === "connected") {
             if (rotator_stop_supported) {
-                send("rotator", { action: "Stop" });
+                if (send("rotator", { action: "Stop" })) start_refresh_blocker("stop");
             } else if (rotator_target_azimuth != null) {
                 toast.warn("This CATServer cannot stop movement already in progress.", {
                     toastId: "rotator-stop",

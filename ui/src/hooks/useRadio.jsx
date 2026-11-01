@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import raw_band_plans from "../../../shared/band_plans.json";
 import { useSettings } from "./useSettings";
+import { useUiRefreshGraceBlocker } from "./useUiRefresh.jsx";
 import { ReadyState, useWs, useWsMessage } from "./useWs";
 
 const band_plans = Object.fromEntries(
@@ -59,6 +60,8 @@ export function RadioProvider({ children }) {
     const pending_configuration_action = useRef(null);
     const cat_identity_ref = useRef(null);
     const cat_connected_ref = useRef(false);
+    const { start: start_refresh_blocker, finish: finish_refresh_blocker } =
+        useUiRefreshGraceBlocker("radio", 5 * 60 * 1000);
 
     const { settings } = useSettings();
 
@@ -188,6 +191,7 @@ export function RadioProvider({ children }) {
         if (data.event === "configuration_result") {
             const action = pending_configuration_action.current;
             if (!action) return;
+            finish_refresh_blocker(action.type === "retry" ? "retry" : "configuration");
             if (action.type === "retry") {
                 set_radio_retry_result(data);
             } else {
@@ -214,10 +218,12 @@ export function RadioProvider({ children }) {
         }
 
         if (data.event === "radio_connection_result") {
+            finish_refresh_blocker("connection");
             set_radio_connection_result(data);
         }
 
         if (data.event === "retry") {
+            finish_refresh_blocker("retry");
             set_radio_retry_result(data);
         }
 
@@ -231,7 +237,7 @@ export function RadioProvider({ children }) {
     });
 
     function send_message_to_radio(message) {
-        send("radio", message);
+        return send("radio", message);
     }
 
     function is_radio_available() {
@@ -317,21 +323,27 @@ export function RadioProvider({ children }) {
             pending_configuration_action.current = { type: "apply", config, resolve };
             set_radio_configuration_result(null);
             set_radio_connection_result(null);
-            send_message_to_radio({ action: "SetRadioConfiguration", configuration: config });
+            if (send_message_to_radio({ action: "SetRadioConfiguration", configuration: config })) {
+                start_refresh_blocker("configuration");
+            }
         });
     }
 
     function test_radio_connection(config) {
         set_radio_connection_result(null);
         set_radio_configuration_result(null);
-        send_message_to_radio({ action: "TestRadioConnection", config });
+        if (send_message_to_radio({ action: "TestRadioConnection", config })) {
+            start_refresh_blocker("connection");
+        }
     }
 
     function retry_radio() {
         if (pending_configuration_action.current || radioReadyState !== ReadyState.OPEN) return;
         pending_configuration_action.current = { type: "retry" };
         set_radio_retry_result(null);
-        send_message_to_radio({ action: "RetryRadio" });
+        if (send_message_to_radio({ action: "RetryRadio" })) {
+            start_refresh_blocker("retry");
+        }
     }
 
     const radio_configuration_support =

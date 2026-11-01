@@ -10,6 +10,8 @@ const websocket = vi.hoisted(() => ({
     transport: "unified",
     handlers: new Map(),
     send: vi.fn(),
+    start_blocker: vi.fn(),
+    finish_blocker: vi.fn(),
     subscribe: vi.fn((type, handler) => {
         websocket.handlers.set(type, handler);
         return () => websocket.handlers.delete(type);
@@ -18,6 +20,13 @@ const websocket = vi.hoisted(() => ({
 
 vi.mock("@/hooks/useSettings", () => ({
     useSettings: () => ({ settings: { callsign: "N0CALL" } }),
+}));
+
+vi.mock("@/hooks/useUiRefresh.jsx", () => ({
+    useUiRefreshGraceBlocker: () => ({
+        start: websocket.start_blocker,
+        finish: websocket.finish_blocker,
+    }),
 }));
 
 vi.mock("@/hooks/useWs", () => ({
@@ -56,6 +65,9 @@ describe("radio configuration", () => {
         websocket.transport = "unified";
         websocket.handlers.clear();
         websocket.send.mockClear();
+        websocket.send.mockReturnValue(true);
+        websocket.start_blocker.mockClear();
+        websocket.finish_blocker.mockClear();
         toast.warn.mockClear();
         toast.dismiss.mockClear();
         Consumer.radio = null;
@@ -88,12 +100,14 @@ describe("radio configuration", () => {
             action: "SetRadioConfiguration",
             configuration: config,
         });
+        expect(websocket.start_blocker).toHaveBeenCalledWith("configuration");
 
         emit({ event: "radio_models", models: [{ id: "hamlib:2", model: "Dummy" }] });
         emit({ event: "radio_model", model_id: "hamlib:1", descriptors: [{ token: "stale" }] });
         expect(Consumer.radio.radio_model_detail).toBeNull();
         emit({ event: "radio_model", model_id: "hamlib:2", descriptors: [{ token: "path" }] });
         emit({ event: "configuration_result", ok: true });
+        expect(websocket.finish_blocker).toHaveBeenCalledWith("configuration");
 
         expect(Consumer.radio.radio_models).toEqual([{ id: "hamlib:2", model: "Dummy" }]);
         expect(Consumer.radio.radio_model_detail).toEqual([{ token: "path" }]);
@@ -117,6 +131,7 @@ describe("radio configuration", () => {
             </RadioProvider>,
         );
         await expect(promise).resolves.toMatchObject({ ok: false, failure: "connection" });
+        expect(websocket.finish_blocker).not.toHaveBeenCalled();
         expect(Consumer.radio.radio_configuration_result.ok).toBe(false);
         emit({ event: "configuration_result", ok: true });
         expect(Consumer.radio.radio_configuration).toBeNull();
@@ -173,6 +188,19 @@ describe("radio configuration", () => {
         emit({ event: "configuration_result", ok: true });
         await expect(first).resolves.toMatchObject({ ok: true });
         expect(Consumer.radio.radio_configuration.rig).toBeNull();
+    });
+
+    it("blocks connection tests and retries until their results", () => {
+        render_radio();
+        act(() => Consumer.radio.test_radio_connection({ rig: null }));
+        expect(websocket.start_blocker).toHaveBeenLastCalledWith("connection");
+        emit({ event: "radio_connection_result", ok: true });
+        expect(websocket.finish_blocker).toHaveBeenLastCalledWith("connection");
+
+        act(() => Consumer.radio.retry_radio());
+        expect(websocket.start_blocker).toHaveBeenLastCalledWith("retry");
+        emit({ event: "retry", ok: true });
+        expect(websocket.finish_blocker).toHaveBeenLastCalledWith("retry");
     });
 
     it("does not send a save while disconnected", async () => {
