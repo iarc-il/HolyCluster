@@ -176,6 +176,32 @@ testWithBrowserErrors(
 );
 
 testWithBrowserErrors(
+    "reports bounded DXCC predicate evidence through the production SDK",
+    [/^(?:console: InternalError: |pageerror: )too much recursion(?:\n|$)/],
+    async ({ page }) => {
+        const event = await capture(page, "dxcc_predicate");
+        expect(event.contexts.diagnostic).toMatchObject({
+            dxcc_failure_field: "spotter_dxcc_code",
+            dxcc_failure_predicate: "canada",
+            dxcc_input_type: "number",
+            dxcc_input_length: null,
+            capture_path: "global_error",
+        });
+        expect(event.exception.values).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    type: "InternalError",
+                    value: "too much recursion",
+                }),
+            ]),
+        );
+        const serialized = JSON.stringify(event);
+        expect(serialized).not.toContain("PRIVATE-CALLSIGN");
+        expect(serialized.length).toBeLessThan(16000);
+    },
+);
+
+testWithBrowserErrors(
     "preserves complete boundary cause chains",
     [/^console: TypeError: diagnostic boundary failure(?:\n|$)/],
     async ({ page }) => {

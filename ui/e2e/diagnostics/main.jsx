@@ -1,4 +1,5 @@
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
+import { enrich_spot_zones_if_missing } from "@/hooks/useSpotWebSocket.js";
 import { WsProvider, useWsMessage } from "@/hooks/useWs";
 import { initializeSentry } from "@/sentry";
 import { create_interval_db } from "@/utils/interval_cache.js";
@@ -57,6 +58,17 @@ function DomMutationFailingComponent() {
     );
 }
 
+function DxccFailingComponent() {
+    enrich_spot_zones_if_missing({
+        dx_state: "NY",
+        spotter_state: null,
+        spotter_dxcc_code: 1,
+        spotter_loc: [-75, 40],
+        spotter_callsign: "PRIVATE-CALLSIGN",
+    });
+    return null;
+}
+
 function FailingSubscriber() {
     useWsMessage("radio", message => {
         if (message.event === "diagnostic_failure") return message.missing.secret;
@@ -66,6 +78,25 @@ function FailingSubscriber() {
 }
 
 window.run_diagnostic = async scenario => {
+    if (scenario === "dxcc_predicate") {
+        const native_test = RegExp.prototype.test;
+        let calls = 0;
+        RegExp.prototype.test = function (value) {
+            if (this.source === "^\\d{1,3}$" && ++calls === 2) {
+                RegExp.prototype.test = native_test;
+                const error = new Error("too much recursion");
+                error.name = "InternalError";
+                throw error;
+            }
+            return native_test.call(this, value);
+        };
+        createRoot(document.getElementById("root")).render(
+            <RouteErrorBoundary>
+                <DxccFailingComponent />
+            </RouteErrorBoundary>,
+        );
+        return;
+    }
     if (scenario === "dom_mutation") {
         createRoot(document.getElementById("root")).render(
             <RouteErrorBoundary>

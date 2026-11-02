@@ -1,5 +1,6 @@
 import { is_canada_dxcc_code, is_us_state_dxcc_code } from "@/data/dxcc_entities.js";
 import { continents, modes } from "@/data/filters_data.js";
+import { annotateDiagnosticError } from "@/sentry.js";
 import { read_live_spot_snapshot, write_live_spot_snapshot } from "@/utils/live_spot_snapshot.js";
 import { normalize_spot_dxcc_fields } from "@/utils/spot_dxcc.js";
 import { find_zone_number } from "@/utils/zones.js";
@@ -50,20 +51,52 @@ export function enrich_spot_zones_if_missing(spot) {
         updates.spotter_itu_zone = find_zone_number("itu", spot.spotter_loc);
     }
 
-    if (!has_valid_enriched_value(spot.dx_state)) {
-        if (is_us_state_dxcc_code(spot.dx_dxcc_code)) {
-            updates.dx_state = find_zone_number("us_state", spot.dx_loc);
-        } else if (is_canada_dxcc_code(spot.dx_dxcc_code)) {
-            updates.dx_state = find_zone_number("ca_province", spot.dx_loc);
+    let failure = null;
+    try {
+        if (!has_valid_enriched_value(spot.dx_state)) {
+            const value = spot.dx_dxcc_code;
+            failure = { field: "dx_dxcc_code", predicate: "us_state", value };
+            const is_us = is_us_state_dxcc_code(value);
+            failure = null;
+            if (is_us) {
+                updates.dx_state = find_zone_number("us_state", spot.dx_loc);
+            } else {
+                failure = { field: "dx_dxcc_code", predicate: "canada", value };
+                const is_canada = is_canada_dxcc_code(value);
+                failure = null;
+                if (is_canada) updates.dx_state = find_zone_number("ca_province", spot.dx_loc);
+            }
         }
-    }
 
-    if (!has_valid_enriched_value(spot.spotter_state)) {
-        if (is_us_state_dxcc_code(spot.spotter_dxcc_code)) {
-            updates.spotter_state = find_zone_number("us_state", spot.spotter_loc);
-        } else if (is_canada_dxcc_code(spot.spotter_dxcc_code)) {
-            updates.spotter_state = find_zone_number("ca_province", spot.spotter_loc);
+        if (!has_valid_enriched_value(spot.spotter_state)) {
+            const value = spot.spotter_dxcc_code;
+            failure = { field: "spotter_dxcc_code", predicate: "us_state", value };
+            const is_us = is_us_state_dxcc_code(value);
+            failure = null;
+            if (is_us) {
+                updates.spotter_state = find_zone_number("us_state", spot.spotter_loc);
+            } else {
+                failure = { field: "spotter_dxcc_code", predicate: "canada", value };
+                const is_canada = is_canada_dxcc_code(value);
+                failure = null;
+                if (is_canada) {
+                    updates.spotter_state = find_zone_number("ca_province", spot.spotter_loc);
+                }
+            }
         }
+    } catch (error) {
+        if (failure) {
+            try {
+                annotateDiagnosticError(error, {
+                    dxcc_failure_field: failure.field,
+                    dxcc_failure_predicate: failure.predicate,
+                    dxcc_input_type: failure.value === null ? "null" : typeof failure.value,
+                    dxcc_input_length:
+                        typeof failure.value === "string" ? failure.value.length : null,
+                });
+            } catch {}
+        }
+        throw error;
     }
 
     return Object.keys(updates).length > 0 ? { ...spot, ...updates } : spot;
