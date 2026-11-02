@@ -18,6 +18,34 @@ const NAVIGATION_MARKER = "holycluster_ui_navigation";
 const LAST_AUTO_TARGET = "holycluster_ui_last_auto_target";
 const UiRefreshContext = createContext(null);
 
+function is_module_load_failure(error) {
+    const message = error?.message;
+    if (
+        typeof message === "string" &&
+        /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(
+            message,
+        )
+    )
+        return true;
+    if (error?.name !== "SyntaxError" || message !== "Unexpected end of script") return false;
+    if (typeof error.sourceURL !== "string") return false;
+
+    try {
+        const source = new URL(error.sourceURL);
+        return (
+            source.href === error.sourceURL &&
+            source.origin === window.location.origin &&
+            !source.username &&
+            !source.password &&
+            !source.search &&
+            !source.hash &&
+            /^\/assets\/[A-Za-z0-9_-]{1,128}\.js$/.test(source.pathname)
+        );
+    } catch {
+        return false;
+    }
+}
+
 function reload_page() {
     window.location.reload();
 }
@@ -224,14 +252,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
 
     useLayoutEffect(() => {
         function recover(event) {
-            const message = event.payload?.message;
-            if (
-                typeof message !== "string" ||
-                !/Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(
-                    message,
-                )
-            )
-                return;
+            if (!is_module_load_failure(event.payload)) return;
             event.preventDefault();
             const error = event.payload;
             captureException(error);

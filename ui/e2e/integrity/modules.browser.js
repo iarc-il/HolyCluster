@@ -139,6 +139,55 @@ testWithBrowserErrors(
     },
 );
 
+testWithBrowserErrors(
+    "recovers a truncated lazy module reported by WebKit",
+    [
+        /^console: SyntaxError: Unexpected end of script(?:\n|$)/,
+        /^console: TypeError: (?:Cannot read properties of undefined \(reading 'default'\)|can't access property "default", .+ is undefined|undefined is not an object \(evaluating '.+\._result\.default'\))(?:\n|$)/,
+    ],
+    async ({ page, browserName }) => {
+        test.skip(browserName !== "webkit", "WebKit reports the production error signature");
+        let documents = 0;
+        let probes = 0;
+        let finish_startup_probe;
+        const startup_probe = new Promise(resolve => {
+            finish_startup_probe = resolve;
+        });
+        const obsolete_metadata = stale_html.replace(
+            /(<script type="module"[^>]*src=")[^"]+/,
+            `$1${entry}`,
+        );
+        await page.route("**/assets/Addons-*.js", async route => {
+            await startup_probe;
+            await route.fulfill({
+                contentType: "application/javascript",
+                body: "export const incomplete = {",
+            });
+        });
+        await page.route("**/addons", async route => {
+            const document = route.request().resourceType() === "document";
+            if (document) documents++;
+            else probes++;
+            await route.fulfill({
+                contentType: "text/html",
+                body: document
+                    ? documents === 1
+                        ? obsolete_metadata
+                        : html
+                    : probes === 1
+                      ? obsolete_metadata
+                      : html,
+            });
+            if (!document && probes === 1) finish_startup_probe();
+        });
+
+        await page.goto("/addons");
+        await expect(page.getByRole("button", { name: "Reload now" })).toBeVisible();
+        expect(documents).toBe(1);
+        expect(probes).toBeGreaterThanOrEqual(2);
+    },
+);
+
 test("runs release-note JSX in the production module graph", async ({ page }) => {
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));

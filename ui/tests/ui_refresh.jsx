@@ -35,9 +35,14 @@ function GraceBlocker() {
     return null;
 }
 
-function preload_error(message = "Importing a module script failed.") {
+function preload_error(
+    message = "Importing a module script failed.",
+    { name = "TypeError", source_url } = {},
+) {
     const event = new Event("vite:preloadError", { cancelable: true });
-    event.payload = new TypeError(message);
+    event.payload = new Error(message);
+    event.payload.name = name;
+    if (source_url) event.payload.sourceURL = source_url;
     return event;
 }
 
@@ -135,6 +140,47 @@ it("suppresses and immediately recovers a confirmed stale module while hidden", 
     expect(diagnostics.capture).toHaveBeenCalledWith(error.payload);
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("recovers a truncated same-origin module reported by WebKit", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    detection.check.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    const error = preload_error("Unexpected end of script", {
+        name: "SyntaxError",
+        source_url: `${window.location.origin}/assets/dxcc-0-79NMQeoG.js`,
+    });
+    expect(window.dispatchEvent(error)).toBe(false);
+    expect(error.defaultPrevented).toBe(true);
+    expect(diagnostics.capture).toHaveBeenCalledWith(error.payload);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("does not suppress unrelated WebKit syntax errors", async () => {
+    detection.check.mockResolvedValue(null);
+    render_provider();
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    for (const source_url of [
+        undefined,
+        "https://external.invalid/assets/dxcc-0-79NMQeoG.js",
+        `${window.location.origin}/assets/dxcc-0-79NMQeoG.js?partial=1`,
+    ]) {
+        const error = preload_error("Unexpected end of script", {
+            name: "SyntaxError",
+            source_url,
+        });
+        expect(window.dispatchEvent(error)).toBe(true);
+        expect(error.defaultPrevented).toBe(false);
+    }
+    expect(diagnostics.capture).not.toHaveBeenCalled();
 });
 
 it("waits for inactivity before recovering a stale module on an active page", async () => {
