@@ -135,7 +135,6 @@ export default defineConfig(({ mode }) => ({
                         return "vendor";
                     }
                     if (
-                        id.includes("/src/hooks/") ||
                         id.includes("/src/data/") ||
                         id.includes("/src/utils/") ||
                         id.endsWith("/src/utils.js")
