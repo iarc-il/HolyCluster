@@ -82,7 +82,6 @@ docs/*.pdf
 
 # Matt Pocock engineering skills (installed per-repo, not source)
 .claude/skills/
-.agents/skills/
 skills-lock.json
 
 # Matt Pocock working trail (local only)
