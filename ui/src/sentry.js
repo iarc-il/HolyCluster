@@ -109,14 +109,15 @@ export function recordBoundaryDiagnostics(scope, value, component_stack) {
 }
 
 function errorCategory(message, name) {
-    if (dom_errors.has(name)) return name;
-    if (typeof message !== "string") return "unknown";
     if (
+        typeof message === "string" &&
         /Failed to execute '(insertBefore|appendChild|removeChild)'|not a child of this node/.test(
             message,
         )
     )
         return "dom_tree_mutation";
+    if (dom_errors.has(name)) return name;
+    if (typeof message !== "string") return "unknown";
     if (
         /dynamically imported module|Loading (chunk|CSS chunk)|^Importing a module script failed\.$/.test(
             message,
@@ -126,6 +127,21 @@ function errorCategory(message, name) {
     if (/fullscreen/i.test(message)) return "fullscreen";
     if (/^Minified React error #\d+;/.test(message)) return "react_invariant";
     return "unknown";
+}
+
+function documentTranslationClass() {
+    try {
+        const classes = globalThis.document?.documentElement?.classList;
+        if (!classes) return "unavailable";
+        const ltr = classes.contains("translated-ltr");
+        const rtl = classes.contains("translated-rtl");
+        if (ltr && rtl) return "both";
+        if (ltr) return "ltr";
+        if (rtl) return "rtl";
+        return "absent";
+    } catch {
+        return "unavailable";
+    }
 }
 
 function sourceClass(filename) {
@@ -493,6 +509,9 @@ export function prepareSentryEvent(event, hint = {}) {
         return null;
     const native_name = original?.name ?? primary?.type;
     if (dom_errors.has(native_name)) diagnostic.native_name = native_name;
+    if (diagnostic.category === "dom_tree_mutation") {
+        diagnostic.document_translation_class = documentTranslationClass();
+    }
     if (
         !prepared_event.fingerprint &&
         ["react_boundary", "unhandled_rejection", "global_error"].includes(capture_path)

@@ -29,7 +29,10 @@ function privateFree(event) {
 }
 
 describe("error-local diagnostics", () => {
-    afterEach(() => vi.restoreAllMocks());
+    afterEach(() => {
+        document.documentElement.classList.remove("translated-ltr", "translated-rtl");
+        vi.restoreAllMocks();
+    });
 
     it("keeps a boundary marker and underlying stack with production-minified components", () => {
         const error = new TypeError("private K1ABC secret");
@@ -188,6 +191,28 @@ describe("error-local diagnostics", () => {
         expect(scheduler.exception.values[0].stacktrace.frames[0].lineno).toBe(12);
         expect(scheduler.contexts.diagnostic.category).toBe("unknown");
         for (const event of [insertion, fullscreen, scheduler]) privateFree(event);
+    });
+
+    it("records the document translation class for DOM tree mutation failures", () => {
+        document.documentElement.classList.add("translated-ltr");
+        const mutation = report(
+            new DOMException(
+                "Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.",
+                "NotFoundError",
+            ),
+        );
+        expect(mutation.contexts.diagnostic).toMatchObject({
+            category: "dom_tree_mutation",
+            native_name: "NotFoundError",
+            document_translation_class: "ltr",
+        });
+        expect(["ltr", "rtl", "both", "absent", "unavailable"]).toContain(
+            mutation.contexts.diagnostic.document_translation_class,
+        );
+
+        const unrelated = report(new DOMException("Missing record", "NotFoundError"));
+        expect(unrelated.contexts.diagnostic.category).toBe("NotFoundError");
+        expect(unrelated.contexts.diagnostic).not.toHaveProperty("document_translation_class");
     });
 
     it("extracts only a bounded React invariant code, never its URL or arguments", () => {

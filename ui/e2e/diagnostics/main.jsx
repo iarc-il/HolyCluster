@@ -31,6 +31,32 @@ function CauseFailingComponent() {
     throw new TypeError("diagnostic boundary failure", { cause });
 }
 
+function DomMutationFailingComponent() {
+    const [translated, set_translated] = React.useState(false);
+
+    React.useEffect(() => {
+        document.documentElement.classList.add("translated-ltr");
+        const parent = document.querySelector("[data-diagnostic-dom-mutation]");
+        const text = parent.firstChild;
+        const outer = document.createElement("font");
+        const inner = document.createElement("font");
+        outer.style.verticalAlign = "inherit";
+        inner.style.verticalAlign = "inherit";
+        inner.textContent = "translated";
+        outer.append(inner);
+        parent.insertBefore(outer, text);
+        parent.removeChild(text);
+        set_translated(true);
+    }, []);
+
+    return (
+        <div data-diagnostic-dom-mutation>
+            {translated && "selected"}
+            {!translated && "unselected"}
+        </div>
+    );
+}
+
 function FailingSubscriber() {
     useWsMessage("radio", message => {
         if (message.event === "diagnostic_failure") return message.missing.secret;
@@ -40,6 +66,14 @@ function FailingSubscriber() {
 }
 
 window.run_diagnostic = async scenario => {
+    if (scenario === "dom_mutation") {
+        createRoot(document.getElementById("root")).render(
+            <RouteErrorBoundary>
+                <DomMutationFailingComponent />
+            </RouteErrorBoundary>,
+        );
+        return;
+    }
     if (["websocket", "websocket_update"].includes(scenario)) {
         createRoot(document.getElementById("root")).render(
             <RouteErrorBoundary>

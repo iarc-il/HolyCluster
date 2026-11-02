@@ -156,6 +156,26 @@ testWithBrowserErrors(
 );
 
 testWithBrowserErrors(
+    "reports translation state for a detached React text node",
+    [
+        /^console: NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node\.(?:\n|$)/,
+    ],
+    async ({ page }) => {
+        const event = await capture(page, "dom_mutation");
+        expect(event.contexts.diagnostic).toMatchObject({
+            category: "dom_tree_mutation",
+            native_name: "NotFoundError",
+            document_translation_class: "ltr",
+        });
+        expect(["ltr", "rtl", "both", "absent", "unavailable"]).toContain(
+            event.contexts.diagnostic.document_translation_class,
+        );
+        expect(JSON.stringify(event.contexts.diagnostic)).not.toContain("translated");
+        await expect(page.getByRole("alert")).toBeVisible();
+    },
+);
+
+testWithBrowserErrors(
     "preserves complete boundary cause chains",
     [/^console: TypeError: diagnostic boundary failure(?:\n|$)/],
     async ({ page }) => {
