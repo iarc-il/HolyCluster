@@ -3,6 +3,7 @@ use winsafe::prelude::oleaut_IDispatch;
 use winsafe::{CLSIDFromProgID, CoInitializeEx, IDispatch, co};
 
 use crate::freq::Freq;
+use crate::omnirig_frequency::{has_readable_frequency, select_write_property};
 use crate::radio_config::OmniRigSlot;
 use crate::rig::{
     Mode, Radio, RadioBackendContext, RadioInitError, RadioOperationError, Slot, Status,
@@ -97,6 +98,46 @@ fn init_error(message: impl Into<String>, context: RadioBackendContext) -> Radio
     }
 }
 
+fn read_i32_property(
+    rig: &IDispatch,
+    rig_number: u8,
+    property: &'static str,
+    operation: &'static str,
+) -> Result<i32, RadioOperationError> {
+    match rig.invoke_get(property, &[]) {
+        Ok(winsafe::Variant::I4(value)) => Ok(value),
+        Ok(_) => Err(RadioOperationError::new(
+            rig_number,
+            operation,
+            format!("{property} did not return an integer"),
+        )
+        .with_backend_context(context("invoke_get", Some(property), true))),
+        Err(error) => Err(
+            RadioOperationError::new(rig_number, operation, error.to_string())
+                .with_backend_context(native_context(
+                    context("invoke_get", Some(property), true),
+                    error.as_ref(),
+                )),
+        ),
+    }
+}
+
+fn read_capability_mask(
+    rig: &IDispatch,
+    rig_number: u8,
+    property: &'static str,
+) -> Result<u32, RadioOperationError> {
+    let value = read_i32_property(rig, rig_number, property, "read capabilities")?;
+    u32::try_from(value).map_err(|_| {
+        RadioOperationError::new(
+            rig_number,
+            "read capabilities",
+            format!("{property} returned a negative mask"),
+        )
+        .with_backend_context(context("invoke_get", Some(property), true))
+    })
+}
+
 impl Radio for OmnirigRadio {
     fn init(&mut self) -> Result<(), RadioInitError> {
         let com_guard = if let Some(inner) = std::mem::take(&mut self.inner) {
@@ -167,28 +208,39 @@ impl Radio for OmnirigRadio {
             })
     }
 
-    fn set_frequency(&mut self, vfo: Slot, freq: Freq) -> Result<(), RadioOperationError> {
-        let vfo = match vfo {
-            Slot::A => "FreqA",
-            Slot::B => "FreqB",
-        };
-        let mut context = context("invoke_put", Some(vfo), self.inner.is_some());
+    fn set_frequency(&mut self, slot: Slot, freq: Freq) -> Result<(), RadioOperationError> {
         let freq = freq.as_u32_hz();
-        context.resolved_frequency_hz = Some(freq);
         let Some(rig) = self.current_rig() else {
+            let mut backend_context = context("resolve_frequency_property", None, false);
+            backend_context.resolved_frequency_hz = Some(freq);
             return Err(RadioOperationError::new(
                 self.rig_number(),
                 "set frequency",
                 "OmniRig unavailable",
             )
-            .with_backend_context(context));
+            .with_backend_context(backend_context));
         };
-        rig.invoke_put(vfo, &winsafe::Variant::I4(freq as i32))
+        let writable = read_capability_mask(&rig, self.rig_number(), "WriteableParams")?;
+        let Some(property) = select_write_property(slot, writable) else {
+            let mut backend_context =
+                context("resolve_frequency_property", Some("WriteableParams"), true);
+            backend_context.resolved_frequency_hz = Some(freq);
+            return Err(RadioOperationError::new(
+                self.rig_number(),
+                "set frequency",
+                "OmniRig does not expose a writable frequency for the requested slot",
+            )
+            .with_backend_context(backend_context));
+        };
+        let property = property.name();
+        let mut backend_context = context("invoke_put", Some(property), true);
+        backend_context.resolved_frequency_hz = Some(freq);
+        rig.invoke_put(property, &winsafe::Variant::I4(freq as i32))
             .map(|_| ())
             .map_err(|error| {
                 self.inner = None;
                 RadioOperationError::new(self.rig_number(), "set frequency", error.to_string())
-                    .with_backend_context(native_context(context, error.as_ref()))
+                    .with_backend_context(native_context(backend_context, error.as_ref()))
             })
     }
 
@@ -199,30 +251,7 @@ impl Radio for OmnirigRadio {
                 "read status",
                 "OmniRig unavailable",
             )
-            .with_backend_context(context("invoke_get", Some("FreqA"), false)));
-        };
-
-        let freq = match rig.invoke_get("FreqA", &[]) {
-            Ok(winsafe::Variant::I4(freq)) => Freq::from_i32_hz(freq),
-            Ok(_) => {
-                return Err(RadioOperationError::new(
-                    self.rig_number(),
-                    "read frequency",
-                    "FreqA did not return an integer",
-                )
-                .with_backend_context(context("invoke_get", Some("FreqA"), true)));
-            }
-            Err(error) => {
-                return Err(RadioOperationError::new(
-                    self.rig_number(),
-                    "read frequency",
-                    error.to_string(),
-                )
-                .with_backend_context(native_context(
-                    context("invoke_get", Some("FreqA"), true),
-                    error.as_ref(),
-                )));
-            }
+            .with_backend_context(context("invoke_get", Some("StatusStr"), false)));
         };
 
         let status_str = match rig.invoke_get("StatusStr", &[]) {
@@ -258,6 +287,58 @@ impl Radio for OmnirigRadio {
                     .with_backend_context(context("invoke_get", Some("StatusStr"), true)),
             );
         }
+
+        let readable = read_capability_mask(&rig, self.rig_number(), "ReadableParams")?;
+        if !has_readable_frequency(readable) {
+            return Err(RadioOperationError::new(
+                self.rig_number(),
+                "read frequency",
+                "OmniRig does not expose a readable frequency",
+            )
+            .with_backend_context(context(
+                "resolve_frequency_method",
+                Some("ReadableParams"),
+                true,
+            )));
+        }
+        let freq = match rig.invoke_method("GetRxFrequency", &[]) {
+            Ok(winsafe::Variant::I4(freq)) if freq > 0 => Freq::from_i32_hz(freq),
+            Ok(winsafe::Variant::I4(freq)) => {
+                return Err(RadioOperationError::new(
+                    self.rig_number(),
+                    "read frequency",
+                    format!("GetRxFrequency returned invalid frequency {freq}"),
+                )
+                .with_backend_context(context(
+                    "invoke_method",
+                    Some("GetRxFrequency"),
+                    true,
+                )));
+            }
+            Ok(_) => {
+                return Err(RadioOperationError::new(
+                    self.rig_number(),
+                    "read frequency",
+                    "GetRxFrequency did not return an integer",
+                )
+                .with_backend_context(context(
+                    "invoke_method",
+                    Some("GetRxFrequency"),
+                    true,
+                )));
+            }
+            Err(error) => {
+                return Err(RadioOperationError::new(
+                    self.rig_number(),
+                    "read frequency",
+                    error.to_string(),
+                )
+                .with_backend_context(native_context(
+                    context("invoke_method", Some("GetRxFrequency"), true),
+                    error.as_ref(),
+                )));
+            }
+        };
 
         let mode = match rig.invoke_get("Mode", &[]) {
             Ok(winsafe::Variant::I4(mode)) => match mode {
