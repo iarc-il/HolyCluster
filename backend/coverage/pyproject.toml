@@ -5,6 +5,8 @@ requires-python = ">=3.13"
 description = "Pairwise spot coverage comparison"
 dependencies = [
     "shared",
+    "asyncpg>=0.31.0",
+    "sqlalchemy[asyncio]>=2.0.44",
     "redis>=7.1.0",
     "prometheus-client>=0.21.1",
     "loguru>=0.7.3",
