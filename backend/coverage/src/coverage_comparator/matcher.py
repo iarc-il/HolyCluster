@@ -17,6 +17,8 @@ def empty_state() -> dict:
         "version": 1,
         "feeds": {s: {"up": False, "generation": 0, "since": 0, "success": None, "spot": None} for s in SOURCES},
         "windows": {},
+        "pending_windows": 0,
+        "oldest_deadline": 0,
         "outcomes": {},
         "skipped": {},
         "samples": {},
@@ -57,13 +59,14 @@ class Matcher:
                 return "stale"
         return None
 
-    async def change(self, now: float, mutate: Callable):
+    async def change(self, now: float, mutate: Callable, *, window_key: str | None = None, load_due=False):
         # WATCH keeps stream replay and finalization atomic without a lease expiry race.
         while True:
             async with self.redis.pipeline(transaction=True) as pipe:
                 try:
-                    await pipe.watch("coverage:state")
+                    await pipe.watch("coverage:state", "coverage:windows", "coverage:deadlines")
                     raw = await pipe.get("coverage:state")
+                    reset = raw is None
                     try:
                         state = json.loads(raw) if raw else empty_state()
                         if state["version"] != 1:
@@ -74,11 +77,39 @@ class Matcher:
                     except (ValueError, TypeError, KeyError):
                         logger.error("Coverage state is not recoverable; start a new health generation")
                         state = empty_state()
+                        reset = True
                         for service in SERVICES:
                             increment(state, "skipped", service, "unrecoverable")
+                    keys = set(await pipe.zrangebyscore("coverage:deadlines", "-inf", now, start=0, num=100)) if load_due else set()
+                    if window_key is not None:
+                        keys.add(window_key)
+                    if reset:
+                        keys.clear()
+                    state["windows"] = {}
+                    for key in keys:
+                        value = await pipe.hget("coverage:windows", key)
+                        if value:
+                            state["windows"][key] = json.loads(value)
+                    before = {key: json.dumps(value, allow_nan=False) for key, value in state["windows"].items()}
+                    count = 0 if reset else await pipe.zcard("coverage:deadlines")
+                    state["pending_windows"] = count
+                    oldest = await pipe.zrange("coverage:deadlines", 0, 0, withscores=True)
+                    state["oldest_deadline"] = oldest[0][1] if oldest else now
                     mutate(state)
+                    removed = before.keys() - state["windows"].keys()
+                    state["pending_windows"] = count + len(state["windows"]) - len(before)
                     pipe.multi()
-                    pipe.set("coverage:state", json.dumps(state, allow_nan=False))
+                    if reset:
+                        pipe.delete("coverage:windows", "coverage:deadlines")
+                    if removed:
+                        pipe.hdel("coverage:windows", *removed)
+                        pipe.zrem("coverage:deadlines", *removed)
+                    for key, value in state["windows"].items():
+                        encoded = json.dumps(value, allow_nan=False)
+                        if before.get(key) != encoded:
+                            pipe.hset("coverage:windows", key, encoded)
+                            pipe.zadd("coverage:deadlines", {key: value["deadline"]})
+                    pipe.set("coverage:state", json.dumps({**state, "windows": {}}, allow_nan=False))
                     await pipe.execute()
                     self.metrics.sync(state, now, self.eligibility)
                     return state
@@ -140,6 +171,7 @@ class Matcher:
                     else:
                         increment(state, "skipped", service, "sample_limit")
             del state["windows"][key]
+            state["pending_windows"] -= 1
 
     async def observe(self, source: str, spot: dict, now: float, *, event_id: str | None = None):
         validate_source(source)
@@ -160,7 +192,7 @@ class Matcher:
             self.finish(state, now)
             state["feeds"][source]["spot"] = now
             if key not in state["windows"]:
-                if len(state["windows"]) >= self.max_windows:
+                if state["pending_windows"] >= self.max_windows:
                     for feed in state["feeds"].values():
                         feed["up"] = False
                         feed["generation"] += 1
@@ -179,11 +211,11 @@ class Matcher:
             if source not in state["windows"][key]["sources"]:
                 state["windows"][key]["sources"].append(source)
 
-        await self.change(now, update)
-        await self.flush_samples(now)
+        state = await self.change(now, update, window_key=key, load_due=True)
+        await self.flush_samples(now, state)
 
     async def finalize(self, now: float):
-        state = await self.change(now, lambda state: self.finish(state, now))
+        state = await self.change(now, lambda state: self.finish(state, now), load_due=True)
         await self.flush_samples(now, state)
 
     async def flush_samples(self, now: float, state: dict | None = None):

@@ -52,5 +52,5 @@ class Metrics:
             self.last_spot.labels(source).set(feed["spot"] or 0)
         for service in SERVICES:
             self.eligible.labels(service).set(eligibility(state, service, now) is None)
-        self.pending.set(len(state["windows"]))
-        self.lag.set(max([0, *(now - w["deadline"] for w in state["windows"].values())]))
+        self.pending.set(state["pending_windows"])
+        self.lag.set(max(0, now - state["oldest_deadline"]) if state["pending_windows"] else 0)
