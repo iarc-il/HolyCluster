@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[2]))
 
 from collectors.wwff import clean_wwff_callsign, get_wwff_spot_key, parse_wwff_spot
-from collectors.utils import build_spot_key
+from shared.spot_identity import build_spot_key
 
 
 def test_clean_wwff_callsign_uppercases_and_preserves_portable_prefixes():

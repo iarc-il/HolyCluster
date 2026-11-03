@@ -12,7 +12,7 @@ from collectors.sota import (  # noqa: E402
     parse_sota_points,
     parse_sota_spot,
 )
-from collectors.utils import build_spot_key  # noqa: E402
+from shared.spot_identity import build_spot_key  # noqa: E402
 
 
 def test_clean_sota_callsign_uppercases_and_preserves_portable_suffixes():

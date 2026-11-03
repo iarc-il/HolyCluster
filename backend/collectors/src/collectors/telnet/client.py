@@ -15,7 +15,7 @@ from collectors.db.valkey_config import get_valkey_client
 from collectors.logging_setup import open_task_log_file
 from collectors.metrics import SpotEnvelope, metrics
 from collectors.settings import settings
-from collectors.utils import build_spot_key
+from shared.spot_identity import build_spot_key
 
 DX_CC_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\w+) (\d+Z)\s+(\w+)")
 DX_AR_RE = re.compile(r"^DX de (\S+):\s*(\d+\.\d+)\s+(\S+)\s+(.*?)\s+?(\d+Z)")

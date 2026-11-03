@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[2]))
 
 from collectors.pota import clean_pota_callsign, get_pota_spot_key, parse_pota_spot
-from collectors.utils import build_spot_key
+from shared.spot_identity import build_spot_key
 
 
 def test_clean_pota_callsign_removes_rbn_suffixes():

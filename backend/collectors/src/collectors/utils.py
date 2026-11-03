@@ -5,6 +5,7 @@ from typing import Any
 
 import aiohttp
 from loguru import logger
+from shared.spot_identity import build_spot_key
 from shared.telemetry import capture_exception
 
 from collectors.metrics import JSON_SOURCES, SpotEnvelope, metrics
@@ -27,10 +28,6 @@ def as_text(value: Any) -> str:
     if value is None:
         return ""
     return str(value).strip()
-
-
-def build_spot_key(spot: dict[str, Any]) -> str:
-    return f"{spot['time']}:{spot['dx_callsign']}:{spot['frequency']}:{spot['spotter_callsign']}"
 
 
 async def fetch_json_list(session: aiohttp.ClientSession, url: str, source_label: str) -> list[dict[str, Any]]:
