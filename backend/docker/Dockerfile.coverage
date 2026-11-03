@@ -34,5 +34,3 @@ ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 9102
 
 CMD ["coverage-comparator"]
-
-
