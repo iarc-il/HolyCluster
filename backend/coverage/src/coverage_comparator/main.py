@@ -55,7 +55,7 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...] = (), sink: Samp
                     redis, metrics, sink or DisabledSampleSink(),
                     max_windows=settings.coverage_max_windows, max_samples=settings.coverage_max_samples,
                     sample_max_bytes=settings.coverage_sample_max_bytes,
-                    stale_after=settings.coverage_stale_after_seconds,
+                    stale_after=settings.coverage_stale_after_seconds, services=tuple(settings.coverage_services),
                 )
                 await matcher.restart(time.time())
                 if sink is None:

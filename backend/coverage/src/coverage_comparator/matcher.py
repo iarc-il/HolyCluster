@@ -39,6 +39,7 @@ class Matcher:
     def __init__(
         self, redis, metrics: Metrics, sink: SampleSink, *, max_windows: int = 10000,
         max_samples: int = 1000, sample_max_bytes: int = 4096, stale_after: float = 120,
+        services: tuple[str, ...] = SERVICES,
     ):
         self.redis = redis
         self.metrics = metrics
@@ -47,6 +48,9 @@ class Matcher:
         self.max_samples = max_samples
         self.sample_max_bytes = sample_max_bytes
         self.stale_after = stale_after
+        if len(set(services)) != len(services) or any(service not in SERVICES for service in services):
+            raise ValueError("Unknown or repeated coverage service")
+        self.services = services
 
     def eligibility(self, state: dict, service: str, now: float) -> str | None:
         for source in ("holy", service):
@@ -78,7 +82,7 @@ class Matcher:
                         logger.error("Coverage state is not recoverable; start a new health generation")
                         state = empty_state()
                         reset = True
-                        for service in SERVICES:
+                        for service in self.services:
                             increment(state, "skipped", service, "unrecoverable")
                     keys = set(await pipe.zrangebyscore("coverage:deadlines", "-inf", now, start=0, num=100)) if load_due else set()
                     if window_key is not None:
@@ -148,12 +152,15 @@ class Matcher:
         for key, window in list(state["windows"].items()):
             if now < window["deadline"]:
                 continue
-            for service in SERVICES:
+            for service in self.services:
                 holy = "holy" in window["sources"]
                 other = service in window["sources"]
                 if not holy and not other:
                     continue
-                pair = window["pairs"][service]
+                pair = window["pairs"].get(service)
+                if pair is None:
+                    increment(state, "skipped", service, "warmup")
+                    continue
                 generations = [state["feeds"][s]["generation"] for s in ("holy", service)]
                 reason = pair["reason"] or self.eligibility(state, service, now)
                 if generations != pair["generations"]:
@@ -197,7 +204,7 @@ class Matcher:
                         feed["up"] = False
                         feed["reason"] = "capacity"
                         feed["generation"] += 1
-                    for service in SERVICES if source == "holy" else (source,):
+                    for service in self.services if source == "holy" else (source,):
                         increment(state, "skipped", service, "capacity")
                     return
                 state["windows"][key] = {
@@ -206,7 +213,7 @@ class Matcher:
                         service: {
                             "generations": [state["feeds"][s]["generation"] for s in ("holy", service)],
                             "reason": self.eligibility(state, service, now),
-                        } for service in SERVICES
+                        } for service in self.services
                     },
                 }
             if source not in state["windows"][key]["sources"]:

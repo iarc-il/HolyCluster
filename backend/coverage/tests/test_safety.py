@@ -85,6 +85,15 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.registry.get_sample_value(
             "holycluster_coverage_outcomes_total", {"service": "dxsummit", "result": "holy_only"}), 105)
 
+    async def test_disabled_services_emit_no_classifications_or_skips(self):
+        matcher = Matcher(self.redis, self.matcher.metrics, self.sink, services=("dxsummit",))
+        await matcher.observe("holy", SPOT, 60)
+        await matcher.finalize(120)
+        self.assertEqual(self.registry.get_sample_value(
+            "holycluster_coverage_outcomes_total", {"service": "dxsummit", "result": "holy_only"}), 1)
+        self.assertEqual(self.registry.get_sample_value(
+            "holycluster_coverage_skipped_total", {"service": "dxheat", "reason": "feed_down"}), 0)
+
     async def test_pending_sample_limit_does_not_change_classification(self):
         matcher = Matcher(self.redis, self.matcher.metrics, self.sink, max_samples=0)
         await matcher.observe("holy", SPOT, 60)
