@@ -1,9 +1,4 @@
-"""Poll DXHeat's public JSON UI feed; there is no verified recovery cursor.
-
-The verified ``?a=2`` response is a two-spot window. A full window is treated
-conservatively as truncated, not as evidence of complete coverage. Callers may
-supply a different limit only when the upstream window contract is known.
-"""
+"""Poll DXHeat's public rolling JSON UI feed."""
 
 import math
 import re
@@ -20,7 +15,7 @@ USER_AGENT = "HolyCluster coverage comparator (https://holycluster.iarc.org/)"
 
 class DXHeatAdapter:
     service = "dxheat"
-    poll_interval = 5.0
+    poll_interval = 10.0
 
     def __init__(
         self,
@@ -28,7 +23,7 @@ class DXHeatAdapter:
         session: aiohttp.ClientSession | None = None,
         base_url: str = "https://dxheat.com",
         clock: Callable[[], float] = time.time,
-        snapshot_limit: int = 2,
+        snapshot_limit: int = 200,
         stale_after: float = 300,
         request_timeout: float = 15,
     ):
@@ -36,7 +31,7 @@ class DXHeatAdapter:
             raise ValueError("DXHeat limits and timeouts must be positive")
         self._session = session
         self._owns_session = session is None
-        self._url = base_url.rstrip("/") + "/source/spots/?a=2"
+        self._url = base_url.rstrip("/") + f"/source/spots/?a={snapshot_limit}"
         self._clock = clock
         self._limit = snapshot_limit
         self._stale_after = stale_after
@@ -112,16 +107,15 @@ class DXHeatAdapter:
         now = self._clock()
         if not isinstance(payload, list) or not payload:
             return Snapshot([], recoverable=False)
-        saturated = len(payload) >= self._limit
         if len(payload) > self._limit:
             return Snapshot([], saturated=True, recoverable=False)
         try:
             records = [self._parse(record, now) for record in payload]
         except (KeyError, TypeError, ValueError, OverflowError):
-            return Snapshot([], saturated=saturated, recoverable=False)
+            return Snapshot([], recoverable=False)
         ids = sorted(record[0] for record in records)
         if len(set(ids)) != len(ids):
-            return Snapshot([], saturated=saturated, recoverable=False)
+            return Snapshot([], recoverable=False)
         latest = max(record[1] for record in records)
         stale = now - latest > self._stale_after or latest > now + 120
         previous = self._watermark
@@ -129,13 +123,14 @@ class DXHeatAdapter:
         # An older cached window is indistinguishable from a reset until the
         # lower IDs have newer timestamps. Do not rewind and re-emit old IDs.
         if reset and self._latest_timestamp is not None and latest <= self._latest_timestamp:
-            return Snapshot([], saturated=saturated, recoverable=False)
+            return Snapshot([], recoverable=False)
         self._watermark = ids[-1]
         self._latest_timestamp = latest
         # Restart/regression or a missing Nr cannot be backfilled by this API.
         new_ids = [nr for nr in ids if previous is not None and nr > previous]
         gap = bool(new_ids) and (new_ids[0] != previous + 1 or new_ids[-1] - new_ids[0] + 1 != len(new_ids))
-        if saturated or stale or reset or gap:
+        saturated = previous is not None and len(payload) == self._limit and gap
+        if stale or reset or gap:
             return Snapshot([], saturated=saturated, recoverable=False)
         if previous is None:
             return Snapshot([])

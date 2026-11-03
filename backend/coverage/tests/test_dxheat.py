@@ -84,7 +84,7 @@ class DXHeatTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual((await feed.poll()).spots, [])
         url, options = session.requests[0]
-        self.assertEqual(url, "https://example.test/source/spots/?a=2")
+        self.assertEqual(url, "https://example.test/source/spots/?a=10")
         self.assertIn("HolyCluster", options["headers"]["User-Agent"])
         self.assertEqual(options["timeout"].total, 15)
 
@@ -132,21 +132,25 @@ class DXHeatTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(snapshot.recoverable)
                 self.assertEqual(snapshot.spots, [])
 
-    async def test_full_and_oversize_windows_are_unknown(self):
-        for size in (2, 3):
-            with self.subTest(size=size):
-                session = Session([record(nr) for nr in range(size)])
-                feed = DXHeatAdapter(session=session, clock=lambda: NOW)
-                snapshot = await feed.poll()
-                self.assertTrue(snapshot.saturated)
-                self.assertFalse(snapshot.recoverable)
-                self.assertEqual(snapshot.spots, [])
-
-    async def test_saturated_poll_reseeds_without_replaying_history(self):
-        session = Session([record(10)], [record(11), record(12)], [record(13)])
-        feed = DXHeatAdapter(session=session, clock=lambda: NOW)
+    async def test_full_contiguous_window_is_complete_but_oversize_is_unknown(self):
+        session = Session([record(10)], [record(11), record(12)], [record(13), record(14), record(15)])
+        feed = DXHeatAdapter(session=session, clock=lambda: NOW, snapshot_limit=2)
         await feed.poll()
-        self.assertTrue((await feed.poll()).saturated)
+        full = await feed.poll()
+        self.assertFalse(full.saturated)
+        self.assertTrue(full.recoverable)
+        self.assertEqual(len(full.spots), 2)
+        oversize = await feed.poll()
+        self.assertTrue(oversize.saturated)
+        self.assertFalse(oversize.recoverable)
+
+    async def test_saturated_gap_reseeds_without_replaying_history(self):
+        session = Session([record(10)], [record(12), record(13)], [record(14)])
+        feed = DXHeatAdapter(session=session, clock=lambda: NOW, snapshot_limit=2)
+        await feed.poll()
+        gap = await feed.poll()
+        self.assertTrue(gap.saturated)
+        self.assertFalse(gap.recoverable)
         recovered = await feed.poll()
         self.assertTrue(recovered.recoverable)
         self.assertEqual(len(recovered.spots), 1)
