@@ -3,7 +3,7 @@
   "title": "HolyCluster / Spots and sources",
   "description": "Source availability, spot collection and pipeline outcomes, queue and reference refreshes.",
   "schemaVersion": 41,
-  "version": 7,
+  "version": 8,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -33,6 +33,12 @@
       "title": "Users",
       "type": "link",
       "url": "/d/holycluster-api",
+      "targetBlank": false
+    },
+    {
+      "title": "External spot coverage",
+      "type": "link",
+      "url": "/d/holycluster-spot-coverage",
       "targetBlank": false
     }
   ],
