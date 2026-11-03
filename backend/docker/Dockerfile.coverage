@@ -27,7 +27,7 @@ COPY pyproject.toml uv.lock ./
 # Install project non-editably
 RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-editable --package coverage
+    uv sync --locked --no-editable --package coverage-comparator
 
 ENV PATH="/app/.venv/bin:$PATH"
 
