@@ -229,6 +229,85 @@ export function recordDiagnosticAction(action) {
     }
 }
 
+const module_recovery_values = {
+    failure: new Set(["dynamic_import", "webkit_truncated_module"]),
+    probe_outcome: new Set(["not_started", "response", "html_parsed", "request_failed", "aborted"]),
+    probe_reason: new Set([
+        "invalid_page_entry",
+        "request_failed",
+        "aborted",
+        "redirected",
+        "http_error",
+        "not_html",
+        "body_failed",
+        "missing_entry",
+        "invalid_entry",
+        "same_entry",
+        "entry_mismatch",
+        "new_build",
+    ]),
+    decision: new Set(["manual", "blocked", "waiting", "navigate"]),
+    reason: new Set([
+        "update_not_confirmed",
+        "blocked",
+        "active_page",
+        "storage_unavailable",
+        "already_attempted",
+        "missing_target",
+        "new_build",
+    ]),
+    visibility: new Set(["hidden", "visible"]),
+};
+
+export function reportModuleRecoveryDiagnostic(diagnostic = {}) {
+    const context = {};
+    for (const field of [
+        "failure",
+        "probe_outcome",
+        "probe_reason",
+        "decision",
+        "reason",
+        "visibility",
+    ]) {
+        if (module_recovery_values[field].has(diagnostic[field]))
+            context[field] = diagnostic[field];
+    }
+    for (const field of ["page_entry", "probed_entry"]) {
+        if (/^\/assets\/[A-Za-z0-9_-]{1,128}\.js$/.test(diagnostic[field])) {
+            context[field] = diagnostic[field];
+        }
+    }
+    if (/^[a-f0-9]{32}$/.test(diagnostic.exception_event_id)) {
+        context.exception_event_id = diagnostic.exception_event_id;
+    }
+    if (
+        Number.isInteger(diagnostic.probe_status) &&
+        diagnostic.probe_status >= 100 &&
+        diagnostic.probe_status <= 599
+    ) {
+        context.probe_status = diagnostic.probe_status;
+    }
+    if (/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/.test(diagnostic.probe_content_type)) {
+        context.probe_content_type = diagnostic.probe_content_type;
+    }
+    if (typeof diagnostic.reload_requested === "boolean") {
+        context.reload_requested = diagnostic.reload_requested;
+    }
+    if (typeof diagnostic.online === "boolean") context.online = diagnostic.online;
+
+    try {
+        return Sentry.captureEvent({
+            message: "Module load recovery",
+            level: "warning",
+            fingerprint: ["module_load_recovery", context.reason ?? "unknown"],
+            contexts: { module_recovery: context },
+            tags: { error_category: "module_load" },
+        });
+    } catch {
+        return undefined;
+    }
+}
+
 function moduleAsset(message) {
     if (typeof message !== "string") return undefined;
     const raw_url = message.match(/https?:\/\/\S+/)?.[0];
@@ -375,6 +454,10 @@ function isPrimitiveFirefoxGlobalOom(event, original, evidence, boundary) {
 
 export function prepareSentryEvent(event, hint = {}) {
     const prepared_event = { ...event };
+    if (event.contexts?.module_recovery) {
+        prepared_event.breadcrumbs = [];
+        prepared_event.request = undefined;
+    }
     let exception = event.exception;
     const original = hint.originalException;
     const boundary_evidence = event.contexts?.diagnostic ?? {};

@@ -1,9 +1,10 @@
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 import { enrich_spot_zones_if_missing } from "@/hooks/useSpotWebSocket.js";
+import { UiRefreshProvider } from "@/hooks/useUiRefresh.jsx";
 import { WsProvider, useWsMessage } from "@/hooks/useWs";
 import { initializeSentry } from "@/sentry";
 import { create_interval_db } from "@/utils/interval_cache.js";
-import { flush } from "@sentry/react";
+import { addBreadcrumb, flush } from "@sentry/react";
 import React from "react";
 import { createRoot } from "react-dom/client";
 
@@ -78,6 +79,44 @@ function FailingSubscriber() {
 }
 
 window.run_diagnostic = async scenario => {
+    if (scenario === "module_recovery") {
+        history.replaceState(null, "", `${location.pathname}?secret=K1ABC#private`);
+        document.head.insertAdjacentHTML(
+            "beforeend",
+            '<meta name="ui-entry" content="/assets/current.js">',
+        );
+        addBreadcrumb({ category: "private", message: "K1ABC secret" });
+        const native_fetch = window.fetch;
+        let checks = 0;
+        window.fetch = (input, options) => {
+            const url = new URL(typeof input === "string" ? input : input.url, location.href);
+            if (url.pathname === location.pathname && options?.headers?.Accept === "text/html") {
+                checks++;
+                const entry = checks === 1 ? "/assets/current.js" : "/assets/next.js";
+                return Promise.resolve(
+                    new Response(
+                        `<meta name="ui-entry" content="${entry}"><script type="module" src="${entry}"></script>`,
+                        { status: 200, headers: { "content-type": "text/html" } },
+                    ),
+                );
+            }
+            return native_fetch(input, options);
+        };
+        createRoot(document.getElementById("root")).render(
+            <WsProvider>
+                <UiRefreshProvider>
+                    <div>module recovery diagnostics</div>
+                </UiRefreshProvider>
+            </WsProvider>,
+        );
+        while (checks < 1) await new Promise(resolve => requestAnimationFrame(resolve));
+        const error = new Event("vite:preloadError", { cancelable: true });
+        error.payload = new TypeError("Importing a module script failed.");
+        window.dispatchEvent(error);
+        while (checks < 2) await new Promise(resolve => requestAnimationFrame(resolve));
+        window.fetch = native_fetch;
+        return;
+    }
     if (scenario === "dxcc_predicate") {
         const native_test = RegExp.prototype.test;
         let calls = 0;

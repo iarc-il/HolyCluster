@@ -2,6 +2,7 @@ import { captureException } from "@sentry/react";
 
 import { ReadyState, useWs } from "@/hooks/useWs";
 import { detect_ui_build } from "@/module_load_recovery.js";
+import { reportModuleRecoveryDiagnostic } from "@/sentry.js";
 import {
     createContext,
     useCallback,
@@ -50,6 +51,19 @@ function reload_page() {
     window.location.reload();
 }
 
+function report_module_recovery(diagnostic, decision, reason, reload_requested = false) {
+    try {
+        reportModuleRecoveryDiagnostic({
+            ...diagnostic,
+            decision,
+            reason,
+            reload_requested,
+            online: navigator.onLine,
+            visibility: document.visibilityState,
+        });
+    } catch {}
+}
+
 export function UiRefreshProvider({ children, navigate = reload_page }) {
     const running_entry = document.querySelector('meta[name="ui-entry"]')?.content;
     const ws = useWs();
@@ -81,6 +95,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     const blocker_registrations_ref = useRef(new Map());
     const blockers_ref = useRef(blockers);
     const target_entry_ref = useRef(target_entry);
+    const target_diagnostic_ref = useRef(null);
     const evaluation_timer_ref = useRef(null);
     const evaluate_ref = useRef(null);
     const stale_recovery_ref = useRef(null);
@@ -91,39 +106,69 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     const check_ref = useRef(null);
     const queued_check_ref = useRef(null);
     const navigating_ref = useRef(false);
+    const automatic_failure_ref = useRef(null);
     const stopped_ref = useRef(false);
     blockers_ref.current = blockers;
     target_entry_ref.current = target_entry;
 
     const check_for_update = useCallback(
-        (fresh = false) => {
+        (fresh, on_diagnostic) => {
             if (stopped_ref.current) return Promise.resolve(null);
             if (check_ref.current) {
-                if (!fresh) return check_ref.current;
-                if (!queued_check_ref.current) {
-                    queued_check_ref.current = (async () => {
-                        try {
-                            await check_ref.current;
-                            return await check_for_update();
-                        } finally {
-                            queued_check_ref.current = null;
-                        }
-                    })();
+                if (!fresh) return check_ref.current.promise;
+                if (queued_check_ref.current) {
+                    const queued = queued_check_ref.current;
+                    if (typeof on_diagnostic === "function") {
+                        if (queued.diagnostic) {
+                            try {
+                                on_diagnostic(queued.diagnostic);
+                            } catch {}
+                        } else queued.observers.push(on_diagnostic);
+                    }
+                    return queued.promise;
                 }
-                return queued_check_ref.current;
+                const active = check_ref.current;
+                const queued = { diagnostic: null, observers: [], promise: null };
+                if (typeof on_diagnostic === "function") queued.observers.push(on_diagnostic);
+                queued.promise = (async () => {
+                    try {
+                        await active.promise;
+                        return await check_for_update(false, evidence => {
+                            queued.diagnostic = evidence;
+                            for (const observer of queued.observers.splice(0)) {
+                                try {
+                                    observer(evidence);
+                                } catch {}
+                            }
+                        });
+                    } finally {
+                        queued_check_ref.current = null;
+                    }
+                })();
+                queued_check_ref.current = queued;
+                return queued.promise;
             }
             last_check_ref.current = Date.now();
             const controller = new AbortController();
             const timeout = window.setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
-            const check = (async () => {
+            const check = { promise: null };
+            check.promise = (async () => {
+                let probe_diagnostic = null;
                 try {
                     const update = await detect_ui_build({
                         entry: running_entry,
                         signal: controller.signal,
+                        on_diagnostic: evidence => {
+                            probe_diagnostic = evidence;
+                            if (typeof on_diagnostic === "function") on_diagnostic(evidence);
+                        },
                     });
                     last_check_failed_ref.current = false;
                     if (!stopped_ref.current && update) {
                         target_entry_ref.current = update.target_entry;
+                        target_diagnostic_ref.current = probe_diagnostic
+                            ? { target_entry: update.target_entry, evidence: probe_diagnostic }
+                            : null;
                         set_target_entry(update.target_entry);
                     }
                     return update;
@@ -132,11 +177,11 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
                     return null;
                 } finally {
                     window.clearTimeout(timeout);
-                    check_ref.current = null;
+                    if (check_ref.current === check) check_ref.current = null;
                 }
             })();
             check_ref.current = check;
-            return check;
+            return check.promise;
         },
         [running_entry],
     );
@@ -195,14 +240,32 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     }, [begin_navigation, report, running_entry, target_entry]);
 
     const automatic_reload = useCallback(() => {
+        automatic_failure_ref.current = null;
         const target = target_entry_ref.current;
         const active =
             document.visibilityState === "visible" &&
             Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS;
-        if (blockers_ref.current.length > 0 || active) return false;
-        if (!target || !storage_available()) return false;
+        if (blockers_ref.current.length > 0) {
+            automatic_failure_ref.current = "blocked";
+            return false;
+        }
+        if (active) {
+            automatic_failure_ref.current = "active_page";
+            return false;
+        }
+        if (!target) {
+            automatic_failure_ref.current = "missing_target";
+            return false;
+        }
+        if (!storage_available()) {
+            automatic_failure_ref.current = "storage_unavailable";
+            return false;
+        }
         try {
-            if (sessionStorage.getItem(LAST_AUTO_TARGET) === target) return false;
+            if (sessionStorage.getItem(LAST_AUTO_TARGET) === target) {
+                automatic_failure_ref.current = "already_attempted";
+                return false;
+            }
             sessionStorage.setItem(LAST_AUTO_TARGET, target);
             sessionStorage.setItem(
                 NAVIGATION_MARKER,
@@ -210,7 +273,22 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
             );
         } catch {
             storage_available_ref.current = false;
+            automatic_failure_ref.current = "storage_unavailable";
             return false;
+        }
+        const recovery = stale_recovery_ref.current;
+        if (recovery?.diagnostic && !recovery.navigation_reported) {
+            const target_diagnostic = target_diagnostic_ref.current;
+            const diagnostic =
+                target_diagnostic?.target_entry === target
+                    ? { ...recovery.diagnostic, ...target_diagnostic.evidence }
+                    : recovery.target_entry === target
+                      ? recovery.diagnostic
+                      : null;
+            if (diagnostic) {
+                recovery.navigation_reported = true;
+                report_module_recovery(diagnostic, "navigate", "new_build", true);
+            }
         }
         report("auto_reload");
         begin_navigation();
@@ -218,19 +296,37 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     }, [begin_navigation, report, running_entry, storage_available]);
 
     const recover_stale_module = useCallback(
-        async error => {
-            const recovery = { error, status: "checking" };
+        async (error, exception_event_id) => {
+            const diagnostic = {
+                failure:
+                    error?.name === "SyntaxError" && error?.message === "Unexpected end of script"
+                        ? "webkit_truncated_module"
+                        : "dynamic_import",
+                exception_event_id,
+                page_entry: running_entry,
+                probed_entry: null,
+                probe_outcome: "not_started",
+                probe_status: null,
+                probe_content_type: null,
+                probe_reason: "invalid_page_entry",
+            };
+            const recovery = { error, status: "checking", diagnostic };
             stale_recovery_ref.current = recovery;
             set_stale_recovery(recovery);
-            const update = await check_for_update(true);
+            const update = await check_for_update(true, evidence =>
+                Object.assign(diagnostic, evidence),
+            );
             if (!update) {
-                stale_recovery_ref.current = { error, status: "manual" };
+                report_module_recovery(diagnostic, "manual", "update_not_confirmed");
+                stale_recovery_ref.current = { ...recovery, status: "manual" };
                 set_stale_recovery(stale_recovery_ref.current);
                 return;
             }
+            recovery.target_entry = update.target_entry;
             if (blockers_ref.current.length > 0) {
                 report("blocked", blockers_ref.current[0]);
-                stale_recovery_ref.current = { error, status: "blocked" };
+                report_module_recovery(diagnostic, "blocked", "blocked");
+                stale_recovery_ref.current = { ...recovery, status: "blocked" };
                 set_stale_recovery(stale_recovery_ref.current);
                 return;
             }
@@ -238,16 +334,22 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
                 document.visibilityState === "visible" &&
                 Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS
             ) {
-                stale_recovery_ref.current = { error, status: "waiting" };
+                report_module_recovery(diagnostic, "waiting", "active_page");
+                stale_recovery_ref.current = { ...recovery, status: "waiting" };
                 set_stale_recovery(stale_recovery_ref.current);
                 return;
             }
             if (!automatic_reload()) {
-                stale_recovery_ref.current = { error, status: "manual" };
+                report_module_recovery(
+                    diagnostic,
+                    "manual",
+                    automatic_failure_ref.current ?? "missing_target",
+                );
+                stale_recovery_ref.current = { ...recovery, status: "manual" };
                 set_stale_recovery(stale_recovery_ref.current);
             }
         },
-        [automatic_reload, check_for_update, report],
+        [automatic_reload, check_for_update, report, running_entry],
     );
 
     useLayoutEffect(() => {
@@ -255,8 +357,13 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
             if (!is_module_load_failure(event.payload)) return;
             event.preventDefault();
             const error = event.payload;
-            captureException(error);
-            if (!stale_recovery_ref.current) void recover_stale_module(error);
+            let exception_event_id;
+            try {
+                exception_event_id = captureException(error);
+            } catch {}
+            if (!stale_recovery_ref.current) {
+                void recover_stale_module(error, exception_event_id);
+            }
         }
 
         window.addEventListener("vite:preloadError", recover);
@@ -269,9 +376,15 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
             document.visibilityState === "visible" &&
             Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS
         ) {
+            report_module_recovery(stale_recovery_ref.current.diagnostic, "waiting", "active_page");
             stale_recovery_ref.current = { ...stale_recovery_ref.current, status: "waiting" };
             set_stale_recovery(stale_recovery_ref.current);
         } else if (!automatic_reload()) {
+            report_module_recovery(
+                stale_recovery_ref.current.diagnostic,
+                "manual",
+                automatic_failure_ref.current ?? "missing_target",
+            );
             stale_recovery_ref.current = { ...stale_recovery_ref.current, status: "manual" };
             set_stale_recovery(stale_recovery_ref.current);
         }

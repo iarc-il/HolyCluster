@@ -3,10 +3,11 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const detection = vi.hoisted(() => ({ check: vi.fn() }));
-const diagnostics = vi.hoisted(() => ({ capture: vi.fn() }));
+const diagnostics = vi.hoisted(() => ({ capture: vi.fn(), report: vi.fn() }));
 const websocket = vi.hoisted(() => ({ current: null, send: vi.fn() }));
 
 vi.mock("@sentry/react", () => ({ captureException: diagnostics.capture }));
+vi.mock("@/sentry.js", () => ({ reportModuleRecoveryDiagnostic: diagnostics.report }));
 vi.mock("@/module_load_recovery.js", () => ({ detect_ui_build: detection.check }));
 vi.mock("@/hooks/useWs", () => ({
     ReadyState: { OPEN: 1 },
@@ -57,7 +58,8 @@ function render_provider(props = {}) {
 beforeEach(() => {
     vi.useFakeTimers();
     detection.check.mockReset();
-    diagnostics.capture.mockReset();
+    diagnostics.capture.mockReset().mockReturnValue("0123456789abcdef0123456789abcdef");
+    diagnostics.report.mockReset();
     websocket.current = null;
     websocket.send.mockReset();
     sessionStorage.clear();
@@ -138,6 +140,237 @@ it("suppresses and immediately recovers a confirmed stale module while hidden", 
     expect(window.dispatchEvent(error)).toBe(false);
     expect(error.defaultPrevented).toBe(true);
     expect(diagnostics.capture).toHaveBeenCalledWith(error.payload);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("reports probe evidence before navigating after a stale module failure", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    let finish;
+    detection.check.mockResolvedValueOnce(null).mockImplementationOnce(
+        ({ on_diagnostic }) =>
+            new Promise(resolve => {
+                on_diagnostic({
+                    page_entry: "/assets/current.js",
+                    probed_entry: "/assets/next.js",
+                    probe_outcome: "html_parsed",
+                    probe_status: 200,
+                    probe_content_type: "text/html",
+                    probe_reason: "new_build",
+                });
+                finish = () =>
+                    resolve({
+                        current_entry: "/assets/current.js",
+                        target_entry: "/assets/next.js",
+                    });
+            }),
+    );
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    const event = preload_error();
+    act(() => window.dispatchEvent(event));
+    expect(diagnostics.capture).toHaveBeenCalledWith(event.payload);
+    expect(diagnostics.report).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+
+    await act(async () => finish());
+    expect(diagnostics.report).toHaveBeenCalledExactlyOnceWith({
+        failure: "dynamic_import",
+        exception_event_id: "0123456789abcdef0123456789abcdef",
+        page_entry: "/assets/current.js",
+        probed_entry: "/assets/next.js",
+        probe_outcome: "html_parsed",
+        probe_status: 200,
+        probe_content_type: "text/html",
+        probe_reason: "new_build",
+        decision: "navigate",
+        reason: "new_build",
+        reload_requested: true,
+        online: true,
+        visibility: "hidden",
+    });
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("reports waiting and navigation as separate recovery transitions", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    detection.check
+        .mockResolvedValueOnce(null)
+        .mockImplementationOnce(({ on_diagnostic }) => {
+            on_diagnostic({ probe_reason: "new_build", probed_entry: "/assets/next.js" });
+            return Promise.resolve({
+                current_entry: "/assets/current.js",
+                target_entry: "/assets/next.js",
+            });
+        })
+        .mockResolvedValue(null);
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    act(() => window.dispatchEvent(preload_error()));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(diagnostics.report).toHaveBeenLastCalledWith(
+        expect.objectContaining({ decision: "waiting", reason: "active_page" }),
+    );
+
+    await act(() => vi.advanceTimersByTimeAsync(60 * 60 * 1000));
+    expect(diagnostics.report).toHaveBeenLastCalledWith(
+        expect.objectContaining({ decision: "navigate", reload_requested: true }),
+    );
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+    [
+        "storage_unavailable",
+        () =>
+            vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+                throw new Error("blocked");
+            }),
+    ],
+    [
+        "already_attempted",
+        () => sessionStorage.setItem("holycluster_ui_last_auto_target", "/assets/next.js"),
+    ],
+])("reports manual recovery when automatic navigation is %s", async (reason, arrange) => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    detection.check.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    arrange();
+    act(() => window.dispatchEvent(preload_error()));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(diagnostics.report).toHaveBeenLastCalledWith(
+        expect.objectContaining({ decision: "manual", reason, reload_requested: false }),
+    );
+    expect(navigate).not.toHaveBeenCalled();
+});
+
+it("keeps recovery evidence with a fresh check queued behind a periodic check", async () => {
+    let finish_periodic;
+    detection.check
+        .mockReturnValueOnce(new Promise(resolve => (finish_periodic = resolve)))
+        .mockImplementationOnce(({ on_diagnostic }) => {
+            on_diagnostic({ probe_reason: "same_entry", probed_entry: "/assets/current.js" });
+            return Promise.resolve(null);
+        });
+    render_provider();
+    act(() => window.dispatchEvent(preload_error()));
+    expect(detection.check).toHaveBeenCalledTimes(1);
+    await act(async () => finish_periodic(null));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(detection.check).toHaveBeenCalledTimes(2);
+    expect(diagnostics.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+            probed_entry: "/assets/current.js",
+            probe_reason: "same_entry",
+            decision: "manual",
+            reason: "update_not_confirmed",
+        }),
+    );
+});
+
+it("keeps recovery evidence when another fresh check is already queued", async () => {
+    let finish_periodic;
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    detection.check
+        .mockReturnValueOnce(new Promise(resolve => (finish_periodic = resolve)))
+        .mockImplementationOnce(({ on_diagnostic }) => {
+            on_diagnostic({ probe_reason: "new_build", probed_entry: "/assets/next.js" });
+            return Promise.resolve({
+                current_entry: "/assets/current.js",
+                target_entry: "/assets/next.js",
+            });
+        });
+    render_provider();
+    visibility.mockReturnValue("hidden");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    act(() => window.dispatchEvent(preload_error()));
+    await act(async () => finish_periodic(null));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(detection.check).toHaveBeenCalledTimes(2);
+    expect(diagnostics.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+            probed_entry: "/assets/next.js",
+            probe_reason: "new_build",
+            decision: "navigate",
+        }),
+    );
+});
+
+it("reports navigation with evidence for a replacement target", async () => {
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    detection.check
+        .mockResolvedValueOnce(null)
+        .mockImplementationOnce(({ on_diagnostic }) => {
+            on_diagnostic({ probe_reason: "new_build", probed_entry: "/assets/next.js" });
+            return Promise.resolve({
+                current_entry: "/assets/current.js",
+                target_entry: "/assets/next.js",
+            });
+        })
+        .mockImplementationOnce(({ on_diagnostic }) => {
+            on_diagnostic({ probe_reason: "new_build", probed_entry: "/assets/newest.js" });
+            return Promise.resolve({
+                current_entry: "/assets/current.js",
+                target_entry: "/assets/newest.js",
+            });
+        });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    act(() => window.dispatchEvent(preload_error()));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    visibility.mockReturnValue("hidden");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(diagnostics.report).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+            probed_entry: "/assets/newest.js",
+            decision: "navigate",
+            reload_requested: true,
+        }),
+    );
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("does not let original exception reporting failure stop stale-module recovery", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    diagnostics.capture.mockImplementation(() => {
+        throw new Error("capture failed");
+    });
+    detection.check.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    act(() => window.dispatchEvent(preload_error()));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("does not let reporting failure delay stale-module navigation", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    detection.check.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        current_entry: "/assets/current.js",
+        target_entry: "/assets/next.js",
+    });
+    diagnostics.report.mockImplementation(() => {
+        throw new Error("telemetry failed");
+    });
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    act(() => window.dispatchEvent(preload_error()));
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(navigate).toHaveBeenCalledTimes(1);
 });

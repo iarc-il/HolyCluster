@@ -35,7 +35,11 @@ async function mappedSources(event) {
     return sources;
 }
 
-async function capture(page, scenario) {
+async function capture(
+    page,
+    scenario,
+    { select = event => event.contexts?.diagnostic, count = 1 } = {},
+) {
     const events = [];
     const timers = new Set();
     page.on("close", () => {
@@ -85,11 +89,13 @@ async function capture(page, scenario) {
     await page.goto("/e2e/diagnostics/index.html");
     await page.waitForFunction(() => window.diagnostics_ready);
     await page.evaluate(scenario => window.run_diagnostic(scenario), scenario);
-    await expect.poll(() => events.length).toBeGreaterThan(0);
-    const event = events.find(event => event.contexts?.diagnostic);
-    expect(event.release).toBe("diagnostic-browser-test");
-    expect(JSON.stringify(event).length).toBeLessThan(16000);
-    return event;
+    await expect.poll(() => events.filter(select).length).toBeGreaterThanOrEqual(count);
+    const selected = events.filter(select).slice(0, count);
+    for (const event of selected) {
+        expect(event.release).toBe("diagnostic-browser-test");
+        expect(JSON.stringify(event).length).toBeLessThan(16000);
+    }
+    return count === 1 ? selected[0] : selected;
 }
 
 testWithBrowserErrors(
@@ -172,6 +178,55 @@ testWithBrowserErrors(
         );
         expect(JSON.stringify(event.contexts.diagnostic)).not.toContain("translated");
         await expect(page.getByRole("alert")).toBeVisible();
+    },
+);
+
+testWithBrowserErrors(
+    "correlates module recovery decisions through the production provider and SDK",
+    [],
+    async ({ page }) => {
+        const [original, companion] = await capture(page, "module_recovery", {
+            select: event =>
+                event.contexts?.diagnostic?.category === "module_load" ||
+                event.contexts?.module_recovery,
+            count: 2,
+        });
+        expect(original.contexts.diagnostic).toMatchObject({
+            category: "module_load",
+            online: true,
+        });
+        expect(original.exception.values).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    type: "TypeError",
+                    value: "Importing a module script failed.",
+                }),
+            ]),
+        );
+        expect(companion).toMatchObject({
+            message: "Module load recovery",
+            breadcrumbs: [],
+            contexts: {
+                module_recovery: {
+                    failure: "dynamic_import",
+                    exception_event_id: original.event_id,
+                    page_entry: "/assets/current.js",
+                    probed_entry: "/assets/next.js",
+                    probe_outcome: "html_parsed",
+                    probe_status: 200,
+                    probe_content_type: "text/html",
+                    probe_reason: "new_build",
+                    decision: "waiting",
+                    reason: "active_page",
+                    reload_requested: false,
+                    online: true,
+                    visibility: "visible",
+                },
+            },
+        });
+        expect(companion.request).toBeUndefined();
+        expect(JSON.stringify(companion)).not.toContain("K1ABC");
+        expect(JSON.stringify(companion)).not.toContain("private");
     },
 );
 

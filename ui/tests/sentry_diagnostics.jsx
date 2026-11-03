@@ -1,6 +1,7 @@
 import {
     annotateDiagnosticError,
     recordBoundaryDiagnostics,
+    reportModuleRecoveryDiagnostic,
     prepareSentryEvent as sanitizeSentryEvent,
 } from "@/sentry";
 import * as Sentry from "@sentry/react";
@@ -296,5 +297,116 @@ describe("error-local diagnostics", () => {
         for (const key of Object.keys(evidence))
             expect(unrelated.contexts.diagnostic).not.toHaveProperty(key);
         privateFree(event);
+    });
+});
+
+describe("module recovery companion diagnostics", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it("captures only bounded recovery evidence", () => {
+        const capture = vi.spyOn(Sentry, "captureEvent").mockReturnValue("event-id");
+        expect(
+            reportModuleRecoveryDiagnostic({
+                failure: "dynamic_import",
+                exception_event_id: "0123456789abcdef0123456789abcdef",
+                page_entry: "/assets/current.js",
+                probed_entry: "/assets/next.js",
+                probe_outcome: "html_parsed",
+                probe_status: 200,
+                probe_content_type: "text/html",
+                probe_reason: "new_build",
+                decision: "navigate",
+                reason: "new_build",
+                reload_requested: true,
+                online: true,
+                visibility: "hidden",
+                private_value: "K1ABC secret",
+            }),
+        ).toBe("event-id");
+        expect(capture).toHaveBeenCalledExactlyOnceWith({
+            message: "Module load recovery",
+            level: "warning",
+            fingerprint: ["module_load_recovery", "new_build"],
+            contexts: {
+                module_recovery: {
+                    failure: "dynamic_import",
+                    exception_event_id: "0123456789abcdef0123456789abcdef",
+                    page_entry: "/assets/current.js",
+                    probed_entry: "/assets/next.js",
+                    probe_outcome: "html_parsed",
+                    probe_status: 200,
+                    probe_content_type: "text/html",
+                    probe_reason: "new_build",
+                    decision: "navigate",
+                    reason: "new_build",
+                    reload_requested: true,
+                    online: true,
+                    visibility: "hidden",
+                },
+            },
+            tags: { error_category: "module_load" },
+        });
+    });
+
+    it("removes inherited private request and breadcrumb data from the SDK envelope", async () => {
+        const envelopes = [];
+        const client = Sentry.init({
+            dsn: "https://public@example.com/1",
+            defaultIntegrations: false,
+            integrations: [
+                {
+                    name: "PrivateRequestEvidence",
+                    processEvent: event => ({
+                        ...event,
+                        request: {
+                            url: "https://localhost/?secret=K1ABC",
+                            headers: { Referer: "https://localhost/?secret=K1ABC" },
+                        },
+                    }),
+                },
+            ],
+            beforeSend: sanitizeSentryEvent,
+            transport: () => ({
+                send: envelope => {
+                    envelopes.push(envelope);
+                    return Promise.resolve({ statusCode: 200 });
+                },
+                flush: () => Promise.resolve(true),
+            }),
+        });
+        try {
+            Sentry.addBreadcrumb({ category: "private", message: "K1ABC secret" });
+            reportModuleRecoveryDiagnostic({
+                failure: "dynamic_import",
+                page_entry: "/assets/current.js",
+                probed_entry: "/assets/next.js",
+                probe_outcome: "html_parsed",
+                probe_reason: "new_build",
+                decision: "navigate",
+                reason: "new_build",
+                reload_requested: true,
+                online: true,
+                visibility: "hidden",
+            });
+            await Sentry.flush(1000);
+            const sent = envelopes
+                .flatMap(envelope => envelope[1])
+                .find(item => item[0].type === "event")?.[1];
+            expect(sent.message).toBe("Module load recovery");
+            expect(sent.request).toBeUndefined();
+            expect(sent.breadcrumbs).toEqual([]);
+            expect(sent.contexts.module_recovery).toMatchObject({
+                decision: "navigate",
+                reason: "new_build",
+                reload_requested: true,
+            });
+            expect(JSON.stringify(sent)).not.toContain("K1ABC");
+            expect(JSON.stringify(sent).length).toBeLessThan(5000);
+        } finally {
+            await client.close();
+            Sentry.getCurrentScope().setClient(undefined);
+        }
     });
 });
