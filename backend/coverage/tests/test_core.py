@@ -60,6 +60,8 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         await self.matcher.finalize(120)
         self.assertEqual(self.count("dxsummit", "service_only"), 1)
         self.assertEqual(self.count("dxheat", "service_only"), 0)
+        for source in ("holy", *SERVICES):
+            await self.matcher.health(source, True, 121)
         await self.matcher.observe("holy", SPOT, 121)
         await self.matcher.observe("dxheat", SPOT, 122)
         await self.matcher.finalize(181)

@@ -1,0 +1,18 @@
+[project]
+name = "coverage-comparator"
+version = "0.1.0"
+requires-python = ">=3.13"
+description = "Pairwise spot coverage comparison"
+dependencies = [
+    "shared",
+    "redis>=7.1.0",
+    "prometheus-client>=0.21.1",
+    "loguru>=0.7.3",
+]
+
+[project.scripts]
+coverage-comparator = "coverage_comparator.main:main"
+
+[build-system]
+requires = ["uv_build>=0.9.13,<0.10.0"]
+build-backend = "uv_build"

@@ -6,11 +6,13 @@ dependencies = [
     "alembic>=1.18.4",
     "api",
     "collectors",
+    "coverage-comparator",
     "uvicorn[standard]>=0.38.0",
 ]
 
 [dependency-groups]
 dev = [
+    "fakeredis[lua]>=2.32.0",
     "ipdb>=0.13.13",
     "ipython>=9.7.0",
     "pytest>=9.1.1",
@@ -20,6 +22,7 @@ dev = [
 [tool.uv.sources]
 api = { workspace = true }
 collectors = { workspace = true }
+coverage-comparator = { workspace = true }
 shared = { workspace = true }
 
 [tool.uv.workspace]
@@ -27,6 +30,7 @@ members = [
     "api",
     "collectors",
     "shared",
+    "coverage",
 ]
 
 [tool.ruff]
