@@ -1,5 +1,7 @@
 import json
 import unittest
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
 
 import fakeredis.aioredis
 from prometheus_client import CollectorRegistry, generate_latest
@@ -7,6 +9,7 @@ from prometheus_client import CollectorRegistry, generate_latest
 from coverage_comparator.adapters import FakeAdapter, Snapshot
 from coverage_comparator.matcher import Matcher
 from coverage_comparator.metrics import Metrics
+from coverage_comparator.postgres_samples import PostgresSampleSink
 from coverage_comparator.samples import MemorySampleSink
 from coverage_comparator.service import consume_snapshot
 
@@ -35,6 +38,19 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
             )
             or 0
         )
+
+    async def test_example_throttle_does_not_sample_outcome_metrics(self):
+        sink = PostgresSampleSink(MagicMock(), clock=lambda: 0, utcnow=lambda: datetime.fromtimestamp(120, UTC))
+        sink.sessions = MagicMock()
+        self.matcher.sink = sink
+        for index in range(10):
+            await self.matcher.observe("holy", {**SPOT, "dx_callsign": f"4X{index}AA"}, 60)
+        await self.matcher.finalize(120)
+        for service in SERVICES:
+            self.assertEqual(self.count(service, "holy_only"), 10)
+        sink.sessions.begin.assert_not_called()
+        state = json.loads(await self.redis.get("coverage:state"))
+        self.assertEqual(state["samples"], {})
 
     async def test_either_order_and_repeat_dedupe(self):
         for first, second in (("holy", "dxsummit"), ("dxsummit", "holy")):

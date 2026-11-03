@@ -1,8 +1,13 @@
+import os
 import unittest
 from datetime import UTC, datetime, time, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 from pydantic import ValidationError
+from shared.db import SpotCoverageSample
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from coverage_comparator.postgres_samples import PostgresSampleSink, sample_row
 from coverage_comparator.settings import Settings
@@ -188,3 +193,53 @@ class SinkTests(unittest.IsolatedAsyncioTestCase):
             self.tick = 60
             await self.sink.put("bad", {})
             self.assertEqual(log.warning.call_count, 2)
+
+
+@unittest.skipUnless(
+    os.environ.get("COVERAGE_TEST_DATABASE_URL"), "Set COVERAGE_TEST_DATABASE_URL for PostgreSQL tests"
+)
+class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_sink_deduplicates_and_prunes_in_postgres(self):
+        url = os.environ["COVERAGE_TEST_DATABASE_URL"]
+        schema = f"coverage_sink_test_{uuid4().hex}"
+        admin = create_async_engine(url)
+        engine = None
+        try:
+            async with admin.begin() as connection:
+                await connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+            engine = create_async_engine(
+                url, isolation_level="READ COMMITTED", connect_args={"server_settings": {"search_path": schema}}
+            )
+            async with engine.begin() as connection:
+                await connection.run_sync(SpotCoverageSample.__table__.create)
+            sessions = async_sessionmaker(engine)
+            expired = sample_row("expired", {**SAMPLE, "finalized": (NOW - timedelta(days=2)).timestamp()})
+            async with sessions.begin() as session:
+                session.add(expired)
+            tick = 0
+            sink = PostgresSampleSink(engine, max_samples=2, max_per_minute=2, clock=lambda: tick, utcnow=lambda: NOW)
+            tick = 30
+            await sink.put("first", SAMPLE)
+            tick = 60
+            await sink.put("first", {**SAMPLE, "finalized": NOW.timestamp() + 10})
+            async with sessions() as session:
+                rows = (await session.execute(select(SpotCoverageSample))).scalars().all()
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0].finalized_at, NOW)
+            self.assertEqual(rows[0].identity_digest, sample_row("first", SAMPLE).identity_digest)
+            for index in (2, 3):
+                tick += 30
+                await sink.put(str(index), {**SAMPLE, "finalized": NOW.timestamp() + index})
+            async with sessions() as session:
+                rows = (await session.execute(select(SpotCoverageSample))).scalars().all()
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(
+                {row.identity_digest for row in rows},
+                {sample_row(str(index), SAMPLE).identity_digest for index in (2, 3)},
+            )
+        finally:
+            if engine is not None:
+                await engine.dispose()
+            async with admin.begin() as connection:
+                await connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+            await admin.dispose()
