@@ -10,3 +10,7 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: [collector:9101]
+  - job_name: coverage
+    metrics_path: /metrics
+    static_configs:
+      - targets: [coverage:9102]

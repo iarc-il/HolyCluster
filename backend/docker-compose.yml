@@ -86,6 +86,35 @@ services:
     cap_add:
       - SYS_PTRACE
 
+  coverage:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.coverage
+    restart: unless-stopped
+    depends_on:
+      valkey:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      COVERAGE_METRICS_PORT: ${COVERAGE_METRICS_PORT:-9102}
+    expose:
+      - "${COVERAGE_METRICS_PORT:-9102}"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['COVERAGE_METRICS_PORT'] + '/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - ${LOG_DIR}:${LOG_DIR}
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   api:
     build:
       context: .
