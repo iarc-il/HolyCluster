@@ -10,6 +10,7 @@ from shared.db import (  # noqa: F401 - imported so models are registered
     GeoCache,
     HolySpot,
     PropagationMeasurement,
+    SpotCoverageSample,
     SpotsWithIssues,
 )
 from shared.settings import PostgresSettings

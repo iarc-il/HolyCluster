@@ -1,7 +1,7 @@
 from datetime import date, datetime, time
-from typing import Optional
+from typing import Literal, Optional
 
-from sqlalchemy import Index, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, DateTime, Index, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -30,6 +30,31 @@ class PropagationMeasurement(SQLModel, table=True):
     timestamp: int
     value: float
     collected_at: datetime
+
+
+class SpotCoverageSample(SQLModel, table=True):
+    __tablename__ = "spot_coverage_samples"
+    __table_args__ = (
+        CheckConstraint("length(service) BETWEEN 1 AND 64", name="ck_spot_coverage_samples_service"),
+        CheckConstraint("direction IN ('holy_only', 'service_only')", name="ck_spot_coverage_samples_direction"),
+        UniqueConstraint(
+            "service", "direction", "identity_digest", "window_started_at", name="uc_spot_coverage_samples"
+        ),
+        Index("ix_spot_coverage_samples_latest", "service", "direction", "finalized_at"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    service: str = Field(min_length=1, max_length=64)
+    direction: Literal["holy_only", "service_only"] = Field(max_length=12, sa_type=String(12))
+    finalized_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    window_started_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    spot_time: time
+    observed_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    spotter_callsign: str
+    dx_callsign: str
+    frequency: str
+    comment: str
+    identity_digest: str
 
 
 class HolySpot(SQLModel, table=True):
