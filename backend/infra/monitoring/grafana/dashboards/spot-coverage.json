@@ -1441,7 +1441,7 @@
       "id": 11,
       "title": "Holy-only examples \u2014 bounded sample, not complete counts",
       "type": "table",
-      "description": "Requires the future postgres-coverage datasource and spot_coverage_samples columns finalized_at, service, result, spot_time, spotter, dx, frequency, comment. Latest 100 retained examples in the selected finalization-time range. Sampling and retention mean these rows cannot reproduce metric totals. Frequency is shown in the stored unit.",
+      "description": "Uses the postgres-coverage datasource and bounded spot_coverage_samples table. Latest 100 retained examples in the selected finalization-time range. Sampling and retention mean these rows cannot reproduce metric totals. Frequency is shown in the stored unit.",
       "gridPos": {
         "x": 0,
         "y": 47,
@@ -1462,7 +1462,7 @@
           "format": "table",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT\n  finalized_at AS \"Finalized time\",\n  service AS \"Service\",\n  spot_time AS \"Spot time\",\n  spotter AS \"Spotter\",\n  dx AS \"DX\",\n  frequency AS \"Frequency (stored unit)\",\n  comment AS \"Comment\"\nFROM spot_coverage_samples\nWHERE $__timeFilter(finalized_at)\n  AND service IN (${service:sqlstring})\n  AND result = 'holy_only'\nORDER BY finalized_at DESC, service, spot_time DESC, spotter, dx, frequency\nLIMIT 100"
+          "rawSql": "SELECT\n  finalized_at AS \"Finalized time\",\n  service AS \"Service\",\n  spot_time AS \"Spot time\",\n  spotter_callsign AS \"Spotter\",\n  dx_callsign AS \"DX\",\n  frequency AS \"Frequency (stored unit)\",\n  comment AS \"Comment\"\nFROM spot_coverage_samples\nWHERE $__timeFilter(finalized_at)\n  AND service IN (${service:sqlstring})\n  AND direction = 'holy_only'\nORDER BY finalized_at DESC, service, spot_time DESC, spotter_callsign, dx_callsign, frequency\nLIMIT 100"
         }
       ],
       "fieldConfig": {
@@ -1483,7 +1483,7 @@
       "id": 12,
       "title": "Service-only examples \u2014 bounded sample, not complete counts",
       "type": "table",
-      "description": "Requires the future postgres-coverage datasource and spot_coverage_samples columns finalized_at, service, result, spot_time, spotter, dx, frequency, comment. Latest 100 retained examples in the selected finalization-time range. Sampling and retention mean these rows cannot reproduce metric totals. Frequency is shown in the stored unit.",
+      "description": "Uses the postgres-coverage datasource and bounded spot_coverage_samples table. Latest 100 retained examples in the selected finalization-time range. Sampling and retention mean these rows cannot reproduce metric totals. Frequency is shown in the stored unit.",
       "gridPos": {
         "x": 12,
         "y": 47,
@@ -1504,7 +1504,7 @@
           "format": "table",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT\n  finalized_at AS \"Finalized time\",\n  service AS \"Service\",\n  spot_time AS \"Spot time\",\n  spotter AS \"Spotter\",\n  dx AS \"DX\",\n  frequency AS \"Frequency (stored unit)\",\n  comment AS \"Comment\"\nFROM spot_coverage_samples\nWHERE $__timeFilter(finalized_at)\n  AND service IN (${service:sqlstring})\n  AND result = 'service_only'\nORDER BY finalized_at DESC, service, spot_time DESC, spotter, dx, frequency\nLIMIT 100"
+          "rawSql": "SELECT\n  finalized_at AS \"Finalized time\",\n  service AS \"Service\",\n  spot_time AS \"Spot time\",\n  spotter_callsign AS \"Spotter\",\n  dx_callsign AS \"DX\",\n  frequency AS \"Frequency (stored unit)\",\n  comment AS \"Comment\"\nFROM spot_coverage_samples\nWHERE $__timeFilter(finalized_at)\n  AND service IN (${service:sqlstring})\n  AND direction = 'service_only'\nORDER BY finalized_at DESC, service, spot_time DESC, spotter_callsign, dx_callsign, frequency\nLIMIT 100"
         }
       ],
       "fieldConfig": {
