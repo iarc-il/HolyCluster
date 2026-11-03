@@ -82,6 +82,7 @@ class HolyConsumer:
                     )
                     await self.process(records)
                     failures = 0
+                    await asyncio.sleep(0)
             except asyncio.CancelledError:
                 raise
             except Exception as error:
