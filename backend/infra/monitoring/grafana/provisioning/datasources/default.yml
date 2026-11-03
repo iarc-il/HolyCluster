@@ -10,3 +10,17 @@ datasources:
     editable: false
     jsonData:
       timeInterval: 30s
+  - name: Coverage samples
+    uid: postgres-coverage
+    type: postgres
+    access: proxy
+    url: ${POSTGRES_HOST}:${POSTGRES_PORT}
+    user: ${GRAFANA_POSTGRES_USER}
+    isDefault: false
+    editable: false
+    jsonData:
+      database: ${POSTGRES_DB_NAME}
+      sslmode: disable
+      postgresVersion: 1600
+    secureJsonData:
+      password: $GRAFANA_POSTGRES_PASSWORD

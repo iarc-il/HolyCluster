@@ -159,8 +159,38 @@ services:
       retries: 3
       start_period: 10s
 
+  grafana-postgres-bootstrap:
+    image: postgres:16.9-bookworm
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "/bootstrap/bootstrap-postgres.sh"]
+    environment:
+      PGHOST: ${POSTGRES_HOST:-postgres}
+      PGPORT: ${POSTGRES_PORT:-5432}
+      PGDATABASE: ${POSTGRES_DB_NAME:-holy_cluster}
+      PGUSER: ${POSTGRES_USER:-}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-}
+      GRAFANA_POSTGRES_USER: ${GRAFANA_POSTGRES_USER:-}
+      GRAFANA_POSTGRES_PASSWORD: ${GRAFANA_POSTGRES_PASSWORD:-}
+    volumes:
+      - ./infra/monitoring/grafana/bootstrap-postgres.sh:/bootstrap/bootstrap-postgres.sh:ro
+      - ./infra/monitoring/grafana/coverage-reader.sql:/bootstrap/coverage-reader.sql:ro
+    user: "999:999"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   grafana:
     image: grafana/grafana:12.3.1
+    depends_on:
+      grafana-postgres-bootstrap:
+        condition: service_completed_successfully
     restart: unless-stopped
     entrypoint:
       - /bin/sh
@@ -180,6 +210,11 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB_NAME: ${POSTGRES_DB_NAME:-holy_cluster}
+      GRAFANA_POSTGRES_USER: ${GRAFANA_POSTGRES_USER:-}
+      GRAFANA_POSTGRES_PASSWORD: ${GRAFANA_POSTGRES_PASSWORD:-}
       GF_SECURITY_COOKIE_SECURE: "true"
     volumes:
       - ./infra/monitoring/grafana/data:/var/lib/grafana
