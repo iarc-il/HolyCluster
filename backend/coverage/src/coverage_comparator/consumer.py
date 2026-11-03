@@ -1,0 +1,88 @@
+import asyncio
+import json
+import time
+
+from loguru import logger
+from redis.exceptions import ResponseError
+from shared.telemetry import capture_exception
+
+from .matcher import Matcher, stream_id
+from .service import retry_delay
+
+STREAM = "coverage-holy"
+GROUP = "coverage-comparator"
+
+
+class HolyConsumer:
+    def __init__(self, redis, matcher: Matcher, *, clock=time.time):
+        self.redis = redis
+        self.matcher = matcher
+        self.clock = clock
+        self.group = GROUP
+        self.consumer = "comparator"
+
+    async def prepare(self):
+        try:
+            await self.redis.xgroup_create(STREAM, self.group, id="0-0", mkstream=True)
+        except ResponseError as error:
+            if "BUSYGROUP" not in str(error):
+                raise
+
+    async def process(self, records):
+        for _, entries in records:
+            for event_id, fields in entries:
+                now = self.clock()
+                age = now - stream_id(event_id)[0] / 1000
+                tail = await self.redis.xrevrange(STREAM, count=1)
+                caught_up = bool(tail and tail[0][0] == event_id)
+                if age < 0 or age > self.matcher.stale_after:
+                    await self.matcher.health("holy", False, now)
+                else:
+                    if caught_up:
+                        await self.matcher.health("holy", True, now)
+                    try:
+                        spot = json.loads(fields["spot"]) if "spot" in fields else fields
+                        await self.matcher.observe("holy", spot, now, event_id=event_id)
+                    except (ValueError, TypeError, KeyError):
+                        self.matcher.metrics.parse_errors.labels("holy").inc()
+                        await self.matcher.health("holy", False, now)
+                async with self.redis.pipeline(transaction=True) as pipe:
+                    pipe.xack(STREAM, self.group, event_id)
+                    pipe.xdel(STREAM, event_id)
+                    await pipe.execute()
+
+    async def recover(self):
+        cursor = "0-0"
+        while True:
+            result = await self.redis.xautoclaim(STREAM, self.group, self.consumer, 0, cursor, count=100)
+            cursor, entries = result[:2]
+            if len(result) > 2 and result[2]:
+                await self.matcher.health("holy", False, self.clock(), recoverable=False)
+            await self.process([(STREAM, entries)])
+            if cursor == "0-0":
+                return
+
+    async def run(self):
+        failures = 0
+        while True:
+            try:
+                await self.prepare()
+                await self.recover()
+                while True:
+                    records = await self.redis.xreadgroup(
+                        self.group, self.consumer, {STREAM: ">"}, count=100, block=1000,
+                    )
+                    await self.process(records)
+                    failures = 0
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                failures += 1
+                self.matcher.metrics.reconnects.labels("holy").inc()
+                logger.warning("Holy coverage stream failed: {}", type(error).__name__)
+                capture_exception(error, operation="coverage.holy")
+                try:
+                    await self.matcher.health("holy", False, self.clock())
+                except Exception:
+                    logger.warning("Cannot save Holy feed health")
+                await asyncio.sleep(retry_delay(failures))
