@@ -9,8 +9,12 @@ PREFIX = "holycluster_coverage_"
 
 class Metrics:
     def __init__(self, registry: CollectorRegistry):
-        self.outcomes = Counter(PREFIX + "outcomes_total", "Final pairwise outcomes", ("service", "result"), registry=registry)
-        self.skipped = Counter(PREFIX + "skipped_total", "Skipped comparisons", ("service", "reason"), registry=registry)
+        self.outcomes = Counter(
+            PREFIX + "outcomes_total", "Final pairwise outcomes", ("service", "result"), registry=registry
+        )
+        self.skipped = Counter(
+            PREFIX + "skipped_total", "Skipped comparisons", ("service", "reason"), registry=registry
+        )
         self.feed_up = Gauge(PREFIX + "feed_up", "Feed transport is healthy", ("service",), registry=registry)
         self.eligible = Gauge(PREFIX + "comparison_eligible", "Pair can be compared", ("service",), registry=registry)
         self.last_success = Gauge(
@@ -21,7 +25,9 @@ class Metrics:
         )
         self.parse_errors = Counter(PREFIX + "parse_errors_total", "Invalid records", ("service",), registry=registry)
         self.reconnects = Counter(PREFIX + "reconnects_total", "Feed retry attempts", ("service",), registry=registry)
-        self.saturated = Counter(PREFIX + "snapshot_saturated_total", "Incomplete snapshots", ("service",), registry=registry)
+        self.saturated = Counter(
+            PREFIX + "snapshot_saturated_total", "Incomplete snapshots", ("service",), registry=registry
+        )
         self.pending = Gauge(PREFIX + "pending_windows", "Open identity windows", registry=registry)
         self.lag = Gauge(PREFIX + "finalization_lag_seconds", "Oldest due window lag", registry=registry)
         self.window = Gauge(PREFIX + "identity_window_seconds", "Fixed identity interval", registry=registry)

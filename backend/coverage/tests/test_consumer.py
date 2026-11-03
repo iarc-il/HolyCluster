@@ -63,10 +63,15 @@ class ConsumerTests(unittest.IsolatedAsyncioTestCase):
         records = await self.redis.xreadgroup(consumer.group, "comparator", {"coverage-holy": ">"})
         await consumer.process(records)
         await self.matcher.finalize(121)
-        self.assertEqual(self.registry.get_sample_value(
-            "holycluster_coverage_outcomes_total", {"service": "dxsummit", "result": "matched"}), 0)
-        self.assertEqual(self.registry.get_sample_value(
-            "holycluster_coverage_snapshot_saturated_total", {"service": "holy"}), 1)
+        self.assertEqual(
+            self.registry.get_sample_value(
+                "holycluster_coverage_outcomes_total", {"service": "dxsummit", "result": "matched"}
+            ),
+            0,
+        )
+        self.assertEqual(
+            self.registry.get_sample_value("holycluster_coverage_snapshot_saturated_total", {"service": "holy"}), 1
+        )
 
     async def test_recovery_invalidates_health_before_read(self):
         await self.matcher.health("holy", True, 0)
@@ -77,8 +82,12 @@ class ConsumerTests(unittest.IsolatedAsyncioTestCase):
         await self.consumer.recover()
         await self.matcher.health("holy", True, 61)
         await self.matcher.finalize(121)
-        self.assertEqual(self.registry.get_sample_value(
-            "holycluster_coverage_outcomes_total", {"service": "dxsummit", "result": "holy_only"}), 0)
+        self.assertEqual(
+            self.registry.get_sample_value(
+                "holycluster_coverage_outcomes_total", {"service": "dxsummit", "result": "holy_only"}
+            ),
+            0,
+        )
 
     async def test_stream_and_fake_adapter_reach_metrics_and_sink(self):
         sink = self.matcher.sink
@@ -95,10 +104,18 @@ class ConsumerTests(unittest.IsolatedAsyncioTestCase):
         records = await self.redis.xreadgroup(self.consumer.group, "comparator", {"coverage-holy": ">"})
         await self.consumer.process(records)
         await self.matcher.finalize(121)
-        self.assertEqual(self.registry.get_sample_value(
-            "holycluster_coverage_outcomes_total", {"service": "dxsummit", "result": "matched"}), 1)
-        self.assertEqual(self.registry.get_sample_value(
-            "holycluster_coverage_outcomes_total", {"service": "dxsummit", "result": "holy_only"}), 1)
+        self.assertEqual(
+            self.registry.get_sample_value(
+                "holycluster_coverage_outcomes_total", {"service": "dxsummit", "result": "matched"}
+            ),
+            1,
+        )
+        self.assertEqual(
+            self.registry.get_sample_value(
+                "holycluster_coverage_outcomes_total", {"service": "dxsummit", "result": "holy_only"}
+            ),
+            1,
+        )
         self.assertEqual(len(sink.samples), 1)
         self.assertEqual(next(iter(sink.samples.values()))["spot"]["dx_callsign"], "4X2AA")
 

@@ -78,7 +78,11 @@ class HolyConsumer:
                 await self.recover()
                 while True:
                     records = await self.redis.xreadgroup(
-                        self.group, self.consumer, {STREAM: ">"}, count=100, block=1000,
+                        self.group,
+                        self.consumer,
+                        {STREAM: ">"},
+                        count=100,
+                        block=1000,
                     )
                     await self.process(records)
                     failures = 0

@@ -43,19 +43,26 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...] = (), sink: Samp
         loop.add_signal_handler(sig, stop.set)
     try:
         async with Redis(
-            host=settings.valkey_effective_host, port=settings.valkey_effective_port,
-            db=int(settings.valkey_db), decode_responses=True,
-            socket_connect_timeout=10, socket_timeout=10,
+            host=settings.valkey_effective_host,
+            port=settings.valkey_effective_port,
+            db=int(settings.valkey_db),
+            decode_responses=True,
+            socket_connect_timeout=10,
+            socket_timeout=10,
         ) as redis:
             lease = redis.lock("coverage:process", timeout=30, blocking_timeout=1, thread_local=False)
             if not await lease.acquire():
                 raise RuntimeError("A coverage comparator is already active")
             try:
                 matcher = Matcher(
-                    redis, metrics, sink or DisabledSampleSink(),
-                    max_windows=settings.coverage_max_windows, max_samples=settings.coverage_max_samples,
+                    redis,
+                    metrics,
+                    sink or DisabledSampleSink(),
+                    max_windows=settings.coverage_max_windows,
+                    max_samples=settings.coverage_max_samples,
                     sample_max_bytes=settings.coverage_sample_max_bytes,
-                    stale_after=settings.coverage_stale_after_seconds, services=tuple(settings.coverage_services),
+                    stale_after=settings.coverage_stale_after_seconds,
+                    services=tuple(settings.coverage_services),
                 )
                 await matcher.restart(time.time())
                 if sink is None:
@@ -63,14 +70,25 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...] = (), sink: Samp
                 async with asyncio.TaskGroup() as group:
                     tasks = [
                         group.create_task(renew_lease(lease)),
-                        group.create_task(HolyConsumer(
-                            redis, matcher, max_stream_length=settings.coverage_holy_stream_maxlen,
-                        ).run()),
+                        group.create_task(
+                            HolyConsumer(
+                                redis,
+                                matcher,
+                                max_stream_length=settings.coverage_holy_stream_maxlen,
+                            ).run()
+                        ),
                         group.create_task(run_finalizer(matcher)),
                     ]
-                    tasks.extend(group.create_task(run_adapter(
-                        matcher, adapter, max_spots=settings.coverage_max_snapshot_spots,
-                    )) for adapter in selected)
+                    tasks.extend(
+                        group.create_task(
+                            run_adapter(
+                                matcher,
+                                adapter,
+                                max_spots=settings.coverage_max_snapshot_spots,
+                            )
+                        )
+                        for adapter in selected
+                    )
                     await stop.wait()
                     for task in tasks:
                         task.cancel()
@@ -90,7 +108,8 @@ def main():
     logger.remove()
     logger.add(sys.stderr)
     add_bounded_file_sink(
-        Path(settings.log_dir) / "coverage" / "coverage.log", policy=LogFilePolicy(retention=3),
+        Path(settings.log_dir) / "coverage" / "coverage.log",
+        policy=LogFilePolicy(retention=3),
     )
     initialize_sentry(settings, "coverage-comparator")
     logger.info("Start coverage comparator")

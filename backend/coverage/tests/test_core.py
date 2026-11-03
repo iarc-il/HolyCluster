@@ -29,9 +29,12 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         await self.redis.aclose()
 
     def count(self, service, result):
-        return self.registry.get_sample_value(
-            "holycluster_coverage_outcomes_total", {"service": service, "result": result}
-        ) or 0
+        return (
+            self.registry.get_sample_value(
+                "holycluster_coverage_outcomes_total", {"service": service, "result": result}
+            )
+            or 0
+        )
 
     async def test_either_order_and_repeat_dedupe(self):
         for first, second in (("holy", "dxsummit"), ("dxsummit", "holy")):
@@ -121,8 +124,10 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.count("dxsummit", "matched"), 1)
         self.assertEqual(self.count("dxsummit", "holy_only"), 1)
         self.assertTrue(any(s["spot"]["dx_callsign"] == "4X2AA" for s in self.sink.samples.values()))
-        self.assertIn(b'holycluster_coverage_outcomes_total{result="matched",service="dxsummit"} 1.0',
-                      generate_latest(self.registry))
+        self.assertIn(
+            b'holycluster_coverage_outcomes_total{result="matched",service="dxsummit"} 1.0',
+            generate_latest(self.registry),
+        )
 
     async def test_state_is_bounded(self):
         matcher = Matcher(self.redis, self.metrics, self.sink, max_windows=1)

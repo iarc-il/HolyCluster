@@ -15,10 +15,17 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_metrics_http_and_graceful_shutdown(self):
         redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
         settings = SimpleNamespace(
-            coverage_enabled=True, coverage_services=(), coverage_metrics_port=0,
-            valkey_effective_host="localhost", valkey_effective_port=6379, valkey_db="0",
-            coverage_max_windows=100, coverage_max_samples=10, coverage_sample_max_bytes=4096,
-            coverage_stale_after_seconds=120, coverage_holy_stream_maxlen=10000,
+            coverage_enabled=True,
+            coverage_services=(),
+            coverage_metrics_port=0,
+            valkey_effective_host="localhost",
+            valkey_effective_port=6379,
+            valkey_db="0",
+            coverage_max_windows=100,
+            coverage_max_samples=10,
+            coverage_sample_max_bytes=4096,
+            coverage_stale_after_seconds=120,
+            coverage_holy_stream_maxlen=10000,
         )
         handlers = {}
         servers = []
@@ -38,7 +45,9 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch("coverage_comparator.main.Redis", return_value=redis),
             patch("coverage_comparator.main.start_http_server", side_effect=start_server),
-            patch.object(loop, "add_signal_handler", side_effect=lambda sig, callback: handlers.update({sig: callback})),
+            patch.object(
+                loop, "add_signal_handler", side_effect=lambda sig, callback: handlers.update({sig: callback})
+            ),
             patch.object(loop, "remove_signal_handler"),
         ):
             task = asyncio.create_task(run(settings))

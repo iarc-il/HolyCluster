@@ -37,8 +37,15 @@ def stream_id(value: str) -> tuple[int, int]:
 
 class Matcher:
     def __init__(
-        self, redis, metrics: Metrics, sink: SampleSink, *, max_windows: int = 10000,
-        max_samples: int = 1000, sample_max_bytes: int = 4096, stale_after: float = 120,
+        self,
+        redis,
+        metrics: Metrics,
+        sink: SampleSink,
+        *,
+        max_windows: int = 10000,
+        max_samples: int = 1000,
+        sample_max_bytes: int = 4096,
+        stale_after: float = 120,
         services: tuple[str, ...] = SERVICES,
     ):
         self.redis = redis
@@ -84,7 +91,11 @@ class Matcher:
                         reset = True
                         for service in self.services:
                             increment(state, "skipped", service, "unrecoverable")
-                    keys = set(await pipe.zrangebyscore("coverage:deadlines", "-inf", now, start=0, num=100)) if load_due else set()
+                    keys = (
+                        set(await pipe.zrangebyscore("coverage:deadlines", "-inf", now, start=0, num=100))
+                        if load_due
+                        else set()
+                    )
                     if window_key is not None:
                         keys.add(window_key)
                     if reset:
@@ -146,6 +157,7 @@ class Matcher:
                 feed["reason"] = "feed_down"
                 feed["generation"] += 1
                 feed["since"] = now
+
         await self.change(now, update)
 
     def finish(self, state: dict, now: float):
@@ -174,8 +186,11 @@ class Matcher:
                     if len(state["samples"]) < self.max_samples:
                         sample_id = f"{key}:{window['opened']}:{service}"
                         state["samples"][sample_id] = {
-                            "service": service, "result": result, "opened": window["opened"],
-                            "finalized": now, "spot": window["spot"],
+                            "service": service,
+                            "result": result,
+                            "opened": window["opened"],
+                            "finalized": now,
+                            "spot": window["spot"],
                         }
                     else:
                         increment(state, "skipped", service, "sample_limit")
@@ -208,12 +223,16 @@ class Matcher:
                         increment(state, "skipped", service, "capacity")
                     return
                 state["windows"][key] = {
-                    "opened": now, "deadline": now + WINDOW, "sources": [], "spot": json.loads(encoded),
+                    "opened": now,
+                    "deadline": now + WINDOW,
+                    "sources": [],
+                    "spot": json.loads(encoded),
                     "pairs": {
                         service: {
                             "generations": [state["feeds"][s]["generation"] for s in ("holy", service)],
                             "reason": self.eligibility(state, service, now),
-                        } for service in self.services
+                        }
+                        for service in self.services
                     },
                 }
             if source not in state["windows"][key]["sources"]:
