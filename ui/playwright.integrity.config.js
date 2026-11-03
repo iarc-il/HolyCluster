@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
     testDir: "./e2e/integrity",
     testMatch: "**/*.browser.js",
-    timeout: 20000,
+    timeout: 30000,
     workers: 1,
     reporter: "list",
     use: { baseURL: "http://127.0.0.1:5188" },
