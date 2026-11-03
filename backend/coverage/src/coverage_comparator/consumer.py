@@ -6,6 +6,7 @@ from loguru import logger
 from redis.exceptions import ResponseError
 from shared.telemetry import capture_exception
 
+from .adapters import encode_spot
 from .matcher import Matcher, stream_id
 from .service import retry_delay
 
@@ -46,10 +47,12 @@ class HolyConsumer:
                         await self.matcher.health("holy", True, now)
                     try:
                         spot = json.loads(fields["spot"]) if "spot" in fields else fields
-                        await self.matcher.observe("holy", spot, now, event_id=event_id)
+                        encode_spot(spot, self.matcher.sample_max_bytes)
                     except (ValueError, TypeError, KeyError):
                         self.matcher.metrics.parse_errors.labels("holy").inc()
                         await self.matcher.health("holy", False, now)
+                    else:
+                        await self.matcher.observe("holy", spot, now, event_id=event_id)
                 async with self.redis.pipeline(transaction=True) as pipe:
                     pipe.xack(STREAM, self.group, event_id)
                     pipe.xdel(STREAM, event_id)

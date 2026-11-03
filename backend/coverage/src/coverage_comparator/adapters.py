@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -18,6 +19,14 @@ def identity(spot: dict) -> str:
         if not isinstance(spot.get(field), (str, int, float)) or isinstance(spot[field], bool):
             raise ValueError(f"Invalid identity field: {field}")
     return ":".join(str(spot[field]) for field in IDENTITY_FIELDS)
+
+
+def encode_spot(spot: dict, max_bytes: int) -> str:
+    identity(spot)
+    encoded = json.dumps(spot, allow_nan=False)
+    if len(encoded.encode()) > max_bytes:
+        raise ValueError("Spot exceeds the sample size limit")
+    return encoded
 
 
 @dataclass

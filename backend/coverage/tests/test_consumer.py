@@ -45,6 +45,14 @@ class ConsumerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.redis.xlen("coverage-holy"), 1)
         self.assertEqual((await self.redis.xpending("coverage-holy", self.consumer.group))["pending"], 1)
 
+    async def test_storage_value_error_keeps_pending(self):
+        await self.redis.xadd("coverage-holy", SPOT, id="60000-0")
+        records = await self.redis.xreadgroup(self.consumer.group, "comparator", {"coverage-holy": ">"})
+        self.matcher.observe = AsyncMock(side_effect=ValueError("sink rejected sample"))
+        with self.assertRaises(ValueError):
+            await self.consumer.process(records)
+        self.assertEqual(await self.redis.xlen("coverage-holy"), 1)
+
     async def test_saturated_stream_invalidates_comparison(self):
         for source in ("holy", "dxsummit"):
             await self.matcher.health(source, True, 0)

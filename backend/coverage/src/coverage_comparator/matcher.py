@@ -5,7 +5,7 @@ from collections.abc import Callable
 from loguru import logger
 from redis.exceptions import WatchError
 
-from .adapters import SERVICES, SOURCES, identity, validate_source
+from .adapters import SERVICES, SOURCES, encode_spot, identity, validate_source
 from .metrics import Metrics
 from .samples import SampleSink
 
@@ -178,9 +178,7 @@ class Matcher:
     async def observe(self, source: str, spot: dict, now: float, *, event_id: str | None = None):
         validate_source(source)
         key = hashlib.sha256(identity(spot).encode()).hexdigest()
-        encoded = json.dumps(spot, allow_nan=False)
-        if len(encoded.encode()) > self.sample_max_bytes:
-            raise ValueError("Spot exceeds the sample size limit")
+        encoded = encode_spot(spot, self.sample_max_bytes)
         if event_id is not None:
             if source != "holy":
                 raise ValueError("Stream IDs are for Holy observations only")

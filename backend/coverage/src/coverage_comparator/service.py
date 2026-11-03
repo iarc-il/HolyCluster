@@ -4,7 +4,7 @@ import time
 from loguru import logger
 from shared.telemetry import capture_exception
 
-from .adapters import Adapter, Snapshot, identity, validate_source
+from .adapters import Adapter, Snapshot, encode_spot, validate_source
 from .matcher import Matcher
 
 
@@ -20,19 +20,14 @@ async def consume_snapshot(matcher: Matcher, service: str, snapshot: Snapshot, n
         return
     try:
         for spot in snapshot.spots:
-            identity(spot)
+            encode_spot(spot, matcher.sample_max_bytes)
     except (ValueError, TypeError):
         matcher.metrics.parse_errors.labels(service).inc()
         await matcher.health(service, False, now)
         return
     await matcher.health(service, True, now)
     for spot in snapshot.spots:
-        try:
-            await matcher.observe(service, spot, now)
-        except (ValueError, TypeError):
-            matcher.metrics.parse_errors.labels(service).inc()
-            await matcher.health(service, False, now)
-            return
+        await matcher.observe(service, spot, now)
 
 
 async def run_adapter(matcher: Matcher, adapter: Adapter, *, max_spots=10000):
