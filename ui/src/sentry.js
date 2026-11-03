@@ -592,8 +592,15 @@ export function prepareSentryEvent(event, hint = {}) {
         return null;
     const native_name = original?.name ?? primary?.type;
     if (dom_errors.has(native_name)) diagnostic.native_name = native_name;
-    if (diagnostic.category === "dom_tree_mutation") {
-        diagnostic.document_translation_class = documentTranslationClass();
+    const translation_class = documentTranslationClass();
+    if (
+        diagnostic.category === "dom_tree_mutation" ||
+        (diagnostic.category === "NotFoundError" &&
+            boundary &&
+            ["ltr", "rtl", "both"].includes(translation_class))
+    ) {
+        diagnostic.category = "dom_tree_mutation";
+        diagnostic.document_translation_class = translation_class;
     }
     if (
         !prepared_event.fingerprint &&

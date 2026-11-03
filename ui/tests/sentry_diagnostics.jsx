@@ -211,6 +211,17 @@ describe("error-local diagnostics", () => {
             mutation.contexts.diagnostic.document_translation_class,
         );
 
+        const generic_boundary_error = new DOMException(
+            "The object can not be found here.",
+            "NotFoundError",
+        );
+        recordBoundaryDiagnostics(null, generic_boundary_error);
+        expect(report(generic_boundary_error).contexts.diagnostic).toMatchObject({
+            category: "dom_tree_mutation",
+            native_name: "NotFoundError",
+            document_translation_class: "ltr",
+        });
+
         const unrelated = report(new DOMException("Missing record", "NotFoundError"));
         expect(unrelated.contexts.diagnostic.category).toBe("NotFoundError");
         expect(unrelated.contexts.diagnostic).not.toHaveProperty("document_translation_class");

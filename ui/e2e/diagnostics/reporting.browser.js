@@ -164,7 +164,7 @@ testWithBrowserErrors(
 testWithBrowserErrors(
     "reports translation state for a detached React text node",
     [
-        /^console: NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node\.(?:\n|$)/,
+        /^console: NotFoundError: (?:Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node\.|Node\.removeChild: The node to be removed is not a child of this node|The object can not be found here\.)(?:\n|$)/,
     ],
     async ({ page }) => {
         const event = await capture(page, "dom_mutation");
