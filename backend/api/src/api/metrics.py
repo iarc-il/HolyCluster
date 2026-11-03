@@ -7,6 +7,9 @@ from threading import Lock
 from prometheus_client import Counter, Gauge, Histogram
 
 PREFIX = "holycluster_api_"
+COVERAGE_PUBLICATIONS = Counter(
+    PREFIX + "coverage_publications_total", "Coverage records published or dropped", ["outcome"]
+)
 HTTP_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10)
 BACKGROUND_BUCKETS = (0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 300)
 HTTP_REQUESTS = Counter(PREFIX + "http_requests_total", "Completed HTTP requests", ["method", "route", "status"])

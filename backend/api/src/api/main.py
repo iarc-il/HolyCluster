@@ -32,6 +32,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
 
 from . import metrics, propagation, releases, submit_spot, voacap
+from .coverage import CoveragePublisher
 from .release_cache import ReleaseCacheMiddleware
 from .release_response import validated_response
 from .settings import settings
@@ -209,6 +210,8 @@ async def spots_broadcast_task(app):
         decode_responses=True,
     )
 
+    coverage = CoveragePublisher()
+    coverage_task = asyncio.create_task(coverage.run())
     try:
         while True:
             started = time.perf_counter()
@@ -245,14 +248,18 @@ async def spots_broadcast_task(app):
                     try:
                         message_ids = []
                         spots = []
-                        for msg_id, spot in messages:
+                        raw_spots = []
+                        for msg_id, raw_spot in messages:
                             message_ids.append(msg_id)
-                            spot = cleanup_spot(spot)
+                            spot = cleanup_spot(raw_spot)
                             if spot is not None:
                                 spots.append(spot)
+                                raw_spots.append(raw_spot)
 
                         if spots:
                             await broadcast_spots(app, spots)
+                            for raw_spot in raw_spots:
+                                coverage.submit(raw_spot)
 
                         await valkey_client.xack(STREAM_NAME, CONSUMER_GROUP, *message_ids)
                         await valkey_client.xdel(STREAM_NAME, *message_ids)
@@ -269,6 +276,8 @@ async def spots_broadcast_task(app):
                 capture_exception(e, operation="api.broadcast")
                 await asyncio.sleep(2)
     finally:
+        coverage_task.cancel()
+        await asyncio.gather(coverage_task, return_exceptions=True)
         await valkey_client.aclose()
 
 
