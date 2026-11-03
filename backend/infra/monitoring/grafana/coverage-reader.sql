@@ -7,8 +7,9 @@ SELECT length(:'reader') BETWEEN 1 AND 63
     AND :'reader' <> current_user AS valid_reader \gset
 \if :valid_reader
 \else
-    \echo 'Use a dedicated Grafana login with at most 63 characters.'
-    \quit 1
+    DO $$ BEGIN
+        RAISE EXCEPTION 'Use a dedicated Grafana login with at most 63 characters.';
+    END $$;
 \endif
 
 -- Do not convert an existing owner or role member into a dashboard login.
@@ -25,8 +26,9 @@ SELECT EXISTS (
       )
 ) AS unsafe_reader \gset
 \if :unsafe_reader
-    \echo 'The Grafana login must not own objects or have role memberships.'
-    \quit 1
+    DO $$ BEGIN
+        RAISE EXCEPTION 'The Grafana login must not own objects or have role memberships.';
+    END $$;
 \endif
 
 SELECT format('CREATE ROLE %I', :'reader')
