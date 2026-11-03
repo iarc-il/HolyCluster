@@ -52,7 +52,7 @@ class Matcher:
         for source in ("holy", service):
             feed = state["feeds"][source]
             if not feed["up"]:
-                return "feed_down"
+                return feed.get("reason", "feed_down")
             if now - feed["since"] < WINDOW:
                 return "warmup"
             if feed["success"] is None or now - feed["success"] > self.stale_after:
@@ -129,6 +129,7 @@ class Matcher:
                 feed["generation"] += 1
                 feed["since"] = now
             feed["up"] = good
+            feed["reason"] = "saturated" if saturated else "unrecoverable" if not recoverable else "feed_down"
             if good:
                 feed["success"] = now
 
@@ -138,6 +139,7 @@ class Matcher:
         def update(state):
             for feed in state["feeds"].values():
                 feed["up"] = False
+                feed["reason"] = "feed_down"
                 feed["generation"] += 1
                 feed["since"] = now
         await self.change(now, update)
@@ -155,7 +157,7 @@ class Matcher:
                 generations = [state["feeds"][s]["generation"] for s in ("holy", service)]
                 reason = pair["reason"] or self.eligibility(state, service, now)
                 if generations != pair["generations"]:
-                    reason = "generation"
+                    reason = self.eligibility(state, service, now) or "generation"
                 if reason:
                     increment(state, "skipped", service, reason)
                     continue
@@ -195,6 +197,7 @@ class Matcher:
                 if state["pending_windows"] >= self.max_windows:
                     for feed in state["feeds"].values():
                         feed["up"] = False
+                        feed["reason"] = "capacity"
                         feed["generation"] += 1
                     for service in SERVICES if source == "holy" else (source,):
                         increment(state, "skipped", service, "capacity")
