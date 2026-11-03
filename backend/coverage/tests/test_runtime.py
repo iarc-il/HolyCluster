@@ -2,13 +2,14 @@ import asyncio
 import signal
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.request import urlopen
 
 import fakeredis.aioredis
 from prometheus_client import start_http_server
 
-from coverage_comparator.main import run
+from coverage_comparator.main import main, run, run_with_database
+from coverage_comparator.samples import DisabledSampleSink
 
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
@@ -50,7 +51,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch.object(loop, "remove_signal_handler"),
         ):
-            task = asyncio.create_task(run(settings))
+            task = asyncio.create_task(run(settings, sink=DisabledSampleSink()))
             try:
                 await asyncio.wait_for(ready.wait(), timeout=5)
                 body = await asyncio.to_thread(fetch_metrics)
@@ -64,3 +65,74 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 if not task.done():
                     task.cancel()
                     await asyncio.gather(task, return_exceptions=True)
+
+
+class DatabaseRuntimeTests(unittest.IsolatedAsyncioTestCase):
+    def settings(self, enabled=True):
+        return SimpleNamespace(
+            coverage_enabled=enabled,
+            db_url="postgresql+asyncpg://user:password@localhost/coverage",
+            coverage_sample_retention_hours=24,
+            coverage_sample_scope_cap=1000,
+            coverage_sample_max_per_minute=10,
+        )
+
+    async def test_default_sink_and_engine_disposal(self):
+        settings = self.settings()
+        engine = MagicMock(dispose=AsyncMock())
+        sink = MagicMock()
+        with (
+            patch("coverage_comparator.main.create_async_engine", return_value=engine) as create,
+            patch("coverage_comparator.main.PostgresSampleSink", return_value=sink) as factory,
+            patch("coverage_comparator.main.run", new_callable=AsyncMock) as runner,
+        ):
+            await run_with_database(settings)
+        create.assert_called_once_with(
+            settings.db_url, isolation_level="READ COMMITTED", pool_pre_ping=True, pool_size=1, max_overflow=0
+        )
+        factory.assert_called_once_with(engine, retention_hours=24, max_samples=1000, max_per_minute=10)
+        runner.assert_awaited_once_with(settings, (), sink)
+        engine.dispose.assert_awaited_once()
+
+    async def test_disposal_after_failure_and_cancellation(self):
+        for error in (RuntimeError("startup failed"), asyncio.CancelledError()):
+            with self.subTest(error=error):
+                engine = MagicMock(dispose=AsyncMock())
+                with (
+                    patch("coverage_comparator.main.create_async_engine", return_value=engine),
+                    patch("coverage_comparator.main.run", new_callable=AsyncMock, side_effect=error),
+                    self.assertRaises(type(error)),
+                ):
+                    await run_with_database(self.settings())
+                engine.dispose.assert_awaited_once()
+
+    async def test_disposal_after_sink_setup_failure(self):
+        engine = MagicMock(dispose=AsyncMock())
+        with (
+            patch("coverage_comparator.main.create_async_engine", return_value=engine),
+            patch("coverage_comparator.main.PostgresSampleSink", side_effect=ValueError("bad limits")),
+            self.assertRaises(ValueError),
+        ):
+            await run_with_database(self.settings())
+        engine.dispose.assert_awaited_once()
+
+    async def test_disabled_coverage_does_not_create_engine(self):
+        with patch("coverage_comparator.main.create_async_engine") as create:
+            await run_with_database(self.settings(enabled=False))
+        create.assert_not_called()
+
+    async def test_enabled_run_requires_explicit_sink(self):
+        with self.assertRaisesRegex(ValueError, "SampleSink"):
+            await run(self.settings())
+
+    def test_main_uses_database_runner(self):
+        settings = SimpleNamespace(log_dir="/unused")
+        with (
+            patch("coverage_comparator.main.Settings", return_value=settings),
+            patch("coverage_comparator.main.logger"),
+            patch("coverage_comparator.main.add_bounded_file_sink"),
+            patch("coverage_comparator.main.initialize_sentry"),
+            patch("coverage_comparator.main.run_with_database", new_callable=AsyncMock) as runner,
+        ):
+            main()
+        runner.assert_awaited_once_with(settings)

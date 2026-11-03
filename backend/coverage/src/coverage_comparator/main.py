@@ -9,12 +9,14 @@ from prometheus_client import CollectorRegistry, start_http_server
 from redis.asyncio import Redis
 from shared.logging import LogFilePolicy, add_bounded_file_sink
 from shared.telemetry import initialize_sentry
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from .adapters import Adapter
 from .consumer import HolyConsumer
 from .matcher import Matcher
 from .metrics import Metrics
-from .samples import DisabledSampleSink, SampleSink
+from .postgres_samples import PostgresSampleSink
+from .samples import SampleSink
 from .service import run_adapter, run_finalizer
 from .settings import Settings
 
@@ -30,6 +32,8 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...] = (), sink: Samp
     if not settings.coverage_enabled:
         logger.info("Coverage comparator is disabled")
         return
+    if sink is None:
+        raise ValueError("Enabled coverage needs a SampleSink")
     enabled = set(settings.coverage_services)
     selected = [adapter for adapter in adapters if adapter.service in enabled]
     if {adapter.service for adapter in selected} != enabled or len(selected) != len(enabled):
@@ -57,7 +61,7 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...] = (), sink: Samp
                 matcher = Matcher(
                     redis,
                     metrics,
-                    sink or DisabledSampleSink(),
+                    sink,
                     max_windows=settings.coverage_max_windows,
                     max_samples=settings.coverage_max_samples,
                     sample_max_bytes=settings.coverage_sample_max_bytes,
@@ -65,8 +69,6 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...] = (), sink: Samp
                     services=tuple(settings.coverage_services),
                 )
                 await matcher.restart(time.time())
-                if sink is None:
-                    logger.warning("Mismatch sample persistence is disabled; inject a SampleSink to enable it")
                 async with asyncio.TaskGroup() as group:
                     tasks = [
                         group.create_task(renew_lease(lease)),
@@ -103,6 +105,29 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...] = (), sink: Samp
         thread.join(timeout=5)
 
 
+async def run_with_database(settings: Settings, adapters: tuple[Adapter, ...] = ()):
+    if not settings.coverage_enabled:
+        await run(settings, adapters)
+        return
+    engine = create_async_engine(
+        settings.db_url,
+        isolation_level="READ COMMITTED",
+        pool_pre_ping=True,
+        pool_size=1,
+        max_overflow=0,
+    )
+    try:
+        sink = PostgresSampleSink(
+            engine,
+            retention_hours=settings.coverage_sample_retention_hours,
+            max_samples=settings.coverage_sample_scope_cap,
+            max_per_minute=settings.coverage_sample_max_per_minute,
+        )
+        await run(settings, adapters, sink)
+    finally:
+        await engine.dispose()
+
+
 def main():
     settings = Settings()
     logger.remove()
@@ -113,4 +138,4 @@ def main():
     )
     initialize_sentry(settings, "coverage-comparator")
     logger.info("Start coverage comparator")
-    asyncio.run(run(settings))
+    asyncio.run(run_with_database(settings))
