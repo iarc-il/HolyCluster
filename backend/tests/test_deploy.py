@@ -9,7 +9,7 @@ from pathlib import Path
 
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy.sh"
 INITIAL_ENV = "DUMMY_SETTING=test\nSENTRY_RELEASE=oldhead\n"
-BACKGROUND_SERVICES = {"api", "collector", "postgres", "valkey", "victoriametrics", "grafana"}
+BACKGROUND_SERVICES = {"api", "collector", "coverage", "postgres", "valkey", "victoriametrics", "grafana"}
 
 GIT_STUB = """#!/usr/bin/env bash
 set -eu
@@ -78,6 +78,9 @@ if [[ "$*" == inspect*-id ]]; then
     state_variable="${service^^}_STATE"
     printf '%s\\n' "${!state_variable}"
     exit 0
+fi
+if [[ "$*" == 'compose run --rm --no-deps grafana-postgres-bootstrap' ]]; then
+    exit "$BOOTSTRAP_STATUS"
 fi
 if [[ "$*" == 'compose run '* ]]; then
     if [[ "$*" == *'--user 0 '* ]]; then
@@ -181,6 +184,8 @@ class DeployTests(unittest.TestCase):
             "GRAFANA_STATE": "running healthy",
             "API_STATE": "running healthy",
             "COLLECTOR_STATE": "running healthy",
+            "COVERAGE_STATE": "running healthy",
+            "BOOTSTRAP_STATUS": "0",
             "NGINX_STATE": "running healthy",
             "VICTORIAMETRICS_STATE": "running healthy",
             "GRAFANA_PASSWORD_STATUS": "0",
@@ -254,10 +259,10 @@ class DeployTests(unittest.TestCase):
                     self.assertFalse((root / "start-nginx").exists())
 
     def test_multiple_startup_failures_are_all_waited_and_reported(self):
-        root, result = self.run_deploy(FAIL_SERVICES="api,collector,postgres,valkey")
+        root, result = self.run_deploy(FAIL_SERVICES="api,collector,coverage,postgres,valkey")
         self.assertEqual(result.returncode, 37, result.stderr)
         self.assert_all_waited(root)
-        for service in {"api", "collector", "postgres", "valkey"}:
+        for service in {"api", "collector", "coverage", "postgres", "valkey"}:
             self.assertIn(f"Failed to start {service} (exit 37).", result.stderr)
         self.assertNotIn("Deploy complete.", result.stdout)
 
@@ -313,6 +318,29 @@ class DeployTests(unittest.TestCase):
                 self.assertFalse((root / "start-nginx").exists())
                 for service in services:
                     self.assertIn(f"compose up -d --no-deps --force-recreate {service}", calls)
+
+    def test_grafana_waits_for_bootstrap_and_bootstrap_failure_aborts(self):
+        root, result = self.run_deploy(CHANGED_FILES="infra/monitoring/grafana/coverage-reader.sql")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = (root / "docker.log").read_text().splitlines()
+        bootstrap = calls.index("compose run --rm --no-deps grafana-postgres-bootstrap")
+        start = calls.index("compose up -d --no-deps --force-recreate grafana")
+        self.assertLess(bootstrap, start)
+        root, result = self.run_deploy(
+            CHANGED_FILES="infra/monitoring/grafana/coverage-reader.sql", BOOTSTRAP_STATUS="45"
+        )
+        self.assertEqual(result.returncode, 45, result.stderr)
+        self.assertFalse((root / "start-grafana").exists())
+        self.assertFalse((root / "deployed").exists())
+
+    def test_coverage_changes_select_coverage_and_run_migrations(self):
+        for path in ("coverage/pyproject.toml", "docker/Dockerfile.coverage", "shared/pyproject.toml", "uv.lock"):
+            with self.subTest(path=path):
+                root, result = self.run_deploy(CHANGED_FILES=path)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                calls = (root / "docker.log").read_text().splitlines()
+                self.assertTrue((root / "start-coverage").exists())
+                self.assertIn("compose up --abort-on-container-exit --exit-code-from migrate migrate", calls)
 
     def assert_no_removals_or_builds(self, root):
         calls = (root / "docker.log").read_text().splitlines()
@@ -452,7 +480,9 @@ class DeployTests(unittest.TestCase):
         self.assert_all_waited(root)
         self.assertTrue((root / "start-nginx").exists())
         calls = (root / "docker.log").read_text().splitlines()
-        health = "compose up -d --no-deps --wait --wait-timeout 120 api collector nginx victoriametrics grafana"
+        health = (
+            "compose up -d --no-deps --wait --wait-timeout 120 api collector coverage nginx victoriametrics grafana"
+        )
         self.assertIn(health, calls)
         self.assertLess(calls.index("compose up -d --no-deps nginx"), calls.index(health))
         self.assertNotIn("Deploy complete.", result.stdout)
@@ -523,6 +553,7 @@ class DeployTests(unittest.TestCase):
         for service, background in (
             ("api", {"api"}),
             ("collector", {"collector"}),
+            ("coverage", {"coverage"}),
             ("nginx", set()),
             ("victoriametrics", {"victoriametrics"}),
         ):
@@ -578,7 +609,7 @@ class DeployTests(unittest.TestCase):
             [call for call in calls if call.startswith("compose ps")],
             [
                 f"compose ps --all --quiet {service}"
-                for service in ("api", "collector", "nginx", "victoriametrics", "grafana")
+                for service in ("api", "collector", "coverage", "nginx", "victoriametrics", "grafana")
             ],
         )
         self.assertFalse(list(root.glob("start-*")))

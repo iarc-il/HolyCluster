@@ -51,7 +51,7 @@ CURRENT_HEAD=$(git rev-parse HEAD)
 
 if [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ]; then
     CHANGED_FILES=""
-    for svc in api collector nginx victoriametrics grafana; do
+    for svc in api collector coverage nginx victoriametrics grafana; do
         CONTAINER_ID=$(docker compose ps --all --quiet "$svc")
         HEALTH_STATE=""
         if [ -n "$CONTAINER_ID" ]; then
@@ -64,6 +64,7 @@ if [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ]; then
         case "$svc" in
             api) CHANGED_FILES+=$'api/recovery\n' ;;
             collector) CHANGED_FILES+=$'collectors/recovery\n' ;;
+            coverage) CHANGED_FILES+=$'coverage/recovery\n' ;;
             nginx) CHANGED_FILES+=$'infra/nginx/recovery\n' ;;
             victoriametrics|grafana) CHANGED_FILES+="infra/monitoring/$svc/recovery"$'\n' ;;
         esac
@@ -138,6 +139,7 @@ while IFS= read -r file; do
             COMPOSE_FILE_CHANGED=true
             add_service api
             add_service collector
+            add_service coverage
             add_service migrate
             add_service nginx
             add_service postgres
@@ -149,12 +151,14 @@ while IFS= read -r file; do
         shared/*)
             add_service api
             add_service collector
+            add_service coverage
             add_service migrate
             run_migrations
             ;;
         pyproject.toml|uv.lock)
             add_service api
             add_service collector
+            add_service coverage
             add_service migrate
             run_migrations
             ;;
@@ -168,6 +172,10 @@ while IFS= read -r file; do
             ;;
         collectors/*|docker/Dockerfile.collector)
             add_service collector
+            run_migrations
+            ;;
+        coverage/*|docker/Dockerfile.coverage)
+            add_service coverage
             run_migrations
             ;;
         infra/nginx/*)
@@ -241,6 +249,12 @@ if [ "$RUN_MIGRATIONS" = true ]; then
     docker compose up --abort-on-container-exit --exit-code-from migrate migrate
 fi
 
+# Deploy uses --no-deps, so run the Compose bootstrap gate explicitly.
+if [[ -v SERVICES[grafana] ]]; then
+    docker compose up -d --wait --wait-timeout 120 postgres
+    docker compose run --rm --no-deps grafana-postgres-bootstrap
+fi
+
 echo "Starting: $SERVICE_LIST"
 
 START_PIDS=()
@@ -286,7 +300,7 @@ if [ "$COMPOSE_FILE_CHANGED" = true ]; then
 fi
 
 HEALTH_SERVICES=()
-for svc in api collector nginx victoriametrics grafana; do
+for svc in api collector coverage nginx victoriametrics grafana; do
     if [[ -v SERVICES[$svc] ]]; then
         HEALTH_SERVICES+=("$svc")
     fi
