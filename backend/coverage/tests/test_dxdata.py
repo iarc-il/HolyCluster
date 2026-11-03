@@ -9,7 +9,7 @@ import aiohttp
 from coverage_comparator.feeds.dxdata import DXDataAdapter, normalize_spot, parse_frequency
 
 ROW = {
-    "spotter": " w1aa ",
+    "spotter": " w1aa-12 ",
     "dx": "4x1aa/p",
     "frequency": "14.255.0",
     "time": "2026-11-03 22:23Z",

@@ -18,7 +18,7 @@ import aiohttp
 
 from coverage_comparator.adapters import Snapshot, identity
 
-USER_AGENT = "HolyCluster collector (https://holycluster.iarc.org/)"
+USER_AGENT = "HolyCluster coverage comparator (https://holycluster.iarc.org/)"
 HTTP_URL = "https://dxdata.io/filtered_spots_json/"
 WS_URL = "wss://dxdata.io/ws/dxdata/"
 
@@ -47,7 +47,12 @@ def normalize_spot(row: object) -> dict:
         value = row.get(source)
         if not isinstance(value, str) or len(value) > 64 or not re.fullmatch(r"[A-Za-z0-9/\-]+", value.strip()):
             raise ValueError("Invalid callsign")
-        result[target] = value.strip().upper()
+        call = value.strip().upper()
+        if source == "spotter":
+            call = re.sub(r"-\d+$", "", call)
+        if not call:
+            raise ValueError("Invalid callsign")
+        result[target] = call
     timestamp = row.get("time")
     if not isinstance(timestamp, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}Z", timestamp):
         raise ValueError("Invalid spot time")
