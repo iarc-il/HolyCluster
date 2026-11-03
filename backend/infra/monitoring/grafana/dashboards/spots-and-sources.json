@@ -324,61 +324,6 @@
     },
     {
       "type": "timeseries",
-      "title": "Source contribution percentage",
-      "description": "Share of queued (accepted) spots. No accepted traffic gives No data.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "100 * sum by (source) (rate(holycluster_collector_spots_total{source!~\"sota|telnet\",stage=\"ingest\",result=\"queued\"}[$__rate_interval])) / scalar(sum(rate(holycluster_collector_spots_total{source!~\"sota|telnet\",stage=\"ingest\",result=\"queued\"}[$__rate_interval])) > 0)",
-          "legendFormat": "{{source}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "noValue": "No data",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": []
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 13,
-        "w": 24,
-        "h": 8
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 9
-    },
-    {
-      "type": "timeseries",
       "title": "Collection outcomes by source",
       "description": "",
       "datasource": {
@@ -413,7 +358,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 13,
         "w": 12,
         "h": 8
       },
@@ -468,7 +413,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 21,
+        "y": 13,
         "w": 12,
         "h": 8
       },
@@ -523,7 +468,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 29,
+        "y": 21,
         "w": 12,
         "h": 8
       },
@@ -578,7 +523,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 29,
+        "y": 21,
         "w": 12,
         "h": 8
       },
