@@ -14,10 +14,11 @@ GROUP = "coverage-comparator"
 
 
 class HolyConsumer:
-    def __init__(self, redis, matcher: Matcher, *, clock=time.time):
+    def __init__(self, redis, matcher: Matcher, *, clock=time.time, max_stream_length=10000):
         self.redis = redis
         self.matcher = matcher
         self.clock = clock
+        self.max_stream_length = max_stream_length
         self.group = GROUP
         self.consumer = "comparator"
 
@@ -29,6 +30,9 @@ class HolyConsumer:
                 raise
 
     async def process(self, records):
+        saturated = await self.redis.xlen(STREAM) >= self.max_stream_length
+        if saturated:
+            await self.matcher.health("holy", False, self.clock(), saturated=True)
         for _, entries in records:
             for event_id, fields in entries:
                 now = self.clock()
@@ -38,7 +42,7 @@ class HolyConsumer:
                 if age < 0 or age > self.matcher.stale_after:
                     await self.matcher.health("holy", False, now)
                 else:
-                    if caught_up:
+                    if caught_up and not saturated:
                         await self.matcher.health("holy", True, now)
                     try:
                         spot = json.loads(fields["spot"]) if "spot" in fields else fields
@@ -52,6 +56,7 @@ class HolyConsumer:
                     await pipe.execute()
 
     async def recover(self):
+        await self.matcher.health("holy", False, self.clock())
         cursor = "0-0"
         while True:
             result = await self.redis.xautoclaim(STREAM, self.group, self.consumer, 0, cursor, count=100)

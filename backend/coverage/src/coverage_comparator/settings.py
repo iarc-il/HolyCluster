@@ -18,6 +18,7 @@ class Settings(PostgresSettings, ValkeySettings, LogSettings, SentrySettings):
     coverage_max_samples: int = Field(default=1000, ge=0, le=10000)
     coverage_sample_max_bytes: int = Field(default=4096, ge=256, le=65536)
     coverage_max_snapshot_spots: int = Field(default=10000, ge=1, le=100000)
+    coverage_holy_stream_maxlen: int = Field(default=10000, ge=1, le=1000000)
     coverage_stale_after_seconds: int = Field(default=120, ge=60)
 
     @field_validator("coverage_services")

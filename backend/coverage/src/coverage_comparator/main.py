@@ -63,7 +63,9 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...] = (), sink: Samp
                 async with asyncio.TaskGroup() as group:
                     tasks = [
                         group.create_task(renew_lease(lease)),
-                        group.create_task(HolyConsumer(redis, matcher).run()),
+                        group.create_task(HolyConsumer(
+                            redis, matcher, max_stream_length=settings.coverage_holy_stream_maxlen,
+                        ).run()),
                         group.create_task(run_finalizer(matcher)),
                     ]
                     tasks.extend(group.create_task(run_adapter(

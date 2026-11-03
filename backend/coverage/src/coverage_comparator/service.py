@@ -41,6 +41,8 @@ async def run_adapter(matcher: Matcher, adapter: Adapter, *, max_spots=10000):
     try:
         while True:
             try:
+                if failures:
+                    await matcher.health(adapter.service, False, time.time())
                 snapshot = await adapter.poll()
                 await consume_snapshot(matcher, adapter.service, snapshot, time.time(), max_spots=max_spots)
                 failures = 0
@@ -49,7 +51,10 @@ async def run_adapter(matcher: Matcher, adapter: Adapter, *, max_spots=10000):
                 raise
             except Exception as error:
                 failures += 1
-                await matcher.health(adapter.service, False, time.time())
+                try:
+                    await matcher.health(adapter.service, False, time.time())
+                except Exception:
+                    logger.warning("Cannot save {} feed health", adapter.service)
                 matcher.metrics.reconnects.labels(adapter.service).inc()
                 logger.warning("Coverage feed {} failed: {}", adapter.service, type(error).__name__)
                 capture_exception(error, operation=f"coverage.poll.{adapter.service}")
