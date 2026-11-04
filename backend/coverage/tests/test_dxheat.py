@@ -85,7 +85,7 @@ class DXHeatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await feed.poll()).spots, [])
         url, options = session.requests[0]
         self.assertEqual(url, "https://example.test/source/spots/?a=10")
-        self.assertIn("HolyCluster", options["headers"]["User-Agent"])
+        self.assertIn("Firefox/", options["headers"]["User-Agent"])
         self.assertEqual(options["timeout"].total, 15)
 
     async def test_date_parsing_utc_and_midnight_order(self):

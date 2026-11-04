@@ -8,6 +8,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 
 import aiohttp
+from shared.http import FIREFOX_USER_AGENT
 
 from ..adapters import Snapshot
 
@@ -23,7 +24,7 @@ class DXSummitAdapter:
 
     service = "dxsummit"
     poll_interval = 15.0
-    user_agent = "HolyCluster/coverage-comparator (DX Summit adapter)"
+    user_agent = FIREFOX_USER_AGENT
     timeout = aiohttp.ClientTimeout(total=12, connect=5)
     max_response_bytes = 2 * 1024 * 1024
 

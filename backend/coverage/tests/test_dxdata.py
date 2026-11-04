@@ -149,7 +149,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(http[0], "https://example/seed")
         self.assertEqual(http[1]["params"], {"rbn": "false", "psk": "false"})
         for _, kwargs in (ws, http):
-            self.assertIn("HolyCluster", kwargs["headers"]["User-Agent"])
+            self.assertIn("Firefox/", kwargs["headers"]["User-Agent"])
             self.assertEqual(kwargs["headers"]["Origin"], "https://example")
             self.assertIn("timeout", kwargs)
         self.assertGreater(ws[1]["max_msg_size"], 0)

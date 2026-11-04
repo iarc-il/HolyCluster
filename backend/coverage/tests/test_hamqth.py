@@ -47,7 +47,7 @@ class HamQTHTests(unittest.IsolatedAsyncioTestCase):
         request = self.requests[0]
         self.assertEqual(request.method, "GET")
         self.assertEqual(str(request.url), "https://example.test/api/v2/spots?limit=200")
-        self.assertIn("HolyCluster", request.headers["User-Agent"])
+        self.assertIn("Firefox/", request.headers["User-Agent"])
         self.assertEqual(self.adapter.service, "hamqth")
 
     async def test_normalization_overlap_and_chronological_order(self):

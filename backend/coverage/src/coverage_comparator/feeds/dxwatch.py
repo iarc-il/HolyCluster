@@ -11,10 +11,9 @@ import time
 from datetime import UTC, datetime, timedelta
 
 import httpx
+from shared.http import FIREFOX_USER_AGENT
 
 from ..adapters import Snapshot
-
-USER_AGENT = "HolyCluster coverage comparator (https://holycluster.iarc.org/)"
 MONTHS = {
     month: index
     for index, month in enumerate(
@@ -95,7 +94,7 @@ class DXWatchAdapter:
             response = await self.session.get(
                 f"{self.base_url}/dxsd1/s.php",
                 params={"s": self._last_id or 0, "r": self.rows},
-                headers={"User-Agent": USER_AGENT},
+                headers={"User-Agent": FIREFOX_USER_AGENT},
                 timeout=15.0,
             )
             response.raise_for_status()

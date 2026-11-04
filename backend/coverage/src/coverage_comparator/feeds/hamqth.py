@@ -8,6 +8,7 @@ import time
 from datetime import UTC, datetime
 
 import httpx
+from shared.http import FIREFOX_USER_AGENT
 
 from coverage_comparator.adapters import Snapshot
 
@@ -23,7 +24,6 @@ class HamQTHAdapter:
     service = "hamqth"
     LIMIT = 200
     MAX_BYTES = 256 * 1024
-    USER_AGENT = "HolyCluster coverage-comparator (https://github.com/iarc-il/HolyCluster)"
 
     def __init__(
         self,
@@ -117,7 +117,7 @@ class HamQTHAdapter:
                 "GET",
                 f"{self.base_url}/api/v2/spots",
                 params={"limit": self.LIMIT},
-                headers={"User-Agent": self.USER_AGENT, "Accept": "application/json"},
+                headers={"User-Agent": FIREFOX_USER_AGENT, "Accept": "application/json"},
                 timeout=15.0,
             ) as response:
                 response.raise_for_status()

@@ -106,7 +106,7 @@ class DXSummitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request["params"]["from_time"], int(adapter._normalize(record(2))[1]["observed_at"]) - 120)
         self.assertEqual(request["params"]["to_time"], 1800000001)
         self.assertEqual(request["params"]["limit"], 1000)
-        self.assertIn("HolyCluster", request["headers"]["User-Agent"])
+        self.assertIn("Firefox/", request["headers"]["User-Agent"])
         self.assertLess(request["timeout"].total, adapter.poll_interval)
 
     async def test_invalid_record_rejects_whole_poll_without_cursor_change(self):

@@ -15,10 +15,9 @@ from collections.abc import Callable
 from datetime import datetime
 
 import aiohttp
+from shared.http import FIREFOX_USER_AGENT
 
 from coverage_comparator.adapters import Snapshot, identity
-
-USER_AGENT = "HolyCluster coverage comparator (https://holycluster.iarc.org/)"
 HTTP_URL = "https://dxdata.io/filtered_spots_json/"
 WS_URL = "wss://dxdata.io/ws/dxdata/"
 
@@ -192,7 +191,7 @@ class DXDataAdapter:
         self._ready_at = float("inf")
         if self._session is None:
             self._session = aiohttp.ClientSession()
-        headers = {"User-Agent": USER_AGENT, "Origin": self._origin}
+        headers = {"User-Agent": FIREFOX_USER_AGENT, "Origin": self._origin}
         # Open the socket first so arrivals during the HTTP seed are buffered.
         async with asyncio.timeout(self._timeout):
             self._ws = await self._session.ws_connect(

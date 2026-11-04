@@ -5,12 +5,12 @@ from typing import Any
 
 import aiohttp
 from loguru import logger
+from shared.http import FIREFOX_USER_AGENT
 from shared.spot_identity import build_spot_key
 from shared.telemetry import capture_exception
 
 from collectors.metrics import JSON_SOURCES, SpotEnvelope, metrics
 
-USER_AGENT = "HolyCluster collector (https://holycluster.iarc.org/)"
 MAX_RETRY_DELAY_SECONDS = 300
 
 
@@ -61,7 +61,7 @@ async def run_json_spot_collector(
     logger.info(f"Starting {source_label} spot collector")
     valkey_client = get_valkey_client()
     timeout = aiohttp.ClientTimeout(total=request_timeout)
-    headers = {"User-Agent": USER_AGENT}
+    headers = {"User-Agent": FIREFOX_USER_AGENT}
     failure_count = 0
     async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
         while True:
