@@ -4,8 +4,6 @@ from unittest.mock import AsyncMock
 
 import fakeredis.aioredis
 from prometheus_client import CollectorRegistry
-from pydantic import ValidationError
-
 from coverage_comparator.adapters import FakeAdapter, Snapshot
 from coverage_comparator.matcher import Matcher
 from coverage_comparator.metrics import Metrics
@@ -139,28 +137,5 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
 
 
 class SettingsTests(unittest.TestCase):
-    def test_window_and_service_names_are_fixed(self):
-        required = {
-            "postgres_user": "test",
-            "postgres_password": "test",
-            "postgres_host": "localhost",
-            "postgres_port": "5432",
-            "postgres_host_local": "localhost",
-            "postgres_port_local": "5432",
-            "valkey_host": "localhost",
-            "valkey_port": 6379,
-            "valkey_host_local": "localhost",
-            "valkey_port_local": 6379,
-            "sentry_environment": "dev",
-            "sentry_release": "test",
-        }
-        settings = Settings(_env_file=None, **required)
-        self.assertEqual(settings.coverage_identity_window_seconds, 60)
-        for invalid in (
-            {"coverage_identity_window_seconds": 61},
-            {"coverage_services": ("unknown",)},
-            {"coverage_services": ("dxheat", "dxheat")},
-            {"coverage_metrics_port": 0},
-        ):
-            with self.assertRaises(ValidationError):
-                Settings(_env_file=None, **required, **invalid)
+    def test_comparator_reuses_shared_settings_only(self):
+        self.assertFalse(any(name.startswith("coverage_") for name in Settings.model_fields))

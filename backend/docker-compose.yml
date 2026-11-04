@@ -98,12 +98,10 @@ services:
         condition: service_completed_successfully
     env_file:
       - .env
-    environment:
-      COVERAGE_METRICS_PORT: ${COVERAGE_METRICS_PORT:-9102}
     expose:
-      - "${COVERAGE_METRICS_PORT:-9102}"
+      - "9102"
     healthcheck:
-      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['COVERAGE_METRICS_PORT'] + '/health', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9102/health', timeout=3)"]
       interval: 5s
       timeout: 5s
       retries: 5

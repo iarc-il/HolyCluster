@@ -51,7 +51,7 @@ class DXWatchTests(unittest.IsolatedAsyncioTestCase):
         result = await self.adapter.poll()
         self.assertTrue(result.recoverable)
         self.assertEqual(str(self.requests[1].url), "https://example.test/dxsd1/s.php?s=10&r=100")
-        self.assertIn("HolyCluster", self.requests[1].headers["user-agent"])
+        self.assertIn("Firefox/", self.requests[1].headers["user-agent"])
         self.assertEqual(self.requests[1].extensions["timeout"]["read"], 15.0)
         self.assertEqual([s["time"] for s in result.spots], ["2233Z", "2234Z", "2235Z"])
         self.assertEqual(result.spots[0]["spotter_callsign"], "G0ABC-X")

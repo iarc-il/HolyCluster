@@ -376,7 +376,9 @@ name = "coverage-comparator"
 version = "0.1.0"
 source = { editable = "coverage" }
 dependencies = [
+    { name = "aiohttp" },
     { name = "asyncpg" },
+    { name = "httpx" },
     { name = "loguru" },
     { name = "prometheus-client" },
     { name = "redis" },
@@ -386,7 +388,9 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.13.2" },
     { name = "asyncpg", specifier = ">=0.31.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "prometheus-client", specifier = ">=0.21.1" },
     { name = "redis", specifier = ">=7.1.0" },

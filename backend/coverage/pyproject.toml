@@ -5,6 +5,8 @@ requires-python = ">=3.13"
 description = "Pairwise spot coverage comparison"
 dependencies = [
     "shared",
+    "aiohttp>=3.13.2",
+    "httpx>=0.28.1",
     "asyncpg>=0.31.0",
     "sqlalchemy[asyncio]>=2.0.44",
     "redis>=7.1.0",

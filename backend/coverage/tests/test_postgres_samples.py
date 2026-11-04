@@ -4,13 +4,11 @@ from datetime import UTC, datetime, time, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from pydantic import ValidationError
 from shared.db import SpotCoverageSample
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from coverage_comparator.postgres_samples import PostgresSampleSink, sample_row
-from coverage_comparator.settings import Settings
 
 NOW = datetime(2026, 11, 1, 12, tzinfo=UTC)
 SAMPLE = {
@@ -69,27 +67,6 @@ class MappingTests(unittest.TestCase):
         for changes in ({"service": "unknown"}, {"result": "matched"}):
             with self.assertRaises(ValueError):
                 sample_row("id", {**SAMPLE, **changes})
-
-    def test_settings_limits(self):
-        # Supply all required inherited values without reading a local .env file.
-        required = {key: "test" for key, field in Settings.model_fields.items() if field.is_required()}
-        required.update(
-            postgres_port="5432",
-            postgres_port_local="5432",
-            valkey_port=6379,
-            valkey_port_local=6379,
-            sentry_environment="dev",
-        )
-        settings = Settings(_env_file=None, **required)
-        self.assertEqual(settings.coverage_sample_retention_hours, 24)
-        for name, bad in (
-            ("coverage_sample_retention_hours", 0),
-            ("coverage_sample_scope_cap", -1),
-            ("coverage_sample_max_per_minute", 0),
-            ("coverage_sample_max_per_minute", 1001),
-        ):
-            with self.subTest(name=name), self.assertRaises(ValidationError):
-                Settings(_env_file=None, **required, **{name: bad})
 
 
 class SinkTests(unittest.IsolatedAsyncioTestCase):

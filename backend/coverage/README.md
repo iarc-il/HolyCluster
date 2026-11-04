@@ -5,11 +5,9 @@ settings from `shared.settings.PostgresSettings`. Each write uses one
 READ COMMITTED transaction. The shared helper prevents duplicate rows and
 applies the retention limit and row cap in that transaction.
 
-| Setting | Default | Valid range |
-| --- | --- | --- |
-| `COVERAGE_SAMPLE_RETENTION_HOURS` | 24 | 1–8760 |
-| `COVERAGE_SAMPLE_SCOPE_CAP` | 1000 | 0–10000 |
-| `COVERAGE_SAMPLE_MAX_PER_MINUTE` | 10 | 1–1000 |
+The comparator keeps examples for 24 hours, retains at most 1,000 rows per
+service and direction, and writes at most 10 examples per minute for each
+scope. These are fixed safety limits, not deployment settings.
 
 A scope is one service and one direction (`holy_only` or `service_only`).
 The row cap and write rate apply to each scope. A zero row cap keeps no rows.
@@ -31,10 +29,9 @@ All stored timestamps use UTC. The digest uses the stable sample ID, not the
 finalization time. The sink preserves callsigns, frequency, and comment text.
 The matcher limits the source sample size before the sink receives it.
 
-`run()` requires an explicit sink when coverage is enabled. Tests can pass
-`DisabledSampleSink` or `MemorySampleSink`. `run_with_database()` creates the
-real sink and disposes of the engine after shutdown. Disabled coverage does
-not create an engine.
+`run()` requires an explicit sink. Tests can pass `DisabledSampleSink` or
+`MemorySampleSink`. `run_with_database()` creates the real sink and disposes
+of the engine after shutdown.
 
 ## Tests
 

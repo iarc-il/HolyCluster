@@ -11,14 +11,25 @@ from shared.logging import LogFilePolicy, add_bounded_file_sink
 from shared.telemetry import initialize_sentry
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from .adapters import Adapter
+from .adapters import SERVICES, Adapter
 from .consumer import HolyConsumer
+from .feeds.dxdata import DXDataAdapter
+from .feeds.dxheat import DXHeatAdapter
+from .feeds.dxsummit import DXSummitAdapter
+from .feeds.dxwatch import DXWatchAdapter
+from .feeds.hamqth import HamQTHAdapter
 from .matcher import Matcher
 from .metrics import Metrics
 from .postgres_samples import PostgresSampleSink
 from .samples import SampleSink
 from .service import run_adapter, run_finalizer
 from .settings import Settings
+
+METRICS_PORT = 9102
+
+
+def default_adapters() -> tuple[Adapter, ...]:
+    return (DXSummitAdapter(), DXHeatAdapter(), DXWatchAdapter(), DXDataAdapter(), HamQTHAdapter())
 
 
 async def renew_lease(lease):
@@ -28,19 +39,14 @@ async def renew_lease(lease):
             raise RuntimeError("Coverage process lease lost")
 
 
-async def run(settings: Settings, adapters: tuple[Adapter, ...] = (), sink: SampleSink | None = None):
-    if not settings.coverage_enabled:
-        logger.info("Coverage comparator is disabled")
-        return
+async def run(settings: Settings, adapters: tuple[Adapter, ...], sink: SampleSink | None = None):
     if sink is None:
-        raise ValueError("Enabled coverage needs a SampleSink")
-    enabled = set(settings.coverage_services)
-    selected = [adapter for adapter in adapters if adapter.service in enabled]
-    if {adapter.service for adapter in selected} != enabled or len(selected) != len(enabled):
-        raise ValueError("Each enabled service needs one adapter")
+        raise ValueError("Coverage needs a SampleSink")
+    if {adapter.service for adapter in adapters} != set(SERVICES) or len(adapters) != len(SERVICES):
+        raise ValueError("Coverage needs one adapter for each service")
     registry = CollectorRegistry()
     metrics = Metrics(registry)
-    server, thread = start_http_server(settings.coverage_metrics_port, registry=registry)
+    server, thread = start_http_server(METRICS_PORT, registry=registry)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -58,39 +64,15 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...] = (), sink: Samp
             if not await lease.acquire():
                 raise RuntimeError("A coverage comparator is already active")
             try:
-                matcher = Matcher(
-                    redis,
-                    metrics,
-                    sink,
-                    max_windows=settings.coverage_max_windows,
-                    max_samples=settings.coverage_max_samples,
-                    sample_max_bytes=settings.coverage_sample_max_bytes,
-                    stale_after=settings.coverage_stale_after_seconds,
-                    services=tuple(settings.coverage_services),
-                )
+                matcher = Matcher(redis, metrics, sink)
                 await matcher.restart(time.time())
                 async with asyncio.TaskGroup() as group:
                     tasks = [
                         group.create_task(renew_lease(lease)),
-                        group.create_task(
-                            HolyConsumer(
-                                redis,
-                                matcher,
-                                max_stream_length=settings.coverage_holy_stream_maxlen,
-                            ).run()
-                        ),
+                        group.create_task(HolyConsumer(redis, matcher).run()),
                         group.create_task(run_finalizer(matcher)),
                     ]
-                    tasks.extend(
-                        group.create_task(
-                            run_adapter(
-                                matcher,
-                                adapter,
-                                max_spots=settings.coverage_max_snapshot_spots,
-                            )
-                        )
-                        for adapter in selected
-                    )
+                    tasks.extend(group.create_task(run_adapter(matcher, adapter)) for adapter in adapters)
                     await stop.wait()
                     for task in tasks:
                         task.cancel()
@@ -105,10 +87,7 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...] = (), sink: Samp
         thread.join(timeout=5)
 
 
-async def run_with_database(settings: Settings, adapters: tuple[Adapter, ...] = ()):
-    if not settings.coverage_enabled:
-        await run(settings, adapters)
-        return
+async def run_with_database(settings: Settings, adapters: tuple[Adapter, ...] | None = None):
     engine = create_async_engine(
         settings.db_url,
         isolation_level="READ COMMITTED",
@@ -117,13 +96,8 @@ async def run_with_database(settings: Settings, adapters: tuple[Adapter, ...] = 
         max_overflow=0,
     )
     try:
-        sink = PostgresSampleSink(
-            engine,
-            retention_hours=settings.coverage_sample_retention_hours,
-            max_samples=settings.coverage_sample_scope_cap,
-            max_per_minute=settings.coverage_sample_max_per_minute,
-        )
-        await run(settings, adapters, sink)
+        sink = PostgresSampleSink(engine)
+        await run(settings, default_adapters() if adapters is None else adapters, sink)
     finally:
         await engine.dispose()
 
