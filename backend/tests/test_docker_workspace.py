@@ -15,3 +15,9 @@ class DockerWorkspaceTests(unittest.TestCase):
                 for member in WORKSPACE_MEMBERS:
                     self.assertIn(f"source={member}/pyproject.toml", contents)
                     self.assertIn(f"COPY {member}/", contents)
+
+    def test_coverage_reader_reuses_existing_database_secret(self):
+        compose = (BACKEND / "docker-compose.yml").read_text()
+        self.assertNotIn("${GRAFANA_POSTGRES_", compose)
+        self.assertEqual(compose.count("GRAFANA_POSTGRES_USER: grafana_coverage"), 2)
+        self.assertEqual(compose.count("GRAFANA_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}"), 2)

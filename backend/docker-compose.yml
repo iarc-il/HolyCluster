@@ -172,8 +172,8 @@ services:
       PGDATABASE: ${POSTGRES_DB_NAME:-holy_cluster}
       PGUSER: ${POSTGRES_USER:-}
       PGPASSWORD: ${POSTGRES_PASSWORD:-}
-      GRAFANA_POSTGRES_USER: ${GRAFANA_POSTGRES_USER:-}
-      GRAFANA_POSTGRES_PASSWORD: ${GRAFANA_POSTGRES_PASSWORD:-}
+      GRAFANA_POSTGRES_USER: grafana_coverage
+      GRAFANA_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes:
       - ./infra/monitoring/grafana/bootstrap-postgres.sh:/bootstrap/bootstrap-postgres.sh:ro
       - ./infra/monitoring/grafana/coverage-reader.sql:/bootstrap/coverage-reader.sql:ro
@@ -211,8 +211,8 @@ services:
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB_NAME: ${POSTGRES_DB_NAME:-holy_cluster}
-      GRAFANA_POSTGRES_USER: ${GRAFANA_POSTGRES_USER:-}
-      GRAFANA_POSTGRES_PASSWORD: ${GRAFANA_POSTGRES_PASSWORD:-}
+      GRAFANA_POSTGRES_USER: grafana_coverage
+      GRAFANA_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       GF_SECURITY_COOKIE_SECURE: "true"
     volumes:
       - ./infra/monitoring/grafana/data:/var/lib/grafana
