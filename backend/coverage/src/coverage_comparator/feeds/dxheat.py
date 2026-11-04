@@ -96,7 +96,9 @@ class DXHeatAdapter:
             raise RuntimeError("DXHeat adapter is closed")
         if self._session is None:
             self._session = aiohttp.ClientSession()
-        async with self._session.get(self._url, headers={"User-Agent": FIREFOX_USER_AGENT}, timeout=self._timeout) as response:
+        async with self._session.get(
+            self._url, headers={"User-Agent": FIREFOX_USER_AGENT}, timeout=self._timeout
+        ) as response:
             response.raise_for_status()
             try:
                 payload = await response.json()

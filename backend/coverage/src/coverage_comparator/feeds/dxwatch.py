@@ -14,6 +14,7 @@ import httpx
 from shared.http import FIREFOX_USER_AGENT
 
 from ..adapters import Snapshot
+
 MONTHS = {
     month: index
     for index, month in enumerate(

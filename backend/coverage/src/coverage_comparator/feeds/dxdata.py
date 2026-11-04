@@ -18,6 +18,7 @@ import aiohttp
 from shared.http import FIREFOX_USER_AGENT
 
 from coverage_comparator.adapters import Snapshot, identity
+
 HTTP_URL = "https://dxdata.io/filtered_spots_json/"
 WS_URL = "wss://dxdata.io/ws/dxdata/"
 
