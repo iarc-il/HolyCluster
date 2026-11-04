@@ -1,14 +1,14 @@
 """Add spot coverage samples.
 
 Revision ID: 2b6e9d4c1a70
-Revises: f489c957a156
+Revises: c8d9e0f1a2b3
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 revision = "2b6e9d4c1a70"
-down_revision = "f489c957a156"
+down_revision = "c8d9e0f1a2b3"
 branch_labels = None
 depends_on = None
 
