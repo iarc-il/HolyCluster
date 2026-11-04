@@ -13,11 +13,13 @@ RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
     --mount=type=bind,source=api/pyproject.toml,target=api/pyproject.toml \
     --mount=type=bind,source=collectors/pyproject.toml,target=collectors/pyproject.toml \
     --mount=type=bind,source=shared/pyproject.toml,target=shared/pyproject.toml \
+    --mount=type=bind,source=coverage/pyproject.toml,target=coverage/pyproject.toml \
     uv sync --frozen --no-install-workspace
 
 COPY shared/ ./shared/
 COPY api/ ./api/
 COPY collectors/ ./collectors/
+COPY coverage/ ./coverage/
 COPY pyproject.toml uv.lock ./
 COPY alembic.ini ./
 COPY migrations/ ./migrations/
