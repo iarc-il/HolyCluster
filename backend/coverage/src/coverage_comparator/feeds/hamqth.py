@@ -133,7 +133,6 @@ class HamQTHAdapter:
             if not isinstance(payload, dict) or not isinstance(payload.get("spots"), list):
                 return Snapshot([], recoverable=False)
             records = payload["spots"]
-            saturated = len(records) >= self.LIMIT
             if len(records) > self.LIMIT:
                 return Snapshot([], saturated=True, recoverable=False)
 
@@ -142,18 +141,24 @@ class HamQTHAdapter:
             self._forgotten_before = max(self._forgotten_before, cutoff)
             valid = {}
             malformed = False
+            previous_stamp = float("inf")
             for record in records:
                 try:
                     key, spot = self._normalize(record)
                     stamp = spot["observed_at"]
-                    if stamp > now + 30 or stamp <= self._forgotten_before:
-                        raise ValueError("Timestamp outside retained window")
+                    if stamp > now + 30 or stamp > previous_stamp:
+                        raise ValueError("Timestamp outside the ordered snapshot window")
+                    previous_stamp = stamp
+                    if stamp <= self._forgotten_before:
+                        continue
                     valid[key] = spot
                 except (ValueError, TypeError, OverflowError):
                     malformed = True
             fresh = bool(valid) and max(key[0] for key in valid) >= now - self.stale_after_seconds
             seeded = self._last_snapshot is not None
             gap = seeded and (now < self._last_snapshot or now - self._last_snapshot > self.retention_seconds)
+            overlap = any(key in self._seen for key in valid)
+            saturated = len(records) == self.LIMIT and seeded and not overlap
             unseen = [spot for key, spot in valid.items() if key not in self._seen]
             self._seen.update({key: key[0] for key in valid})
             overflow = len(self._seen) > self.max_cache
@@ -166,6 +171,6 @@ class HamQTHAdapter:
             # expose a retention gap. Seeding never emits pre-start history.
             if fresh and not malformed:
                 self._last_snapshot = now
-            recoverable = seeded and fresh and not (malformed or gap or overflow)
+            recoverable = seeded and fresh and not (malformed or gap or overflow or saturated)
             spots = sorted(unseen, key=lambda spot: spot["observed_at"]) if recoverable else []
             return Snapshot(spots, saturated=saturated, recoverable=bool(recoverable))

@@ -52,7 +52,7 @@ class HamQTHTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_normalization_overlap_and_chronological_order(self):
         await self.adapter.poll()
-        snapshot = await self.poll([record(-10, "dx3aa"), record(), record(-5, "dx2aa")])
+        snapshot = await self.poll([record(-10, "dx3aa"), record(-5, "dx2aa"), record()])
         self.assertTrue(snapshot.recoverable)
         self.assertEqual([s["dx_callsign"] for s in snapshot.spots], ["DX2AA", "DX3AA"])
         self.assertEqual(
@@ -86,13 +86,24 @@ class HamQTHTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             await self.adapter.poll()
 
-    async def test_saturation_at_exactly_200(self):
+    async def test_full_page_with_overlap_is_complete(self):
+        await self.adapter.poll()
+        snapshot = await self.poll([record(call=f"DX{i}") for i in range(199)] + [record()])
+        self.assertFalse(snapshot.saturated)
+        self.assertTrue(snapshot.recoverable)
+
+    async def test_full_page_without_overlap_is_saturated(self):
         await self.adapter.poll()
         snapshot = await self.poll([record(call=f"DX{i}") for i in range(200)])
         self.assertTrue(snapshot.saturated)
-        snapshot = await self.poll([record(call=f"DX{i}") for i in range(201)])
-        self.assertTrue(snapshot.saturated)
         self.assertFalse(snapshot.recoverable)
+
+    async def test_records_older_than_retention_are_ignored(self):
+        self.payload = {"spots": [record(), record(601, "OLD1")]}
+        await self.adapter.poll()
+        snapshot = await self.poll([record(-15, "DX2AA"), record(), record(601, "OLD1")])
+        self.assertTrue(snapshot.recoverable)
+        self.assertEqual([spot["dx_callsign"] for spot in snapshot.spots], ["DX2AA"])
 
     async def test_malformed_shapes(self):
         for payload in ([], {}, {"spots": None}, {"spots": {}}, {"spots": [None]}):
@@ -110,7 +121,6 @@ class HamQTHTests(unittest.IsolatedAsyncioTestCase):
             record(time="2026-11-03T22:33:00"),
             record(time="2026-11-03T22:33:00+02:00"),
             record(-1000),
-            record(1000),
             record(freq="nan"),
             record(freq=True),
             record(dxcall=None),
