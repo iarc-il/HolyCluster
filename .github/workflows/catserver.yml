@@ -208,7 +208,8 @@ jobs:
 
   build-windows:
     name: Build Windows Catserver
-    runs-on: ubuntu-latest
+    # Ubuntu 26.04's Docker profile blocks the socket call that Wine uses.
+    runs-on: ubuntu-24.04
     container:
       image: ghcr.io/iarc-il/catserver-ci@sha256:4ce4424867da6695955f291277c04ac0155e8d006a1323cbf922ab4c29506117
       options: --user root
