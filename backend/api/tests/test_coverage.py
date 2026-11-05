@@ -60,13 +60,14 @@ class CoverageTest(unittest.IsolatedAsyncioTestCase):
 
         pipeline.execute = AsyncMock(side_effect=execute)
         raw = raw_spot()
+        specialized = {**raw, "cluster": "pota.app", "type": "pota"}
         reads = 0
 
         async def read(*args, **kwargs):
             nonlocal reads
             reads += 1
             if reads == 1:
-                return [("stream-api", [("1-0", raw), ("2-0", dict(raw)), ("3-0", {})])]
+                return [("stream-api", [("1-0", raw), ("2-0", dict(raw)), ("3-0", {}), ("4-0", specialized)])]
             acknowledged.set()
             await entered.wait()
             # Let the publisher finish, but do not wait for it when it hangs.
@@ -82,13 +83,13 @@ class CoverageTest(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await asyncio.wait_for(main.spots_broadcast_task(SimpleNamespace()), 1)
         self.assertTrue(acknowledged.is_set())
-        stream.xack.assert_awaited_once_with("stream-api", "api-group", "1-0", "2-0", "3-0")
-        stream.xdel.assert_awaited_once_with("stream-api", "1-0", "2-0", "3-0")
+        stream.xack.assert_awaited_once_with("stream-api", "api-group", "1-0", "2-0", "3-0", "4-0")
+        stream.xdel.assert_awaited_once_with("stream-api", "1-0", "2-0", "3-0", "4-0")
         stream.aclose.assert_awaited_once()
         coverage.aclose.assert_awaited_once()
         broadcast.assert_awaited_once()
         spots = broadcast.await_args.args[1]
-        self.assertEqual(len(spots), 2)
+        self.assertEqual(len(spots), 3)
         self.assertEqual(spots[0]["time"], float(raw["timestamp"]))
         self.assertNotIn("frequency", spots[0])
         self.assertEqual(pipeline.xadd.call_count, 2)
@@ -114,6 +115,14 @@ class CoverageTest(unittest.IsolatedAsyncioTestCase):
         before = count("success")
         await self.run_batch()
         self.assertEqual(count("success"), before + 2)
+
+    async def test_specialized_spots_are_excluded(self):
+        publisher = CoveragePublisher()
+        before = count("excluded")
+        for spot_type in ("pota", "sota", "wwff"):
+            publisher.submit({**raw_spot(), "type": spot_type})
+        self.assertTrue(publisher.queue.empty())
+        self.assertEqual(count("excluded"), before + 3)
 
     async def test_publication_failure_does_not_retry_or_block_ack_delete(self):
         before = count("error")
@@ -191,4 +200,4 @@ class CoverageTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(families), 1)
         for sample in families[0].samples:
             self.assertEqual(set(sample.labels), {"outcome"})
-            self.assertIn(sample.labels["outcome"], {"success", "error"})
+            self.assertIn(sample.labels["outcome"], {"success", "error", "excluded"})

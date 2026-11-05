@@ -23,6 +23,10 @@ class CoveragePublisher:
 
     def submit(self, spot):
         try:
+            # Dedicated activity feeds are not comparable with general DX clusters.
+            if spot.get("type"):
+                metrics.COVERAGE_PUBLICATIONS.labels("excluded").inc()
+                return
             record = {field: spot[field] for field in IDENTITY_FIELDS}
             record["observed_at"] = time.time()
             record["spot_key"] = build_spot_key(spot)
