@@ -69,7 +69,7 @@ async function reach_spot_row(page, { mobile = false } = {}) {
 
     const row = page.locator(tour_target("spot-row"));
     await expect_tour_step(page, "spots_table_spot_row", tour_target("spot-row"));
-    await expect_state_change(row, () => row.click());
+    await expect_state_change(row, () => page.locator(tour_target("spot-row-dx-callsign")).click());
 }
 
 async function finish_read_only_table_steps(page, { mobile = false } = {}) {
