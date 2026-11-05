@@ -3,7 +3,7 @@
   "title": "HolyCluster / External spot coverage",
   "description": "Directional spot coverage against external services, eligible finalized outcomes, feed health, and bounded mismatch examples.",
   "schemaVersion": 41,
-  "version": 7,
+  "version": 8,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -112,7 +112,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Coverage compares each external service with HolyCluster. Identity is **exact spot time + DX + frequency + spotter**; comments are not part of identity. The observation window is fixed at **60 seconds**, not a fuzzy time match. Outcomes appear only after the window closes and finalization completes; see the finalization lag below. Counts are assigned to finalization time, not spot time.\n\n**Matched** (green) is seen on both sides. **Holy only** (amber) is missing from the service. **Service only** (red) is missing from HolyCluster. **Unknown** (gray) includes ineligible intervals; these are excluded from coverage, not counted as mismatches. No data does not mean zero or 100% coverage. Counts are per service and must not be added across services.\n\nCompetitor coverage of Holy = matched / (matched + Holy only). Holy coverage of competitor = matched / (matched + service only). Shared coverage (Jaccard) = matched / (matched + Holy only + service only). Zero denominators return no data. Selected-range counts use counter increases (estimates); percentage trends use **5-minute** windows. Missing telemetry stays unknown."
+        "content": "Coverage compares each external service with HolyCluster's general cluster feed; dedicated POTA, SOTA, and WWFF feeds are excluded. Identity is **DX + frequency + spotter**; source-reported time and comments are not part of identity. Reports of the same identity must arrive within the fixed **60-second** observation window. Outcomes appear only after the window closes and finalization completes. Counts are assigned to finalization time, not spot time.\n\n**Matched** (green) is seen on both sides. **Holy only** (amber) is missing from the service. **Service only** (red) is missing from HolyCluster. **Unknown** (gray) includes ineligible intervals; these are excluded from coverage, not counted as mismatches. No data does not mean zero or 100% coverage. Counts are per service and must not be added across services.\n\nCompetitor coverage of Holy = matched / (matched + Holy only). Holy coverage of competitor = matched / (matched + service only). Shared coverage (Jaccard) = matched / (matched + Holy only + service only). Zero denominators return no data. Selected-range counts use counter increases (estimates); percentage trends use **5-minute** windows. Missing telemetry stays unknown."
       }
     },
     {
