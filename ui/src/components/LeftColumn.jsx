@@ -56,7 +56,7 @@ function mode_to_symbol(mode) {
     return shape_to_symbol[get_mode_shape(mode)];
 }
 
-function SpotCount({ count, toggled_ui, overlay_el }) {
+function SpotCount({ count, visible, overlay_el }) {
     const anchor_ref = useRef(null);
     const badge_ref = useRef(null);
 
@@ -91,9 +91,9 @@ function SpotCount({ count, toggled_ui, overlay_el }) {
             window.removeEventListener("resize", update_position);
             observer.disconnect();
         };
-    }, [update_position, toggled_ui.left_visible, count]);
+    }, [update_position, visible, count]);
 
-    const is_visible = toggled_ui.left_visible && count !== 0;
+    const is_visible = visible && count !== 0;
 
     return (
         <>
@@ -183,7 +183,7 @@ function use_scroll_sync(scroll_ref, overlay_el) {
     }, [scroll_ref, overlay_el]);
 }
 
-function LeftColumn({ toggled_ui, children }) {
+function LeftColumn({ visible, overlay, on_close, children }) {
     const { spots_per_band_count, spots_per_mode_count } = useSpotData();
     const { set_hovered_band } = useSpotInteraction();
     const { filters, setFilters, setRadioModeFilter } = useFilters();
@@ -197,9 +197,11 @@ function LeftColumn({ toggled_ui, children }) {
     use_scroll_sync(scroll_ref, overlay_el);
 
     const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";
-    const toggled_classes = toggled_ui.left_visible
-        ? "max-2xl:absolute max-2xl:flex z-50 border-r border-slate-300 "
-        : "hidden ";
+    const panel_classes = visible
+        ? overlay
+            ? "absolute left-0 top-0 z-50 flex border-r"
+            : "relative z-50 flex"
+        : "hidden";
 
     const { colors } = useColors();
 
@@ -214,14 +216,33 @@ function LeftColumn({ toggled_ui, children }) {
     const visible_modes = modes.filter(mode => !settings.disabled_modes[mode]);
 
     return (
-        <div
-            className={`${toggled_classes}2xl:flex w-18 flex-col h-full shrink-0 relative`}
+        <aside
+            id="filters-panel"
+            aria-label="Filters"
+            className={`${panel_classes} w-18 flex-col h-full shrink-0`}
             data-tour="left-column"
             style={{
                 backgroundColor: colors.theme.columns,
                 borderColor: colors.theme.borders,
             }}
         >
+            {overlay && (
+                <div
+                    className="flex shrink-0 flex-col items-center border-b p-1"
+                    style={{ color: colors.theme.text, borderColor: colors.theme.borders }}
+                >
+                    <span className="text-xs font-semibold">Filters</span>
+                    <button
+                        id="filters-panel-close"
+                        type="button"
+                        aria-label="Close Filters"
+                        onClick={on_close}
+                        className="cursor-pointer rounded px-3 py-1 text-xl"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
             <div
                 ref={scroll_ref}
                 className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto"
@@ -245,7 +266,7 @@ function LeftColumn({ toggled_ui, children }) {
                                 {!filters.radio_band && (
                                     <SpotCount
                                         count={spots_per_band_count[band]}
-                                        toggled_ui={toggled_ui}
+                                        visible={visible}
                                         overlay_el={overlay_el}
                                     />
                                 )}
@@ -285,7 +306,7 @@ function LeftColumn({ toggled_ui, children }) {
                         <div data-tour="radio-band-filter">
                             <SpotCount
                                 count={spots_per_band_count[radio_band]}
-                                toggled_ui={toggled_ui}
+                                visible={visible}
                                 overlay_el={overlay_el}
                             />
                             <FilterButton
@@ -320,7 +341,7 @@ function LeftColumn({ toggled_ui, children }) {
                             >
                                 <SpotCount
                                     count={spots_per_mode_count[mode]}
-                                    toggled_ui={toggled_ui}
+                                    visible={visible}
                                     overlay_el={overlay_el}
                                 />
                                 <FilterButton
@@ -369,7 +390,7 @@ function LeftColumn({ toggled_ui, children }) {
             >
                 <div ref={setOverlayEl} />
             </div>
-        </div>
+        </aside>
     );
 }
 

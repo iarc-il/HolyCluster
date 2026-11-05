@@ -239,7 +239,15 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
     );
 }
 
-function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, set_active_view }) {
+function SidePanel({
+    visible,
+    overlay,
+    on_close,
+    on_open,
+    set_cat_to_spot,
+    active_view,
+    set_active_view,
+}) {
     const { colors } = useColors();
 
     useEffect(() => {
@@ -255,7 +263,7 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
     if (active_view === null) return null;
 
     function handle_import_complete() {
-        set_toggled_ui(state => ({ ...state, right_visible: true }));
+        on_open();
     }
 
     const content = [
@@ -273,15 +281,32 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
     ];
     const active_view_label = view_options[active_view]?.label.toLowerCase().replaceAll(" ", "-");
 
-    const toggled_classes = toggled_ui.right_visible
-        ? "max-2xl:absolute max-2xl:flex right-0 top-0"
-        : "hidden";
+    const panel_classes = visible ? (overlay ? "absolute right-0 top-0 flex" : "flex") : "hidden";
     return (
-        <div
-            className={`${toggled_classes} 2xl:flex flex-col h-full z-50 max-2xl:max-h-full max-2xl:overflow-auto`}
+        <aside
+            id="tools-panel"
+            aria-label="Tools"
+            className={`${panel_classes} flex-col h-full z-50 max-h-full overflow-auto`}
             data-tour="side-panel"
             style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}
         >
+            {overlay && (
+                <div
+                    className="flex shrink-0 items-center justify-between border-b px-3 py-1"
+                    style={{ color: colors.theme.text, borderColor: colors.theme.borders }}
+                >
+                    <span className="text-sm font-semibold">Tools</span>
+                    <button
+                        id="tools-panel-close"
+                        type="button"
+                        aria-label="Close Tools"
+                        onClick={on_close}
+                        className="cursor-pointer rounded px-3 py-1 text-xl"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
             <ViewSelectorTabs
                 active_view={active_view}
                 set_active_view={set_active_view}
@@ -296,7 +321,7 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
                 </div>
                 <RightColumnContent colors={colors} />
             </div>
-        </div>
+        </aside>
     );
 }
 

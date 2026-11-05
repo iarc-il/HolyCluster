@@ -61,7 +61,32 @@ function MainContent({
     useEffect(() => {
         document.body.style.backgroundColor = colors.theme.background;
     }, [colors.theme.background]);
-    const [toggled_ui, set_toggled_ui] = useState({ left_visible: true, right_visible: true });
+    const is_full_cockpit = useMediaQuery("(min-width: 1536px)");
+    const is_md_device = useMediaQuery("(max-width: 767px)");
+    const [open_panel, set_open_panel] = useState(null);
+    const panel_opener_ref = useRef(null);
+
+    function close_panel() {
+        set_open_panel(null);
+        panel_opener_ref.current?.focus();
+    }
+
+    function toggle_panel(panel, opener) {
+        if (open_panel === panel) {
+            close_panel();
+        } else {
+            panel_opener_ref.current = opener;
+            set_open_panel(panel);
+        }
+    }
+
+    useLayoutEffect(() => {
+        if (is_full_cockpit) {
+            set_open_panel(null);
+        } else if (open_panel) {
+            document.getElementById(`${open_panel}-panel-close`)?.focus();
+        }
+    }, [is_full_cockpit, open_panel]);
     const { local_version } = use_radio();
     const {
         active_profile_data: {
@@ -257,6 +282,7 @@ function MainContent({
 
     function on_key_down(event) {
         if (event.key === "Escape") {
+            if (open_panel) close_panel();
             set_pinned_spot(null);
         }
 
@@ -278,11 +304,11 @@ function MainContent({
 
     useEffect(() => {
         function close_left_panel_for_tour() {
-            set_toggled_ui(state => ({ ...state, left_visible: false }));
+            if (open_panel === "filters") close_panel();
         }
 
         function close_side_panel_for_tour() {
-            set_toggled_ui(state => ({ ...state, right_visible: false }));
+            if (open_panel === "tools") close_panel();
         }
 
         document.addEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
@@ -291,7 +317,7 @@ function MainContent({
             document.removeEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
             document.removeEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
         };
-    }, []);
+    }, [open_panel]);
 
     useEffect(() => {
         function handle_fullscreen_change() {
@@ -326,8 +352,6 @@ function MainContent({
             );
         }
     }
-
-    const is_md_device = useMediaQuery("only screen and (max-width : 768px)");
 
     function toggle_history() {
         if (is_history_mode) {
@@ -440,40 +464,61 @@ function MainContent({
             <TopBar
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
-                toggled_ui={toggled_ui}
-                set_toggled_ui={set_toggled_ui}
+                is_compact={!is_full_cockpit}
+                open_panel={open_panel}
+                toggle_panel={toggle_panel}
                 dev_mode={dev_mode}
                 can_undo_cat={previous_cat_states.length > 0}
                 undo_cat={undo_cat_change}
             />
             <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
                 <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
-                    <LeftColumn toggled_ui={toggled_ui}>
-                        <WebsiteTour />
-                    </LeftColumn>
-                    {is_md_device ? (
-                        <Tabs
-                            key={mobile_tabs_key}
-                            local_storage_name={mobile_tabs.length > 1 ? "mobile_tab" : null}
-                            tabs={mobile_tabs}
-                            data_tour="mobile-main-tabs"
+                    {!is_full_cockpit && open_panel && (
+                        <button
+                            type="button"
+                            aria-label={`Close ${open_panel === "filters" ? "Filters" : "Tools"} overlay`}
+                            tabIndex={-1}
+                            className="absolute inset-0 z-40 bg-black/40 cursor-default"
+                            onClick={close_panel}
                         />
-                    ) : (
-                        <div className="flex flex-1 min-w-0 h-full">
-                            {active_panel_keys.map(panel_key => (
-                                <div
-                                    key={panel_key}
-                                    className={`${desktop_panel_widths[panel_key]} min-w-0 h-full`}
-                                    data-tour={`${panel_key}-panel`}
-                                >
-                                    {main_panel_content[panel_key]}
-                                </div>
-                            ))}
-                        </div>
                     )}
+                    <LeftColumn
+                        visible={is_full_cockpit || open_panel === "filters"}
+                        overlay={!is_full_cockpit}
+                        on_close={close_panel}
+                    >
+                        <WebsiteTour is_mobile={is_md_device} />
+                    </LeftColumn>
+                    <div
+                        className="flex flex-1 min-w-0 h-full"
+                        inert={!is_full_cockpit && open_panel ? "" : undefined}
+                    >
+                        {is_md_device ? (
+                            <Tabs
+                                key={mobile_tabs_key}
+                                local_storage_name={mobile_tabs.length > 1 ? "mobile_tab" : null}
+                                tabs={mobile_tabs}
+                                data_tour="mobile-main-tabs"
+                            />
+                        ) : (
+                            <div className="flex flex-1 min-w-0 h-full">
+                                {active_panel_keys.map(panel_key => (
+                                    <div
+                                        key={panel_key}
+                                        className={`${desktop_panel_widths[panel_key]} min-w-0 h-full`}
+                                        data-tour={`${panel_key}-panel`}
+                                    >
+                                        {main_panel_content[panel_key]}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                     <SidePanel
-                        toggled_ui={toggled_ui}
-                        set_toggled_ui={set_toggled_ui}
+                        visible={is_full_cockpit || open_panel === "tools"}
+                        overlay={!is_full_cockpit}
+                        on_close={close_panel}
+                        on_open={() => set_open_panel("tools")}
                         set_cat_to_spot={set_cat_to_spot}
                         active_view={active_view}
                         set_active_view={set_active_view}

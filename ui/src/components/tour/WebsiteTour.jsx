@@ -3,7 +3,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import use_radio from "@/hooks/useRadio";
 import { useRestData } from "@/hooks/useRestData";
 import { useSpotData } from "@/hooks/useSpotData";
-import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
+import { useLocalStorage } from "@uidotdev/usehooks";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ACTIONS, EVENTS, Joyride, STATUS } from "react-joyride";
 import TourLauncher from "./TourLauncher.jsx";
@@ -105,13 +105,12 @@ function dispatch_tour_side_effect(side_effect) {
     document.dispatchEvent(new CustomEvent(side_effect.event, { detail: side_effect.detail }));
 }
 
-function WebsiteTour() {
+function WebsiteTour({ is_mobile }) {
     const { propagation } = useRestData();
     const { filters, setCallsignFilters } = useFilters();
     const { start_temporary_profile, stop_temporary_profile } = useProfiles();
     const { radio_status } = use_radio();
     const { spots, set_spot_buffering } = useSpotData();
-    const is_mobile = useMediaQuery("only screen and (max-width : 768px)");
     const [completed_chapters, set_completed_chapters] = useLocalStorage(
         TOUR_COMPLETED_CHAPTERS_KEY,
         {},
@@ -388,10 +387,8 @@ function WebsiteTour() {
                 return;
             }
 
-            if (is_mobile) {
-                document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
-                document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
-            }
+            document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
+            document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
 
             finishing_tour_ref.current = false;
             start_temporary_profile();
