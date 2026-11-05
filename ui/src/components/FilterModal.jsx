@@ -197,6 +197,13 @@ function FilterModal({
                         };
                     }
 
+                    if (temp_data.type === "lotw") {
+                        return {
+                            action: temp_data.action,
+                            type: "lotw",
+                        };
+                    }
+
                     return temp_data;
                 })();
 
@@ -211,6 +218,7 @@ function FilterModal({
                     temp_data.type !== "self_spotters" &&
                     temp_data.type !== "dxpeditions" &&
                     temp_data.type !== "missing" &&
+                    temp_data.type !== "lotw" &&
                     temp_data.type !== "zone" &&
                     temp_data.type !== "zone_region";
                 if (is_value_required && temp_data.value.toString().trim().length === 0) {
@@ -250,6 +258,7 @@ function FilterModal({
                         { label: "US/Canada", value: "zone_region" },
                         { label: "Zone", value: "zone" },
                         { label: "Comment", value: "comment" },
+                        { label: "LoTW", value: "lotw" },
                         { label: "Missing", value: "missing" },
                         { label: "Self Spotters", value: "self_spotters" },
                         { label: "DXpeditions", value: "dxpeditions" },
@@ -259,6 +268,14 @@ function FilterModal({
                     set_temp_data={set_temp_data}
                     data_tour_prefix="filter-modal-type"
                     build_temp_data={(temp_data, field, value) => {
+                        if (value === "lotw") {
+                            return {
+                                ...temp_data,
+                                [field]: value,
+                                value: "",
+                                spotter_or_dx: "dx",
+                            };
+                        }
                         if (
                             value === "entity" ||
                             temp_data.type === "entity" ||
@@ -424,6 +441,7 @@ function FilterModal({
                     </>
                 ) : temp_data.type !== "self_spotters" &&
                   temp_data.type !== "dxpeditions" &&
+                  temp_data.type !== "lotw" &&
                   temp_data.type !== "comment" ? (
                     <>
                         <hr />

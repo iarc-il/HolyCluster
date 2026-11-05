@@ -31,6 +31,7 @@ const SPOTTER_DX_LABELS = {
 const SPECIAL_FILTER_LABELS = {
     self_spotters: "Self spotters",
     dxpeditions: "DXpedition",
+    lotw: "LoTW",
 };
 
 const MISSING_SECTION_TOTALS = {
@@ -187,7 +188,8 @@ function MissingFilterBadge({ filter, listeners, attributes, data_tour = null })
 }
 
 function FilterContent({ filter, listeners, attributes, colors, data_tour = null }) {
-    const is_special_filter = filter.type === "self_spotters" || filter.type === "dxpeditions";
+    const is_special_filter =
+        filter.type === "self_spotters" || filter.type === "dxpeditions" || filter.type === "lotw";
     const filter_value = filter.type === "entity" ? get_dxcc_label(filter.value) : filter.value;
 
     if (is_special_filter) {

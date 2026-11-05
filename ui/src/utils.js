@@ -114,6 +114,10 @@ export function is_matching_list(list, spot) {
             return spot_zone != null && spot_zone === selected_zone;
         }
 
+        if (filter.type === "lotw") {
+            return spot.dx_lotw_status === "frequent" || spot.dx_lotw_status === "infrequent";
+        }
+
         let matched_value;
         if (filter.type === "comment") {
             matched_value = spot.comment.replace(/&lt;/g, "<").replace(/&gt;/g, ">").toLowerCase();
