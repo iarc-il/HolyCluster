@@ -1,7 +1,7 @@
 import CallsignSearch from "@/components/CallsignSearch.jsx";
 import { QUICK_SPOT_EVENT } from "@/components/SubmitSpot.jsx";
 import X from "@/components/ui/X.jsx";
-import { forwardRef, useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
 import SpotContextMenu from "./SpotContextMenu";
 import Popup from "./ui/Popup";
 
@@ -221,11 +221,72 @@ function get_sota_points_style(points) {
     };
 }
 
+function FitText({ children, className = "", style, title }) {
+    const container_ref = useRef(null);
+    const text_ref = useRef(null);
+
+    useLayoutEffect(() => {
+        const container = container_ref.current;
+        const text = text_ref.current;
+        if (!container || !text) return;
+
+        text.style.fontSize = "";
+        const maximum_size = Number.parseFloat(getComputedStyle(text).fontSize) || 14;
+        const minimum_size = Math.min(9, maximum_size);
+
+        function fit_text() {
+            const available_width = container.clientWidth;
+            if (available_width <= 0) return;
+
+            text.style.fontSize = `${maximum_size}px`;
+            if (text.scrollWidth <= available_width) return;
+
+            let lower_size = minimum_size;
+            let upper_size = maximum_size;
+            text.style.fontSize = `${minimum_size}px`;
+            if (text.scrollWidth > available_width) return;
+
+            for (let index = 0; index < 5; index += 1) {
+                const middle_size = (lower_size + upper_size) / 2;
+                text.style.fontSize = `${middle_size}px`;
+                if (text.scrollWidth <= available_width) {
+                    lower_size = middle_size;
+                } else {
+                    upper_size = middle_size;
+                }
+            }
+            text.style.fontSize = `${lower_size}px`;
+        }
+
+        fit_text();
+        if (typeof ResizeObserver === "undefined") return;
+
+        const resize_observer = new ResizeObserver(fit_text);
+        resize_observer.observe(container);
+        return () => resize_observer.disconnect();
+    }, [children]);
+
+    return (
+        <span ref={container_ref} className="block w-full min-w-0 whitespace-nowrap">
+            <span
+                ref={text_ref}
+                className={`inline-block ${className}`}
+                style={style}
+                title={title}
+            >
+                {children}
+            </span>
+        </span>
+    );
+}
+
 function Callsign({ callsign }) {
     return (
-        <a href={`https://www.qrz.com/db/${callsign}`} target="_blank" rel="noreferrer">
-            {callsign}
-        </a>
+        <FitText title={callsign}>
+            <a href={`https://www.qrz.com/db/${callsign}`} target="_blank" rel="noreferrer">
+                {callsign}
+            </a>
+        </FitText>
     );
 }
 
@@ -444,15 +505,15 @@ const Spot = forwardRef(function Spot(
             >
                 <span
                     ref={missing_popup_anchor}
-                    className="relative"
+                    className="relative block w-full min-w-0"
                     onMouseEnter={() => {
                         if (spot.missingNeeded?.is_needed) set_is_missing_hovered(true);
                     }}
                     onMouseLeave={() => set_is_missing_hovered(false)}
                 >
-                    <span className="inline-flex items-center gap-1">
+                    <span className="flex w-full min-w-0 items-center gap-1">
                         <span
-                            className={is_missing_alerted ? "inline-block rounded px-1" : ""}
+                            className={`min-w-0 flex-1 ${is_missing_alerted ? "rounded px-1" : ""}`}
                             style={is_missing_alerted ? missing_alert_callsign_style : undefined}
                         >
                             <Callsign callsign={spot.dx_callsign} />
@@ -464,12 +525,8 @@ const Spot = forwardRef(function Spot(
                                 background: colors.theme.background,
                             }}
                         />
+                        {is_dxpedition_alerted && <span title="DXpedition">⭐</span>}
                     </span>
-                    {is_dxpedition_alerted && (
-                        <span className="ml-1" title="DXpedition">
-                            ⭐
-                        </span>
-                    )}
                 </span>
                 {is_missing_hovered && spot.missingNeeded?.is_needed && (
                     <Popup anchor_ref={missing_popup_anchor}>
@@ -499,14 +556,22 @@ const Spot = forwardRef(function Spot(
                 data-tour={is_tour_row ? "spot-row-frequency" : undefined}
                 onClick={() => set_cat_to_spot(spot)}
             >
-                <div
-                    className="inline-block min-w-[3.25rem] px-1 rounded-full cursor-pointer md:hidden"
-                    style={{ backgroundColor: color, color: colors.text[spot.band] }}
-                >
-                    {spot.freq}
+                <div className="w-full md:hidden">
+                    <FitText
+                        className="rounded-full px-1 cursor-pointer tabular-nums"
+                        style={{ backgroundColor: color, color: colors.text[spot.band] }}
+                        title={String(spot.freq)}
+                    >
+                        {spot.freq}
+                    </FitText>
                 </div>
-                <div className="hidden min-w-[3.25rem] px-1 rounded-full cursor-pointer md:inline-block">
-                    {spot.freq}
+                <div className="hidden w-full md:block">
+                    <FitText
+                        className="rounded-full px-1 cursor-pointer tabular-nums"
+                        title={String(spot.freq)}
+                    >
+                        {spot.freq}
+                    </FitText>
                 </div>
             </td>
             <td className={cell_classes.band} data-tour={is_tour_row ? "spot-row-band" : undefined}>
