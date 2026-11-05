@@ -3,7 +3,7 @@
   "title": "HolyCluster / External spot coverage",
   "description": "Directional spot coverage against external services, eligible finalized outcomes, feed health, and bounded mismatch examples.",
   "schemaVersion": 41,
-  "version": 2,
+  "version": 3,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -234,7 +234,7 @@
       "id": 3,
       "title": "Feed freshness \u2014 age since last observation",
       "type": "stat",
-      "description": "Seconds since last successful feed operation and last received spot. A quiet feed can be healthy. Zero or absent timestamps are unknown.",
+      "description": "Seconds since the last successful feed operation. Zero or absent timestamps are unknown.",
       "gridPos": {
         "x": 16,
         "y": 5,
@@ -250,18 +250,6 @@
           "refId": "A",
           "expr": "clamp_min(time() - (max by (service) (holycluster_coverage_feed_last_success_timestamp_seconds{service=~\"${service:regex}\"}) > 0), 0)",
           "legendFormat": "{{service}} / Last feed success",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": true,
-          "range": false,
-          "format": "time_series"
-        },
-        {
-          "refId": "B",
-          "expr": "clamp_min(time() - (max by (service) (holycluster_coverage_feed_last_spot_timestamp_seconds{service=~\"${service:regex}\"}) > 0), 0)",
-          "legendFormat": "{{service}} / Last spot",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
