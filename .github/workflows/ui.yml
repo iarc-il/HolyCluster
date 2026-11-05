@@ -31,7 +31,8 @@ concurrency:
 jobs:
   build-and-deploy-ui:
     name: Build, Lint, and Deploy the UI
-    runs-on: ubuntu-latest
+    # Playwright WebKit requires ICU 74, which Ubuntu 26.04 does not provide.
+    runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/int' || startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout repository
