@@ -126,3 +126,27 @@ for (const width of [1536, 1800]) {
         await expect(page.locator('[data-tour="side-panel"]')).toBeHidden();
     });
 }
+
+for (const width of [390, 768]) {
+    test(`Escape closes a drawer modal first at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto("/");
+        const tools = page.getByRole("button", { name: "Open Tools", exact: true });
+        const drawer = page.locator('[data-tour="side-panel"]');
+        await tools.click();
+        await drawer.locator('[data-tour="add-filter-button-show_only"]').click();
+        const modal = page.getByRole("dialog");
+        await expect(modal).toBeVisible();
+        await expect(modal).toHaveAttribute("aria-modal", "true");
+        await page.keyboard.press("Escape");
+        await expect(modal).toBeHidden();
+        await expect(drawer).toBeVisible();
+        await expect(page.locator('[data-tour="top-bar-right-menu"] button')).toHaveAttribute(
+            "aria-expanded",
+            "true",
+        );
+        await page.keyboard.press("Escape");
+        await expect(drawer).toBeHidden();
+        await expect(tools).toBeFocused();
+    });
+}

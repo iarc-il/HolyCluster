@@ -282,6 +282,7 @@ function MainContent({
 
     function on_key_down(event) {
         if (event.key === "Escape") {
+            if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
             if (open_panel) close_panel();
             set_pinned_spot(null);
         }
