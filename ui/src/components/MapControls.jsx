@@ -116,7 +116,6 @@ function MapControls({
     const control_button_style = {
         backgroundColor: colors.theme.background,
         border: `1px solid ${colors.theme.text}38`,
-        boxShadow: "0 8px 24px rgba(0, 0, 0, 0.25)",
         color: colors.buttons.utility,
     };
 
