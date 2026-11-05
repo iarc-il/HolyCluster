@@ -505,7 +505,7 @@ function MainContent({
                                 {active_panel_keys.map(panel_key => (
                                     <div
                                         key={panel_key}
-                                        className={`${desktop_panel_widths[panel_key]} min-w-0 h-full`}
+                                        className={`${desktop_panel_widths[panel_key]} min-w-0 h-full ${panel_key === "table" ? "overflow-x-auto" : ""}`}
                                         data-tour={`${panel_key}-panel`}
                                     >
                                         {main_panel_content[panel_key]}

@@ -31,14 +31,36 @@ function PanelControl({ panel, label, open_panel, toggle_panel }) {
     return (
         <button
             type="button"
-            className="cursor-pointer rounded border px-2 py-2 text-sm font-semibold hover:brightness-125 focus-visible:outline focus-visible:outline-2"
+            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center cursor-pointer rounded border px-2 py-2 text-sm font-semibold hover:brightness-125 focus-visible:outline focus-visible:outline-2"
             style={{ color: colors.theme.text, borderColor: colors.theme.borders }}
             aria-label={`${is_open ? "Close" : "Open"} ${label}`}
             aria-expanded={is_open}
             aria-controls={`${panel}-panel`}
             onClick={event => toggle_panel(panel, event.currentTarget)}
         >
-            {label}
+            <span className="hidden md:inline">{label}</span>
+            <svg
+                className="md:hidden"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+            >
+                {panel === "filters" ? (
+                    <path d="M3 4h18l-7 8v7l-4 2v-9z" />
+                ) : (
+                    <>
+                        <path d="M4 7h16M4 17h16" />
+                        <rect x="7" y="4" width="4" height="6" rx="1" />
+                        <rect x="14" y="14" width="4" height="6" rx="1" />
+                    </>
+                )}
+            </svg>
         </button>
     );
 }
@@ -84,7 +106,7 @@ function TopBar({
             }}
         >
             {is_compact && (
-                <div className="p-2" data-tour="top-bar-left-menu">
+                <div className="p-1 md:p-2 shrink-0" data-tour="top-bar-left-menu">
                     <PanelControl
                         panel="filters"
                         label="Filters"
@@ -108,7 +130,7 @@ function TopBar({
                 The Holy Cluster
             </h1>
 
-            <div className="flex items-center h-full p-2 gap-3">
+            <div className="flex items-center h-full p-1 gap-1 md:p-2 md:gap-3">
                 {radio_status !== "unavailable" && can_undo_cat && (
                     <Button
                         color="utility"
@@ -205,7 +227,7 @@ function TopBar({
                 <Settings set_map_controls={set_map_controls} set_radius_in_km={set_radius_in_km} />
                 {dev_mode ? <ColorPicker /> : ""}
                 {is_compact && (
-                    <div className="p-2" data-tour="top-bar-right-menu">
+                    <div className="md:p-2 shrink-0" data-tour="top-bar-right-menu">
                         <PanelControl
                             panel="tools"
                             label="Tools"

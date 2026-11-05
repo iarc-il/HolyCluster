@@ -55,6 +55,36 @@ for (const width of [768, 1280, 1440, 1535]) {
     });
 }
 
+for (const width of [390, 500, 768]) {
+    test(`compact top bar fits at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto("/");
+        await expect(page.locator('[data-tour="top-bar"]')).toBeVisible();
+        await expect
+            .poll(() =>
+                page.evaluate(() =>
+                    Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+                ),
+            )
+            .toBeLessThanOrEqual(width);
+        for (const label of ["Filters", "Tools"]) {
+            const button = page.getByRole("button", { name: `Open ${label}`, exact: true });
+            await expect(button).toBeVisible();
+            const text = button.locator("span");
+            if (width >= 768) {
+                await expect(text).toBeVisible();
+                await expect(text).toHaveText(label);
+            } else {
+                await expect(text).toBeHidden();
+                await expect(button.locator("svg")).toBeVisible();
+            }
+            const box = await button.boundingBox();
+            expect(box.width).toBeGreaterThanOrEqual(40);
+            expect(box.height).toBeGreaterThanOrEqual(40);
+        }
+    });
+}
+
 test("mobile map and table remain usable", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
