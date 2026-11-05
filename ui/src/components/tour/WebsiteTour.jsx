@@ -125,6 +125,7 @@ function WebsiteTour({ is_mobile }) {
     const wait_for_change_ref = useRef({ key: null, value: null });
     const backward_wait_ref = useRef({ key: null, reset_value: null, saw_unsatisfied: false });
     const pending_backward_side_effect_ref = useRef(null);
+    const visited_step_ids_ref = useRef(new Set());
     const has_temporary_profile_ref = useRef(false);
     const finishing_tour_ref = useRef(false);
     const stop_temporary_profile_ref = useRef(stop_temporary_profile);
@@ -279,11 +280,17 @@ function WebsiteTour({ is_mobile }) {
 
     const advance_tour = useCallback(
         (from_index, direction = 1) => {
+            // Back must restore visited targets, even when another tab hides them.
             const transition = get_tour_transition({
                 chapter_id: tour_state.current_chapter_id,
                 direction,
                 from_index,
-                should_skip_step,
+                should_skip_step:
+                    direction < 0
+                        ? step =>
+                              should_exclude_step(step) ||
+                              (step.optional && !visited_step_ids_ref.current.has(step.id))
+                        : should_skip_step,
                 steps,
             });
             if (transition.type === "finish") {
@@ -363,7 +370,14 @@ function WebsiteTour({ is_mobile }) {
 
             set_next_step();
         },
-        [finish_tour, setCallsignFilters, should_skip_step, steps, tour_state.current_chapter_id],
+        [
+            finish_tour,
+            setCallsignFilters,
+            should_exclude_step,
+            should_skip_step,
+            steps,
+            tour_state.current_chapter_id,
+        ],
     );
 
     const start_tour = useCallback(
@@ -391,6 +405,7 @@ function WebsiteTour({ is_mobile }) {
             document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
 
             finishing_tour_ref.current = false;
+            visited_step_ids_ref.current = new Set();
             start_temporary_profile();
             has_temporary_profile_ref.current = true;
             set_tour_state({
@@ -660,6 +675,10 @@ function WebsiteTour({ is_mobile }) {
     const handle_callback = useCallback(
         data => {
             const { action, index, status, type } = data;
+
+            if (type === EVENTS.STEP_BEFORE) {
+                visited_step_ids_ref.current.add(steps[index]?.id);
+            }
 
             if (completed_statuses.has(status)) {
                 finish_tour(status);
