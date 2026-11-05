@@ -126,7 +126,9 @@ describe("MapControls GPS", () => {
     it("shows playback only on desktop", () => {
         const { rerender } = render_map_controls({ is_mobile: false });
 
-        expect(screen.getByRole("button", { name: "Enter playback mode" })).toBeTruthy();
+        const playback_button = screen.getByRole("button", { name: "Enter playback mode" });
+        expect(playback_button).toBeTruthy();
+        expect(playback_button.querySelector("svg")?.getAttribute("viewBox")).toBe("-1 -1 18 18");
 
         rerender(
             <MapControls

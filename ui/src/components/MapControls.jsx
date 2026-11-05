@@ -458,7 +458,7 @@ function MapControls({
                             <svg
                                 height="24"
                                 width="24"
-                                viewBox="0 0 16 16"
+                                viewBox="-1 -1 18 18"
                                 fill="currentColor"
                                 aria-hidden="true"
                             >
