@@ -150,3 +150,60 @@ for (const width of [390, 768]) {
         await expect(tools).toBeFocused();
     });
 }
+
+test.describe("configured radio", () => {
+    test.use({ radio_state: { status: "connected", freq: 14074000, mode: "USB" } });
+
+    for (const width of [390, 500, 768]) {
+        test(`radio state fits at ${width}px`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 900 });
+            await page.goto("/");
+            const frequency = page.locator('[data-tour="top-bar-radio-frequency"]');
+            await expect(frequency).toBeVisible();
+            if (width < 768) {
+                await expect(frequency.getByText("Radio connected", { exact: true })).toBeVisible();
+                await expect(frequency.getByText("14.074 MHz", { exact: true })).toBeVisible();
+            } else {
+                await expect(frequency.locator('[data-tour="radio-full-frequency"]')).toBeVisible();
+                for (const label of ["Filters", "Tools"]) {
+                    await expect(
+                        page
+                            .getByRole("button", { name: `Open ${label}`, exact: true })
+                            .locator("span"),
+                    ).toBeVisible();
+                    await expect(
+                        page.getByRole("button", { name: `Open ${label}`, exact: true }),
+                    ).toHaveText(label);
+                }
+            }
+            await expect
+                .poll(() =>
+                    page.evaluate(() =>
+                        Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+                    ),
+                )
+                .toBeLessThanOrEqual(width);
+        });
+    }
+});
+
+test.describe("disconnected radio", () => {
+    test.use({ radio_state: { status: "disconnected", freq: 14074000, mode: "USB" } });
+
+    for (const width of [390, 500]) {
+        test(`radio disconnect is clear at ${width}px`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 900 });
+            await page.goto("/");
+            const frequency = page.locator('[data-tour="top-bar-radio-frequency"]');
+            await expect(frequency.getByText("Radio disconnected", { exact: true })).toBeVisible();
+            await expect(frequency.getByText("14.074 MHz", { exact: true })).toBeHidden();
+            await expect
+                .poll(() =>
+                    page.evaluate(() =>
+                        Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+                    ),
+                )
+                .toBeLessThanOrEqual(width);
+        });
+    }
+});

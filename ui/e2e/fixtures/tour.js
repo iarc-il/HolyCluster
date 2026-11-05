@@ -126,7 +126,8 @@ const no_spotlight_interaction_steps = new Set([
 export const test = base.extend({
     tour_spots: [tour_spots, { option: true }],
     auto_start_tour: [false, { option: true }],
-    page: async ({ page, tour_spots, auto_start_tour }, use) => {
+    radio_state: [{ status: "unavailable" }, { option: true }],
+    page: async ({ page, tour_spots, auto_start_tour, radio_state }, use) => {
         await page.addInitScript(auto_start => {
             localStorage.clear();
             sessionStorage.clear();
@@ -156,7 +157,7 @@ export const test = base.extend({
                     version: 1,
                     type: "radio",
                     event: "status",
-                    status: "unavailable",
+                    ...radio_state,
                     catserver_version: "catserver-v2.0.0",
                 }),
             );

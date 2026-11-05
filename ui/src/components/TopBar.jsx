@@ -130,7 +130,7 @@ function TopBar({
                 The Holy Cluster
             </h1>
 
-            <div className="flex items-center h-full p-1 gap-1 md:p-2 md:gap-3">
+            <div className="flex items-center h-full p-1 gap-1 md:p-2 md:gap-2 lg:gap-3">
                 {radio_status !== "unavailable" && can_undo_cat && (
                     <Button
                         color="utility"
@@ -161,8 +161,22 @@ function TopBar({
                     on_click={toggle_rotator_tuning}
                 />
                 {radio_status !== "unavailable" ? (
-                    <>
-                        <div data-tour="top-bar-radio-frequency">
+                    <div
+                        data-tour="top-bar-radio-frequency"
+                        className="shrink-0"
+                        style={{ color: colors.theme.text }}
+                    >
+                        <div className="md:hidden max-w-24 text-xs leading-4">
+                            <div>Radio {radio_status}</div>
+                            {radio_status === "connected" && (
+                                <div className="whitespace-nowrap font-semibold tabular-nums">
+                                    {radio_freq
+                                        ? `${Number((radio_freq / 1_000_000).toFixed(6))} MHz`
+                                        : "Frequency unknown"}
+                                </div>
+                            )}
+                        </div>
+                        <div className="hidden md:block" data-tour="radio-full-frequency">
                             <SevenSegmentDisplay
                                 height="10"
                                 display_size={radio_freq ? radio_freq.toString().length : 8}
@@ -170,10 +184,9 @@ function TopBar({
                                 error={radio_status !== "connected"}
                             />
                         </div>
-                    </>
-                ) : (
-                    ""
-                )}
+                    </div>
+                ) : null}
+
                 {profiles.length > 1 && (
                     <div className="hidden md:block" data-tour="top-bar-profile-selector">
                         <Select
@@ -190,10 +203,13 @@ function TopBar({
                     </div>
                 )}
                 <SubmitSpot dev_mode={dev_mode} />
-                <Clock />
+                <div className={radio_status !== "unavailable" ? "hidden md:block" : ""}>
+                    <Clock />
+                </div>
 
                 <Select
                     data-tour="top-bar-time-limit"
+                    className={radio_status !== "unavailable" ? "max-md:w-20 max-md:px-1" : ""}
                     value={filters.time_limit}
                     onChange={event =>
                         setFilters(state => ({
