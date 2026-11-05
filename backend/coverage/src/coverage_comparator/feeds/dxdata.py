@@ -218,7 +218,11 @@ class DXDataAdapter:
                 if len(body) > self._max_bytes:
                     self._fail(saturated=True)
                     return
-        rows = json.loads(body)
+        payload = json.loads(body)
+        if isinstance(payload, dict) and set(payload) == {"spots"}:
+            rows = payload["spots"]
+        else:
+            rows = payload
         if not isinstance(rows, list):
             raise ValueError("Expected snapshot list")
         if len(rows) >= self._seed_limit:

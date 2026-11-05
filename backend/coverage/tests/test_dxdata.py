@@ -154,6 +154,11 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("timeout", kwargs)
         self.assertGreater(ws[1]["max_msg_size"], 0)
 
+    async def test_http_snapshot_envelope(self):
+        self.session.rows = {"spots": [ROW]}
+        await self.start()
+        self.assertTrue((await self.adapter.poll()).recoverable)
+
     async def test_live_order_overlap_and_duplicate(self):
         ws = await self.start()
         ws.send(ROW)  # HTTP/live overlap is never emitted.
