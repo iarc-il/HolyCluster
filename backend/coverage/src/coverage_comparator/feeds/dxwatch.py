@@ -71,7 +71,7 @@ class DXWatchAdapter:
     service = "dxwatch"
     poll_interval = 30.0
 
-    def __init__(self, *, session=None, base_url="https://www.dxwatch.com", clock=time.time, rows=100):
+    def __init__(self, *, session=None, base_url="https://dxwatch.com", clock=time.time, rows=100):
         if not isinstance(rows, int) or isinstance(rows, bool) or not 1 <= rows <= 1000:
             raise ValueError("DXWatch rows must be between 1 and 1000")
         self.session = session

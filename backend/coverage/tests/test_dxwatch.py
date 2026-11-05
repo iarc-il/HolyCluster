@@ -161,6 +161,7 @@ class DXWatchTests(unittest.IsolatedAsyncioTestCase):
         await self.adapter.close()
         self.assertFalse(self.session.is_closed)  # Borrowed sessions remain caller-owned.
         adapter = DXWatchAdapter()
+        self.assertEqual(adapter.base_url, "https://dxwatch.com")
         await adapter.close()  # Also safe before the first poll.
         self.responses.append({"s": {}})
         with patch("coverage_comparator.feeds.dxwatch.httpx.AsyncClient", return_value=self.session):
