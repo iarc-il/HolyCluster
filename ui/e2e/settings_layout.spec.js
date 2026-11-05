@@ -50,8 +50,11 @@ test("mobile Layout settings apply all Map and Table choices without overflow", 
 
         await dialog.getByRole("button", { name: "Apply", exact: true }).click();
         await expect(dialog).toBeHidden();
-        const tabs = page.locator(`${tour_target("mobile-main-tabs-tabs")} button`);
+        const tabs = page.locator(`${tour_target("mobile-main-tabs")} button[aria-pressed]`);
         await expect(tabs).toHaveText(option.tabs);
+        await expect(
+            page.getByRole("navigation", { name: "Workspace" }).getByRole("button"),
+        ).toHaveText([...option.tabs, "Filters", "Tools"]);
         for (const tab of option.tabs) {
             const button = tabs.filter({ hasText: tab });
             await button.click();

@@ -75,7 +75,7 @@ for (const width of [390, 500, 768]) {
                 await expect(text).toBeVisible();
                 await expect(text).toHaveText(label);
             } else {
-                await expect(text).toBeHidden();
+                await expect(text).toBeVisible();
                 await expect(button.locator("svg")).toBeVisible();
             }
             const box = await button.boundingBox();
@@ -204,6 +204,131 @@ test.describe("disconnected radio", () => {
                     ),
                 )
                 .toBeLessThanOrEqual(width);
+        });
+    }
+});
+
+for (const [width, height] of [
+    [390, 844],
+    [500, 900],
+]) {
+    test(`mobile workspace fills the shell at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height });
+        await page.goto("/");
+        const nav = page.getByRole("navigation", { name: "Workspace" });
+        await expect(nav.getByRole("button")).toHaveText(["Map", "Table", "Filters", "Tools"]);
+        const workspace = page.locator('[data-tour="mobile-workspace"]');
+        const table = nav.getByRole("button", { name: "Table", exact: true });
+        await table.click();
+        await expect(table).toHaveAttribute("aria-pressed", "true");
+        await expect(page.locator('[data-tour="spots-table"]')).toBeVisible();
+        for (const key of ["filters", "tools"]) {
+            await nav
+                .getByRole("button", { name: `Open ${key === "filters" ? "Filters" : "Tools"}` })
+                .click();
+            await expect(nav.locator(`[aria-controls="${key}-panel"]`)).toHaveAttribute(
+                "aria-expanded",
+                "true",
+            );
+        }
+        await expect(page.locator('[data-tour="left-column"]')).toBeHidden();
+        await page.keyboard.press("Escape");
+        await expect(nav.getByRole("button", { name: "Open Tools" })).toBeFocused();
+        await expect(table).toHaveAttribute("aria-pressed", "true");
+        await nav.getByRole("button", { name: "Open Filters" }).click();
+        await page.locator("#filters-panel-close").click();
+        await expect(nav.getByRole("button", { name: "Open Filters" })).toBeFocused();
+        await nav.getByRole("button", { name: "Open Tools" }).click();
+        await page
+            .getByRole("button", { name: "Close Tools overlay" })
+            .click({ position: { x: 10, y: 10 } });
+        await expect(nav.getByRole("button", { name: "Open Tools" })).toBeFocused();
+        for (const name of ["Map", "Table"]) {
+            await nav.getByRole("button", { name, exact: true }).click();
+            const bounds = await workspace.boundingBox();
+            const top = await page.locator('[data-tour="top-bar"]').boundingBox();
+            const bottom = await nav.boundingBox();
+            expect(bounds.y).toBeCloseTo(top.y + top.height, 0);
+            expect(bounds.y + bounds.height).toBeCloseTo(bottom.y, 0);
+            const content = await workspace.locator(":scope > div").boundingBox();
+            expect(content.height).toBeCloseTo(bounds.height, 0);
+            expect(
+                await page.evaluate(() =>
+                    Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
+                ),
+            ).toBeLessThanOrEqual(height);
+            expect(
+                await page.evaluate(() =>
+                    Math.max(document.body.scrollWidth, document.documentElement.scrollWidth),
+                ),
+            ).toBeLessThanOrEqual(width);
+        }
+        await table.click();
+        await expect
+            .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("mobile_tab"))))
+            .toBe(1);
+        await page.setViewportSize({ width: 1280, height });
+        await page.setViewportSize({ width, height });
+        await expect(table).toHaveAttribute("aria-pressed", "true");
+    });
+}
+
+test.describe("configured radio and rotator", () => {
+    for (const [width, height] of [
+        [390, 844],
+        [500, 900],
+    ]) {
+        test(`mobile task bar preserves station state at ${width}px`, async ({ page }) => {
+            await page.setViewportSize({ width, height });
+            await page.routeWebSocket("**/radio", () => {});
+            await page.routeWebSocket("**/ws", websocket => {
+                websocket.onMessage(message => {
+                    const request = JSON.parse(message);
+                    if (request.type !== "spots" || request.action !== "initial") return;
+                    websocket.send(
+                        JSON.stringify({
+                            type: "radio",
+                            event: "status",
+                            status: "connected",
+                            freq: 14074000,
+                            mode: "USB",
+                            catserver_version: "catserver-v2.0.0",
+                        }),
+                    );
+                    websocket.send(
+                        JSON.stringify({
+                            type: "rotator",
+                            event: "status",
+                            status: "connected",
+                            name: "Test rotator",
+                            azimuth: 125,
+                        }),
+                    );
+                    websocket.send(JSON.stringify({ type: "spots", event: "initial", spots: [] }));
+                });
+            });
+            await page.goto("/");
+            const top = page.locator('[data-tour="top-bar"]');
+            await expect(top.getByText("14.074 MHz", { exact: true })).toBeVisible();
+            await expect(top.getByRole("img", { name: "Rotator connected" })).toBeVisible();
+            await top.getByRole("button", { name: "Disable rotator tuning" }).click();
+            await expect(top.getByRole("button", { name: "Enable rotator tuning" })).toBeVisible();
+            await expect(top.locator('[data-tour="top-bar-network-state"]')).toBeVisible();
+            await expect(top.getByRole("combobox", { name: "Spot window" })).toBeVisible();
+            await expect(top.locator('[data-tour="top-bar-submit-spot"]')).toBeVisible();
+            await expect(top.locator('[data-tour="top-bar-settings"]')).toBeVisible();
+            await expect(top.locator('[data-tour="top-bar-logo"]')).toHaveCount(0);
+            expect((await top.boundingBox()).height).toBeLessThanOrEqual(110);
+            expect(
+                await page.evaluate(() =>
+                    Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+                ),
+            ).toBeLessThanOrEqual(width);
+            expect(
+                await page.evaluate(() =>
+                    Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+                ),
+            ).toBeLessThanOrEqual(height);
         });
     }
 });
