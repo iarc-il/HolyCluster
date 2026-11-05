@@ -83,7 +83,7 @@ class ClientVersionMetricsTest(unittest.TestCase):
 
     def test_legacy_and_broadcast_eviction(self):
         labels = {"ui_version": "v3.0.0", "catserver_version": "none"}
-        for endpoint in ("/ws", "/submit_spot", "/spots_ws"):
+        for endpoint in ("/ws", "/spots_ws"):
             before = value(self.client, REPORTS, **labels)
             with self.client.websocket_connect(endpoint) as socket:
                 if endpoint == "/spots_ws":

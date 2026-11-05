@@ -217,54 +217,53 @@ class WebSocketProtocolTest(unittest.TestCase):
             self.assertEqual(len(app.state.active_ws_spot_connections), 1)
 
     def test_subscription_acknowledges_before_blocked_query(self):
-        for path in ("/ws", "/submit_spot"):
-            for action in ("initial", "catch_up"):
-                release_query = threading.Event()
-                query_started = threading.Event()
-                query_finished = threading.Event()
+        for action in ("initial", "catch_up"):
+            release_query = threading.Event()
+            query_started = threading.Event()
+            query_finished = threading.Event()
 
-                async def query(*_args):
-                    self.assertEqual(len(app.state.active_ws_spot_connections), 1)
-                    query_started.set()
-                    await asyncio.to_thread(release_query.wait, 5)
-                    query_finished.set()
-                    await broadcast_spots(app, [{"dx_callsign": "LIVE", "time": 10000}])
-                    return []
+            async def query(*_args):
+                self.assertEqual(len(app.state.active_ws_spot_connections), 1)
+                query_started.set()
+                await asyncio.to_thread(release_query.wait, 5)
+                query_finished.set()
+                await broadcast_spots(app, [{"dx_callsign": "LIVE", "time": 10000}])
+                return []
 
-                with (
-                    patch("api.main.get_initial_spots", new=query),
-                    patch("api.main.get_spots_after", new=query),
-                    self.client.websocket_connect(path) as websocket,
-                ):
-                    websocket.send_json(
-                        {
-                            "version": 1,
-                            "type": "spots",
-                            "action": action,
-                            "last_time": 123,
-                            "subscription_id": "epoch-1",
-                        }
-                    )
-                    acknowledgement = websocket.receive_json()
-                    self.assertEqual(
-                        acknowledgement,
-                        {
-                            "version": 1,
-                            "type": "spots",
-                            "event": "subscribed",
-                            "subscription_id": "epoch-1",
-                            "subscription_ack": True,
-                        },
-                    )
-                    self.assertTrue(query_started.wait(2))
-                    self.assertFalse(query_finished.is_set())
-                    release_query.set()
-                    self.assertEqual(websocket.receive_json()["spots"][0]["dx_callsign"], "LIVE")
-                    response = websocket.receive_json()
-                    self.assertEqual(response["spots"], [])
-                    self.assertNotIn("subscription_id", response)
-                    self.assertNotIn("subscription_ack", response)
-                    self.assertEqual(response["event"], "initial" if action == "initial" else "update")
+            with (
+                patch("api.main.get_initial_spots", new=query),
+                patch("api.main.get_spots_after", new=query),
+                self.client.websocket_connect("/ws") as websocket,
+            ):
+                websocket.send_json(
+                    {
+                        "version": 1,
+                        "type": "spots",
+                        "action": action,
+                        "last_time": 123,
+                        "subscription_id": "epoch-1",
+                    }
+                )
+                acknowledgement = websocket.receive_json()
+                self.assertEqual(
+                    acknowledgement,
+                    {
+                        "version": 1,
+                        "type": "spots",
+                        "event": "subscribed",
+                        "subscription_id": "epoch-1",
+                        "subscription_ack": True,
+                    },
+                )
+                self.assertTrue(query_started.wait(2))
+                self.assertFalse(query_finished.is_set())
+                release_query.set()
+                self.assertEqual(websocket.receive_json()["spots"][0]["dx_callsign"], "LIVE")
+                response = websocket.receive_json()
+                self.assertEqual(response["spots"], [])
+                self.assertNotIn("subscription_id", response)
+                self.assertNotIn("subscription_ack", response)
+                self.assertEqual(response["event"], "initial" if action == "initial" else "update")
 
     def test_ws_rejects_spots_catch_up_without_last_time(self):
         with self.client.websocket_connect("/ws") as websocket:
@@ -534,42 +533,10 @@ class WebSocketProtocolTest(unittest.TestCase):
             },
         )
 
-    def test_legacy_submit_socket_routes_missing_jobs(self):
-        app.state.valkey_client = AsyncMock()
-        with self.client.websocket_connect("/submit_spot") as websocket:
-            websocket.send_json({"version": 1, "type": "missing", "action": "start", "job_id": "job-1"})
-            websocket.send_json(
-                {
-                    "version": 1,
-                    "type": "missing",
-                    "action": "add",
-                    "job_id": "job-1",
-                    "callsigns": [],
-                }
-            )
-            websocket.send_json({"version": 1, "type": "missing", "action": "finish", "job_id": "job-1"})
-
-            self.assertEqual(
-                websocket.receive_json(),
-                {
-                    "version": 1,
-                    "type": "missing",
-                    "event": "accepted",
-                    "job_id": "job-1",
-                    "total": 0,
-                },
-            )
-            self.assertEqual(
-                websocket.receive_json(),
-                {
-                    "version": 1,
-                    "type": "missing",
-                    "event": "complete",
-                    "job_id": "job-1",
-                    "completed": 0,
-                    "total": 0,
-                },
-            )
+    def test_legacy_websocket_routes_are_removed(self):
+        paths = {route.path for route in app.routes}
+        self.assertNotIn("/submit_spot", paths)
+        self.assertNotIn("/radio", paths)
 
     def test_ws_missing_requires_job_id(self):
         with self.client.websocket_connect("/ws") as websocket:

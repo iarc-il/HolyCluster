@@ -8,7 +8,6 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from warnings import deprecated
 
 import asyncpg
 import fastapi
@@ -793,17 +792,6 @@ async def get_dxpeditions():
     return json.loads(dxpeditions_json)
 
 
-@app.websocket("/radio")
-async def radio(websocket: fastapi.WebSocket):
-    """Dummy websockets endpoint to indicate to the client that radio connection is not available."""
-    try:
-        await websocket.accept()
-        await send_ws_json(websocket, get_websocket_send_lock(websocket), {"status": "unavailable"})
-        await websocket.close()
-    except websockets.WebSocketDisconnect:
-        pass
-
-
 async def dispatch_ws_message(websocket, send_lock, missing_jobs, message):
     error = validate_ws_protocol_message(message)
     if error is not None:
@@ -847,46 +835,6 @@ async def dispatch_ws_message(websocket, send_lock, missing_jobs, message):
             received_type=message.get("type"),
         ),
     )
-
-
-@app.websocket("/submit_spot")
-@deprecated("CAT <=1.2 compatibility; remove when the minimum supported CAT version exceeds 1.2", category=None)
-async def submit_spot_one_spot(websocket: fastapi.WebSocket):
-    await websocket.accept()
-    missing_jobs = {}
-    send_lock = get_websocket_send_lock(websocket)
-
-    try:
-        while True:
-            try:
-                raw_message = await websocket.receive_text()
-            except websockets.WebSocketDisconnect:
-                break
-
-            try:
-                message = json.loads(raw_message)
-            except json.JSONDecodeError:
-                await send_ws_json(
-                    websocket,
-                    send_lock,
-                    build_ws_error(WsErrorType.MALFORMED_MESSAGE, "WebSocket message must be valid JSON"),
-                )
-                continue
-
-            if isinstance(message, dict) and "version" in message:
-                await dispatch_ws_message(websocket, send_lock, missing_jobs, message)
-                continue
-
-            metrics.FEATURES.labels("submit_spot").inc()
-            response = await submit_spot.handle_spot(message)
-            await send_ws_json(websocket, send_lock, response)
-    except websockets.WebSocketDisconnect:
-        pass
-    finally:
-        mark_websocket_closed(websocket)
-        app.state.active_ws_spot_connections.discard(websocket)
-        app.state.websocket_send_locks.pop(websocket, None)
-        await cancel_missing_jobs(missing_jobs)
 
 
 @app.websocket("/ws")

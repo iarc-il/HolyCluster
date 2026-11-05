@@ -51,14 +51,12 @@ class MetricsTest(unittest.TestCase):
         self.assertIn('method="other"', text)
 
     def test_websocket_lifecycle_and_bounded_types(self):
-        for endpoint in ("/ws", "/submit_spot", "/spots_ws", "/radio"):
+        for endpoint in ("/ws", "/spots_ws"):
             baseline = value(self.client, "holycluster_api_websocket_active", endpoint=endpoint)
             total = value(self.client, "holycluster_api_websocket_connections_total", endpoint=endpoint)
             with patch("api.main.get_initial_spots", new=AsyncMock(return_value=[])):
                 with self.client.websocket_connect(endpoint) as websocket:
-                    if endpoint == "/radio":
-                        websocket.receive_json()
-                    elif endpoint == "/spots_ws":
+                    if endpoint == "/spots_ws":
                         websocket.send_json({"initial": True})
                         websocket.receive_json()
                     else:
@@ -113,7 +111,7 @@ class MetricsTest(unittest.TestCase):
         )
 
     def test_broadcast_eviction_closes_connection_once(self):
-        for endpoint in ("/ws", "/submit_spot", "/spots_ws"):
+        for endpoint in ("/ws", "/spots_ws"):
             baseline = value(self.client, "holycluster_api_websocket_active", endpoint=endpoint)
             disconnected = value(self.client, "holycluster_api_websocket_disconnects_total", endpoint=endpoint)
             failures = value(self.client, "holycluster_api_spot_broadcast_send_failures_total")
