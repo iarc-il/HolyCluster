@@ -1,4 +1,9 @@
-import { TOUR_CLOSE_LEFT_PANEL_EVENT, TOUR_CLOSE_SIDE_PANEL_EVENT } from "./tour_events.js";
+import { flushSync } from "react-dom";
+import {
+    TOUR_CLOSE_LEFT_PANEL_EVENT,
+    TOUR_CLOSE_SIDE_PANEL_EVENT,
+    TOUR_OPEN_FILTERS_EVENT,
+} from "./tour_events.js";
 
 export const TOUR_COMPLETED_CHAPTERS_KEY = "tour_completed_chapters";
 export const DEFAULT_TOUR_CHAPTER_ID = "quick_start";
@@ -8,6 +13,11 @@ const close_drawers = () => {
     document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
     document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
     return new Promise(resolve => requestAnimationFrame(resolve));
+};
+const open_filters = async () => {
+    // Joyride calls this hook in an effect; commit the drawer before it measures the target.
+    await Promise.resolve();
+    flushSync(() => document.dispatchEvent(new Event(TOUR_OPEN_FILTERS_EVENT)));
 };
 const scroll_target_to_center = selector => () => {
     close_drawers();
@@ -71,12 +81,12 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "quick_start_band_and_mode_filters",
+                before: open_filters,
                 target: "[data-tour='left-column']",
                 title: "Band And Mode Filters",
                 content:
                     "Use the one-click band and mode filters to keep only the spots relevant to your station.",
                 hideOverlay: true,
-                optional: true,
                 placement: "auto",
                 mobileWidth: 280,
             },
@@ -512,6 +522,7 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "filters_quick_filters",
+                before: open_filters,
                 target: "[data-tour='left-column']",
                 title: "Quick Filters",
                 content:
@@ -561,6 +572,7 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "filters_mode_filters",
+                before: open_filters,
                 target: "[data-tour='mode-filter-SSB']",
                 title: "Mode Filters",
                 content: "Click SSB to toggle that mode in the table and map.",
@@ -582,6 +594,7 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "filters_open_side_panel",
+                before: close_drawers,
                 target: "[data-tour='top-bar-right-menu']",
                 title: "Open The Side Panel",
                 content: "Click Tools to open the advanced filters.",

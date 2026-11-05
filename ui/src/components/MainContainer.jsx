@@ -10,6 +10,7 @@ import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
     TOUR_CLOSE_LEFT_PANEL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
+    TOUR_OPEN_FILTERS_EVENT,
 } from "@/components/tour/tour_events.js";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
@@ -312,9 +313,15 @@ function MainContent({
             if (open_panel === "tools") close_panel();
         }
 
+        function open_filters_for_tour() {
+            set_open_panel("filters");
+        }
+
+        document.addEventListener(TOUR_OPEN_FILTERS_EVENT, open_filters_for_tour);
         document.addEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
         document.addEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
         return () => {
+            document.removeEventListener(TOUR_OPEN_FILTERS_EVENT, open_filters_for_tour);
             document.removeEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
             document.removeEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
         };
