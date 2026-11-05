@@ -3,7 +3,7 @@
   "title": "HolyCluster / External spot coverage",
   "description": "Directional spot coverage against external services, eligible finalized outcomes, feed health, and bounded mismatch examples.",
   "schemaVersion": 41,
-  "version": 6,
+  "version": 7,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -117,9 +117,9 @@
     },
     {
       "id": 2,
-      "title": "Feed health and comparison eligibility by service",
+      "title": "Feed health by service",
       "type": "state-timeline",
-      "description": "Feed up is not sufficient for eligibility. Gray ineligible intervals are excluded from coverage. Gaps mean missing telemetry, not healthy or eligible.",
+      "description": "Gaps mean missing telemetry, not a healthy feed.",
       "gridPos": {
         "x": 0,
         "y": 5,
@@ -134,19 +134,7 @@
         {
           "refId": "A",
           "expr": "max by (service) (holycluster_coverage_feed_up{service=~\"${service:regex}\"})",
-          "legendFormat": "{{service}} / feed up",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        },
-        {
-          "refId": "B",
-          "expr": "min by (service) (holycluster_coverage_comparison_eligible{service=~\"${service:regex}\"})",
-          "legendFormat": "{{service}} / eligible",
+          "legendFormat": "{{service}}",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -169,11 +157,11 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "Unknown / ineligible",
-                  "color": "gray"
+                  "text": "Down",
+                  "color": "red"
                 },
                 "1": {
-                  "text": "Eligible",
+                  "text": "Up",
                   "color": "green"
                 }
               }
@@ -190,34 +178,7 @@
             }
           ]
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* / feed up"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "Down",
-                        "color": "red"
-                      },
-                      "1": {
-                        "text": "Up",
-                        "color": "green"
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "showValue": "never",
