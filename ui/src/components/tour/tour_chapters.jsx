@@ -66,6 +66,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='left-column']",
                 buttons: action_buttons,
                 placement: "bottom",
+                mobilePlacement: "top",
                 showWhenAlreadySatisfied: true,
             },
             {
@@ -83,15 +84,12 @@ export const TOUR_CHAPTERS = {
                 id: "quick_start_map_and_table_tabs",
                 before: close_drawers,
                 target: "[data-tour='mobile-main-tabs']",
-                title: "Map And Table Tabs",
-                content:
-                    "On narrow screens, use Map to find activity and Table to inspect it, then choose a spot and act on it.",
+                title: "Map And Table",
+                content: "Use the bottom navigation to switch between Map and Table.",
                 hideOverlay: true,
                 mobileOnly: true,
                 optional: true,
-                // The tabs sit directly below the fixed top bar; centering keeps Joyride from
-                // flipping the tooltip above the viewport and leaves the tabs clickable.
-                placement: "center",
+                placement: "top",
             },
             {
                 id: "quick_start_find_activity",
@@ -508,6 +506,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='left-column']",
                 buttons: action_buttons,
                 placement: "bottom",
+                mobilePlacement: "top",
                 showWhenAlreadySatisfied: true,
                 skipBeacon: true,
             },
@@ -590,6 +589,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='side-panel']",
                 buttons: action_buttons,
                 placement: "bottom",
+                mobilePlacement: "top",
             },
             {
                 id: "filters_filters_tab",
@@ -743,6 +743,7 @@ export const TOUR_CHAPTERS = {
                 waitFor: "[data-tour='side-panel']",
                 buttons: action_buttons,
                 placement: "bottom",
+                mobilePlacement: "top",
                 skipBeacon: true,
             },
             {

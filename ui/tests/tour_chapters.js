@@ -99,9 +99,7 @@ describe("tour chapters", () => {
         expect(step_for("[data-tour='top-bar-time-limit']")?.content).toContain("Start by");
         expect(step_for("[data-tour='top-bar-submit-spot']")?.content).toContain("sharing");
         expect(step_for("[data-tour='left-column']")?.content).toContain("relevant");
-        expect(step_for("[data-tour='mobile-main-tabs']")?.content).toContain(
-            "choose a spot and act on it",
-        );
+        expect(step_for("[data-tour='mobile-main-tabs']")?.content).toContain("bottom navigation");
         expect(step_for("[data-tour='map-panel']")?.content).toContain("geographic clusters");
         expect(step_for("[data-tour='table-panel']")?.content).toContain("inspect");
         expect(step_for("[data-tour='table-panel']")?.content).toContain("act on it");
@@ -447,11 +445,11 @@ describe("tour chapters", () => {
 
     it("highlights the mobile map and table tabs in quick start", () => {
         const tabs_step = TOUR_CHAPTERS.quick_start.steps.find(
-            step => step.title === "Map And Table Tabs",
+            step => step.id === "quick_start_map_and_table_tabs",
         );
 
         expect(tabs_step?.target).toBe("[data-tour='mobile-main-tabs']");
-        expect(tabs_step?.placement).toBe("center");
+        expect(tabs_step?.placement).toBe("top");
         expect(tabs_step?.mobileHideOverlay).not.toBe(true);
     });
 
