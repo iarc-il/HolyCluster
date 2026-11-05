@@ -1,4 +1,5 @@
 import {
+    TOUR_CLOSE_LEFT_PANEL_EVENT,
     TOUR_CLOSE_MAP_CONTROLS_EVENT,
     TOUR_CLOSE_MODAL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
@@ -139,6 +140,10 @@ export function get_backward_step_side_effect(chapter_id, steps, from_index, nex
         as_array(next_step?.waitFor).includes(map_controls_panel_selector)
     ) {
         return { event: TOUR_CLOSE_MAP_CONTROLS_EVENT, wait_needs_reset: true };
+    }
+
+    if (as_array(next_step?.waitFor).includes("[data-tour='left-column']")) {
+        return { event: TOUR_CLOSE_LEFT_PANEL_EVENT, wait_needs_reset: true };
     }
 
     if (as_array(next_step?.waitFor).includes(side_panel_selector)) {

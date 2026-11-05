@@ -91,7 +91,8 @@ test.describe("Quick Start Back navigation", () => {
             await expect_tour_step(page, band_filters.id, tour_target(band_filters.target));
             await back_tour_step(page);
             await expect_tour_step(page, open_filter_rail.id, tour_target(open_filter_rail.target));
-            await next_tour_step(page);
+            await expect(page.locator(tour_target("left-column"))).toBeHidden();
+            await page.getByRole("button", { name: "Open Filters", exact: true }).click();
             await expect_tour_step(page, band_filters.id, tour_target(band_filters.target));
             await next_tour_step(page);
             await expect_tour_step(page, mobile_tabs.id, tour_target(mobile_tabs.target));
