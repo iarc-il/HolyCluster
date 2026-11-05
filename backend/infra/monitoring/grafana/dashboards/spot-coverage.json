@@ -3,7 +3,7 @@
   "title": "HolyCluster / External spot coverage",
   "description": "Directional spot coverage against external services, eligible finalized outcomes, feed health, and bounded mismatch examples.",
   "schemaVersion": 41,
-  "version": 1,
+  "version": 2,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -233,7 +233,7 @@
     {
       "id": 3,
       "title": "Feed freshness \u2014 age since last observation",
-      "type": "timeseries",
+      "type": "stat",
       "description": "Seconds since last successful feed operation and last received spot. A quiet feed can be healthy. Zero or absent timestamps are unknown.",
       "gridPos": {
         "x": 16,
@@ -254,8 +254,8 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "instant": false,
-          "range": true,
+          "instant": true,
+          "range": false,
           "format": "time_series"
         },
         {
@@ -266,8 +266,8 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "instant": false,
-          "range": true,
+          "instant": true,
+          "range": false,
           "format": "time_series"
         }
       ],
@@ -290,34 +290,22 @@
                 }
               }
             }
-          ],
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 0,
-            "spanNulls": false,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisCenteredZero": false
-          }
+          ]
         },
         "overrides": []
       },
       "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
+        "reduceOptions": {
+          "values": false,
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "fields": ""
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "none",
+        "displayMode": "basic"
       }
     },
     {
