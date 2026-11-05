@@ -72,3 +72,78 @@ test("mobile Layout settings apply all Map and Table choices without overflow", 
         await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
     }
 });
+
+async function apply_layout(page, layout) {
+    await page.locator(tour_target("top-bar-settings")).click();
+    const dialog = page.locator(tour_target("settings-modal"));
+    await dialog.getByRole("button", { name: "Layout", exact: true }).click();
+    await dialog.locator(tour_target(`settings-layout-${layout}`)).click();
+    await dialog.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(dialog).toBeHidden();
+}
+
+async function expect_workspace(page, selected, order) {
+    const nav = page.getByRole("navigation", { name: "Workspace" });
+    await expect(nav.getByRole("button")).toHaveText([...order, "Filters", "Tools"]);
+    await expect(nav.getByRole("button", { name: selected, exact: true })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+    );
+    await expect(
+        page.locator(tour_target(selected === "Map" ? "map-controls" : "spots-table")),
+    ).toBeVisible();
+}
+
+test("mobile Table selection survives layout reorder", async ({ page }) => {
+    await page.goto("/");
+    await apply_layout(page, "map_table");
+    await page
+        .getByRole("navigation", { name: "Workspace" })
+        .getByRole("button", {
+            name: "Table",
+            exact: true,
+        })
+        .click();
+    await apply_layout(page, "table_map");
+    await expect_workspace(page, "Table", ["Table", "Map"]);
+    await apply_layout(page, "map_table");
+    await expect_workspace(page, "Table", ["Map", "Table"]);
+});
+
+for (const [preferred, temporary, single_layout] of [
+    ["Table", "Map", "map"],
+    ["Map", "Table", "table"],
+]) {
+    test(`mobile ${preferred} preference survives ${temporary} only layout`, async ({ page }) => {
+        await page.goto("/");
+        await apply_layout(page, "map_table");
+        await page
+            .getByRole("navigation", { name: "Workspace" })
+            .getByRole("button", {
+                name: preferred,
+                exact: true,
+            })
+            .click();
+        await apply_layout(page, single_layout);
+        await expect_workspace(page, temporary, [temporary]);
+        expect(await page.evaluate(() => JSON.parse(localStorage.getItem("mobile_panel")))).toBe(
+            preferred.toLowerCase(),
+        );
+        await apply_layout(page, "map_table");
+        await expect_workspace(page, preferred, ["Map", "Table"]);
+    });
+}
+
+test("desktop layout changes do not write a mobile preference", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+    await page.evaluate(() => localStorage.setItem("mobile_tab", "1"));
+    for (const layout of ["table_map", "map", "table", "map_table"]) {
+        await apply_layout(page, layout);
+        expect(await page.evaluate(() => localStorage.getItem("mobile_panel"))).toBeNull();
+        expect(await page.evaluate(() => localStorage.getItem("mobile_tab"))).toBe("1");
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect_workspace(page, "Map", ["Map", "Table"]);
+    expect(await page.evaluate(() => localStorage.getItem("mobile_panel"))).toBeNull();
+});

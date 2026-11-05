@@ -265,8 +265,8 @@ for (const [width, height] of [
         }
         await table.click();
         await expect
-            .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("mobile_tab"))))
-            .toBe(1);
+            .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("mobile_panel"))))
+            .toBe("table");
         await page.setViewportSize({ width: 1280, height });
         await page.setViewportSize({ width, height });
         await expect(table).toHaveAttribute("aria-pressed", "true");

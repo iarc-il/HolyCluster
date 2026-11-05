@@ -431,14 +431,11 @@ function MainContent({
         map,
         table,
     };
-    const [mobile_tab, set_mobile_tab] = useLocalStorage("mobile_tab", 0);
-    const mobile_index = Number.isInteger(Number(mobile_tab))
-        ? Math.max(0, Math.min(Number(mobile_tab), active_panel_keys.length - 1))
-        : 0;
-    const mobile_panel = active_panel_keys[mobile_index];
-    useEffect(() => {
-        if (mobile_tab !== mobile_index) set_mobile_tab(mobile_index);
-    }, [mobile_tab, mobile_index, set_mobile_tab]);
+    // Use a new key because legacy mobile_tab indices depend on the old layout order.
+    const [preferred_mobile_panel, set_preferred_mobile_panel] = useLocalStorage("mobile_panel");
+    const mobile_panel = active_panel_keys.includes(preferred_mobile_panel)
+        ? preferred_mobile_panel
+        : active_panel_keys[0];
 
     return (
         <div className="flex flex-col h-full" data-tour="app-shell">
@@ -533,7 +530,7 @@ function MainContent({
                     active_panel={mobile_panel}
                     on_select={panel => {
                         if (open_panel) close_panel();
-                        set_mobile_tab(active_panel_keys.indexOf(panel));
+                        set_preferred_mobile_panel(panel);
                     }}
                     open_panel={open_panel}
                     toggle_panel={toggle_panel}
