@@ -97,8 +97,8 @@ test.describe("Quick Start on reduced desktop", () => {
             "quick_start_open_filter_rail",
             tour_target("top-bar-left-menu"),
         );
+        await page.locator(tour_target("top-bar-left-menu")).locator("button").click();
         await expect(page.locator(tour_target("left-column"))).toBeVisible();
-        await next_tour_step(page);
         await expect_tour_step(
             page,
             "quick_start_band_and_mode_filters",

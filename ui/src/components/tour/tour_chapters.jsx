@@ -1,13 +1,16 @@
-import { TOUR_CLOSE_LEFT_PANEL_EVENT } from "./tour_events.js";
+import { TOUR_CLOSE_LEFT_PANEL_EVENT, TOUR_CLOSE_SIDE_PANEL_EVENT } from "./tour_events.js";
 
 export const TOUR_COMPLETED_CHAPTERS_KEY = "tour_completed_chapters";
 export const DEFAULT_TOUR_CHAPTER_ID = "quick_start";
 
 const action_buttons = ["back", "close"];
+const close_drawers = () => {
+    document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
+    document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
+    return new Promise(resolve => requestAnimationFrame(resolve));
+};
 const scroll_target_to_center = selector => () => {
-    if (window.innerWidth <= 768) {
-        document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
-    }
+    close_drawers();
 
     return new Promise(resolve => {
         requestAnimationFrame(() => {
@@ -78,6 +81,7 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "quick_start_map_and_table_tabs",
+                before: close_drawers,
                 target: "[data-tour='mobile-main-tabs']",
                 title: "Map And Table Tabs",
                 content:
@@ -91,6 +95,7 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "quick_start_find_activity",
+                before: close_drawers,
                 target: "[data-tour='map-panel']",
                 title: "Find Activity",
                 content:
@@ -102,6 +107,7 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "quick_start_inspect_a_spot",
+                before: close_drawers,
                 target: "[data-tour='table-panel']",
                 title: "Inspect A Spot",
                 content:
@@ -497,7 +503,7 @@ export const TOUR_CHAPTERS = {
                 id: "filters_open_filter_rail",
                 target: "[data-tour='top-bar-left-menu']",
                 title: "Open The Filter Rail",
-                content: "Click this menu button if the band and mode filter rail is hidden.",
+                content: "Click Filters to open the band and mode filter rail.",
                 optional: true,
                 waitFor: "[data-tour='left-column']",
                 buttons: action_buttons,
@@ -579,7 +585,7 @@ export const TOUR_CHAPTERS = {
                 id: "filters_open_side_panel",
                 target: "[data-tour='top-bar-right-menu']",
                 title: "Open The Side Panel",
-                content: "Click this menu button if the advanced filter panel is hidden.",
+                content: "Click Tools to open the advanced filters.",
                 optional: true,
                 waitFor: "[data-tour='side-panel']",
                 buttons: action_buttons,
@@ -732,7 +738,7 @@ export const TOUR_CHAPTERS = {
                 id: "side_panel_open_side_panel",
                 target: "[data-tour='top-bar-right-menu']",
                 title: "Open The Side Panel",
-                content: "Click this menu button if the side panel is hidden.",
+                content: "Click Tools to open the side panel.",
                 optional: true,
                 waitFor: "[data-tour='side-panel']",
                 buttons: action_buttons,
@@ -840,6 +846,8 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "side_panel_heatmap_region",
+                mobilePlacement: "bottom",
+                mobileWidth: 280,
                 target: "[data-tour='heatmap-continent-selector']",
                 title: "Heatmap Region",
                 content: "Change the selected continent to focus the heatmap.",
