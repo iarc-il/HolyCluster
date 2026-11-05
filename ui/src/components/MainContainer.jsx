@@ -1,5 +1,6 @@
 import LeftColumn from "@/components/LeftColumn.jsx";
 import MapControls from "@/components/MapControls.jsx";
+import MobileWorkspaceNavigation from "@/components/MobileWorkspaceNavigation.jsx";
 import SidePanel from "@/components/SidePanel.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
 import TopBar from "@/components/TopBar.jsx";
@@ -10,7 +11,6 @@ import {
     TOUR_CLOSE_LEFT_PANEL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
 } from "@/components/tour/tour_events.js";
-import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import use_radio from "@/hooks/useRadio";
@@ -431,26 +431,14 @@ function MainContent({
         map,
         table,
     };
-    const mobile_tab_by_panel = {
-        map: {
-            label: "Map",
-            content: map,
-            data_tour: "mobile-main-tab-map",
-            icon: MAP_TAB_ICON,
-            viewbox: "0 0 16 16",
-            size: "16",
-        },
-        table: {
-            label: "Table",
-            content: table,
-            data_tour: "mobile-main-tab-table",
-            icon: TABLE_TAB_ICON,
-            viewbox: "0 0 16 16",
-            size: "16",
-        },
-    };
-    const mobile_tabs = active_panel_keys.map(panel_key => mobile_tab_by_panel[panel_key]);
-    const mobile_tabs_key = `${main_view_mode}-${main_view_order}`;
+    const [mobile_tab, set_mobile_tab] = useLocalStorage("mobile_tab", 0);
+    const mobile_index = Number.isInteger(Number(mobile_tab))
+        ? Math.max(0, Math.min(Number(mobile_tab), active_panel_keys.length - 1))
+        : 0;
+    const mobile_panel = active_panel_keys[mobile_index];
+    useEffect(() => {
+        if (mobile_tab !== mobile_index) set_mobile_tab(mobile_index);
+    }, [mobile_tab, mobile_index, set_mobile_tab]);
 
     return (
         <div className="flex flex-col h-full" data-tour="app-shell">
@@ -466,6 +454,7 @@ function MainContent({
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
                 is_compact={!is_full_cockpit}
+                is_mobile={is_md_device}
                 open_panel={open_panel}
                 toggle_panel={toggle_panel}
                 dev_mode={dev_mode}
@@ -495,12 +484,9 @@ function MainContent({
                         inert={!is_full_cockpit && open_panel ? "" : undefined}
                     >
                         {is_md_device ? (
-                            <Tabs
-                                key={mobile_tabs_key}
-                                local_storage_name={mobile_tabs.length > 1 ? "mobile_tab" : null}
-                                tabs={mobile_tabs}
-                                data_tour="mobile-main-tabs"
-                            />
+                            <div className="flex-1 min-w-0 h-full" data-tour="mobile-workspace">
+                                {main_panel_content[mobile_panel]}
+                            </div>
                         ) : (
                             <div className="flex flex-1 min-w-0 h-full">
                                 {active_panel_keys.map(panel_key => (
@@ -541,6 +527,20 @@ function MainContent({
                     </Suspense>
                 )}
             </div>
+            {is_md_device && (
+                <MobileWorkspaceNavigation
+                    panel_keys={active_panel_keys}
+                    active_panel={mobile_panel}
+                    on_select={panel => {
+                        if (open_panel) close_panel();
+                        set_mobile_tab(active_panel_keys.indexOf(panel));
+                    }}
+                    open_panel={open_panel}
+                    toggle_panel={toggle_panel}
+                    map_icon={MAP_TAB_ICON}
+                    table_icon={TABLE_TAB_ICON}
+                />
+            )}
         </div>
     );
 }

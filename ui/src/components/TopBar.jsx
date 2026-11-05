@@ -65,7 +65,7 @@ function PanelControl({ panel, label, open_panel, toggle_panel }) {
     );
 }
 
-function TopBar({
+function DesktopTopBar({
     set_map_controls,
     set_radius_in_km,
     is_compact,
@@ -98,7 +98,7 @@ function TopBar({
 
     return (
         <div
-            className="flex flex-row z-[60] justify-between items-center h-[4rem] border-b-2"
+            className="flex flex-row shrink-0 z-[60] justify-between items-center h-[4rem] border-b-2"
             data-tour="top-bar"
             style={{
                 backgroundColor: colors.theme.background,
@@ -257,4 +257,102 @@ function TopBar({
     );
 }
 
-export default TopBar;
+function MobileTaskBar({ set_map_controls, set_radius_in_km, dev_mode, can_undo_cat, undo_cat }) {
+    const { colors } = useColors();
+    const { filters, setFilters } = useFilters();
+    const { network_state } = useSpotData();
+    const { radio_status, radio_freq } = use_radio();
+    const {
+        rotator_status,
+        rotator_name,
+        rotator_heading,
+        rotator_target_azimuth,
+        rotator_tuning_enabled,
+        toggle_rotator_tuning,
+    } = useRotator();
+    return (
+        <header
+            data-tour="top-bar"
+            className="flex flex-col shrink-0 z-[60] border-b px-2 py-1 gap-1"
+            style={{
+                backgroundColor: colors.theme.background,
+                borderColor: colors.theme.borders,
+                color: colors.theme.text,
+            }}
+        >
+            <div className="flex items-center justify-between gap-2 min-w-0">
+                <div data-tour="top-bar-network-state" className="shrink-0" title={network_state}>
+                    {network_state === "connecting" ? (
+                        <Spinner size="24" color="lightblue" />
+                    ) : (
+                        <NetworkState
+                            size="24"
+                            color={network_state === "connected" ? "#00EE00" : "#EE0000"}
+                            title={network_state}
+                        />
+                    )}
+                </div>
+                <Select
+                    data-tour="top-bar-time-limit"
+                    aria-label="Spot window"
+                    className="flex-1 min-w-0"
+                    value={filters.time_limit}
+                    onChange={event =>
+                        setFilters(state => ({ ...state, time_limit: event.target.value }))
+                    }
+                >
+                    {Object.entries(spots_time_limits).map(([label, value]) => (
+                        <option key={value} value={value}>
+                            {label}
+                        </option>
+                    ))}
+                </Select>
+                <SubmitSpot dev_mode={dev_mode} />
+                <Settings set_map_controls={set_map_controls} set_radius_in_km={set_radius_in_km} />
+            </div>
+            {(radio_status !== "unavailable" ||
+                (colors.rotator[rotator_status] && rotator_name !== "unconfigured")) && (
+                <div className="flex items-center gap-2 min-w-0 text-xs">
+                    {radio_status !== "unavailable" && (
+                        <div
+                            data-tour="top-bar-radio-frequency"
+                            className="flex-1 min-w-0 flex flex-wrap gap-x-2 items-center"
+                        >
+                            <span>Radio {radio_status}</span>
+                            {radio_status === "connected" && (
+                                <strong className="tabular-nums">
+                                    {radio_freq
+                                        ? `${Number((radio_freq / 1_000_000).toFixed(6))} MHz`
+                                        : "Frequency unknown"}
+                                </strong>
+                            )}
+                        </div>
+                    )}
+                    {radio_status !== "unavailable" && can_undo_cat && (
+                        <Button
+                            color="utility"
+                            className="min-h-11 min-w-11 p-1"
+                            aria-label="Undo CAT change"
+                            data-tour="top-bar-cat-undo"
+                            on_click={undo_cat}
+                        >
+                            ↶
+                        </Button>
+                    )}
+                    <RotatorState
+                        status={rotator_status}
+                        name={rotator_name}
+                        azimuth={rotator_heading}
+                        moving={rotator_target_azimuth != null}
+                        tuning_enabled={rotator_tuning_enabled}
+                        on_click={toggle_rotator_tuning}
+                    />
+                </div>
+            )}
+        </header>
+    );
+}
+
+export default function TopBar(props) {
+    return props.is_mobile ? <MobileTaskBar {...props} /> : <DesktopTopBar {...props} />;
+}
