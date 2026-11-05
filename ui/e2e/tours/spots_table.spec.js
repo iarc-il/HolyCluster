@@ -110,6 +110,19 @@ async function complete_context_menu_steps(page, { mobile = false } = {}) {
 }
 
 test.describe("Spots Table tour", () => {
+    test("does not pin a spot when tuning its frequency", async ({ page }) => {
+        await page.setViewportSize({ width: 1800, height: 1000 });
+        await page.goto("/");
+
+        const row = page.locator(tour_target("spot-row"));
+        await expect(row).toBeVisible();
+        await expect(row).toHaveAttribute("data-tour-state", "unpinned");
+
+        await page.locator(tour_target("spot-row-frequency")).click();
+
+        await expect(row).toHaveAttribute("data-tour-state", "unpinned");
+    });
+
     test("completes every applicable desktop step", async ({ page }) => {
         await page.setViewportSize({ width: 1800, height: 1000 });
         await page.goto("/");

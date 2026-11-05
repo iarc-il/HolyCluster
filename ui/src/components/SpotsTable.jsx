@@ -598,7 +598,10 @@ const Spot = forwardRef(function Spot(
                     boxShadow: active_style.frequency_style,
                     fontWeight: is_same_freq ? 600 : undefined,
                 }}
-                onClick={() => set_cat_to_spot(spot)}
+                onClick={event => {
+                    event.stopPropagation();
+                    set_cat_to_spot(spot);
+                }}
             >
                 <div className="w-full md:hidden">
                     <FitText
