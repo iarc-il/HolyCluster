@@ -300,7 +300,7 @@ describe("tour chapters", () => {
             ["filters", "Filter Type", "[data-tour='filter-modal-type-prefix']"],
             ["filters", "DX Or Spotter", "[data-tour='filter-modal-spot-role-dx']"],
             ["filters", "Add A Filter", "[data-tour='modal-apply-button']"],
-            ["side_panel", "Panel Tabs", "[data-tour='side-panel-tabs']"],
+            ["side_panel", "Tools Tabs", "[data-tour='side-panel-tabs']"],
             ["side_panel", "Filters View", "[data-tour='side-panel-tab-filters']"],
             ["side_panel", "Band Bar View", "[data-tour='side-panel-tab-band-bar']"],
             ["side_panel", "Band Selector", "[data-tour='band-bar-selector']"],
@@ -346,8 +346,8 @@ describe("tour chapters", () => {
 
     it("keeps interactive mobile placements target-clickable", () => {
         const interactive_mobile_targets = [
-            ["map", "[data-tour='mobile-main-tab-map']", "bottom"],
-            ["spots_table", "[data-tour='mobile-main-tab-table']", "bottom"],
+            ["map", "[data-tour='mobile-main-tab-map']", "top"],
+            ["spots_table", "[data-tour='mobile-main-tab-table']", "top"],
             ["spots_table", "[data-tour='table-header-dx_callsign']", "auto"],
             ["spots_table", "[data-tour='spot-row']", "auto"],
             ["spots_table", "[data-tour='spot-row-dx-callsign']", "auto"],
@@ -459,7 +459,7 @@ describe("tour chapters", () => {
         );
 
         expect(step?.target).toBe("[data-tour='mobile-main-tab-table']");
-        expect(step?.placement).toBe("bottom");
+        expect(step?.placement).toBe("top");
         expect(step?.mobileHideOverlay).not.toBe(true);
     });
 
@@ -467,7 +467,7 @@ describe("tour chapters", () => {
         const step = TOUR_CHAPTERS.map.steps.find(candidate => candidate.title === "Show The Map");
 
         expect(step?.target).toBe("[data-tour='mobile-main-tab-map']");
-        expect(step?.placement).toBe("bottom");
+        expect(step?.placement).toBe("top");
         expect(step?.mobileHideOverlay).not.toBe(true);
     });
 
