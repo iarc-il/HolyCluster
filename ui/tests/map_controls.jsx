@@ -128,7 +128,11 @@ describe("MapControls GPS", () => {
 
         const playback_button = screen.getByRole("button", { name: "Enter playback mode" });
         expect(playback_button).toBeTruthy();
-        expect(playback_button.querySelector("svg")?.getAttribute("viewBox")).toBe("-1 -1 18 18");
+        const playback_icon = playback_button.querySelector("svg");
+        expect(playback_icon?.getAttribute("viewBox")).toBe("-1 -1 18 18");
+        expect(playback_icon?.querySelector("path:last-child")?.getAttribute("d")).toBe(
+            "M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z",
+        );
 
         rerender(
             <MapControls
