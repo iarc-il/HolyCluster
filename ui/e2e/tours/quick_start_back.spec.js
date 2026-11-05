@@ -96,12 +96,17 @@ test.describe("Quick Start Back navigation", () => {
             await next_tour_step(page);
             await expect_tour_step(page, mobile_tabs.id, tour_target(mobile_tabs.target));
             await expect(page.locator(tour_target("left-column"))).toBeHidden();
+            await page.locator(tour_target("mobile-main-tab-table")).click();
             await back_tour_step(page);
-            await expect_tour_step(page, open_filter_rail.id, tour_target(open_filter_rail.target));
-            await page.locator(tour_target("top-bar-left-menu")).locator("button").click();
             await expect_tour_step(page, band_filters.id, tour_target(band_filters.target));
+            await expect(page.locator(tour_target("left-column"))).toBeVisible();
             await next_tour_step(page);
             await expect_tour_step(page, mobile_tabs.id, tour_target(mobile_tabs.target));
+            await expect(page.locator(tour_target("left-column"))).toBeHidden();
+            await expect(page.locator(tour_target("mobile-main-tab-table"))).toHaveAttribute(
+                "aria-pressed",
+                "true",
+            );
 
             await finish_tour(page);
         });

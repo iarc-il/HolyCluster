@@ -332,3 +332,28 @@ test.describe("configured radio and rotator", () => {
         });
     }
 });
+
+for (const width of [767, 768, 1535, 1536]) {
+    test(`uses one navigation model at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto("/");
+        const top = page.locator('[data-tour="top-bar"]');
+        const nav = page.getByRole("navigation", { name: "Workspace" });
+        if (width < 768) {
+            await expect(nav).toBeVisible();
+            await expect(nav.getByRole("button")).toHaveText(["Map", "Table", "Filters", "Tools"]);
+            await expect(top.locator('[data-tour="top-bar-left-menu"]')).toHaveCount(0);
+            await expect(top.locator('[data-tour="top-bar-right-menu"]')).toHaveCount(0);
+        } else {
+            await expect(nav).toHaveCount(0);
+            for (const name of ["map", "table"]) {
+                await expect(page.locator(`[data-tour="${name}-panel"]`)).toBeVisible();
+            }
+            await expect(
+                top.getByRole("button", { name: /^(Open|Close) (Filters|Tools)$/ }),
+            ).toHaveCount(width < 1536 ? 2 : 0);
+        }
+        await expect(top.locator('[data-tour^="mobile-main-tab"]')).toHaveCount(0);
+        await expect(page.getByRole("button", { name: /hamburger|menu/i })).toHaveCount(0);
+    });
+}

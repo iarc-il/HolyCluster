@@ -97,14 +97,14 @@ test.describe("Side Panel tour", () => {
     test("completes every applicable desktop step", async ({ page }) => {
         await page.setViewportSize({ width: 1800, height: 1000 });
         await page.goto("/");
-        await start_tour(page, "Side Panel");
+        await start_tour(page, "Tools");
         await complete_side_panel(page);
     });
 
     test("completes every applicable mobile step", async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.goto("/");
-        await start_tour(page, "Side Panel");
+        await start_tour(page, "Tools");
         await complete_side_panel(page, { mobile: true });
     });
 
@@ -112,7 +112,7 @@ test.describe("Side Panel tour", () => {
         await page.setViewportSize({ width: 1280, height: 900 });
         await page.goto("/");
         await expect(page.locator(tour_target("side-panel"))).toBeHidden();
-        await start_tour(page, "Side Panel");
+        await start_tour(page, "Tools");
 
         await open_side_panel(page);
         await expect_tour_step(page, "side_panel_overview", tour_target("side-panel"));
@@ -160,7 +160,6 @@ test.describe("Side Panel tour", () => {
             "active",
         );
         await back_tour_step(page);
-        await page.waitForTimeout(300);
         await expect(page.locator(tour_target("side-panel-view-filters"))).toBeVisible();
         await expect_tour_step(
             page,
@@ -179,6 +178,59 @@ test.describe("Side Panel tour", () => {
         );
         await page.locator(tour_target("side-panel-tab-band-bar")).click();
         await expect_tour_step(page, "side_panel_band_activity", tour_target("band-bar-panel"));
+        for (const transition of [
+            {
+                next: "heatmap",
+                previous: "band-bar",
+                count: 3,
+                target: "band-bar-chart",
+                step: "side_panel_activity_chart",
+            },
+            {
+                next: "dxpeditions",
+                previous: "heatmap",
+                count: 2,
+                target: "heatmap-continent-selector",
+                step: "side_panel_heatmap_region",
+            },
+            {
+                next: "missing",
+                previous: "dxpeditions",
+                count: 4,
+                target: "dxpeditions-sort",
+                step: "side_panel_dxpedition_sorting",
+            },
+        ]) {
+            for (let index = 0; index < transition.count; index += 1) {
+                await next_tour_step(page);
+            }
+            const tab = page.locator(tour_target(`side-panel-tab-${transition.next}`));
+            await tab.click();
+            await expect_tour_step(
+                page,
+                `side_panel_${transition.next}`,
+                tour_target(`${transition.next}-panel`),
+            );
+            await back_tour_step(page);
+            await expect_tour_step(
+                page,
+                `side_panel_${transition.next}_tab`,
+                tour_target(`side-panel-tab-${transition.next}`),
+            );
+            await expect(tab).toHaveAttribute("data-tour-state", "active");
+            await back_tour_step(page);
+            await expect_tour_step(page, transition.step, tour_target(transition.target));
+            await expect(
+                page.locator(tour_target(`side-panel-tab-${transition.previous}`)),
+            ).toHaveAttribute("data-tour-state", "active");
+            await next_tour_step(page);
+            await tab.click();
+            await expect_tour_step(
+                page,
+                `side_panel_${transition.next}`,
+                tour_target(`${transition.next}-panel`),
+            );
+        }
         await page.locator(".react-joyride__tooltip [data-testid='button-close']").click();
         await expect(page.locator(".react-joyride__tooltip")).toBeHidden();
     });

@@ -264,3 +264,33 @@ async function drag_filter_to_show_only(page) {
 
     await expect(target).toHaveAttribute("data-tour-state", "1");
 }
+
+for (const width of [767, 768, 1535]) {
+    test(`restores Filters across the Tools boundary at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto("/");
+        await start_tour(page, "Filters");
+        await page.locator(tour_target("top-bar-left-menu")).locator("button").click();
+        await expect_tour_step(page, "filters_quick_filters", tour_target("left-column"));
+        await next_tour_step(page);
+        await open_band_options(page);
+        await expect_state_change(page.locator(tour_target("mode-filter-SSB")), () =>
+            page.locator(tour_target("mode-filter-SSB")).click(),
+        );
+        await expect_tour_step(page, "filters_open_side_panel", tour_target("top-bar-right-menu"));
+        await expect(page.locator(tour_target("left-column"))).toBeHidden();
+        await page.locator(tour_target("top-bar-right-menu")).locator("button").click();
+        await expect_tour_step(page, "filters_filters_tab", tour_target("side-panel-tab-filters"));
+        await back_tour_step(page);
+        await expect_tour_step(page, "filters_open_side_panel", tour_target("top-bar-right-menu"));
+        await expect(page.locator(tour_target("side-panel"))).toBeHidden();
+        await back_tour_step(page);
+        await expect_tour_step(page, "filters_mode_filters", tour_target("mode-filter-SSB"));
+        await expect(page.locator(tour_target("left-column"))).toBeVisible();
+        await expect_state_change(page.locator(tour_target("mode-filter-SSB")), () =>
+            page.locator(tour_target("mode-filter-SSB")).click(),
+        );
+        await expect_tour_step(page, "filters_open_side_panel", tour_target("top-bar-right-menu"));
+        await expect(page.locator(tour_target("left-column"))).toBeHidden();
+    });
+}
