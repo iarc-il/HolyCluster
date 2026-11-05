@@ -1,10 +1,13 @@
 import json
+import math
+import re
 from dataclasses import dataclass
 from typing import Protocol
 
 SERVICES = ("dxsummit", "dxheat", "dxwatch", "dxdata", "hamqth")
 SOURCES = ("holy", *SERVICES)
 IDENTITY_FIELDS = ("time", "dx_callsign", "frequency", "spotter_callsign")
+MATCH_FIELDS = ("dx_callsign", "frequency", "spotter_callsign")
 
 
 def validate_source(source: str) -> None:
@@ -18,7 +21,13 @@ def identity(spot: dict) -> str:
     for field in IDENTITY_FIELDS:
         if not isinstance(spot.get(field), (str, int, float)) or isinstance(spot[field], bool):
             raise ValueError(f"Invalid identity field: {field}")
-    return ":".join(str(spot[field]) for field in IDENTITY_FIELDS)
+    dx = str(spot["dx_callsign"]).strip().upper()
+    spotter = re.sub(r"-\d+$", "", str(spot["spotter_callsign"]).strip().upper())
+    frequency = float(spot["frequency"])
+    if not dx or not spotter or not math.isfinite(frequency) or frequency <= 0:
+        raise ValueError("Invalid normalized identity")
+    values = {"dx_callsign": dx, "frequency": frequency, "spotter_callsign": spotter}
+    return ":".join(str(values[field]) for field in MATCH_FIELDS)
 
 
 def encode_spot(spot: dict, max_bytes: int) -> str:

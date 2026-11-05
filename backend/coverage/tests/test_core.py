@@ -64,6 +64,14 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(self.count("dxsummit", "matched"), 1)
                 self.assertEqual(self.count("dxsummit", "holy_only"), 0)
 
+    async def test_source_time_difference_matches_within_observation_window(self):
+        await self.matcher.observe("holy", SPOT, 60)
+        await self.matcher.observe("dxsummit", {**SPOT, "time": "1201Z"}, 61)
+        await self.matcher.finalize(120)
+        self.assertEqual(self.count("dxsummit", "matched"), 1)
+        self.assertEqual(self.count("dxsummit", "holy_only"), 0)
+        self.assertEqual(self.count("dxsummit", "service_only"), 0)
+
     async def test_exact_boundary_and_new_window(self):
         await self.matcher.observe("holy", SPOT, 60)
         await self.matcher.finalize(119.999)
@@ -148,7 +156,7 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
     async def test_state_is_bounded(self):
         matcher = Matcher(self.redis, self.metrics, self.sink, max_windows=1)
         await matcher.observe("holy", SPOT, 60)
-        await matcher.observe("holy", {**SPOT, "time": "1201"}, 61)
+        await matcher.observe("holy", {**SPOT, "dx_callsign": "4X2AA"}, 61)
         self.assertEqual(await self.redis.hlen("coverage:windows"), 1)
         self.assertEqual(await self.redis.zcard("coverage:deadlines"), 1)
         await matcher.finalize(120)

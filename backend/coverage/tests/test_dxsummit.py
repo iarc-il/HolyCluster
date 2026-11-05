@@ -67,9 +67,21 @@ class DXSummitTests(unittest.IsolatedAsyncioTestCase):
                 "observed_at": datetime(2026, 11, 3, 22, 33, 1, tzinfo=timezone.utc).timestamp(),
             },
         )
-        self.assertEqual(identity(spot), "2233Z:BD3CT:21074.0:AD1C")
+        self.assertEqual(identity(spot), "BD3CT:21074.0:AD1C")
         _, other = DXSummitAdapter._normalize(record(2, comment="changed"))
         self.assertEqual(identity(spot), identity(other))
+        self.assertEqual(
+            identity(
+                {
+                    **spot,
+                    "time": "2234Z",
+                    "dx_callsign": "bd3ct",
+                    "frequency": "21074.00",
+                    "spotter_callsign": "ad1c-12",
+                }
+            ),
+            identity(spot),
+        )
         _, other = DXSummitAdapter._normalize(record(2, de_call="ad1c-A", comment=None))
         self.assertEqual(other["spotter_callsign"], "AD1C-A")
         self.assertEqual(other["comment"], "")
