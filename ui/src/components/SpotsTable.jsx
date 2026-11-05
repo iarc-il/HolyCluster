@@ -51,6 +51,38 @@ const MISSING_ALERT_FLASH_CSS_VAR_NAMES = [
 ];
 const tour_table_header_height = 32;
 const tour_table_row_height = 28;
+const radio_frequency_accent = "#3b82f6";
+
+export function get_active_spot_table_style({
+    is_previewed,
+    is_pinned,
+    is_radio_match,
+    normal_background,
+    normal_text,
+    band,
+    light_band,
+    band_text,
+}) {
+    let background_color = normal_background;
+    let text_color = normal_text;
+    let edge_style;
+
+    if (is_pinned) {
+        background_color = light_band;
+        text_color = band_text;
+        edge_style = `inset 4px 0 0 ${band}`;
+    } else if (is_previewed) {
+        background_color = `color-mix(in srgb, ${normal_background} 88%, ${light_band})`;
+        edge_style = `inset 2px 0 0 ${band}`;
+    }
+
+    return {
+        background_color,
+        text_color,
+        edge_style,
+        frequency_style: is_radio_match ? `inset 0 -2px 0 ${radio_frequency_accent}` : undefined,
+    };
+}
 
 export function get_tour_row_index(spots_count, table_height) {
     if (spots_count <= 0) return -1;
@@ -328,7 +360,7 @@ const Spot = forwardRef(function Spot(
     const formatted_time = to_string(new Date(spot.time * 1000)).slice(13, 18);
     const is_same_freq = current_freq_spots.includes(spot.id);
     const is_pinned = spot.id === pinned_spot;
-    const is_hovered = spot.id === hovered_spot.id || is_pinned || is_same_freq;
+    const is_previewed = spot.id === hovered_spot.id;
 
     const { colors, dev_mode } = useColors();
     let row_classes;
@@ -355,15 +387,23 @@ const Spot = forwardRef(function Spot(
         normal_text_color = colors.table.odd_text;
     }
 
-    if (is_hovered) {
-        background_color = colors.light_bands[spot.band];
-        text_color = colors.text[spot.band];
-    } else if (is_new_spot && !is_fading) {
+    const active_style = get_active_spot_table_style({
+        is_previewed,
+        is_pinned,
+        is_radio_match: is_same_freq,
+        normal_background: normal_bg_color,
+        normal_text: normal_text_color,
+        band: color,
+        light_band: colors.light_bands[spot.band],
+        band_text: colors.text[spot.band],
+    });
+
+    if (!is_pinned && !is_previewed && is_new_spot && !is_fading) {
         background_color = colors.light_bands[spot.band];
         text_color = colors.text[spot.band];
     } else {
-        background_color = normal_bg_color;
-        text_color = normal_text_color;
+        background_color = active_style.background_color;
+        text_color = active_style.text_color;
     }
 
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
@@ -437,7 +477,7 @@ const Spot = forwardRef(function Spot(
             onMouseEnter={() => set_hovered_spot({ source: "table", id: spot.id })}
             onClick={() => set_pinned_spot(spot.id)}
         >
-            <td className={cell_classes.time}>
+            <td className={cell_classes.time} style={{ boxShadow: active_style.edge_style }}>
                 {is_pinned ? (
                     <div className="m-auto w-fit">
                         <X
@@ -554,6 +594,10 @@ const Spot = forwardRef(function Spot(
             <td
                 className={cell_classes.freq}
                 data-tour={is_tour_row ? "spot-row-frequency" : undefined}
+                style={{
+                    boxShadow: active_style.frequency_style,
+                    fontWeight: is_same_freq ? 600 : undefined,
+                }}
                 onClick={() => set_cat_to_spot(spot)}
             >
                 <div className="w-full md:hidden">
