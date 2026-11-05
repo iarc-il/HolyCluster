@@ -3,7 +3,7 @@
   "title": "HolyCluster / External spot coverage",
   "description": "Directional spot coverage against external services, eligible finalized outcomes, feed health, and bounded mismatch examples.",
   "schemaVersion": 41,
-  "version": 3,
+  "version": 4,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -1765,84 +1765,6 @@
           "refId": "A",
           "expr": "holycluster_coverage_finalization_lag_seconds",
           "legendFormat": "Finalization lag",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "min": 0,
-          "noValue": "Unknown",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            }
-          ],
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 0,
-            "spanNulls": false,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisCenteredZero": false
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 19,
-      "title": "Identity window \u2014 expected 60 seconds",
-      "type": "timeseries",
-      "description": "Global configuration gauge; the service filter does not apply. Expected value is 60 seconds.",
-      "gridPos": {
-        "x": 16,
-        "y": 64,
-        "w": 8,
-        "h": 7
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "holycluster_coverage_identity_window_seconds",
-          "legendFormat": "Identity window",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
