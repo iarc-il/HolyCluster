@@ -25,6 +25,87 @@ export const empty_filter_data = {
     missing_section: "dxcc",
 };
 
+const ACTION_LABELS = {
+    alert: "alert",
+    show_only: "show only",
+    hide: "hide",
+};
+
+const FILTER_TYPE_GROUPS = [
+    {
+        label: "Callsign",
+        states: [
+            { label: "Prefix", value: "prefix" },
+            { label: "Suffix", value: "suffix" },
+            { label: "Entity", value: "entity" },
+        ],
+    },
+    {
+        label: "Location",
+        states: [
+            { label: "State/Province", value: "zone_region" },
+            { label: "Zone", value: "zone" },
+        ],
+    },
+    {
+        label: "Other",
+        states: [
+            { label: "Comment", value: "comment" },
+            { label: "LoTW", value: "lotw" },
+            { label: "Missing", value: "missing" },
+            { label: "Self Spotters", value: "self_spotters" },
+            { label: "DXpeditions", value: "dxpeditions" },
+        ],
+    },
+];
+
+function is_filter_complete(filter_data) {
+    if (filter_data.type === "zone" || filter_data.type === "zone_region") {
+        return is_valid_zone_number(filter_data.zone_system, filter_data.value);
+    }
+
+    if (["self_spotters", "dxpeditions", "lotw", "missing"].includes(filter_data.type)) {
+        return true;
+    }
+
+    return filter_data.value.toString().trim().length > 0;
+}
+
+function select_filter_type(current_data, field, value) {
+    if (value === "entity" || current_data.type === "entity" || value === "zone_region") {
+        return {
+            ...current_data,
+            [field]: value,
+            value: value === "zone_region" ? "AL" : "",
+            zone_system: value === "zone_region" ? "us_state" : current_data.zone_system,
+            spotter_or_dx: "dx",
+        };
+    }
+    if (value === "zone") {
+        return {
+            ...current_data,
+            [field]: value,
+            value: "1",
+            zone_system: current_data.zone_system || "cq",
+            spotter_or_dx: "dx",
+        };
+    }
+    if (value === "missing") {
+        return {
+            ...current_data,
+            [field]: value,
+            missing_section: current_data.missing_section || "dxcc",
+            value: "",
+            spotter_or_dx: "dx",
+        };
+    }
+    return {
+        ...current_data,
+        [field]: value,
+        value: "",
+    };
+}
+
 function RadioButton({ children, disabled, on_click, data_tour = null }) {
     let classes = [
         "flex",
@@ -35,7 +116,6 @@ function RadioButton({ children, disabled, on_click, data_tour = null }) {
         "px-2",
         "h-8",
         "rounded-md",
-        "mr-2",
         "text-white",
         "font-bold",
         "cursor-pointer",
@@ -72,7 +152,7 @@ function SelectionLine({
         };
     }
     return (
-        <div className="flex flex-wrap justify-start items-center gap-y-2">
+        <div className="flex flex-wrap justify-start items-center gap-2">
             {states.map(state => {
                 return (
                     <label key={state.value}>
@@ -145,22 +225,11 @@ function FilterModal({
     return (
         <Modal
             title={
-                <>
-                    <h1 className="text-2xl">Filter:</h1>
-                    <div className="px-4">
-                        <SelectionLine
-                            states={[
-                                { label: "Alert", value: "alert" },
-                                { label: "Show Only", value: "show_only" },
-                                { label: "Hide", value: "hide" },
-                            ]}
-                            field="action"
-                            temp_data={temp_data}
-                            set_temp_data={set_temp_data}
-                            data_tour_prefix="filter-modal-action"
-                        />
-                    </div>
-                </>
+                <h1 className="pr-8 text-xl font-semibold">
+                    {exclude_filter_index == null
+                        ? `Add ${ACTION_LABELS[temp_data.action]} filter`
+                        : "Edit filter"}
+                </h1>
             }
             button={button}
             data_tour={
@@ -169,6 +238,8 @@ function FilterModal({
             }
             dialog_data_tour={dialog_data_tour}
             external_open={external_open}
+            backdrop={true}
+            apply_disabled={!is_filter_complete(temp_data)}
             on_open={() => {
                 set_error_message("");
                 if (initial_data != null) {
@@ -249,76 +320,49 @@ function FilterModal({
                 set_temp_data(empty_filter_data);
             }}
         >
-            <div className="space-y-2 p-2 pb-4 w-96" data-tour="filter-modal-content">
-                <SelectionLine
-                    states={[
-                        { label: "Prefix", value: "prefix" },
-                        { label: "Suffix", value: "suffix" },
-                        { label: "Entity", value: "entity" },
-                        { label: "US/Canada", value: "zone_region" },
-                        { label: "Zone", value: "zone" },
-                        { label: "Comment", value: "comment" },
-                        { label: "LoTW", value: "lotw" },
-                        { label: "Missing", value: "missing" },
-                        { label: "Self Spotters", value: "self_spotters" },
-                        { label: "DXpeditions", value: "dxpeditions" },
-                    ]}
-                    field="type"
-                    temp_data={temp_data}
-                    set_temp_data={set_temp_data}
-                    data_tour_prefix="filter-modal-type"
-                    build_temp_data={(temp_data, field, value) => {
-                        if (value === "lotw") {
-                            return {
-                                ...temp_data,
-                                [field]: value,
-                                value: "",
-                                spotter_or_dx: "dx",
-                            };
-                        }
-                        if (
-                            value === "entity" ||
-                            temp_data.type === "entity" ||
-                            value === "zone_region"
-                        ) {
-                            return {
-                                ...temp_data,
-                                [field]: value,
-                                value: value === "zone_region" ? "AL" : "",
-                                zone_system:
-                                    value === "zone_region" ? "us_state" : temp_data.zone_system,
-                                spotter_or_dx: "dx",
-                            };
-                        }
-                        if (value === "zone") {
-                            return {
-                                ...temp_data,
-                                [field]: value,
-                                value: "1",
-                                zone_system: temp_data.zone_system || "cq",
-                                spotter_or_dx: "dx",
-                            };
-                        }
-                        if (value === "missing") {
-                            return {
-                                ...temp_data,
-                                [field]: value,
-                                missing_section: temp_data.missing_section || "dxcc",
-                                value: "",
-                                spotter_or_dx: "dx",
-                            };
-                        }
-                        return {
-                            ...temp_data,
-                            [field]: value,
-                            value: "",
-                        };
-                    }}
-                />
+            <div
+                className="w-[min(24rem,calc(100vw-2rem))] space-y-4 box-border p-4"
+                data-tour="filter-modal-content"
+            >
+                <section className="space-y-2">
+                    <div className="text-sm font-semibold">Filter type</div>
+                    <SelectionLine
+                        states={[
+                            { label: "Alert", value: "alert" },
+                            { label: "Show Only", value: "show_only" },
+                            { label: "Hide", value: "hide" },
+                        ]}
+                        field="action"
+                        temp_data={temp_data}
+                        set_temp_data={set_temp_data}
+                        data_tour_prefix="filter-modal-action"
+                    />
+                </section>
+
+                <section className="space-y-3 border-t pt-3">
+                    <div className="text-sm font-semibold">Match</div>
+                    {FILTER_TYPE_GROUPS.map(group => (
+                        <div key={group.label} className="space-y-1.5">
+                            <div className="text-xs font-semibold uppercase tracking-wide opacity-70">
+                                {group.label}
+                            </div>
+                            <SelectionLine
+                                states={group.states}
+                                field="type"
+                                temp_data={temp_data}
+                                set_temp_data={set_temp_data}
+                                data_tour_prefix="filter-modal-type"
+                                build_temp_data={select_filter_type}
+                            />
+                        </div>
+                    ))}
+                </section>
 
                 {temp_data.type === "zone" ? (
-                    <>
-                        <hr />
+                    <section className="space-y-2 border-t pt-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide opacity-70">
+                            Zone system
+                        </div>
                         <SelectionLine
                             states={[
                                 { label: "CQ", value: "cq" },
@@ -342,8 +386,8 @@ function FilterModal({
                                 };
                             }}
                         />
-                        <div className="flex justify-start space-x-5 items-center w-full">
-                            <div>zone:</div>
+                        <div className="flex w-full items-center gap-4">
+                            <div className="shrink-0">Zone</div>
                             <div>
                                 <Select
                                     value={selected_zone_value}
@@ -365,10 +409,12 @@ function FilterModal({
                                 </Select>
                             </div>
                         </div>
-                    </>
+                    </section>
                 ) : temp_data.type === "zone_region" ? (
-                    <>
-                        <hr />
+                    <section className="space-y-2 border-t pt-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide opacity-70">
+                            Country
+                        </div>
                         <SelectionLine
                             states={[
                                 { label: "US", value: "us_state" },
@@ -391,8 +437,8 @@ function FilterModal({
                                 };
                             }}
                         />
-                        <div className="flex justify-start space-x-5 items-center w-full">
-                            <div>state/province:</div>
+                        <div className="flex w-full items-center gap-4">
+                            <div className="shrink-0">State or province</div>
                             <div>
                                 <Select
                                     value={temp_data.value}
@@ -424,10 +470,12 @@ function FilterModal({
                                 </Select>
                             </div>
                         </div>
-                    </>
+                    </section>
                 ) : temp_data.type === "missing" ? (
-                    <>
-                        <hr />
+                    <section className="space-y-2 border-t pt-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide opacity-70">
+                            Needed in
+                        </div>
                         <SelectionLine
                             states={MISSING_SECTION_KEYS.map(section => ({
                                 label: MISSING_SECTION_LABELS[section],
@@ -438,13 +486,15 @@ function FilterModal({
                             set_temp_data={set_temp_data}
                             data_tour_prefix="filter-modal-missing-section"
                         />
-                    </>
+                    </section>
                 ) : temp_data.type !== "self_spotters" &&
                   temp_data.type !== "dxpeditions" &&
                   temp_data.type !== "lotw" &&
                   temp_data.type !== "comment" ? (
-                    <>
-                        <hr />
+                    <section className="space-y-2 border-t pt-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide opacity-70">
+                            Target
+                        </div>
                         <SelectionLine
                             states={[
                                 { label: "DX", value: "dx" },
@@ -455,13 +505,13 @@ function FilterModal({
                             set_temp_data={set_temp_data}
                             data_tour_prefix="filter-modal-spot-role"
                         />
-                        <div className="flex justify-start space-x-5 items-center w-96">
-                            <div>{temp_data.type}:</div>
-                            <div>
+                        <div className="flex w-full items-center gap-4">
+                            <div className="shrink-0 capitalize">{temp_data.type}</div>
+                            <div className="min-w-0 flex-1">
                                 {temp_data.type === "entity" ? (
                                     <div data-tour="filter-modal-entity-value">
                                         <SearchSelect
-                                            className="h-10 w-20"
+                                            className="h-10 w-full"
                                             filterOption={(option, text) =>
                                                 option.label
                                                     .toLowerCase()
@@ -483,13 +533,13 @@ function FilterModal({
                                                     backgroundColor: colors.theme.input_background,
                                                     borderColor: colors.theme.borders,
                                                     color: colors.theme.text,
-                                                    width: "16rem",
+                                                    width: "100%",
                                                 }),
                                                 menu: (base_style, state) => ({
                                                     ...base_style,
                                                     backgroundColor: colors.theme.input_background,
                                                     borderColor: colors.theme.borders,
-                                                    width: "16rem",
+                                                    width: "100%",
                                                 }),
                                                 option: (base_style, { isFocused }) => ({
                                                     ...base_style,
@@ -528,12 +578,11 @@ function FilterModal({
                                 )}
                             </div>
                         </div>
-                    </>
+                    </section>
                 ) : temp_data.type === "comment" ? (
-                    <>
-                        <hr />
-                        <div className="flex justify-start space-x-5 items-center w-full">
-                            <div>text:</div>
+                    <section className="border-t pt-3">
+                        <div className="flex w-full items-center gap-4">
+                            <div className="shrink-0">Comment contains</div>
                             <div>
                                 <Input
                                     value={temp_data.value}
@@ -550,7 +599,7 @@ function FilterModal({
                                 />
                             </div>
                         </div>
-                    </>
+                    </section>
                 ) : (
                     ""
                 )}
