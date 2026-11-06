@@ -1,3 +1,5 @@
+import { useMediaQuery } from "@uidotdev/usehooks";
+
 const layout_options = [
     {
         value: "map",
@@ -62,7 +64,7 @@ function MiniTable({ colors }) {
     );
 }
 
-function PreviewPanel({ panel, colors, border }) {
+function PreviewPanel({ panel, colors, border, mobile }) {
     const is_map = panel === "map";
     const border_class = border ? "border" : "";
 
@@ -75,12 +77,14 @@ function PreviewPanel({ panel, colors, border }) {
             }}
         >
             {is_map ? <MiniMap colors={colors} /> : <MiniTable colors={colors} />}
-            <span className="text-xs font-semibold">{is_map ? "Map" : "Table"}</span>
+            <span className="text-xs font-semibold">
+                {is_map ? "Map" : mobile ? "Spots" : "Table"}
+            </span>
         </div>
     );
 }
 
-function OptionCard({ option, selected, colors, on_select }) {
+function OptionCard({ option, selected, colors, on_select, mobile }) {
     return (
         <button
             type="button"
@@ -103,17 +107,21 @@ function OptionCard({ option, selected, colors, on_select }) {
                     <PreviewPanel
                         key={panel}
                         panel={panel}
+                        mobile={mobile}
                         colors={colors}
                         border={option.panels.length > 1}
                     />
                 ))}
             </div>
-            <div className="font-semibold">{option.title}</div>
+            <div className="font-semibold">
+                {mobile ? option.title.replaceAll("Table", "Spots") : option.title}
+            </div>
         </button>
     );
 }
 
 function Layout({ temp_settings, set_temp_settings, colors }) {
+    const mobile = useMediaQuery("(max-width: 767px)");
     const main_view_mode = temp_settings.main_view_mode ?? "both";
     const main_view_order = temp_settings.main_view_order ?? "map_table";
     const selected_layout =
@@ -145,6 +153,7 @@ function Layout({ temp_settings, set_temp_settings, colors }) {
                         <OptionCard
                             key={option.value}
                             option={option}
+                            mobile={mobile}
                             selected={selected_layout === option.value}
                             colors={colors}
                             on_select={() => select_layout(option)}
