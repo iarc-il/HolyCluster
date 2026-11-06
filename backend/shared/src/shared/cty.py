@@ -290,25 +290,5 @@ def _validate_cty_content(content: bytes) -> None:
     raise ValueError("downloaded CTY file contains no CTY records")
 
 
-def _validate_cty_response(response: httpx.Response) -> None:
-    content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-    if content_type in {"text/html", "application/xhtml+xml"}:
-        raise ValueError(f"downloaded CTY file is HTML ({content_type})")
-    _validate_cty_content(response.content)
-
-
 def _validate_cty_cache(cache_path: Path) -> None:
     _validate_cty_content(cache_path.read_bytes())
-
-
-async def _get_cty_file(
-    url: str,
-    headers: dict[str, str],
-    timeout: float,
-    http_client: httpx.AsyncClient | None,
-) -> httpx.Response:
-    if http_client is not None:
-        return await http_client.get(url, headers=headers, timeout=timeout, follow_redirects=True)
-
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        return await client.get(url, headers=headers, follow_redirects=True)
